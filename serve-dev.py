@@ -57,5 +57,5 @@ server_address = (
 )
 
 with HTTPServer(server_address, Handler) as httpd:
-    print(f"Serving at http://localhost:{PORT}")
+    print(f"Serving at http://localhost:{PORT}/debugger-frontend/rn_inspector.html")
     httpd.serve_forever()
