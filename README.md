@@ -20,17 +20,23 @@ This repository is a fork of [ChromeDevTools/devtools-frontend](https://github.c
 ### Build and run
 
 ```sh
+# Build continuously with a file watcher
+npm run watch
+
+# Build with the default config once
 npm run build
-# or npm run build-release
+
+# Build with the release config once
+npm run build-release
 ```
 
 This can then be served from a static web server to test locally:
 
 ```sh
-./serve-dev.py 8000
+./serve-local.py 8000
 ```
 
-The frontend will be available at `http://localhost:8000/debugger-frontend/inspector.html` (or `http://localhost:8000/debugger-frontend/rn_inspector.html` for the RN-specific entry point).
+The React Native frontend will be available at `http://localhost:8000/debugger-frontend/rn_inspector.html`.
 
 ## Contributing
 
