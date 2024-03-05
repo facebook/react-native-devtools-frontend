@@ -76,7 +76,8 @@ with HTTPServer(server_address, Handler) as httpd:
     print(f"Serving at http://localhost:{PORT}/debugger-frontend/rn_inspector.html")
     print(f"Serving files from {output_dir}")
     if REDIRECT_BASE_URL is not None:
+        redirected_static_url = urljoin(REDIRECT_BASE_URL, "debugger-frontend/static/")
         print(
-            f"Redirecting /debugger-frontend/static/* requests to {REDIRECT_BASE_URL}"
+            f"Redirecting /debugger-frontend/static/ requests to {redirected_static_url}"
         )
     httpd.serve_forever()
