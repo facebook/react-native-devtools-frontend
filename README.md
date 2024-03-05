@@ -20,14 +20,8 @@ This repository is a fork of [ChromeDevTools/devtools-frontend](https://github.c
 ### Build and run
 
 ```sh
-# Build continuously with a file watcher
-npm run watch
-
-# Build with the default config once
 npm run build
-
-# Build with the release config once
-npm run build-release
+# or npm run build-release
 ```
 
 This can then be served from a static web server to test locally:
