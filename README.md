@@ -33,7 +33,7 @@ npm run build-release
 This can then be served from a static web server to test locally:
 
 ```sh
-./serve-local.py 8000
+python3 -m http.server 8000 --directory out/Default/gen/front_end
 ```
 
 The React Native frontend will be available at `http://localhost:8000/debugger-frontend/rn_inspector.html`.
