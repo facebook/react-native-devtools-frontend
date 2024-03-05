@@ -27,10 +27,10 @@ npm run build
 This can then be served from a static web server to test locally:
 
 ```sh
-python3 -m http.server 8000 --directory out/Default/gen/front_end
+./serve-dev.py 8000
 ```
 
-The frontend will be available at `http://localhost:8000/inspector.html` (or `http://localhost:8000/rn_inspector.html` for the RN-specific entry point).
+The frontend will be available at `http://localhost:8000/debugger-frontend/inspector.html` (or `http://localhost:8000/debugger-frontend/rn_inspector.html` for the RN-specific entry point).
 
 ## Contributing
 
