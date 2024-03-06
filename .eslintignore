@@ -10,6 +10,7 @@ front_end/javascript_metadata/DOMPinnedProperties.ts
 
 // All of the scripts in this folder are auto-generated so don't lint them.
 front_end/generated/
+front_end/core/react_native/generated/
 
 // Any third_party addition has its source code checked out into
 // third_party/X/package, so we ignore that code as it's not code we author or
