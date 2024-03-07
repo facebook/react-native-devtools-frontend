@@ -50,7 +50,7 @@ export class RNWelcomeImpl extends UI.Widget.VBox {
 
   render(): void {
     const welcomeIconUrl = new URL(
-      "../../Images/react_native/welcomeIcon.png",
+      '../../Images/react_native/welcomeIcon.png',
       import.meta.url,
     ).toString();
     render(html`
