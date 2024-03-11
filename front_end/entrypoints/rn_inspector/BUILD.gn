@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # Copyright 2021 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
@@ -34,6 +35,7 @@ devtools_entrypoint("entrypoint") {
     "../../panels/webauthn:meta",
     "../main:bundle",
     "../shell",
+    "rn_perf_metrics:rn_perf_metrics",
   ]
 
   visibility = [ "../../:*" ]

@@ -17,6 +17,10 @@ import '../../panels/rn_welcome/rn_welcome-meta.js';
 import * as Root from '../../core/root/root.js';
 import * as Main from '../main/main.js';
 
+import * as RNPerfMetrics from './rn_perf_metrics/rn_perf_metrics.js';
+
+RNPerfMetrics.Utils.registerGlobalPerfMetricsListener();
+
 // Legacy JavaScript Profiler - we support this until Hermes can support the
 // modern Performance panel.
 Root.Runtime.experiments.register(
