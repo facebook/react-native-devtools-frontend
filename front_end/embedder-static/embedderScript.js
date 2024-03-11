@@ -4,5 +4,5 @@
 // found in the LICENSE file.
 
 /**
- * Default no-op embedderScript stub. Impl can be served via embedders like Metro
+ * Default no-op stub. Impl can be served via servers, e.g. Expo, Metro, etc.
  */
