@@ -1,0 +1,14 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# Copyright 2020 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("../../scripts/build/ninja/copy.gni")
+
+group("embedder-static") {
+  public_deps = [ ":embedder-static-files" ]
+}
+
+copy_to_gen("embedder-static-files") {
+  sources = [ "embedderScript.js" ]
+}

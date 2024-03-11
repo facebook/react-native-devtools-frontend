@@ -32,6 +32,7 @@ group("front_end") {
     "entrypoints/worker_app:entrypoint",
     "legacy_test_runner",
     "third_party/vscode.web-custom-data:web_custom_data",
+    "embedder-static:embedder-static",
   ]
 }
 
