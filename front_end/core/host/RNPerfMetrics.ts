@@ -1,9 +1,11 @@
+// Copyright 2024 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 // Copyright 2020 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import {type ReactNativeChromeDevToolsEvent} from './RNPerfMetricsEvent.js';
 
 export type RNReliabilityEventListener = (event: ReactNativeChromeDevToolsEvent) => void;
 
@@ -60,3 +62,15 @@ class RNPerfMetricsImpl implements RNPerfMetrics {
     }
   }
 }
+
+export function registerGlobalPerfMetricsListener(): void {
+  if (globalThis.enableReactNativePerfMetrics !== true) {
+    return;
+  }
+
+  getInstance().addEventListener(event => {
+    window.postMessage({event, tag: 'react-native-chrome-devtools-perf-metrics'}, window.location.origin);
+  });
+}
+
+export type ReactNativeChromeDevToolsEvent = {};

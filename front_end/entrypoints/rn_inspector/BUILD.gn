@@ -35,7 +35,6 @@ devtools_entrypoint("entrypoint") {
     "../../panels/webauthn:meta",
     "../main:bundle",
     "../shell",
-    "rn_perf_metrics:rn_perf_metrics",
   ]
 
   visibility = [ "../../:*" ]
