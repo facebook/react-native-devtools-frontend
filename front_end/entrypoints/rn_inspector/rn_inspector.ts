@@ -18,7 +18,7 @@ import * as Host from '../../core/host/host.js';
 import * as Root from '../../core/root/root.js';
 import * as Main from '../main/main.js';
 
-Host.RNPerfMetrics.registerGlobalPerfMetricsListener();
+Host.RNPerfMetrics.registerPerfMetricsGlobalPostMessageHandler();
 
 // Legacy JavaScript Profiler - we support this until Hermes can support the
 // modern Performance panel.

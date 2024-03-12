@@ -63,8 +63,9 @@ class RNPerfMetricsImpl implements RNPerfMetrics {
   }
 }
 
-export function registerGlobalPerfMetricsListener(): void {
-  if (globalThis.enableReactNativePerfMetrics !== true) {
+export function registerPerfMetricsGlobalPostMessageHandler(): void {
+  if (globalThis.enableReactNativePerfMetrics !== true ||
+      globalThis.enableReactNativePerfMetricsGlobalPostMessage !== true) {
     return;
   }
 
