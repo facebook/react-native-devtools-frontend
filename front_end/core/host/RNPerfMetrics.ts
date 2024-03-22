@@ -14,11 +14,11 @@ export function getInstance(): RNPerfMetrics {
   return instance;
 }
 
-type UnsunscribeFn = () => void;
+type UnsubscribeFn = () => void;
 class RNPerfMetrics {
   #listeners: Set<RNReliabilityEventListener> = new Set();
 
-  addEventListener(listener: RNReliabilityEventListener): UnsunscribeFn {
+  addEventListener(listener: RNReliabilityEventListener): UnsubscribeFn {
     this.#listeners.add(listener);
 
     const unsubscribe = (): void => {
