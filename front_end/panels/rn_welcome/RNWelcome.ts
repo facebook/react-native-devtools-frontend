@@ -83,8 +83,7 @@ export class RNWelcomeImpl extends UI.Widget.VBox {
     const experimentDocsLink = Root.Runtime.experiments.enabledExperiments()
                                    .find(e => e.name === Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI)
                                    ?.docLink;
-    const defaultDocsLink = 'https://reactnative.dev/docs/debugging';
 
-    return experimentDocsLink ?? defaultDocsLink;
+    return experimentDocsLink ?? 'https://reactnative.dev/docs/debugging';
   }
 }
