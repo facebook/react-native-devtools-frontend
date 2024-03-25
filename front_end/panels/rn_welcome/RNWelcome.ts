@@ -20,7 +20,9 @@ const UIStrings = {
   /** @description "Debugging docs" link */
   docsLabel: 'Debugging docs',
   /** @description "What's new" link */
-  whatsNewLabel: "What's new",
+  whatsNewLabel: 'What\'s new',
+  /** @description "Send feedback" link */
+  feedbackLabel: 'Send feedback',
 };
 const {render, html} = LitHtml;
 
@@ -51,6 +53,8 @@ export class RNWelcomeImpl extends UI.Widget.VBox {
 
   render(): void {
     const welcomeIconUrl = new URL('../../Images/react_native/welcomeIcon.png', import.meta.url).toString();
+    const feedbackLink = this.getFeedbackLink();
+
     render(
         html`
       <div class="rn-welcome-panel">
@@ -73,6 +77,11 @@ export class RNWelcomeImpl extends UI.Widget.VBox {
           <x-link class="devtools-link" href="https://reactnative.dev/blog">
             ${i18nString(UIStrings.whatsNewLabel)}
           </x-link>
+          ${!feedbackLink ? LitHtml.nothing : html`
+            <x-link class="devtools-link" href=${feedbackLink}>
+              ${i18nString(UIStrings.feedbackLabel)}
+            </x-link>
+          `}
         </div>
       </div>
     `,
@@ -85,5 +94,11 @@ export class RNWelcomeImpl extends UI.Widget.VBox {
                                   ?.docLink;
 
     return experimentDocLink ?? 'https://reactnative.dev/docs/debugging';
+  }
+
+  private getFeedbackLink(): string|undefined {
+    return Root.Runtime.experiments.enabledExperiments()
+        .find(e => e.name === Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI)
+        ?.feedbackLink;
   }
 }
