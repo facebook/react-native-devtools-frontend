@@ -47,6 +47,7 @@ Root.Runtime.experiments.register(
     'Show React Native-specific UI',
     /* unstable */ false,
     /* docLink */ globalThis.reactNativeDocLink ?? 'https://reactnative.dev/docs/debugging',
+    /* feedbackLink */ globalThis.reactNativeFeedbackLink,
 );
 
 Root.Runtime.experiments.register(
