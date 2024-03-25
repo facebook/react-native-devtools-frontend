@@ -67,7 +67,7 @@ export class RNWelcomeImpl extends UI.Widget.VBox {
           ${i18nString(UIStrings.welcomeMessage)}
         </div>
         <div class="rn-welcome-links">
-          <x-link class="devtools-link" href=${this.getDocsLink()}>
+          <x-link class="devtools-link" href=${this.getDocLink()}>
             ${i18nString(UIStrings.docsLabel)}
           </x-link>
           <x-link class="devtools-link" href="https://reactnative.dev/blog">
@@ -79,11 +79,11 @@ export class RNWelcomeImpl extends UI.Widget.VBox {
         this.contentElement, {host: this});
   }
 
-  private getDocsLink(): string {
-    const experimentDocsLink = Root.Runtime.experiments.enabledExperiments()
-                                   .find(e => e.name === Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI)
-                                   ?.docLink;
+  private getDocLink(): string {
+    const experimentDocLink = Root.Runtime.experiments.enabledExperiments()
+                                  .find(e => e.name === Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI)
+                                  ?.docLink;
 
-    return experimentDocsLink ?? 'https://reactnative.dev/docs/debugging';
+    return experimentDocLink ?? 'https://reactnative.dev/docs/debugging';
   }
 }
