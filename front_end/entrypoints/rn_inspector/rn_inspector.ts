@@ -48,7 +48,7 @@ Root.Runtime.experiments.register(
     'Show React Native-specific UI',
     /* unstable */ false,
     /* docLink */ globalThis.reactNativeDocLink ?? 'https://reactnative.dev/docs/debugging',
-    /* feedbackLink */ globalThis.reactNativeFeedbackLink,
+    /* feedbackLink */ globalThis.FB_ONLY__reactNativeFeedbackLink,
 );
 
 Root.Runtime.experiments.register(
@@ -100,9 +100,9 @@ const UIStrings = {
    */
   showReactNative: 'Show React Native',
   /**
-   *@description Label of the 'send feedback' action button in the toolbar
+   *@description Label of the FB-only 'send feedback' action button in the toolbar
    */
-  sendFeedback: 'Send feedback',
+  sendFeedback: '[FB-only] Send feedback',
 };
 
 const str_ = i18n.i18n.registerUIStrings('entrypoints/rn_inspector/rn_inspector.ts', UIStrings);
@@ -134,7 +134,7 @@ UI.ViewManager.registerViewExtension({
 self.runtime = Root.Runtime.Runtime.instance({forceNew: true});
 new Main.MainImpl.MainImpl();
 
-if (globalThis.reactNativeFeedbackLink) {
+if (globalThis.FB_ONLY__reactNativeFeedbackLink) {
   const actionId = 'react-native-send-feedback';
   const sendFeedbackActionDelegate: UI.ActionRegistration.ActionDelegate = {
     handleAction(_context, incomingActionId): boolean {
@@ -142,12 +142,12 @@ if (globalThis.reactNativeFeedbackLink) {
         return false;
       }
 
-      if (!globalThis.reactNativeFeedbackLink) {
+      if (!globalThis.FB_ONLY__reactNativeFeedbackLink) {
         return false;
       }
 
       Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(
-          globalThis.reactNativeFeedbackLink as Platform.DevToolsPath.UrlString,
+          globalThis.FB_ONLY__reactNativeFeedbackLink as Platform.DevToolsPath.UrlString,
       );
       return true;
     },
