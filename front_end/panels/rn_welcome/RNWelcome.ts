@@ -3,12 +3,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as i18n from '../../core/i18n/i18n.js';
-import * as Root from '../../core/root/root.js';
 import * as UI from '../../ui/legacy/legacy.js';
-import * as LitHtml from '../../ui/lit-html/lit-html.js';
+import * as i18n from '../../core/i18n/i18n.js';
 
 import rnWelcomeStyles from './rnWelcome.css.js';
+import * as LitHtml from '../../ui/lit-html/lit-html.js';
 
 const UIStrings = {
   /** @description The name of the debugging product */
@@ -50,9 +49,11 @@ export class RNWelcomeImpl extends UI.Widget.VBox {
   }
 
   render(): void {
-    const welcomeIconUrl = new URL('../../Images/react_native/welcomeIcon.png', import.meta.url).toString();
-    render(
-        html`
+    const welcomeIconUrl = new URL(
+      "../../Images/react_native/welcomeIcon.png",
+      import.meta.url,
+    ).toString();
+    render(html`
       <div class="rn-welcome-panel">
         <div class="rn-welcome-header">
           <img class="rn-welcome-icon" src=${welcomeIconUrl} role="presentation" />
@@ -67,7 +68,7 @@ export class RNWelcomeImpl extends UI.Widget.VBox {
           ${i18nString(UIStrings.welcomeMessage)}
         </div>
         <div class="rn-welcome-links">
-          <x-link class="devtools-link" href=${this.getDocLink()}>
+          <x-link class="devtools-link" href="https://reactnative.dev/docs/debugging">
             ${i18nString(UIStrings.docsLabel)}
           </x-link>
           <x-link class="devtools-link" href="https://reactnative.dev/blog">
@@ -75,15 +76,6 @@ export class RNWelcomeImpl extends UI.Widget.VBox {
           </x-link>
         </div>
       </div>
-    `,
-        this.contentElement, {host: this});
-  }
-
-  private getDocLink(): string {
-    const experimentDocLink = Root.Runtime.experiments.enabledExperiments()
-                                  .find(e => e.name === Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI)
-                                  ?.docLink;
-
-    return experimentDocLink ?? 'https://reactnative.dev/docs/debugging';
+    `, this.contentElement, {host: this});
   }
 }
