@@ -135,6 +135,7 @@ self.runtime = Root.Runtime.Runtime.instance({forceNew: true});
 new Main.MainImpl.MainImpl();
 
 if (globalThis.FB_ONLY__reactNativeFeedbackLink) {
+  const feedbackLink = globalThis.FB_ONLY__reactNativeFeedbackLink as Platform.DevToolsPath.UrlString;
   const actionId = 'react-native-send-feedback';
   const sendFeedbackActionDelegate: UI.ActionRegistration.ActionDelegate = {
     handleAction(_context, incomingActionId): boolean {
@@ -142,12 +143,8 @@ if (globalThis.FB_ONLY__reactNativeFeedbackLink) {
         return false;
       }
 
-      if (!globalThis.FB_ONLY__reactNativeFeedbackLink) {
-        return false;
-      }
-
       Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(
-          globalThis.FB_ONLY__reactNativeFeedbackLink as Platform.DevToolsPath.UrlString,
+          feedbackLink,
       );
       return true;
     },
