@@ -65,9 +65,9 @@ class RNPerfMetrics {
     });
   }
 
-  debuggerReadyToPause(): void {
+  entryPointLoadingFinished(): void {
     this.sendEvent({
-      eventName: 'Debugger.IsReadyToPause',
+      eventName: 'Entrypoint.LoadingFinished',
       timestamp: getPerfTimestamp(),
       launchId: this.#launchId,
     });
@@ -94,12 +94,17 @@ type CommonEventFields = Readonly<{
   launchId: string | void | null,
 }>;
 
-export type DebuggerLaunchedEvent = Readonly<CommonEventFields&{
+export type EntrypointLoadingStartedEvent = Readonly<CommonEventFields&{
   eventName: 'Entrypoint.LoadingStarted',
+}>;
+
+export type EntrypointLoadingFinishedEvent = Readonly<CommonEventFields&{
+  eventName: 'Entrypoint.LoadingFinished',
 }>;
 
 export type DebuggerReadyEvent = Readonly<CommonEventFields&{
   eventName: 'Debugger.IsReadyToPause',
 }>;
 
-export type ReactNativeChromeDevToolsEvent = DebuggerLaunchedEvent|DebuggerReadyEvent;
+export type ReactNativeChromeDevToolsEvent =
+    EntrypointLoadingStartedEvent|EntrypointLoadingFinishedEvent|DebuggerReadyEvent;
