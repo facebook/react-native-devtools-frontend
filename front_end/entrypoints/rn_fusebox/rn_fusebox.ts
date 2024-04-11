@@ -39,7 +39,7 @@ RNExperiments.RNExperiments.enableExperimentsByDefault([
 Host.RNPerfMetrics.registerPerfMetricsGlobalPostMessageHandler();
 
 Host.rnPerfMetrics.setLaunchId(Root.Runtime.Runtime.queryParam('launchId'));
-Host.rnPerfMetrics.entryPointLoadingStarted();
+Host.rnPerfMetrics.entryPointLoadingStarted('rn_fusebox');
 
 class FuseboxClientMetadataModel extends SDK.SDKModel.SDKModel<void> {
   constructor(target: SDK.Target.Target) {
@@ -146,4 +146,4 @@ if (globalThis.FB_ONLY__reactNativeFeedbackLink) {
   });
 }
 
-Host.rnPerfMetrics.entryPointLoadingFinished();
+Host.rnPerfMetrics.entryPointLoadingFinished('rn_fusebox');

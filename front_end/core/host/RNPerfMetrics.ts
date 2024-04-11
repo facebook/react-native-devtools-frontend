@@ -57,19 +57,21 @@ class RNPerfMetrics {
     this.#launchId = launchId;
   }
 
-  entryPointLoadingStarted(): void {
+  entryPointLoadingStarted(entryPoint: EntryPoint): void {
     this.sendEvent({
       eventName: 'Entrypoint.LoadingStarted',
       timestamp: getPerfTimestamp(),
       launchId: this.#launchId,
+      entryPoint,
     });
   }
 
-  entryPointLoadingFinished(): void {
+  entryPointLoadingFinished(entryPoint: EntryPoint): void {
     this.sendEvent({
       eventName: 'Entrypoint.LoadingFinished',
       timestamp: getPerfTimestamp(),
       launchId: this.#launchId,
+      entryPoint,
     });
   }
 }
@@ -94,12 +96,16 @@ type CommonEventFields = Readonly<{
   launchId: string | void | null,
 }>;
 
+type EntryPoint = 'rn_fusebox'|'rn_inspector';
+
 export type EntrypointLoadingStartedEvent = Readonly<CommonEventFields&{
   eventName: 'Entrypoint.LoadingStarted',
+  entryPoint: EntryPoint,
 }>;
 
 export type EntrypointLoadingFinishedEvent = Readonly<CommonEventFields&{
   eventName: 'Entrypoint.LoadingFinished',
+  entryPoint: EntryPoint,
 }>;
 
 export type DebuggerReadyEvent = Readonly<CommonEventFields&{
