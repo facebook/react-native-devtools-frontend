@@ -251,8 +251,10 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
     this.dispatchEventToListeners(Events.Update);
     try {
       await this.acquireLoadSlot(initiator.target);
+      Host.rnPerfMetrics.developerResourceLoadingStarted(url);
       const resultPromise = this.dispatchLoad(url, initiator);
       const result = await resultPromise;
+      Host.rnPerfMetrics.developerResourceLoadingFinished(url, result);
       pageResource.errorMessage = result.errorDescription.message;
       pageResource.success = result.success;
       if (result.success) {

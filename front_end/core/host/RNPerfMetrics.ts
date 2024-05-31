@@ -3,6 +3,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {type DeveloperResourceLoaded} from './UserMetrics';
+
 export type RNReliabilityEventListener = (event: DecoratedReactNativeChromeDevToolsEvent) => void;
 
 let instance: RNPerfMetrics|null = null;
@@ -124,6 +126,28 @@ class RNPerfMetrics {
     this.sendEvent({eventName: 'Connection.DebuggingTerminated', params: {reason}});
   }
 
+  developerResourceLoadingStarted(url: string): void {
+    const shortUrl = maybeTruncateDeveloperResourceUrl(url);
+    this.sendEvent({eventName: 'DeveloperResource.LoadingStarted', params: {url: shortUrl}});
+  }
+
+  developerResourceLoadingFinished(url: string, result: {
+    success: boolean,
+    errorDescription?: {
+      message?: string|null|undefined,
+    },
+  }): void {
+    const shortUrl = maybeTruncateDeveloperResourceUrl(url);
+    this.sendEvent({
+      eventName: 'DeveloperResource.LoadingFinished',
+      params: {
+        url: shortUrl,
+        success: result.success,
+        errorMessage: result.errorDescription?.message,
+      },
+    });
+  }
+
   #decorateEvent(event: ReactNativeChromeDevToolsEvent): Readonly<DecoratedReactNativeChromeDevToolsEvent> {
     const commonFields: CommonEventFields = {
       timestamp: getPerfTimestamp(),
@@ -139,6 +163,11 @@ class RNPerfMetrics {
 
 function getPerfTimestamp(): DOMHighResTimeStamp {
   return performance.timeOrigin + performance.now();
+}
+
+const IS_HTTP = new RegExp('^https?://');
+function maybeTruncateDeveloperResourceUrl(url: string): string {
+  return IS_HTTP.test(url) ? url : `${url.slice(0, 100)} …(omitted ${url.length - 100} characters)`;
 }
 
 type CommonEventFields = Readonly<{
@@ -184,7 +213,24 @@ export type RemoteDebuggingTerminatedEvent = Readonly<{
   }>,
 }>;
 
+export type DeveloperResourceLoadingStartedEvent = Readonly<{
+  eventName: 'DeveloperResource.LoadingStarted',
+  params: Readonly<{
+    url: string,
+  }>,
+}>;
+
+export type DeveloperResourceLoadingFinishedEvent = Readonly<{
+  eventName: 'DeveloperResource.LoadingFinished',
+  params: Readonly<{
+    url: string,
+    success: boolean,
+    errorMessage: string | null | undefined,
+  }>,
+}>;
+
 export type ReactNativeChromeDevToolsEvent = EntrypointLoadingStartedEvent|EntrypointLoadingFinishedEvent|
-    DebuggerReadyEvent|BrowserVisibilityChangeEvent|UnhandledErrorEvent|RemoteDebuggingTerminatedEvent;
+    DebuggerReadyEvent|BrowserVisibilityChangeEvent|UnhandledErrorEvent|RemoteDebuggingTerminatedEvent|
+    DeveloperResourceLoadingStartedEvent|DeveloperResourceLoadingFinishedEvent;
 
 export type DecoratedReactNativeChromeDevToolsEvent = CommonEventFields&ReactNativeChromeDevToolsEvent;
