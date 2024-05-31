@@ -3,6 +3,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {type ParsedURL} from '../common/ParsedURL';
+
 import {type DeveloperResourceLoaded} from './UserMetrics';
 
 export type RNReliabilityEventListener = (event: DecoratedReactNativeChromeDevToolsEvent) => void;
@@ -126,22 +128,23 @@ class RNPerfMetrics {
     this.sendEvent({eventName: 'Connection.DebuggingTerminated', params: {reason}});
   }
 
-  developerResourceLoadingStarted(url: string): void {
-    const shortUrl = maybeTruncateDeveloperResourceUrl(url);
-    this.sendEvent({eventName: 'DeveloperResource.LoadingStarted', params: {url: shortUrl}});
+  developerResourceLoadingStarted(parsedURL: ParsedURL, loadingMethod: DeveloperResourceLoaded): void {
+    const url = maybeTruncateDeveloperResourceUrl(parsedURL);
+    this.sendEvent({eventName: 'DeveloperResource.LoadingStarted', params: {url, loadingMethod}});
   }
 
-  developerResourceLoadingFinished(url: string, result: {
+  developerResourceLoadingFinished(parsedURL: ParsedURL, loadingMethod: DeveloperResourceLoaded, result: {
     success: boolean,
     errorDescription?: {
       message?: string|null|undefined,
     },
   }): void {
-    const shortUrl = maybeTruncateDeveloperResourceUrl(url);
+    const url = maybeTruncateDeveloperResourceUrl(parsedURL);
     this.sendEvent({
       eventName: 'DeveloperResource.LoadingFinished',
       params: {
-        url: shortUrl,
+        url,
+        loadingMethod,
         success: result.success,
         errorMessage: result.errorDescription?.message,
       },
@@ -165,9 +168,9 @@ function getPerfTimestamp(): DOMHighResTimeStamp {
   return performance.timeOrigin + performance.now();
 }
 
-const IS_HTTP = new RegExp('^https?://');
-function maybeTruncateDeveloperResourceUrl(url: string): string {
-  return IS_HTTP.test(url) ? url : `${url.slice(0, 100)} …(omitted ${url.length - 100} characters)`;
+function maybeTruncateDeveloperResourceUrl(parsedURL: ParsedURL): string {
+  const {url} = parsedURL;
+  return parsedURL.isHttpOrHttps() ? url : `${url.slice(0, 100)} …(omitted ${url.length - 100} characters)`;
 }
 
 type CommonEventFields = Readonly<{
@@ -217,6 +220,7 @@ export type DeveloperResourceLoadingStartedEvent = Readonly<{
   eventName: 'DeveloperResource.LoadingStarted',
   params: Readonly<{
     url: string,
+    loadingMethod: DeveloperResourceLoaded,
   }>,
 }>;
 
@@ -224,6 +228,7 @@ export type DeveloperResourceLoadingFinishedEvent = Readonly<{
   eventName: 'DeveloperResource.LoadingFinished',
   params: Readonly<{
     url: string,
+    loadingMethod: DeveloperResourceLoaded,
     success: boolean,
     errorMessage: string | null | undefined,
   }>,
