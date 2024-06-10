@@ -20,6 +20,7 @@ export function getInstance(): RNPerfMetrics {
 
 type UnsubscribeFn = () => void;
 class RNPerfMetrics {
+  readonly #CONSOLE_ERROR_METHOD = 'error';
   #listeners: Set<RNReliabilityEventListener> = new Set();
   #launchId: string|null = null;
 
@@ -71,32 +72,44 @@ class RNPerfMetrics {
 
   registerGlobalErrorReporting(): void {
     window.addEventListener('error', event => {
+      const [message, error] = maybeWrapError(`[RNPerfMetrics] uncaught error: ${event.message}`, event.error);
       this.sendEvent({
-        eventName: 'Browser.UnhandledError',
+        eventName: 'Browser.Error',
         params: {
           type: 'error',
-          message: event.message,
-          error: event.error instanceof Error ? event.error : null,
+          message,
+          error,
         }
       });
     }, {passive: true});
 
     window.addEventListener('unhandledrejection', event => {
-      let message: string;
-      try {
-        message = String(event.reason);
-      } catch {
-        message = '[Promise was rejected without a serialisable reason]';
-      }
+      const [message, error] = maybeWrapError(`[RNPerfMetrics] unhandled promise rejection`, event.reason);
       this.sendEvent({
-        eventName: 'Browser.UnhandledError',
+        eventName: 'Browser.Error',
         params: {
           type: 'rejectedPromise',
           message,
-          error: event.reason instanceof Error ? event.reason : null,
+          error,
         }
       });
     }, {passive: true});
+
+    // Indirection for `console` ensures minifier won't strip this out.
+    const cons = globalThis.console;
+    const originalConsoleError = cons[this.#CONSOLE_ERROR_METHOD];
+    cons[this.#CONSOLE_ERROR_METHOD] = (...args: unknown[]) => {
+      try {
+        const maybeError = args[0];
+        const [message, error] = maybeWrapError('[RNPerfMetrics] console.error', maybeError);
+        this.sendEvent({eventName: 'Browser.Error', params: {message, error, type: 'consoleError'}});
+      } catch (e) {
+        const [message, error] = maybeWrapError('[RNPerfMetrics] Error handling console.error', e);
+        this.sendEvent({eventName: 'Browser.Error', params: {message, error, type: 'consoleError'}});
+      } finally {
+        originalConsoleError.apply(cons, args);
+      }
+    }
   }
 
   setLaunchId(launchId: string|null): void {
@@ -175,6 +188,16 @@ function maybeTruncateDeveloperResourceUrl(parsedURL: ParsedURL): string {
   return parsedURL.isHttpOrHttps() ? url : `${url.slice(0, 100)} …(omitted ${url.length - 100} characters)`;
 }
 
+function maybeWrapError(baseMessage: string, error: unknown): [string, Error] {
+  if (error instanceof Error) {
+    const message = `${baseMessage}: ${error.message}`
+    return [message, error];
+  }
+
+  const message = `${baseMessage}: ${String(error)}`;
+  return [message, new Error(message, {cause: error})];
+}
+
 type CommonEventFields = Readonly<{
   timestamp: DOMHighResTimeStamp,
   launchId: string | void | null,
@@ -203,12 +226,12 @@ export type BrowserVisibilityChangeEvent = Readonly<{
   }>,
 }>;
 
-export type UnhandledErrorEvent = Readonly<{
-  eventName: 'Browser.UnhandledError',
+export type BrowserErrorEvent = Readonly<{
+  eventName: 'Browser.Error',
   params: Readonly<{
-    type: 'error' | 'rejectedPromise',
     message: string,
-    error: Error | null | undefined,
+    error: Error,
+    type: 'error' | 'rejectedPromise' | 'consoleError',
   }>,
 }>;
 
@@ -238,7 +261,7 @@ export type DeveloperResourceLoadingFinishedEvent = Readonly<{
 }>;
 
 export type ReactNativeChromeDevToolsEvent = EntrypointLoadingStartedEvent|EntrypointLoadingFinishedEvent|
-    DebuggerReadyEvent|BrowserVisibilityChangeEvent|UnhandledErrorEvent|RemoteDebuggingTerminatedEvent|
+    DebuggerReadyEvent|BrowserVisibilityChangeEvent|BrowserErrorEvent|RemoteDebuggingTerminatedEvent|
     DeveloperResourceLoadingStartedEvent|DeveloperResourceLoadingFinishedEvent;
 
 export type DecoratedReactNativeChromeDevToolsEvent = CommonEventFields&ReactNativeChromeDevToolsEvent;
