@@ -3,9 +3,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {type ParsedURL} from '../common/ParsedURL';
+import {type ParsedURL} from '../common/ParsedURL.js';
 
-import {type DeveloperResourceLoaded} from './UserMetrics';
+import {type DeveloperResourceLoaded} from './UserMetrics.js';
 
 export type RNReliabilityEventListener = (event: DecoratedReactNativeChromeDevToolsEvent) => void;
 
@@ -20,7 +20,7 @@ export function getInstance(): RNPerfMetrics {
 
 type UnsubscribeFn = () => void;
 class RNPerfMetrics {
-  readonly #CONSOLE_ERROR_METHOD = 'error';
+  readonly #consoleErrorMethod = 'error';
   #listeners: Set<RNReliabilityEventListener> = new Set();
   #launchId: string|null = null;
 
@@ -79,26 +79,26 @@ class RNPerfMetrics {
           type: 'error',
           message,
           error,
-        }
+        },
       });
     }, {passive: true});
 
     window.addEventListener('unhandledrejection', event => {
-      const [message, error] = maybeWrapError(`[RNPerfMetrics] unhandled promise rejection`, event.reason);
+      const [message, error] = maybeWrapError('[RNPerfMetrics] unhandled promise rejection', event.reason);
       this.sendEvent({
         eventName: 'Browser.Error',
         params: {
           type: 'rejectedPromise',
           message,
           error,
-        }
+        },
       });
     }, {passive: true});
 
     // Indirection for `console` ensures minifier won't strip this out.
     const cons = globalThis.console;
-    const originalConsoleError = cons[this.#CONSOLE_ERROR_METHOD];
-    cons[this.#CONSOLE_ERROR_METHOD] = (...args: unknown[]) => {
+    const originalConsoleError = cons[this.#consoleErrorMethod];
+    cons[this.#consoleErrorMethod] = (...args: unknown[]) => {
       try {
         const maybeError = args[0];
         const [message, error] = maybeWrapError('[RNPerfMetrics] console.error', maybeError);
@@ -109,7 +109,7 @@ class RNPerfMetrics {
       } finally {
         originalConsoleError.apply(cons, args);
       }
-    }
+    };
   }
 
   setLaunchId(launchId: string|null): void {
@@ -135,7 +135,7 @@ class RNPerfMetrics {
       eventName: 'Browser.VisibilityChange',
       params: {
         visibilityState,
-      }
+      },
     });
   }
 
@@ -190,7 +190,7 @@ function maybeTruncateDeveloperResourceUrl(parsedURL: ParsedURL): string {
 
 function maybeWrapError(baseMessage: string, error: unknown): [string, Error] {
   if (error instanceof Error) {
-    const message = `${baseMessage}: ${error.message}`
+    const message = `${baseMessage}: ${error.message}`;
     return [message, error];
   }
 
