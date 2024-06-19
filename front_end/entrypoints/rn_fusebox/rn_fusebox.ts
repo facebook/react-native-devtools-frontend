@@ -82,7 +82,18 @@ document.addEventListener('visibilitychange', () => {
 class FuseboxClientMetadataModel extends SDK.SDKModel.SDKModel<void> {
   constructor(target: SDK.Target.Target) {
     super(target);
-    void target.fuseboxClientAgent().invoke_setClientMetadata();
+    Host.rnPerfMetrics.fuseboxSetClientMetadataStarted();
+    target.fuseboxClientAgent()
+        .invoke_setClientMetadata()
+        .then(result => {
+          const maybeError = result.getError();
+          const success = !maybeError;
+          Host.rnPerfMetrics.fuseboxSetClientMetadataFinished(success, maybeError);
+        })
+        .catch(reason => {
+          const success = false;
+          Host.rnPerfMetrics.fuseboxSetClientMetadataFinished(success, reason);
+        });
   }
 }
 

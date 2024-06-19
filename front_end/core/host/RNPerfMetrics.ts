@@ -166,6 +166,26 @@ class RNPerfMetrics {
     });
   }
 
+  fuseboxSetClientMetadataStarted(): void {
+    this.sendEvent({eventName: 'FuseboxSetClientMetadataStarted'});
+  }
+
+  fuseboxSetClientMetadataFinished(success: boolean, maybeError?: unknown): void {
+    if (success) {
+      this.sendEvent({eventName: 'FuseboxSetClientMetadataFinished', params: {success: true}});
+    } else {
+      const [errorMessage, error] = maybeWrapError('[RNPerfMetrics] Fusebox setClientMetadata failed', maybeError);
+      this.sendEvent({
+        eventName: 'FuseboxSetClientMetadataFinished',
+        params: {
+          success: false,
+          error,
+          errorMessage,
+        },
+      });
+    }
+  }
+
   #decorateEvent(event: ReactNativeChromeDevToolsEvent): Readonly<DecoratedReactNativeChromeDevToolsEvent> {
     const commonFields: CommonEventFields = {
       timestamp: getPerfTimestamp(),
@@ -260,8 +280,24 @@ export type DeveloperResourceLoadingFinishedEvent = Readonly<{
   }>,
 }>;
 
-export type ReactNativeChromeDevToolsEvent = EntrypointLoadingStartedEvent|EntrypointLoadingFinishedEvent|
-    DebuggerReadyEvent|BrowserVisibilityChangeEvent|BrowserErrorEvent|RemoteDebuggingTerminatedEvent|
-    DeveloperResourceLoadingStartedEvent|DeveloperResourceLoadingFinishedEvent;
+export type FuseboxSetClientMetadataStartedEvent = Readonly<{
+  eventName: 'FuseboxSetClientMetadataStarted',
+}>;
+
+export type FuseboxSetClientMetadataFinishedEvent = Readonly<{
+  eventName: 'FuseboxSetClientMetadataFinished',
+  params: Readonly<{
+    success: true,
+  }|{
+    success: false,
+    error: Error,
+    errorMessage: string,
+  }>,
+}>;
+
+export type ReactNativeChromeDevToolsEvent =
+    EntrypointLoadingStartedEvent|EntrypointLoadingFinishedEvent|DebuggerReadyEvent|BrowserVisibilityChangeEvent|
+    BrowserErrorEvent|RemoteDebuggingTerminatedEvent|DeveloperResourceLoadingStartedEvent|
+    DeveloperResourceLoadingFinishedEvent|FuseboxSetClientMetadataStartedEvent|FuseboxSetClientMetadataFinishedEvent;
 
 export type DecoratedReactNativeChromeDevToolsEvent = CommonEventFields&ReactNativeChromeDevToolsEvent;
