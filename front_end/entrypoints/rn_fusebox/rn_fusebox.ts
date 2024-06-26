@@ -48,6 +48,14 @@ const UIStrings = {
    *@description Label of the FB-only 'send feedback' action button in the toolbar
    */
   sendFeedback: '[FB-only] Send feedback',
+  /**
+   *@description Tooltip of the connection status toolbar button while disconnected
+   */
+  connectionStatusDisconnectedTooltip: 'Debugging connection was closed',
+  /**
+   *@description Button label of the connection status toolbar button while disconnected
+   */
+  connectionStatusDisconnectedLabel: 'Reconnect DevTools',
 };
 const str_ = i18n.i18n.registerUIStrings('entrypoints/rn_fusebox/rn_fusebox.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
@@ -170,5 +178,48 @@ if (globalThis.FB_ONLY__reactNativeFeedbackLink) {
     showLabel: true,
   });
 }
+
+class ConnectionStatusToolbarItemProvider extends SDK.TargetManager.Observer implements UI.Toolbar.Provider {
+  #button = new UI.Toolbar.ToolbarButton('');
+
+  constructor() {
+    super();
+    this.#button.setVisible(false);
+    this.#button.element.classList.add('fusebox-connection-status');
+    this.#button.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, this.onClick.bind(this));
+
+    SDK.TargetManager.TargetManager.instance().observeTargets(this, {scoped: true});
+  }
+
+  override targetAdded(_target: SDK.Target.Target): void {
+    this.#updateRootTarget();
+  }
+  override targetRemoved(_target: SDK.Target.Target): void {
+    this.#updateRootTarget();
+  }
+
+  #updateRootTarget(): void {
+    const rootTarget = SDK.TargetManager.TargetManager.instance().rootTarget();
+    this.#button.setTitle(i18nLazyString(UIStrings.connectionStatusDisconnectedTooltip)());
+    this.#button.setText(i18nLazyString(UIStrings.connectionStatusDisconnectedLabel)());
+    this.#button.setVisible(!rootTarget);
+  }
+
+  onClick(): void {
+    window.location.reload();
+  }
+
+  item(): UI.Toolbar.ToolbarItem {
+    return this.#button;
+  }
+}
+
+const connectionStatusToolbarItemProvider = new ConnectionStatusToolbarItemProvider();
+UI.Toolbar.registerToolbarItem({
+  location: UI.Toolbar.ToolbarItemLocation.MAIN_TOOLBAR_RIGHT,
+  loadItem: async () => {
+    return connectionStatusToolbarItemProvider;
+  },
+});
 
 Host.rnPerfMetrics.entryPointLoadingFinished('rn_fusebox');

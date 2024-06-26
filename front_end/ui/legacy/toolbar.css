@@ -581,3 +581,22 @@ devtools-icon.leading-issue-icon {
 [aria-label="[FB-only] Send feedback"] .toolbar-glyph {
   color: white !important;
 }
+
+/* [RN] Customise styling for Fusebox's connection status button */
+
+.fusebox-connection-status {
+  margin: 4px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-red) 80%, transparent);
+}
+
+.fusebox-connection-status:hover {
+  background: color-mix(in srgb, var(--color-red) 90%, transparent);
+}
+
+.fusebox-connection-status .toolbar-text,
+.fusebox-connection-status .toolbar-glyph {
+  color: white !important;
+}
