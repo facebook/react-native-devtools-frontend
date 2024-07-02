@@ -13,6 +13,11 @@
 export namespace ProtocolMapping {
   export interface Events {
     /**
+     * Issued once after the domain is enabled. Contains metadata about the
+     * device, application, and debugger integration.
+     */
+    'ReactNativeApplication.metadataUpdated': [Protocol.ReactNativeApplication.MetadataUpdatedEvent];
+    /**
      * The loadComplete event mirrors the load complete event sent by the browser to assistive
      * technology when the web page has finished loading.
      */
@@ -768,6 +773,20 @@ export namespace ProtocolMapping {
      * the Runtime and Log domains.
      */
     'FuseboxClient.setClientMetadata': {
+      paramsType: [];
+      returnType: void;
+    };
+    /**
+     * Disables events from backend.
+     */
+    'ReactNativeApplication.disable': {
+      paramsType: [];
+      returnType: void;
+    };
+    /**
+     * Enables events from backend.
+     */
+    'ReactNativeApplication.enable': {
       paramsType: [];
       returnType: void;
     };

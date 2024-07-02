@@ -20,6 +20,8 @@ declare namespace ProtocolProxyApi {
   export interface ProtocolApi {
     FuseboxClient: FuseboxClientApi;
 
+    ReactNativeApplication: ReactNativeApplicationApi;
+
     Accessibility: AccessibilityApi;
 
     Animation: AnimationApi;
@@ -122,6 +124,8 @@ declare namespace ProtocolProxyApi {
 
   export interface ProtocolDispatchers {
     FuseboxClient: FuseboxClientDispatcher;
+
+    ReactNativeApplication: ReactNativeApplicationDispatcher;
 
     Accessibility: AccessibilityDispatcher;
 
@@ -236,6 +240,27 @@ declare namespace ProtocolProxyApi {
 
   }
   export interface FuseboxClientDispatcher {
+  }
+
+  export interface ReactNativeApplicationApi {
+    /**
+     * Disables events from backend.
+     */
+    invoke_disable(): Promise<Protocol.ProtocolResponseWithError>;
+
+    /**
+     * Enables events from backend.
+     */
+    invoke_enable(): Promise<Protocol.ProtocolResponseWithError>;
+
+  }
+  export interface ReactNativeApplicationDispatcher {
+    /**
+     * Issued once after the domain is enabled. Contains metadata about the
+     * device, application, and debugger integration.
+     */
+    metadataUpdated(params: Protocol.ReactNativeApplication.MetadataUpdatedEvent): void;
+
   }
 
   export interface AccessibilityApi {

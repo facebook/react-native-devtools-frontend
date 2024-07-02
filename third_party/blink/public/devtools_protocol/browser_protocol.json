@@ -16,6 +16,64 @@
             ]
         },
         {
+            "domain": "ReactNativeApplication",
+            "description": "A React Native-specific domain for interacting with React Native application\nfeatures.",
+            "experimental": true,
+            "commands": [
+                {
+                    "name": "disable",
+                    "description": "Disables events from backend."
+                },
+                {
+                    "name": "enable",
+                    "description": "Enables events from backend."
+                }
+            ],
+            "events": [
+                {
+                    "name": "metadataUpdated",
+                    "description": "Issued once after the domain is enabled. Contains metadata about the\ndevice, application, and debugger integration.",
+                    "parameters": [
+                        {
+                            "name": "appDisplayName",
+                            "description": "The app display name.",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "appIdentifier",
+                            "description": "The app bundle identifier.",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "deviceName",
+                            "description": "The device name.",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "integrationName",
+                            "description": "A label identifying the debugger integration.",
+                            "type": "string"
+                        },
+                        {
+                            "name": "platform",
+                            "description": "The platform name.",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "reactNativeVersion",
+                            "description": "The React Native version.",
+                            "optional": true,
+                            "type": "string"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
             "domain": "Accessibility",
             "experimental": true,
             "dependencies": [

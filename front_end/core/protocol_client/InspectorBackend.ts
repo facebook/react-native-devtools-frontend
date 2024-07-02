@@ -736,6 +736,10 @@ export class TargetBase {
     return this.getAgent('Performance');
   }
 
+  reactNativeApplicationAgent(): ProtocolProxyApi.ReactNativeApplicationApi {
+    return this.getAgent('ReactNativeApplication');
+  }
+
   runtimeAgent(): ProtocolProxyApi.RuntimeApi {
     return this.getAgent('Runtime');
   }

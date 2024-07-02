@@ -10,3 +10,30 @@ experimental domain FuseboxClient
   # message to the console, etc. The client should send this before enabling
   # the Runtime and Log domains.
   command setClientMetadata
+
+# A React Native-specific domain for interacting with React Native application
+# features.
+experimental domain ReactNativeApplication
+
+  # Disables events from backend.
+  command disable
+
+  # Enables events from backend.
+  command enable
+
+  # Issued once after the domain is enabled. Contains metadata about the
+  # device, application, and debugger integration.
+  event metadataUpdated
+    parameters
+      # The app display name.
+      optional string appDisplayName
+      # The app bundle identifier.
+      optional string appIdentifier
+      # The device name.
+      optional string deviceName
+      # A label identifying the debugger integration.
+      string integrationName
+      # The platform name.
+      optional string platform
+      # The React Native version.
+      optional string reactNativeVersion

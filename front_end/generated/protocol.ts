@@ -25,6 +25,44 @@ type OpaqueIdentifier<RepresentationType, Tag extends string> = RepresentationTy
 export namespace FuseboxClient {
 }
 
+/**
+ * A React Native-specific domain for interacting with React Native application
+ * features.
+ */
+export namespace ReactNativeApplication {
+
+  /**
+   * Issued once after the domain is enabled. Contains metadata about the
+   * device, application, and debugger integration.
+   */
+  export interface MetadataUpdatedEvent {
+    /**
+     * The app display name.
+     */
+    appDisplayName?: string;
+    /**
+     * The app bundle identifier.
+     */
+    appIdentifier?: string;
+    /**
+     * The device name.
+     */
+    deviceName?: string;
+    /**
+     * A label identifying the debugger integration.
+     */
+    integrationName: string;
+    /**
+     * The platform name.
+     */
+    platform?: string;
+    /**
+     * The React Native version.
+     */
+    reactNativeVersion?: string;
+  }
+}
+
 export namespace Accessibility {
 
   /**
