@@ -3,13 +3,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import type * as Common from '../../core/common/common.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import * as SDK from '../../core/sdk/sdk.js';
 
 import rnWelcomeStyles from './rnWelcome.css.js';
 import * as LitHtml from '../../ui/lit-html/lit-html.js';
 import type * as Platform from '../../core/platform/platform.js';
+import type * as Protocol from '../../generated/protocol.js';
+import {Events as ModelEvents, ReactNativeApplicationModel} from './ReactNativeApplicationModel.js';
 
 const UIStrings = {
   /** @description Beta label */
@@ -49,7 +53,7 @@ type RNWelcomeOptions = {
   showDocs?: boolean
 };
 
-export class RNWelcomeImpl extends UI.Widget.VBox {
+export class RNWelcomeImpl extends UI.Widget.VBox implements SDK.TargetManager.SDKModelObserver<ReactNativeApplicationModel> {
   private readonly options: RNWelcomeOptions;
 
   static instance(options: RNWelcomeOptions): RNWelcomeImpl {
@@ -63,6 +67,8 @@ export class RNWelcomeImpl extends UI.Widget.VBox {
     super(true, true);
 
     this.options = options;
+
+    SDK.TargetManager.TargetManager.instance().observeModels(ReactNativeApplicationModel, this);
   }
 
   override wasShown(): void {
@@ -72,10 +78,28 @@ export class RNWelcomeImpl extends UI.Widget.VBox {
     UI.InspectorView.InspectorView.instance().showDrawer({focus: true, hasTargetDrawer: false});
   }
 
+  modelAdded(model: ReactNativeApplicationModel): void {
+    if (this.isShowing()) {
+      model.ensureEnabled();
+      model.addEventListener(ModelEvents.MetadataUpdated, this._updateReactNativeVersion, this);
+    }
+  }
+
+  modelRemoved(model: ReactNativeApplicationModel): void {
+    model.removeEventListener(ModelEvents.MetadataUpdated, this._updateReactNativeVersion, this);
+  }
+
   private _handleLinkPress(url: string): void {
     Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(
       url as Platform.DevToolsPath.UrlString,
     );
+  }
+
+  private _updateReactNativeVersion(event: Common.EventTarget.EventTargetEvent<Protocol.ReactNativeApplication.MetadataUpdatedEvent>): void {
+    // Side-effect: Update window title
+    if (event.data.appDisplayName != null && event.data.deviceName != null) {
+      document.title = `${event.data.appDisplayName} (${event.data.deviceName}) - React Native DevTools`;
+    }
   }
 
   render(): void {

@@ -892,6 +892,10 @@ export class TargetBase {
     this.registerDispatcher('Profiler', dispatcher);
   }
 
+  registerReactNativeApplicationDispatcher(dispatcher: ProtocolProxyApi.ReactNativeApplicationDispatcher): void {
+    this.registerDispatcher('ReactNativeApplication', dispatcher);
+  }
+
   registerRuntimeDispatcher(dispatcher: ProtocolProxyApi.RuntimeDispatcher): void {
     this.registerDispatcher('Runtime', dispatcher);
   }

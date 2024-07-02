@@ -13,7 +13,10 @@ generate_css("css_files") {
 }
 
 devtools_module("rn_welcome") {
-  sources = [ "RNWelcome.ts" ]
+  sources = [
+    "RNWelcome.ts",
+    "ReactNativeApplicationModel.ts",
+  ]
 
   deps = [
     "../../core/host:bundle",
