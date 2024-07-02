@@ -56,6 +56,8 @@ type RNWelcomeOptions = {
 export class RNWelcomeImpl extends UI.Widget.VBox implements SDK.TargetManager.SDKModelObserver<ReactNativeApplicationModel> {
   private readonly options: RNWelcomeOptions;
 
+  private reactNativeVersion: string | undefined;
+
   static instance(options: RNWelcomeOptions): RNWelcomeImpl {
     if (!rnWelcomeImplInstance) {
       rnWelcomeImplInstance = new RNWelcomeImpl(options);
@@ -96,9 +98,16 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements SDK.TargetManager.S
   }
 
   private _updateReactNativeVersion(event: Common.EventTarget.EventTargetEvent<Protocol.ReactNativeApplication.MetadataUpdatedEvent>): void {
+    const {appDisplayName, deviceName, reactNativeVersion} = event.data;
+
+    if (reactNativeVersion != null) {
+      this.reactNativeVersion = reactNativeVersion;
+      this.render();
+    }
+
     // Side-effect: Update window title
-    if (event.data.appDisplayName != null && event.data.deviceName != null) {
-      document.title = `${event.data.appDisplayName} (${event.data.deviceName}) - React Native DevTools`;
+    if (appDisplayName != null && deviceName != null) {
+      document.title = `${appDisplayName} (${deviceName}) - React Native DevTools`;
     }
   }
 
@@ -144,6 +153,9 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements SDK.TargetManager.S
               ${i18nString(UIStrings.whatsNewLabel)}
             </x-link>
           </div>
+          ${this.reactNativeVersion != null ? html`
+              <p class="rn-welcome-version">React Native: <code>${this.reactNativeVersion}</code></p>
+            ` : null}
         </header>
         ${showDocs ? html`
           <section class="rn-welcome-docsfeed">

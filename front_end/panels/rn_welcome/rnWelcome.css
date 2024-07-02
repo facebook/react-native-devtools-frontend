@@ -94,6 +94,18 @@
   border-right: 1px solid var(--color-details-hairline);
 }
 
+.rn-welcome-version {
+  position: fixed;
+  bottom: 0;
+  right: 8px;
+  margin-top: 24px;
+  padding: 4px 12px;
+  border-radius: 6px;
+  background-color: var(--color-background-hover-overlay);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
 .rn-welcome-docsfeed {
   display: flex;
   flex-direction: column;
