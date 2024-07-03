@@ -62,6 +62,7 @@ import * as PaintProfiler from './PaintProfiler.js';
 import * as PerformanceMetricsModel from './PerformanceMetricsModel.js';
 import * as PreloadingModel from './PreloadingModel.js';
 import * as ProfileTreeModel from './ProfileTreeModel.js';
+import * as ReactNativeApplicationModel from './ReactNativeApplicationModel.js';
 import * as RemoteObject from './RemoteObject.js';
 import * as Resource from './Resource.js';
 import * as ResourceTreeModel from './ResourceTreeModel.js';
@@ -136,6 +137,7 @@ export {
   PerformanceMetricsModel,
   PreloadingModel,
   ProfileTreeModel,
+  ReactNativeApplicationModel,
   RemoteObject,
   Resource,
   ResourceTreeModel,

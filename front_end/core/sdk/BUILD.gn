@@ -63,6 +63,7 @@ devtools_module("sdk") {
     "PreloadingModel.ts",
     "ProfileTreeModel.ts",
     "RemoteObject.ts",
+    "ReactNativeApplicationModel.ts",
     "Resource.ts",
     "ResourceTreeModel.ts",
     "RuntimeModel.ts",

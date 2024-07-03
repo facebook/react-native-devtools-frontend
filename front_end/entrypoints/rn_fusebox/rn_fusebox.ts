@@ -22,7 +22,9 @@ import * as SDK from '../../core/sdk/sdk.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as Main from '../main/main.js';
 
+import type * as Common from '../../core/common/common.js';
 import type * as Platform from '../../core/platform/platform.js';
+import type * as Protocol from '../../generated/protocol.js';
 import type * as Sources from '../../panels/sources/sources.js';
 import * as RNExperiments from '../../core/rn_experiments/rn_experiments.js';
 
@@ -221,5 +223,34 @@ UI.Toolbar.registerToolbarItem({
     return connectionStatusToolbarItemProvider;
   },
 });
+
+class FuseboxReactNativeApplicationObserver implements
+    SDK.TargetManager.SDKModelObserver<SDK.ReactNativeApplicationModel.ReactNativeApplicationModel> {
+  constructor(targetManager: SDK.TargetManager.TargetManager) {
+    targetManager.observeModels(SDK.ReactNativeApplicationModel.ReactNativeApplicationModel, this);
+  }
+
+  modelAdded(model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel): void {
+    model.ensureEnabled();
+    model.addEventListener(SDK.ReactNativeApplicationModel.Events.MetadataUpdated, this.#handleMetadataUpdated, this);
+  }
+
+  modelRemoved(model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel): void {
+    model.removeEventListener(
+        SDK.ReactNativeApplicationModel.Events.MetadataUpdated, this.#handleMetadataUpdated, this);
+  }
+
+  #handleMetadataUpdated(
+      event: Common.EventTarget.EventTargetEvent<Protocol.ReactNativeApplication.MetadataUpdatedEvent>): void {
+    const {appDisplayName, deviceName} = event.data;
+
+    // Update window title
+    if (appDisplayName != null && deviceName != null) {
+      document.title = `${appDisplayName} (${deviceName}) - React Native DevTools`;
+    }
+  }
+}
+
+new FuseboxReactNativeApplicationObserver(SDK.TargetManager.TargetManager.instance());
 
 Host.rnPerfMetrics.entryPointLoadingFinished('rn_fusebox');

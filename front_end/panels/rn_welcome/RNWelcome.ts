@@ -13,7 +13,6 @@ import rnWelcomeStyles from './rnWelcome.css.js';
 import * as LitHtml from '../../ui/lit-html/lit-html.js';
 import type * as Platform from '../../core/platform/platform.js';
 import type * as Protocol from '../../generated/protocol.js';
-import {Events as ModelEvents, ReactNativeApplicationModel} from './ReactNativeApplicationModel.js';
 
 const UIStrings = {
   /** @description Beta label */
@@ -53,10 +52,11 @@ type RNWelcomeOptions = {
   showDocs?: boolean
 };
 
-export class RNWelcomeImpl extends UI.Widget.VBox implements SDK.TargetManager.SDKModelObserver<ReactNativeApplicationModel> {
+export class RNWelcomeImpl extends UI.Widget.VBox implements
+    SDK.TargetManager.SDKModelObserver<SDK.ReactNativeApplicationModel.ReactNativeApplicationModel> {
   private readonly options: RNWelcomeOptions;
 
-  private reactNativeVersion: string | undefined;
+  #reactNativeVersion: string|undefined;
 
   static instance(options: RNWelcomeOptions): RNWelcomeImpl {
     if (!rnWelcomeImplInstance) {
@@ -70,7 +70,8 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements SDK.TargetManager.S
 
     this.options = options;
 
-    SDK.TargetManager.TargetManager.instance().observeModels(ReactNativeApplicationModel, this);
+    SDK.TargetManager.TargetManager.instance().observeModels(
+        SDK.ReactNativeApplicationModel.ReactNativeApplicationModel, this);
   }
 
   override wasShown(): void {
@@ -80,35 +81,31 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements SDK.TargetManager.S
     UI.InspectorView.InspectorView.instance().showDrawer({focus: true, hasTargetDrawer: false});
   }
 
-  modelAdded(model: ReactNativeApplicationModel): void {
-    if (this.isShowing()) {
-      model.ensureEnabled();
-      model.addEventListener(ModelEvents.MetadataUpdated, this._updateReactNativeVersion, this);
-    }
+  modelAdded(model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel): void {
+    model.ensureEnabled();
+    model.addEventListener(
+        SDK.ReactNativeApplicationModel.Events.MetadataUpdated, this.#handleMetadataUpdated, this);
+    this.#reactNativeVersion = model.metadataCached?.reactNativeVersion;
   }
 
-  modelRemoved(model: ReactNativeApplicationModel): void {
-    model.removeEventListener(ModelEvents.MetadataUpdated, this._updateReactNativeVersion, this);
+  modelRemoved(model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel): void {
+    model.removeEventListener(
+        SDK.ReactNativeApplicationModel.Events.MetadataUpdated, this.#handleMetadataUpdated, this);
+  }
+
+  #handleMetadataUpdated(
+      event: Common.EventTarget.EventTargetEvent<Protocol.ReactNativeApplication.MetadataUpdatedEvent>): void {
+    this.#reactNativeVersion = event.data.reactNativeVersion;
+
+    if (this.isShowing()) {
+      this.render();
+    }
   }
 
   private _handleLinkPress(url: string): void {
     Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(
-      url as Platform.DevToolsPath.UrlString,
+        url as Platform.DevToolsPath.UrlString,
     );
-  }
-
-  private _updateReactNativeVersion(event: Common.EventTarget.EventTargetEvent<Protocol.ReactNativeApplication.MetadataUpdatedEvent>): void {
-    const {appDisplayName, deviceName, reactNativeVersion} = event.data;
-
-    if (reactNativeVersion != null) {
-      this.reactNativeVersion = reactNativeVersion;
-      this.render();
-    }
-
-    // Side-effect: Update window title
-    if (appDisplayName != null && deviceName != null) {
-      document.title = `${appDisplayName} (${deviceName}) - React Native DevTools`;
-    }
   }
 
   render(): void {
@@ -153,8 +150,8 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements SDK.TargetManager.S
               ${i18nString(UIStrings.whatsNewLabel)}
             </x-link>
           </div>
-          ${this.reactNativeVersion != null ? html`
-              <p class="rn-welcome-version">React Native: <code>${this.reactNativeVersion}</code></p>
+          ${this.#reactNativeVersion != null ? html`
+              <p class="rn-welcome-version">React Native: <code>${this.#reactNativeVersion}</code></p>
             ` : null}
         </header>
         ${showDocs ? html`
