@@ -5,105 +5,83 @@
 
 import * as SDK from '../../core/sdk/sdk.js';
 import * as ReactNativeModels from '../../models/react_native/react_native.js';
-import * as UI from '../../ui/legacy/legacy.js';
-import * as Common from '../../core/common/common.js';
 
 import type * as ReactDevToolsTypes from '../../third_party/react-devtools/react-devtools.js';
+import type * as Common from '../../core/common/common.js';
 
 export const enum Events {
-  Initialized = 'Initialized',
+  InitializationCompleted = 'InitializationCompleted',
+  InitializationFailed = 'InitializationFailed',
   Destroyed = 'Destroyed',
   MessageReceived = 'MessageReceived',
 }
 
 export type EventTypes = {
-  [Events.Initialized]: SDK.RuntimeModel.ExecutionContext,
+  [Events.InitializationCompleted]: void,
+  [Events.InitializationFailed]: string,
   [Events.Destroyed]: void,
   [Events.MessageReceived]: ReactDevToolsTypes.Message,
 };
 
-type ContextDestroyedEvent = Common.EventTarget.EventTargetEvent<SDK.RuntimeModel.EventTypes[SDK.RuntimeModel.Events.ExecutionContextDestroyed]>;
-type ContextCreatedEvent = Common.EventTarget.EventTargetEvent<SDK.RuntimeModel.EventTypes[SDK.RuntimeModel.Events.ExecutionContextCreated]>;
-
-// Hermes doesn't support Workers API yet, so there is a single execution context at the moment
-// This will be used for an extra-check to future-proof this logic
-// See https://github.com/facebook/react-native/blob/40b54ee671e593d125630391119b880aebc8393d/packages/react-native/ReactCommon/jsinspector-modern/InstanceTarget.cpp#L61
-const MAIN_EXECUTION_CONTEXT_NAME = 'main';
-
-function getCurrentMainExecutionContext(): SDK.RuntimeModel.ExecutionContext | null {
-  const executionContext = UI.Context.Context.instance().flavor(SDK.RuntimeModel.ExecutionContext);
-  if (executionContext?.name !== MAIN_EXECUTION_CONTEXT_NAME) {
-    return null;
-  }
-
-  return executionContext;
-}
+type ReactDevToolsBindingsBackendExecutionContextUnavailableEvent = Common.EventTarget.EventTargetEvent<
+  ReactNativeModels.ReactDevToolsBindingsModel.EventTypes[
+    ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextUnavailable
+  ]
+>;
 
 export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
   private static readonly FUSEBOX_BINDING_NAMESPACE = 'react-devtools';
-  private readonly rdtModel: ReactNativeModels.ReactDevToolsBindingsModel.ReactDevToolsBindingsModel | null;
+  private readonly rdtBindingsModel: ReactNativeModels.ReactDevToolsBindingsModel.ReactDevToolsBindingsModel | null;
 
   constructor(target: SDK.Target.Target) {
     super(target);
 
-    const model = target.model(ReactNativeModels.ReactDevToolsBindingsModel.ReactDevToolsBindingsModel);
-    if (!model) {
+    const rdtBindingsModel = target.model(ReactNativeModels.ReactDevToolsBindingsModel.ReactDevToolsBindingsModel);
+    if (!rdtBindingsModel) {
       throw new Error('Failed to construct ReactDevToolsModel: ReactDevToolsBindingsModel was null');
     }
 
-    this.rdtModel = model;
-    model.addEventListener(ReactNativeModels.ReactDevToolsBindingsModel.Events.Initialized, this.initialize, this);
+    this.rdtBindingsModel = rdtBindingsModel;
+
+    rdtBindingsModel.addEventListener(ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextCreated, this.onBackendExecutionContextCreated, this);
+    rdtBindingsModel.addEventListener(ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextUnavailable, this.onBackendExecutionContextUnavailable, this);
+    rdtBindingsModel.addEventListener(ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextDestroyed, this.onBackendExecutionContextDestroyed, this);
+
+    void this.initialize(rdtBindingsModel);
   }
 
-  private initialize(): void {
-    const rdtModel = this.rdtModel;
-    if (!rdtModel) {
+  private async initialize(rdtBindingsModel: ReactNativeModels.ReactDevToolsBindingsModel.ReactDevToolsBindingsModel): Promise<void> {
+    return rdtBindingsModel.enable()
+      .then(() => this.onBindingsModelInitializationCompleted())
+      .catch((error: Error) => this.onBindingsModelInitializationFailed(error));
+  }
+
+  private onBindingsModelInitializationCompleted(): void {
+    const rdtBindingsModel = this.rdtBindingsModel;
+    if (!rdtBindingsModel) {
       throw new Error('Failed to initialize ReactDevToolsModel: ReactDevToolsBindingsModel was null');
     }
 
-    rdtModel.subscribeToDomainMessages(
+    rdtBindingsModel.subscribeToDomainMessages(
       ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE,
         message => this.onMessage(message as ReactDevToolsTypes.Message),
     );
-    void rdtModel.initializeDomain(ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE).then(() => this.onInitialization());
+
+    void rdtBindingsModel.initializeDomain(ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE)
+      .then(() => this.onDomainInitializationCompleted())
+      .catch((error: Error) => this.onDomainInitializationFailed(error));
   }
 
-  private onInitialization(): void {
-    const currentExecutionContext = getCurrentMainExecutionContext();
-
-    if (currentExecutionContext) {
-      this.dispatchEventToListeners(Events.Initialized, currentExecutionContext);
-    }
-
-    SDK.TargetManager.TargetManager.instance().addModelListener(
-      SDK.RuntimeModel.RuntimeModel,
-      SDK.RuntimeModel.Events.ExecutionContextCreated,
-      this.onExecutionContextCreated,
-      this,
-    );
-
-    SDK.TargetManager.TargetManager.instance().addModelListener(
-      SDK.RuntimeModel.RuntimeModel,
-      SDK.RuntimeModel.Events.ExecutionContextDestroyed,
-      this.onExecutionContextDestroyed,
-      this,
-    );
+  private onBindingsModelInitializationFailed(error: Error): void {
+    this.dispatchEventToListeners(Events.InitializationFailed, error.message);
   }
 
-  private onExecutionContextCreated({data: executionContext}: ContextCreatedEvent): void {
-    if (executionContext.name !== MAIN_EXECUTION_CONTEXT_NAME) {
-      return;
-    }
-
-    this.dispatchEventToListeners(Events.Initialized, executionContext);
+  private onDomainInitializationCompleted(): void {
+    this.dispatchEventToListeners(Events.InitializationCompleted);
   }
 
-  private onExecutionContextDestroyed({data: executionContext}: ContextDestroyedEvent): void {
-    if (executionContext.name !== MAIN_EXECUTION_CONTEXT_NAME) {
-      return;
-    }
-
-    this.dispatchEventToListeners(Events.Destroyed);
+  private onDomainInitializationFailed(error: Error): void {
+    this.dispatchEventToListeners(Events.InitializationFailed, error.message);
   }
 
   private onMessage(message: ReactDevToolsTypes.Message): void {
@@ -111,12 +89,34 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
   }
 
   async sendMessage(message: ReactDevToolsTypes.Message): Promise<void> {
-    const rdtModel = this.rdtModel;
-    if (!rdtModel) {
+    const rdtBindingsModel = this.rdtBindingsModel;
+    if (!rdtBindingsModel) {
       throw new Error('Failed to send message from ReactDevToolsModel: ReactDevToolsBindingsModel was null');
     }
 
-    return rdtModel.sendMessage(ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE, message);
+    return rdtBindingsModel.sendMessage(ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE, message);
+  }
+
+  private onBackendExecutionContextCreated(): void {
+    const rdtBindingsModel = this.rdtBindingsModel;
+    if (!rdtBindingsModel) {
+      throw new Error('ReactDevToolsModel failed to handle BackendExecutionContextCreated event: ReactDevToolsBindingsModel was null');
+    }
+
+    // This could happen if the app was reloaded while ReactDevToolsBindingsModel was initialing
+    if (!rdtBindingsModel.isEnabled()) {
+      void this.initialize(rdtBindingsModel);
+    } else {
+      this.dispatchEventToListeners(Events.InitializationCompleted);
+    }
+  }
+
+  private onBackendExecutionContextUnavailable({data: errorMessage}: ReactDevToolsBindingsBackendExecutionContextUnavailableEvent): void {
+    this.dispatchEventToListeners(Events.InitializationFailed, errorMessage);
+  }
+
+  private onBackendExecutionContextDestroyed(): void {
+    this.dispatchEventToListeners(Events.Destroyed);
   }
 }
 

@@ -12,6 +12,7 @@ devtools_module("react_devtools") {
   sources = [ "ReactDevToolsView.ts", "ReactDevToolsModel.ts" ]
 
   deps = [
+    "../../core/host:bundle",
     "../../core/i18n:bundle",
     "../../core/sdk:bundle",
     "../../models/bindings:bundle",

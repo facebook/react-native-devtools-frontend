@@ -9,44 +9,42 @@ import type * as Common from '../../core/common/common.js';
 type JSONValue = null | string | number | boolean | {[key: string]: JSONValue} | JSONValue[];
 type DomainName = 'react-devtools';
 type DomainMessageListener = (message: JSONValue) => void;
-type BindingCalledEventTargetEvent = Common.EventTarget.EventTargetEvent<SDK.RuntimeModel.EventTypes[SDK.RuntimeModel.Events.BindingCalled]>;
 
+type BindingCalledEventTargetEvent = Common.EventTarget.EventTargetEvent<SDK.RuntimeModel.EventTypes[SDK.RuntimeModel.Events.BindingCalled]>;
+type ContextDestroyedEvent = Common.EventTarget.EventTargetEvent<SDK.RuntimeModel.EventTypes[SDK.RuntimeModel.Events.ExecutionContextDestroyed]>;
+type ContextCreatedEvent = Common.EventTarget.EventTargetEvent<SDK.RuntimeModel.EventTypes[SDK.RuntimeModel.Events.ExecutionContextCreated]>;
+
+// Hermes doesn't support Workers API yet, so there is a single execution context at the moment
+// This will be used for an extra-check to future-proof this logic
+// See https://github.com/facebook/react-native/blob/40b54ee671e593d125630391119b880aebc8393d/packages/react-native/ReactCommon/jsinspector-modern/InstanceTarget.cpp#L61
+const MAIN_EXECUTION_CONTEXT_NAME = 'main';
 const RUNTIME_GLOBAL = '__FUSEBOX_REACT_DEVTOOLS_DISPATCHER__';
 
 export const enum Events {
-  Initialized = 'Initialized',
+  BackendExecutionContextCreated = 'BackendExecutionContextCreated',
+  // Emitted when execution context was created, but RDT backend is unavailable, possibly failed to re-initialize
+  BackendExecutionContextUnavailable = 'BackendExecutionContextUnavailable',
+  BackendExecutionContextDestroyed = 'BackendExecutionContextDestroyed',
 }
 
 export type EventTypes = {
-  [Events.Initialized]: void,
+  [Events.BackendExecutionContextCreated]: void,
+  [Events.BackendExecutionContextUnavailable]: string,
+  [Events.BackendExecutionContextDestroyed]: void,
 };
 
 export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
   private readonly domainToListeners: Map<DomainName, Set<DomainMessageListener>> = new Map();
+  private messagingBindingName: string | null = null;
+  private enabled = false;
 
-  constructor(target: SDK.Target.Target) {
-    super(target);
-
-    this.initialize(target);
-  }
-
-  private initialize(target: SDK.Target.Target): void {
-    const runtimeModel = target.model(SDK.RuntimeModel.RuntimeModel);
-    if (!runtimeModel) {
+  private bindingCalled(event: BindingCalledEventTargetEvent): void {
+    // If binding name is not initialized, then we failed to get its name
+    if (this.messagingBindingName === null || event.data.name !== this.messagingBindingName) {
       return;
     }
 
-    runtimeModel.addEventListener(SDK.RuntimeModel.Events.BindingCalled, this.bindingCalled, this);
-    void this.enable(target).then(() => this.onInitialization());
-  }
-
-  private onInitialization(): void {
-    this.dispatchEventToListeners(Events.Initialized);
-  }
-
-  private bindingCalled(event: BindingCalledEventTargetEvent): void {
     const serializedMessage = event.data.payload;
-
     let parsedMessage = null;
 
     try {
@@ -98,7 +96,7 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
     if (errors.length > 0) {
       throw new AggregateError(
         errors,
-        `[ReactDevToolsBindingsModel] Error occurred when calling event listeners for domain: ${domainName}`,
+        `Error occurred in ReactDevToolsBindingsModel while calling event listeners for domain ${domainName}`,
       );
     }
   }
@@ -106,7 +104,7 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
   async initializeDomain(domainName: DomainName): Promise<void> {
     const runtimeModel = this.target().model(SDK.RuntimeModel.RuntimeModel);
     if (!runtimeModel) {
-      throw new Error(`[ReactDevToolsBindingsModel] Failed to initialize domain ${domainName}: runtime model is not available`);
+      throw new Error(`Failed to initialize domain ${domainName} for ReactDevToolsBindingsModel: runtime model is not available`);
     }
 
     await runtimeModel.agent.invoke_evaluate({expression: `void ${RUNTIME_GLOBAL}.initializeDomain('${domainName}')`});
@@ -115,7 +113,7 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
   async sendMessage(domainName: DomainName, message: JSONValue): Promise<void> {
     const runtimeModel = this.target().model(SDK.RuntimeModel.RuntimeModel);
     if (!runtimeModel) {
-      throw new Error(`[ReactDevToolsBindingsModel] Failed to send message for domain ${domainName}: runtime model is not available`);
+      throw new Error(`Failed to send message from ReactDevToolsBindingsModel for domain ${domainName}: runtime model is not available`);
     }
 
     const serializedMessage = JSON.stringify(message);
@@ -123,15 +121,110 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
     await runtimeModel.agent.invoke_evaluate({expression: `${RUNTIME_GLOBAL}.sendMessage('${domainName}', '${serializedMessage}')`});
   }
 
-  async enable(target: SDK.Target.Target): Promise<void> {
-    const runtimeModel = target.model(SDK.RuntimeModel.RuntimeModel);
-    if (!runtimeModel) {
-      throw new Error('[ReactDevToolsBindingsModel] Failed to enable model: runtime model is not available');
+  async enable(): Promise<void> {
+    if (this.enabled) {
+      throw new Error('ReactDevToolsBindingsModel is already enabled');
     }
 
-    await runtimeModel.agent.invoke_evaluate({expression: `${RUNTIME_GLOBAL}.BINDING_NAME`})
-      .then(response => response.result.value)
-      .then(bindingName => runtimeModel.agent.invoke_addBinding({name: bindingName}));
+    const runtimeModel = this.target().model(SDK.RuntimeModel.RuntimeModel);
+    if (!runtimeModel) {
+      throw new Error('Failed to enable ReactDevToolsBindingsModel: runtime model is not available');
+    }
+
+    await this.waitForFuseboxDispatcherToBeInitialized()
+      .then(() => runtimeModel.agent.invoke_evaluate({expression: `${RUNTIME_GLOBAL}.BINDING_NAME`}))
+      .then(response => {
+        if (response.exceptionDetails) {
+          throw new Error('Failed to get binding name for ReactDevToolsBindingsModel on a global: ' + response.exceptionDetails.text);
+        }
+
+        if (response.result.value === null || response.result.value === undefined) {
+          throw new Error('Failed to get binding name for ReactDevToolsBindingsModel on a global: returned value is ' + String(response.result.value));
+        }
+
+        if (response.result.value === '') {
+          throw new Error('Failed to get binding name for ReactDevToolsBindingsModel on a global: returned value is an empty string');
+        }
+
+        return response.result.value;
+      })
+      .then(bindingName => {
+        this.messagingBindingName = bindingName;
+        runtimeModel.addEventListener(SDK.RuntimeModel.Events.BindingCalled, this.bindingCalled, this);
+
+        return runtimeModel.agent.invoke_addBinding({name: bindingName});
+      })
+      .then(response => {
+        const possiblyError = response.getError();
+        if (possiblyError) {
+          throw new Error('Failed to add binding for ReactDevToolsBindingsModel: ' + possiblyError);
+        }
+
+        this.enabled = true;
+        this.initializeExecutionContextListeners();
+      });
+  }
+
+  isEnabled(): boolean {
+    return this.enabled;
+  }
+
+  private initializeExecutionContextListeners(): void {
+    const runtimeModel = this.target().model(SDK.RuntimeModel.RuntimeModel);
+    if (!runtimeModel) {
+      throw new Error('Failed to initialize execution context listeners for ReactDevToolsBindingsModel: runtime model is not available');
+    }
+
+    runtimeModel.addEventListener(SDK.RuntimeModel.Events.ExecutionContextCreated, this.onExecutionContextCreated, this);
+    runtimeModel.addEventListener(SDK.RuntimeModel.Events.ExecutionContextDestroyed, this.onExecutionContextDestroyed, this);
+  }
+
+  private onExecutionContextCreated({data: executionContext}: ContextCreatedEvent): void {
+    if (executionContext.name !== MAIN_EXECUTION_CONTEXT_NAME) {
+      return;
+    }
+
+    void this.waitForFuseboxDispatcherToBeInitialized()
+      .then(() => this.dispatchEventToListeners(Events.BackendExecutionContextCreated))
+      .catch((error: Error) => this.dispatchEventToListeners(Events.BackendExecutionContextUnavailable, error.message));
+  }
+
+  private onExecutionContextDestroyed({data: executionContext}: ContextDestroyedEvent): void {
+    if (executionContext.name !== MAIN_EXECUTION_CONTEXT_NAME) {
+      return;
+    }
+
+    this.dispatchEventToListeners(Events.BackendExecutionContextDestroyed);
+  }
+
+  private async waitForFuseboxDispatcherToBeInitialized(attempt = 1): Promise<void> {
+    // Ideally, this should not be polling, but rather one `Runtime.evaluate` request with `awaitPromise` option
+    // We need to support it in Hermes first, then we can migrate this to awaitPromise
+    if (attempt >= 20) { // ~5 seconds
+      throw new Error('Failed to wait for initialization: it took too long');
+    }
+
+    const runtimeModel = this.target().model(SDK.RuntimeModel.RuntimeModel);
+    if (!runtimeModel) {
+      throw new Error('Failed to wait for React DevTools dispatcher initialization: runtime model is not available');
+    }
+
+    await runtimeModel.agent.invoke_evaluate({
+      expression: `globalThis.${RUNTIME_GLOBAL} != undefined`,
+      returnByValue: true,
+    })
+      .then(response => {
+        if (response.exceptionDetails) {
+          throw new Error('Failed to wait for React DevTools dispatcher initialization: ' + response.exceptionDetails.text);
+        }
+
+        if (response.result.value === false) {
+          // Wait for 250 ms and restart
+          return new Promise(resolve => setTimeout(resolve, 250)).then(() => this.waitForFuseboxDispatcherToBeInitialized(attempt + 1));
+        }
+
+        return;
+      });
   }
 }
 

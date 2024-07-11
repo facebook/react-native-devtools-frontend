@@ -7,14 +7,15 @@ import * as i18n from '../../core/i18n/i18n.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as ReactDevTools from '../../third_party/react-devtools/react-devtools.js';
-
-import type * as ReactDevToolsTypes from '../../third_party/react-devtools/react-devtools.js';
 import * as Common from '../../core/common/common.js';
 import * as Workspace from '../../models/workspace/workspace.js';
-
-import {Events as ReactDevToolsModelEvents, ReactDevToolsModel, type EventTypes as ReactDevToolsModelEventTypes} from './ReactDevToolsModel.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import * as Logs from '../../models/logs/logs.js';
+import * as Host from '../../core/host/host.js';
+
+import {Events as ReactDevToolsModelEvents, ReactDevToolsModel, type EventTypes as ReactDevToolsModelEventTypes} from './ReactDevToolsModel.js';
+
+import type * as ReactDevToolsTypes from '../../third_party/react-devtools/react-devtools.js';
 import type * as Platform from '../../core/platform/platform.js';
 
 const UIStrings = {
@@ -22,11 +23,15 @@ const UIStrings = {
    *@description Title of the React DevTools view
    */
   title: 'React DevTools',
+  /**
+   * @description Label of the FB-only 'send feedback' button.
+   */
+  sendFeedback: '[FB-only] Send feedback',
 };
 const str_ = i18n.i18n.registerUIStrings('panels/react_devtools/ReactDevToolsView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-type ReactDevToolsInitializedEvent = Common.EventTarget.EventTargetEvent<ReactDevToolsModelEventTypes[ReactDevToolsModelEvents.Initialized]>;
+type ReactDevToolsInitializationFailedEvent = Common.EventTarget.EventTargetEvent<ReactDevToolsModelEventTypes[ReactDevToolsModelEvents.InitializationFailed]>;
 type ReactDevToolsMessageReceivedEvent = Common.EventTarget.EventTargetEvent<ReactDevToolsModelEventTypes[ReactDevToolsModelEvents.MessageReceived]>;
 
 // Based on ExtensionServer.onOpenResource
@@ -72,7 +77,6 @@ export class ReactDevToolsViewImpl extends UI.View.SimpleView {
   private readonly wall: ReactDevToolsTypes.Wall;
   private bridge: ReactDevToolsTypes.Bridge | null = null;
   private store: ReactDevToolsTypes.Store | null = null;
-  private executionContext: SDK.RuntimeModel.ExecutionContext | null = null;
   private readonly listeners: Set<ReactDevToolsTypes.WallListener> = new Set();
 
   constructor() {
@@ -94,8 +98,14 @@ export class ReactDevToolsViewImpl extends UI.View.SimpleView {
 
     SDK.TargetManager.TargetManager.instance().addModelListener(
       ReactDevToolsModel,
-      ReactDevToolsModelEvents.Initialized,
-      this.onInitialized,
+      ReactDevToolsModelEvents.InitializationCompleted,
+      this.onInitializationCompleted,
+      this,
+    );
+    SDK.TargetManager.TargetManager.instance().addModelListener(
+      ReactDevToolsModel,
+      ReactDevToolsModelEvents.InitializationFailed,
+      this.onInitializationFailed,
       this,
     );
     SDK.TargetManager.TargetManager.instance().addModelListener(
@@ -114,10 +124,10 @@ export class ReactDevToolsViewImpl extends UI.View.SimpleView {
     this.renderLoader();
   }
 
-  private onInitialized({data: executionContext}: ReactDevToolsInitializedEvent): void {
-    this.clearLoader();
+  private onInitializationCompleted(): void {
+    // Clear loader or error views
+    this.clearView();
 
-    this.executionContext = executionContext;
     this.bridge = ReactDevTools.createBridge(this.wall);
     this.store = ReactDevTools.createStore(this.bridge);
 
@@ -131,11 +141,15 @@ export class ReactDevToolsViewImpl extends UI.View.SimpleView {
     });
   }
 
+  private onInitializationFailed({data: errorMessage}: ReactDevToolsInitializationFailedEvent): void {
+    this.clearView();
+    this.renderErrorView(errorMessage);
+  }
+
   private onDestroyed(): void {
     // Unmount React DevTools view
-    this.contentElement.removeChildren();
+    this.clearView();
 
-    this.executionContext = null;
     this.bridge?.shutdown();
     this.bridge = null;
     this.store = null;
@@ -155,7 +169,32 @@ export class ReactDevToolsViewImpl extends UI.View.SimpleView {
     this.contentElement.appendChild(loaderContainer);
   }
 
-  private clearLoader(): void {
+  private renderErrorView(errorMessage: string): void {
+    const errorContainer = document.createElement('div');
+    errorContainer.setAttribute('style', 'display: flex; flex: 1; flex-direction: column; justify-content: center; align-items: center');
+
+    const errorIconView = document.createElement('div');
+    errorIconView.setAttribute('style', 'font-size: 3rem');
+    errorIconView.innerHTML = '❗';
+
+    const errorMessageParagraph = document.createElement('p');
+    errorMessageParagraph.setAttribute('style', 'user-select: all');
+    errorMessageParagraph.innerHTML = errorMessage;
+
+    errorContainer.appendChild(errorIconView);
+    errorContainer.appendChild(errorMessageParagraph);
+    this.contentElement.appendChild(errorContainer);
+
+    if (globalThis.FB_ONLY__reactNativeFeedbackLink) {
+      const feedbackLink = globalThis.FB_ONLY__reactNativeFeedbackLink as Platform.DevToolsPath.UrlString;
+      const feedbackButton = UI.UIUtils.createTextButton(i18nString(UIStrings.sendFeedback), () => {
+        Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(feedbackLink);
+      }, {className: 'primary-button', jslogContext: 'sendFeedback'});
+      errorContainer.appendChild(feedbackButton);
+    }
+  }
+
+  private clearView(): void {
     this.contentElement.removeChildren();
   }
 
