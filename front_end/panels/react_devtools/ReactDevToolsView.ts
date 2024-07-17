@@ -75,6 +75,7 @@ function viewElementSourceFunction(source: ReactDevToolsTypes.Source, symbolicat
 
 export class ReactDevToolsViewImpl extends UI.View.SimpleView {
   private readonly wall: ReactDevToolsTypes.Wall;
+  private backendIsConnected: boolean = false;
   private bridge: ReactDevToolsTypes.Bridge | null = null;
   private store: ReactDevToolsTypes.Store | null = null;
   private readonly listeners: Set<ReactDevToolsTypes.WallListener> = new Set();
@@ -128,6 +129,7 @@ export class ReactDevToolsViewImpl extends UI.View.SimpleView {
     // Clear loader or error views
     this.clearView();
 
+    this.backendIsConnected = true;
     this.bridge = ReactDevTools.createBridge(this.wall);
     this.store = ReactDevTools.createStore(this.bridge);
 
@@ -142,6 +144,7 @@ export class ReactDevToolsViewImpl extends UI.View.SimpleView {
   }
 
   private onInitializationFailed({data: errorMessage}: ReactDevToolsInitializationFailedEvent): void {
+    this.backendIsConnected = false;
     this.clearView();
     this.renderErrorView(errorMessage);
   }
@@ -150,6 +153,7 @@ export class ReactDevToolsViewImpl extends UI.View.SimpleView {
     // Unmount React DevTools view
     this.clearView();
 
+    this.backendIsConnected = false;
     this.bridge?.shutdown();
     this.bridge = null;
     this.store = null;
@@ -216,6 +220,11 @@ export class ReactDevToolsViewImpl extends UI.View.SimpleView {
   }
 
   private sendMessage(event: string, payload?: ReactDevToolsTypes.MessagePayload): void {
+    // If the execution context has been destroyed, do not attempt to send a message
+    if (!this.backendIsConnected) {
+      return;
+    }
+
     for (const model of SDK.TargetManager.TargetManager.instance().models(ReactDevToolsModel, {scoped: true})) {
       void model.sendMessage({event, payload});
     }
