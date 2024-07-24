@@ -37,6 +37,8 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
   private readonly domainToListeners: Map<DomainName, Set<DomainMessageListener>> = new Map();
   private messagingBindingName: string | null = null;
   private enabled = false;
+  private fuseboxDispatcherIsInitialized = false;
+  private readonly domainToMessageQueue: Map<DomainName, Array<JSONValue>> = new Map();
 
   private bindingCalled(event: BindingCalledEventTargetEvent): void {
     // If binding name is not initialized, then we failed to get its name
@@ -54,8 +56,50 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
     }
 
     if (parsedMessage) {
-      this.dispatchMessageToDomainEventListeners(parsedMessage.domain, parsedMessage.message);
+      const domainName = parsedMessage.domain;
+
+      if (this.fuseboxDispatcherIsInitialized) {
+        // This should never happen.
+        // It is expected that messages are flushed out right after we notify listeners with BackendExecutionContextCreated event
+        if (!this.isDomainMessagesQueueEmpty(domainName)) {
+          throw new Error(`Attempted to send a message to domain ${domainName} while queue is not empty`);
+        }
+
+        this.dispatchMessageToDomainEventListeners(domainName, parsedMessage.message);
+      } else {
+        // This could happen when backend is already sending messages via binding
+        // But ReactDevToolsBindingsModel is busy executing async tasks
+        this.queueMessageForDomain(domainName, parsedMessage.message);
+      }
     }
+  }
+
+  private queueMessageForDomain(domainName: DomainName, message: JSONValue): void {
+    let queue = this.domainToMessageQueue.get(domainName);
+    if (!queue) {
+      queue = [];
+      this.domainToMessageQueue.set(domainName, queue);
+    }
+
+    queue.push(message);
+  }
+
+  private flushOutDomainMessagesQueues(): void {
+    for (const [domainName, queue] of this.domainToMessageQueue.entries()) {
+      if (queue.length === 0) {
+        continue;
+      }
+
+      for (const message of queue) {
+        this.dispatchMessageToDomainEventListeners(domainName, message);
+      }
+      queue.splice(0, queue.length);
+    }
+  }
+
+  private isDomainMessagesQueueEmpty(domainName: DomainName): boolean {
+    const queue = this.domainToMessageQueue.get(domainName);
+    return queue === undefined || queue.length === 0;
   }
 
   subscribeToDomainMessages(domainName: DomainName, listener: DomainMessageListener): void {
@@ -185,7 +229,10 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
     }
 
     void this.waitForFuseboxDispatcherToBeInitialized()
-      .then(() => this.dispatchEventToListeners(Events.BackendExecutionContextCreated))
+      .then(() => {
+        this.dispatchEventToListeners(Events.BackendExecutionContextCreated);
+        this.flushOutDomainMessagesQueues();
+      })
       .catch((error: Error) => this.dispatchEventToListeners(Events.BackendExecutionContextUnavailable, error.message));
   }
 
@@ -194,6 +241,7 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
       return;
     }
 
+    this.fuseboxDispatcherIsInitialized = false;
     this.dispatchEventToListeners(Events.BackendExecutionContextDestroyed);
   }
 
@@ -223,6 +271,7 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
           return new Promise(resolve => setTimeout(resolve, 250)).then(() => this.waitForFuseboxDispatcherToBeInitialized(attempt + 1));
         }
 
+        this.fuseboxDispatcherIsInitialized = true;
         return;
       });
   }
