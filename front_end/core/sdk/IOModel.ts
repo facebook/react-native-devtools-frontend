@@ -10,6 +10,9 @@ import {Capability, type Target} from './Target.js';
 import {SDKModel} from './SDKModel.js';
 import type * as Protocol from '../../generated/protocol.js';
 
+// [RN] Increase IO read size default
+const IO_READ_SIZE = 1024 * 1024 * 4;
+
 export class IOModel extends SDKModel<void> {
   constructor(target: Target) {
     super(target);
@@ -52,7 +55,7 @@ export class IOModel extends SDKModel<void> {
     const strings: string[] = [];
     const decoder = new TextDecoder();
     for (;;) {
-      const data = await this.read(handle, 1024 * 1024);
+      const data = await this.read(handle, IO_READ_SIZE);
       if (data === null) {
         strings.push(decoder.decode());
         break;
