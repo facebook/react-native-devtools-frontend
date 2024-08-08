@@ -55,11 +55,11 @@ export function parseSourcePositionsFromErrorStack(
       right--;
       enclosedInBraces = true;
       do {
-        left = line.indexOf('(', left);
+        left = line.indexOf(' (', left);
         if (left < 0) {
           return null;
         }
-        left++;
+        left += 2;
         if (!line.substring(left).startsWith('eval at ')) {
           break;
         }
