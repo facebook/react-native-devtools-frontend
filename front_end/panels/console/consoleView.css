@@ -369,6 +369,10 @@
   word-break: break-all;
 }
 
+#console-messages .devtools-link.ignore-list-link {
+  opacity: 60%;
+}
+
 #console-messages .resource-links {
   margin-top: -1px;
   margin-bottom: -2px;
