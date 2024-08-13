@@ -11,7 +11,7 @@ import {SDKModel} from './SDKModel.js';
 import type * as Protocol from '../../generated/protocol.js';
 
 // [RN] Increase IO read size default
-const IO_READ_SIZE = 1024 * 1024 * 4;
+const IO_READ_SIZE = 1024 * 1024 * 10;
 
 export class IOModel extends SDKModel<void> {
   constructor(target: Target) {
