@@ -168,6 +168,40 @@ describe('ErrorStackParser', () => {
     });
   });
 
+  it('allows frames with parens in function names', () => {
+    const frames = parseErrorStack(`Error Component Stack:
+    at FlatList (http://example.com/a.js:6:3)
+    at Animated(FlatList) (http://example.com/b.js:43:14)
+    at RNTesterApp(RootComponent) (http://example.com/c.js:29:11)`);
+
+    assertNotNullOrUndefined(frames);
+    assert.lengthOf(frames, 4);
+    assert.deepStrictEqual(frames[1].link, {
+      url: 'http://example.com/a.js' as Platform.DevToolsPath.UrlString,
+      prefix: '    at FlatList (',
+      suffix: ')',
+      lineNumber: 5,    // 0-based.
+      columnNumber: 2,  // 0-based.
+      enclosedInBraces: true,
+    });
+    assert.deepStrictEqual(frames[2].link, {
+      url: 'http://example.com/b.js' as Platform.DevToolsPath.UrlString,
+      prefix: '    at Animated(FlatList) (',
+      suffix: ')',
+      lineNumber: 42,    // 0-based.
+      columnNumber: 13,  // 0-based.
+      enclosedInBraces: true,
+    });
+    assert.deepStrictEqual(frames[3].link, {
+      url: 'http://example.com/c.js' as Platform.DevToolsPath.UrlString,
+      prefix: '    at RNTesterApp(RootComponent) (',
+      suffix: ')',
+      lineNumber: 28,    // 0-based.
+      columnNumber: 10,  // 0-based.
+      enclosedInBraces: true,
+    });
+  });
+
   it('correctly handles eval frames', () => {
     const url = 'http://www.chromium.org/foo.js' as Platform.DevToolsPath.UrlString;
     const frames = parseErrorStack(`Error: MyError
