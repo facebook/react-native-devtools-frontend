@@ -3,7 +3,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as ReactDevToolsView from './ReactDevToolsView.js';
+import * as ReactDevToolsComponentsView from './ReactDevToolsComponentsView.js';
 import * as ReactDevToolsModel from './ReactDevToolsModel.js';
+import * as ReactDevToolsProfilerView from './ReactDevToolsProfilerView.js';
 
-export {ReactDevToolsView, ReactDevToolsModel};
+export {ReactDevToolsComponentsView, ReactDevToolsModel, ReactDevToolsProfilerView};

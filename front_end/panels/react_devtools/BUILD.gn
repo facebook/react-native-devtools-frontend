@@ -9,7 +9,12 @@ import("../../../scripts/build/ninja/generate_css.gni")
 import("../visibility.gni")
 
 devtools_module("react_devtools") {
-  sources = [ "ReactDevToolsView.ts", "ReactDevToolsModel.ts" ]
+  sources = [
+    "ReactDevToolsComponentsView.ts",
+    "ReactDevToolsProfilerView.ts",
+    "ReactDevToolsModel.ts",
+    "ReactDevToolsViewBase.ts",
+  ]
 
   deps = [
     "../../core/host:bundle",
@@ -38,8 +43,16 @@ devtools_entrypoint("bundle") {
   visibility += devtools_panels_visibility
 }
 
-devtools_entrypoint("meta") {
-  entrypoint = "react_devtools-meta.ts"
+devtools_entrypoint("components_meta") {
+  entrypoint = "react_devtools_components-meta.ts"
+
+  deps = [ ":bundle" ]
+
+  visibility = [ "../../entrypoints/*" ]
+}
+
+devtools_entrypoint("profiler_meta") {
+  entrypoint = "react_devtools_profiler-meta.ts"
 
   deps = [ ":bundle" ]
 

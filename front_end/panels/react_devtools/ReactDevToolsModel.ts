@@ -5,6 +5,7 @@
 
 import * as SDK from '../../core/sdk/sdk.js';
 import * as ReactNativeModels from '../../models/react_native/react_native.js';
+import * as ReactDevTools from '../../third_party/react-devtools/react-devtools.js';
 
 import type * as ReactDevToolsTypes from '../../third_party/react-devtools/react-devtools.js';
 import type * as Common from '../../core/common/common.js';
@@ -13,14 +14,12 @@ export const enum Events {
   InitializationCompleted = 'InitializationCompleted',
   InitializationFailed = 'InitializationFailed',
   Destroyed = 'Destroyed',
-  MessageReceived = 'MessageReceived',
 }
 
 export type EventTypes = {
   [Events.InitializationCompleted]: void,
   [Events.InitializationFailed]: string,
   [Events.Destroyed]: void,
-  [Events.MessageReceived]: ReactDevToolsTypes.Message,
 };
 
 type ReactDevToolsBindingsBackendExecutionContextUnavailableEvent = Common.EventTarget.EventTargetEvent<
@@ -31,65 +30,115 @@ type ReactDevToolsBindingsBackendExecutionContextUnavailableEvent = Common.Event
 
 export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
   private static readonly FUSEBOX_BINDING_NAMESPACE = 'react-devtools';
-  private readonly rdtBindingsModel: ReactNativeModels.ReactDevToolsBindingsModel.ReactDevToolsBindingsModel | null;
+
+  readonly #wall: ReactDevToolsTypes.Wall;
+  readonly #bindingsModel: ReactNativeModels.ReactDevToolsBindingsModel.ReactDevToolsBindingsModel;
+  readonly #listeners: Set<ReactDevToolsTypes.WallListener> = new Set();
+  #initializeCalled: boolean = false;
+  #initialized: boolean = false;
+  #bridge: ReactDevToolsTypes.Bridge | null;
+  #store: ReactDevToolsTypes.Store | null;
 
   constructor(target: SDK.Target.Target) {
     super(target);
 
-    const rdtBindingsModel = target.model(ReactNativeModels.ReactDevToolsBindingsModel.ReactDevToolsBindingsModel);
-    if (!rdtBindingsModel) {
+    this.#wall = {
+      listen: (listener): Function => {
+        this.#listeners.add(listener);
+
+        return (): void => {
+          this.#listeners.delete(listener);
+        };
+      },
+      send: (event, payload): void => void this.#sendMessage({event, payload}),
+    };
+    this.#bridge = ReactDevTools.createBridge(this.#wall);
+    this.#store = ReactDevTools.createStore(this.#bridge);
+
+    const bindingsModel = target.model(ReactNativeModels.ReactDevToolsBindingsModel.ReactDevToolsBindingsModel);
+    if (bindingsModel == null) {
       throw new Error('Failed to construct ReactDevToolsModel: ReactDevToolsBindingsModel was null');
     }
 
-    this.rdtBindingsModel = rdtBindingsModel;
+    this.#bindingsModel = bindingsModel;
 
-    rdtBindingsModel.addEventListener(ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextCreated, this.onBackendExecutionContextCreated, this);
-    rdtBindingsModel.addEventListener(ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextUnavailable, this.onBackendExecutionContextUnavailable, this);
-    rdtBindingsModel.addEventListener(ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextDestroyed, this.onBackendExecutionContextDestroyed, this);
-
-    void this.initialize(rdtBindingsModel);
-  }
-
-  private async initialize(rdtBindingsModel: ReactNativeModels.ReactDevToolsBindingsModel.ReactDevToolsBindingsModel): Promise<void> {
-    return rdtBindingsModel.enable()
-      .then(() => this.onBindingsModelInitializationCompleted())
-      .catch((error: Error) => this.onBindingsModelInitializationFailed(error));
-  }
-
-  private onBindingsModelInitializationCompleted(): void {
-    const rdtBindingsModel = this.rdtBindingsModel;
-    if (!rdtBindingsModel) {
-      throw new Error('Failed to initialize ReactDevToolsModel: ReactDevToolsBindingsModel was null');
-    }
-
-    rdtBindingsModel.subscribeToDomainMessages(
-      ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE,
-        message => this.onMessage(message as ReactDevToolsTypes.Message),
+    bindingsModel.addEventListener(
+      ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextCreated,
+      this.#handleBackendExecutionContextCreated,
+      this,
+    );
+    bindingsModel.addEventListener(
+      ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextUnavailable,
+      this.#handleBackendExecutionContextUnavailable,
+      this,
+    );
+    bindingsModel.addEventListener(
+      ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextDestroyed,
+      this.#handleBackendExecutionContextDestroyed,
+      this,
     );
 
-    void rdtBindingsModel.initializeDomain(ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE)
-      .then(() => this.onDomainInitializationCompleted())
-      .catch((error: Error) => this.onDomainInitializationFailed(error));
+    // Notify backend if Chrome DevTools was closed, marking frontend as disconnected
+    window.addEventListener('beforeunload', () => this.#bridge?.shutdown());
   }
 
-  private onBindingsModelInitializationFailed(error: Error): void {
-    this.dispatchEventToListeners(Events.InitializationFailed, error.message);
+  async ensureInitialized(): Promise<void> {
+    if (this.#initializeCalled) {
+      return;
+    }
+
+    this.#initializeCalled = true;
+
+    try {
+      const bindingsModel = this.#bindingsModel;
+      await bindingsModel.enable();
+
+      bindingsModel.subscribeToDomainMessages(
+        ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE,
+          message => this.#handleMessage(message as ReactDevToolsTypes.Message),
+      );
+
+      await bindingsModel.initializeDomain(ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE);
+
+      this.#initialized = true;
+      this.dispatchEventToListeners(Events.InitializationCompleted);
+    } catch (e) {
+      this.dispatchEventToListeners(Events.InitializationFailed, e.message);
+    }
   }
 
-  private onDomainInitializationCompleted(): void {
-    this.dispatchEventToListeners(Events.InitializationCompleted);
+  isInitialized(): boolean {
+    return this.#initialized;
   }
 
-  private onDomainInitializationFailed(error: Error): void {
-    this.dispatchEventToListeners(Events.InitializationFailed, error.message);
+  getBridgeOrThrow(): ReactDevToolsTypes.Bridge {
+    if (this.#bridge == null) {
+      throw new Error('Failed to get bridge from ReactDevToolsModel: bridge was null');
+    }
+
+    return this.#bridge;
   }
 
-  private onMessage(message: ReactDevToolsTypes.Message): void {
-    this.dispatchEventToListeners(Events.MessageReceived, message);
+  getStoreOrThrow(): ReactDevToolsTypes.Store {
+    if (this.#store == null) {
+      throw new Error('Failed to get store from ReactDevToolsModel: store was null');
+    }
+
+    return this.#store;
   }
 
-  async sendMessage(message: ReactDevToolsTypes.Message): Promise<void> {
-    const rdtBindingsModel = this.rdtBindingsModel;
+  #handleMessage(message: ReactDevToolsTypes.Message): void {
+    if (!message) {
+      return;
+    }
+
+    for (const listener of this.#listeners) {
+      listener(message);
+    }
+  }
+
+  async #sendMessage(message: ReactDevToolsTypes.Message): Promise<void> {
+    const rdtBindingsModel = this.#bindingsModel;
     if (!rdtBindingsModel) {
       throw new Error('Failed to send message from ReactDevToolsModel: ReactDevToolsBindingsModel was null');
     }
@@ -97,25 +146,33 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     return rdtBindingsModel.sendMessage(ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE, message);
   }
 
-  private onBackendExecutionContextCreated(): void {
-    const rdtBindingsModel = this.rdtBindingsModel;
+  #handleBackendExecutionContextCreated(): void {
+    const rdtBindingsModel = this.#bindingsModel;
     if (!rdtBindingsModel) {
       throw new Error('ReactDevToolsModel failed to handle BackendExecutionContextCreated event: ReactDevToolsBindingsModel was null');
     }
 
-    // This could happen if the app was reloaded while ReactDevToolsBindingsModel was initialing
+    this.#bridge = ReactDevTools.createBridge(this.#wall);
+    this.#store = ReactDevTools.createStore(this.#bridge);
+
+    // This could happen if the app was reloaded while ReactDevToolsBindingsModel was initializing
     if (!rdtBindingsModel.isEnabled()) {
-      void this.initialize(rdtBindingsModel);
+      void this.ensureInitialized();
     } else {
       this.dispatchEventToListeners(Events.InitializationCompleted);
     }
   }
 
-  private onBackendExecutionContextUnavailable({data: errorMessage}: ReactDevToolsBindingsBackendExecutionContextUnavailableEvent): void {
+  #handleBackendExecutionContextUnavailable({data: errorMessage}: ReactDevToolsBindingsBackendExecutionContextUnavailableEvent): void {
     this.dispatchEventToListeners(Events.InitializationFailed, errorMessage);
   }
 
-  private onBackendExecutionContextDestroyed(): void {
+  #handleBackendExecutionContextDestroyed(): void {
+    this.#bridge?.shutdown();
+    this.#bridge = null;
+    this.#store = null;
+    this.#listeners.clear();
+
     this.dispatchEventToListeners(Events.Destroyed);
   }
 }
