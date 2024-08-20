@@ -772,16 +772,19 @@ export class DebuggerModel extends SDKModel<EventTypes> {
     return this.createRawLocationByScriptId(script.scriptId, lineNumber, columnNumber, inlineFrameIndex);
   }
 
-  createRawLocationByURL(sourceURL: string, lineNumber: number, columnNumber?: number, inlineFrameIndex?: number):
-      Location|null {
+  createRawLocationByURL(
+      sourceURL: string, lineNumber: number, columnNumber?: number, inlineFrameIndex?: number,
+      skipScriptRangeCheck?: boolean): Location|null {
     for (const script of this.#scriptsBySourceURL.get(sourceURL) || []) {
-      if (script.lineOffset > lineNumber ||
-          (script.lineOffset === lineNumber && columnNumber !== undefined && script.columnOffset > columnNumber)) {
-        continue;
-      }
-      if (script.endLine < lineNumber ||
-          (script.endLine === lineNumber && columnNumber !== undefined && script.endColumn <= columnNumber)) {
-        continue;
+      if (!skipScriptRangeCheck) {
+        if (script.lineOffset > lineNumber ||
+            (script.lineOffset === lineNumber && columnNumber !== undefined && script.columnOffset > columnNumber)) {
+          continue;
+        }
+        if (script.endLine < lineNumber ||
+            (script.endLine === lineNumber && columnNumber !== undefined && script.endColumn <= columnNumber)) {
+          continue;
+        }
       }
       return new Location(this, script.scriptId, lineNumber, columnNumber, inlineFrameIndex);
     }
