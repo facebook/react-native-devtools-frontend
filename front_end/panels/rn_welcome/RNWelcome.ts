@@ -37,6 +37,10 @@ const UIStrings = {
   docsRNDevTools: 'React Native DevTools',
   /** @description "React Native DevTools" item detail */
   docsRNDevToolsDetail: 'Explore features available in React Native DevTools',
+  /** @description "Native Debugging" title (docs item 3) */
+  docsNativeDebugging: 'Native Debugging',
+  /** @description "Native Debugging" item detail */
+  docsNativeDebuggingDetail: 'Find out more about native debugging tools',
 };
 const {render, html} = LitHtml;
 
@@ -119,6 +123,18 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
       '../../Images/react_native/welcomeIcon.png',
       import.meta.url,
     ).toString();
+    const docsImage1Url = new URL(
+      '../../Images/react_native/learn-debugging-basics.jpg',
+      import.meta.url,
+    ).toString();
+    const docsImage2Url = new URL(
+      '../../Images/react_native/learn-react-devtools.jpg',
+      import.meta.url,
+    ).toString();
+    const docsImage3Url = new URL(
+      '../../Images/react_native/learn-native-debugging.jpg',
+      import.meta.url,
+    ).toString();
 
     render(html`
       <div class="rn-welcome-panel">
@@ -158,7 +174,7 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
           <section class="rn-welcome-docsfeed">
             <h2 class="rn-welcome-h2">Learn</h2>
             <button class="rn-welcome-docsfeed-item" type="button" role="link" @click=${this._handleLinkPress.bind(this, 'https:\/\/reactnative.dev/docs/debugging')} title="${i18nString(UIStrings.docsDebuggingBasics)}">
-              <div class="rn-welcome-image" style="background-image: url('https://reactnative.dev/assets/images/debugging-dev-menu-2453a57e031a9da86b2ed42f16ffe82a.jpg')"></div>
+              <div class="rn-welcome-image" style="background-image: url('${docsImage1Url}')"></div>
               <div>
                 <p class="devtools-link">${i18nString(UIStrings.docsDebuggingBasics)}</p>
                 <p>${i18nString(UIStrings.docsDebuggingBasicsDetail)}</p>
@@ -166,10 +182,17 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
             </button>
             <!-- TODO(huntie): Replace this item when React Native DevTools docs are complete -->
             <button class="rn-welcome-docsfeed-item" type="button" role="link" @click=${this._handleLinkPress.bind(this, 'https:\/\/reactnative.dev/docs/debugging/react-devtools')} title="${i18nString(UIStrings.docsReactDevTools)}">
-              <div class="rn-welcome-image" style="background-image: url('https://reactnative.dev/assets/images/debugging-react-devtools-detail-914f08a97163dd51ebe732fd8ae4ea3c.jpg')"></div>
+              <div class="rn-welcome-image" style="background-image: url('${docsImage2Url}')"></div>
               <div>
                 <p class="devtools-link">${i18nString(UIStrings.docsReactDevTools)}</p>
                 <p>${i18nString(UIStrings.docsReactDevToolsDetail)}</p>
+              </div>
+            </button>
+            <button class="rn-welcome-docsfeed-item" type="button" role="link" @click=${this._handleLinkPress.bind(this, 'https:\/\/reactnative.dev/docs/debugging/debugging-native-code')} title="${i18nString(UIStrings.docsNativeDebugging)}">
+              <div class="rn-welcome-image" style="background-image: url('${docsImage3Url}')"></div>
+              <div>
+                <p class="devtools-link">${i18nString(UIStrings.docsNativeDebugging)}</p>
+                <p>${i18nString(UIStrings.docsNativeDebuggingDetail)}</p>
               </div>
             </button>
           </section>

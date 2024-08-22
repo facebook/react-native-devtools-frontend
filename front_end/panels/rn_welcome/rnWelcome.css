@@ -22,7 +22,7 @@
     align-items: center;
     justify-content: stretch;
     height: 100%;
-    padding: 24px 60px;
+    padding: 0;
   }
 }
 
@@ -32,8 +32,15 @@
   flex-grow: 1;
   flex-shrink: 0;
   align-items: center;
+  justify-content: center;
   padding: 16px;
   text-align: center;
+}
+
+@media (min-width: 1000px) {
+  .rn-welcome-hero {
+    margin-left: 24px;
+  }
 }
 
 .rn-welcome-heading {
@@ -96,7 +103,7 @@
 
 .rn-welcome-version {
   position: fixed;
-  bottom: 0;
+  top: 8px;
   right: 8px;
   margin-top: 24px;
   padding: 4px 12px;
@@ -120,11 +127,16 @@
   .rn-welcome-docsfeed {
     flex-shrink: 1;
     width: 45%;
+    max-height: 100%;
     margin: 0;
+    padding: 20px 24px;
+    padding-right: 80px;
+    overflow: auto;
   }
 }
 
 .rn-welcome-h2 {
+  flex-shrink: 0;
   font-size: 16px;
   font-weight: normal;
   color: var(--color-text-primary);
@@ -132,6 +144,7 @@
 
 .rn-welcome-docsfeed-item {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   margin-bottom: 8px;
   padding: 8px;
@@ -146,6 +159,10 @@
 
 .rn-welcome-docsfeed-item:hover {
   background-color: var(--color-background-elevation-0);
+}
+
+.rn-welcome-docsfeed-item:focus {
+  outline: solid var(--color-button-outline-focus);
 }
 
 .rn-welcome-docsfeed-item p {
