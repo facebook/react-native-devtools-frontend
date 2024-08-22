@@ -245,13 +245,15 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
       return fallbackAnchor;
     }
 
+    // TODO(T199120793) Skipping script range check until Hermes implements script range
+    const skipRangeCheck = true;
     // Prefer createRawLocationByScriptId() here, since it will always produce a correct
     // link, since the script ID is unique. Only fall back to createRawLocationByURL()
     // when all we have is an URL, which is not guaranteed to be unique.
     const rawLocation = scriptId ? debuggerModel.createRawLocationByScriptId(
                                        scriptId, lineNumber || 0, columnNumber, linkifyURLOptions.inlineFrameIndex) :
                                    debuggerModel.createRawLocationByURL(
-                                       sourceURL, lineNumber || 0, columnNumber, linkifyURLOptions.inlineFrameIndex);
+                                       sourceURL, lineNumber || 0, columnNumber, linkifyURLOptions.inlineFrameIndex, skipRangeCheck);
     if (!rawLocation) {
       return fallbackAnchor;
     }
