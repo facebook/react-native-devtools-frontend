@@ -31,53 +31,16 @@ const UIStrings = {
 const str_ = i18n.i18n.registerUIStrings('panels/react_devtools/ReactDevToolsView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
+type ReactDevToolsInitializationCompletedEvent = Common.EventTarget.EventTargetEvent<ReactDevToolsModelEventTypes[ReactDevToolsModelEvents.InitializationCompleted]>;
 type ReactDevToolsInitializationFailedEvent = Common.EventTarget.EventTargetEvent<ReactDevToolsModelEventTypes[ReactDevToolsModelEvents.InitializationFailed]>;
 type ReactDevToolsMessageReceivedEvent = Common.EventTarget.EventTargetEvent<ReactDevToolsModelEventTypes[ReactDevToolsModelEvents.MessageReceived]>;
-
-// Based on ExtensionServer.onOpenResource
-async function openResource(
-  url: Platform.DevToolsPath.UrlString,
-  lineNumber: number, // 0-based
-  columnNumber: number, // 0-based
-): Promise<void> {
-  const uiSourceCode = Workspace.Workspace.WorkspaceImpl.instance().uiSourceCodeForURL(url);
-  if (uiSourceCode) {
-    // Unlike the Extension API's version of openResource, we want to normalize the location
-    // so that source maps (if any) are applied.
-    const normalizedUiLocation = await Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance().normalizeUILocation(uiSourceCode.uiLocation(lineNumber, columnNumber));
-    void Common.Revealer.reveal(normalizedUiLocation);
-    return;
-  }
-
-  const resource = Bindings.ResourceUtils.resourceForURL(url);
-  if (resource) {
-    void Common.Revealer.reveal(resource);
-    return;
-  }
-
-  const request = Logs.NetworkLog.NetworkLog.instance().requestForURL(url);
-  if (request) {
-    void Common.Revealer.reveal(request);
-    return;
-  }
-
-  throw new Error('Could not find resource for ' + url);
-}
-
-function viewElementSourceFunction(source: ReactDevToolsTypes.Source, symbolicatedSource: ReactDevToolsTypes.Source | null): void {
-  const {sourceURL, line, column} = symbolicatedSource
-    ? symbolicatedSource
-    : source;
-
-  // We use 1-based line and column, Chrome expects them 0-based.
-  void openResource(sourceURL as Platform.DevToolsPath.UrlString, line - 1, column - 1);
-}
 
 export class ReactDevToolsViewImpl extends UI.View.SimpleView {
   private readonly wall: ReactDevToolsTypes.Wall;
   private backendIsConnected: boolean = false;
   private bridge: ReactDevToolsTypes.Bridge | null = null;
   private store: ReactDevToolsTypes.Store | null = null;
+  private executionContext: SDK.RuntimeModel.ExecutionContext | null = null;
   private readonly listeners: Set<ReactDevToolsTypes.WallListener> = new Set();
 
   constructor() {
@@ -125,13 +88,14 @@ export class ReactDevToolsViewImpl extends UI.View.SimpleView {
     this.renderLoader();
   }
 
-  private onInitializationCompleted(): void {
+  private onInitializationCompleted({data: executionContext}: ReactDevToolsInitializationCompletedEvent): void {
     // Clear loader or error views
     this.clearView();
 
     this.backendIsConnected = true;
     this.bridge = ReactDevTools.createBridge(this.wall);
     this.store = ReactDevTools.createStore(this.bridge);
+    this.executionContext = executionContext;
 
     const usingDarkTheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
     ReactDevTools.initialize(this.contentElement, {
@@ -139,7 +103,8 @@ export class ReactDevToolsViewImpl extends UI.View.SimpleView {
       store: this.store,
       theme: usingDarkTheme ? 'dark' : 'light',
       canViewElementSourceFunction: () => true,
-      viewElementSourceFunction,
+      viewElementSourceFunction: this.viewElementSourceFunction.bind(this),
+      viewAttributeSourceFunction: this.viewAttributeSourceFunction.bind(this),
     });
   }
 
@@ -160,6 +125,78 @@ export class ReactDevToolsViewImpl extends UI.View.SimpleView {
     this.listeners.clear();
 
     this.renderLoader();
+  }
+
+  // Based on ExtensionServer.onOpenResource
+  private async openResource(
+    url: Platform.DevToolsPath.UrlString,
+    lineNumber: number, // 0-based
+    columnNumber: number, // 0-based
+  ): Promise<void> {
+    const uiSourceCode = Workspace.Workspace.WorkspaceImpl.instance().uiSourceCodeForURL(url);
+    if (uiSourceCode) {
+      // Unlike the Extension API's version of openResource, we want to normalize the location
+      // so that source maps (if any) are applied.
+      const normalizedUiLocation = await Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance().normalizeUILocation(uiSourceCode.uiLocation(lineNumber, columnNumber));
+      void Common.Revealer.reveal(normalizedUiLocation);
+      return;
+    }
+
+    const resource = Bindings.ResourceUtils.resourceForURL(url);
+    if (resource) {
+      void Common.Revealer.reveal(resource);
+      return;
+    }
+
+    const request = Logs.NetworkLog.NetworkLog.instance().requestForURL(url);
+    if (request) {
+      void Common.Revealer.reveal(request);
+      return;
+    }
+
+    throw new Error('Could not find resource for ' + url);
+  }
+
+  private viewElementSourceFunction(source: ReactDevToolsTypes.Source, symbolicatedSource: ReactDevToolsTypes.Source | null): void {
+    const {sourceURL, line, column} = symbolicatedSource
+      ? symbolicatedSource
+      : source;
+
+    // We use 1-based line and column, Chrome expects them 0-based.
+    void this.openResource(sourceURL as Platform.DevToolsPath.UrlString, line - 1, column - 1);
+  }
+
+  private viewAttributeSourceFunction(id: number, path: Array<string | number>): void {
+    if (!this.executionContext) {
+      return;
+    }
+
+    // @ts-ignore
+    const rendererID = this.store.getRendererIDForElement(id);
+    if (rendererID == null) {
+      return
+    }
+
+    // Ask the renderer interface to find the specified attribute,
+    // and store it as a global variable on the window.
+    // @ts-ignore
+    this.bridge.send('viewAttributeSource', {id, path, rendererID});
+
+    setTimeout(() => {
+      this.executionContext?.evaluate(
+        {
+          expression: `
+            if (window.$attribute != null) {
+              inspect(window.$attribute);
+            }
+          `,
+          objectGroup: 'console',
+          includeCommandLineAPI: true,
+        },
+        /* userGesture */ false,
+        /* awaitPromise */ false
+      );
+    }, 100);
   }
 
   private renderLoader(): void {

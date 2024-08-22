@@ -17,7 +17,7 @@ export const enum Events {
 }
 
 export type EventTypes = {
-  [Events.InitializationCompleted]: void,
+  [Events.InitializationCompleted]: SDK.RuntimeModel.ExecutionContext,
   [Events.InitializationFailed]: string,
   [Events.Destroyed]: void,
   [Events.MessageReceived]: ReactDevToolsTypes.Message,
@@ -26,6 +26,12 @@ export type EventTypes = {
 type ReactDevToolsBindingsBackendExecutionContextUnavailableEvent = Common.EventTarget.EventTargetEvent<
   ReactNativeModels.ReactDevToolsBindingsModel.EventTypes[
     ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextUnavailable
+  ]
+>;
+
+export type ReactDevToolsBindingsBackendExecutionContextCreatedEvent = Common.EventTarget.EventTargetEvent<
+  ReactNativeModels.ReactDevToolsBindingsModel.EventTypes[
+    ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextCreated
   ]
 >;
 
@@ -52,11 +58,11 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
 
   private async initialize(rdtBindingsModel: ReactNativeModels.ReactDevToolsBindingsModel.ReactDevToolsBindingsModel): Promise<void> {
     return rdtBindingsModel.enable()
-      .then(() => this.onBindingsModelInitializationCompleted())
+      .then((executionContext: SDK.RuntimeModel.ExecutionContext) => this.onBindingsModelInitializationCompleted(executionContext))
       .catch((error: Error) => this.onBindingsModelInitializationFailed(error));
   }
 
-  private onBindingsModelInitializationCompleted(): void {
+  private onBindingsModelInitializationCompleted(executionContext: SDK.RuntimeModel.ExecutionContext): void {
     const rdtBindingsModel = this.rdtBindingsModel;
     if (!rdtBindingsModel) {
       throw new Error('Failed to initialize ReactDevToolsModel: ReactDevToolsBindingsModel was null');
@@ -68,7 +74,7 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     );
 
     void rdtBindingsModel.initializeDomain(ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE)
-      .then(() => this.onDomainInitializationCompleted())
+      .then(() => this.onDomainInitializationCompleted(executionContext))
       .catch((error: Error) => this.onDomainInitializationFailed(error));
   }
 
@@ -76,8 +82,8 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     this.dispatchEventToListeners(Events.InitializationFailed, error.message);
   }
 
-  private onDomainInitializationCompleted(): void {
-    this.dispatchEventToListeners(Events.InitializationCompleted);
+  private onDomainInitializationCompleted(executionContext: SDK.RuntimeModel.ExecutionContext): void {
+    this.dispatchEventToListeners(Events.InitializationCompleted, executionContext);
   }
 
   private onDomainInitializationFailed(error: Error): void {
@@ -97,7 +103,7 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     return rdtBindingsModel.sendMessage(ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE, message);
   }
 
-  private onBackendExecutionContextCreated(): void {
+  private onBackendExecutionContextCreated({data: executionContext}: ReactDevToolsBindingsBackendExecutionContextCreatedEvent): void {
     const rdtBindingsModel = this.rdtBindingsModel;
     if (!rdtBindingsModel) {
       throw new Error('ReactDevToolsModel failed to handle BackendExecutionContextCreated event: ReactDevToolsBindingsModel was null');
@@ -107,7 +113,7 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     if (!rdtBindingsModel.isEnabled()) {
       void this.initialize(rdtBindingsModel);
     } else {
-      this.dispatchEventToListeners(Events.InitializationCompleted);
+      this.dispatchEventToListeners(Events.InitializationCompleted, executionContext);
     }
   }
 

@@ -28,7 +28,7 @@ export const enum Events {
 }
 
 export type EventTypes = {
-  [Events.BackendExecutionContextCreated]: void,
+  [Events.BackendExecutionContextCreated]: SDK.RuntimeModel.ExecutionContext,
   [Events.BackendExecutionContextUnavailable]: string,
   [Events.BackendExecutionContextDestroyed]: void,
 };
@@ -165,7 +165,7 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
     await runtimeModel.agent.invoke_evaluate({expression: `${RUNTIME_GLOBAL}.sendMessage('${domainName}', '${serializedMessage}')`});
   }
 
-  async enable(): Promise<void> {
+  async enable(): Promise<SDK.RuntimeModel.ExecutionContext> {
     if (this.enabled) {
       throw new Error('ReactDevToolsBindingsModel is already enabled');
     }
@@ -207,6 +207,12 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
         this.enabled = true;
         this.initializeExecutionContextListeners();
       });
+
+    const executionContext = runtimeModel.defaultExecutionContext();
+    if (!executionContext) {
+      throw new Error('Runtime model does not have execution context');
+    }
+    return executionContext
   }
 
   isEnabled(): boolean {
@@ -230,7 +236,7 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
 
     void this.waitForFuseboxDispatcherToBeInitialized()
       .then(() => {
-        this.dispatchEventToListeners(Events.BackendExecutionContextCreated);
+        this.dispatchEventToListeners(Events.BackendExecutionContextCreated, executionContext);
         this.flushOutDomainMessagesQueues();
       })
       .catch((error: Error) => this.dispatchEventToListeners(Events.BackendExecutionContextUnavailable, error.message));
