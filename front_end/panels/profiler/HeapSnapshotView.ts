@@ -1278,11 +1278,18 @@ export class HeapSnapshotProfileType extends
   }
 
   async takeHeapSnapshot(): Promise<void> {
+    Host.rnPerfMetrics.heapSnapshotStarted();
     if (this.profileBeingRecorded()) {
+      Host.rnPerfMetrics.heapSnapshotFinished(
+          false,  // success
+      );
       return;
     }
     const heapProfilerModel = UI.Context.Context.instance().flavor(SDK.HeapProfilerModel.HeapProfilerModel);
     if (!heapProfilerModel) {
+      Host.rnPerfMetrics.heapSnapshotFinished(
+          false,  // success
+      );
       return;
     }
 
@@ -1291,11 +1298,14 @@ export class HeapSnapshotProfileType extends
     this.addProfile(profile);
     profile.updateStatus(i18nString(UIStrings.snapshotting));
 
-    await heapProfilerModel.takeHeapSnapshot({
+    const failed = await heapProfilerModel.takeHeapSnapshot({
       reportProgress: true,
       captureNumericValue: this.captureNumericValue.get(),
       exposeInternals: this.exposeInternals.get(),
     });
+    Host.rnPerfMetrics.heapSnapshotFinished(
+      !failed, // success
+    );
     profile = this.profileBeingRecorded() as HeapProfileHeader;
     if (!profile) {
       return;
@@ -1444,15 +1454,27 @@ export class TrackingHeapSnapshotProfileType extends
     return this.toggleRecording();
   }
 
-  startRecordingProfile(): void {
+  async startRecordingProfile(): Promise<void> {
+    Host.rnPerfMetrics.heapProfilingStarted();
     if (this.profileBeingRecorded()) {
+      Host.rnPerfMetrics.heapProfilingFinished(
+          false,  // success
+      );
       return;
     }
     const heapProfilerModel = this.addNewProfile();
     if (!heapProfilerModel) {
+      Host.rnPerfMetrics.heapProfilingFinished(
+          false,  // success
+      );
       return;
     }
-    void heapProfilerModel.startTrackingHeapObjects(this.recordAllocationStacksSettingInternal.get());
+    const failed = await heapProfilerModel.startTrackingHeapObjects(this.recordAllocationStacksSettingInternal.get());
+    if (failed) {
+      Host.rnPerfMetrics.heapProfilingFinished(
+          false,  // success
+      );
+    }
   }
 
   override customContent(): Element|null {
@@ -1496,7 +1518,10 @@ export class TrackingHeapSnapshotProfileType extends
         (profile.heapProfilerModel() as SDK.HeapProfilerModel.HeapProfilerModel).stopTrackingHeapObjects(true);
     this.recording = false;
     this.dispatchEventToListeners(TrackingHeapSnapshotProfileTypeEvents.TrackingStopped);
-    await stopPromise;
+    const failed = await stopPromise;
+    Host.rnPerfMetrics.heapProfilingFinished(
+      !failed,  // success
+    );
     profile = (this.profileBeingRecorded() as HeapProfileHeader);
     if (!profile) {
       return;
@@ -1511,7 +1536,7 @@ export class TrackingHeapSnapshotProfileType extends
     if (this.recording) {
       void this.stopRecordingProfile();
     } else {
-      this.startRecordingProfile();
+      void this.startRecordingProfile();
     }
     return this.recording;
   }

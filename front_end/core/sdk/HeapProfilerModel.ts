@@ -106,8 +106,9 @@ export class HeapProfilerModel extends SDKModel<EventTypes> {
     return Boolean(response.getError());
   }
 
-  async takeHeapSnapshot(heapSnapshotOptions: Protocol.HeapProfiler.TakeHeapSnapshotRequest): Promise<void> {
-    await this.#heapProfilerAgent.invoke_takeHeapSnapshot(heapSnapshotOptions);
+  async takeHeapSnapshot(heapSnapshotOptions: Protocol.HeapProfiler.TakeHeapSnapshotRequest): Promise<boolean> {
+    const response = await this.#heapProfilerAgent.invoke_takeHeapSnapshot(heapSnapshotOptions);
+    return Boolean(response.getError());
   }
 
   async startTrackingHeapObjects(recordAllocationStacks: boolean): Promise<boolean> {
