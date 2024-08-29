@@ -129,6 +129,7 @@ const REGISTERED_EXPERIMENTS = [
   Root.Runtime.ExperimentName.TRACK_CONTEXT_MENU,
   Root.Runtime.ExperimentName.INDENTATION_MARKERS_TEMP_DISABLE,
   Root.Runtime.ExperimentName.AUTOFILL_VIEW,
+  Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
 ];
 
 export async function initializeGlobalVars({reset = true} = {}) {
