@@ -186,6 +186,63 @@ class RNPerfMetrics {
     }
   }
 
+  heapSnapshotStarted(): void {
+    this.sendEvent({
+      eventName: 'MemoryPanelActionStarted',
+      params: {
+        action: 'snapshot',
+      },
+    });
+  }
+
+  heapSnapshotFinished(success: boolean): void {
+    this.sendEvent({
+      eventName: 'MemoryPanelActionFinished',
+      params: {
+        action: 'snapshot',
+        success,
+      },
+    });
+  }
+
+  heapProfilingStarted(): void {
+    this.sendEvent({
+      eventName: 'MemoryPanelActionStarted',
+      params: {
+        action: 'profiling',
+      },
+    });
+  }
+
+  heapProfilingFinished(success: boolean): void {
+    this.sendEvent({
+      eventName: 'MemoryPanelActionFinished',
+      params: {
+        action: 'profiling',
+        success,
+      },
+    });
+  }
+
+  heapSamplingStarted(): void {
+    this.sendEvent({
+      eventName: 'MemoryPanelActionStarted',
+      params: {
+        action: 'sampling',
+      },
+    });
+  }
+
+  heapSamplingFinished(success: boolean): void {
+    this.sendEvent({
+      eventName: 'MemoryPanelActionFinished',
+      params: {
+        action: 'sampling',
+        success,
+      },
+    });
+  }
+
   #decorateEvent(event: ReactNativeChromeDevToolsEvent): Readonly<DecoratedReactNativeChromeDevToolsEvent> {
     const commonFields: CommonEventFields = {
       timestamp: getPerfTimestamp(),
@@ -295,9 +352,24 @@ export type FuseboxSetClientMetadataFinishedEvent = Readonly<{
   }>,
 }>;
 
-export type ReactNativeChromeDevToolsEvent =
-    EntrypointLoadingStartedEvent|EntrypointLoadingFinishedEvent|DebuggerReadyEvent|BrowserVisibilityChangeEvent|
-    BrowserErrorEvent|RemoteDebuggingTerminatedEvent|DeveloperResourceLoadingStartedEvent|
-    DeveloperResourceLoadingFinishedEvent|FuseboxSetClientMetadataStartedEvent|FuseboxSetClientMetadataFinishedEvent;
+export type MemoryPanelActionStartedEvent = Readonly<{
+  eventName: 'MemoryPanelActionStarted',
+  params: Readonly<{
+    action: 'profiling' | 'sampling' | 'snapshot',
+  }>,
+}>;
+
+export type MemoryPanelActionFinishedEvent = Readonly<{
+  eventName: 'MemoryPanelActionFinished',
+  params: Readonly<{
+    action: 'profiling' | 'sampling' | 'snapshot',
+    success: boolean,
+  }>,
+}>;
+
+export type ReactNativeChromeDevToolsEvent = EntrypointLoadingStartedEvent|EntrypointLoadingFinishedEvent|
+    DebuggerReadyEvent|BrowserVisibilityChangeEvent|BrowserErrorEvent|RemoteDebuggingTerminatedEvent|
+    DeveloperResourceLoadingStartedEvent|DeveloperResourceLoadingFinishedEvent|FuseboxSetClientMetadataStartedEvent|
+    FuseboxSetClientMetadataFinishedEvent|MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent;
 
 export type DecoratedReactNativeChromeDevToolsEvent = CommonEventFields&ReactNativeChromeDevToolsEvent;

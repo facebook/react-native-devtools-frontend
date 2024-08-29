@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
+import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as Root from '../../core/root/root.js';
@@ -380,12 +381,22 @@ export class SamplingHeapProfileType extends SamplingHeapProfileTypeBase {
   }
 
   override startSampling(): void {
+    Host.rnPerfMetrics.heapSamplingStarted();
     const heapProfilerModel = this.obtainRecordingProfile();
     if (!heapProfilerModel) {
+      Host.rnPerfMetrics.heapSamplingFinished(
+          false,  // success
+      );
       return;
     }
 
-    void heapProfilerModel.startSampling();
+    void heapProfilerModel.startSampling().then(failed => {
+      if (failed) {
+        Host.rnPerfMetrics.heapSamplingFinished(
+            false,  // success
+        );
+      }
+    });
     if (Root.Runtime.experiments.isEnabled('sampling-heap-profiler-timeline')) {
       this.updateTimer = window.setTimeout(() => {
         void this.updateStats();
@@ -408,13 +419,24 @@ export class SamplingHeapProfileType extends SamplingHeapProfileTypeBase {
     this.dispatchEventToListeners(SamplingHeapProfileType.Events.RecordingStopped);
     const heapProfilerModel = this.obtainRecordingProfile();
     if (!heapProfilerModel) {
+      Host.rnPerfMetrics.heapSamplingFinished(
+          false,  // success
+      );
       throw new Error('No heap profiler model');
     }
 
     const samplingProfile = await heapProfilerModel.stopSampling();
     if (!samplingProfile) {
+      Host.rnPerfMetrics.heapSamplingFinished(
+          false,  // success
+      );
       throw new Error('No sampling profile found');
     }
+
+    Host.rnPerfMetrics.heapSamplingFinished(
+        true,  // success
+    );
+
     return samplingProfile;
   }
 
