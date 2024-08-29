@@ -173,7 +173,7 @@ export const Instance = new RNExperimentsSupport();
 
 Instance.register({
   name: RNExperimentName.JS_HEAP_PROFILER_ENABLE,
-  title: 'Enable Heap Profiler',
+  title: 'Enable Heap Profiler (Memory Panel)',
   unstable: false,
   enabledByDefault: ({ isReactNativeEntryPoint }) => !isReactNativeEntryPoint,
 });
