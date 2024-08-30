@@ -12,14 +12,14 @@ const UIStrings = {
   /**
    * @description React DevTools panel title
    */
-  title: '⚛️ React DevTools',
+  title: '⚛️ Components',
 
   /**
    * @description Command for showing the React DevTools panel
    */
-  command: 'Show React DevTools panel',
+  command: 'Show React DevTools Components panel',
 };
-const str_ = i18n.i18n.registerUIStrings('panels/react_devtools/react_devtools-meta.ts', UIStrings);
+const str_ = i18n.i18n.registerUIStrings('panels/react_devtools/react_devtools_components-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
 let loadedModule: (typeof ReactDevToolsPanelModule|undefined);
@@ -33,14 +33,14 @@ async function loadModule(): Promise<typeof ReactDevToolsPanelModule> {
 
 UI.ViewManager.registerViewExtension({
   location: UI.ViewManager.ViewLocationValues.PANEL,
-  id: 'react-devtools',
+  id: 'react-devtools-components',
   title: i18nLazyString(UIStrings.title),
   commandPrompt: i18nLazyString(UIStrings.command),
   persistence: UI.ViewManager.ViewPersistence.PERMANENT,
   order: 1000,
   async loadView() {
     const Module = await loadModule();
-    return new Module.ReactDevToolsView.ReactDevToolsViewImpl();
+    return new Module.ReactDevToolsComponentsView.ReactDevToolsComponentsViewImpl();
   },
 });
 

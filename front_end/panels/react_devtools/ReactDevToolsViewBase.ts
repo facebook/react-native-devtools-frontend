@@ -17,22 +17,18 @@ import {Events as ReactDevToolsModelEvents, ReactDevToolsModel, type EventTypes 
 
 import type * as ReactDevToolsTypes from '../../third_party/react-devtools/react-devtools.js';
 import type * as Platform from '../../core/platform/platform.js';
+import { LocalizedString } from '../../core/platform/UIString.js';
 
 const UIStrings = {
-  /**
-   *@description Title of the React DevTools view
-   */
-  title: 'React DevTools',
   /**
    * @description Label of the FB-only 'send feedback' button.
    */
   sendFeedback: '[FB-only] Send feedback',
 };
-const str_ = i18n.i18n.registerUIStrings('panels/react_devtools/ReactDevToolsView.ts', UIStrings);
+const str_ = i18n.i18n.registerUIStrings('panels/react_devtools/ReactDevToolsViewBase.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 type ReactDevToolsInitializationFailedEvent = Common.EventTarget.EventTargetEvent<ReactDevToolsModelEventTypes[ReactDevToolsModelEvents.InitializationFailed]>;
-type ReactDevToolsMessageReceivedEvent = Common.EventTarget.EventTargetEvent<ReactDevToolsModelEventTypes[ReactDevToolsModelEvents.MessageReceived]>;
 
 // Based on ExtensionServer.onOpenResource
 async function openResource(
@@ -73,96 +69,106 @@ function viewElementSourceFunction(source: ReactDevToolsTypes.Source, symbolicat
   void openResource(sourceURL as Platform.DevToolsPath.UrlString, line - 1, column - 1);
 }
 
-export class ReactDevToolsViewImpl extends UI.View.SimpleView {
-  private readonly wall: ReactDevToolsTypes.Wall;
-  private backendIsConnected: boolean = false;
-  private bridge: ReactDevToolsTypes.Bridge | null = null;
-  private store: ReactDevToolsTypes.Store | null = null;
-  private readonly listeners: Set<ReactDevToolsTypes.WallListener> = new Set();
+export class ReactDevToolsViewBase extends UI.View.SimpleView implements
+    SDK.TargetManager.SDKModelObserver<ReactDevToolsModel> {
+  readonly #tab: string;
+  #model: ReactDevToolsModel | null = null;
 
-  constructor() {
-    super(i18nString(UIStrings.title));
+  constructor(
+    tab: 'components' | 'profiler',
+    title: LocalizedString,
+  ) {
+    super(title);
 
-    this.wall = {
-      listen: (listener): Function => {
-        this.listeners.add(listener);
-
-        return (): void => {
-          this.listeners.delete(listener);
-        };
-      },
-      send: (event, payload): void => this.sendMessage(event, payload),
-    };
-
-    // Notify backend if Chrome DevTools was closed, marking frontend as disconnected
-    window.addEventListener('beforeunload', () => this.bridge?.shutdown());
-
-    SDK.TargetManager.TargetManager.instance().addModelListener(
-      ReactDevToolsModel,
-      ReactDevToolsModelEvents.InitializationCompleted,
-      this.onInitializationCompleted,
-      this,
-    );
-    SDK.TargetManager.TargetManager.instance().addModelListener(
-      ReactDevToolsModel,
-      ReactDevToolsModelEvents.InitializationFailed,
-      this.onInitializationFailed,
-      this,
-    );
-    SDK.TargetManager.TargetManager.instance().addModelListener(
-      ReactDevToolsModel,
-      ReactDevToolsModelEvents.Destroyed,
-      this.onDestroyed,
-      this,
-    );
-    SDK.TargetManager.TargetManager.instance().addModelListener(
-      ReactDevToolsModel,
-      ReactDevToolsModelEvents.MessageReceived,
-      this.onMessage,
-      this,
-    );
-
-    this.renderLoader();
+    this.#tab = tab;
+    this.#renderLoader();
   }
 
-  private onInitializationCompleted(): void {
-    // Clear loader or error views
-    this.clearView();
+  override wasShown(): void {
+    super.wasShown();
+    this.registerCSSFiles([ReactDevTools.CSS]);
 
-    this.backendIsConnected = true;
-    this.bridge = ReactDevTools.createBridge(this.wall);
-    this.store = ReactDevTools.createStore(this.bridge);
+    if (this.#model == null) {
+      SDK.TargetManager.TargetManager.instance().observeModels(ReactDevToolsModel, this);
+    }
+  }
 
+  modelAdded(model: ReactDevToolsModel): void {
+    this.#model = model;
+
+    if (model.isInitialized()) {
+      // Already initialized from another rendered React DevTools view - render
+      // from initialized state
+      this.#renderDevToolsView();
+    }
+
+    model.addEventListener(
+      ReactDevToolsModelEvents.InitializationCompleted,
+      this.#handleInitializationCompleted,
+      this,
+    );
+    model.addEventListener(
+      ReactDevToolsModelEvents.InitializationFailed,
+      this.#handleInitializationFailed,
+      this,
+    );
+    model.addEventListener(
+      ReactDevToolsModelEvents.Destroyed,
+      this.#handleBackendDestroyed,
+      this,
+    );
+    void model.ensureInitialized();
+  }
+
+  modelRemoved(model: ReactDevToolsModel): void {
+    model.removeEventListener(
+      ReactDevToolsModelEvents.InitializationCompleted,
+      this.#handleInitializationCompleted,
+      this,
+    );
+    model.removeEventListener(
+      ReactDevToolsModelEvents.InitializationFailed,
+      this.#handleInitializationFailed,
+      this,
+    );
+    model.removeEventListener(
+      ReactDevToolsModelEvents.Destroyed,
+      this.#handleBackendDestroyed,
+      this,
+    );
+  }
+
+  #handleInitializationCompleted(): void {
+    this.#renderDevToolsView();
+  }
+
+  #handleInitializationFailed({data: errorMessage}: ReactDevToolsInitializationFailedEvent): void {
+    this.#renderErrorView(errorMessage);
+  }
+
+  #handleBackendDestroyed(): void {
+    this.#renderLoader();
+  }
+
+  #renderDevToolsView(): void {
+    this.#clearView();
+
+    const model = this.#model!;
     const usingDarkTheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    ReactDevTools.initialize(this.contentElement, {
-      bridge: this.bridge,
-      store: this.store,
+    const initializeFn = this.#tab === 'components' ? ReactDevTools.initializeComponents : ReactDevTools.initializeProfiler;
+
+    initializeFn(this.contentElement, {
+      bridge: model.getBridgeOrThrow(),
+      store: model.getStoreOrThrow(),
       theme: usingDarkTheme ? 'dark' : 'light',
       canViewElementSourceFunction: () => true,
       viewElementSourceFunction,
     });
   }
 
-  private onInitializationFailed({data: errorMessage}: ReactDevToolsInitializationFailedEvent): void {
-    this.backendIsConnected = false;
-    this.clearView();
-    this.renderErrorView(errorMessage);
-  }
+  #renderLoader(): void {
+    this.#clearView();
 
-  private onDestroyed(): void {
-    // Unmount React DevTools view
-    this.clearView();
-
-    this.backendIsConnected = false;
-    this.bridge?.shutdown();
-    this.bridge = null;
-    this.store = null;
-    this.listeners.clear();
-
-    this.renderLoader();
-  }
-
-  private renderLoader(): void {
     const loaderContainer = document.createElement('div');
     loaderContainer.setAttribute('style', 'display: flex; flex: 1; justify-content: center; align-items: center');
 
@@ -173,7 +179,9 @@ export class ReactDevToolsViewImpl extends UI.View.SimpleView {
     this.contentElement.appendChild(loaderContainer);
   }
 
-  private renderErrorView(errorMessage: string): void {
+  #renderErrorView(errorMessage: string): void {
+    this.#clearView();
+
     const errorContainer = document.createElement('div');
     errorContainer.setAttribute('style', 'display: flex; flex: 1; flex-direction: column; justify-content: center; align-items: center');
 
@@ -198,35 +206,7 @@ export class ReactDevToolsViewImpl extends UI.View.SimpleView {
     }
   }
 
-  private clearView(): void {
+  #clearView(): void {
     this.contentElement.removeChildren();
-  }
-
-  override wasShown(): void {
-    super.wasShown();
-
-    // This has to be here, because initialize() can be called when user is on the other panel and view is unmounted
-    this.registerCSSFiles([ReactDevTools.CSS]);
-  }
-
-  private onMessage({data: message}: ReactDevToolsMessageReceivedEvent): void {
-    if (!message) {
-      return;
-    }
-
-    for (const listener of this.listeners) {
-      listener(message);
-    }
-  }
-
-  private sendMessage(event: string, payload?: ReactDevToolsTypes.MessagePayload): void {
-    // If the execution context has been destroyed, do not attempt to send a message
-    if (!this.backendIsConnected) {
-      return;
-    }
-
-    for (const model of SDK.TargetManager.TargetManager.instance().models(ReactDevToolsModel, {scoped: true})) {
-      void model.sendMessage({event, payload});
-    }
   }
 }

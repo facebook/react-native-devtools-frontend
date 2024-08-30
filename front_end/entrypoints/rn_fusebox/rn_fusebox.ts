@@ -11,7 +11,8 @@ import '../inspector_main/inspector_main-meta.js';
 import '../../panels/issues/issues-meta.js';
 import '../../panels/mobile_throttling/mobile_throttling-meta.js';
 import '../../panels/network/network-meta.js';
-import '../../panels/react_devtools/react_devtools-meta.js';
+import '../../panels/react_devtools/react_devtools_components-meta.js';
+import '../../panels/react_devtools/react_devtools_profiler-meta.js';
 import '../../panels/rn_welcome/rn_welcome-meta.js';
 import '../../panels/timeline/timeline-meta.js';
 
