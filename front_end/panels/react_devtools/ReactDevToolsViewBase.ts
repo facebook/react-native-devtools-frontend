@@ -81,15 +81,13 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
 
     this.#tab = tab;
     this.#renderLoader();
+
+    SDK.TargetManager.TargetManager.instance().observeModels(ReactDevToolsModel, this);
   }
 
   override wasShown(): void {
     super.wasShown();
     this.registerCSSFiles([ReactDevTools.CSS]);
-
-    if (this.#model === null) {
-      SDK.TargetManager.TargetManager.instance().observeModels(ReactDevToolsModel, this);
-    }
   }
 
   modelAdded(model: ReactDevToolsModel): void {
