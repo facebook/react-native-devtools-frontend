@@ -36,8 +36,8 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
   readonly #listeners: Set<ReactDevToolsTypes.WallListener> = new Set();
   #initializeCalled: boolean = false;
   #initialized: boolean = false;
-  #bridge: ReactDevToolsTypes.Bridge | null;
-  #store: ReactDevToolsTypes.Store | null;
+  #bridge: ReactDevToolsTypes.Bridge | null = null;
+  #store: ReactDevToolsTypes.Store | null = null;
 
   constructor(target: SDK.Target.Target) {
     super(target);
@@ -52,8 +52,6 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
       },
       send: (event, payload): void => void this.#sendMessage({event, payload}),
     };
-    this.#bridge = ReactDevTools.createBridge(this.#wall);
-    this.#store = ReactDevTools.createStore(this.#bridge);
 
     const bindingsModel = target.model(ReactNativeModels.ReactDevToolsBindingsModel.ReactDevToolsBindingsModel);
     if (bindingsModel == null) {
@@ -82,13 +80,16 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     window.addEventListener('beforeunload', () => this.#bridge?.shutdown());
   }
 
-  async ensureInitialized(): Promise<void> {
+  ensureInitialized(): void {
     if (this.#initializeCalled) {
       return;
     }
 
     this.#initializeCalled = true;
+    void this.#initialize();
+  }
 
+  async #initialize(): Promise<void> {
     try {
       const bindingsModel = this.#bindingsModel;
       await bindingsModel.enable();
@@ -101,7 +102,7 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
       await bindingsModel.initializeDomain(ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE);
 
       this.#initialized = true;
-      this.dispatchEventToListeners(Events.InitializationCompleted);
+      this.#finishInitializationAndNotify();
     } catch (e) {
       this.dispatchEventToListeners(Events.InitializationFailed, e.message);
     }
@@ -152,15 +153,18 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
       throw new Error('ReactDevToolsModel failed to handle BackendExecutionContextCreated event: ReactDevToolsBindingsModel was null');
     }
 
-    this.#bridge = ReactDevTools.createBridge(this.#wall);
-    this.#store = ReactDevTools.createStore(this.#bridge);
-
     // This could happen if the app was reloaded while ReactDevToolsBindingsModel was initializing
     if (!rdtBindingsModel.isEnabled()) {
-      void this.ensureInitialized();
+      this.ensureInitialized();
     } else {
-      this.dispatchEventToListeners(Events.InitializationCompleted);
+      this.#finishInitializationAndNotify();
     }
+  }
+
+  #finishInitializationAndNotify(): void {
+    this.#bridge = ReactDevTools.createBridge(this.#wall);
+    this.#store = ReactDevTools.createStore(this.#bridge);
+    this.dispatchEventToListeners(Events.InitializationCompleted);
   }
 
   #handleBackendExecutionContextUnavailable({data: errorMessage}: ReactDevToolsBindingsBackendExecutionContextUnavailableEvent): void {
