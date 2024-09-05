@@ -17,7 +17,6 @@ import {Events as ReactDevToolsModelEvents, ReactDevToolsModel, type EventTypes 
 
 import type * as ReactDevToolsTypes from '../../third_party/react-devtools/react-devtools.js';
 import type * as Platform from '../../core/platform/platform.js';
-import { LocalizedString } from '../../core/platform/UIString.js';
 
 const UIStrings = {
   /**
@@ -76,7 +75,7 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
 
   constructor(
     tab: 'components' | 'profiler',
-    title: LocalizedString,
+    title: Platform.UIString.LocalizedString,
   ) {
     super(title);
 
@@ -88,7 +87,7 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
     super.wasShown();
     this.registerCSSFiles([ReactDevTools.CSS]);
 
-    if (this.#model == null) {
+    if (this.#model === null) {
       SDK.TargetManager.TargetManager.instance().observeModels(ReactDevToolsModel, this);
     }
   }
@@ -155,7 +154,11 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
   #renderDevToolsView(): void {
     this.#clearView();
 
-    const model = this.#model!;
+    const model = this.#model;
+    if (model === null) {
+      throw new Error('Attempted to render React DevTools panel, but the model was null');
+    }
+
     const usingDarkTheme = window.matchMedia('(prefers-color-scheme: dark)').matches;
     const initializeFn = this.#tab === 'components' ? ReactDevTools.initializeComponents : ReactDevTools.initializeProfiler;
 

@@ -54,7 +54,7 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     };
 
     const bindingsModel = target.model(ReactNativeModels.ReactDevToolsBindingsModel.ReactDevToolsBindingsModel);
-    if (bindingsModel == null) {
+    if (bindingsModel === null) {
       throw new Error('Failed to construct ReactDevToolsModel: ReactDevToolsBindingsModel was null');
     }
 
@@ -113,7 +113,7 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
   }
 
   getBridgeOrThrow(): ReactDevToolsTypes.Bridge {
-    if (this.#bridge == null) {
+    if (this.#bridge === null) {
       throw new Error('Failed to get bridge from ReactDevToolsModel: bridge was null');
     }
 
@@ -121,7 +121,7 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
   }
 
   getStoreOrThrow(): ReactDevToolsTypes.Store {
-    if (this.#store == null) {
+    if (this.#store === null) {
       throw new Error('Failed to get store from ReactDevToolsModel: store was null');
     }
 

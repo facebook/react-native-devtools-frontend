@@ -69,6 +69,7 @@ const EXCLUDED_FILES = [
 const META_CODE_PATHS = [
   'core/host/RNPerfMetrics.ts',
   'core/rn_experiments',
+  'core/sdk/ReactNativeApplicationModel.ts',
   'entrypoints/rn_fusebox',
   'entrypoints/rn_inspector',
   'entrypoints/shell/browser_compatibility_guard.ts',

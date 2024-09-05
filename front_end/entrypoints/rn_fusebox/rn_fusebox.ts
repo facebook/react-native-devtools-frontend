@@ -247,8 +247,8 @@ class FuseboxReactNativeApplicationObserver implements
     const {appDisplayName, deviceName} = event.data;
 
     // Update window title
-    if (appDisplayName != null) {
-      document.title = `${appDisplayName}${deviceName != null ? ` (${deviceName})` : ''} - React Native DevTools`;
+    if (appDisplayName !== null && appDisplayName !== undefined) {
+      document.title = `${appDisplayName}${deviceName !== null && deviceName !== undefined ? ` (${deviceName})` : ''} - React Native DevTools`;
     }
   }
 }
