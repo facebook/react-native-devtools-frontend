@@ -80,6 +80,10 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     window.addEventListener('beforeunload', () => this.#bridge?.shutdown());
   }
 
+  override dispose(): void {
+    this.#bridge?.removeListener('reloadAppForProfiling', this.#handleReloadAppForProfiling);
+  }
+
   ensureInitialized(): void {
     if (this.#initializeCalled) {
       return;
@@ -163,8 +167,15 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
 
   #finishInitializationAndNotify(): void {
     this.#bridge = ReactDevTools.createBridge(this.#wall);
-    this.#store = ReactDevTools.createStore(this.#bridge);
+    this.#store = ReactDevTools.createStore(this.#bridge, {
+      supportsReloadAndProfile: true,
+    });
+    this.#bridge.addListener('reloadAppForProfiling', this.#handleReloadAppForProfiling);
     this.dispatchEventToListeners(Events.InitializationCompleted);
+  }
+
+  #handleReloadAppForProfiling(): void {
+    SDK.ResourceTreeModel.ResourceTreeModel.reloadAllPages(false);
   }
 
   #handleBackendExecutionContextUnavailable({data: errorMessage}: ReactDevToolsBindingsBackendExecutionContextUnavailableEvent): void {
