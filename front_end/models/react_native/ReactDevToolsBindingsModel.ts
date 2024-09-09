@@ -155,6 +155,13 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
   }
 
   async sendMessage(domainName: DomainName, message: JSONValue): Promise<void> {
+    // If Execution Context is destroyed, do not attempt to send a message (evaluate anything)
+    // This could happen when we destroy Bridge from ReactDevToolsModel, which attempts to send `shutdown` event
+    // We still need to call `bridge.shutdown()` in order to unsubscribe all listeners on the Frontend (this) side
+    if (!this.fuseboxDispatcherIsInitialized) {
+      return;
+    }
+
     const runtimeModel = this.target().model(SDK.RuntimeModel.RuntimeModel);
     if (!runtimeModel) {
       throw new Error(`Failed to send message from ReactDevToolsBindingsModel for domain ${domainName}: runtime model is not available`);
