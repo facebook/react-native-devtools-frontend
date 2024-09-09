@@ -96,12 +96,6 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
   modelAdded(model: ReactDevToolsModel): void {
     this.#model = model;
 
-    if (model.isInitialized()) {
-      // Already initialized from another rendered React DevTools view - render
-      // from initialized state
-      this.#renderDevToolsView();
-    }
-
     model.addEventListener(
       ReactDevToolsModelEvents.InitializationCompleted,
       this.#handleInitializationCompleted,
@@ -117,7 +111,15 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
       this.#handleBackendDestroyed,
       this,
     );
-    void model.ensureInitialized();
+
+    if (model.isInitialized()) {
+      // Already initialized from another rendered React DevTools panel - render
+      // from initialized state
+      this.#renderDevToolsView();
+    } else {
+      // Once initialized, it will emit InitializationCompleted event
+      model.ensureInitialized();
+    }
   }
 
   modelRemoved(model: ReactDevToolsModel): void {
