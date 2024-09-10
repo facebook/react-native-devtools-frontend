@@ -12,7 +12,7 @@ const UIStrings = {
   /**
    * @description React DevTools panel title
    */
-  title: '⚛️ Profiler',
+  title: 'Profiler ⚛',
 
   /**
    * @description Command for showing the React DevTools panel
