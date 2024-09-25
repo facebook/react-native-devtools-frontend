@@ -7,7 +7,7 @@ enables developers working on React Native apps to debug their code more efficie
 
 This repository is a fork of [ChromeDevTools/devtools-frontend](https://github.com/ChromeDevTools/devtools-frontend).
 
-##Example usage
+## Example usage
 After building the project, you can use the React Native Debugger frontend to inspect and debug your React Native app. First, serve the built files 
 locally using:
 
