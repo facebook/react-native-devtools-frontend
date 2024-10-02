@@ -29,10 +29,10 @@ const UIStrings = {
   docsDebuggingBasics: 'Debugging Basics',
   /** @description "Debugging Basics" item detail */
   docsDebuggingBasicsDetail: 'Overview of debugging tools in React Native',
-  /** @description "React DevTools" title (docs item 2 - pre-launch) */
-  docsReactDevTools: 'React DevTools',
-  /** @description "React DevTools" item detail */
-  docsReactDevToolsDetail: 'Debug React components with React DevTools',
+  /** @description "React Native DevTools" title (docs item 2) */
+  docsReactNativeDevTools: 'React Native DevTools',
+  /** @description "React Native DevTools" item detail */
+  docsReactDevToolsDetail: 'Explore features available in React Native DevTools',
   /** @description "Native Debugging" title (docs item 3) */
   docsNativeDebugging: 'Native Debugging',
   /** @description "Native Debugging" item detail */
@@ -124,7 +124,7 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
       import.meta.url,
     ).toString();
     const docsImage2Url = new URL(
-      '../../Images/react_native/learn-react-devtools.jpg',
+      '../../Images/react_native/learn-react-native-devtools.jpg',
       import.meta.url,
     ).toString();
     const docsImage3Url = new URL(
@@ -176,15 +176,14 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
                 <p>${i18nString(UIStrings.docsDebuggingBasicsDetail)}</p>
               </div>
             </button>
-            <!-- TODO(huntie): Replace this item when React Native DevTools docs are complete -->
-            <button class="rn-welcome-docsfeed-item" type="button" role="link" @click=${this.#handleLinkPress.bind(this, 'https:\/\/reactnative.dev/docs/debugging/react-devtools')} title=${i18nString(UIStrings.docsReactDevTools)}>
+            <button class="rn-welcome-docsfeed-item" type="button" role="link" @click=${this.#handleLinkPress.bind(this, 'https:\/\/reactnative.dev/docs/react-devtools')} title=${i18nString(UIStrings.docsReactNativeDevTools)}>
               <div class="rn-welcome-image" style="background-image: url('${docsImage2Url}')"></div>
               <div>
-                <p class="devtools-link">${i18nString(UIStrings.docsReactDevTools)}</p>
+                <p class="devtools-link">${i18nString(UIStrings.docsReactNativeDevTools)}</p>
                 <p>${i18nString(UIStrings.docsReactDevToolsDetail)}</p>
               </div>
             </button>
-            <button class="rn-welcome-docsfeed-item" type="button" role="link" @click=${this.#handleLinkPress.bind(this, 'https:\/\/reactnative.dev/docs/debugging/debugging-native-code')} title=${i18nString(UIStrings.docsNativeDebugging)}>
+            <button class="rn-welcome-docsfeed-item" type="button" role="link" @click=${this.#handleLinkPress.bind(this, 'https:\/\/reactnative.dev/docs/debugging-native-code')} title=${i18nString(UIStrings.docsNativeDebugging)}>
               <div class="rn-welcome-image" style="background-image: url('${docsImage3Url}')"></div>
               <div>
                 <p class="devtools-link">${i18nString(UIStrings.docsNativeDebugging)}</p>
