@@ -20,7 +20,9 @@ const UIStrings = {
   /**
    *@description Title of the Network tool
    */
-  network: 'Network',
+  // [RN] Temporary rename for 0.76-stable. This panel is only shown when
+  // Expo sets `?unstable_enableNetworkPanel=true`.
+  network: 'Network (Expo, unstable)',
   /**
    *@description Command for showing the 'Network request blocking' tool
    */
@@ -145,7 +147,8 @@ UI.ViewManager.registerViewExtension({
   id: 'network',
   commandPrompt: i18nLazyString(UIStrings.showNetwork),
   title: i18nLazyString(UIStrings.network),
-  order: 40,
+  // [RN] Temporary reordering for 0.76-stable.
+  order: 1100,
   condition: Root.Runtime.conditions.reactNativeUnstableNetworkPanel,
   async loadView() {
     const Network = await loadNetworkModule();
