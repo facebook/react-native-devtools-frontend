@@ -176,6 +176,7 @@
 }
 
 .rn-welcome-image {
+  flex-shrink: 0;
   aspect-ratio: calc(16 / 9);
   height: 64px;
   margin-right: 16px;
