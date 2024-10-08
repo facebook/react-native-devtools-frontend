@@ -12,6 +12,7 @@ generate_css("css_files") {
   sources = [
     "emptyWidget.css",
     "inspectorCommon.css",
+    "remoteDebuggingTerminatedScreen.css",
   ]
 }
 
@@ -35,7 +36,6 @@ generate_css("legacy_css_files") {
     "popover.css",
     "progressIndicator.css",
     "radioButton.css",
-    "remoteDebuggingTerminatedScreen.css",
     "reportView.css",
     "rootView.css",
     "searchableView.css",

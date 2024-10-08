@@ -2169,7 +2169,7 @@ grd_files_debug_sources = [
   "front_end/ui/legacy/popover.css.legacy.js",
   "front_end/ui/legacy/progressIndicator.css.legacy.js",
   "front_end/ui/legacy/radioButton.css.legacy.js",
-  "front_end/ui/legacy/remoteDebuggingTerminatedScreen.css.legacy.js",
+  "front_end/ui/legacy/remoteDebuggingTerminatedScreen.css.js",
   "front_end/ui/legacy/reportView.css.legacy.js",
   "front_end/ui/legacy/rootView.css.legacy.js",
   "front_end/ui/legacy/searchableView.css.legacy.js",
