@@ -66,33 +66,39 @@ export class RemoteDebuggingTerminatedScreen extends VBox {
     super(true);
     this.registerCSSFiles([remoteDebuggingTerminatedScreenStyles]);
 
-    const handleReconnect = () => {
+    const handleReconnect = (): void => {
       window.location.reload();
     };
     const feedbackLink = globalThis.FB_ONLY__reactNativeFeedbackLink;
 
     render(
-      html`
+        html`
         <h1 class="remote-debugging-terminated-title">${i18nString(UIStrings.title)}</h1>
-        <span class="remote-debugging-terminated-message">${i18nString(UIStrings.debuggingConnectionWasClosed)}<span class="remote-debugging-terminated-reason">${reason}</span></span>
+        <span class="remote-debugging-terminated-message">
+          ${i18nString(UIStrings.debuggingConnectionWasClosed)}
+          <span class="remote-debugging-terminated-reason">${reason}</span>
+        </span>
         <div class="remote-debugging-terminated-options">
           <div class="remote-debugging-terminated-label">
             ${i18nString(UIStrings.reconnectWhenReadyByReopening)}
           </div>
-          ${createTextButton(
-            i18nString(UIStrings.reconnectDevtools),
-            handleReconnect,
-            {className: "primary-button", jslogContext: "reconnect"}
-          )}
-          <div class="remote-debugging-terminated-label">${i18nString(UIStrings.closeDialogDetail)}</div>
+          ${
+            createTextButton(
+                i18nString(UIStrings.reconnectDevtools),
+                handleReconnect,
+                {className: 'primary-button', jslogContext: 'reconnect'},
+                )}
+          <div class="remote-debugging-terminated-label">
+            ${i18nString(UIStrings.closeDialogDetail)}
+          </div>
           ${createTextButton(i18nString(UIStrings.closeDialog), onClose, {
-            jslogContext: "dismiss",
-          })}
+          jslogContext: 'dismiss',
+        })}
         </div>
-        ${feedbackLink !== null && feedbackLink !== undefined
-          ? this.#createFeedbackSection(feedbackLink!) : null}
+        ${feedbackLink !== null && feedbackLink !== undefined ? this.#createFeedbackSection(feedbackLink) : null}
       `,
-      this.contentElement
+        this.contentElement,
+        {host: this},
     );
   }
 
@@ -106,20 +112,21 @@ export class RemoteDebuggingTerminatedScreen extends VBox {
   }
 
   #createFeedbackSection(feedbackLink: string): LitHtml.TemplateResult {
-    const handleSendFeedback = () => {
+    const handleSendFeedback = (): void => {
       Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(
-        feedbackLink as Platform.DevToolsPath.UrlString
+          feedbackLink as Platform.DevToolsPath.UrlString,
       );
     };
 
     return html`
       <div class="remote-debugging-terminated-feedback-container">
         <div class="remote-debugging-terminated-feedback-label">${i18nString(UIStrings.sendFeedbackMessage)}</div>
-        ${createTextButton(
+        ${
+        createTextButton(
             i18nString(UIStrings.sendFeedback),
             handleSendFeedback,
-            {jslogContext: "sendFeedback"}
-        )}
+            {jslogContext: 'sendFeedback'},
+            )}
       </div>
     `;
   }
