@@ -74,10 +74,10 @@ export class RemoteDebuggingTerminatedScreen extends VBox {
     render(
         html`
         <h1 class="remote-debugging-terminated-title">${i18nString(UIStrings.title)}</h1>
-        <span class="remote-debugging-terminated-message">
-          ${i18nString(UIStrings.debuggingConnectionWasClosed)}
+        <div class="remote-debugging-terminated-message">
+          <span>${i18nString(UIStrings.debuggingConnectionWasClosed)}</span>
           <span class="remote-debugging-terminated-reason">${reason}</span>
-        </span>
+        </div>
         <div class="remote-debugging-terminated-options">
           <div class="remote-debugging-terminated-label">
             ${i18nString(UIStrings.reconnectWhenReadyByReopening)}
