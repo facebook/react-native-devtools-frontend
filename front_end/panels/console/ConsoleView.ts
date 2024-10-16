@@ -628,14 +628,6 @@ export class ConsoleView extends UI.Widget.VBox implements
     if (!Common.Settings.Settings.instance().moduleSetting('preserve-console-log').get() &&
         model.target().outermostTarget() === model.target()) {
       this.consoleCleared();
-      this.addConsoleMessage(new SDK.ConsoleModel.ConsoleMessage(
-          model.target().model(SDK.RuntimeModel.RuntimeModel), Protocol.Log.LogEntrySource.Recommendation,
-          Protocol.Log.LogEntryLevel.Info,
-          '[React Native] Console messages are currently cleared upon DevTools disconnection. You can preserve logs in settings: ',
-          {
-            type: SDK.ConsoleModel.FrontendMessageType.System,
-            context: 'fusebox_preserve_log_rec',
-          }));
     }
   }
 
