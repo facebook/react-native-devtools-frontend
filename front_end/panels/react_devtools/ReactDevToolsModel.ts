@@ -107,10 +107,6 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     this.#listeners.clear();
   }
 
-  override dispose(): void {
-    this.#bridge?.removeListener('reloadAppForProfiling', this.#handleReloadAppForProfiling);
-  }
-
   ensureInitialized(): void {
     if (this.#initializeCalled) {
       return;
