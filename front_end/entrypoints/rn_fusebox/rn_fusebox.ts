@@ -22,10 +22,10 @@ import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as Main from '../main/main.js';
+import * as Common from '../../core/common/common.js';
+import * as Protocol from '../../generated/protocol.js';
 
-import type * as Common from '../../core/common/common.js';
 import type * as Platform from '../../core/platform/platform.js';
-import type * as Protocol from '../../generated/protocol.js';
 import type * as Sources from '../../panels/sources/sources.js';
 import * as RNExperiments from '../../core/rn_experiments/rn_experiments.js';
 
@@ -195,18 +195,39 @@ class ConnectionStatusToolbarItemProvider extends SDK.TargetManager.Observer imp
     SDK.TargetManager.TargetManager.instance().observeTargets(this, {scoped: true});
   }
 
-  override targetAdded(_target: SDK.Target.Target): void {
-    this.#updateRootTarget();
-  }
-  override targetRemoved(_target: SDK.Target.Target): void {
-    this.#updateRootTarget();
+  override targetAdded(target: SDK.Target.Target): void {
+    this.#onTargetChanged(target);
   }
 
-  #updateRootTarget(): void {
+  override targetRemoved(target: SDK.Target.Target): void {
+    this.#onTargetChanged(target);
+  }
+
+  #onTargetChanged(target: SDK.Target.Target): void {
     const rootTarget = SDK.TargetManager.TargetManager.instance().rootTarget();
     this.#button.setTitle(i18nLazyString(UIStrings.connectionStatusDisconnectedTooltip)());
     this.#button.setText(i18nLazyString(UIStrings.connectionStatusDisconnectedLabel)());
     this.#button.setVisible(!rootTarget);
+
+    if (!rootTarget) {
+      this.#printPreserveLogPrompt(target);
+    }
+  }
+
+  #printPreserveLogPrompt(target: SDK.Target.Target): void {
+    if (Common.Settings.Settings.instance().moduleSetting('preserve-console-log').get()) {
+      return;
+    }
+
+    target.model(SDK.ConsoleModel.ConsoleModel)
+        ?.addMessage(new SDK.ConsoleModel.ConsoleMessage(
+            target.model(SDK.RuntimeModel.RuntimeModel), Protocol.Log.LogEntrySource.Recommendation,
+            Protocol.Log.LogEntryLevel.Info,
+            '[React Native] Console messages are currently cleared upon DevTools disconnection. You can preserve logs in settings: ',
+            {
+              type: SDK.ConsoleModel.FrontendMessageType.System,
+              context: 'fusebox_preserve_log_rec',
+            }));
   }
 
   onClick(): void {
