@@ -83,6 +83,7 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
     this.#renderLoader();
 
     SDK.TargetManager.TargetManager.instance().observeModels(ReactDevToolsModel, this);
+    this.element.style.userSelect = 'text';
   }
 
   override wasShown(): void {
