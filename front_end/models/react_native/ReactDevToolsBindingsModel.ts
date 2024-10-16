@@ -40,6 +40,18 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
   private fuseboxDispatcherIsInitialized = false;
   private readonly domainToMessageQueue: Map<DomainName, Array<JSONValue>> = new Map();
 
+  override dispose(): void {
+    this.domainToListeners.clear();
+    this.domainToMessageQueue.clear();
+
+    const runtimeModel = this.target().model(SDK.RuntimeModel.RuntimeModel);
+    runtimeModel?.removeEventListener(SDK.RuntimeModel.Events.BindingCalled, this.bindingCalled, this);
+    runtimeModel?.removeEventListener(
+        SDK.RuntimeModel.Events.ExecutionContextCreated, this.onExecutionContextCreated, this);
+    runtimeModel?.removeEventListener(
+        SDK.RuntimeModel.Events.ExecutionContextDestroyed, this.onExecutionContextDestroyed, this);
+  }
+
   private bindingCalled(event: BindingCalledEventTargetEvent): void {
     // If binding name is not initialized, then we failed to get its name
     if (this.messagingBindingName === null || event.data.name !== this.messagingBindingName) {
