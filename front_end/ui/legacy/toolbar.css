@@ -600,3 +600,22 @@ devtools-icon.leading-issue-icon {
 .fusebox-connection-status .toolbar-glyph {
   color: white !important;
 }
+
+.toolbar-item.open-in-external-editor-button {
+  background-color: transparent;
+  border: none;
+}
+
+.toolbar-item.open-in-external-editor-button:hover {
+  background-color: var(--sys-color-state-hover-on-subtle);
+}
+
+.open-in-external-editor-adorner {
+  background-repeat: no-repeat;
+  background-origin: content-box;
+  background-size: contain;
+  padding: 4px;
+  width: 28px;
+  height: 28px;
+  margin-right: -4px;
+}
