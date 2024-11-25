@@ -6,6 +6,8 @@
 
 <!-- Explain how you've tested your change here -->
 
+- [ ] This change maintains backwards compatibility with previous Local Storage data (if modifying settings, experiments, or other persisted client state).
+
 # Upstreaming plan
 
 <!-- Pick one: -->
