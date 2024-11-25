@@ -37,3 +37,5 @@ experimental domain ReactNativeApplication
       optional string platform
       # The React Native version.
       optional string reactNativeVersion
+      # Whether the app is a profiling build.
+      optional boolean unstable_isProfilingBuild

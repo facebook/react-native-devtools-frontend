@@ -68,6 +68,12 @@
                             "description": "The React Native version.",
                             "optional": true,
                             "type": "string"
+                        },
+                        {
+                            "name": "unstable_isProfilingBuild",
+                            "description": "Whether the app is a profiling build.",
+                            "optional": true,
+                            "type": "boolean"
                         }
                     ]
                 }

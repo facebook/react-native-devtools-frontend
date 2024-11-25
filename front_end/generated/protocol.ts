@@ -60,6 +60,10 @@ export namespace ReactNativeApplication {
      * The React Native version.
      */
     reactNativeVersion?: string;
+    /**
+     * Whether the app is a profiling build.
+     */
+    unstable_isProfilingBuild?: boolean;
   }
 }
 

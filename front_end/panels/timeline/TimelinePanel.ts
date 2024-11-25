@@ -261,6 +261,7 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 let timelinePanelInstance: TimelinePanel;
 let isNode: boolean;
+let isReactNative: boolean;
 
 export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineModeViewDelegate {
   private readonly dropTarget: UI.DropTarget.DropTarget;
@@ -364,7 +365,7 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     this.captureLayersAndPicturesSetting.setTitle(i18nString(UIStrings.enableAdvancedPaint));
 
     this.showScreenshotsSetting =
-        Common.Settings.Settings.instance().createSetting('timeline-show-screenshots', isNode ? false : true);
+        Common.Settings.Settings.instance().createSetting('timeline-show-screenshots', isNode || isReactNative ? false : true);
     this.showScreenshotsSetting.setTitle(i18nString(UIStrings.screenshots));
     this.showScreenshotsSetting.addChangeListener(this.updateOverviewControls, this);
 
@@ -377,7 +378,7 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     this.panelToolbar = new UI.Toolbar.Toolbar('timeline-main-toolbar', timelineToolbarContainer);
     this.panelToolbar.makeWrappable(true);
     this.panelRightToolbar = new UI.Toolbar.Toolbar('', timelineToolbarContainer);
-    if (!isNode) {
+    if (!isNode && !isReactNative) {
       this.createSettingsPane();
       this.updateShowSettingsToolbarButton();
     }
@@ -453,6 +454,11 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
   }|undefined = {forceNew: null, isNode: false}): TimelinePanel {
     const {forceNew, isNode: isNodeMode} = opts;
     isNode = isNodeMode;
+
+    // [RN] Used to scope down available features for React Native targets
+    isReactNative = Root.Runtime.experiments.isEnabled(
+      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+    );
 
     if (!timelinePanelInstance || forceNew) {
       timelinePanelInstance = new TimelinePanel();
@@ -560,7 +566,7 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
 
     // View
     this.panelToolbar.appendSeparator();
-    if (!isNode) {
+    if (!isNode && !isReactNative) {
       this.showScreenshotsToolbarCheckbox =
           this.createSettingCheckbox(this.showScreenshotsSetting, i18nString(UIStrings.captureScreenshots));
       this.panelToolbar.appendToolbarItem(this.showScreenshotsToolbarCheckbox);
@@ -581,7 +587,7 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     }
 
     // Settings
-    if (!isNode) {
+    if (!isNode && !isReactNative) {
       this.panelRightToolbar.appendSeparator();
       this.panelRightToolbar.appendToolbarItem(this.showSettingsPaneButton);
     }
@@ -801,7 +807,7 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
   }
 
   private updateSettingsPaneVisibility(): void {
-    if (isNode) {
+    if (isNode || isReactNative) {
       return;
     }
     if (this.showSettingsPaneSetting.get()) {
