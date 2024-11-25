@@ -329,6 +329,13 @@ const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined
 
 Common.Settings.registerSettingExtension({
   storageType: Common.Settings.SettingStorageType.Synced,
+  settingName: 'skip-stack-frames-pattern',
+  settingType: Common.Settings.SettingType.REGEX,
+  defaultValue: '',
+});
+
+Common.Settings.registerSettingExtension({
+  storageType: Common.Settings.SettingStorageType.Synced,
   settingName: 'skip-content-scripts',
   settingType: Common.Settings.SettingType.BOOLEAN,
   defaultValue: true,
