@@ -19,13 +19,6 @@ type OpaqueType<Tag extends string> = {protocolOpaqueTypeTag: Tag};
 type OpaqueIdentifier<RepresentationType, Tag extends string> = RepresentationType&OpaqueType<Tag>;
 
 /**
- * A React Native-specific domain pertaining to the Fusebox (React Native
- * DevTools) client.
- */
-export namespace FuseboxClient {
-}
-
-/**
  * A React Native-specific domain for interacting with React Native application
  * features.
  */

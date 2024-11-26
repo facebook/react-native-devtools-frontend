@@ -92,30 +92,12 @@ document.addEventListener('visibilitychange', () => {
   Host.rnPerfMetrics.browserVisibilityChanged(document.visibilityState);
 });
 
-class FuseboxClientMetadataModel extends SDK.SDKModel.SDKModel<void> {
-  constructor(target: SDK.Target.Target) {
-    super(target);
-    Host.rnPerfMetrics.fuseboxSetClientMetadataStarted();
-    target.fuseboxClientAgent()
-        .invoke_setClientMetadata()
-        .then(result => {
-          const maybeError = result.getError();
-          const success = !maybeError;
-          Host.rnPerfMetrics.fuseboxSetClientMetadataFinished(success, maybeError);
-        })
-        .catch(reason => {
-          const success = false;
-          Host.rnPerfMetrics.fuseboxSetClientMetadataFinished(success, reason);
-        });
-  }
-}
-
 SDK.SDKModel.SDKModel.register(
-  FuseboxClientMetadataModel,
+  SDK.ReactNativeApplicationModel.ReactNativeApplicationModel,
   {
     capabilities: SDK.Target.Capability.None,
     autostart: true,
-    // Ensure FuseboxClient.setClientMetadata is sent before most other CDP domains
+    // Ensure ReactNativeApplication.enable is sent before most other CDP domains
     // are initialised. This allows the backend to confidently detect non-Fusebox
     // clients by the fact that they send e.g. Runtime.enable without sending any
     // Fusebox-specific messages first.

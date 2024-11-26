@@ -18,8 +18,6 @@ declare namespace ProtocolProxyApi {
   export type ProtocolDomainName = keyof ProtocolApi;
 
   export interface ProtocolApi {
-    FuseboxClient: FuseboxClientApi;
-
     ReactNativeApplication: ReactNativeApplicationApi;
 
     Accessibility: AccessibilityApi;
@@ -123,8 +121,6 @@ declare namespace ProtocolProxyApi {
   }
 
   export interface ProtocolDispatchers {
-    FuseboxClient: FuseboxClientDispatcher;
-
     ReactNativeApplication: ReactNativeApplicationDispatcher;
 
     Accessibility: AccessibilityDispatcher;
@@ -225,21 +221,6 @@ declare namespace ProtocolProxyApi {
 
     Schema: SchemaDispatcher;
 
-  }
-
-
-  export interface FuseboxClientApi {
-    /**
-     * Identifies the current client as being Fusebox.
-     *
-     * The Fusebox backend may use this knowledge to print an informational
-     * message to the console, etc. The client should send this before enabling
-     * the Runtime and Log domains.
-     */
-    invoke_setClientMetadata(): Promise<Protocol.ProtocolResponseWithError>;
-
-  }
-  export interface FuseboxClientDispatcher {
   }
 
   export interface ReactNativeApplicationApi {
