@@ -3662,7 +3662,7 @@ const SNAPSHOT_MAX_HEIGHT = 60;
  * An error thrown when an invalid profile could not be processed.
  */
 class InvalidProfileError extends Error {}
-;// CONCATENATED MODULE: ../react-devtools-timeline/node_modules/memoize-one/dist/memoize-one.esm.js
+;// CONCATENATED MODULE: ../../node_modules/memoize-one/dist/memoize-one.esm.js
 function areInputsEqual(newInputs, lastInputs) {
   if (newInputs.length !== lastInputs.length) {
     return false;
@@ -3882,7 +3882,8 @@ function markWorkCompleted(type, stopTime, currentProfilerData, stack) {
 
   if (last.type !== type) {
     console.error('Unexpected type "%s" completed at %sms before "%s" completed.', type, stopTime, last.type);
-  }
+  } // $FlowFixMe[incompatible-use]
+
 
   const {
     measure,

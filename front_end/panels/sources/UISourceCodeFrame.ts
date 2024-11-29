@@ -36,6 +36,7 @@ import * as Persistence from '../../models/persistence/persistence.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
 import * as Workspace from '../../models/workspace/workspace.js';
 import * as CodeMirror from '../../third_party/codemirror.next/codemirror.next.js';
+import * as Adorners from '../../ui/components/adorners/adorners.js';
 import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as IssueCounter from '../../ui/components/issue_counter/issue_counter.js';
 import * as SourceFrame from '../../ui/legacy/components/source_frame/source_frame.js';
@@ -78,6 +79,7 @@ export class UISourceCodeFrame extends
   // recreated when the binding changes
   private plugins: Plugin[] = [];
   private readonly errorPopoverHelper: UI.PopoverHelper.PopoverHelper;
+  private openInExternalEditorToolbarButton?: UI.Toolbar.ToolbarButton;
   #sourcesPanelOpenedMetricsRecorded = false;
 
   constructor(uiSourceCode: Workspace.UISourceCode.UISourceCode) {
@@ -93,6 +95,37 @@ export class UISourceCodeFrame extends
     this.uiSourceCodeEventListeners = [];
     this.messageAndDecorationListeners = [];
 
+    if (this.canOpenInExternalEditor()) {
+      this.openInExternalEditorToolbarButton =
+          new UI.Toolbar.ToolbarButton('Open in editor', undefined, 'Open in editor');
+      const maybeBackgroundImage = globalThis.reactNativeOpenInEditorButtonImage;
+      if (typeof maybeBackgroundImage === 'string' && maybeBackgroundImage !== '') {
+        const adorner = new Adorners.Adorner.Adorner();
+        adorner.classList.add('open-in-external-editor-adorner');
+        adorner.style.setProperty('background-image', maybeBackgroundImage);
+        this.openInExternalEditorToolbarButton.element.classList.add(
+            'toolbar-has-glyph', 'open-in-external-editor-button');
+        this.openInExternalEditorToolbarButton.setGlyphOrAdorner(adorner);
+      } else {
+        this.openInExternalEditorToolbarButton.setGlyph('open-externally');
+      }
+      this.openInExternalEditorToolbarButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, () => {
+        const body: {url: string, lineNumber?: number} = {
+          url: this.uiSourceCode().url(),
+        };
+
+        const state = this.textEditor.state;
+        const line = state.doc.lineAt(state.selection.main.head);
+        const {lineNumber} = this.editorLocationToUILocation(line.number);
+        body.lineNumber = lineNumber;
+
+        fetch('/open-stack-frame', {
+          method: 'POST',
+          body: JSON.stringify(body),
+        }).catch(e => console.error(e));
+      });
+    }
+
     this.boundOnBindingChanged = this.onBindingChanged.bind(this);
 
     Common.Settings.Settings.instance()
@@ -106,6 +139,14 @@ export class UISourceCodeFrame extends
     this.errorPopoverHelper.setTimeout(100, 100);
 
     this.initializeUISourceCode();
+  }
+
+  private canOpenInExternalEditor(): boolean {
+    if (!globalThis.enableReactNativeOpenInExternalEditor) {
+      return false;
+    }
+
+    return this.uiSourceCode().url().startsWith('http') ?? false;
   }
 
   private async workingCopy(): Promise<TextUtils.ContentProvider.DeferredContent> {
@@ -454,6 +495,10 @@ export class UISourceCodeFrame extends
 
     if (!rightToolbarItems.length) {
       return leftToolbarItems;
+    }
+
+    if (this.openInExternalEditorToolbarButton) {
+      leftToolbarItems.push(this.openInExternalEditorToolbarButton);
     }
 
     return [...leftToolbarItems, new UI.Toolbar.ToolbarSeparator(true), ...rightToolbarItems];

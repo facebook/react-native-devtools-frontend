@@ -77,7 +77,34 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     );
 
     // Notify backend if Chrome DevTools was closed, marking frontend as disconnected
-    window.addEventListener('beforeunload', () => this.#bridge?.shutdown());
+    window.addEventListener('beforeunload', this.#handleBeforeUnload);
+  }
+
+  override dispose(): void {
+    this.#bridge?.removeListener('reloadAppForProfiling', this.#handleReloadAppForProfiling);
+    this.#bridge?.shutdown();
+
+    this.#bindingsModel.removeEventListener(
+        ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextCreated,
+        this.#handleBackendExecutionContextCreated,
+        this,
+    );
+    this.#bindingsModel.removeEventListener(
+        ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextUnavailable,
+        this.#handleBackendExecutionContextUnavailable,
+        this,
+    );
+    this.#bindingsModel.removeEventListener(
+        ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextDestroyed,
+        this.#handleBackendExecutionContextDestroyed,
+        this,
+    );
+
+    window.removeEventListener('beforeunload', this.#handleBeforeUnload);
+
+    this.#bridge = null;
+    this.#store = null;
+    this.#listeners.clear();
   }
 
   ensureInitialized(): void {
@@ -147,6 +174,10 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     return rdtBindingsModel.sendMessage(ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE, message);
   }
 
+  #handleBeforeUnload = (): void => {
+    this.#bridge?.shutdown();
+  };
+
   #handleBackendExecutionContextCreated(): void {
     const rdtBindingsModel = this.#bindingsModel;
     if (!rdtBindingsModel) {
@@ -163,8 +194,15 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
 
   #finishInitializationAndNotify(): void {
     this.#bridge = ReactDevTools.createBridge(this.#wall);
-    this.#store = ReactDevTools.createStore(this.#bridge);
+    this.#store = ReactDevTools.createStore(this.#bridge, {
+      supportsReloadAndProfile: true,
+    });
+    this.#bridge.addListener('reloadAppForProfiling', this.#handleReloadAppForProfiling);
     this.dispatchEventToListeners(Events.InitializationCompleted);
+  }
+
+  #handleReloadAppForProfiling(): void {
+    SDK.ResourceTreeModel.ResourceTreeModel.reloadAllPages(false);
   }
 
   #handleBackendExecutionContextUnavailable({data: errorMessage}: ReactDevToolsBindingsBackendExecutionContextUnavailableEvent): void {

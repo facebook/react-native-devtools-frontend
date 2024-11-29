@@ -40,6 +40,18 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
   private fuseboxDispatcherIsInitialized = false;
   private readonly domainToMessageQueue: Map<DomainName, Array<JSONValue>> = new Map();
 
+  override dispose(): void {
+    this.domainToListeners.clear();
+    this.domainToMessageQueue.clear();
+
+    const runtimeModel = this.target().model(SDK.RuntimeModel.RuntimeModel);
+    runtimeModel?.removeEventListener(SDK.RuntimeModel.Events.BindingCalled, this.bindingCalled, this);
+    runtimeModel?.removeEventListener(
+        SDK.RuntimeModel.Events.ExecutionContextCreated, this.onExecutionContextCreated, this);
+    runtimeModel?.removeEventListener(
+        SDK.RuntimeModel.Events.ExecutionContextDestroyed, this.onExecutionContextDestroyed, this);
+  }
+
   private bindingCalled(event: BindingCalledEventTargetEvent): void {
     // If binding name is not initialized, then we failed to get its name
     if (this.messagingBindingName === null || event.data.name !== this.messagingBindingName) {
@@ -168,14 +180,7 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
     }
 
     const serializedMessage = JSON.stringify(message);
-    const sendMessageExpression = `${RUNTIME_GLOBAL}.sendMessage('${domainName}', '${serializedMessage}')`;
-
-    // As of today, all expressions which were scheduled via Runtime.evaluate method are not going through RuntimeScheduler
-    // This means that the task is not being placed on the Event Loop, and any transitively called Microtasks are not executed properly
-    // We are wrapping the expression in setTimeout to make sure that this code (and everything what is called by it) goes through the Event Loop implementation
-    // See T200616136 for more context
-    // TODO(hoxyq): remove setTimeout once Runtime.evaluate expressions are passed through React Native Runtime Scheduler
-    await runtimeModel.agent.invoke_evaluate({expression: `void setTimeout(() => ${sendMessageExpression}, 0)`});
+    await runtimeModel.agent.invoke_evaluate({expression: `${RUNTIME_GLOBAL}.sendMessage('${domainName}', '${serializedMessage}')`});
   }
 
   async enable(): Promise<void> {

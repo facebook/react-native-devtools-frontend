@@ -331,7 +331,7 @@ Common.Settings.registerSettingExtension({
   storageType: Common.Settings.SettingStorageType.Synced,
   settingName: 'skip-stack-frames-pattern',
   settingType: Common.Settings.SettingType.REGEX,
-  defaultValue: '/node_modules/|/bower_components/',
+  defaultValue: '',
 });
 
 Common.Settings.registerSettingExtension({

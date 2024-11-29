@@ -445,6 +445,17 @@ export class ConsoleViewMessage implements ConsoleViewportElement {
       formattedMessage.appendChild(this.anchorElement);
     }
     formattedMessage.appendChild(messageElement);
+
+    if (this.message.context === 'fusebox_preserve_log_rec') {
+      const link = document.createElement('button');
+      link.classList.add('devtools-link', 'text-button', 'link-style');
+      link.appendChild(link.ownerDocument.createTextNode('show settings'));
+      link.addEventListener('click', async () => {
+        await Common.Revealer.reveal(Common.Settings.Settings.instance().moduleSetting('preserve-console-log'));
+      });
+      formattedMessage.appendChild(link);
+    }
+
     return formattedMessage;
   }
 
