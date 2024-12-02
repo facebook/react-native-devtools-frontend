@@ -2,8 +2,24 @@
 # Copyright 2021 The Chromium Authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
+
 import("../../../scripts/build/ninja/devtools_entrypoint.gni")
+import("../../../scripts/build/ninja/devtools_module.gni")
 import("../visibility.gni")
+
+devtools_module("rn_fusebox") {
+  sources = [
+    "FuseboxProfilingBuildObserver.ts",
+  ]
+
+  deps = [
+    "../../core/common:bundle",
+    "../../core/i18n:bundle",
+    "../../core/root:bundle",
+    "../../core/sdk:bundle",
+    "../../ui/legacy:bundle",
+  ]
+}
 
 devtools_entrypoint("entrypoint") {
   entrypoint = "rn_fusebox.ts"
@@ -39,6 +55,7 @@ devtools_entrypoint("entrypoint") {
     "../../panels/webauthn:meta",
     "../main:bundle",
     "../shell",
+    ":rn_fusebox",
   ]
 
   visibility = [ "../../:*" ]

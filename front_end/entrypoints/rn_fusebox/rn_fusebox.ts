@@ -28,6 +28,7 @@ import * as Protocol from '../../generated/protocol.js';
 import type * as Platform from '../../core/platform/platform.js';
 import type * as Sources from '../../panels/sources/sources.js';
 import * as RNExperiments from '../../core/rn_experiments/rn_experiments.js';
+import FuseboxProfilingBuildObserver from './FuseboxProfilingBuildObserver.js';
 
 /*
  * To ensure accurate timing measurements,
@@ -275,5 +276,6 @@ class FuseboxReactNativeApplicationObserver implements
 }
 
 new FuseboxReactNativeApplicationObserver(SDK.TargetManager.TargetManager.instance());
+new FuseboxProfilingBuildObserver(SDK.TargetManager.TargetManager.instance());
 
 Host.rnPerfMetrics.entryPointLoadingFinished('rn_fusebox');
