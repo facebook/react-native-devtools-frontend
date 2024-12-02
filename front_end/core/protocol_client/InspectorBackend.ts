@@ -672,10 +672,6 @@ export class TargetBase {
     return this.getAgent('Fetch');
   }
 
-  fuseboxClientAgent(): ProtocolProxyApi.FuseboxClientApi {
-    return this.getAgent('FuseboxClient');
-  }
-
   heapProfilerAgent(): ProtocolProxyApi.HeapProfilerApi {
     return this.getAgent('HeapProfiler');
   }
