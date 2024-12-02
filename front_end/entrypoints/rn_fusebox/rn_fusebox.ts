@@ -23,8 +23,7 @@ import * as RNExperiments from '../../core/rn_experiments/rn_experiments.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as Main from '../main/main.js';
-import * as Common from '../../core/common/common.js';
-import * as Protocol from '../../generated/protocol.js';
+import FuseboxAppMetadataObserver from './FuseboxAppMetadataObserver.js';
 import FuseboxReconnectDeviceButton from './FuseboxReconnectDeviceButton.js';
 import FuseboxProfilingBuildObserver from './FuseboxProfilingBuildObserver.js';
 
@@ -164,34 +163,7 @@ UI.Toolbar.registerToolbarItem({
   },
 });
 
-class FuseboxReactNativeApplicationObserver implements
-    SDK.TargetManager.SDKModelObserver<SDK.ReactNativeApplicationModel.ReactNativeApplicationModel> {
-  constructor(targetManager: SDK.TargetManager.TargetManager) {
-    targetManager.observeModels(SDK.ReactNativeApplicationModel.ReactNativeApplicationModel, this);
-  }
-
-  modelAdded(model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel): void {
-    model.ensureEnabled();
-    model.addEventListener(SDK.ReactNativeApplicationModel.Events.MetadataUpdated, this.#handleMetadataUpdated, this);
-  }
-
-  modelRemoved(model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel): void {
-    model.removeEventListener(
-        SDK.ReactNativeApplicationModel.Events.MetadataUpdated, this.#handleMetadataUpdated, this);
-  }
-
-  #handleMetadataUpdated(
-      event: Common.EventTarget.EventTargetEvent<Protocol.ReactNativeApplication.MetadataUpdatedEvent>): void {
-    const {appDisplayName, deviceName} = event.data;
-
-    // Update window title
-    if (appDisplayName !== null && appDisplayName !== undefined) {
-      document.title = `${appDisplayName}${deviceName !== null && deviceName !== undefined ? ` (${deviceName})` : ''} - React Native DevTools`;
-    }
-  }
-}
-
-new FuseboxReactNativeApplicationObserver(SDK.TargetManager.TargetManager.instance());
+new FuseboxAppMetadataObserver(SDK.TargetManager.TargetManager.instance());
 new FuseboxProfilingBuildObserver(SDK.TargetManager.TargetManager.instance());
 
 Host.rnPerfMetrics.entryPointLoadingFinished('rn_fusebox');
