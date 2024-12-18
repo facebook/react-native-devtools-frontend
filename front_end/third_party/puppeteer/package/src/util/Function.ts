@@ -31,7 +31,16 @@ export function stringifyFunction(fn: (...args: never) => unknown): string {
   let value = fn.toString();
   try {
     new Function(`(${value})`);
-  } catch {
+  } catch (err) {
+    if (
+      (err as Error).message.includes(
+        `Refused to evaluate a string as JavaScript because 'unsafe-eval' is not an allowed source of script in the following Content Security Policy directive`
+      )
+    ) {
+      // The content security policy does not allow Function eval. Let's
+      // assume the value might be valid as is.
+      return value;
+    }
     // This means we might have a function shorthand (e.g. `test(){}`). Let's
     // try prefixing.
     let prefix = 'function ';
@@ -72,7 +81,7 @@ export const interpolateFunction = <T extends (...args: never[]) => unknown>(
   for (const [name, jsValue] of Object.entries(replacements)) {
     value = value.replace(
       new RegExp(`PLACEHOLDER\\(\\s*(?:'${name}'|"${name}")\\s*\\)`, 'g'),
-      // Wrapping this ensures tersers that accidently inline PLACEHOLDER calls
+      // Wrapping this ensures tersers that accidentally inline PLACEHOLDER calls
       // are still valid. Without, we may get calls like ()=>{...}() which is
       // not valid.
       `(${jsValue})`

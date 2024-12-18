@@ -58,6 +58,7 @@ let BrowsingContext = (() => {
     let _traverseHistory_decorators;
     let _navigate_decorators;
     let _reload_decorators;
+    let _setCacheBehavior_decorators;
     let _print_decorators;
     let _handleUserPrompt_decorators;
     let _setViewport_decorators;
@@ -65,15 +66,23 @@ let BrowsingContext = (() => {
     let _releaseActions_decorators;
     let _createWindowRealm_decorators;
     let _addPreloadScript_decorators;
+    let _addIntercept_decorators;
     let _removePreloadScript_decorators;
     let _getCookies_decorators;
     let _setCookie_decorators;
     let _setFiles_decorators;
+    let _subscribe_decorators;
+    let _addInterception_decorators;
     let _deleteCookie_decorators;
+    let _locateNodes_decorators;
     return class BrowsingContext extends _classSuper {
         static {
             const _metadata = typeof Symbol === "function" && Symbol.metadata ? Object.create(_classSuper[Symbol.metadata] ?? null) : void 0;
             _deleteCookie_decorators = [throwIfDisposed(context => {
+                    // SAFETY: Disposal implies this exists.
+                    return context.#reason;
+                })];
+            _locateNodes_decorators = [throwIfDisposed(context => {
                     // SAFETY: Disposal implies this exists.
                     return context.#reason;
                 })];
@@ -84,6 +93,7 @@ let BrowsingContext = (() => {
             __esDecorate(this, null, _traverseHistory_decorators, { kind: "method", name: "traverseHistory", static: false, private: false, access: { has: obj => "traverseHistory" in obj, get: obj => obj.traverseHistory }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _navigate_decorators, { kind: "method", name: "navigate", static: false, private: false, access: { has: obj => "navigate" in obj, get: obj => obj.navigate }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _reload_decorators, { kind: "method", name: "reload", static: false, private: false, access: { has: obj => "reload" in obj, get: obj => obj.reload }, metadata: _metadata }, null, _instanceExtraInitializers);
+            __esDecorate(this, null, _setCacheBehavior_decorators, { kind: "method", name: "setCacheBehavior", static: false, private: false, access: { has: obj => "setCacheBehavior" in obj, get: obj => obj.setCacheBehavior }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _print_decorators, { kind: "method", name: "print", static: false, private: false, access: { has: obj => "print" in obj, get: obj => obj.print }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _handleUserPrompt_decorators, { kind: "method", name: "handleUserPrompt", static: false, private: false, access: { has: obj => "handleUserPrompt" in obj, get: obj => obj.handleUserPrompt }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _setViewport_decorators, { kind: "method", name: "setViewport", static: false, private: false, access: { has: obj => "setViewport" in obj, get: obj => obj.setViewport }, metadata: _metadata }, null, _instanceExtraInitializers);
@@ -91,20 +101,23 @@ let BrowsingContext = (() => {
             __esDecorate(this, null, _releaseActions_decorators, { kind: "method", name: "releaseActions", static: false, private: false, access: { has: obj => "releaseActions" in obj, get: obj => obj.releaseActions }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _createWindowRealm_decorators, { kind: "method", name: "createWindowRealm", static: false, private: false, access: { has: obj => "createWindowRealm" in obj, get: obj => obj.createWindowRealm }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _addPreloadScript_decorators, { kind: "method", name: "addPreloadScript", static: false, private: false, access: { has: obj => "addPreloadScript" in obj, get: obj => obj.addPreloadScript }, metadata: _metadata }, null, _instanceExtraInitializers);
+            __esDecorate(this, null, _addIntercept_decorators, { kind: "method", name: "addIntercept", static: false, private: false, access: { has: obj => "addIntercept" in obj, get: obj => obj.addIntercept }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _removePreloadScript_decorators, { kind: "method", name: "removePreloadScript", static: false, private: false, access: { has: obj => "removePreloadScript" in obj, get: obj => obj.removePreloadScript }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _getCookies_decorators, { kind: "method", name: "getCookies", static: false, private: false, access: { has: obj => "getCookies" in obj, get: obj => obj.getCookies }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _setCookie_decorators, { kind: "method", name: "setCookie", static: false, private: false, access: { has: obj => "setCookie" in obj, get: obj => obj.setCookie }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _setFiles_decorators, { kind: "method", name: "setFiles", static: false, private: false, access: { has: obj => "setFiles" in obj, get: obj => obj.setFiles }, metadata: _metadata }, null, _instanceExtraInitializers);
+            __esDecorate(this, null, _subscribe_decorators, { kind: "method", name: "subscribe", static: false, private: false, access: { has: obj => "subscribe" in obj, get: obj => obj.subscribe }, metadata: _metadata }, null, _instanceExtraInitializers);
+            __esDecorate(this, null, _addInterception_decorators, { kind: "method", name: "addInterception", static: false, private: false, access: { has: obj => "addInterception" in obj, get: obj => obj.addInterception }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _deleteCookie_decorators, { kind: "method", name: "deleteCookie", static: false, private: false, access: { has: obj => "deleteCookie" in obj, get: obj => obj.deleteCookie }, metadata: _metadata }, null, _instanceExtraInitializers);
+            __esDecorate(this, null, _locateNodes_decorators, { kind: "method", name: "locateNodes", static: false, private: false, access: { has: obj => "locateNodes" in obj, get: obj => obj.locateNodes }, metadata: _metadata }, null, _instanceExtraInitializers);
             if (_metadata) Object.defineProperty(this, Symbol.metadata, { enumerable: true, configurable: true, writable: true, value: _metadata });
         }
-        static from(userContext, parent, id, url) {
-            const browsingContext = new BrowsingContext(userContext, parent, id, url);
+        static from(userContext, parent, id, url, originalOpener) {
+            const browsingContext = new BrowsingContext(userContext, parent, id, url, originalOpener);
             browsingContext.#initialize();
             return browsingContext;
         }
-        // keep-sorted start
-        #navigation = (__runInitializers(this, _instanceExtraInitializers), void 0);
+        #navigation = __runInitializers(this, _instanceExtraInitializers);
         #reason;
         #url;
         #children = new Map();
@@ -115,15 +128,14 @@ let BrowsingContext = (() => {
         id;
         parent;
         userContext;
-        // keep-sorted end
-        constructor(context, parent, id, url) {
+        originalOpener;
+        constructor(context, parent, id, url, originalOpener) {
             super();
-            // keep-sorted start
             this.#url = url;
             this.id = id;
             this.parent = parent;
             this.userContext = context;
-            // keep-sorted end
+            this.originalOpener = originalOpener;
             this.defaultRealm = this.#createWindowRealm();
         }
         #initialize() {
@@ -136,7 +148,7 @@ let BrowsingContext = (() => {
                 if (info.parent !== this.id) {
                     return;
                 }
-                const browsingContext = BrowsingContext.from(this.userContext, this, info.context, info.url);
+                const browsingContext = BrowsingContext.from(this.userContext, this, info.context, info.url, info.originalOpener);
                 this.#children.set(info.context, browsingContext);
                 const browsingContextEmitter = this.#disposables.use(new EventEmitter(browsingContext));
                 browsingContextEmitter.once('closed', () => {
@@ -169,7 +181,8 @@ let BrowsingContext = (() => {
                 if (info.context !== this.id) {
                     return;
                 }
-                this.#url = info.url;
+                // Note: we should not update this.#url at this point since the context
+                // has not finished navigating to the info.url yet.
                 for (const [id, request] of this.#requests) {
                     if (request.disposed) {
                         this.#requests.delete(id);
@@ -195,8 +208,9 @@ let BrowsingContext = (() => {
                 if (event.context !== this.id) {
                     return;
                 }
-                if (event.redirectCount !== 0) {
+                if (this.#requests.has(event.request.request)) {
                     // Means the request is a redirect. This is handled in Request.
+                    // Or an Auth event was issued
                     return;
                 }
                 const request = Request.from(this, event);
@@ -217,7 +231,6 @@ let BrowsingContext = (() => {
                 this.emit('userprompt', { userPrompt });
             });
         }
-        // keep-sorted start block=yes
         get #session() {
             return this.userContext.browser.session;
         }
@@ -248,7 +261,6 @@ let BrowsingContext = (() => {
         get url() {
             return this.#url;
         }
-        // keep-sorted end
         #createWindowRealm(sandbox) {
             const realm = WindowRealm.from(this, sandbox);
             realm.on('worker', realm => {
@@ -300,6 +312,13 @@ let BrowsingContext = (() => {
                 ...options,
             });
         }
+        async setCacheBehavior(cacheBehavior) {
+            // @ts-expect-error not in BiDi types yet.
+            await this.#session.send('network.setCacheBehavior', {
+                contexts: [this.id],
+                cacheBehavior,
+            });
+        }
         async print(options = {}) {
             const { result: { data }, } = await this.#session.send('browsingContext.print', {
                 context: this.id,
@@ -336,8 +355,15 @@ let BrowsingContext = (() => {
         async addPreloadScript(functionDeclaration, options = {}) {
             return await this.userContext.browser.addPreloadScript(functionDeclaration, {
                 ...options,
-                contexts: [this, ...(options.contexts ?? [])],
+                contexts: [this],
             });
+        }
+        async addIntercept(options) {
+            const { result: { intercept }, } = await this.userContext.browser.session.send('network.addIntercept', {
+                ...options,
+                contexts: [this.id],
+            });
+            return intercept;
         }
         async removePreloadScript(script) {
             await this.userContext.browser.removePreloadScript(script);
@@ -368,6 +394,12 @@ let BrowsingContext = (() => {
                 files,
             });
         }
+        async subscribe(events) {
+            await this.#session.subscribe(events, [this.id]);
+        }
+        async addInterception(events) {
+            await this.#session.subscribe(events, [this.id]);
+        }
         [(_dispose_decorators = [inertIfDisposed], _activate_decorators = [throwIfDisposed(context => {
                 // SAFETY: Disposal implies this exists.
                 return context.#reason;
@@ -384,6 +416,9 @@ let BrowsingContext = (() => {
                 // SAFETY: Disposal implies this exists.
                 return context.#reason;
             })], _reload_decorators = [throwIfDisposed(context => {
+                // SAFETY: Disposal implies this exists.
+                return context.#reason;
+            })], _setCacheBehavior_decorators = [throwIfDisposed(context => {
                 // SAFETY: Disposal implies this exists.
                 return context.#reason;
             })], _print_decorators = [throwIfDisposed(context => {
@@ -407,6 +442,9 @@ let BrowsingContext = (() => {
             })], _addPreloadScript_decorators = [throwIfDisposed(context => {
                 // SAFETY: Disposal implies this exists.
                 return context.#reason;
+            })], _addIntercept_decorators = [throwIfDisposed(context => {
+                // SAFETY: Disposal implies this exists.
+                return context.#reason;
             })], _removePreloadScript_decorators = [throwIfDisposed(context => {
                 // SAFETY: Disposal implies this exists.
                 return context.#reason;
@@ -417,6 +455,12 @@ let BrowsingContext = (() => {
                 // SAFETY: Disposal implies this exists.
                 return context.#reason;
             })], _setFiles_decorators = [throwIfDisposed(context => {
+                // SAFETY: Disposal implies this exists.
+                return context.#reason;
+            })], _subscribe_decorators = [throwIfDisposed(context => {
+                // SAFETY: Disposal implies this exists.
+                return context.#reason;
+            })], _addInterception_decorators = [throwIfDisposed(context => {
                 // SAFETY: Disposal implies this exists.
                 return context.#reason;
             })], disposeSymbol)]() {
@@ -436,6 +480,15 @@ let BrowsingContext = (() => {
                     },
                 });
             }));
+        }
+        async locateNodes(locator, startNodes) {
+            // TODO: add other locateNodes options if needed.
+            const result = await this.#session.send('browsingContext.locateNodes', {
+                context: this.id,
+                locator,
+                startNodes: startNodes.length ? startNodes : undefined,
+            });
+            return result.result.nodes;
         }
     };
 })();

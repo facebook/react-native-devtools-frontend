@@ -12,6 +12,7 @@ import {
   type HighlightedEntryInfo,
   type TrackAppender,
   type TrackAppenderName,
+  VisualLoggingTrackName,
 } from './CompatibilityTracksAppender.js';
 
 const UIStrings = {
@@ -67,9 +68,10 @@ export class InteractionsTrackAppender implements TrackAppender {
    */
   #appendTrackHeaderAtLevel(currentLevel: number, expanded?: boolean): void {
     const trackIsCollapsible = this.#traceParsedData.UserInteractions.interactionEvents.length > 0;
-    const style = buildGroupStyle({shareHeaderLine: false, collapsible: trackIsCollapsible});
-    const group =
-        buildTrackHeader(currentLevel, i18nString(UIStrings.interactions), style, /* selectable= */ true, expanded);
+    const style = buildGroupStyle({collapsible: trackIsCollapsible, useDecoratorsForOverview: true});
+    const group = buildTrackHeader(
+        VisualLoggingTrackName.INTERACTIONS, currentLevel, i18nString(UIStrings.interactions), style,
+        /* selectable= */ true, expanded);
     this.#compatibilityBuilder.registerTrackForGroup(group, this);
   }
 
@@ -113,7 +115,7 @@ export class InteractionsTrackAppender implements TrackAppender {
           type: PerfUI.FlameChart.FlameChartDecorationType.CANDY,
           startAtTime: TraceEngine.Handlers.ModelHandlers.UserInteractions.LONG_INTERACTION_THRESHOLD,
           // Interaction events have whiskers, so we do not want to candy stripe
-          // the entire duration. The box represents processing time, so we only
+          // the entire duration. The box represents processing duration, so we only
           // candystripe up to the end of processing.
           endAtTime: entry.processingEnd,
         },

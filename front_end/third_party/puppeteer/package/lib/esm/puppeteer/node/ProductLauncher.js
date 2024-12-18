@@ -42,12 +42,22 @@ export class ProductLauncher {
     async launch(options = {}) {
         const { dumpio = false, env = process.env, handleSIGINT = true, handleSIGTERM = true, handleSIGHUP = true, ignoreHTTPSErrors = false, defaultViewport = DEFAULT_VIEWPORT, slowMo = 0, timeout = 30000, waitForInitialPage = true, protocolTimeout, protocol, } = options;
         const launchArgs = await this.computeLaunchArguments(options);
+        if (!existsSync(launchArgs.executablePath)) {
+            throw new Error(`Browser was not found at the configured executablePath (${launchArgs.executablePath})`);
+        }
         const usePipe = launchArgs.args.includes('--remote-debugging-pipe');
         const onProcessExit = async () => {
             await this.cleanUserDataDir(launchArgs.userDataDir, {
                 isTemp: launchArgs.isTempUserDataDir,
             });
         };
+        if (this.#product === 'firefox' &&
+            protocol !== 'webDriverBiDi' &&
+            this.puppeteer.configuration.logLevel === 'warn') {
+            console.warn(`Chrome DevTools Protocol (CDP) support for Firefox is deprecated in Puppeteer ` +
+                `and it will be eventually removed. ` +
+                `Use WebDriver BiDi instead (see https://pptr.dev/webdriver-bidi#get-started).`);
+        }
         const browserProcess = launch({
             executablePath: launchArgs.executablePath,
             args: launchArgs.args,
@@ -96,9 +106,6 @@ export class ProductLauncher {
                 }
                 if (protocol === 'webDriverBiDi') {
                     browser = await this.createBiDiOverCdpBrowser(browserProcess, cdpConnection, browserCloseCallback, {
-                        timeout,
-                        protocolTimeout,
-                        slowMo,
                         defaultViewport,
                         ignoreHTTPSErrors,
                     });
@@ -115,7 +122,7 @@ export class ProductLauncher {
             }
             throw error;
         }
-        if (waitForInitialPage && protocol !== 'webDriverBiDi') {
+        if (waitForInitialPage) {
             await this.waitForPageTarget(browser, timeout);
         }
         return browser;
@@ -186,7 +193,6 @@ export class ProductLauncher {
      * @internal
      */
     async createBiDiOverCdpBrowser(browserProcess, connection, closeCallback, opts) {
-        // TODO: use other options too.
         const BiDi = await import(/* webpackIgnore: true */ '../bidi/bidi.js');
         const bidiConnection = await BiDi.connectBidiOverCdp(connection, {
             acceptInsecureCerts: opts.ignoreHTTPSErrors ?? false,
@@ -207,7 +213,6 @@ export class ProductLauncher {
         const transport = await WebSocketTransport.create(browserWSEndpoint);
         const BiDi = await import(/* webpackIgnore: true */ '../bidi/bidi.js');
         const bidiConnection = new BiDi.BidiConnection(browserWSEndpoint, transport, opts.slowMo, opts.protocolTimeout);
-        // TODO: use other options too.
         return await BiDi.BidiBrowser.create({
             connection: bidiConnection,
             closeCallback,

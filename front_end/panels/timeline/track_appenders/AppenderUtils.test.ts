@@ -8,8 +8,6 @@ import {defaultTraceEvent} from '../../../testing/TraceHelpers.js';
 import type * as PerfUI from '../../../ui/legacy/components/perf_ui/perf_ui.js';
 import * as Timeline from '../timeline.js';
 
-const {assert} = chai;
-
 describeWithEnvironment('AppenderUtils', () => {
   const defaultGroupStyle = {
     padding: 4,
@@ -18,7 +16,7 @@ describeWithEnvironment('AppenderUtils', () => {
     // This color is same as --sys-color-on-surface in themeColors.css
     color: 'rgb(31 31 31 / 100%)',
     // This color is same as --sys-color-cdt-base-container in themeColors.css
-    backgroundColor: 'rgb(250 249 248 / 100%)',
+    backgroundColor: 'rgb(255 255 255 / 100%)',
     nestingLevel: 0,
     shareHeaderLine: true,
   };
@@ -39,6 +37,10 @@ describeWithEnvironment('AppenderUtils', () => {
   });
 
   describe('buildTrackHeader', () => {
+    const legends: PerfUI.FlameChart.Legend[] = [{
+      color: 'yellow',
+      category: 'test',
+    }];
     const trackHeader = {
       startLevel: 0,
       name: 'Header Name',
@@ -46,12 +48,15 @@ describeWithEnvironment('AppenderUtils', () => {
       selectable: true,
       expanded: true,
       showStackContextMenu: true,
+      legends,
+      jslogContext: 'animations',
     } as PerfUI.FlameChart.Group;
 
     it('builds a track header correctly', () => {
       const builtHeader = Timeline.AppenderUtils.buildTrackHeader(
+          Timeline.CompatibilityTracksAppender.VisualLoggingTrackName.ANIMATIONS,
           /* startLevel= */ 0, 'Header Name', Timeline.AppenderUtils.buildGroupStyle(), /* selectable= */ true,
-          /* expanded= */ true, /* track= */ null, /* showStackContextMenu= */ true);
+          /* expanded= */ true, /* showStackContextMenu= */ true, legends);
       assert.deepEqual(builtHeader, trackHeader);
     });
   });
@@ -88,7 +93,7 @@ describeWithEnvironment('AppenderUtils', () => {
 
   describe('getEventLevel', () => {
     it('returns the level for async events correctly', async () => {
-      const lastUsedTimeByLevel: number[] = [];
+      const lastTimestampByLevel: Timeline.AppenderUtils.LastTimestampByLevel = [];
       const eventOne = {
         ...defaultTraceEvent,
         ts: TraceEngine.Types.Timing.MicroSeconds(0),
@@ -105,21 +110,21 @@ describeWithEnvironment('AppenderUtils', () => {
         dur: TraceEngine.Types.Timing.MicroSeconds(10),
       };
 
-      let level = Timeline.AppenderUtils.getEventLevel(eventOne, lastUsedTimeByLevel);
+      let level = Timeline.AppenderUtils.getEventLevel(eventOne, lastTimestampByLevel);
       // For first event, the track is empty, so it always returns 0.
       assert.strictEqual(level, 0);
 
-      level = Timeline.AppenderUtils.getEventLevel(eventTwo, lastUsedTimeByLevel);
+      level = Timeline.AppenderUtils.getEventLevel(eventTwo, lastTimestampByLevel);
       // For eventTwo, its start time is smaller than eventOne's end time, so it should be appended to level 1.
       assert.strictEqual(level, 1);
 
-      level = Timeline.AppenderUtils.getEventLevel(eventThree, lastUsedTimeByLevel);
+      level = Timeline.AppenderUtils.getEventLevel(eventThree, lastTimestampByLevel);
       // For eventThree, it doesn't overlap with eventOne, so it can fit in level 0.
       assert.strictEqual(level, 0);
     });
 
     it('returns the level for sync events correctly', async () => {
-      const lastUsedTimeByLevel: number[] = [];
+      const lastTimestampByLevel: Timeline.AppenderUtils.LastTimestampByLevel = [];
       const eventOne = {
         ...defaultTraceEvent,
         ts: TraceEngine.Types.Timing.MicroSeconds(0),
@@ -141,19 +146,19 @@ describeWithEnvironment('AppenderUtils', () => {
         dur: TraceEngine.Types.Timing.MicroSeconds(10),
       };
 
-      let level = Timeline.AppenderUtils.getEventLevel(eventOne, lastUsedTimeByLevel);
+      let level = Timeline.AppenderUtils.getEventLevel(eventOne, lastTimestampByLevel);
       // For first event, the track is empty, so it always returns 0.
       assert.strictEqual(level, 0);
 
-      level = Timeline.AppenderUtils.getEventLevel(eventTwo, lastUsedTimeByLevel);
+      level = Timeline.AppenderUtils.getEventLevel(eventTwo, lastTimestampByLevel);
       // For eventTwo, its time is a subset of the eventOne, so it will be append as eventOne's child.
       assert.strictEqual(level, 1);
 
-      level = Timeline.AppenderUtils.getEventLevel(eventThree, lastUsedTimeByLevel);
+      level = Timeline.AppenderUtils.getEventLevel(eventThree, lastTimestampByLevel);
       // For eventTwo, its time is a subset of the eventTwo, so it will be append as eventTwo's child.
       assert.strictEqual(level, 2);
 
-      level = Timeline.AppenderUtils.getEventLevel(eventFour, lastUsedTimeByLevel);
+      level = Timeline.AppenderUtils.getEventLevel(eventFour, lastTimestampByLevel);
       // For eventFour, its time is a subset of eventOne but not eventTwo, so it will be append as eventTwo's child.
       assert.strictEqual(level, 1);
     });

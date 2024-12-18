@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-const {assert} = chai;
-
 import * as Common from './common.js';
 
 const SettingsStorage = Common.Settings.SettingsStorage;
@@ -107,8 +105,12 @@ describe('Settings instance', () => {
   it('can be instantiated in a test', () => {
     const dummyStorage = new SettingsStorage({});
 
-    const settings = Common.Settings.Settings.instance(
-        {forceNew: true, syncedStorage: dummyStorage, globalStorage: dummyStorage, localStorage: dummyStorage});
+    const settings = Common.Settings.Settings.instance({
+      forceNew: true,
+      syncedStorage: dummyStorage,
+      globalStorage: dummyStorage,
+      localStorage: dummyStorage,
+    });
 
     assert.isOk(settings);
   });

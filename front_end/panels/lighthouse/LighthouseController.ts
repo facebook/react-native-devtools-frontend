@@ -61,14 +61,6 @@ const UIStrings = {
    */
   howLongDoesThisAppTakeToShow: 'How long does this app take to show content and become usable',
   /**
-   *@description Text of checkbox to include running the Progressive Web App audits in Lighthouse
-   */
-  progressiveWebApp: 'Progressive Web App',
-  /**
-   *@description Tooltip text of checkbox to include running the Progressive Web App audits in Lighthouse
-   */
-  doesThisPageMeetTheStandardOfA: 'Does this page meet the standard of a Progressive Web App',
-  /**
    *@description Text of checkbox to include running the Best Practices audits in Lighthouse
    */
   bestPractices: 'Best practices',
@@ -92,14 +84,6 @@ const UIStrings = {
    *@description Tooltip text of checkbox to include running the Search Engine Optimization audits in Lighthouse
    */
   isThisPageOptimizedForSearch: 'Is this page optimized for search engine results ranking',
-  /**
-   *@description Text of checkbox to include running the Ad speed and quality audits in Lighthouse
-   */
-  publisherAds: 'Publisher Ads',
-  /**
-   *@description Tooltip text of checkbox to include running the Ad speed and quality audits in Lighthouse
-   */
-  isThisPageOptimizedForAdSpeedAnd: 'Is this page optimized for ad speed and quality',
   /**
    *@description ARIA label for a radio button input to emulate mobile device behavior when running audits in Lighthouse.
    */
@@ -643,7 +627,6 @@ export const Presets: Preset[] = [
     configID: 'performance',
     title: i18nLazyString(UIStrings.performance),
     description: i18nLazyString(UIStrings.howLongDoesThisAppTakeToShow),
-    plugin: false,
     supportedModes: ['navigation', 'timespan', 'snapshot'],
     userMetric: Host.UserMetrics.LighthouseCategoryUsed.Performance,
   },
@@ -653,7 +636,6 @@ export const Presets: Preset[] = [
     configID: 'accessibility',
     title: i18nLazyString(UIStrings.accessibility),
     description: i18nLazyString(UIStrings.isThisPageUsableByPeopleWith),
-    plugin: false,
     supportedModes: ['navigation', 'snapshot'],
     userMetric: Host.UserMetrics.LighthouseCategoryUsed.Accessibility,
   },
@@ -663,7 +645,6 @@ export const Presets: Preset[] = [
     configID: 'best-practices',
     title: i18nLazyString(UIStrings.bestPractices),
     description: i18nLazyString(UIStrings.doesThisPageFollowBestPractices),
-    plugin: false,
     supportedModes: ['navigation', 'timespan', 'snapshot'],
     userMetric: Host.UserMetrics.LighthouseCategoryUsed.BestPractices,
   },
@@ -673,29 +654,8 @@ export const Presets: Preset[] = [
     configID: 'seo',
     title: i18nLazyString(UIStrings.seo),
     description: i18nLazyString(UIStrings.isThisPageOptimizedForSearch),
-    plugin: false,
     supportedModes: ['navigation', 'snapshot'],
     userMetric: Host.UserMetrics.LighthouseCategoryUsed.SEO,
-  },
-  {
-    setting: Common.Settings.Settings.instance().createSetting(
-        'lighthouse.cat-pwa', true, Common.Settings.SettingStorageType.Synced),
-    configID: 'pwa',
-    title: i18nLazyString(UIStrings.progressiveWebApp),
-    description: i18nLazyString(UIStrings.doesThisPageMeetTheStandardOfA),
-    plugin: false,
-    supportedModes: ['navigation'],
-    userMetric: Host.UserMetrics.LighthouseCategoryUsed.PWA,
-  },
-  {
-    setting: Common.Settings.Settings.instance().createSetting(
-        'lighthouse.cat-pubads', false, Common.Settings.SettingStorageType.Synced),
-    plugin: true,
-    configID: 'lighthouse-plugin-publisher-ads',
-    title: i18nLazyString(UIStrings.publisherAds),
-    description: i18nLazyString(UIStrings.isThisPageOptimizedForAdSpeedAnd),
-    supportedModes: ['navigation'],
-    userMetric: Host.UserMetrics.LighthouseCategoryUsed.PubAds,
   },
 ];
 
@@ -826,7 +786,6 @@ export interface Preset {
   configID: string;
   title: () => Common.UIString.LocalizedString;
   description: () => Common.UIString.LocalizedString;
-  plugin: boolean;
   supportedModes: string[];
   userMetric: Host.UserMetrics.LighthouseCategoryUsed;
 }

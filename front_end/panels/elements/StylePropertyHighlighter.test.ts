@@ -2,28 +2,24 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assertNotNullOrUndefined} from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
-import {describeWithRealConnection} from '../../testing/RealConnection.js';
+import {createTarget} from '../../testing/EnvironmentHelpers.js';
+import {describeWithMockConnection} from '../../testing/MockConnection.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as PanelUtils from '../utils/utils.js';
 
 import * as Elements from './elements.js';
 
-describeWithRealConnection('StylePropertyHighlighter', () => {
+describeWithMockConnection('StylePropertyHighlighter', () => {
   async function setupStylesPane(): Promise<{
     stylesSidebarPane: Elements.StylesSidebarPane.StylesSidebarPane,
     matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles,
   }> {
-    const target = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
-    assertNotNullOrUndefined(target);
-    const domModel = target.model(SDK.DOMModel.DOMModel);
-    assertNotNullOrUndefined(domModel);
-    await domModel.requestDocument();
-    UI.Context.Context.instance().setFlavor(SDK.DOMModel.DOMNode, domModel.existingDocument());
+    const target = createTarget();
+    UI.Context.Context.instance().setFlavor(SDK.DOMModel.DOMNode, sinon.createStubInstance(SDK.DOMModel.DOMNode));
     const stylesSidebarPane = Elements.StylesSidebarPane.StylesSidebarPane.instance({forceNew: true});
     const matchedStyles = await SDK.CSSMatchedStyles.CSSMatchedStyles.create({
-      cssModel: stylesSidebarPane.cssModel() as SDK.CSSModel.CSSModel,
+      cssModel: target.model(SDK.CSSModel.CSSModel)!,
       node: stylesSidebarPane.node() as SDK.DOMModel.DOMNode,
       inlinePayload: null,
       attributesPayload: null,
@@ -33,7 +29,7 @@ describeWithRealConnection('StylePropertyHighlighter', () => {
       inheritedPseudoPayload: [],
       animationsPayload: [],
       parentLayoutNodeId: undefined,
-      positionFallbackRules: [],
+      positionTryRules: [],
       propertyRules: [],
       cssPropertyRegistrations: [],
       fontPaletteValuesRule: undefined,
@@ -91,7 +87,7 @@ describeWithRealConnection('StylePropertyHighlighter', () => {
     highlighter.findAndHighlightSectionBlock('dontcare');
 
     const firstChild = section.propertiesTreeOutline.firstChild();
-    assertNotNullOrUndefined(firstChild);
+    assert.exists(firstChild);
     assert.deepEqual((firstChild as Elements.StylePropertyTreeElement.StylePropertyTreeElement).property, property);
 
     assert.isTrue(highlightSpy.calledOnceWithExactly(block.titleElement() as HTMLElement));
@@ -141,7 +137,7 @@ describeWithRealConnection('StylePropertyHighlighter', () => {
     assert.isFalse(block1ExpandSpy.called);
     assert.isTrue(block2ExpandSpy.called);
     const element = block2.sections[1].propertiesTreeOutline.firstChild()?.listItemElement;
-    assertNotNullOrUndefined(element);
+    assert.exists(element);
     assert.isTrue(highlightSpy.calledOnceWithExactly(element));
   });
 });

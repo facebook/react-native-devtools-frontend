@@ -312,7 +312,8 @@
                         "errormessage",
                         "flowto",
                         "labelledby",
-                        "owns"
+                        "owns",
+                        "url"
                     ]
                 },
                 {
@@ -1029,6 +1030,17 @@
                             "$ref": "Animation"
                         }
                     ]
+                },
+                {
+                    "name": "animationUpdated",
+                    "description": "Event for animation that has been updated.",
+                    "parameters": [
+                        {
+                            "name": "animation",
+                            "description": "Animation that was updated.",
+                            "$ref": "Animation"
+                        }
+                    ]
                 }
             ]
         },
@@ -1273,6 +1285,8 @@
                         "CoopSandboxedIFrameCannotNavigateToCoopPage",
                         "CorpNotSameOrigin",
                         "CorpNotSameOriginAfterDefaultedToSameOriginByCoep",
+                        "CorpNotSameOriginAfterDefaultedToSameOriginByDip",
+                        "CorpNotSameOriginAfterDefaultedToSameOriginByCoepAndDip",
                         "CorpNotSameSite"
                     ]
                 },
@@ -1541,6 +1555,35 @@
                     ]
                 },
                 {
+                    "id": "SharedDictionaryError",
+                    "type": "string",
+                    "enum": [
+                        "UseErrorCrossOriginNoCorsRequest",
+                        "UseErrorDictionaryLoadFailure",
+                        "UseErrorMatchingDictionaryNotUsed",
+                        "UseErrorUnexpectedContentDictionaryHeader",
+                        "WriteErrorCossOriginNoCorsRequest",
+                        "WriteErrorDisallowedBySettings",
+                        "WriteErrorExpiredResponse",
+                        "WriteErrorFeatureDisabled",
+                        "WriteErrorInsufficientResources",
+                        "WriteErrorInvalidMatchField",
+                        "WriteErrorInvalidStructuredHeader",
+                        "WriteErrorNavigationRequest",
+                        "WriteErrorNoMatchField",
+                        "WriteErrorNonListMatchDestField",
+                        "WriteErrorNonSecureContext",
+                        "WriteErrorNonStringIdField",
+                        "WriteErrorNonStringInMatchDestList",
+                        "WriteErrorNonStringMatchField",
+                        "WriteErrorNonTokenTypeField",
+                        "WriteErrorRequestAborted",
+                        "WriteErrorShuttingDown",
+                        "WriteErrorTooLongIdField",
+                        "WriteErrorUnsupportedType"
+                    ]
+                },
+                {
                     "id": "AttributionReportingIssueDetails",
                     "description": "Details for issues around \"Attribution Reporting API\" usage.\nExplainer: https://github.com/WICG/attribution-reporting-api",
                     "type": "object",
@@ -1611,10 +1654,23 @@
                     ]
                 },
                 {
+                    "id": "SharedDictionaryIssueDetails",
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "sharedDictionaryError",
+                            "$ref": "SharedDictionaryError"
+                        },
+                        {
+                            "name": "request",
+                            "$ref": "AffectedRequest"
+                        }
+                    ]
+                },
+                {
                     "id": "GenericIssueErrorType",
                     "type": "string",
                     "enum": [
-                        "CrossOriginPortalPostMessageError",
                         "FormLabelForNameError",
                         "FormDuplicateIdForInputError",
                         "FormInputWithNoLabelError",
@@ -1706,6 +1762,18 @@
                             "items": {
                                 "type": "string"
                             }
+                        },
+                        {
+                            "name": "optOutPercentage",
+                            "type": "number"
+                        },
+                        {
+                            "name": "isOptOutTopLevel",
+                            "type": "boolean"
+                        },
+                        {
+                            "name": "operation",
+                            "$ref": "CookieOperation"
                         }
                     ]
                 },
@@ -1749,7 +1817,9 @@
                         "ClientMetadataNoResponse",
                         "ClientMetadataInvalidResponse",
                         "ClientMetadataInvalidContentType",
+                        "IdpNotPotentiallyTrustworthy",
                         "DisabledInSettings",
+                        "DisabledInFlags",
                         "ErrorFetchingSignin",
                         "InvalidSigninResponse",
                         "AccountsHttpNotFound",
@@ -1769,7 +1839,12 @@
                         "RpPageNotVisible",
                         "SilentMediationFailure",
                         "ThirdPartyCookiesBlocked",
-                        "NotSignedInWithIdp"
+                        "NotSignedInWithIdp",
+                        "MissingTransientUserActivation",
+                        "ReplacedByButtonMode",
+                        "InvalidFieldsSpecified",
+                        "RelyingPartyOriginIsOpaque",
+                        "TypeNotMatching"
                     ]
                 },
                 {
@@ -1922,7 +1997,8 @@
                         "CookieDeprecationMetadataIssue",
                         "StylesheetLoadingIssue",
                         "FederatedAuthUserInfoRequestIssue",
-                        "PropertyRuleIssue"
+                        "PropertyRuleIssue",
+                        "SharedDictionaryIssue"
                     ]
                 },
                 {
@@ -2030,6 +2106,11 @@
                             "name": "federatedAuthUserInfoRequestIssueDetails",
                             "optional": true,
                             "$ref": "FederatedAuthUserInfoRequestIssueDetails"
+                        },
+                        {
+                            "name": "sharedDictionaryIssueDetails",
+                            "optional": true,
+                            "$ref": "SharedDictionaryIssueDetails"
                         }
                     ]
                 },
@@ -2153,6 +2234,31 @@
                         {
                             "name": "issue",
                             "$ref": "InspectorIssue"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "domain": "Extensions",
+            "description": "Defines commands and events for browser extensions. Available if the client\nis connected using the --remote-debugging-pipe flag and\nthe --enable-unsafe-extension-debugging flag is set.",
+            "experimental": true,
+            "commands": [
+                {
+                    "name": "loadUnpacked",
+                    "description": "Installs an unpacked extension from the filesystem similar to\n--load-extension CLI flags. Returns extension ID once the extension\nhas been installed.",
+                    "parameters": [
+                        {
+                            "name": "path",
+                            "description": "Absolute file path.",
+                            "type": "string"
+                        }
+                    ],
+                    "returns": [
+                        {
+                            "name": "id",
+                            "description": "Extension id.",
+                            "type": "string"
                         }
                     ]
                 }
@@ -2668,6 +2774,12 @@
                         {
                             "name": "allowWithoutSanitization",
                             "description": "For \"clipboard\" permission, may specify allowWithoutSanitization.",
+                            "optional": true,
+                            "type": "boolean"
+                        },
+                        {
+                            "name": "allowWithoutGesture",
+                            "description": "For \"fullscreen\" permission, must specify allowWithoutGesture:true.",
                             "optional": true,
                             "type": "boolean"
                         },
@@ -4126,6 +4238,7 @@
                 {
                     "id": "CSSPositionFallbackRule",
                     "description": "CSS position-fallback rule representation.",
+                    "deprecated": true,
                     "type": "object",
                     "properties": [
                         {
@@ -4139,6 +4252,38 @@
                             "items": {
                                 "$ref": "CSSTryRule"
                             }
+                        }
+                    ]
+                },
+                {
+                    "id": "CSSPositionTryRule",
+                    "description": "CSS @position-try rule representation.",
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "name",
+                            "description": "The prelude dashed-ident name",
+                            "$ref": "Value"
+                        },
+                        {
+                            "name": "styleSheetId",
+                            "description": "The css style sheet identifier (absent for user agent stylesheet and user-specified\nstylesheet rules) this rule came from.",
+                            "optional": true,
+                            "$ref": "StyleSheetId"
+                        },
+                        {
+                            "name": "origin",
+                            "description": "Parent stylesheet's origin.",
+                            "$ref": "StyleSheetOrigin"
+                        },
+                        {
+                            "name": "style",
+                            "description": "Associated style declaration.",
+                            "$ref": "CSSStyle"
+                        },
+                        {
+                            "name": "active",
+                            "type": "boolean"
                         }
                     ]
                 },
@@ -4541,11 +4686,27 @@
                         {
                             "name": "cssPositionFallbackRules",
                             "description": "A list of CSS position fallbacks matching this node.",
+                            "deprecated": true,
                             "optional": true,
                             "type": "array",
                             "items": {
                                 "$ref": "CSSPositionFallbackRule"
                             }
+                        },
+                        {
+                            "name": "cssPositionTryRules",
+                            "description": "A list of CSS @position-try rules matching this node, based on the position-try-fallbacks property.",
+                            "optional": true,
+                            "type": "array",
+                            "items": {
+                                "$ref": "CSSPositionTryRule"
+                            }
+                        },
+                        {
+                            "name": "activePositionFallbackIndex",
+                            "description": "Index of the active fallback in the applied position-try-fallback property,\nwill not be set if there is no active position-try fallback.",
+                            "optional": true,
+                            "type": "integer"
                         },
                         {
                             "name": "cssPropertyRules",
@@ -4644,6 +4805,30 @@
                         {
                             "name": "rootLayer",
                             "$ref": "CSSLayerData"
+                        }
+                    ]
+                },
+                {
+                    "name": "getLocationForSelector",
+                    "description": "Given a CSS selector text and a style sheet ID, getLocationForSelector\nreturns an array of locations of the CSS selector in the style sheet.",
+                    "experimental": true,
+                    "parameters": [
+                        {
+                            "name": "styleSheetId",
+                            "$ref": "StyleSheetId"
+                        },
+                        {
+                            "name": "selectorText",
+                            "type": "string"
+                        }
+                    ],
+                    "returns": [
+                        {
+                            "name": "ranges",
+                            "type": "array",
+                            "items": {
+                                "$ref": "SourceRange"
+                            }
                         }
                     ]
                 },
@@ -5460,11 +5645,14 @@
                         "marker",
                         "backdrop",
                         "selection",
+                        "search-text",
                         "target-text",
                         "spelling-error",
                         "grammar-error",
                         "highlight",
                         "first-line-inherited",
+                        "scroll-marker",
+                        "scroll-marker-group",
                         "scrollbar",
                         "scrollbar-thumb",
                         "scrollbar-button",
@@ -6557,6 +6745,33 @@
                     ]
                 },
                 {
+                    "name": "getElementByRelation",
+                    "description": "Returns the NodeId of the matched element according to certain relations.",
+                    "experimental": true,
+                    "parameters": [
+                        {
+                            "name": "nodeId",
+                            "description": "Id of the node from which to query the relation.",
+                            "$ref": "NodeId"
+                        },
+                        {
+                            "name": "relation",
+                            "description": "Type of relation to get.",
+                            "type": "string",
+                            "enum": [
+                                "PopoverTarget"
+                            ]
+                        }
+                    ],
+                    "returns": [
+                        {
+                            "name": "nodeId",
+                            "description": "NodeId of the element matching the queried relation.",
+                            "$ref": "NodeId"
+                        }
+                    ]
+                },
+                {
                     "name": "redo",
                     "description": "Re-does the last undone action.",
                     "experimental": true
@@ -6940,6 +7155,31 @@
                             "items": {
                                 "$ref": "NodeId"
                             }
+                        }
+                    ]
+                },
+                {
+                    "name": "getAnchorElement",
+                    "description": "Returns the target anchor element of the given anchor query according to\nhttps://www.w3.org/TR/css-anchor-position-1/#target.",
+                    "experimental": true,
+                    "parameters": [
+                        {
+                            "name": "nodeId",
+                            "description": "Id of the positioned element from which to find the anchor.",
+                            "$ref": "NodeId"
+                        },
+                        {
+                            "name": "anchorSpecifier",
+                            "description": "An optional anchor specifier, as defined in\nhttps://www.w3.org/TR/css-anchor-position-1/#anchor-specifier.\nIf not provided, it will return the implicit anchor element for\nthe given positioned element.",
+                            "optional": true,
+                            "type": "string"
+                        }
+                    ],
+                    "returns": [
+                        {
+                            "name": "nodeId",
+                            "description": "The anchor element of the given anchor query.",
+                            "$ref": "NodeId"
                         }
                     ]
                 }
@@ -8950,6 +9190,37 @@
                     ]
                 },
                 {
+                    "id": "PressureSource",
+                    "experimental": true,
+                    "type": "string",
+                    "enum": [
+                        "cpu"
+                    ]
+                },
+                {
+                    "id": "PressureState",
+                    "experimental": true,
+                    "type": "string",
+                    "enum": [
+                        "nominal",
+                        "fair",
+                        "serious",
+                        "critical"
+                    ]
+                },
+                {
+                    "id": "PressureMetadata",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "available",
+                            "optional": true,
+                            "type": "boolean"
+                        }
+                    ]
+                },
+                {
                     "id": "DisabledImageType",
                     "description": "Enum of image types that can be disabled.",
                     "experimental": true,
@@ -9122,12 +9393,29 @@
                         },
                         {
                             "name": "devicePosture",
-                            "description": "If set, the posture of a foldable device. If not set the posture is set\nto continuous.",
+                            "description": "If set, the posture of a foldable device. If not set the posture is set\nto continuous.\nDeprecated, use Emulation.setDevicePostureOverride.",
                             "experimental": true,
+                            "deprecated": true,
                             "optional": true,
                             "$ref": "DevicePosture"
                         }
                     ]
+                },
+                {
+                    "name": "setDevicePostureOverride",
+                    "description": "Start reporting the given posture value to the Device Posture API.\nThis override can also be set in setDeviceMetricsOverride().",
+                    "experimental": true,
+                    "parameters": [
+                        {
+                            "name": "posture",
+                            "$ref": "DevicePosture"
+                        }
+                    ]
+                },
+                {
+                    "name": "clearDevicePostureOverride",
+                    "description": "Clears a device posture override set with either setDeviceMetricsOverride()\nor setDevicePostureOverride() and starts using posture information from the\nplatform again.\nDoes nothing if no override is set.",
+                    "experimental": true
                 },
                 {
                     "name": "setScrollbarsHidden",
@@ -9285,6 +9573,41 @@
                         {
                             "name": "reading",
                             "$ref": "SensorReading"
+                        }
+                    ]
+                },
+                {
+                    "name": "setPressureSourceOverrideEnabled",
+                    "description": "Overrides a pressure source of a given type, as used by the Compute\nPressure API, so that updates to PressureObserver.observe() are provided\nvia setPressureStateOverride instead of being retrieved from\nplatform-provided telemetry data.",
+                    "experimental": true,
+                    "parameters": [
+                        {
+                            "name": "enabled",
+                            "type": "boolean"
+                        },
+                        {
+                            "name": "source",
+                            "$ref": "PressureSource"
+                        },
+                        {
+                            "name": "metadata",
+                            "optional": true,
+                            "$ref": "PressureMetadata"
+                        }
+                    ]
+                },
+                {
+                    "name": "setPressureStateOverride",
+                    "description": "Provides a given pressure state that will be processed and eventually be\ndelivered to PressureObserver users. |source| must have been previously\noverridden by setPressureSourceOverrideEnabled.",
+                    "experimental": true,
+                    "parameters": [
+                        {
+                            "name": "source",
+                            "$ref": "PressureSource"
+                        },
+                        {
+                            "name": "state",
+                            "$ref": "PressureState"
                         }
                     ]
                 },
@@ -9689,6 +10012,108 @@
                             "name": "uuid",
                             "description": "UUID of the specified Blob.",
                             "type": "string"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "domain": "FileSystem",
+            "experimental": true,
+            "dependencies": [
+                "Network",
+                "Storage"
+            ],
+            "types": [
+                {
+                    "id": "File",
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "name",
+                            "type": "string"
+                        },
+                        {
+                            "name": "lastModified",
+                            "description": "Timestamp",
+                            "$ref": "Network.TimeSinceEpoch"
+                        },
+                        {
+                            "name": "size",
+                            "description": "Size in bytes",
+                            "type": "number"
+                        },
+                        {
+                            "name": "type",
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
+                    "id": "Directory",
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "name",
+                            "type": "string"
+                        },
+                        {
+                            "name": "nestedDirectories",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "name": "nestedFiles",
+                            "description": "Files that are directly nested under this directory.",
+                            "type": "array",
+                            "items": {
+                                "$ref": "File"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "BucketFileSystemLocator",
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "storageKey",
+                            "description": "Storage key",
+                            "$ref": "Storage.SerializedStorageKey"
+                        },
+                        {
+                            "name": "bucketName",
+                            "description": "Bucket name. Not passing a `bucketName` will retrieve the default Bucket. (https://developer.mozilla.org/en-US/docs/Web/API/Storage_API#storage_buckets)",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "pathComponents",
+                            "description": "Path to the directory using each path component as an array item.",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "commands": [
+                {
+                    "name": "getDirectory",
+                    "parameters": [
+                        {
+                            "name": "bucketFileSystemLocator",
+                            "$ref": "BucketFileSystemLocator"
+                        }
+                    ],
+                    "returns": [
+                        {
+                            "name": "directory",
+                            "description": "Returns the directory object at the path.",
+                            "$ref": "Directory"
                         }
                     ]
                 }
@@ -11983,6 +12408,20 @@
                             "type": "number"
                         },
                         {
+                            "name": "workerRouterEvaluationStart",
+                            "description": "Started ServiceWorker static routing source evaluation.",
+                            "experimental": true,
+                            "optional": true,
+                            "type": "number"
+                        },
+                        {
+                            "name": "workerCacheLookupStart",
+                            "description": "Started cache lookup when the source was evaluated to `cache`.",
+                            "experimental": true,
+                            "optional": true,
+                            "type": "number"
+                        },
+                        {
                             "name": "sendStart",
                             "description": "Started sending request.",
                             "type": "number"
@@ -12069,7 +12508,8 @@
                         },
                         {
                             "name": "postData",
-                            "description": "HTTP POST request data.",
+                            "description": "HTTP POST request data.\nUse postDataEntries instead.",
+                            "deprecated": true,
                             "optional": true,
                             "type": "string"
                         },
@@ -12081,7 +12521,7 @@
                         },
                         {
                             "name": "postDataEntries",
-                            "description": "Request body elements. This will be converted from base64 to binary",
+                            "description": "Request body elements (post data broken into individual entries).",
                             "experimental": true,
                             "optional": true,
                             "type": "array",
@@ -12301,6 +12741,8 @@
                         "coop-sandboxed-iframe-cannot-navigate-to-coop-page",
                         "corp-not-same-origin",
                         "corp-not-same-origin-after-defaulted-to-same-origin-by-coep",
+                        "corp-not-same-origin-after-defaulted-to-same-origin-by-dip",
+                        "corp-not-same-origin-after-defaulted-to-same-origin-by-coep-and-dip",
                         "corp-not-same-site"
                     ]
                 },
@@ -12444,10 +12886,20 @@
                     "properties": [
                         {
                             "name": "ruleIdMatched",
+                            "description": "ID of the rule matched. If there is a matched rule, this field will\nbe set, otherwiser no value will be set.",
+                            "optional": true,
                             "type": "integer"
                         },
                         {
                             "name": "matchedSourceType",
+                            "description": "The router source of the matched rule. If there is a matched rule, this\nfield will be set, otherwise no value will be set.",
+                            "optional": true,
+                            "$ref": "ServiceWorkerRouterSource"
+                        },
+                        {
+                            "name": "actualSourceType",
+                            "description": "The actual router source used.",
+                            "optional": true,
                             "$ref": "ServiceWorkerRouterSource"
                         }
                     ]
@@ -12548,8 +13000,14 @@
                             "type": "boolean"
                         },
                         {
+                            "name": "fromEarlyHints",
+                            "description": "Specifies that the request was served from the prefetch cache.",
+                            "optional": true,
+                            "type": "boolean"
+                        },
+                        {
                             "name": "serviceWorkerRouterInfo",
-                            "description": "Information about how Service Worker Static Router was used.",
+                            "description": "Information about how ServiceWorker Static Router API was used. If this\nfield is set with `matchedSourceType` field, a matching rule is found.\nIf this field is set without `matchedSource`, no matching rule is found.\nOtherwise, the API is not used.",
                             "experimental": true,
                             "optional": true,
                             "$ref": "ServiceWorkerRouterInfo"
@@ -12762,6 +13220,24 @@
                     ]
                 },
                 {
+                    "id": "CookiePartitionKey",
+                    "description": "cookiePartitionKey object\nThe representation of the components of the key that are created by the cookiePartitionKey class contained in net/cookies/cookie_partition_key.h.",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "topLevelSite",
+                            "description": "The site of the top-level URL the browser was visiting at the start\nof the request to the endpoint that set the cookie.",
+                            "type": "string"
+                        },
+                        {
+                            "name": "hasCrossSiteAncestor",
+                            "description": "Indicates if the cookie has any ancestors that are cross-site to the topLevelSite.",
+                            "type": "boolean"
+                        }
+                    ]
+                },
+                {
                     "id": "Cookie",
                     "description": "Cookie object",
                     "type": "object",
@@ -12844,10 +13320,10 @@
                         },
                         {
                             "name": "partitionKey",
-                            "description": "Cookie partition key. The site of the top-level URL the browser was visiting at the start\nof the request to the endpoint that set the cookie.",
+                            "description": "Cookie partition key.",
                             "experimental": true,
                             "optional": true,
-                            "type": "string"
+                            "$ref": "CookiePartitionKey"
                         },
                         {
                             "name": "partitionKeyOpaque",
@@ -12926,7 +13402,8 @@
                         "EnterprisePolicy",
                         "StorageAccess",
                         "TopLevelStorageAccess",
-                        "CorsOptIn"
+                        "CorsOptIn",
+                        "Scheme"
                     ]
                 },
                 {
@@ -12966,6 +13443,11 @@
                             "name": "exemptionReason",
                             "description": "The reason the cookie was exempted.",
                             "$ref": "CookieExemptionReason"
+                        },
+                        {
+                            "name": "cookieLine",
+                            "description": "The string representing this individual cookie as it would appear in the header.",
+                            "type": "string"
                         },
                         {
                             "name": "cookie",
@@ -13088,10 +13570,10 @@
                         },
                         {
                             "name": "partitionKey",
-                            "description": "Cookie partition key. The site of the top-level URL the browser was visiting at the start\nof the request to the endpoint that set the cookie.\nIf not set, the cookie will be set as not partitioned.",
+                            "description": "Cookie partition key. If not set, the cookie will be set as not partitioned.",
                             "experimental": true,
                             "optional": true,
-                            "type": "string"
+                            "$ref": "CookiePartitionKey"
                         }
                     ]
                 },
@@ -13438,7 +13920,8 @@
                         "RestrictProperties",
                         "UnsafeNone",
                         "SameOriginPlusCoep",
-                        "RestrictPropertiesPlusCoep"
+                        "RestrictPropertiesPlusCoep",
+                        "NoopenerAllowPopups"
                     ]
                 },
                 {
@@ -13843,9 +14326,10 @@
                         },
                         {
                             "name": "partitionKey",
-                            "description": "If specified, deletes only cookies with the the given name and partitionKey where domain\nmatches provided URL.",
+                            "description": "If specified, deletes only cookies with the the given name and partitionKey where\nall partition key attributes match the cookie partition key attribute.",
+                            "experimental": true,
                             "optional": true,
-                            "type": "string"
+                            "$ref": "CookiePartitionKey"
                         }
                     ]
                 },
@@ -13882,6 +14366,27 @@
                             "description": "Connection type if known.",
                             "optional": true,
                             "$ref": "ConnectionType"
+                        },
+                        {
+                            "name": "packetLoss",
+                            "description": "WebRTC packet loss (percent, 0-100). 0 disables packet loss emulation, 100 drops all the packets.",
+                            "experimental": true,
+                            "optional": true,
+                            "type": "number"
+                        },
+                        {
+                            "name": "packetQueueLength",
+                            "description": "WebRTC packet queue length (packet). 0 removes any queue length limitations.",
+                            "experimental": true,
+                            "optional": true,
+                            "type": "integer"
+                        },
+                        {
+                            "name": "packetReordering",
+                            "description": "WebRTC packetReordering feature.",
+                            "experimental": true,
+                            "optional": true,
+                            "type": "boolean"
                         }
                     ]
                 },
@@ -14228,10 +14733,10 @@
                         },
                         {
                             "name": "partitionKey",
-                            "description": "Cookie partition key. The site of the top-level URL the browser was visiting at the start\nof the request to the endpoint that set the cookie.\nIf not set, the cookie will be set as not partitioned.",
+                            "description": "Cookie partition key. If not set, the cookie will be set as not partitioned.",
                             "experimental": true,
                             "optional": true,
-                            "type": "string"
+                            "$ref": "CookiePartitionKey"
                         }
                     ],
                     "returns": [
@@ -15067,8 +15572,9 @@
                         {
                             "name": "cookiePartitionKey",
                             "description": "The cookie partition key that will be used to store partitioned cookies set in this response.\nOnly sent when partitioned cookies are enabled.",
+                            "experimental": true,
                             "optional": true,
-                            "type": "string"
+                            "$ref": "CookiePartitionKey"
                         },
                         {
                             "name": "cookiePartitionKeyOpaque",
@@ -15088,6 +15594,23 @@
                     ]
                 },
                 {
+                    "name": "responseReceivedEarlyHints",
+                    "description": "Fired when 103 Early Hints headers is received in addition to the common response.\nNot every responseReceived event will have an responseReceivedEarlyHints fired.\nOnly one responseReceivedEarlyHints may be fired for eached responseReceived event.",
+                    "experimental": true,
+                    "parameters": [
+                        {
+                            "name": "requestId",
+                            "description": "Request identifier. Used to match this information to another responseReceived event.",
+                            "$ref": "RequestId"
+                        },
+                        {
+                            "name": "headers",
+                            "description": "Raw response headers as they were received over the wire.",
+                            "$ref": "Headers"
+                        }
+                    ]
+                },
+                {
                     "name": "trustTokenOperationDone",
                     "description": "Fired exactly once for each Trust Token operation. Depending on\nthe type of the operation and whether the operation succeeded or\nfailed, the event is fired before the corresponding request was sent\nor after the response was received.",
                     "experimental": true,
@@ -15103,7 +15626,7 @@
                                 "FailedPrecondition",
                                 "ResourceExhausted",
                                 "AlreadyExists",
-                                "Unavailable",
+                                "ResourceLimited",
                                 "Unauthorized",
                                 "BadResponse",
                                 "InternalError",
@@ -15138,6 +15661,11 @@
                             "type": "integer"
                         }
                     ]
+                },
+                {
+                    "name": "policyUpdated",
+                    "description": "Fired once security policy has been updated.",
+                    "experimental": true
                 },
                 {
                     "name": "subresourceWebBundleMetadataReceived",
@@ -16536,7 +17064,7 @@
                         "ch-ua-platform",
                         "ch-ua-model",
                         "ch-ua-mobile",
-                        "ch-ua-form-factor",
+                        "ch-ua-form-factors",
                         "ch-ua-full-version",
                         "ch-ua-full-version-list",
                         "ch-ua-platform-version",
@@ -16548,6 +17076,8 @@
                         "clipboard-write",
                         "compute-pressure",
                         "cross-origin-isolated",
+                        "deferred-fetch",
+                        "digital-credentials-get",
                         "direct-sockets",
                         "display-capture",
                         "document-domain",
@@ -16596,7 +17126,6 @@
                         "web-printing",
                         "web-share",
                         "window-management",
-                        "window-placement",
                         "xr-spatial-tracking"
                     ]
                 },
@@ -17399,6 +17928,375 @@
                     ]
                 },
                 {
+                    "id": "FileFilter",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "name",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "accepts",
+                            "optional": true,
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "FileHandler",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "action",
+                            "type": "string"
+                        },
+                        {
+                            "name": "name",
+                            "type": "string"
+                        },
+                        {
+                            "name": "icons",
+                            "optional": true,
+                            "type": "array",
+                            "items": {
+                                "$ref": "ImageResource"
+                            }
+                        },
+                        {
+                            "name": "accepts",
+                            "description": "Mimic a map, name is the key, accepts is the value.",
+                            "optional": true,
+                            "type": "array",
+                            "items": {
+                                "$ref": "FileFilter"
+                            }
+                        },
+                        {
+                            "name": "launchType",
+                            "description": "Won't repeat the enums, using string for easy comparison. Same as the\nother enums below.",
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
+                    "id": "ImageResource",
+                    "description": "The image definition used in both icon and screenshot.",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "url",
+                            "description": "The src field in the definition, but changing to url in favor of\nconsistency.",
+                            "type": "string"
+                        },
+                        {
+                            "name": "sizes",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "type",
+                            "optional": true,
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
+                    "id": "LaunchHandler",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "clientMode",
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
+                    "id": "ProtocolHandler",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "protocol",
+                            "type": "string"
+                        },
+                        {
+                            "name": "url",
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
+                    "id": "RelatedApplication",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "id",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "url",
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
+                    "id": "ScopeExtension",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "origin",
+                            "description": "Instead of using tuple, this field always returns the serialized string\nfor easy understanding and comparison.",
+                            "type": "string"
+                        },
+                        {
+                            "name": "hasOriginWildcard",
+                            "type": "boolean"
+                        }
+                    ]
+                },
+                {
+                    "id": "Screenshot",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "image",
+                            "$ref": "ImageResource"
+                        },
+                        {
+                            "name": "formFactor",
+                            "type": "string"
+                        },
+                        {
+                            "name": "label",
+                            "optional": true,
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
+                    "id": "ShareTarget",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "action",
+                            "type": "string"
+                        },
+                        {
+                            "name": "method",
+                            "type": "string"
+                        },
+                        {
+                            "name": "enctype",
+                            "type": "string"
+                        },
+                        {
+                            "name": "title",
+                            "description": "Embed the ShareTargetParams",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "text",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "url",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "files",
+                            "optional": true,
+                            "type": "array",
+                            "items": {
+                                "$ref": "FileFilter"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "Shortcut",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "name",
+                            "type": "string"
+                        },
+                        {
+                            "name": "url",
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
+                    "id": "WebAppManifest",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "backgroundColor",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "description",
+                            "description": "The extra description provided by the manifest.",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "dir",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "display",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "displayOverrides",
+                            "description": "The overrided display mode controlled by the user.",
+                            "optional": true,
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "name": "fileHandlers",
+                            "description": "The handlers to open files.",
+                            "optional": true,
+                            "type": "array",
+                            "items": {
+                                "$ref": "FileHandler"
+                            }
+                        },
+                        {
+                            "name": "icons",
+                            "optional": true,
+                            "type": "array",
+                            "items": {
+                                "$ref": "ImageResource"
+                            }
+                        },
+                        {
+                            "name": "id",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "lang",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "launchHandler",
+                            "description": "TODO(crbug.com/1231886): This field is non-standard and part of a Chrome\nexperiment. See:\nhttps://github.com/WICG/web-app-launch/blob/main/launch_handler.md",
+                            "optional": true,
+                            "$ref": "LaunchHandler"
+                        },
+                        {
+                            "name": "name",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "orientation",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "preferRelatedApplications",
+                            "optional": true,
+                            "type": "boolean"
+                        },
+                        {
+                            "name": "protocolHandlers",
+                            "description": "The handlers to open protocols.",
+                            "optional": true,
+                            "type": "array",
+                            "items": {
+                                "$ref": "ProtocolHandler"
+                            }
+                        },
+                        {
+                            "name": "relatedApplications",
+                            "optional": true,
+                            "type": "array",
+                            "items": {
+                                "$ref": "RelatedApplication"
+                            }
+                        },
+                        {
+                            "name": "scope",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "scopeExtensions",
+                            "description": "Non-standard, see\nhttps://github.com/WICG/manifest-incubations/blob/gh-pages/scope_extensions-explainer.md",
+                            "optional": true,
+                            "type": "array",
+                            "items": {
+                                "$ref": "ScopeExtension"
+                            }
+                        },
+                        {
+                            "name": "screenshots",
+                            "description": "The screenshots used by chromium.",
+                            "optional": true,
+                            "type": "array",
+                            "items": {
+                                "$ref": "Screenshot"
+                            }
+                        },
+                        {
+                            "name": "shareTarget",
+                            "optional": true,
+                            "$ref": "ShareTarget"
+                        },
+                        {
+                            "name": "shortName",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "shortcuts",
+                            "optional": true,
+                            "type": "array",
+                            "items": {
+                                "$ref": "Shortcut"
+                            }
+                        },
+                        {
+                            "name": "startUrl",
+                            "optional": true,
+                            "type": "string"
+                        },
+                        {
+                            "name": "themeColor",
+                            "optional": true,
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
                     "id": "AutoResponseMode",
                     "description": "Enum of possible auto-response for permission / prompt dialogs.",
                     "experimental": true,
@@ -17482,6 +18380,12 @@
                         "CookieDisabled",
                         "HTTPAuthRequired",
                         "CookieFlushed",
+                        "BroadcastChannelOnMessage",
+                        "WebViewSettingsChanged",
+                        "WebViewJavaScriptObjectChanged",
+                        "WebViewMessageListenerInjected",
+                        "WebViewSafeBrowsingAllowlistChanged",
+                        "WebViewDocumentStartJavascriptChanged",
                         "WebSocket",
                         "WebTransport",
                         "WebRTC",
@@ -17511,7 +18415,6 @@
                         "Printing",
                         "WebDatabase",
                         "PictureInPicture",
-                        "Portal",
                         "SpeechRecognizer",
                         "IdleManager",
                         "PaymentManager",
@@ -17556,7 +18459,8 @@
                         "EmbedderExtensions",
                         "EmbedderExtensionMessaging",
                         "EmbedderExtensionMessagingForOpenPort",
-                        "EmbedderExtensionSentMessageToCachedFrame"
+                        "EmbedderExtensionSentMessageToCachedFrame",
+                        "RequestedByWebViewClient"
                     ]
                 },
                 {
@@ -17880,6 +18784,14 @@
                 },
                 {
                     "name": "getAppManifest",
+                    "description": "Gets the processed manifest for this current document.\n  This API always waits for the manifest to be loaded.\n  If manifestId is provided, and it does not match the manifest of the\n    current document, this API errors out.\n  If there is not a loaded page, this API errors out immediately.",
+                    "parameters": [
+                        {
+                            "name": "manifestId",
+                            "optional": true,
+                            "type": "string"
+                        }
+                    ],
                     "returns": [
                         {
                             "name": "url",
@@ -17901,10 +18813,16 @@
                         },
                         {
                             "name": "parsed",
-                            "description": "Parsed manifest properties",
+                            "description": "Parsed manifest properties. Deprecated, use manifest instead.",
                             "experimental": true,
+                            "deprecated": true,
                             "optional": true,
                             "$ref": "AppManifestParsedProperties"
+                        },
+                        {
+                            "name": "manifest",
+                            "experimental": true,
+                            "$ref": "WebAppManifest"
                         }
                     ]
                 },
@@ -18312,6 +19230,13 @@
                             "description": "If set, the script will be injected into all frames of the inspected page after reload.\nArgument will be ignored if reloading dataURL origin.",
                             "optional": true,
                             "type": "string"
+                        },
+                        {
+                            "name": "loaderId",
+                            "description": "If set, an error will be thrown if the target page's main frame's\nloader id does not match the provided id. This prevents accidentally\nreloading an unintended target in case there's a racing navigation.",
+                            "experimental": true,
+                            "optional": true,
+                            "$ref": "Network.LoaderId"
                         }
                     ]
                 },
@@ -20451,91 +21376,6 @@
                     ]
                 },
                 {
-                    "id": "InterestGroupAd",
-                    "description": "Ad advertising element inside an interest group.",
-                    "type": "object",
-                    "properties": [
-                        {
-                            "name": "renderURL",
-                            "type": "string"
-                        },
-                        {
-                            "name": "metadata",
-                            "optional": true,
-                            "type": "string"
-                        }
-                    ]
-                },
-                {
-                    "id": "InterestGroupDetails",
-                    "description": "The full details of an interest group.",
-                    "type": "object",
-                    "properties": [
-                        {
-                            "name": "ownerOrigin",
-                            "type": "string"
-                        },
-                        {
-                            "name": "name",
-                            "type": "string"
-                        },
-                        {
-                            "name": "expirationTime",
-                            "$ref": "Network.TimeSinceEpoch"
-                        },
-                        {
-                            "name": "joiningOrigin",
-                            "type": "string"
-                        },
-                        {
-                            "name": "biddingLogicURL",
-                            "optional": true,
-                            "type": "string"
-                        },
-                        {
-                            "name": "biddingWasmHelperURL",
-                            "optional": true,
-                            "type": "string"
-                        },
-                        {
-                            "name": "updateURL",
-                            "optional": true,
-                            "type": "string"
-                        },
-                        {
-                            "name": "trustedBiddingSignalsURL",
-                            "optional": true,
-                            "type": "string"
-                        },
-                        {
-                            "name": "trustedBiddingSignalsKeys",
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        },
-                        {
-                            "name": "userBiddingSignals",
-                            "optional": true,
-                            "type": "string"
-                        },
-                        {
-                            "name": "ads",
-                            "type": "array",
-                            "items": {
-                                "$ref": "InterestGroupAd"
-                            }
-                        },
-                        {
-                            "name": "adComponents",
-                            "type": "array",
-                            "items": {
-                                "$ref": "InterestGroupAd"
-                            }
-                        }
-                    ]
-                },
-                {
                     "id": "SharedStorageAccessType",
                     "description": "Enum of shared storage access types.",
                     "type": "string",
@@ -20547,6 +21387,7 @@
                         "documentAppend",
                         "documentDelete",
                         "documentClear",
+                        "documentGet",
                         "workletSet",
                         "workletAppend",
                         "workletDelete",
@@ -20555,7 +21396,11 @@
                         "workletKeys",
                         "workletEntries",
                         "workletLength",
-                        "workletRemainingBudget"
+                        "workletRemainingBudget",
+                        "headerSet",
+                        "headerAppend",
+                        "headerDelete",
+                        "headerClear"
                     ]
                 },
                 {
@@ -20669,19 +21514,19 @@
                         },
                         {
                             "name": "key",
-                            "description": "Key for a specific entry in an origin's shared storage.\nPresent only for SharedStorageAccessType.documentSet,\nSharedStorageAccessType.documentAppend,\nSharedStorageAccessType.documentDelete,\nSharedStorageAccessType.workletSet,\nSharedStorageAccessType.workletAppend,\nSharedStorageAccessType.workletDelete, and\nSharedStorageAccessType.workletGet.",
+                            "description": "Key for a specific entry in an origin's shared storage.\nPresent only for SharedStorageAccessType.documentSet,\nSharedStorageAccessType.documentAppend,\nSharedStorageAccessType.documentDelete,\nSharedStorageAccessType.workletSet,\nSharedStorageAccessType.workletAppend,\nSharedStorageAccessType.workletDelete,\nSharedStorageAccessType.workletGet,\nSharedStorageAccessType.headerSet,\nSharedStorageAccessType.headerAppend, and\nSharedStorageAccessType.headerDelete.",
                             "optional": true,
                             "type": "string"
                         },
                         {
                             "name": "value",
-                            "description": "Value for a specific entry in an origin's shared storage.\nPresent only for SharedStorageAccessType.documentSet,\nSharedStorageAccessType.documentAppend,\nSharedStorageAccessType.workletSet, and\nSharedStorageAccessType.workletAppend.",
+                            "description": "Value for a specific entry in an origin's shared storage.\nPresent only for SharedStorageAccessType.documentSet,\nSharedStorageAccessType.documentAppend,\nSharedStorageAccessType.workletSet,\nSharedStorageAccessType.workletAppend,\nSharedStorageAccessType.headerSet, and\nSharedStorageAccessType.headerAppend.",
                             "optional": true,
                             "type": "string"
                         },
                         {
                             "name": "ignoreIfPresent",
-                            "description": "Whether or not to set an entry for a key if that key is already present.\nPresent only for SharedStorageAccessType.documentSet and\nSharedStorageAccessType.workletSet.",
+                            "description": "Whether or not to set an entry for a key if that key is already present.\nPresent only for SharedStorageAccessType.documentSet,\nSharedStorageAccessType.workletSet, and\nSharedStorageAccessType.headerSet.",
                             "optional": true,
                             "type": "boolean"
                         }
@@ -20889,6 +21734,58 @@
                     ]
                 },
                 {
+                    "id": "AttributionReportingAggregatableDebugReportingData",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "keyPiece",
+                            "$ref": "UnsignedInt128AsBase16"
+                        },
+                        {
+                            "name": "value",
+                            "description": "number instead of integer because not all uint32 can be represented by\nint",
+                            "type": "number"
+                        },
+                        {
+                            "name": "types",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "AttributionReportingAggregatableDebugReportingConfig",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "budget",
+                            "description": "number instead of integer because not all uint32 can be represented by\nint, only present for source registrations",
+                            "optional": true,
+                            "type": "number"
+                        },
+                        {
+                            "name": "keyPiece",
+                            "$ref": "UnsignedInt128AsBase16"
+                        },
+                        {
+                            "name": "debugData",
+                            "type": "array",
+                            "items": {
+                                "$ref": "AttributionReportingAggregatableDebugReportingData"
+                            }
+                        },
+                        {
+                            "name": "aggregationCoordinatorOrigin",
+                            "optional": true,
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
                     "id": "AttributionReportingSourceRegistration",
                     "experimental": true,
                     "type": "object",
@@ -20963,6 +21860,14 @@
                         {
                             "name": "triggerDataMatching",
                             "$ref": "AttributionReportingTriggerDataMatching"
+                        },
+                        {
+                            "name": "destinationLimitPriority",
+                            "$ref": "SignedInt64AsBase10"
+                        },
+                        {
+                            "name": "aggregatableDebugReportingConfig",
+                            "$ref": "AttributionReportingAggregatableDebugReportingConfig"
                         }
                     ]
                 },
@@ -20982,7 +21887,9 @@
                         "destinationGlobalLimitReached",
                         "destinationBothLimitsReached",
                         "reportingOriginsPerSiteLimitReached",
-                        "exceedsMaxChannelCapacity"
+                        "exceedsMaxChannelCapacity",
+                        "exceedsMaxTriggerStateCardinality",
+                        "destinationPerDayReportingLimitReached"
                     ]
                 },
                 {
@@ -21007,6 +21914,10 @@
                             "name": "value",
                             "description": "number instead of integer because not all uint32 can be represented by\nint",
                             "type": "number"
+                        },
+                        {
+                            "name": "filteringId",
+                            "$ref": "UnsignedInt64AsBase10"
                         }
                     ]
                 },
@@ -21133,6 +22044,10 @@
                             }
                         },
                         {
+                            "name": "aggregatableFilteringIdMaxBytes",
+                            "type": "integer"
+                        },
+                        {
                             "name": "debugReporting",
                             "type": "boolean"
                         },
@@ -21149,6 +22064,10 @@
                             "name": "triggerContextId",
                             "optional": true,
                             "type": "string"
+                        },
+                        {
+                            "name": "aggregatableDebugReportingConfig",
+                            "$ref": "AttributionReportingAggregatableDebugReportingConfig"
                         }
                     ]
                 },
@@ -21197,6 +22116,38 @@
                         "deduplicated",
                         "reportWindowPassed",
                         "excessiveReports"
+                    ]
+                },
+                {
+                    "id": "RelatedWebsiteSet",
+                    "description": "A single Related Website Set object.",
+                    "experimental": true,
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "primarySites",
+                            "description": "The primary site of this set, along with the ccTLDs if there is any.",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "name": "associatedSites",
+                            "description": "The associated sites of this set, along with the ccTLDs if there is any.",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        {
+                            "name": "serviceSites",
+                            "description": "The service sites of this set, along with the ccTLDs if there is any.",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
                     ]
                 }
             ],
@@ -21494,7 +22445,8 @@
                     "returns": [
                         {
                             "name": "details",
-                            "$ref": "InterestGroupDetails"
+                            "description": "This largely corresponds to:\nhttps://wicg.github.io/turtledove/#dictdef-generatebidinterestgroup\nbut has absolute expirationTime instead of relative lifetimeMs and\nalso adds joiningOrigin.",
+                            "type": "object"
                         }
                     ]
                 },
@@ -21690,6 +22642,32 @@
                         {
                             "name": "enable",
                             "type": "boolean"
+                        }
+                    ]
+                },
+                {
+                    "name": "sendPendingAttributionReports",
+                    "description": "Sends all pending Attribution Reports immediately, regardless of their\nscheduled report time.",
+                    "experimental": true,
+                    "returns": [
+                        {
+                            "name": "numSent",
+                            "description": "The number of reports that were sent.",
+                            "type": "integer"
+                        }
+                    ]
+                },
+                {
+                    "name": "getRelatedWebsiteSets",
+                    "description": "Returns the effective Related Website Sets in use by this profile for the browser\nsession. The effective Related Website Sets will not change during a browser session.",
+                    "experimental": true,
+                    "returns": [
+                        {
+                            "name": "sets",
+                            "type": "array",
+                            "items": {
+                                "$ref": "RelatedWebsiteSet"
+                            }
                         }
                     ]
                 }
@@ -22350,7 +23328,7 @@
                         },
                         {
                             "name": "subtype",
-                            "description": "Provides additional details for specific target types. For example, for\nthe type of \"page\", this may be set to \"portal\" or \"prerender\".",
+                            "description": "Provides additional details for specific target types. For example, for\nthe type of \"page\", this may be set to \"prerender\".",
                             "experimental": true,
                             "optional": true,
                             "type": "string"
@@ -25105,7 +26083,11 @@
                         "MaxNumOfRunningEmbedderPrerendersExceeded",
                         "PrerenderingUrlHasEffectiveUrl",
                         "RedirectedPrerenderingUrlHasEffectiveUrl",
-                        "ActivationUrlHasEffectiveUrl"
+                        "ActivationUrlHasEffectiveUrl",
+                        "JavaScriptInterfaceAdded",
+                        "JavaScriptInterfaceRemoved",
+                        "AllPrerenderingCanceled",
+                        "WindowClosed"
                     ]
                 },
                 {
@@ -25530,6 +26512,194 @@
                 {
                     "name": "resetCooldown",
                     "description": "Resets the cooldown time, if any, to allow the next FedCM call to show\na dialog even if one was recently dismissed by the user."
+                }
+            ]
+        },
+        {
+            "domain": "PWA",
+            "description": "This domain allows interacting with the browser to control PWAs.",
+            "experimental": true,
+            "types": [
+                {
+                    "id": "FileHandlerAccept",
+                    "description": "The following types are the replica of\nhttps://crsrc.org/c/chrome/browser/web_applications/proto/web_app_os_integration_state.proto;drc=9910d3be894c8f142c977ba1023f30a656bc13fc;l=67",
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "mediaType",
+                            "description": "New name of the mimetype according to\nhttps://www.iana.org/assignments/media-types/media-types.xhtml",
+                            "type": "string"
+                        },
+                        {
+                            "name": "fileExtensions",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "id": "FileHandler",
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "action",
+                            "type": "string"
+                        },
+                        {
+                            "name": "accepts",
+                            "type": "array",
+                            "items": {
+                                "$ref": "FileHandlerAccept"
+                            }
+                        },
+                        {
+                            "name": "displayName",
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
+                    "id": "DisplayMode",
+                    "description": "If user prefers opening the app in browser or an app window.",
+                    "type": "string",
+                    "enum": [
+                        "standalone",
+                        "browser"
+                    ]
+                }
+            ],
+            "commands": [
+                {
+                    "name": "getOsAppState",
+                    "description": "Returns the following OS state for the given manifest id.",
+                    "parameters": [
+                        {
+                            "name": "manifestId",
+                            "description": "The id from the webapp's manifest file, commonly it's the url of the\nsite installing the webapp. See\nhttps://web.dev/learn/pwa/web-app-manifest.",
+                            "type": "string"
+                        }
+                    ],
+                    "returns": [
+                        {
+                            "name": "badgeCount",
+                            "type": "integer"
+                        },
+                        {
+                            "name": "fileHandlers",
+                            "type": "array",
+                            "items": {
+                                "$ref": "FileHandler"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "install",
+                    "description": "Installs the given manifest identity, optionally using the given install_url\nor IWA bundle location.\n\nTODO(crbug.com/337872319) Support IWA to meet the following specific\nrequirement.\nIWA-specific install description: If the manifest_id is isolated-app://,\ninstall_url_or_bundle_url is required, and can be either an http(s) URL or\nfile:// URL pointing to a signed web bundle (.swbn). The .swbn file's\nsigning key must correspond to manifest_id. If Chrome is not in IWA dev\nmode, the installation will fail, regardless of the state of the allowlist.",
+                    "parameters": [
+                        {
+                            "name": "manifestId",
+                            "type": "string"
+                        },
+                        {
+                            "name": "installUrlOrBundleUrl",
+                            "description": "The location of the app or bundle overriding the one derived from the\nmanifestId.",
+                            "optional": true,
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
+                    "name": "uninstall",
+                    "description": "Uninstalls the given manifest_id and closes any opened app windows.",
+                    "parameters": [
+                        {
+                            "name": "manifestId",
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
+                    "name": "launch",
+                    "description": "Launches the installed web app, or an url in the same web app instead of the\ndefault start url if it is provided. Returns a page Target.TargetID which\ncan be used to attach to via Target.attachToTarget or similar APIs.",
+                    "parameters": [
+                        {
+                            "name": "manifestId",
+                            "type": "string"
+                        },
+                        {
+                            "name": "url",
+                            "optional": true,
+                            "type": "string"
+                        }
+                    ],
+                    "returns": [
+                        {
+                            "name": "targetId",
+                            "description": "ID of the tab target created as a result.",
+                            "$ref": "Target.TargetID"
+                        }
+                    ]
+                },
+                {
+                    "name": "launchFilesInApp",
+                    "description": "Opens one or more local files from an installed web app identified by its\nmanifestId. The web app needs to have file handlers registered to process\nthe files. The API returns one or more page Target.TargetIDs which can be\nused to attach to via Target.attachToTarget or similar APIs.\nIf some files in the parameters cannot be handled by the web app, they will\nbe ignored. If none of the files can be handled, this API returns an error.\nIf no files are provided as the parameter, this API also returns an error.\n\nAccording to the definition of the file handlers in the manifest file, one\nTarget.TargetID may represent a page handling one or more files. The order\nof the returned Target.TargetIDs is not guaranteed.\n\nTODO(crbug.com/339454034): Check the existences of the input files.",
+                    "parameters": [
+                        {
+                            "name": "manifestId",
+                            "type": "string"
+                        },
+                        {
+                            "name": "files",
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    ],
+                    "returns": [
+                        {
+                            "name": "targetIds",
+                            "description": "IDs of the tab targets created as the result.",
+                            "type": "array",
+                            "items": {
+                                "$ref": "Target.TargetID"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "name": "openCurrentPageInApp",
+                    "description": "Opens the current page in its web app identified by the manifest id, needs\nto be called on a page target. This function returns immediately without\nwaiting for the app to finish loading.",
+                    "parameters": [
+                        {
+                            "name": "manifestId",
+                            "type": "string"
+                        }
+                    ]
+                },
+                {
+                    "name": "changeAppUserSettings",
+                    "description": "Changes user settings of the web app identified by its manifestId. If the\napp was not installed, this command returns an error. Unset parameters will\nbe ignored; unrecognized values will cause an error.\n\nUnlike the ones defined in the manifest files of the web apps, these\nsettings are provided by the browser and controlled by the users, they\nimpact the way the browser handling the web apps.\n\nSee the comment of each parameter.",
+                    "parameters": [
+                        {
+                            "name": "manifestId",
+                            "type": "string"
+                        },
+                        {
+                            "name": "linkCapturing",
+                            "description": "If user allows the links clicked on by the user in the app's scope, or\nextended scope if the manifest has scope extensions and the flags\n`DesktopPWAsLinkCapturingWithScopeExtensions` and\n`WebAppEnableScopeExtensions` are enabled.\n\nNote, the API does not support resetting the linkCapturing to the\ninitial value, uninstalling and installing the web app again will reset\nit.\n\nTODO(crbug.com/339453269): Setting this value on ChromeOS is not\nsupported yet.",
+                            "optional": true,
+                            "type": "boolean"
+                        },
+                        {
+                            "name": "displayMode",
+                            "optional": true,
+                            "$ref": "DisplayMode"
+                        }
+                    ]
                 }
             ]
         },

@@ -36,11 +36,14 @@ import sys
 import six
 import time
 
+from pathlib import Path
+
 # Depot tools imports
 import rdb_wrapper
 
 AUTOROLL_ACCOUNT = "devtools-ci-autoroll-builder@chops-service-accounts.iam.gserviceaccount.com"
 USE_PYTHON3 = True
+
 
 def _ExecuteSubProcess(input_api, output_api, script_path, args, results):
     if isinstance(script_path, six.string_types):
@@ -61,70 +64,6 @@ def _ExecuteSubProcess(input_api, output_api, script_path, args, results):
     else:
         results.append(
             output_api.PresubmitNotifyResult(time_info + out.decode('utf-8')))
-    return results
-
-
-def _CheckChangesAreExclusiveToDirectory(input_api, output_api):
-    if input_api.change.DISABLE_THIRD_PARTY_CHECK != None:
-        return []
-
-    results = [output_api.PresubmitNotifyResult('Directory Exclusivity Check:')]
-
-    def IsParentDir(file, dir):
-        while file != '':
-            if file == dir:
-                return True
-            file = input_api.os_path.dirname(file)
-        return False
-
-    def FileIsInDir(file, dirs):
-        if file.endswith('OWNERS') and 'OWNERS' in dirs:
-            return True
-        for dir in dirs:
-            if IsParentDir(file, dir):
-                return True
-
-    EXCLUSIVE_CHANGE_DIRECTORIES = [
-        [
-            'third_party', 'v8',
-            input_api.os_path.join('front_end', 'models',
-                                   'javascript_metadata'),
-            input_api.os_path.join('front_end', 'generated')
-        ],
-        [
-            'node_modules',
-            'package-lock.json',
-            input_api.os_path.join('scripts', 'deps', 'manage_node_deps.py'),
-        ],
-        ['OWNERS'],
-    ]
-
-    affected_files = input_api.LocalPaths()
-    num_affected = len(affected_files)
-    for dirs in EXCLUSIVE_CHANGE_DIRECTORIES:
-        dir_list = ', '.join(dirs)
-        affected_in_dir = [
-            file for file in affected_files if FileIsInDir(file, dirs)
-        ]
-        num_in_dir = len(affected_in_dir)
-        if num_in_dir == 0:
-            continue
-        # Addition of new third_party folders must have a new entry in `.gitignore`
-        if '.gitignore' in affected_files:
-            num_in_dir = num_in_dir + 1
-        if num_in_dir < num_affected:
-            unexpected_files = [
-                file for file in affected_files if file not in affected_in_dir
-            ]
-            results.append(
-                output_api.PresubmitError(
-                    ('CLs that affect files in "%s" should be limited to these files/directories.'
-                     % dir_list) +
-                    ('\nUnexpected files: %s.' % unexpected_files) +
-                    '\nYou can disable this check by adding DISABLE_THIRD_PARTY_CHECK=<reason> to your commit message'
-                ))
-            break
-
     return results
 
 
@@ -471,21 +410,30 @@ def _CheckDevToolsNonJSFileLicenseHeaders(input_api, output_api):
 
 
 def _CheckGeneratedFiles(input_api, output_api):
-    v8_directory_path = input_api.os_path.join(input_api.PresubmitLocalPath(), 'v8')
-    blink_directory_path = input_api.os_path.join(input_api.PresubmitLocalPath(), 'third_party', 'blink')
-    protocol_location = input_api.os_path.join(blink_directory_path, 'public', 'devtools_protocol')
-    scripts_build_path = input_api.os_path.join(input_api.PresubmitLocalPath(), 'scripts', 'build')
-    scripts_generated_output_path = input_api.os_path.join(input_api.PresubmitLocalPath(), 'front_end', 'generated')
+    v8_directory_path = input_api.os_path.join(input_api.PresubmitLocalPath(),
+                                               'v8')
+    blink_directory_path = input_api.os_path.join(
+        input_api.PresubmitLocalPath(), 'third_party', 'blink')
+    protocol_location = input_api.os_path.join(blink_directory_path, 'public',
+                                               'devtools_protocol')
+    scripts_build_path = input_api.os_path.join(input_api.PresubmitLocalPath(),
+                                                'scripts', 'build')
+    scripts_generated_output_path = input_api.os_path.join(
+        input_api.PresubmitLocalPath(), 'front_end', 'generated')
 
-    generated_aria_path = input_api.os_path.join(scripts_build_path, 'generate_aria.py')
-    generated_supported_css_path = input_api.os_path.join(scripts_build_path, 'generate_supported_css.py')
+    generated_aria_path = input_api.os_path.join(scripts_build_path,
+                                                 'generate_aria.py')
+    generated_supported_css_path = input_api.os_path.join(
+        scripts_build_path, 'generate_supported_css.py')
     generated_deprecation_path = input_api.os_path.join(
         scripts_build_path, 'generate_deprecations.py')
-    generated_protocol_path = input_api.os_path.join(scripts_build_path, 'code_generator_frontend.py')
+    generated_protocol_path = input_api.os_path.join(
+        scripts_build_path, 'code_generator_frontend.py')
     generated_protocol_typescript_path = input_api.os_path.join(
         input_api.PresubmitLocalPath(), 'scripts', 'protocol_typescript')
-    concatenate_protocols_path = input_api.os_path.join(input_api.PresubmitLocalPath(), 'third_party', 'inspector_protocol',
-                                                        'concatenate_protocols.py')
+    concatenate_protocols_path = input_api.os_path.join(
+        input_api.PresubmitLocalPath(), 'third_party', 'inspector_protocol',
+        'concatenate_protocols.py')
 
     affected_files = _getAffectedFiles(input_api, [
         v8_directory_path,
@@ -507,11 +455,15 @@ def _CheckGeneratedFiles(input_api, output_api):
                 'No affected files for generated files check')
         ]
 
-    results = [output_api.PresubmitNotifyResult('Running Generated Files Check:')]
-    generate_protocol_resources_path = input_api.os_path.join(input_api.PresubmitLocalPath(), 'scripts', 'deps',
-                                                              'generate_protocol_resources.py')
+    results = [
+        output_api.PresubmitNotifyResult('Running Generated Files Check:')
+    ]
+    generate_protocol_resources_path = input_api.os_path.join(
+        input_api.PresubmitLocalPath(), 'scripts', 'deps',
+        'generate_protocol_resources.py')
 
-    return _ExecuteSubProcess(input_api, output_api, generate_protocol_resources_path, [], results)
+    return _ExecuteSubProcess(input_api, output_api,
+                              generate_protocol_resources_path, [], results)
 
 
 def _CheckL10nStrings(input_api, output_api):
@@ -556,6 +508,7 @@ def _CheckNoUncheckedFiles(input_api, output_api):
         ]
     return []
 
+
 def _CheckForTooLargeFiles(input_api, output_api):
     """Avoid large files, especially binary files, in the repository since
   git doesn't scale well for those. They will be in everyone's repo
@@ -575,12 +528,14 @@ def _CheckForTooLargeFiles(input_api, output_api):
                 too_large_files.append("%s: %d bytes" % (f.LocalPath(), size))
     if too_large_files:
         message = (
-          'Do not commit large files to git since git scales badly for those.\n' +
-          'Instead put the large files in cloud storage and use DEPS to\n' +
-          'fetch them.\n' + '\n'.join(too_large_files)
-        )
-        return [output_api.PresubmitError(
-            'Too large files found in commit', long_text=message + '\n')]
+            'Do not commit large files to git since git scales badly for those.\n'
+            +
+            'Instead put the large files in cloud storage and use DEPS to\n' +
+            'fetch them.\n' + '\n'.join(too_large_files))
+        return [
+            output_api.PresubmitError('Too large files found in commit',
+                                      long_text=message + '\n')
+        ]
     else:
         return []
 
@@ -602,7 +557,7 @@ def _CheckObsoleteScreenshotGoldens(input_api, output_api):
                                              'scripts', 'test',
                                              'check_obsolete_goldens.js')
 
-        script_args = ["--interaction-test-root", interaction_test_root_path]
+        script_args = []
         errors_from_script = _checkWithNodeScript(input_api, output_api,
                                                   script_path, script_args)
         results.extend(errors_from_script)
@@ -611,6 +566,7 @@ def _CheckObsoleteScreenshotGoldens(input_api, output_api):
 
 
 def _WithArgs(checkType, **kwargs):
+
     def _WithArgsWrapper(input_api, output_api):
         return checkType(input_api, output_api, **kwargs)
 
@@ -628,6 +584,7 @@ def _CannedChecks(canned_checks):
                   source_file_filter=lambda file: not file.LocalPath().
                   startswith('node_modules')),
         canned_checks.CheckGenderNeutral,
+        canned_checks.CheckDoNotSubmitInFiles,
     ]
 
 
@@ -639,7 +596,7 @@ def _CommonChecks(canned_checks):
         _CheckDevToolsRunESLintTests, _CheckDevToolsRunBuildTests,
         _CheckDevToolsNonJSFileLicenseHeaders, _CheckFormat,
         _CheckESBuildVersion, _CheckEnumeratedHistograms,
-        _CheckChangesAreExclusiveToDirectory, _CheckObsoleteScreenshotGoldens
+        _CheckObsoleteScreenshotGoldens, _CheckNodeModules
     ]
     # Run the canned checks from `depot_tools` after the custom DevTools checks.
     # The canned checks for example check that lines have line endings. The
@@ -699,6 +656,17 @@ def CheckChangeOnUpload(input_api, output_api):
         _SideEffectChecks,
         _WithArgs(_CheckBugAssociation, is_committing=False),
     ]
+    # Remove check for git once initworkspace is supported in internal repositories
+    # in Cider. We need this because the subsequent checks will rely on a
+    # node hook generated by gclient sync.
+    # TODO(rgw): Remove below check once glcient sync is supported.
+    if input_api.change.scm != 'git':
+        return [
+            output_api.PresubmitNotifyResult(
+                'Non-git workspace detected, skipping CheckChangeOnUpload.' +
+                'Remove this check once glcient is supported in internal repositories in Cider.'
+            )
+        ]
     return _RunAllChecks(checks, input_api, output_api)
 
 
@@ -713,12 +681,14 @@ def CheckChangeOnCommit(input_api, output_api):
     return _RunAllChecks(checks, input_api, output_api)
 
 
-def _getAffectedFiles(input_api, parent_directories, excluded_actions, accepted_endings):  # pylint: disable=invalid-name
+def _getAffectedFiles(input_api, parent_directories, excluded_actions,
+                      accepted_endings):  # pylint: disable=invalid-name
     """Return absolute file paths of affected files (not due to an excluded action)
        under a parent directory with an accepted file ending.
     """
     local_paths = [
-        f.AbsoluteLocalPath() for f in input_api.AffectedFiles() if all(f.Action() != action for action in excluded_actions)
+        f.AbsoluteLocalPath() for f in input_api.AffectedFiles()
+        if all(f.Action() != action for action in excluded_actions)
     ]
     affected_files = [
         file_name for file_name in local_paths
@@ -731,15 +701,22 @@ def _getAffectedFiles(input_api, parent_directories, excluded_actions, accepted_
     return affected_files
 
 
-def _checkWithNodeScript(input_api, output_api, script_path, script_arguments=[]):  # pylint: disable=invalid-name
+def _checkWithNodeScript(input_api,
+                         output_api,
+                         script_path,
+                         script_arguments=[]):  # pylint: disable=invalid-name
     original_sys_path = sys.path
     try:
-        sys.path = sys.path + [input_api.os_path.join(input_api.PresubmitLocalPath(), 'scripts')]
+        sys.path = sys.path + [
+            input_api.os_path.join(input_api.PresubmitLocalPath(), 'scripts')
+        ]
         import devtools_paths
     finally:
         sys.path = original_sys_path
 
-    return _ExecuteSubProcess(input_api, output_api, [devtools_paths.node_path(), script_path], script_arguments, [])
+    return _ExecuteSubProcess(input_api, output_api,
+                              [devtools_paths.node_path(), script_path],
+                              script_arguments, [])
 
 
 def _getFilesToLint(input_api, output_api, lint_config_files,
@@ -771,3 +748,21 @@ def _getFilesToLint(input_api, output_api, lint_config_files,
 
     should_bail_out = len(files_to_lint) == 0 and not run_full_check
     return should_bail_out, files_to_lint
+
+
+def _CheckNodeModules(input_api, output_api):
+
+    files = ['.clang-format', 'OWNERS', 'README.chromium']
+
+    results = []
+    for file in files:
+        file_path = input_api.os_path.join(input_api.PresubmitLocalPath(),
+                                           'node_modules', file)
+        if not Path(file_path).is_file():
+            results.extend([
+                output_api.PresubmitError(
+                    "node_modules/%s is missing. Use npm run install-deps to re-create it."
+                    % file)
+            ])
+
+    return results

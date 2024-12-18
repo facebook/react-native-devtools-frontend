@@ -101,10 +101,9 @@ const UIStrings = {
    */
   filter: 'Filter',
   /**
-   * @description Filter label text in the Memory tool to filter by JavaScript class names for a heap
-   * snapshot.
+   *@description Placeholder text in the filter bar to filter by JavaScript class names for a heap
    */
-  classFilter: 'Class filter',
+  filterByClass: 'Filter by class',
   /**
    *@description Text in Heap Snapshot View of a profiler tool
    */
@@ -146,6 +145,21 @@ const UIStrings = {
    */
   objectsAllocatedBetweenSAndS: 'Objects allocated between {PH1} and {PH2}',
   /**
+   *@description An option which will filter the heap snapshot to show only
+   * strings which exactly match at least one other string
+   */
+  duplicatedStrings: 'Duplicated strings',
+  /**
+   *@description An option which will filter the heap snapshot to show only
+   * detached DOM nodes and other objects kept alive by detached DOM nodes
+   */
+  objectsRetainedByDetachedDomNodes: 'Objects retained by detached DOM nodes',
+  /**
+   *@description An option which will filter the heap snapshot to show only
+   * objects kept alive by the DevTools console
+   */
+  objectsRetainedByConsole: 'Objects retained by the DevTools console',
+  /**
    *@description Text for the summary view
    */
   summary: 'Summary',
@@ -176,7 +190,7 @@ const UIStrings = {
   /**
    *@description Text in Heap Snapshot View of a profiler tool
    */
-  heapSnapshots: 'HEAP SNAPSHOTS',
+  heapSnapshots: 'Heap snapshots',
   /**
    *@description Text in Heap Snapshot View of a profiler tool
    */
@@ -188,11 +202,6 @@ const UIStrings = {
    * specific to Chrome (hence implementation-specific).
    */
   exposeInternals: 'Expose internals (includes additional implementation-specific details)',
-  /**
-   *@description Text in Heap Snapshot View of a profiler tool
-   * This option turns on inclusion of numerical values in the heap snapshot.
-   */
-  captureNumericValue: 'Include numerical values in capture',
   /**
    *@description Progress update that the profiler is capturing a snapshot of the heap
    */
@@ -233,7 +242,7 @@ const UIStrings = {
   /**
    *@description Text in Heap Snapshot View of a profiler tool
    */
-  allocationTimelines: 'ALLOCATION TIMELINES',
+  allocationTimelines: 'Allocation timelines',
   /**
    *@description Description for the 'Allocation timeline' tool in the Memory panel.
    */
@@ -257,6 +266,11 @@ const UIStrings = {
    */
   stackWasNotRecordedForThisObject:
       'Stack was not recorded for this object because it had been allocated before this profile recording started.',
+  /**
+   *@description Text in Heap Snapshot View of a profiler tool.
+   * This text is on a button to undo all previous "Ignore this retainer" actions.
+   */
+  restoreIgnoredRetainers: 'Restore ignored retainers',
 };
 const str_ = i18n.i18n.registerUIStrings('panels/profiler/HeapSnapshotView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -296,6 +310,7 @@ export class HeapSnapshotView extends UI.View.SimpleView implements DataDisplayD
   readonly filterSelect: UI.Toolbar.ToolbarComboBox;
   readonly classNameFilter: UI.Toolbar.ToolbarInput;
   readonly selectedSizeText: UI.Toolbar.ToolbarText;
+  readonly resetRetainersButton: UI.Toolbar.ToolbarButton;
   readonly popoverHelper: UI.PopoverHelper.PopoverHelper;
   currentPerspectiveIndex: number;
   currentPerspective: SummaryPerspective|ComparisonPerspective|ContainmentPerspective|AllocationPerspective|
@@ -432,12 +447,23 @@ export class HeapSnapshotView extends UI.View.SimpleView implements DataDisplayD
     this.filterSelect.setVisible(false);
     this.updateFilterOptions();
 
-    this.classNameFilter = new UI.Toolbar.ToolbarInput(i18nString(UIStrings.classFilter));
+    this.classNameFilter = new UI.Toolbar.ToolbarFilter(i18nString(UIStrings.filterByClass));
     this.classNameFilter.setVisible(false);
     this.constructorsDataGrid.setNameFilter(this.classNameFilter);
     this.diffDataGrid.setNameFilter(this.classNameFilter);
 
     this.selectedSizeText = new UI.Toolbar.ToolbarText();
+
+    const restoreIgnoredRetainers = i18nString(UIStrings.restoreIgnoredRetainers);
+    this.resetRetainersButton =
+        new UI.Toolbar.ToolbarButton(restoreIgnoredRetainers, 'clear-list', restoreIgnoredRetainers);
+    this.resetRetainersButton.setVisible(false);
+    this.resetRetainersButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, async () => {
+      // The reset retainers button acts upon whichever snapshot is currently shown in the Retainers pane.
+      await this.retainmentDataGrid.snapshot?.unignoreAllNodesInRetainersView();
+      await this.retainmentDataGrid.dataSourceChanged();
+    });
+    this.retainmentDataGrid.resetRetainersButton = this.resetRetainersButton;
 
     this.popoverHelper = new UI.PopoverHelper.PopoverHelper(
         this.element, this.getPopoverRequest.bind(this), 'profiler.heap-snapshot-object');
@@ -586,6 +612,7 @@ export class HeapSnapshotView extends UI.View.SimpleView implements DataDisplayD
       result.push(this.baseSelect, this.filterSelect);
     }
     result.push(this.selectedSizeText);
+    result.push(this.resetRetainersButton);
     return result;
   }
 
@@ -724,13 +751,28 @@ export class HeapSnapshotView extends UI.View.SimpleView implements DataDisplayD
     this.performSearch(this.currentQuery, false);
   }
 
+  static readonly ALWAYS_AVAILABLE_FILTERS = [
+    {uiName: i18nString(UIStrings.duplicatedStrings), filterName: 'duplicatedStrings'},
+    {uiName: i18nString(UIStrings.objectsRetainedByDetachedDomNodes), filterName: 'objectsRetainedByDetachedDomNodes'},
+    {uiName: i18nString(UIStrings.objectsRetainedByConsole), filterName: 'objectsRetainedByConsole'},
+  ] as readonly{uiName: string, filterName: string}[];
+
   changeFilter(): void {
-    const profileIndex = this.filterSelect.selectedIndex() - 1;
+    let selectedIndex = this.filterSelect.selectedIndex();
+    let filterName = undefined;
+    const indexOfFirstAlwaysAvailableFilter =
+        this.filterSelect.size() - HeapSnapshotView.ALWAYS_AVAILABLE_FILTERS.length;
+    if (selectedIndex >= indexOfFirstAlwaysAvailableFilter) {
+      filterName =
+          HeapSnapshotView.ALWAYS_AVAILABLE_FILTERS[selectedIndex - indexOfFirstAlwaysAvailableFilter].filterName;
+      selectedIndex = 0;
+    }
+    const profileIndex = selectedIndex - 1;
     if (!this.dataGrid) {
       return;
     }
     (this.dataGrid as HeapSnapshotConstructorsDataGrid)
-        .filterSelectIndexChanged((this.profiles() as HeapProfileHeader[]), profileIndex);
+        .filterSelectIndexChanged((this.profiles() as HeapProfileHeader[]), profileIndex, filterName);
 
     if (!this.currentQuery || !this.searchResults) {
       return;
@@ -907,11 +949,13 @@ export class HeapSnapshotView extends UI.View.SimpleView implements DataDisplayD
           return false;
         }
         const remoteObject = await (node as HeapSnapshotGridNode).queryObjectContent(heapProfilerModel, 'popover');
-        if (!remoteObject) {
-          return false;
+        if (remoteObject instanceof SDK.RemoteObject.RemoteObject) {
+          objectPopoverHelper =
+              await ObjectUI.ObjectPopoverHelper.ObjectPopoverHelper.buildObjectPopover(remoteObject, popover);
+        } else {
+          objectPopoverHelper = ObjectUI.ObjectPopoverHelper.ObjectPopoverHelper.buildDescriptionPopover(
+              remoteObject.description, remoteObject.link, popover);
         }
-        objectPopoverHelper =
-            await ObjectUI.ObjectPopoverHelper.ObjectPopoverHelper.buildObjectPopover(remoteObject, popover);
         if (!objectPopoverHelper) {
           heapProfilerModel.runtimeModel().releaseObjectGroup('popover');
           return false;
@@ -957,6 +1001,7 @@ export class HeapSnapshotView extends UI.View.SimpleView implements DataDisplayD
   updateFilterOptions(): void {
     const list = this.profiles();
     const selectedIndex = this.filterSelect.selectedIndex();
+    const originalSize = this.filterSelect.size();
 
     this.filterSelect.removeOptions();
     this.filterSelect.createOption(i18nString(UIStrings.allObjects));
@@ -970,8 +1015,30 @@ export class HeapSnapshotView extends UI.View.SimpleView implements DataDisplayD
       this.filterSelect.createOption(title);
     }
 
+    // Create a dividing line using em dashes.
+    const dividerIndex = this.filterSelect.size();
+    const divider = this.filterSelect.createOption('\u2014'.repeat(18));
+    (divider as HTMLOptionElement).disabled = true;
+
+    for (const filter of HeapSnapshotView.ALWAYS_AVAILABLE_FILTERS) {
+      this.filterSelect.createOption(filter.uiName);
+    }
+
+    const newSize = this.filterSelect.size();
+
     if (selectedIndex > -1) {
-      this.filterSelect.setSelectedIndex(selectedIndex);
+      const distanceFromEnd = originalSize - selectedIndex;
+      if (distanceFromEnd <= HeapSnapshotView.ALWAYS_AVAILABLE_FILTERS.length) {
+        // If one of the always-available filters was selected, then select the
+        // same filter again even though its index may have changed.
+        this.filterSelect.setSelectedIndex(newSize - distanceFromEnd);
+      } else if (selectedIndex >= dividerIndex) {
+        // If the select list is now shorter than it was, such that we can't
+        // keep the index unchanged, set it to -1, which causes it to be blank.
+        this.filterSelect.setSelectedIndex(-1);
+      } else {
+        this.filterSelect.setSelectedIndex(selectedIndex);
+      }
     }
   }
 
@@ -1193,8 +1260,7 @@ export class HeapSnapshotProfileType extends
     Common.ObjectWrapper.eventMixin<HeapSnapshotProfileTypeEventTypes, typeof ProfileType>(ProfileType)
         implements SDK.TargetManager.SDKModelObserver<SDK.HeapProfilerModel.HeapProfilerModel> {
   readonly exposeInternals: Common.Settings.Setting<boolean>;
-  readonly captureNumericValue: Common.Settings.Setting<boolean>;
-  customContentInternal: HTMLElement|null;
+  customContentInternal: UI.UIUtils.CheckboxLabel|null;
   constructor(id?: string, title?: string) {
     super(id || HeapSnapshotProfileType.TypeId, title || i18nString(UIStrings.heapSnapshot));
     SDK.TargetManager.TargetManager.instance().observeModels(SDK.HeapProfilerModel.HeapProfilerModel, this);
@@ -1207,7 +1273,6 @@ export class HeapSnapshotProfileType extends
         SDK.HeapProfilerModel.HeapProfilerModel, SDK.HeapProfilerModel.Events.ReportHeapSnapshotProgress,
         this.reportHeapSnapshotProgress, this);
     this.exposeInternals = Common.Settings.Settings.instance().createSetting('expose-internals', false);
-    this.captureNumericValue = Common.Settings.Settings.instance().createSetting('capture-numeric-value', false);
     this.customContentInternal = null;
   }
 
@@ -1249,27 +1314,18 @@ export class HeapSnapshotProfileType extends
   }
 
   override customContent(): Element|null {
-    const optionsContainer = document.createElement('div');
     const showOptionToExposeInternalsInHeapSnapshot =
         Root.Runtime.experiments.isEnabled('show-option-tp-expose-internals-in-heap-snapshot');
-    const omitParagraphElement = !showOptionToExposeInternalsInHeapSnapshot;
-    if (showOptionToExposeInternalsInHeapSnapshot) {
-      const exposeInternalsInHeapSnapshotCheckbox = UI.SettingsUI.createSettingCheckbox(
-          i18nString(UIStrings.exposeInternals), this.exposeInternals, omitParagraphElement);
-      optionsContainer.appendChild(exposeInternalsInHeapSnapshotCheckbox);
-    }
-    const captureNumericValueCheckbox = UI.SettingsUI.createSettingCheckbox(
-        i18nString(UIStrings.captureNumericValue), this.captureNumericValue, omitParagraphElement);
-    optionsContainer.appendChild(captureNumericValueCheckbox);
-    this.customContentInternal = optionsContainer;
-    return optionsContainer;
+    const omitParagraphElement = true;
+    const exposeInternalsInHeapSnapshotCheckbox = UI.SettingsUI.createSettingCheckbox(
+        i18nString(UIStrings.exposeInternals), this.exposeInternals, omitParagraphElement);
+    this.customContentInternal = exposeInternalsInHeapSnapshotCheckbox as UI.UIUtils.CheckboxLabel;
+    return showOptionToExposeInternalsInHeapSnapshot ? exposeInternalsInHeapSnapshotCheckbox : null;
   }
 
   override setCustomContentEnabled(enable: boolean): void {
     if (this.customContentInternal) {
-      this.customContentInternal.querySelectorAll('[is=dt-checkbox]').forEach(label => {
-        (label as UI.UIUtils.CheckboxLabel).checkboxElement.disabled = !enable;
-      });
+      this.customContentInternal.checkboxElement.disabled = !enable;
     }
   }
 
@@ -1300,7 +1356,7 @@ export class HeapSnapshotProfileType extends
 
     const failed = await heapProfilerModel.takeHeapSnapshot({
       reportProgress: true,
-      captureNumericValue: this.captureNumericValue.get(),
+      captureNumericValue: true,
       exposeInternals: this.exposeInternals.get(),
     });
     Host.rnPerfMetrics.heapSnapshotFinished(

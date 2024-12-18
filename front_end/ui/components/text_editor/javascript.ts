@@ -423,14 +423,8 @@ async function completeExpressionInScope(): Promise<CompletionSet> {
     return result;
   }
 
-  const scopeObjectForScope = (scope: SDK.DebuggerModel.Scope): SDK.RemoteObject.RemoteObject =>
-      // TODO(crbug.com/1444349): Inline into `map` call below when experiment is removed.
-      Root.Runtime.experiments.isEnabled('evaluate-expressions-with-source-maps') ?
-      SourceMapScopes.NamesResolver.resolveScopeInObject(scope) :
-      scope.object();
-
-  const scopes = await Promise.all(
-      selectedFrame.scopeChain().map(scope => scopeObjectForScope(scope).getAllProperties(false, false)));
+  const scopes = await Promise.all(selectedFrame.scopeChain().map(
+      scope => SourceMapScopes.NamesResolver.resolveScopeInObject(scope).getAllProperties(false, false)));
   for (const scope of scopes) {
     for (const property of scope.properties || []) {
       result.add({

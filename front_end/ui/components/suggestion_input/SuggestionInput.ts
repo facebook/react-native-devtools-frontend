@@ -225,6 +225,9 @@ class SuggestionBox extends LitElement {
         selected: index === this.cursor,
       })}
           @mousedown=${this.#dispatchSuggestEvent.bind(this, suggestion)}
+          jslog=${VisualLogging.item('suggestion').track({
+        click: true,
+      })}
         >
           ${suggestion}
         </li>`;
@@ -273,7 +276,7 @@ export class SuggestionInput extends LitElement {
     this.mimeType = '';
     this.autocomplete = true;
     this.addEventListener('blur', this.#handleBlurEvent);
-    let jslog = VisualLogging.value().track({keydown: true});
+    let jslog = VisualLogging.value().track({keydown: 'ArrowUp|ArrowDown|Enter', change: true, click: true});
     if (this.jslogContext) {
       jslog = jslog.context(this.jslogContext);
     }

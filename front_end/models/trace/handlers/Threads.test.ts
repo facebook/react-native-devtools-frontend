@@ -7,11 +7,9 @@ import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
 import * as TraceEngine from '../trace.js';
 
-const {assert} = chai;
-
 describeWithEnvironment('Handler Threads helper', function() {
   it('returns all the threads for a trace that used tracing', async function() {
-    const traceData = await TraceLoader.traceEngine(this, 'web-dev.json.gz');
+    const {traceData} = await TraceLoader.traceEngine(this, 'web-dev.json.gz');
 
     const allThreads = Array.from(traceData.Renderer.processes.values()).flatMap(process => {
       return Array.from(process.threads.values());
@@ -44,17 +42,16 @@ describeWithEnvironment('Handler Threads helper', function() {
     const rawEvents = await TraceLoader.rawCPUProfile(this, 'node-fibonacci-website.cpuprofile.gz');
     const events = TimelineModel.TimelineJSProfile.TimelineJSProfileProcessor.createFakeTraceFromCpuProfile(
         rawEvents,
-        1,
-        true,
+        TraceEngine.Types.TraceEvents.ThreadID(1),
     );
-    const {traceParsedData} = await TraceLoader.executeTraceEngineOnFileContents(
+    const {traceData} = await TraceLoader.executeTraceEngineOnFileContents(
         events as unknown as TraceEngine.Types.TraceEvents.TraceEventData[]);
 
     // Check that we did indeed parse this properly as a CPU Profile.
-    assert.strictEqual(traceParsedData.Renderer.processes.size, 0);
-    assert.strictEqual(traceParsedData.Samples.profilesInProcess.size, 1);
+    assert.strictEqual(traceData.Renderer.processes.size, 0);
+    assert.strictEqual(traceData.Samples.profilesInProcess.size, 1);
 
-    const threads = TraceEngine.Handlers.Threads.threadsInTrace(traceParsedData);
+    const threads = TraceEngine.Handlers.Threads.threadsInTrace(traceData);
     assert.strictEqual(threads.length, 1);
 
     assert.strictEqual(threads.at(0)?.type, TraceEngine.Handlers.Threads.ThreadType.CPU_PROFILE);

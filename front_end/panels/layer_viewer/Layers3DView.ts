@@ -148,6 +148,7 @@ export class Layers3DView extends Common.ObjectWrapper.eventMixin<EventTypes, ty
     this.layerViewHost.registerView(this);
     this.transformController = new TransformController(this.contentElement as HTMLElement);
     this.transformController.addEventListener(TransformControllerEvents.TransformChanged, this.update, this);
+
     this.initToolbar();
     this.canvasElement = this.contentElement.createChild('canvas') as HTMLCanvasElement;
     this.canvasElement.tabIndex = 0;

@@ -130,12 +130,10 @@ const colorElementToMutable = new WeakMap<HTMLElement, boolean>();
 const colorElementToColor = new WeakMap<HTMLElement, string>();
 const srgbGamutFormats = [
   Common.Color.Format.SRGB,
-  Common.Color.Format.Nickname,
   Common.Color.Format.RGB,
   Common.Color.Format.HEX,
   Common.Color.Format.HSL,
   Common.Color.Format.HWB,
-  Common.Color.Format.ShortHEX,
 ];
 
 const enum SpectrumGamut {
@@ -161,9 +159,6 @@ function convertColorFormat(colorFormat: Common.Color.Format): SpectrumColorForm
   }
   if (colorFormat === Common.Color.Format.HEXA) {
     return Common.Color.Format.HEX;
-  }
-  if (colorFormat === Common.Color.Format.ShortHEXA) {
-    return Common.Color.Format.ShortHEX;
   }
 
   return colorFormat;
@@ -275,10 +270,15 @@ export class Spectrum extends Common.ObjectWrapper.eventMixin<EventTypes, typeof
     super(true);
 
     this.contentElement.tabIndex = 0;
-    this.contentElement.setAttribute('jslog', `${VisualLogging.dialog('colorPicker').parent('mapped')}`);
+    this.contentElement.setAttribute(
+        'jslog', `${VisualLogging.dialog('colorPicker').parent('mapped').track({keydown: 'Enter|Escape'})}`);
     this.colorElement = this.contentElement.createChild('div', 'spectrum-color');
     this.colorElement.tabIndex = 0;
-    this.colorElement.setAttribute('jslog', `${VisualLogging.canvas('color').track({click: true, drag: true})}`);
+    this.colorElement.setAttribute('jslog', `${VisualLogging.canvas('color').track({
+                                     click: true,
+                                     drag: true,
+                                     keydown: 'ArrowLeft|ArrowRight|ArrowDown|ArrowUp',
+                                   })}`);
     this.setDefaultFocusedElement(this.colorElement);
     this.colorElement.addEventListener('keydown', this.onSliderKeydown.bind(this, positionColor.bind(this)));
     const swatchAriaText = i18nString(UIStrings.pressArrowKeysMessage);
@@ -309,14 +309,22 @@ export class Spectrum extends Common.ObjectWrapper.eventMixin<EventTypes, typeof
     this.swatch = new Swatch(toolsContainer);
 
     this.hueElement = toolsContainer.createChild('div', 'spectrum-hue');
-    this.hueElement.setAttribute('jslog', `${VisualLogging.slider('hue').track({click: true, drag: true})}`);
+    this.hueElement.setAttribute('jslog', `${VisualLogging.slider('hue').track({
+                                   click: true,
+                                   drag: true,
+                                   keydown: 'ArrowLeft|ArrowRight|ArrowDown|ArrowUp',
+                                 })}`);
     this.hueElement.tabIndex = 0;
     this.hueElement.addEventListener('keydown', this.onSliderKeydown.bind(this, positionHue.bind(this)));
     UI.ARIAUtils.setLabel(this.hueElement, i18nString(UIStrings.changeHue));
     UI.ARIAUtils.markAsSlider(this.hueElement, 0, 360);
     this.hueSlider = this.hueElement.createChild('div', 'spectrum-slider');
     this.alphaElement = toolsContainer.createChild('div', 'spectrum-alpha');
-    this.alphaElement.setAttribute('jslog', `${VisualLogging.slider('alpha').track({click: true, drag: true})}`);
+    this.alphaElement.setAttribute('jslog', `${VisualLogging.slider('alpha').track({
+                                     click: true,
+                                     drag: true,
+                                     keydown: 'ArrowLeft|ArrowRight|ArrowDown|ArrowUp',
+                                   })}`);
     this.alphaElement.tabIndex = 0;
     this.alphaElement.addEventListener('keydown', this.onSliderKeydown.bind(this, positionAlpha.bind(this)));
     UI.ARIAUtils.setLabel(this.alphaElement, i18nString(UIStrings.changeAlpha));
@@ -330,7 +338,8 @@ export class Spectrum extends Common.ObjectWrapper.eventMixin<EventTypes, typeof
     this.textValues = [];
     for (let i = 0; i < 4; ++i) {
       const inputValue = UI.UIUtils.createInput('spectrum-text-value');
-      inputValue.setAttribute('jslog', `${VisualLogging.value().track({keydown: true}).context(i)}`);
+      inputValue.setAttribute(
+          'jslog', `${VisualLogging.value().track({change: true, keydown: 'ArrowUp|ArrowDown'}).context(i)}`);
       this.displayContainer.appendChild(inputValue);
       inputValue.maxLength = 4;
       this.textValues.push(inputValue);
@@ -346,7 +355,8 @@ export class Spectrum extends Common.ObjectWrapper.eventMixin<EventTypes, typeof
     this.hexContainer = toolsContainer.createChild('div', 'spectrum-text spectrum-text-hex source-code');
     UI.ARIAUtils.markAsPoliteLiveRegion(this.hexContainer, true);
     this.hexValue = UI.UIUtils.createInput('spectrum-text-value');
-    this.hexValue.setAttribute('jslog', `${VisualLogging.value('hex').track({keydown: true})}`);
+    this.hexValue.setAttribute(
+        'jslog', `${VisualLogging.value('hex').track({keydown: 'ArrowUp|ArrowDown', change: true})}`);
     this.hexContainer.appendChild(this.hexValue);
     this.hexValue.maxLength = 9;
     this.hexValue.addEventListener('keydown', this.inputChanged.bind(this), false);
@@ -642,7 +652,11 @@ export class Spectrum extends Common.ObjectWrapper.eventMixin<EventTypes, typeof
   private createPaletteColor(colorText: string, colorName?: string, animationDelay?: number): HTMLElement {
     const element = document.createElement('div') as HTMLElement;
     element.classList.add('spectrum-palette-color');
-    element.setAttribute('jslog', `${VisualLogging.item().track({click: true, drag: true})}`);
+    element.setAttribute('jslog', `${VisualLogging.item().track({
+                           click: true,
+                           drag: true,
+                           keydown: 'ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Escape|Tab',
+                         })}`);
     element.style.background =
         Platform.StringUtilities.sprintf('linear-gradient(%s, %s), var(--image-file-checker)', colorText, colorText);
     if (animationDelay) {
@@ -1038,8 +1052,8 @@ export class Spectrum extends Common.ObjectWrapper.eventMixin<EventTypes, typeof
     this.showPalette(palette, false);
   }
 
-  setColor(color: Common.Color.Color, colorFormat: Common.Color.Format): void {
-    this.innerSetColor(color, '', undefined /* colorName */, colorFormat, ChangeSource.Model);
+  setColor(color: Common.Color.Color): void {
+    this.innerSetColor(color, '', undefined /* colorName */, color.format(), ChangeSource.Model);
     const colorValues = color.as(Common.Color.Format.HSL).canonicalHSLA();
     UI.ARIAUtils.setValueNow(this.hueElement, colorValues[0]);
     UI.ARIAUtils.setValueText(this.alphaElement, colorValues[3]);
@@ -1149,12 +1163,7 @@ export class Spectrum extends Common.ObjectWrapper.eventMixin<EventTypes, typeof
       return colorString;
     }
 
-    if (this.colorFormat === Common.Color.Format.Nickname) {
-      colorString =
-          color.asString(color.asLegacyColor().hasAlpha() ? Common.Color.Format.HEXA : Common.Color.Format.HEX);
-    } else if (this.colorFormat === Common.Color.Format.ShortHEX) {
-      colorString = color.asString(color.asLegacyColor().detectHEXFormat());
-    } else if (this.colorFormat === Common.Color.Format.HEX) {
+    if (this.colorFormat === Common.Color.Format.HEX) {
       colorString = color.asString(Common.Color.Format.HEXA);
     } else if (this.colorFormat === Common.Color.Format.HSL) {
       colorString = color.asString(Common.Color.Format.HSLA);
@@ -1195,16 +1204,11 @@ export class Spectrum extends Common.ObjectWrapper.eventMixin<EventTypes, typeof
   }
 
   private updateInput(): void {
-    if (this.colorFormat === Common.Color.Format.HEX || this.colorFormat === Common.Color.Format.ShortHEX ||
-        this.colorFormat === Common.Color.Format.Nickname) {
+    if (this.colorFormat === Common.Color.Format.HEX) {
       this.hexContainer.hidden = false;
       this.displayContainer.hidden = true;
-      if (this.colorFormat === Common.Color.Format.ShortHEX) {
-        this.hexValue.value = String(this.color.asString(this.color.asLegacyColor().detectHEXFormat()));
-      } else {  // Don't use ShortHEX if original was not in that format.
-        this.hexValue.value = String(this.color.asString(
-            this.color.asLegacyColor().hasAlpha() ? Common.Color.Format.HEXA : Common.Color.Format.HEX));
-      }
+      this.hexValue.value =
+          this.color.asString((this.color.alpha ?? 1) !== 1 ? Common.Color.Format.HEXA : Common.Color.Format.HEX);
     } else {
       // RGBA, HSLA, HWBA, color() display.
       this.hexContainer.hidden = true;
@@ -1272,11 +1276,10 @@ export class Spectrum extends Common.ObjectWrapper.eventMixin<EventTypes, typeof
   }
 
   private async showFormatPicker(event: MouseEvent): Promise<void> {
-    const contextMenu = new FormatPickerContextMenu(this.color, this.colorFormat);
+    const contextMenu = new FormatPickerContextMenu(this.color);
     this.isFormatPickerShown = true;
-    await contextMenu.show(event, (format: Common.Color.Format) => {
-      const newColor = this.color.as(format);
-      this.innerSetColor(newColor, undefined, undefined, format, ChangeSource.Other);
+    await contextMenu.show(event, newColor => {
+      this.innerSetColor(newColor, undefined, undefined, newColor.format(), ChangeSource.Other);
       Host.userMetrics.colorConvertedFrom(Host.UserMetrics.ColorConvertedFrom.ColorPicker);
     });
     this.isFormatPickerShown = false;
@@ -1310,8 +1313,7 @@ export class Spectrum extends Common.ObjectWrapper.eventMixin<EventTypes, typeof
 
     let color: Common.Color.Color|null = null;
     let colorFormat: Common.Color.Format|undefined;
-    if (this.colorFormat === Common.Color.Format.HEX || this.colorFormat === Common.Color.Format.ShortHEX ||
-        this.colorFormat === Common.Color.Format.Nickname) {
+    if (this.colorFormat === Common.Color.Format.HEX) {
       color = Common.Color.parse(this.hexValue.value);
     } else {
       const spec = colorFormatSpec[this.colorFormat];
@@ -1516,10 +1518,16 @@ export class PaletteGenerator {
   private async processStylesheet(stylesheet: SDK.CSSStyleSheetHeader.CSSStyleSheetHeader): Promise<void> {
     let text: string = (await stylesheet.requestContent()).content || '';
     text = text.toLowerCase();
-    const regexResult = text.match(/((?:rgb|hsl|hwb)a?\([^)]+\)|#[0-9a-f]{6}|#[0-9a-f]{3})/g) || [];
-    for (const c of regexResult) {
-      let frequency = this.frequencyMap.get(c) || 0;
-      this.frequencyMap.set(c, ++frequency);
+    const regexResult = text.matchAll(/((?:rgb|hsl|hwb)a?\([^)]+\)|#[0-9a-f]{6}|#[0-9a-f]{3})/g);
+    for (const {0: c, index} of regexResult) {
+      // Check whether the match occured in a property value and not in a property name or a selector by verifying
+      // that there's no colon after the match and before the next semicolon.
+      if (text.indexOf(';', index) < 0 ||
+          text.indexOf(':', index) > -1 && text.indexOf(':', index) < text.indexOf(';', index)) {
+        continue;
+      }
+      const frequency = 1 + (this.frequencyMap.get(c) ?? 0);
+      this.frequencyMap.set(c, frequency);
     }
   }
 }

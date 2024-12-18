@@ -2,39 +2,34 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as TimelineModel from '../../../models/timeline_model/timeline_model.js';
 import type * as TraceModel from '../../../models/trace/trace.js';
 import * as TraceEngine from '../../../models/trace/trace.js';
 import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
 import * as PerfUI from '../../../ui/legacy/components/perf_ui/perf_ui.js';
+import * as ThemeSupport from '../../../ui/legacy/theme_support/theme_support.js';
 import * as Timeline from '../timeline.js';
-
-const {assert} = chai;
 
 function initTrackAppender(
     flameChartData: PerfUI.FlameChart.FlameChartTimelineData, traceParsedData: TraceModel.Handlers.Types.TraceParseData,
     entryData: Timeline.TimelineFlameChartDataProvider.TimelineFlameChartEntry[],
-    entryTypeByLevel: Timeline.TimelineFlameChartDataProvider.EntryType[],
-    timelineModel: TimelineModel.TimelineModel.TimelineModelImpl):
+    entryTypeByLevel: Timeline.TimelineFlameChartDataProvider.EntryType[]):
     Timeline.AnimationsTrackAppender.AnimationsTrackAppender {
   const compatibilityTracksAppender = new Timeline.CompatibilityTracksAppender.CompatibilityTracksAppender(
-      flameChartData, traceParsedData, entryData, entryTypeByLevel, timelineModel);
+      flameChartData, traceParsedData, entryData, entryTypeByLevel);
   return compatibilityTracksAppender.animationsTrackAppender();
 }
 
 describeWithEnvironment('AnimationsTrackAppender', function() {
-  let traceParsedData: TraceModel.Handlers.Types.TraceParseData;
+  let traceData: TraceModel.Handlers.Types.TraceParseData;
   let animationsTrackAppender: Timeline.AnimationsTrackAppender.AnimationsTrackAppender;
   let entryData: Timeline.TimelineFlameChartDataProvider.TimelineFlameChartEntry[] = [];
   let flameChartData = PerfUI.FlameChart.FlameChartTimelineData.createEmpty();
   let entryTypeByLevel: Timeline.TimelineFlameChartDataProvider.EntryType[] = [];
 
   beforeEach(async function() {
-    const data = await TraceLoader.allModels(this, 'animation.json.gz');
-    traceParsedData = data.traceParsedData;
-    animationsTrackAppender =
-        initTrackAppender(flameChartData, traceParsedData, entryData, entryTypeByLevel, data.timelineModel);
+    ({traceData} = await TraceLoader.traceEngine(this, 'animation.json.gz'));
+    animationsTrackAppender = initTrackAppender(flameChartData, traceData, entryData, entryTypeByLevel);
     animationsTrackAppender.appendTrackAtLevel(0);
   });
 
@@ -51,7 +46,7 @@ describeWithEnvironment('AnimationsTrackAppender', function() {
     });
 
     it('adds start times correctly', function() {
-      const animationsRequests = traceParsedData.Animations.animations;
+      const animationsRequests = traceData.Animations.animations;
       for (let i = 0; i < animationsRequests.length; ++i) {
         const event = animationsRequests[i];
         assert.strictEqual(
@@ -60,15 +55,15 @@ describeWithEnvironment('AnimationsTrackAppender', function() {
     });
 
     it('adds total times correctly', function() {
-      const animationsRequests = traceParsedData.Animations.animations;
+      const animationsRequests = traceData.Animations.animations;
       for (let i = 0; i < animationsRequests.length; i++) {
         const event = animationsRequests[i];
-        if (TraceEngine.Handlers.ModelHandlers.PageLoadMetrics.isTraceEventMarkerEvent(event)) {
+        if (TraceEngine.Types.TraceEvents.isTraceEventMarkerEvent(event)) {
           assert.isNaN(flameChartData.entryTotalTimes[i]);
           continue;
         }
         const expectedTotalTimeForEvent = event.dur ?
-            TraceEngine.Helpers.Timing.microSecondsToMilliseconds(event.dur as TraceEngine.Types.Timing.MicroSeconds) :
+            TraceEngine.Helpers.Timing.microSecondsToMilliseconds(event.dur) :
             Timeline.TimelineFlameChartDataProvider.InstantEventVisibleDurationMs;
         assert.strictEqual(flameChartData.entryTotalTimes[i], expectedTotalTimeForEvent);
       }
@@ -90,6 +85,7 @@ describeWithEnvironment('AnimationsTrackAppender', function() {
         }
       `;
       document.documentElement.appendChild(styleElement);
+      ThemeSupport.ThemeSupport.clearThemeCache();
     });
 
     after(() => {
@@ -97,9 +93,10 @@ describeWithEnvironment('AnimationsTrackAppender', function() {
       if (styleElementToRemove) {
         document.documentElement.removeChild(styleElementToRemove);
       }
+      ThemeSupport.ThemeSupport.clearThemeCache();
     });
     it('returns the correct color and title for GPU tasks', function() {
-      const animationsRequests = traceParsedData.Animations.animations;
+      const animationsRequests = traceData.Animations.animations;
       for (const event of animationsRequests) {
         assert.strictEqual(animationsTrackAppender.titleForEvent(event), event.name);
         assert.strictEqual(animationsTrackAppender.colorForEvent(), 'rgb(4 4 4)');
@@ -109,7 +106,7 @@ describeWithEnvironment('AnimationsTrackAppender', function() {
 
   describe('highlightedEntryInfo', function() {
     it('returns the info for an entry correctly', function() {
-      const animationsRequests = traceParsedData.Animations.animations;
+      const animationsRequests = traceData.Animations.animations;
       const highlightedEntryInfo = animationsTrackAppender.highlightedEntryInfo(animationsRequests[0]);
       // The i18n encodes spaces using the u00A0 unicode character.
       assert.strictEqual(highlightedEntryInfo.formattedTime, '2.01\u00A0s');

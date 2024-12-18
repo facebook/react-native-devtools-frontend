@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 import * as i18n from '../../../core/i18n/i18n.js';
-import * as TraceEngine from '../../../models/trace/trace.js';
+import type * as TraceEngine from '../../../models/trace/trace.js';
 import * as ComponentHelpers from '../../../ui/components/helpers/helpers.js';
 import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 
@@ -14,9 +14,9 @@ const UIStrings = {
    */
   inputDelay: 'Input delay',
   /**
-   *@description Text shown next to the interaction event's thread processing time in the detail view.
+   *@description Text shown next to the interaction event's thread processing duration in the detail view.
    */
-  processingTime: 'Processing time',
+  processingDuration: 'Processing duration',
   /**
    *@description Text shown next to the interaction event's presentation delay time in the detail view.
    */
@@ -47,15 +47,15 @@ export class InteractionBreakdown extends HTMLElement {
     if (!this.#entry) {
       return;
     }
-    const inputDelay = TraceEngine.Helpers.Timing.formatMicrosecondsTime(this.#entry.inputDelay);
-    const mainThreadTime = TraceEngine.Helpers.Timing.formatMicrosecondsTime(this.#entry.mainThreadHandling);
-    const presentationDelay = TraceEngine.Helpers.Timing.formatMicrosecondsTime(this.#entry.presentationDelay);
+    const inputDelay = i18n.TimeUtilities.formatMicroSecondsTime(this.#entry.inputDelay);
+    const mainThreadTime = i18n.TimeUtilities.formatMicroSecondsTime(this.#entry.mainThreadHandling);
+    const presentationDelay = i18n.TimeUtilities.formatMicroSecondsTime(this.#entry.presentationDelay);
     LitHtml.render(
         LitHtml.html`<ul class="breakdown">
                      <li data-entry="input-delay">${i18nString(UIStrings.inputDelay)}<span class="value">${
             inputDelay}</span></li>
-                     <li data-entry="processing-time">${i18nString(UIStrings.processingTime)}<span class="value">${
-            mainThreadTime}</span></li>
+                     <li data-entry="processing-duration">${
+            i18nString(UIStrings.processingDuration)}<span class="value">${mainThreadTime}</span></li>
                      <li data-entry="presentation-delay">${
             i18nString(UIStrings.presentationDelay)}<span class="value">${presentationDelay}</span></li>
                    </ul>

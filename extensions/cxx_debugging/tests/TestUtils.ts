@@ -22,6 +22,11 @@ export class TestHostInterface implements HostInterface {
   getWasmOp(_op: number, _stopId: unknown): WasmValue {
     throw new Error('Method not implemented.');
   }
+  reportResourceLoad(
+      _resourceUrl: string,
+      _status: {success: boolean; errorMessage?: string | undefined; size?: number | undefined;}): Promise<void> {
+    return Promise.resolve();
+  }
 }
 
 export function makeURL(path: string): string {
@@ -62,6 +67,13 @@ export function relativePathname(url: URL, base: URL): string {
 export function nonNull<T>(value: T|null|undefined): T {
   assert.exists(value);
   return value as T;
+}
+
+export function remoteObject(value: Chrome.DevTools.RemoteObject|Chrome.DevTools.ForeignObject|
+                             null): Chrome.DevTools.RemoteObject {
+  assert.exists(value);
+  assert(value.type != 'reftype');
+  return value;
 }
 
 export class TestWasmInterface implements WasmInterface {

@@ -91,6 +91,7 @@ export function stubNoopSettings() {
       type: () => Common.Settings.SettingType.BOOLEAN,
       getAsArray: () => [],
     }),
+    getHostConfig: () => {},
   } as unknown as Common.Settings.Settings);
 }
 
@@ -113,22 +114,23 @@ const REGISTERED_EXPERIMENTS = [
   'timeline-show-all-events',
   'timeline-v8-runtime-call-stats',
   'timeline-invalidation-tracking',
-  'ignore-list-js-frames-on-timeline',
   Root.Runtime.ExperimentName.INSTRUMENTATION_BREAKPOINTS,
   'css-type-component-length-deprecate',
   Root.Runtime.ExperimentName.STYLES_PANE_CSS_CHANGES,
-  Root.Runtime.ExperimentName.TIMELINE_AS_CONSOLE_PROFILE_RESULT_PANEL,
   Root.Runtime.ExperimentName.HEADER_OVERRIDES,
   Root.Runtime.ExperimentName.HIGHLIGHT_ERRORS_ELEMENTS_PANEL,
-  Root.Runtime.ExperimentName.SET_ALL_BREAKPOINTS_EAGERLY,
-  Root.Runtime.ExperimentName.SELF_XSS_WARNING,
-  'evaluate-expressions-with-source-maps',
   Root.Runtime.ExperimentName.USE_SOURCE_MAP_SCOPES,
   'font-editor',
   Root.Runtime.ExperimentName.NETWORK_PANEL_FILTER_BAR_REDESIGN,
-  Root.Runtime.ExperimentName.TRACK_CONTEXT_MENU,
   Root.Runtime.ExperimentName.INDENTATION_MARKERS_TEMP_DISABLE,
   Root.Runtime.ExperimentName.AUTOFILL_VIEW,
+  Root.Runtime.ExperimentName.TIMELINE_ANNOTATIONS_OVERLAYS,
+  Root.Runtime.ExperimentName.TIMELINE_SIDEBAR,
+  Root.Runtime.ExperimentName.TIMELINE_DEBUG_MODE,
+  Root.Runtime.ExperimentName.TIMELINE_OBSERVATIONS,
+  Root.Runtime.ExperimentName.FULL_ACCESSIBILITY_TREE,
+  Root.Runtime.ExperimentName.TIMELINE_SHOW_POST_MESSAGE_EVENTS,
+  Root.Runtime.ExperimentName.TIMELINE_ENHANCED_TRACES,
   Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
 ];
 
@@ -137,7 +139,11 @@ export async function initializeGlobalVars({reset = true} = {}) {
 
   // Create the appropriate settings needed to boot.
   const settings = [
+    createSettingValue(
+        Common.Settings.SettingCategory.ADORNER, 'adorner-settings', [], Common.Settings.SettingType.ARRAY),
     createSettingValue(Common.Settings.SettingCategory.APPEARANCE, 'disable-paused-state-overlay', false),
+    createSettingValue(
+        Common.Settings.SettingCategory.APPEARANCE, 'sidebar-position', 'auto', Common.Settings.SettingType.ENUM),
     createSettingValue(Common.Settings.SettingCategory.CONSOLE, 'custom-formatters', false),
     createSettingValue(Common.Settings.SettingCategory.DEBUGGER, 'pause-on-exception-enabled', false),
     createSettingValue(Common.Settings.SettingCategory.DEBUGGER, 'pause-on-caught-exception', false),
@@ -154,6 +160,8 @@ export async function initializeGlobalVars({reset = true} = {}) {
         Common.Settings.SettingType.REGEX),
     createSettingValue(Common.Settings.SettingCategory.DEBUGGER, 'navigator-group-by-folder', true),
     createSettingValue(Common.Settings.SettingCategory.ELEMENTS, 'show-detailed-inspect-tooltip', true),
+    createSettingValue(Common.Settings.SettingCategory.ELEMENTS, 'show-html-comments', true),
+    createSettingValue(Common.Settings.SettingCategory.ELEMENTS, 'show-ua-shadow-dom', false),
     createSettingValue(Common.Settings.SettingCategory.NETWORK, 'cache-disabled', false),
     createSettingValue(Common.Settings.SettingCategory.RENDERING, 'avif-format-disabled', false),
     createSettingValue(
@@ -195,10 +203,12 @@ export async function initializeGlobalVars({reset = true} = {}) {
     createSettingValue(Common.Settings.SettingCategory.SOURCES, 'allow-scroll-past-eof', true),
     createSettingValue(Common.Settings.SettingCategory.SOURCES, 'css-source-maps-enabled', true),
     createSettingValue(Common.Settings.SettingCategory.SOURCES, 'inline-variable-values', true),
+    createSettingValue(Common.Settings.SettingCategory.SOURCES, 'auto-pretty-print-minified', true),
     createSettingValue(Common.Settings.SettingCategory.SOURCES, 'js-source-maps-enabled', true),
     createSettingValue(Common.Settings.SettingCategory.SOURCES, 'show-whitespaces-in-editor', 'none'),
     createSettingValue(Common.Settings.SettingCategory.SOURCES, 'text-editor-autocompletion', true),
     createSettingValue(Common.Settings.SettingCategory.SOURCES, 'text-editor-auto-detect-indent', false),
+    createSettingValue(Common.Settings.SettingCategory.SOURCES, 'text-editor-bracket-closing', true),
     createSettingValue(Common.Settings.SettingCategory.SOURCES, 'text-editor-bracket-matching', true),
     createSettingValue(Common.Settings.SettingCategory.SOURCES, 'text-editor-code-folding', true),
     createSettingValue(Common.Settings.SettingCategory.SOURCES, 'text-editor-indent', '    '),
@@ -276,6 +286,9 @@ export async function initializeGlobalVars({reset = true} = {}) {
         Common.Settings.SettingType.ENUM),
     createSettingValue(
         Common.Settings.SettingCategory.ELEMENTS, 'show-css-property-documentation-on-hover', false,
+        Common.Settings.SettingType.BOOLEAN),
+    createSettingValue(
+        Common.Settings.SettingCategory.NONE, 'freestyler-dogfood-consent-onboarding-finished', false,
         Common.Settings.SettingType.BOOLEAN),
   ];
 
@@ -374,11 +387,13 @@ export async function initializeGlobalLocaleVars() {
     },
   });
 
+  if (i18n.i18n.hasLocaleDataForTest('en-US')) {
+    return;
+  }
+
   // Load the strings from the resource file.
-  const locale = i18n.DevToolsLocale.DevToolsLocale.instance().locale;
-  // proxied call.
   try {
-    await i18n.i18n.fetchAndRegisterLocaleData(locale);
+    await i18n.i18n.fetchAndRegisterLocaleData('en-US');
   } catch (error) {
     // eslint-disable-next-line no-console
     console.warn('EnvironmentHelper: Loading en-US locale failed', error.message);
@@ -475,3 +490,29 @@ export function expectConsoleLogs(expectedLogs: {warn?: string[], log?: string[]
     }
   });
 }
+
+export function getGetHostConfigStub(config: RecursivePartial<Root.Runtime.HostConfig>): sinon.SinonStub {
+  const settings = Common.Settings.Settings.instance();
+  return sinon.stub(settings, 'getHostConfig').returns({
+    devToolsConsoleInsights: {
+      enabled: false,
+      aidaModelId: '',
+      aidaTemperature: 0.2,
+      ...config.devToolsConsoleInsights,
+    } as Root.Runtime.HostConfigConsoleInsights,
+    devToolsFreestylerDogfood: {
+      aidaModelId: '',
+      aidaTemperature: 0,
+      enabled: false,
+      ...config.devToolsFreestylerDogfood,
+    },
+    devToolsVeLogging: {
+      enabled: true,
+      testing: false,
+    },
+  });
+}
+
+type RecursivePartial<T> = {
+  [P in keyof T]?: RecursivePartial<T[P]>;
+};

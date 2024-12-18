@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
-import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import type * as TextUtils from '../../models/text_utils/text_utils.js';
@@ -12,8 +11,6 @@ import {describeWithMockConnection} from '../../testing/MockConnection.js';
 import * as Components from '../../ui/legacy/components/utils/utils.js';
 
 import * as Elements from './elements.js';
-
-const {assert} = chai;
 
 describe('StylePropertiesSection', () => {
   it('contains specificity information', async () => {
@@ -75,7 +72,7 @@ function setUpStyles(
     inheritedPseudoPayload: [],
     animationsPayload: [],
     parentLayoutNodeId: undefined,
-    positionFallbackRules: [],
+    positionTryRules: [],
     propertyRules: [],
     cssPropertyRegistrations: [],
     fontPaletteValuesRule: undefined,
@@ -86,7 +83,7 @@ function setUpStyles(
 describeWithMockConnection('StylesPropertySection', () => {
   it('displays the proper sourceURL origin for constructed stylesheets', async () => {
     const cssModel = createTarget().model(SDK.CSSModel.CSSModel);
-    Platform.assertNotNullOrUndefined(cssModel);
+    assert.exists(cssModel);
     const origin = Protocol.CSS.StyleSheetOrigin.Regular;
     const styleSheetId = '0' as Protocol.CSS.StyleSheetId;
     const range = {startLine: 0, endLine: 1, startColumn: 0, endColumn: 0};
@@ -115,7 +112,7 @@ describeWithMockConnection('StylesPropertySection', () => {
 
   it('displays the proper sourceMappingURL origin for constructed stylesheets', async () => {
     const cssModel = createTarget().model(SDK.CSSModel.CSSModel);
-    Platform.assertNotNullOrUndefined(cssModel);
+    assert.exists(cssModel);
     const origin = Protocol.CSS.StyleSheetOrigin.Regular;
     const styleSheetId = '0' as Protocol.CSS.StyleSheetId;
     const range = {startLine: 0, endLine: 1, startColumn: 0, endColumn: 0};
@@ -142,9 +139,9 @@ describeWithMockConnection('StylesPropertySection', () => {
     const matchedStyles = await setUpStyles(cssModel, origin, styleSheetId, header, {matchedPayload});
 
     const styleSheetHeader = cssModel.styleSheetHeaderForId(styleSheetId);
-    Platform.assertNotNullOrUndefined(styleSheetHeader);
+    assert.exists(styleSheetHeader);
     const sourceMap = await cssModel.sourceMapManager().sourceMapForClientPromise(styleSheetHeader);
-    Platform.assertNotNullOrUndefined(sourceMap);
+    assert.exists(sourceMap);
 
     const rule = matchedStyles.nodeStyles()[0].parentRule;
     const linkifier = sinon.createStubInstance(Components.Linkifier.Linkifier);
@@ -162,36 +159,60 @@ describeWithMockConnection('StylesPropertySection', () => {
   it('properly renders ancestor rules', async () => {
     Common.Settings.Settings.instance().moduleSetting('text-editor-indent').set('  ');
     const cssModel = createTarget().model(SDK.CSSModel.CSSModel);
-    Platform.assertNotNullOrUndefined(cssModel);
+    assert.exists(cssModel);
     const stylesSidebarPane = Elements.StylesSidebarPane.StylesSidebarPane.instance({forceNew: true});
     const origin = Protocol.CSS.StyleSheetOrigin.Regular;
     const styleSheetId = '0' as Protocol.CSS.StyleSheetId;
     const range = {startLine: 0, startColumn: 0, endLine: 0, endColumn: 6};
-    const matchedPayload: Protocol.CSS.RuleMatch[] = [{
-      rule: {
-        nestingSelectors: ['body', '& ul', 'div'],
-        ruleTypes: [
-          Protocol.CSS.CSSRuleType.StyleRule,
-          Protocol.CSS.CSSRuleType.StyleRule,
-          Protocol.CSS.CSSRuleType.StyleRule,
-        ],
-        selectorList: {selectors: [{text: 'div'}], text: 'div'},
-        origin,
-        style: {cssProperties: [{name: 'color', value: 'red'}], shorthandEntries: []},
-      },
-      matchingSelectors: [0],
-    }];
-    const matchedStyles = await setUpStyles(cssModel, origin, styleSheetId, {...range}, {matchedPayload});
-    const declaration = matchedStyles.nodeStyles()[0];
-    Platform.assertNotNullOrUndefined(declaration);
-    const section = new Elements.StylePropertiesSection.StylePropertiesSection(
-        stylesSidebarPane, matchedStyles, declaration, 0, null, null);
-    assert.strictEqual(section.element.textContent, 'div {  & ul {    body {      div {      }    }  }}');
+    {
+      const matchedPayload: Protocol.CSS.RuleMatch[] = [{
+        rule: {
+          nestingSelectors: ['body', '& ul', 'div'],
+          ruleTypes: [
+            Protocol.CSS.CSSRuleType.StyleRule,
+            Protocol.CSS.CSSRuleType.StyleRule,
+            Protocol.CSS.CSSRuleType.StyleRule,
+          ],
+          selectorList: {selectors: [{text: 'div'}], text: 'div'},
+          origin,
+          style: {cssProperties: [{name: 'color', value: 'red'}], shorthandEntries: []},
+        },
+        matchingSelectors: [0],
+      }];
+      const matchedStyles = await setUpStyles(cssModel, origin, styleSheetId, {...range}, {matchedPayload});
+      const declaration = matchedStyles.nodeStyles()[0];
+      assert.exists(declaration);
+      const section = new Elements.StylePropertiesSection.StylePropertiesSection(
+          stylesSidebarPane, matchedStyles, declaration, 0, null, null);
+      assert.strictEqual(section.element.textContent, 'div {  & ul {    body {      div {      }    }  }}');
+    }
+
+    {
+      const matchedPayload: Protocol.CSS.RuleMatch[] = [{
+        rule: {
+          nestingSelectors: ['body', 'div'],
+          ruleTypes: [
+            Protocol.CSS.CSSRuleType.StyleRule,
+            Protocol.CSS.CSSRuleType.StyleRule,
+          ],
+          selectorList: {selectors: [], text: ''},
+          origin,
+          style: {cssProperties: [{name: 'color', value: 'red'}], shorthandEntries: []},
+        },
+        matchingSelectors: [0],
+      }];
+      const matchedStyles = await setUpStyles(cssModel, origin, styleSheetId, {...range}, {matchedPayload});
+      const declaration = matchedStyles.nodeStyles()[0];
+      assert.exists(declaration);
+      const section = new Elements.StylePropertiesSection.StylePropertiesSection(
+          stylesSidebarPane, matchedStyles, declaration, 0, null, null);
+      assert.strictEqual(section.element.textContent, 'div {  body {    }}');
+    }
   });
 
   it('updates property rule property names', async () => {
     const cssModel = createTarget().model(SDK.CSSModel.CSSModel);
-    Platform.assertNotNullOrUndefined(cssModel);
+    assert.exists(cssModel);
     const stylesSidebarPane = Elements.StylesSidebarPane.StylesSidebarPane.instance({forceNew: true});
     const origin = Protocol.CSS.StyleSheetOrigin.Regular;
     const styleSheetId = '0' as Protocol.CSS.StyleSheetId;
@@ -228,7 +249,7 @@ describeWithMockConnection('StylesPropertySection', () => {
       assert.instanceOf(rule, SDK.CSSRule.CSSPropertyRule);
     }
     const declaration = matchedStyles.getRegisteredProperty(propertyName.text)?.style();
-    Platform.assertNotNullOrUndefined(declaration);
+    assert.exists(declaration);
     const rule = declaration.parentRule;
     assertIsPropertyRule(rule);
     const section = new Elements.StylePropertiesSection.RegisteredPropertiesSection(
@@ -246,5 +267,82 @@ describeWithMockConnection('StylesPropertySection', () => {
             (r: TextUtils.TextRange.TextRange) => r.startLine === range.startLine &&
                 r.startColumn === range.startColumn && r.endLine === range.endLine && r.endColumn === range.endColumn),
         propertyName.text));
+  });
+
+  it('renders braces correctly with a non-style-rule section', async () => {
+    Common.Settings.Settings.instance().moduleSetting('text-editor-indent').set('  ');
+    const cssModel = createTarget().model(SDK.CSSModel.CSSModel);
+    assert.exists(cssModel);
+    const stylesSidebarPane = Elements.StylesSidebarPane.StylesSidebarPane.instance({forceNew: true});
+    const origin = Protocol.CSS.StyleSheetOrigin.Regular;
+    const styleSheetId = '0' as Protocol.CSS.StyleSheetId;
+    const range = {startLine: 0, startColumn: 0, endLine: 0, endColumn: 6};
+    const fontPaletteValuesRule = {
+      styleSheetId,
+      origin,
+      style: {
+        range,
+        cssProperties: [],
+        shorthandEntries: [],
+      },
+      fontPaletteName: {
+        range,
+        text: '--palette-name',
+      },
+    };
+    const matchedStyles = await setUpStyles(cssModel, origin, styleSheetId, {...range}, {fontPaletteValuesRule});
+    const declaration = matchedStyles.fontPaletteValuesRule()?.style;
+    assert.exists(declaration);
+    const section = new Elements.StylePropertiesSection.FontPaletteValuesRuleSection(
+        stylesSidebarPane, matchedStyles, declaration, 0);
+    assert.strictEqual(section.element.textContent, '{}');
+  });
+
+  it('renders active and inactive position-try rule sections correctly', async () => {
+    const cssModel = createTarget().model(SDK.CSSModel.CSSModel);
+    assert.exists(cssModel);
+    const stylesSidebarPane = Elements.StylesSidebarPane.StylesSidebarPane.instance({forceNew: true});
+    const origin = Protocol.CSS.StyleSheetOrigin.Regular;
+    const styleSheetId = '0' as Protocol.CSS.StyleSheetId;
+    const range = {startLine: 0, startColumn: 0, endLine: 0, endColumn: 6};
+    const positionTryRules = [
+      {
+        styleSheetId,
+        origin,
+        name: {
+          text: '--try-1',
+        },
+        style: {
+          range,
+          cssProperties: [],
+          shorthandEntries: [],
+        },
+        active: true,
+      },
+      {
+        styleSheetId,
+        origin,
+        name: {
+          text: '--try-2',
+        },
+        style: {
+          range,
+          cssProperties: [],
+          shorthandEntries: [],
+        },
+        active: false,
+      },
+    ];
+    const matchedStyles = await setUpStyles(cssModel, origin, styleSheetId, {...range}, {positionTryRules});
+    const declaration1 = matchedStyles.positionTryRules()[0].style;
+    const declaration2 = matchedStyles.positionTryRules()[1].style;
+    assert.exists(declaration1);
+    assert.exists(declaration2);
+    const section1 = new Elements.StylePropertiesSection.PositionTryRuleSection(
+        stylesSidebarPane, matchedStyles, declaration1, 0, positionTryRules[0].active);
+    const section2 = new Elements.StylePropertiesSection.PositionTryRuleSection(
+        stylesSidebarPane, matchedStyles, declaration1, 1, positionTryRules[1].active);
+    assert.isFalse(section1.propertiesTreeOutline.element.classList.contains('no-affect'));
+    assert.isTrue(section2.propertiesTreeOutline.element.classList.contains('no-affect'));
   });
 });

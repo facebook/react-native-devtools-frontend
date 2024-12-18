@@ -164,7 +164,10 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
     // Record the console tool load time after the console prompt constructor is complete.
     Host.userMetrics.panelLoaded('console', 'DevTools.Launch.Console');
 
-    this.element.setAttribute('jslog', `${VisualLogging.textField('console-prompt').track({keydown: 'Enter'})}`);
+    this.element.setAttribute('jslog', `${VisualLogging.textField('console-prompt').track({
+                                change: true,
+                                keydown: 'Enter|ArrowUp|ArrowDown|PageUp',
+                              })}`);
   }
 
   private eagerSettingChanged(): void {
@@ -184,7 +187,9 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
     // ASAP to avoid inconsistency between a fresh viewport and stale preview.
     if (this.eagerEvalSetting.get()) {
       const asSoonAsPossible = !TextEditor.Config.contentIncludingHint(this.editor.editor);
-      this.previewRequestForTest = this.textChangeThrottler.schedule(this.requestPreviewBound, asSoonAsPossible);
+      this.previewRequestForTest = this.textChangeThrottler.schedule(
+          this.requestPreviewBound,
+          asSoonAsPossible ? Common.Throttler.Scheduling.AsSoonAsPossible : Common.Throttler.Scheduling.Default);
     }
     this.updatePromptIcon();
     this.dispatchEventToListeners(Events.TextChanged);
@@ -308,7 +313,8 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
 
   showSelfXssWarning(): void {
     Common.Console.Console.instance().warn(
-        i18nString(UIStrings.selfXssWarning, {PH1: i18nString(UIStrings.allowPasting)}));
+        i18nString(UIStrings.selfXssWarning, {PH1: i18nString(UIStrings.allowPasting)}),
+        Common.Console.FrontendMessageSource.SelfXss);
     this.#selfXssWarningShown = true;
     Host.userMetrics.actionTaken(Host.UserMetrics.Action.SelfXssWarningConsoleMessageShown);
     this.#updateJavaScriptCompletionCompartment();
@@ -369,12 +375,10 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
   private async evaluateCommandInConsole(
       executionContext: SDK.RuntimeModel.ExecutionContext, message: SDK.ConsoleModel.ConsoleMessage, expression: string,
       useCommandLineAPI: boolean): Promise<void> {
-    if (Root.Runtime.experiments.isEnabled('evaluate-expressions-with-source-maps')) {
-      const callFrame = executionContext.debuggerModel.selectedCallFrame();
-      if (callFrame) {
-        const nameMap = await SourceMapScopes.NamesResolver.allVariablesInCallFrame(callFrame);
-        expression = await this.substituteNames(expression, nameMap);
-      }
+    const callFrame = executionContext.debuggerModel.selectedCallFrame();
+    if (callFrame && callFrame.script.isJavaScript()) {
+      const nameMap = await SourceMapScopes.NamesResolver.allVariablesInCallFrame(callFrame);
+      expression = await this.substituteNames(expression, nameMap);
     }
 
     await executionContext.target()

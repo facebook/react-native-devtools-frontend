@@ -90,11 +90,11 @@ export declare function validateDialogType(type: string): 'alert' | 'confirm' | 
 /**
  * @internal
  */
-export declare function timeout(ms: number): Observable<never>;
+export declare function timeout(ms: number, cause?: Error): Observable<never>;
 /**
  * @internal
  */
-export declare const UTILITY_WORLD_NAME = "__puppeteer_utility_world__";
+export declare const UTILITY_WORLD_NAME: string;
 /**
  * @internal
  */
@@ -124,6 +124,10 @@ export declare const unitToPixels: {
  * @internal
  */
 export declare function fromEmitterEvent<Events extends Record<EventType, unknown>, Event extends keyof Events>(emitter: EventEmitter<Events>, eventName: Event): Observable<Events[Event]>;
+/**
+ * @internal
+ */
+export declare function fromAbortSignal(signal?: AbortSignal, cause?: Error): Observable<never>;
 /**
  * @internal
  */

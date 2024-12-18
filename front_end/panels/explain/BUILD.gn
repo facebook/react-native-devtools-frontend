@@ -26,6 +26,7 @@ devtools_module("explain") {
     ":css_files",
     "../../core/common:bundle",
     "../../core/host:bundle",
+    "../../core/root:bundle",
     "../../core/sdk:bundle",
     "../../models/logs:bundle",
     "../../third_party/marked:bundle",
@@ -74,7 +75,6 @@ ts_library("unittests") {
   sources = [
     "PromptBuilder.test.ts",
     "components/ConsoleInsight.test.ts",
-    "components/MarkdownRenderer.test.ts",
   ]
 
   deps = [

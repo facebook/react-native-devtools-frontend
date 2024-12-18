@@ -38,6 +38,10 @@ export namespace ProtocolMapping {
      * Event for animation that has been started.
      */
     'Animation.animationStarted': [Protocol.Animation.AnimationStartedEvent];
+    /**
+     * Event for animation that has been updated.
+     */
+    'Animation.animationUpdated': [Protocol.Animation.AnimationUpdatedEvent];
     'Audits.issueAdded': [Protocol.Audits.IssueAddedEvent];
     /**
      * Emitted when an address form is filled.
@@ -281,12 +285,22 @@ export namespace ProtocolMapping {
      */
     'Network.responseReceivedExtraInfo': [Protocol.Network.ResponseReceivedExtraInfoEvent];
     /**
+     * Fired when 103 Early Hints headers is received in addition to the common response.
+     * Not every responseReceived event will have an responseReceivedEarlyHints fired.
+     * Only one responseReceivedEarlyHints may be fired for eached responseReceived event.
+     */
+    'Network.responseReceivedEarlyHints': [Protocol.Network.ResponseReceivedEarlyHintsEvent];
+    /**
      * Fired exactly once for each Trust Token operation. Depending on
      * the type of the operation and whether the operation succeeded or
      * failed, the event is fired before the corresponding request was sent
      * or after the response was received.
      */
     'Network.trustTokenOperationDone': [Protocol.Network.TrustTokenOperationDoneEvent];
+    /**
+     * Fired once security policy has been updated.
+     */
+    'Network.policyUpdated': [];
     /**
      * Fired once when parsing the .wbn file has succeeded.
      * The event contains the information about the web bundle contents.
@@ -953,6 +967,15 @@ export namespace ProtocolMapping {
       returnType: Protocol.Audits.CheckFormsIssuesResponse;
     };
     /**
+     * Installs an unpacked extension from the filesystem similar to
+     * --load-extension CLI flags. Returns extension ID once the extension
+     * has been installed.
+     */
+    'Extensions.loadUnpacked': {
+      paramsType: [Protocol.Extensions.LoadUnpackedRequest];
+      returnType: Protocol.Extensions.LoadUnpackedResponse;
+    };
+    /**
      * Trigger autofill on a form identified by the fieldId.
      * If the field and related form cannot be autofilled, returns an error.
      */
@@ -1239,6 +1262,14 @@ export namespace ProtocolMapping {
     'CSS.getLayersForNode': {
       paramsType: [Protocol.CSS.GetLayersForNodeRequest];
       returnType: Protocol.CSS.GetLayersForNodeResponse;
+    };
+    /**
+     * Given a CSS selector text and a style sheet ID, getLocationForSelector
+     * returns an array of locations of the CSS selector in the style sheet.
+     */
+    'CSS.getLocationForSelector': {
+      paramsType: [Protocol.CSS.GetLocationForSelectorRequest];
+      returnType: Protocol.CSS.GetLocationForSelectorResponse;
     };
     /**
      * Starts tracking the given computed styles for updates. The specified array of properties
@@ -1660,6 +1691,13 @@ export namespace ProtocolMapping {
       returnType: Protocol.DOM.GetTopLayerElementsResponse;
     };
     /**
+     * Returns the NodeId of the matched element according to certain relations.
+     */
+    'DOM.getElementByRelation': {
+      paramsType: [Protocol.DOM.GetElementByRelationRequest];
+      returnType: Protocol.DOM.GetElementByRelationResponse;
+    };
+    /**
      * Re-does the last undone action.
      */
     'DOM.redo': {
@@ -1809,6 +1847,14 @@ export namespace ProtocolMapping {
     'DOM.getQueryingDescendantsForContainer': {
       paramsType: [Protocol.DOM.GetQueryingDescendantsForContainerRequest];
       returnType: Protocol.DOM.GetQueryingDescendantsForContainerResponse;
+    };
+    /**
+     * Returns the target anchor element of the given anchor query according to
+     * https://www.w3.org/TR/css-anchor-position-1/#target.
+     */
+    'DOM.getAnchorElement': {
+      paramsType: [Protocol.DOM.GetAnchorElementRequest];
+      returnType: Protocol.DOM.GetAnchorElementResponse;
     };
     /**
      * Returns event listeners of the given object.
@@ -2067,6 +2113,24 @@ export namespace ProtocolMapping {
       paramsType: [Protocol.Emulation.SetDeviceMetricsOverrideRequest];
       returnType: void;
     };
+    /**
+     * Start reporting the given posture value to the Device Posture API.
+     * This override can also be set in setDeviceMetricsOverride().
+     */
+    'Emulation.setDevicePostureOverride': {
+      paramsType: [Protocol.Emulation.SetDevicePostureOverrideRequest];
+      returnType: void;
+    };
+    /**
+     * Clears a device posture override set with either setDeviceMetricsOverride()
+     * or setDevicePostureOverride() and starts using posture information from the
+     * platform again.
+     * Does nothing if no override is set.
+     */
+    'Emulation.clearDevicePostureOverride': {
+      paramsType: [];
+      returnType: void;
+    };
     'Emulation.setScrollbarsHidden': {
       paramsType: [Protocol.Emulation.SetScrollbarsHiddenRequest];
       returnType: void;
@@ -2122,6 +2186,25 @@ export namespace ProtocolMapping {
      */
     'Emulation.setSensorOverrideReadings': {
       paramsType: [Protocol.Emulation.SetSensorOverrideReadingsRequest];
+      returnType: void;
+    };
+    /**
+     * Overrides a pressure source of a given type, as used by the Compute
+     * Pressure API, so that updates to PressureObserver.observe() are provided
+     * via setPressureStateOverride instead of being retrieved from
+     * platform-provided telemetry data.
+     */
+    'Emulation.setPressureSourceOverrideEnabled': {
+      paramsType: [Protocol.Emulation.SetPressureSourceOverrideEnabledRequest];
+      returnType: void;
+    };
+    /**
+     * Provides a given pressure state that will be processed and eventually be
+     * delivered to PressureObserver users. |source| must have been previously
+     * overridden by setPressureSourceOverrideEnabled.
+     */
+    'Emulation.setPressureStateOverride': {
+      paramsType: [Protocol.Emulation.SetPressureStateOverrideRequest];
       returnType: void;
     };
     /**
@@ -2264,6 +2347,10 @@ export namespace ProtocolMapping {
     'IO.resolveBlob': {
       paramsType: [Protocol.IO.ResolveBlobRequest];
       returnType: Protocol.IO.ResolveBlobResponse;
+    };
+    'FileSystem.getDirectory': {
+      paramsType: [Protocol.FileSystem.GetDirectoryRequest];
+      returnType: Protocol.FileSystem.GetDirectoryResponse;
     };
     /**
      * Clears all entries from an object store.
@@ -3135,8 +3222,15 @@ export namespace ProtocolMapping {
       paramsType: [];
       returnType: void;
     };
+    /**
+     * Gets the processed manifest for this current document.
+     *   This API always waits for the manifest to be loaded.
+     *   If manifestId is provided, and it does not match the manifest of the
+     *     current document, this API errors out.
+     *   If there is not a loaded page, this API errors out immediately.
+     */
     'Page.getAppManifest': {
-      paramsType: [];
+      paramsType: [Protocol.Page.GetAppManifestRequest?];
       returnType: Protocol.Page.GetAppManifestResponse;
     };
     'Page.getInstallabilityErrors': {
@@ -3845,6 +3939,22 @@ export namespace ProtocolMapping {
       returnType: void;
     };
     /**
+     * Sends all pending Attribution Reports immediately, regardless of their
+     * scheduled report time.
+     */
+    'Storage.sendPendingAttributionReports': {
+      paramsType: [];
+      returnType: Protocol.Storage.SendPendingAttributionReportsResponse;
+    };
+    /**
+     * Returns the effective Related Website Sets in use by this profile for the browser
+     * session. The effective Related Website Sets will not change during a browser session.
+     */
+    'Storage.getRelatedWebsiteSets': {
+      paramsType: [];
+      returnType: Protocol.Storage.GetRelatedWebsiteSetsResponse;
+    };
+    /**
      * Returns information about the system.
      */
     'SystemInfo.getInfo': {
@@ -4335,6 +4445,88 @@ export namespace ProtocolMapping {
      */
     'FedCm.resetCooldown': {
       paramsType: [];
+      returnType: void;
+    };
+    /**
+     * Returns the following OS state for the given manifest id.
+     */
+    'PWA.getOsAppState': {
+      paramsType: [Protocol.PWA.GetOsAppStateRequest];
+      returnType: Protocol.PWA.GetOsAppStateResponse;
+    };
+    /**
+     * Installs the given manifest identity, optionally using the given install_url
+     * or IWA bundle location.
+     *
+     * TODO(crbug.com/337872319) Support IWA to meet the following specific
+     * requirement.
+     * IWA-specific install description: If the manifest_id is isolated-app://,
+     * install_url_or_bundle_url is required, and can be either an http(s) URL or
+     * file:// URL pointing to a signed web bundle (.swbn). The .swbn file's
+     * signing key must correspond to manifest_id. If Chrome is not in IWA dev
+     * mode, the installation will fail, regardless of the state of the allowlist.
+     */
+    'PWA.install': {
+      paramsType: [Protocol.PWA.InstallRequest];
+      returnType: void;
+    };
+    /**
+     * Uninstalls the given manifest_id and closes any opened app windows.
+     */
+    'PWA.uninstall': {
+      paramsType: [Protocol.PWA.UninstallRequest];
+      returnType: void;
+    };
+    /**
+     * Launches the installed web app, or an url in the same web app instead of the
+     * default start url if it is provided. Returns a page Target.TargetID which
+     * can be used to attach to via Target.attachToTarget or similar APIs.
+     */
+    'PWA.launch': {
+      paramsType: [Protocol.PWA.LaunchRequest];
+      returnType: Protocol.PWA.LaunchResponse;
+    };
+    /**
+     * Opens one or more local files from an installed web app identified by its
+     * manifestId. The web app needs to have file handlers registered to process
+     * the files. The API returns one or more page Target.TargetIDs which can be
+     * used to attach to via Target.attachToTarget or similar APIs.
+     * If some files in the parameters cannot be handled by the web app, they will
+     * be ignored. If none of the files can be handled, this API returns an error.
+     * If no files are provided as the parameter, this API also returns an error.
+     *
+     * According to the definition of the file handlers in the manifest file, one
+     * Target.TargetID may represent a page handling one or more files. The order
+     * of the returned Target.TargetIDs is not guaranteed.
+     *
+     * TODO(crbug.com/339454034): Check the existences of the input files.
+     */
+    'PWA.launchFilesInApp': {
+      paramsType: [Protocol.PWA.LaunchFilesInAppRequest];
+      returnType: Protocol.PWA.LaunchFilesInAppResponse;
+    };
+    /**
+     * Opens the current page in its web app identified by the manifest id, needs
+     * to be called on a page target. This function returns immediately without
+     * waiting for the app to finish loading.
+     */
+    'PWA.openCurrentPageInApp': {
+      paramsType: [Protocol.PWA.OpenCurrentPageInAppRequest];
+      returnType: void;
+    };
+    /**
+     * Changes user settings of the web app identified by its manifestId. If the
+     * app was not installed, this command returns an error. Unset parameters will
+     * be ignored; unrecognized values will cause an error.
+     *
+     * Unlike the ones defined in the manifest files of the web apps, these
+     * settings are provided by the browser and controlled by the users, they
+     * impact the way the browser handling the web apps.
+     *
+     * See the comment of each parameter.
+     */
+    'PWA.changeAppUserSettings': {
+      paramsType: [Protocol.PWA.ChangeAppUserSettingsRequest];
       returnType: void;
     };
     /**

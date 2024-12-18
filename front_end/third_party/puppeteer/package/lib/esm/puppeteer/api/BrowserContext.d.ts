@@ -5,6 +5,7 @@
  */
 import { EventEmitter, type EventType } from '../common/EventEmitter.js';
 import { asyncDisposeSymbol, disposeSymbol } from '../util/disposable.js';
+import { Mutex } from '../util/Mutex.js';
 import type { Browser, Permission, WaitForTargetOptions } from './Browser.js';
 import type { Page } from './Page.js';
 import type { Target } from './Target.js';
@@ -72,6 +73,7 @@ export interface BrowserContextEvents extends Record<EventType, unknown> {
  * @public
  */
 export declare abstract class BrowserContext extends EventEmitter<BrowserContextEvents> {
+    #private;
     /**
      * @internal
      */
@@ -81,6 +83,14 @@ export declare abstract class BrowserContext extends EventEmitter<BrowserContext
      * {@link BrowserContext | browser context}.
      */
     abstract targets(): Target[];
+    /**
+     * @internal
+     */
+    startScreenshot(): Promise<InstanceType<typeof Mutex.Guard>>;
+    /**
+     * @internal
+     */
+    waitForScreenshotOperations(): Promise<InstanceType<typeof Mutex.Guard>> | undefined;
     /**
      * Waits until a {@link Target | target} matching the given `predicate`
      * appears and returns it.
@@ -114,7 +124,7 @@ export declare abstract class BrowserContext extends EventEmitter<BrowserContext
      *
      * @deprecated In Chrome, the
      * {@link Browser.defaultBrowserContext | default browser context} can also be
-     * "icognito" if configured via the arguments and in such cases this getter
+     * "incognito" if configured via the arguments and in such cases this getter
      * returns wrong results (see
      * https://github.com/puppeteer/puppeteer/issues/8836). Also, the term
      * "incognito" is not applicable to other browsers. To migrate, check the

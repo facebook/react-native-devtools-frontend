@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {TestConfig} from '../../conductor/test_config.js';
 import {getBrowserAndPages, getTestServerPort, platform} from '../../shared/helper.js';
 
 const fontsByPlatform = {
@@ -21,10 +22,8 @@ export const loadComponentDocExample = async (urlComponent: string) => {
   await frontend.evaluate(() => window.dispatchEvent(new Event('hidecomponentdocsui')));
 };
 
-const SHOULD_GATHER_COVERAGE_INFORMATION = process.env.COVERAGE === '1';
-
 export const preloadForCodeCoverage = (name: string) => {
-  if (!SHOULD_GATHER_COVERAGE_INFORMATION) {
+  if (!TestConfig.coverage) {
     return;
   }
 

@@ -5,7 +5,7 @@
  */
 
 import * as BidiMapper from 'chromium-bidi/lib/cjs/bidiMapper/BidiMapper.js';
-import type * as Bidi from 'chromium-bidi/lib/cjs/protocol/protocol.js';
+import * as Bidi from 'chromium-bidi/lib/cjs/protocol/protocol.js';
 import type {ProtocolMapping} from 'devtools-protocol/types/protocol-mapping.js';
 
 import type {CDPEvents, CDPSession} from '../api/CDPSession.js';
@@ -25,9 +25,7 @@ const bidiServerLogger = (prefix: string, ...args: unknown[]): void => {
  */
 export async function connectBidiOverCdp(
   cdp: CdpConnection,
-  // TODO: replace with `BidiMapper.MapperOptions`, once it's exported in
-  //  https://github.com/puppeteer/puppeteer/pull/11415.
-  options: {acceptInsecureCerts: boolean}
+  options: BidiMapper.MapperOptions
 ): Promise<BidiConnection> {
   const transportBiDi = new NoOpTransport();
   const cdpConnectionAdapter = new CdpConnectionAdapter(cdp);
@@ -49,14 +47,25 @@ export async function connectBidiOverCdp(
     // Forwards a BiDi event sent by BidiServer to Puppeteer.
     pptrTransport.onmessage(JSON.stringify(message));
   });
-  const pptrBiDiConnection = new BidiConnection(cdp.url(), pptrTransport);
+  const pptrBiDiConnection = new BidiConnection(
+    cdp.url(),
+    pptrTransport,
+    cdp.delay,
+    cdp.timeout
+  );
   const bidiServer = await BidiMapper.BidiServer.createAndStart(
     transportBiDi,
     cdpConnectionAdapter,
-    // TODO: most likely need a little bit of refactoring
     cdpConnectionAdapter.browserClient(),
-    '',
-    options,
+    /* selfTargetId= */ '',
+    {
+      // Override Mapper's `unhandledPromptBehavior` default value of `dismiss` to
+      // `ignore`, so that user can handle the prompt instead of just closing it.
+      unhandledPromptBehavior: {
+        default: Bidi.Session.UserPromptHandlerType.Ignore,
+      },
+      ...options,
+    },
     undefined,
     bidiServerLogger
   );

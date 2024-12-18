@@ -4,8 +4,6 @@
 
 import * as VisualLogging from './visual_logging-testing.js';
 
-const {assert} = chai;
-
 describe('LoggingConfig', () => {
   let element: Element;
 
@@ -70,9 +68,9 @@ describe('LoggingConfig', () => {
   });
 
   it('can parse complex track attribute', () => {
-    element.setAttribute('jslog', 'TreeItem; track:click, keydown: Enter; context:42');
+    element.setAttribute('jslog', 'TreeItem; track:click, keydown: :|Enter; context:42');
     const config = VisualLogging.LoggingConfig.getLoggingConfig(element);
-    assert.deepEqual(config.track, new Map([['click', undefined], ['keydown', 'Enter']]));
+    assert.deepEqual(config.track, {click: true, keydown: ':|Enter'});
   });
 
   describe('can parse simple context attribute', () => {

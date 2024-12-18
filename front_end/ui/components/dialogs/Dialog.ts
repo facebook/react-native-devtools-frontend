@@ -7,6 +7,7 @@ import * as WindowBoundsService from '../../../services/window_bounds/window_bou
 import * as ComponentHelpers from '../../../ui/components/helpers/helpers.js';
 import * as Coordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 import * as LitHtml from '../../../ui/lit-html/lit-html.js';
+import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
 import dialogStyles from './dialog.css.js';
 
@@ -76,6 +77,10 @@ interface DialogData {
    * content. Defaults to true.
    */
   closeOnScroll: boolean;
+  /**
+   * Specifies a context for the visual element.
+   */
+  jslogContext: string;
 }
 
 type DialogAnchor = HTMLElement|DOMRect|DOMPoint;
@@ -99,6 +104,7 @@ export class Dialog extends HTMLElement {
     windowBoundsService: WindowBoundsService.WindowBoundsService.WindowBoundsServiceImpl.instance(),
     closeOnESC: true,
     closeOnScroll: true,
+    jslogContext: '',
   };
 
   #dialog: HTMLDialogElement|null = null;
@@ -184,6 +190,10 @@ export class Dialog extends HTMLElement {
     return this.#props.dialogShownCallback;
   }
 
+  get jslogContext(): string {
+    return this.#props.jslogContext;
+  }
+
   set dialogShownCallback(dialogShownCallback: (() => unknown)|null) {
     this.#props.dialogShownCallback = dialogShownCallback;
     this.#onStateChange();
@@ -199,6 +209,11 @@ export class Dialog extends HTMLElement {
     this.#onStateChange();
   }
 
+  set jslogContext(jslogContext: string) {
+    this.#props.jslogContext = jslogContext;
+    this.#onStateChange();
+  }
+
   #updateDialogBounds(): void {
     this.#dialogClientRect = this.#getDialog().getBoundingClientRect();
   }
@@ -211,7 +226,6 @@ export class Dialog extends HTMLElement {
     this.#shadow.adoptedStyleSheets = [dialogStyles];
 
     window.addEventListener('resize', this.#forceDialogCloseInDevToolsBound);
-    document.body.addEventListener('keydown', this.#onKeyDownBound);
     this.#devtoolsMutationObserver.observe(this.#devToolsBoundingElement, {childList: true, subtree: true});
     this.#devToolsBoundingElement.addEventListener('wheel', this.#handleScrollAttemptBound);
     this.style.setProperty('--dialog-padding', '0');
@@ -223,7 +237,7 @@ export class Dialog extends HTMLElement {
 
   disconnectedCallback(): void {
     window.removeEventListener('resize', this.#forceDialogCloseInDevToolsBound);
-    document.body.removeEventListener('keydown', this.#onKeyDownBound);
+
     this.#devToolsBoundingElement.removeEventListener('wheel', this.#handleScrollAttemptBound);
     this.#devtoolsMutationObserver.disconnect();
     this.#dialogResizeObserver.disconnect();
@@ -324,10 +338,13 @@ export class Dialog extends HTMLElement {
     return DialogHorizontalAlignment.RIGHT;
   }
 
-  #getBestVerticalPosition(originBounds: AnchorBounds, dialogHeight: number, windowheight: number):
+  #getBestVerticalPosition(originBounds: AnchorBounds, dialogHeight: number, devtoolsBounds: DOMRect):
       DialogVerticalPosition {
-    const {bottom} = originBounds;
-    if (bottom + dialogHeight > windowheight) {
+    // If the dialog's full height doesn't fit at the bottom attempt to
+    // position it at the top. If it doesn't fit at the top either
+    // position it at the bottom and make the overflow scrollable.
+    if (originBounds.bottom + dialogHeight > devtoolsBounds.height &&
+        originBounds.top - dialogHeight > devtoolsBounds.top) {
       return DialogVerticalPosition.TOP;
     }
     return DialogVerticalPosition.BOTTOM;
@@ -389,7 +406,7 @@ export class Dialog extends HTMLElement {
             this.#props.horizontalAlignment;
 
         this.#bestVerticalPositionInternal = this.#props.position === DialogVerticalPosition.AUTO ?
-            this.#getBestVerticalPosition(absoluteAnchorBounds, dialogHeight, devToolsHeight) :
+            this.#getBestVerticalPosition(absoluteAnchorBounds, dialogHeight, devtoolsBounds) :
             this.#props.position;
         if (this.#bestHorizontalAlignment === DialogHorizontalAlignment.AUTO ||
             this.#bestVerticalPositionInternal === DialogVerticalPosition.AUTO) {
@@ -575,6 +592,7 @@ export class Dialog extends HTMLElement {
       await this.#props.dialogShownCallback();
     }
     this.#updateDialogBounds();
+    document.body.addEventListener('keydown', this.#onKeyDownBound);
   }
 
   #handleScrollAttempt(event: WheelEvent): void {
@@ -631,6 +649,7 @@ export class Dialog extends HTMLElement {
       this.removeAttribute('open');
       this.#getDialog().close();
       this.#isPendingCloseDialog = false;
+      document.body.removeEventListener('keydown', this.#onKeyDownBound);
     });
   }
 
@@ -657,7 +676,8 @@ export class Dialog extends HTMLElement {
 
     // clang-format off
     LitHtml.render(LitHtml.html`
-      <dialog @click=${this.#handlePointerEvent} @pointermove=${this.#handlePointerEvent} @cancel=${this.#onCancel}>
+      <dialog @click=${this.#handlePointerEvent} @pointermove=${this.#handlePointerEvent} @cancel=${this.#onCancel}
+              jslog=${VisualLogging.dialog(this.#props.jslogContext).track({resize: true, keydown: 'Escape'}).parent('mapped')}>
         <div id="content-wrap">
           <div id="content">
             <slot></slot>
@@ -665,6 +685,7 @@ export class Dialog extends HTMLElement {
         </div>
       </dialog>
     `, this.#shadow, { host: this });
+    VisualLogging.setMappedParent(this.#getDialog(), this.parentElementOrShadowHost() as HTMLElement);
     // clang-format on
   }
 }

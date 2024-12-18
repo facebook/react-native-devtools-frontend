@@ -129,6 +129,7 @@ export class XHRBreakpointsSidebarPane extends UI.Widget.VBox implements UI.Cont
     const inputElementContainer = document.createElement('p');
     inputElementContainer.classList.add('breakpoint-condition');
     inputElementContainer.textContent = i18nString(UIStrings.breakWhenUrlContains);
+    inputElementContainer.setAttribute('jslog', `${VisualLogging.value('condition').track({change: true})}`);
 
     const inputElement = inputElementContainer.createChild('span', 'breakpoint-condition-input');
     UI.ARIAUtils.setLabel(inputElement, i18nString(UIStrings.urlBreakpoint));
@@ -187,7 +188,7 @@ export class XHRBreakpointsSidebarPane extends UI.Widget.VBox implements UI.Cont
     element.addEventListener('contextmenu', this.contextMenu.bind(this, item), true);
 
     const title = item ? i18nString(UIStrings.urlContainsS, {PH1: item}) : i18nString(UIStrings.anyXhrOrFetch);
-    const label = UI.UIUtils.CheckboxLabel.create(title, enabled);
+    const label = UI.UIUtils.CheckboxLabel.create(title, enabled, undefined, undefined, /* small */ true);
     UI.ARIAUtils.markAsHidden(label);
     UI.ARIAUtils.setLabel(element, title);
     element.appendChild(label);
@@ -227,6 +228,11 @@ export class XHRBreakpointsSidebarPane extends UI.Widget.VBox implements UI.Cont
     label.classList.add('cursor-auto');
     label.textElement.addEventListener('dblclick', this.labelClicked.bind(this, item), false);
     this.#breakpointElements.set(item, listItemElement);
+    listItemElement.setAttribute('jslog', `${VisualLogging.item().track({
+                                   click: true,
+                                   dblclick: true,
+                                   keydown: 'ArrowUp|ArrowDown|PageUp|PageDown|Enter|Space',
+                                 })}`);
     return listItemElement;
   }
 
@@ -322,6 +328,7 @@ export class XHRBreakpointsSidebarPane extends UI.Widget.VBox implements UI.Cont
     const inputElement = document.createElement('span');
     inputElement.classList.add('breakpoint-condition');
     inputElement.textContent = breakKeyword;
+    inputElement.setAttribute('jslog', `${VisualLogging.value('condition').track({change: true})}`);
     if (element) {
       this.#list.element.insertBefore(inputElement, element);
       element.classList.add('hidden');

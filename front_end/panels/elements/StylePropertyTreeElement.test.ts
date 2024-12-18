@@ -3,66 +3,60 @@
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
-import {assertNotNullOrUndefined} from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
+import * as Bindings from '../../models/bindings/bindings.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
+import * as Workspace from '../../models/workspace/workspace.js';
 import {renderElementIntoDOM} from '../../testing/DOMHelpers.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
-import {describeWithRealConnection} from '../../testing/RealConnection.js';
+import {expectCall} from '../../testing/ExpectStubCall.js';
+import {describeWithMockConnection} from '../../testing/MockConnection.js';
+import * as CodeMirror from '../../third_party/codemirror.next/codemirror.next.js';
 import * as InlineEditor from '../../ui/legacy/components/inline_editor/inline_editor.js';
 import type * as LegacyUI from '../../ui/legacy/legacy.js';
 
 import * as ElementsComponents from './components/components.js';
 import * as Elements from './elements.js';
 
-const {assert} = chai;
-
-describeWithRealConnection('StylePropertyTreeElement', () => {
+describeWithMockConnection('StylePropertyTreeElement', () => {
   let stylesSidebarPane: Elements.StylesSidebarPane.StylesSidebarPane;
   let mockStylePropertiesSection: sinon.SinonStubbedInstance<Elements.StylePropertiesSection.StylePropertiesSection>;
   let mockCssStyleDeclaration: sinon.SinonStubbedInstance<SDK.CSSStyleDeclaration.CSSStyleDeclaration>;
   let mockMatchedStyles: sinon.SinonStubbedInstance<SDK.CSSMatchedStyles.CSSMatchedStyles>;
+  let mockVariableMap: Record<string, string>;
 
   beforeEach(async () => {
     stylesSidebarPane = Elements.StylesSidebarPane.StylesSidebarPane.instance({forceNew: true});
+    mockVariableMap = {
+      '--a': 'red',
+      '--b': 'blue',
+      '--blue': 'blue',
+      '--space': 'shorter hue',
+      '--garbage-space': 'this-is-garbage-text',
+      '--prop': 'customproperty',
+      '--zero': '0',
+    };
 
     mockStylePropertiesSection = sinon.createStubInstance(Elements.StylePropertiesSection.StylePropertiesSection);
     mockCssStyleDeclaration = sinon.createStubInstance(SDK.CSSStyleDeclaration.CSSStyleDeclaration);
     mockMatchedStyles = sinon.createStubInstance(SDK.CSSMatchedStyles.CSSMatchedStyles);
     mockMatchedStyles.keyframes.returns([]);
-    mockMatchedStyles.computeSingleVariableValue.callsFake((_, param) => {
-      const mockVariableMap: Record<string, string> = {
-        'var(--a)': 'red',
-        'var(--b)': 'blue',
-        'var(--blue)': 'blue',
-        'var(--space)': 'shorter hue',
-        'var(--garbage-space)': 'this-is-garbage-text',
-        'var(--prop)': 'customproperty',
-        'var(--zero)': '0',
-      };
-
-      if (!mockVariableMap[param]) {
-        return {
-          computedValue: null,
-          declaration: null,
-          fromFallback: true,
-        };
-      }
-
-      return {
-        computedValue: mockVariableMap[param],
-        declaration: null,
-        fromFallback: false,
-      };
-    });
     mockMatchedStyles.computeCSSVariable.callsFake((style, name) => {
-      const value = mockMatchedStyles.computeSingleVariableValue(style, `var(${name})`);
-      return value && value.computedValue ? {value: value.computedValue, declaration: null} : null;
+      return {
+        value: mockVariableMap[name],
+        declaration: sinon.createStubInstance(SDK.CSSProperty.CSSProperty),
+      };
     });
     mockCssStyleDeclaration.leadingProperties.returns([]);
     mockCssStyleDeclaration.styleSheetId = 'stylesheet-id' as Protocol.CSS.StyleSheetId;
     mockCssStyleDeclaration.range = new TextUtils.TextRange.TextRange(0, 0, 10, 10);
+
+    const workspace = Workspace.Workspace.WorkspaceImpl.instance({forceNew: true});
+    const resourceMapping =
+        new Bindings.ResourceMapping.ResourceMapping(SDK.TargetManager.TargetManager.instance(), workspace);
+    Bindings.CSSWorkspaceBinding.CSSWorkspaceBinding.instance(
+        {forceNew: true, resourceMapping, targetManager: SDK.TargetManager.TargetManager.instance()});
   });
 
   function getTreeElement(name: string, value: string, longhandProperties: Protocol.CSS.CSSProperty[] = []) {
@@ -98,7 +92,7 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
            const childValueElement =
                (stylePropertyTreeElement.childAt(n) as Elements.StylePropertyTreeElement.StylePropertyTreeElement)
                    .valueElement;
-           assertNotNullOrUndefined(childValueElement);
+           assert.exists(childValueElement);
            assert.notExists(childValueElement.querySelector(swatchSelector));
          };
          assertNullSwatchOnChildAt(0, '[is="bezier-swatch"]');
@@ -115,9 +109,9 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
         const colorMixSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-color-mix-swatch');
         const colorSwatches =
             Array.from(stylePropertyTreeElement.valueElement?.querySelectorAll('devtools-color-swatch') || []);
-        assertNotNullOrUndefined(colorMixSwatch);
-        assertNotNullOrUndefined(colorSwatches.find(colorSwatch => colorSwatch.textContent === 'red'));
-        assertNotNullOrUndefined(colorSwatches.find(colorSwatch => colorSwatch.textContent === 'blue'));
+        assert.exists(colorMixSwatch);
+        assert.exists(colorSwatches.find(colorSwatch => colorSwatch.textContent === 'red'));
+        assert.exists(colorSwatches.find(colorSwatch => colorSwatch.textContent === 'blue'));
       });
 
       it('should show color mix swatch when color-mix is used with a known variable as color', () => {
@@ -127,9 +121,9 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
         const colorMixSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-color-mix-swatch');
         const cssVarSwatches =
             Array.from(stylePropertyTreeElement.valueElement?.querySelectorAll('devtools-css-var-swatch') || []);
-        assertNotNullOrUndefined(colorMixSwatch);
-        assertNotNullOrUndefined(cssVarSwatches.find(cssVarSwatch => cssVarSwatch.textContent === 'var(--a)'));
-        assertNotNullOrUndefined(cssVarSwatches.find(cssVarSwatch => cssVarSwatch.textContent === 'var(--b)'));
+        assert.exists(colorMixSwatch);
+        assert.exists(cssVarSwatches.find(cssVarSwatch => cssVarSwatch.textContent === 'var(--a)'));
+        assert.exists(cssVarSwatches.find(cssVarSwatch => cssVarSwatch.textContent === 'var(--b)'));
       });
 
       it('should not show color mix swatch when color-mix is used with an unknown variable as color', () => {
@@ -145,7 +139,7 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
         stylePropertyTreeElement.updateTitle();
 
         const colorMixSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-color-mix-swatch');
-        assertNotNullOrUndefined(colorMixSwatch);
+        assert.exists(colorMixSwatch);
         assert.isTrue(colorMixSwatch.textContent?.includes('var(--space)'));
       });
 
@@ -156,7 +150,7 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
            stylePropertyTreeElement.updateTitle();
 
            const colorMixSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-color-mix-swatch');
-           assertNotNullOrUndefined(colorMixSwatch);
+           assert.exists(colorMixSwatch);
            assert.isTrue(colorMixSwatch.textContent?.includes('var(--garbage-space)'));
          });
 
@@ -189,7 +183,7 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
         const addPopoverSpy = sinon.spy(stylesSidebarPane, 'addPopover');
         stylePropertyTreeElement.updateTitle();
         const colorMixSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-color-mix-swatch');
-        assertNotNullOrUndefined(colorMixSwatch);
+        assert.exists(colorMixSwatch);
         renderElementIntoDOM(colorMixSwatch);
 
         assert.isTrue(addPopoverSpy.calledOnce);
@@ -215,7 +209,7 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
         const addPopoverSpy = sinon.spy(stylesSidebarPane, 'addPopover');
         stylePropertyTreeElement.updateTitle();
         const colorMixSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-color-mix-swatch');
-        assertNotNullOrUndefined(colorMixSwatch);
+        assert.exists(colorMixSwatch);
         renderElementIntoDOM(colorMixSwatch);
 
         assert.isTrue(addPopoverSpy.calledOnce);
@@ -241,11 +235,11 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
         stylePropertyTreeElement.updateTitle();
 
         const outerColorMix = stylePropertyTreeElement.valueElement?.querySelector('devtools-color-mix-swatch');
-        assertNotNullOrUndefined(outerColorMix);
+        assert.exists(outerColorMix);
         const handler = sinon.fake();
         outerColorMix.addEventListener(InlineEditor.ColorMixSwatch.Events.ColorChanged, handler);
         const innerColorMix = outerColorMix.querySelector('devtools-color-mix-swatch');
-        assertNotNullOrUndefined(innerColorMix);
+        assert.exists(innerColorMix);
         assert.strictEqual(outerColorMix.getText(), 'color-mix(in srgb, color-mix(in oklch, red, green), blue)');
         assert.strictEqual(innerColorMix.getText(), 'color-mix(in oklch, red, green)');
         innerColorMix.setFirstColor('blue');
@@ -255,7 +249,11 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
 
         // setFirstColor does not actually update the rendered color swatches or the textContent, which is why the first
         // color is still red here.
-        innerColorMix.querySelector('devtools-color-swatch')?.setFormat(Common.Color.Format.HEX);
+        const colorSwatch = innerColorMix.querySelector('devtools-color-swatch');
+        assert.isOk(colorSwatch);
+        const newColor = colorSwatch.getColor()?.as(Common.Color.Format.HEX);
+        assert.isOk(newColor);
+        colorSwatch.setColor(newColor);
         assert.strictEqual(outerColorMix.getText(), 'color-mix(in srgb, color-mix(in oklch, #ff0000, green), blue)');
         assert.deepStrictEqual(
             handler.args[1][0].data, {text: 'color-mix(in srgb, color-mix(in oklch, #ff0000, green), blue)'});
@@ -294,18 +292,20 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
     stylePropertyTreeElement.updateTitle();
 
     const {valueElement} = stylePropertyTreeElement;
-    assertNotNullOrUndefined(valueElement);
+    assert.exists(valueElement);
 
     const swatch = valueElement.querySelector<InlineEditor.ColorSwatch.ColorSwatch>(
         `${InlineEditor.ColorSwatch.ColorSwatch.litTagName.value}`);
 
-    assertNotNullOrUndefined(swatch);
+    assert.exists(swatch);
 
     const expectedColorString = swatch.getColor()?.asString(Common.Color.Format.LAB);
-    assertNotNullOrUndefined(expectedColorString);
+    assert.exists(expectedColorString);
     assert.match(expectedColorString, /lab\([-.0-9]* [-.0-9]* [-.0-9]*\)/);
 
-    swatch.setFormat(Common.Color.Format.LAB);
+    const newColor = swatch.getColor()?.as(Common.Color.Format.LAB);
+    assert.isOk(newColor);
+    swatch.setColorText(newColor);
     assert.deepEqual(stylePropertyTreeElement.renderedPropertyText(), `color: ${expectedColorString}`);
 
     assert.isTrue(applyStyleTextStub.alwaysCalledWith(`color: ${expectedColorString}`, false));
@@ -388,8 +388,7 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
           (_, name) => name === '--prop' ?
               {value: 'computedvalue', declaration: cssCustomPropertyDef, fromFallback: false} :
               null);
-      const renderValueSpy =
-          sinon.spy(Elements.StylesSidebarPane.StylesSidebarPropertyRenderer.prototype, 'renderValue');
+      const renderValueSpy = sinon.spy(Elements.PropertyRenderer.Renderer, 'renderValueElement');
 
       const stylePropertyTreeElement = getTreeElement('prop', 'var(--prop)');
       stylePropertyTreeElement.updateTitle();
@@ -398,9 +397,9 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
           renderValueSpy.returnValues.find(value => value.firstChild instanceof InlineEditor.LinkSwatch.CSSVarSwatch)
                   ?.firstChild as InlineEditor.LinkSwatch.CSSVarSwatch |
           undefined;
-      assertNotNullOrUndefined(varSwatch);
+      assert.exists(varSwatch);
       const revealPropertySpy = sinon.spy(stylesSidebarPane, 'revealProperty');
-      varSwatch.link?.linkElement?.dispatchEvent(new MouseEvent('mousedown'));
+      varSwatch.link?.linkElement?.click();
       assert.isTrue(revealPropertySpy.calledWith(cssCustomPropertyDef));
     });
 
@@ -413,11 +412,12 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
 
       const registration = sinon.createStubInstance(SDK.CSSMatchedStyles.CSSRegisteredProperty);
       mockMatchedStyles.getRegisteredProperty.callsFake(name => name === '--prop' ? registration : undefined);
-      mockMatchedStyles.computeCSSVariable.returns({value: 'computedvalue', declaration: null});
+      mockMatchedStyles.computeCSSVariable.returns(
+          {value: 'computedvalue', declaration: sinon.createStubInstance(SDK.CSSProperty.CSSProperty)});
       const popoverContents = addElementPopoverHook.args[0][1].contents();
       assert.isTrue(popoverContents instanceof ElementsComponents.CSSVariableValueView.CSSVariableValueView);
       const {details} = popoverContents as ElementsComponents.CSSVariableValueView.CSSVariableValueView;
-      assertNotNullOrUndefined(details);
+      assert.exists(details);
 
       const jumpToSectionSpy = sinon.spy(stylesSidebarPane, 'jumpToSection');
       details.goToDefinition();
@@ -426,9 +426,11 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
     });
 
     it('linkifies var functions to initial-value registrations', async () => {
-      mockMatchedStyles.computeCSSVariable.returns({value: 'computedvalue', declaration: null});
-      const renderValueSpy =
-          sinon.spy(Elements.StylesSidebarPane.StylesSidebarPropertyRenderer.prototype, 'renderValue');
+      mockMatchedStyles.computeCSSVariable.returns({
+        value: 'computedvalue',
+        declaration: sinon.createStubInstance(SDK.CSSMatchedStyles.CSSRegisteredProperty, {propertyName: '--prop'}),
+      });
+      const renderValueSpy = sinon.spy(Elements.PropertyRenderer.Renderer, 'renderValueElement');
 
       const stylePropertyTreeElement = getTreeElement('prop', 'var(--prop)');
       stylePropertyTreeElement.updateTitle();
@@ -437,9 +439,9 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
           renderValueSpy.returnValues.find(value => value.firstChild instanceof InlineEditor.LinkSwatch.CSSVarSwatch)
                   ?.firstChild as InlineEditor.LinkSwatch.CSSVarSwatch |
           undefined;
-      assertNotNullOrUndefined(varSwatch);
+      assert.exists(varSwatch);
       const jumpToPropertySpy = sinon.spy(stylesSidebarPane, 'jumpToProperty');
-      varSwatch.link?.linkElement?.dispatchEvent(new MouseEvent('mousedown'));
+      varSwatch.link?.linkElement?.click();
       assert.isTrue(jumpToPropertySpy.calledWith(
           'initial-value', '--prop', Elements.StylesSidebarPane.REGISTERED_PROPERTY_SECTION_NAME));
     });
@@ -449,13 +451,13 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
     it('should render a CSSVarSwatch for variable usage without fallback', () => {
       const stylePropertyTreeElement = getTreeElement('color', 'var(--a)');
       stylePropertyTreeElement.updateTitle();
-      assertNotNullOrUndefined(stylePropertyTreeElement.valueElement);
+      assert.exists(stylePropertyTreeElement.valueElement);
 
       const cssVarSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-css-var-swatch');
-      assertNotNullOrUndefined(cssVarSwatch);
+      assert.exists(cssVarSwatch);
 
       const linkSwatch = cssVarSwatch.shadowRoot?.querySelector('devtools-base-link-swatch');
-      assertNotNullOrUndefined(linkSwatch);
+      assert.exists(linkSwatch);
 
       assert.strictEqual(cssVarSwatch.textContent, 'var(--a)');
       assert.strictEqual(linkSwatch.shadowRoot?.textContent, '--a');
@@ -465,13 +467,13 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
     it('should render a CSSVarSwatch for variable usage with fallback', () => {
       const stylePropertyTreeElement = getTreeElement('color', 'var(--not-existing, red)');
       stylePropertyTreeElement.updateTitle();
-      assertNotNullOrUndefined(stylePropertyTreeElement.valueElement);
+      assert.exists(stylePropertyTreeElement.valueElement);
 
       const cssVarSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-css-var-swatch');
-      assertNotNullOrUndefined(cssVarSwatch);
+      assert.exists(cssVarSwatch);
 
       const linkSwatch = cssVarSwatch.shadowRoot?.querySelector('devtools-base-link-swatch');
-      assertNotNullOrUndefined(linkSwatch);
+      assert.exists(linkSwatch);
 
       assert.strictEqual(linkSwatch.shadowRoot?.textContent, '--not-existing');
       assert.strictEqual(cssVarSwatch.deepTextContent(), 'var(--not-existing, red)');
@@ -481,10 +483,10 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
     it('should render a CSSVarSwatch inside CSSVarSwatch for variable usage with another variable fallback', () => {
       const stylePropertyTreeElement = getTreeElement('color', 'var(--not-existing, var(--a))');
       stylePropertyTreeElement.updateTitle();
-      assertNotNullOrUndefined(stylePropertyTreeElement.valueElement);
+      assert.exists(stylePropertyTreeElement.valueElement);
 
       const cssVarSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-css-var-swatch');
-      assertNotNullOrUndefined(cssVarSwatch);
+      assert.exists(cssVarSwatch);
 
       const firstLinkSwatch = cssVarSwatch.shadowRoot?.querySelector('devtools-base-link-swatch');
       const insideCssVarSwatch = cssVarSwatch.querySelector('devtools-css-var-swatch');
@@ -499,10 +501,10 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
     it('should render a CSSVarSwatch inside CSSVarSwatch for variable usage with calc expression as fallback', () => {
       const stylePropertyTreeElement = getTreeElement('color', 'var(--not-existing, calc(15px + 20px))');
       stylePropertyTreeElement.updateTitle();
-      assertNotNullOrUndefined(stylePropertyTreeElement.valueElement);
+      assert.exists(stylePropertyTreeElement.valueElement);
 
       const cssVarSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-css-var-swatch');
-      assertNotNullOrUndefined(cssVarSwatch);
+      assert.exists(cssVarSwatch);
 
       const firstLinkSwatch = cssVarSwatch.shadowRoot?.querySelector('devtools-base-link-swatch');
 
@@ -515,13 +517,13 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
       for (const varName of ['--a', '--not-existing']) {
         const stylePropertyTreeElement = getTreeElement('color', `var(${varName}, var(--blue))`);
         stylePropertyTreeElement.updateTitle();
-        assertNotNullOrUndefined(stylePropertyTreeElement.valueElement);
+        assert.exists(stylePropertyTreeElement.valueElement);
 
         const cssVarSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-css-var-swatch');
-        assertNotNullOrUndefined(cssVarSwatch);
+        assert.exists(cssVarSwatch);
 
         const colorSwatch = cssVarSwatch.querySelector('devtools-color-swatch');
-        assertNotNullOrUndefined(colorSwatch);
+        assert.exists(colorSwatch);
         assert.isTrue(InlineEditor.ColorSwatch.ColorSwatch.isColorSwatch(colorSwatch));
 
         const firstLinkSwatch = cssVarSwatch.shadowRoot?.querySelector('devtools-base-link-swatch');
@@ -543,15 +545,49 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
     it('should render a CSSVarSwatch for var() with spaces', () => {
       const stylePropertyTreeElement = getTreeElement('color', 'var( --test    )');
       stylePropertyTreeElement.updateTitle();
-      assertNotNullOrUndefined(stylePropertyTreeElement.valueElement);
+      assert.exists(stylePropertyTreeElement.valueElement);
 
       const cssVarSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-css-var-swatch');
-      assertNotNullOrUndefined(cssVarSwatch);
+      assert.exists(cssVarSwatch);
 
       const linkSwatch = cssVarSwatch.shadowRoot?.querySelector('devtools-base-link-swatch');
       assert.strictEqual(linkSwatch?.shadowRoot?.textContent, '--test');
       assert.strictEqual(cssVarSwatch.textContent, 'var( --test    )');
       assert.strictEqual(stylePropertyTreeElement.valueElement.textContent, 'var( --test    )');
+    });
+
+    it('connects nested color swatches', () => {
+      const stylePropertyTreeElement = getTreeElement('color', 'var(--void, red)');
+      stylePropertyTreeElement.updateTitle();
+      assert.exists(stylePropertyTreeElement.valueElement);
+
+      const cssVarSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-css-var-swatch');
+      assert.exists(cssVarSwatch);
+      const outerColorSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-color-swatch');
+      assert.exists(outerColorSwatch);
+      const innerColorSwatch = cssVarSwatch.querySelector('devtools-color-swatch');
+      assert.exists(innerColorSwatch);
+      assert.notStrictEqual(outerColorSwatch, innerColorSwatch);
+      const color = new Common.Color.Lab(1, 0, 0, null, undefined);
+      innerColorSwatch.setColor(color);
+      assert.strictEqual(outerColorSwatch.getColor(), color);
+    });
+
+    it('only connects nested color swatches if the fallback is actually taken', () => {
+      const stylePropertyTreeElement = getTreeElement('color', 'var(--blue, red)');
+      stylePropertyTreeElement.updateTitle();
+      assert.exists(stylePropertyTreeElement.valueElement);
+
+      const cssVarSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-css-var-swatch');
+      assert.exists(cssVarSwatch);
+      const outerColorSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-color-swatch');
+      assert.exists(outerColorSwatch);
+      const innerColorSwatch = cssVarSwatch.querySelector('devtools-color-swatch');
+      assert.exists(innerColorSwatch);
+      assert.notStrictEqual(outerColorSwatch, innerColorSwatch);
+      const color = new Common.Color.Lab(1, 0, 0, null, undefined);
+      innerColorSwatch.setColor(color);
+      assert.strictEqual(outerColorSwatch.getColor()?.asString(), 'blue');
     });
   });
 
@@ -602,7 +638,7 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
       inheritedPseudoPayload: [],
       animationsPayload: [],
       parentLayoutNodeId: undefined,
-      positionFallbackRules: [],
+      positionTryRules: [],
       propertyRules: [],
       cssPropertyRegistrations: [],
       fontPaletteValuesRule: undefined,
@@ -630,27 +666,37 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
           newProperty: true,
         });
 
-        const ast = Elements.PropertyParser.tokenizePropertyValue(
-            stylePropertyTreeElement.value, stylePropertyTreeElement.name);
-        assertNotNullOrUndefined(ast);
-        const {computedText} = Elements.PropertyParser.BottomUpTreeMatching.walk(
-            ast, [Elements.StylePropertyTreeElement.VariableRenderer.matcher(
-                     stylePropertyTreeElement, stylePropertyTreeElement.property.ownerStyle)]);
+        const ast =
+            SDK.CSSPropertyParser.tokenizeDeclaration(stylePropertyTreeElement.name, stylePropertyTreeElement.value);
+        assert.exists(ast);
+        const matching = SDK.CSSPropertyParser.BottomUpTreeMatching.walk(
+            ast, [new Elements.StylePropertyTreeElement
+                      .VariableRenderer(stylePropertyTreeElement, stylePropertyTreeElement.property.ownerStyle)
+                      .matcher()]);
+
         const res = {
-          hasUnresolvedVars: computedText.hasUnresolvedVars(0, value.length),
-          computedText: computedText.get(0, value.length),
+          hasUnresolvedVars: matching.hasUnresolvedVars(ast.tree),
+          computedText: matching.getComputedText(ast.tree),
         };
         return res;
       }
 
-      assert.deepStrictEqual(await matchProperty('var( --blue    )'), {hasUnresolvedVars: false, computedText: 'blue'});
       assert.deepStrictEqual(
-          await matchProperty('var(--no, var(--blue))'), {hasUnresolvedVars: false, computedText: 'blue'});
+          await matchProperty('var( --blue    )'), {hasUnresolvedVars: false, computedText: 'color: blue'});
       assert.deepStrictEqual(
-          await matchProperty('pre var(--no) post'), {hasUnresolvedVars: true, computedText: 'pre var(--no) post'});
+          await matchProperty('var(--no, var(--blue))'), {hasUnresolvedVars: false, computedText: 'color: blue'});
+      assert.deepStrictEqual(
+          await matchProperty('pre var(--no) post'),
+          {hasUnresolvedVars: true, computedText: 'color: pre var(--no) post'});
       assert.deepStrictEqual(
           await matchProperty('var(--no, var(--no2))'),
-          {hasUnresolvedVars: true, computedText: 'var(--no, var(--no2))'});
+          {hasUnresolvedVars: true, computedText: 'color: var(--no, var(--no2))'});
+    });
+
+    it('layers correctly with the font renderer', () => {
+      const stylePropertyTreeElement = getTreeElement('font-size', 'calc(1 + var(--no))');
+      stylePropertyTreeElement.updateTitle();
+      assert.exists(stylePropertyTreeElement.valueElement?.querySelector('devtools-css-var-swatch'));
     });
   });
 
@@ -662,11 +708,11 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
 
       assert.strictEqual(stylePropertyTreeElement.valueElement?.textContent, value);
       const colorSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-color-swatch');
-      assertNotNullOrUndefined(colorSwatch);
+      assert.exists(colorSwatch);
       assert.strictEqual(colorSwatch.getColor()?.asString(Common.Color.Format.HEX), '#ff0000');
 
       const varSwatches = stylePropertyTreeElement.valueElement?.querySelectorAll('devtools-css-var-swatch');
-      assertNotNullOrUndefined(varSwatches);
+      assert.exists(varSwatches);
       assert.lengthOf(varSwatches, 2);
     });
 
@@ -674,13 +720,30 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
       const stylePropertyTreeElement = getTreeElement('color', 'hsl(120deg, 50%, 25%)');
       stylePropertyTreeElement.updateTitle();
       const colorSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-color-swatch');
-      assertNotNullOrUndefined(colorSwatch);
+      assert.exists(colorSwatch);
       assert.strictEqual(colorSwatch.getColor()?.asString(Common.Color.Format.HSL), 'hsl(120deg 50% 25%)');
 
       const angleSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-css-angle');
-      assertNotNullOrUndefined(angleSwatch);
+      assert.exists(angleSwatch);
       angleSwatch.updateAngle({value: 130, unit: InlineEditor.CSSAngleUtils.AngleUnit.Deg});
       assert.strictEqual(colorSwatch.getColor()?.asString(Common.Color.Format.HSL), 'hsl(130deg 50% 25%)');
+    });
+
+    it('renders relative colors', () => {
+      const stylePropertyTreeElement = getTreeElement('color', 'hsl(    from var(--blue) h calc(s/2) l / alpha)');
+      stylePropertyTreeElement.updateTitle();
+      const colorSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-color-swatch');
+      assert.isOk(colorSwatch);
+      assert.isOk(colorSwatch.getColor());
+      assert.strictEqual(colorSwatch?.getColor()?.asString(Common.Color.Format.HSL), 'hsl(240deg 50% 50%)');
+    });
+
+    it('does not render relative colors if property text is invalid', () => {
+      const invalidColor = 'hsl(    from var(--zero) h calc(s/2) l / alpha)';
+      const stylePropertyTreeElement = getTreeElement('color', invalidColor);
+      stylePropertyTreeElement.updateTitle();
+      const colorSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-color-swatch');
+      assert.isNull(colorSwatch);
     });
   });
 
@@ -709,6 +772,684 @@ describeWithRealConnection('StylePropertyTreeElement', () => {
       assert.strictEqual(
           (stylePropertyTreeElement.valueElement?.firstElementChild as HTMLElement | null | undefined)?.title,
           '"\u2716"');
+    });
+  });
+
+  describe('ShadowRenderer', () => {
+    it('parses shadows correctly', () => {
+      const parseShadow = (property: string, value: string, success: boolean) => {
+        const stylePropertyTreeElement = getTreeElement(property, value);
+        stylePropertyTreeElement.updateTitle();
+
+        assert.strictEqual(
+            stylePropertyTreeElement.valueElement?.firstElementChild instanceof InlineEditor.Swatches.CSSShadowSwatch,
+            success);
+        assert.strictEqual(stylePropertyTreeElement.valueElement?.textContent, value);
+      };
+
+      const parseTextShadowSuccess = (value: string) => parseShadow('text-shadow', value, true);
+      const parseTextShadowFailure = (value: string) => parseShadow('text-shadow', value, false);
+      const parseBoxShadowSuccess = (value: string) => parseShadow('box-shadow', value, true);
+      const parseBoxShadowFailure = (value: string) => parseShadow('box-shadow', value, false);
+
+      parseTextShadowSuccess('0 0');
+      parseTextShadowSuccess('1px 2px');
+      parseTextShadowSuccess('1px 2px black');
+      parseTextShadowSuccess('1px 2px 2px');
+      parseTextShadowSuccess('rgb(0, 0, 0) 1px 2px 2px');
+      parseTextShadowSuccess('1px 2px 2px rgb(0, 0, 0)');
+      parseTextShadowSuccess('1px 2px black, 0 0 #ffffff');
+      parseTextShadowSuccess('1px -2px black, 0 0 rgb(0, 0, 0), 3px 3.5px 3px');
+      parseTextShadowSuccess('1px -2px black, 0 0 rgb(0, 0, 0), 3px 3.5px 3px !important');
+      parseTextShadowSuccess('1px 2px black, , 0 0 #ffffff');
+
+      parseTextShadowFailure('');
+      parseTextShadowFailure('0');
+      parseTextShadowFailure('1 2 black !important');
+      parseTextShadowFailure('1px black 2px');
+      parseTextShadowFailure('1px 2px 2px 3px');
+      parseTextShadowFailure('inset 1px 2px 2px');
+      parseTextShadowFailure('red 1px 2px 2px red');
+      parseTextShadowFailure('1px 2px rgb(0, 0, 0) 2px');
+      parseTextShadowFailure('hello 1px 2px');
+      parseTextShadowFailure('1px 2px black 0 0 #ffffff');
+      // TODO(crbug.com/40945390) Add coverage after rolling codemirror: parseTextShadowFailure('1px2px');
+      parseTextShadowFailure('1px 2pxrgb(0, 0, 0)');
+
+      parseBoxShadowSuccess('0 0');
+      parseBoxShadowSuccess('1px 2px');
+      parseBoxShadowSuccess('1px 2px black');
+      parseBoxShadowSuccess('1px 2px 2px');
+      parseBoxShadowSuccess('1px 2px 2px 3px');
+      parseBoxShadowSuccess('inset 1px 2px');
+      parseBoxShadowSuccess('1px 2px inset');
+      parseBoxShadowSuccess('INSET 1px 2px 2px 3px');
+      parseBoxShadowSuccess('rgb(0, 0, 0) 1px 2px 2px');
+      parseBoxShadowSuccess('inset rgb(0, 0, 0) 1px 2px 2px');
+      parseBoxShadowSuccess('inset 1px 2px 2px 3px rgb(0, 0, 0)');
+      parseBoxShadowSuccess('1px 2px 2px 3px rgb(0, 0, 0) inset');
+      parseBoxShadowSuccess('1px 2px black, inset 0 0 #ffffff');
+      parseBoxShadowSuccess('1px -2px black, inset 0 0 rgb(0, 0, 0), 3px 3.5px 3px 4px');
+      parseBoxShadowSuccess('1px 2px black, , 0 0 #ffffff');
+
+      parseBoxShadowFailure('');
+      parseBoxShadowFailure('0');
+      parseBoxShadowFailure('1 2 black');
+      parseBoxShadowFailure('1px black 2px');
+      parseBoxShadowFailure('1px 2px 2px 3px 4px');
+      parseBoxShadowFailure('1px 2px 2px inset 3px');
+      parseBoxShadowFailure('inset 1px 2px 2px inset');
+      parseBoxShadowFailure('1px 2px rgb(0, 0, 0) 2px');
+      parseBoxShadowFailure('hello 1px 2px');
+      parseBoxShadowFailure('1px 2px black 0 0 #ffffff');
+      // TODO(crbug.com/40945390) Add coverage after rolling codemirror: parseBoxShadowFailure('1px2px');
+      parseBoxShadowFailure('1px 2pxrgb(0, 0, 0)');
+    });
+
+    it('renders the shadow swatch and color swatch', () => {
+      const stylePropertyTreeElement = getTreeElement('box-shadow', 'inset 10px 10px blue');
+      stylePropertyTreeElement.updateTitle();
+
+      assert.instanceOf(
+          stylePropertyTreeElement.valueElement?.firstElementChild, InlineEditor.Swatches.CSSShadowSwatch);
+      const colorSwatch =
+          stylePropertyTreeElement.valueElement?.firstElementChild?.querySelector('devtools-color-swatch');
+      assert.exists(colorSwatch);
+      assert.strictEqual(colorSwatch.getColor()?.asString(), 'blue');
+    });
+
+    it('renders multiple icons for multiple shadows', () => {
+      const stylePropertyTreeElement = getTreeElement('box-shadow', 'inset 10px 11px blue, notashadow, 6px 5px red');
+      stylePropertyTreeElement.updateTitle();
+
+      const swatches = stylePropertyTreeElement.valueElement?.querySelectorAll('css-shadow-swatch');
+      assert.exists(swatches);
+      assert.strictEqual(swatches.length, 2);
+      assert.strictEqual(swatches[0].textContent, 'inset 10px 11px blue');
+      assert.strictEqual(swatches[1].textContent, '6px 5px red');
+    });
+
+    it('correctly parses text-shadow', () => {
+      const stylePropertyTreeElement =
+          getTreeElement('text-shadow', 'inset 10px 11px blue, 6px 5px red, 5px 5px 0 0 yellow');
+      stylePropertyTreeElement.updateTitle();
+      const swatches = stylePropertyTreeElement.valueElement?.querySelectorAll('css-shadow-swatch');
+      assert.exists(swatches);
+      assert.strictEqual(swatches.length, 1);
+      assert.strictEqual(swatches[0].textContent, '6px 5px red');
+    });
+
+    it('renders a color-mix child', () => {
+      const stylePropertyTreeElement = getTreeElement('box-shadow', '10px 11px color-mix(in srgb, red, blue)');
+      stylePropertyTreeElement.updateTitle();
+      assert.instanceOf(
+          stylePropertyTreeElement.valueElement?.firstElementChild, InlineEditor.Swatches.CSSShadowSwatch);
+      const swatches = stylePropertyTreeElement.valueElement?.querySelectorAll('devtools-color-mix-swatch');
+      assert.exists(swatches);
+    });
+
+    it('renders shadow icon in the presence of a var()', () => {
+      mockVariableMap['--offset'] = '10px 10px';
+      mockVariableMap['--shadow'] = '10px 10px blue';
+
+      const stylePropertyTreeElement = getTreeElement('box-shadow', 'var(--offset) red, var(--shadow)');
+      stylePropertyTreeElement.updateTitle();
+      const swatches = stylePropertyTreeElement.valueElement?.querySelectorAll('css-shadow-swatch');
+      assert.exists(swatches);
+      assert.strictEqual(swatches.length, 2);
+      assert.strictEqual(swatches[0].textContent, 'var(--offset) red');
+      assert.strictEqual(swatches[1].textContent, 'var(--shadow)');
+    });
+
+    it('opens a shadow editor with the correct values', () => {
+      mockVariableMap['--offset'] = '10px 10px';
+
+      const stylePropertyTreeElement =
+          getTreeElement('box-shadow', 'var(--offset) red, inset 8px 9px 10px 11px yellow');
+      stylePropertyTreeElement.updateTitle();
+      const swatches = stylePropertyTreeElement.valueElement?.querySelectorAll('css-shadow-swatch');
+      assert.exists(swatches);
+      assert.strictEqual(swatches.length, 2);
+
+      const showPopoverStub = sinon.stub(stylePropertyTreeElement.parentPane().swatchPopoverHelper(), 'show');
+
+      const editorProperties = (editor: InlineEditor.CSSShadowEditor.CSSShadowEditor): string[] =>
+          Array.from(editor.contentElement.querySelectorAll('.shadow-editor-field'))
+              .map(
+                  field => field.querySelector('input')?.value ??
+                      Array.from(field.querySelectorAll('button'))
+                          .map(button => button.classList.contains('enabled') ? button.textContent : undefined)
+                          .filter((b): b is string => Boolean(b)))
+              .flat();
+
+      {
+        swatches[0].iconElement().click();
+        assert.isTrue(showPopoverStub.calledOnce);
+        assert.instanceOf(showPopoverStub.args[0][0], InlineEditor.CSSShadowEditor.CSSShadowEditor);
+        const editor = showPopoverStub.args[0][0] as InlineEditor.CSSShadowEditor.CSSShadowEditor;
+        const text = editorProperties(editor);
+        assert.deepStrictEqual(text, ['Outset', '10px', '10px', '0', '0']);
+      }
+
+      {
+        swatches[1].iconElement().click();
+        assert.isTrue(showPopoverStub.calledTwice);
+        assert.instanceOf(showPopoverStub.args[1][0], InlineEditor.CSSShadowEditor.CSSShadowEditor);
+        const editor = showPopoverStub.args[1][0] as InlineEditor.CSSShadowEditor.CSSShadowEditor;
+        const text = editorProperties(editor);
+        assert.deepStrictEqual(text, ['Inset', '8px', '9px', '10px', '11px']);
+      }
+    });
+
+    it('updates the style for shadow editor changes', () => {
+      const stylePropertyTreeElement = getTreeElement('box-shadow', '10px 11px red');
+      stylePropertyTreeElement.updateTitle();
+      const swatches = stylePropertyTreeElement.valueElement?.querySelectorAll('css-shadow-swatch');
+      assert.exists(swatches);
+      assert.strictEqual(swatches.length, 1);
+      const showPopoverStub = sinon.stub(stylePropertyTreeElement.parentPane().swatchPopoverHelper(), 'show');
+      swatches[0].iconElement().click();
+      assert.isTrue(showPopoverStub.calledOnce);
+
+      const applyStyleTextStub = sinon.stub(stylePropertyTreeElement, 'applyStyleText');
+      const button =
+          showPopoverStub.args[0][0].contentElement.querySelector('.shadow-editor-button-right') as HTMLElement | null;
+      button?.click();
+
+      assert.isTrue(applyStyleTextStub.calledOnceWithExactly('box-shadow: inset 10px 11px red', false));
+    });
+
+    it('updates the style for shadow editor changes and respects ordering', () => {
+      mockVariableMap['--y-color'] = '11px red';
+      const stylePropertyTreeElement = getTreeElement('box-shadow', '10px var(--y-color)');
+      stylePropertyTreeElement.updateTitle();
+      const swatches = stylePropertyTreeElement.valueElement?.querySelectorAll('css-shadow-swatch');
+      assert.exists(swatches);
+      assert.strictEqual(swatches.length, 1);
+      const showPopoverStub = sinon.stub(stylePropertyTreeElement.parentPane().swatchPopoverHelper(), 'show');
+      swatches[0].iconElement().click();
+      assert.isTrue(showPopoverStub.calledOnce);
+
+      const applyStyleTextStub = sinon.stub(stylePropertyTreeElement, 'applyStyleText');
+      const inputs = Array.from(showPopoverStub.args[0][0].contentElement.querySelectorAll('.shadow-editor-field'))
+                         .map(field => field.querySelector('input'));
+      assert.exists(inputs[3]);
+      inputs[3].value = '13px';
+      inputs[3].dispatchEvent(new InputEvent('input', {data: '13px'}));
+
+      assert.isTrue(applyStyleTextStub.calledOnceWithExactly('box-shadow: 10px 11px 13px red', false));
+    });
+
+    it('correctly builds and updates the shadow model', () => {
+      mockVariableMap['--props'] = '12px 13px red';
+      const stylePropertyTreeElement = getTreeElement('box-shadow', '10px 11px red, var(--props)');
+      stylePropertyTreeElement.updateTitle();
+      const swatches = stylePropertyTreeElement.valueElement?.querySelectorAll('css-shadow-swatch');
+      assert.exists(swatches);
+      assert.lengthOf(swatches, 2);
+
+      assert.isTrue(swatches[0].model().isBoxShadow());
+      assert.isFalse(swatches[0].model().inset());
+      assert.strictEqual(swatches[0].model().offsetX().asCSSText(), '10px');
+      assert.strictEqual(swatches[0].model().offsetY().asCSSText(), '11px');
+      assert.strictEqual(swatches[0].model().blurRadius().asCSSText(), '0');
+      assert.strictEqual(swatches[0].model().spreadRadius().asCSSText(), '0');
+
+      swatches[0].model().setSpreadRadius(new InlineEditor.CSSShadowEditor.CSSLength(8, 'px'));
+      swatches[0].model().setBlurRadius(new InlineEditor.CSSShadowEditor.CSSLength(5, 'px'));
+      assert.strictEqual(swatches[0].model().blurRadius().asCSSText(), '5px');
+      assert.strictEqual(swatches[0].model().spreadRadius().asCSSText(), '8px');
+
+      assert.isTrue(swatches[1].model().isBoxShadow());
+      assert.isFalse(swatches[1].model().inset());
+      assert.strictEqual(swatches[1].model().offsetX().asCSSText(), '12px');
+      assert.strictEqual(swatches[1].model().offsetY().asCSSText(), '13px');
+      assert.strictEqual(swatches[1].model().blurRadius().asCSSText(), '0');
+      assert.strictEqual(swatches[1].model().spreadRadius().asCSSText(), '0');
+
+      swatches[1].model().setBlurRadius(new InlineEditor.CSSShadowEditor.CSSLength(5, 'px'));
+      swatches[1].model().setSpreadRadius(new InlineEditor.CSSShadowEditor.CSSLength(8, 'px'));
+      assert.strictEqual(swatches[1].model().blurRadius().asCSSText(), '5px');
+      assert.strictEqual(swatches[1].model().spreadRadius().asCSSText(), '8px');
+    });
+
+    class StubSyntaxnode implements CodeMirror.SyntaxNode {
+      parent: CodeMirror.SyntaxNode|null = null;
+      firstChild: CodeMirror.SyntaxNode|null = null;
+      lastChild: CodeMirror.SyntaxNode|null = null;
+      childAfter(): CodeMirror.SyntaxNode|null {
+        return null;
+      }
+      childBefore(): CodeMirror.SyntaxNode|null {
+        return null;
+      }
+      enter(): CodeMirror.SyntaxNode|null {
+        return null;
+      }
+      nextSibling: CodeMirror.SyntaxNode|null = null;
+      prevSibling: CodeMirror.SyntaxNode|null = null;
+      cursor(): CodeMirror.TreeCursor {
+        throw new Error('Method not implemented.');
+      }
+      resolve(): CodeMirror.SyntaxNode {
+        return this;
+      }
+      resolveInner(): CodeMirror.SyntaxNode {
+        return this;
+      }
+      enterUnfinishedNodesBefore(): CodeMirror.SyntaxNode {
+        return this;
+      }
+      toTree(): CodeMirror.Tree {
+        throw new Error('Method not implemented.');
+      }
+      getChild(): CodeMirror.SyntaxNode|null {
+        throw new Error('Method not implemented.');
+      }
+      getChildren(): CodeMirror.SyntaxNode[] {
+        throw new Error('Method not implemented.');
+      }
+      from: number = 0;
+      to: number = 0;
+      type = new CodeMirror.NodeType();
+      name: string = '';
+      tree: CodeMirror.Tree|null = null;
+      node: CodeMirror.SyntaxNode = this;
+      matchContext(): boolean {
+        return false;
+      }
+    }
+
+    it('shadow model renders text properties, authored properties, and computed text properties correctly', () => {
+      const renderingContext = sinon.createStubInstance(Elements.PropertyRenderer.RenderingContext);
+      const expansionContext = sinon.createStubInstance(Elements.PropertyRenderer.RenderingContext);
+      const y = new StubSyntaxnode();
+      const spread = new StubSyntaxnode();
+      const blur = new StubSyntaxnode();
+      const variable = new StubSyntaxnode();
+      const properties = [
+        {
+          value: '10px',
+          source: null,
+          expansionContext: null,
+          propertyType: Elements.StylePropertyTreeElement.ShadowPropertyType.X,
+        },
+        {
+          value: y,
+          source: null,
+          expansionContext: null,
+          propertyType: Elements.StylePropertyTreeElement.ShadowPropertyType.Y,
+        },
+        {
+          value: blur,
+          source: variable,
+          expansionContext,
+          propertyType: Elements.StylePropertyTreeElement.ShadowPropertyType.Blur,
+        },
+        {
+          value: spread,
+          source: variable,
+          expansionContext,
+          propertyType: Elements.StylePropertyTreeElement.ShadowPropertyType.Spread,
+        },
+      ];
+
+      sinon.stub(Elements.PropertyRenderer.Renderer, 'render').callsFake((nodeOrNodes, context) => {
+        if (!Array.isArray(nodeOrNodes)) {
+          nodeOrNodes = [nodeOrNodes];
+        }
+        const nodes = nodeOrNodes
+                          .map(node => {
+                            switch (node) {
+                              case y:
+                                return context === renderingContext && document.createTextNode('y');
+                              case blur:
+                                return context === expansionContext && document.createTextNode('blur');
+                              case spread:
+                                return context === expansionContext && document.createTextNode('spread');
+                              case variable:
+                                return context === renderingContext && document.createTextNode('var()');
+                              default:
+                                return undefined;
+                            }
+                          })
+                          .filter((b): b is Text => Boolean(b));
+        return {
+          nodes,
+          nodeGroups: [nodes],
+          cssControls: new Map(),
+        };
+      });
+      const model = new Elements.StylePropertyTreeElement.ShadowModel(
+          Elements.PropertyMatchers.ShadowType.BoxShadow, properties, renderingContext);
+
+      const container = document.createElement('div');
+      model.renderContents(container);
+      assert.strictEqual(container.textContent, '10px y var()');
+
+      model.setBlurRadius(new InlineEditor.CSSShadowEditor.CSSLength(12, 'px'));
+      model.renderContents(container);
+      assert.strictEqual(container.textContent, '10px y 12px spread');
+      assert.deepStrictEqual(properties.map(p => p.source), [null, null, null, null]);
+    });
+  });
+
+  describe('AnchorFunctionRenderer', () => {
+    let anchorDecoratedForTestStub: sinon.SinonStub;
+    let getAnchorBySpecifierStub: sinon.SinonStub;
+    let revealStub: sinon.SinonStub;
+    let hideDOMNodeHighlightStub: sinon.SinonStub;
+    let highlightMock: sinon.SinonExpectation;
+    let fakeParentNode: SDK.DOMModel.DOMNode;
+    let fakeDOMNode: SDK.DOMModel.DOMNode;
+
+    beforeEach(() => {
+      fakeParentNode = {
+        localName() {
+          return 'span';
+        },
+        isSVGNode() {
+          return false;
+        },
+        getAnchorBySpecifier() {
+          return Promise.resolve(fakeDOMNode);
+        },
+      } as SDK.DOMModel.DOMNode;
+
+      fakeDOMNode = {
+        localName() {
+          return 'span';
+        },
+        isSVGNode() {
+          return false;
+        },
+        highlight() {
+          highlightMock();
+        },
+      } as SDK.DOMModel.DOMNode;
+      highlightMock = sinon.mock();
+      anchorDecoratedForTestStub =
+          sinon.stub(Elements.StylePropertyTreeElement.AnchorFunctionRenderer.prototype, 'anchorDecoratedForTest');
+      getAnchorBySpecifierStub =
+          sinon.stub(SDK.DOMModel.DOMNode.prototype, 'getAnchorBySpecifier').resolves(fakeDOMNode);
+      revealStub = sinon.stub(Common.Revealer.RevealerRegistry.prototype, 'reveal');
+      hideDOMNodeHighlightStub = sinon.stub(SDK.OverlayModel.OverlayModel, 'hideDOMNodeHighlight');
+    });
+
+    afterEach(() => {
+      anchorDecoratedForTestStub.restore();
+      getAnchorBySpecifierStub.restore();
+      revealStub.restore();
+      hideDOMNodeHighlightStub.restore();
+    });
+
+    it('renders anchor() function correctly', async () => {
+      const stylePropertyTreeElement = getTreeElement('left', 'anchor(top)');
+
+      stylePropertyTreeElement.updateTitle();
+
+      assert.strictEqual(stylePropertyTreeElement.valueElement!.textContent, 'anchor(top)');
+    });
+
+    it('renders `AnchorFunctionLinkSwatch` after decorating the element', async () => {
+      const waitForDecorationPromise = expectCall(anchorDecoratedForTestStub);
+      const stylePropertyTreeElement = getTreeElement('left', 'anchor(--identifier top)');
+      sinon.stub(stylePropertyTreeElement, 'node').returns(fakeParentNode);
+
+      stylePropertyTreeElement.updateTitle();
+      await waitForDecorationPromise;
+      const anchorFunctionLinkSwatch =
+          stylePropertyTreeElement.valueElement!.querySelector('devtools-anchor-function-link-swatch')! as
+          ElementsComponents.AnchorFunctionLinkSwatch.AnchorFunctionLinkSwatch;
+
+      assert.strictEqual(anchorFunctionLinkSwatch.dataForTest().identifier, '--identifier');
+    });
+
+    it('should highlight node when `onMouseEnter` triggered from `AnchorFunctionLinkSwatch`', async () => {
+      const waitForDecorationPromise = expectCall(anchorDecoratedForTestStub);
+      const stylePropertyTreeElement = getTreeElement('left', 'anchor(--identifier top)');
+      sinon.stub(stylePropertyTreeElement, 'node').returns(fakeParentNode);
+
+      stylePropertyTreeElement.updateTitle();
+      await waitForDecorationPromise;
+      const anchorFunctionLinkSwatch =
+          stylePropertyTreeElement.valueElement!.querySelector('devtools-anchor-function-link-swatch')! as
+          ElementsComponents.AnchorFunctionLinkSwatch.AnchorFunctionLinkSwatch;
+      anchorFunctionLinkSwatch.dataForTest().onMouseEnter();
+
+      assert.isTrue(highlightMock.calledOnce);
+    });
+
+    it('should clear DOM highlight when `onMouseLeave` triggered from `AnchorFunctionLinkSwatch`', async () => {
+      const waitForDecorationPromise = expectCall(anchorDecoratedForTestStub);
+      const stylePropertyTreeElement = getTreeElement('left', 'anchor(--identifier top)');
+      sinon.stub(stylePropertyTreeElement, 'node').returns(fakeParentNode);
+
+      stylePropertyTreeElement.updateTitle();
+      await waitForDecorationPromise;
+      const anchorFunctionLinkSwatch =
+          stylePropertyTreeElement.valueElement!.querySelector('devtools-anchor-function-link-swatch')! as
+          ElementsComponents.AnchorFunctionLinkSwatch.AnchorFunctionLinkSwatch;
+      anchorFunctionLinkSwatch.dataForTest().onMouseLeave();
+
+      assert.isTrue(hideDOMNodeHighlightStub.calledOnce);
+    });
+
+    it('should reveal anchor node when `onLinkActivate` triggered from `AnchorFunctionLinkSwatch`', async () => {
+      const waitForDecorationPromise = expectCall(anchorDecoratedForTestStub);
+      const stylePropertyTreeElement = getTreeElement('left', 'anchor(--identifier top)');
+      sinon.stub(stylePropertyTreeElement, 'node').returns(fakeParentNode);
+
+      stylePropertyTreeElement.updateTitle();
+      await waitForDecorationPromise;
+      const anchorFunctionLinkSwatch =
+          stylePropertyTreeElement.valueElement!.querySelector('devtools-anchor-function-link-swatch')! as
+          ElementsComponents.AnchorFunctionLinkSwatch.AnchorFunctionLinkSwatch;
+      anchorFunctionLinkSwatch.dataForTest().onLinkActivate();
+
+      assert.isTrue(revealStub.calledOnce);
+      assert.isTrue(revealStub.calledWith(fakeDOMNode));
+    });
+  });
+
+  describe('AnchorFunctionRenderer', () => {
+    let anchorDecoratedForTestStub: sinon.SinonStub;
+    let getAnchorBySpecifierStub: sinon.SinonStub;
+    let highlightMock: sinon.SinonExpectation;
+    let fakeDOMNode: SDK.DOMModel.DOMNode;
+
+    beforeEach(() => {
+      fakeDOMNode = {
+        localName() {
+          return 'span';
+        },
+        isSVGNode() {
+          return false;
+        },
+        highlight() {
+          highlightMock();
+        },
+      } as SDK.DOMModel.DOMNode;
+      highlightMock = sinon.mock();
+      anchorDecoratedForTestStub =
+          sinon.stub(Elements.StylePropertyTreeElement.PositionAnchorRenderer.prototype, 'anchorDecoratedForTest');
+      getAnchorBySpecifierStub =
+          sinon.stub(SDK.DOMModel.DOMNode.prototype, 'getAnchorBySpecifier').resolves(fakeDOMNode);
+    });
+
+    afterEach(() => {
+      anchorDecoratedForTestStub.restore();
+      getAnchorBySpecifierStub.restore();
+    });
+
+    it('renders `position-anchor` property correctly before anchor is decorated', async () => {
+      const stylePropertyTreeElement = getTreeElement('position-anchor', '--anchor');
+
+      stylePropertyTreeElement.updateTitle();
+
+      assert.strictEqual(stylePropertyTreeElement.valueElement!.textContent, '--anchor');
+    });
+
+    it('renders `position-anchor` property correctly after anchor is decorated', async () => {
+      const waitForDecorationPromise = expectCall(anchorDecoratedForTestStub);
+      const stylePropertyTreeElement = getTreeElement('position-anchor', '--anchor');
+
+      stylePropertyTreeElement.updateTitle();
+      await waitForDecorationPromise;
+
+      const anchorFunctionLinkSwatch =
+          stylePropertyTreeElement.valueElement!.querySelector('devtools-anchor-function-link-swatch');
+      assert.exists(anchorFunctionLinkSwatch);
+    });
+  });
+
+  describe('LightDarkColorRenderer', () => {
+    it('renders light-dark correctly', async () => {
+      const colorSchemeSpy =
+          sinon.spy(Elements.StylePropertyTreeElement.LightDarkColorRenderer.prototype, 'applyColorScheme');
+
+      async function check(colorScheme: SDK.CSSModel.ColorScheme, lightText: string, darkText: string) {
+        const variableName = (text: string) => text.substring('var('.length, text.length - 1);
+        const lightDark = `light-dark(${lightText}, ${darkText})`;
+        const stylePropertyTreeElement = getTreeElement('color', lightDark);
+        stylePropertyTreeElement.setComputedStyles(new Map([['color-scheme', colorScheme]]));
+        stylePropertyTreeElement.updateTitle();
+        await Promise.all(colorSchemeSpy.returnValues);
+
+        const swatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-color-swatch');
+        assert.exists(swatch);
+        assert.strictEqual(swatch?.textContent, lightDark);
+        const activeColor = colorScheme === SDK.CSSModel.ColorScheme.Light ? lightText : darkText;
+        assert.strictEqual(
+            swatch.getColor()?.getAuthoredText(), mockVariableMap[variableName(activeColor)] ?? activeColor);
+        const [light, dark] = swatch.querySelectorAll('devtools-color-swatch');
+        assert.exists(light);
+        assert.exists(dark);
+        const active = colorScheme === SDK.CSSModel.ColorScheme.Light ? light : dark;
+        const inactive = colorScheme === SDK.CSSModel.ColorScheme.Light ? dark : light;
+        assert.strictEqual(inactive.parentElement?.style.textDecoration, 'line-through');
+        assert.strictEqual(active.parentElement?.style.textDecoration, '');
+      }
+
+      await check(SDK.CSSModel.ColorScheme.Light, 'red', 'blue');
+      await check(SDK.CSSModel.ColorScheme.Dark, 'red', 'blue');
+      await check(SDK.CSSModel.ColorScheme.Light, 'red', 'var(--blue)');
+      await check(SDK.CSSModel.ColorScheme.Dark, 'red', 'var(--blue)');
+      await check(SDK.CSSModel.ColorScheme.Light, 'var(--blue)', 'red');
+      await check(SDK.CSSModel.ColorScheme.Dark, 'var(--blue)', 'red');
+    });
+
+    it('renders light-dark correctly if the color scheme cannot be resolved', async () => {
+      const lightDark = 'light-dark(red, blue)';
+      const cssModel = sinon.createStubInstance(SDK.CSSModel.CSSModel);
+      sinon.stub(stylesSidebarPane, 'cssModel').returns(cssModel);
+      cssModel.colorScheme.resolves(undefined);
+      const stylePropertyTreeElement = getTreeElement('color', lightDark);
+      stylePropertyTreeElement.setComputedStyles(new Map([['color-scheme', 'light dark']]));
+      const colorSchemeSpy =
+          sinon.spy(Elements.StylePropertyTreeElement.LightDarkColorRenderer.prototype, 'applyColorScheme');
+      stylePropertyTreeElement.updateTitle();
+      await Promise.all(colorSchemeSpy.returnValues);
+
+      const swatches = stylePropertyTreeElement.valueElement?.querySelectorAll('devtools-color-swatch');
+      assert.exists(swatches);
+      assert.lengthOf(swatches, 3);
+      assert.isNull(swatches[0].getColor());
+      assert.strictEqual(swatches[0].textContent, 'light-dark(red, blue)');
+      assert.strictEqual(swatches[1].textContent, 'red');
+      assert.strictEqual(swatches[2].textContent, 'blue');
+    });
+
+    it('renders light-dark without color-scheme correctly', async () => {
+      const lightDark = 'light-dark(red, blue)';
+      const stylePropertyTreeElement = getTreeElement('color', lightDark);
+      // leave color-scheme unset
+      const colorSchemeSpy =
+          sinon.spy(Elements.StylePropertyTreeElement.LightDarkColorRenderer.prototype, 'applyColorScheme');
+      stylePropertyTreeElement.updateTitle();
+      await Promise.all(colorSchemeSpy.returnValues);
+
+      const swatches = stylePropertyTreeElement.valueElement?.querySelectorAll('devtools-color-swatch');
+      assert.exists(swatches);
+      assert.lengthOf(swatches, 3);
+      assert.strictEqual(swatches[0].getText(), 'red');
+      assert.strictEqual(swatches[0].textContent, 'light-dark(red, blue)');
+      assert.strictEqual(swatches[1].textContent, 'red');
+      assert.strictEqual(swatches[2].textContent, 'blue');
+    });
+
+    it('renders light-dark with undefined vars correctly', async () => {
+      const lightDark = 'light-dark(red, var(--undefined))';
+      const stylePropertyTreeElement = getTreeElement('color', lightDark);
+      stylePropertyTreeElement.setComputedStyles(new Map([['color-scheme', 'light dark']]));
+      const colorSchemeSpy =
+          sinon.spy(Elements.StylePropertyTreeElement.LightDarkColorRenderer.prototype, 'applyColorScheme');
+      stylePropertyTreeElement.updateTitle();
+      await Promise.all(colorSchemeSpy.returnValues);
+
+      const swatches = stylePropertyTreeElement.valueElement?.querySelectorAll('devtools-color-swatch');
+      assert.exists(swatches);
+      assert.lengthOf(swatches, 1);
+      assert.strictEqual(swatches[0].textContent, 'red');
+      assert.strictEqual(swatches[0].parentElement?.style.textDecoration, '');
+    });
+
+    it('connects inner and outer swatches', async () => {
+      const colorSchemeSpy =
+          sinon.spy(Elements.StylePropertyTreeElement.LightDarkColorRenderer.prototype, 'applyColorScheme');
+      for (const colorScheme of [SDK.CSSModel.ColorScheme.Light, SDK.CSSModel.ColorScheme.Dark]) {
+        const lightDark = 'light-dark(red, blue)';
+        const stylePropertyTreeElement = getTreeElement('color', lightDark);
+        stylePropertyTreeElement.setComputedStyles(new Map([['color-scheme', colorScheme]]));
+        stylePropertyTreeElement.updateTitle();
+        await Promise.all(colorSchemeSpy.returnValues);
+
+        const outerSwatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-color-swatch');
+        assert.exists(outerSwatch);
+        const innerSwatches = outerSwatch.querySelectorAll('devtools-color-swatch');
+        assert.lengthOf(innerSwatches, 2);
+        const [lightSwatch, darkSwatch] = innerSwatches;
+        const newLightColor = Common.Color.parse('white') as Common.Color.Color;
+        const newDarkColor = Common.Color.parse('black') as Common.Color.Color;
+        lightSwatch.setColor(newLightColor);
+        darkSwatch.setColor(newDarkColor);
+
+        if (colorScheme === SDK.CSSModel.ColorScheme.Dark) {
+          assert.strictEqual(outerSwatch.getColor(), newDarkColor);
+        } else {
+          assert.strictEqual(outerSwatch.getColor(), newLightColor);
+        }
+      }
+    });
+  });
+
+  describe('LinearGradientRenderer', () => {
+    it('correctly connects to an angle match', () => {
+      const stylePropertyTreeElement = getTreeElement('background', 'linear-gradient(45deg, red, var(--blue))');
+      stylePropertyTreeElement.updateTitle();
+      const swatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-css-angle');
+      assert.exists(swatch);
+      swatch.data = {
+        angleText: swatch.textContent ?? '',
+        containingPane: document.createElement('div'),
+      };
+
+      sinon.stub(swatch, 'dispatchEvent');
+      swatch.popOver();
+      const popover = swatch.shadowRoot?.querySelector('devtools-css-angle-editor');
+      assert.exists(popover);
+      const clock = popover.shadowRoot?.querySelector<HTMLElement>('.clock');
+      assert.exists(clock);
+      assert.strictEqual(clock.style.background, 'linear-gradient(45deg, red, blue)');
+    });
+  });
+
+  describe('LengthRenderer', () => {
+    it('renders the length too', () => {
+      const stylePropertyTreeElement = getTreeElement('width', '100px');
+      stylePropertyTreeElement.updateTitle();
+      const swatch = stylePropertyTreeElement.valueElement?.querySelector('devtools-css-length');
+      assert.exists(swatch);
     });
   });
 });

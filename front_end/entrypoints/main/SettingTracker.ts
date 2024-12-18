@@ -4,26 +4,52 @@
 
 import * as Common from '../../core/common/common.js';
 
+const consoleInsightsToggledSettingName = 'console-insights-toggled';
+// Keep setting names in sync with front_end/panels/explain/*.
+const consoleInsightsEnabledSettingName = 'console-insights-enabled';
+
 export class SettingTracker {
   constructor() {
+    this.#syncConsoleInsightSettingsWithQueryParams();
     this.#trackConsoleInsightSettingChange();
   }
 
+  #onConsoleInsightSettingChange(): void {
+    // If setting was turned on, reset the consent.
+    if (this.#getModuleSetting(consoleInsightsEnabledSettingName)?.get()) {
+      Common.Settings.Settings.instance().createLocalSetting('console-insights-onboarding-finished', false).set(false);
+    }
+    // If console-insights-enabled was edited by the user, it becomes "sticky",
+    // which means Finch won't change the setting state.
+    Common.Settings.Settings.instance().createLocalSetting(consoleInsightsToggledSettingName, false).set(true);
+  }
+
   #trackConsoleInsightSettingChange(): void {
-    // Keep setting names in sync with front_end/panels/explain/*.
-    let setting: Common.Settings.Setting<unknown>;
+    this.#getModuleSetting(consoleInsightsEnabledSettingName)
+        ?.addChangeListener(this.#onConsoleInsightSettingChange, this);
+  }
+
+  dispose(): void {
+    this.#getModuleSetting(consoleInsightsEnabledSettingName)
+        ?.removeChangeListener(this.#onConsoleInsightSettingChange, this);
+  }
+
+  #getModuleSetting(name: string): Common.Settings.Setting<unknown>|undefined {
     try {
-      setting = Common.Settings.moduleSetting('console-insights-enabled');
+      return Common.Settings.moduleSetting(name);
     } catch {
       return;
     }
-    setting.addChangeListener(() => {
-      // If setting was turned on, reset the consent.
-      if (setting.get()) {
-        Common.Settings.Settings.instance()
-            .createLocalSetting('console-insights-onboarding-finished', false)
-            .set(false);
-      }
-    });
+  }
+
+  #syncConsoleInsightSettingsWithQueryParams(): void {
+    const toggledSetting =
+        Common.Settings.Settings.instance().createLocalSetting(consoleInsightsToggledSettingName, false);
+    const enabledSetting = this.#getModuleSetting(consoleInsightsEnabledSettingName);
+    if (!toggledSetting.get()) {
+      // If the setting was not toggled, update according to host config.
+      const config = Common.Settings.Settings.instance().getHostConfig();
+      enabledSetting?.set(config?.devToolsConsoleInsights.optIn !== true);
+    }
   }
 }

@@ -27,6 +27,14 @@ export class I18n {
     this.localeData.set(locale, messages);
   }
 
+  hasLocaleDataForTest(locale: Intl.UnicodeBCP47LocaleIdentifier): boolean {
+    return this.localeData.has(locale);
+  }
+
+  resetLocaleDataForTest(): void {
+    this.localeData.clear();
+  }
+
   registerFileStrings(filename: string, stringStructure: UIStrings): RegisteredFileStrings {
     return new RegisteredFileStrings(filename, stringStructure, this.localeData);
   }
@@ -38,7 +46,6 @@ export class I18n {
    * - the default locale if no match is found
    */
   lookupClosestSupportedLocale(locale: Intl.UnicodeBCP47LocaleIdentifier): Intl.UnicodeBCP47LocaleIdentifier {
-    // @ts-expect-error https://github.com/microsoft/TypeScript/issues/29129
     const canonicalLocale: string = Intl.getCanonicalLocales(locale)[0];
 
     const localeParts = canonicalLocale.split('-');

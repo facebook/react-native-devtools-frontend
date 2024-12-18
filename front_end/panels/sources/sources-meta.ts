@@ -276,6 +276,18 @@ const UIStrings = {
    */
   doNotDetectIndentation: 'Do not detect indentation',
   /**
+   *@description Title of a setting under Sources category that can be invoked through the Command Menu.
+   *This setting turns on the automatic formatting of source files in the Sources panel that are detected
+   *to be minified.
+   */
+  automaticallyPrettyPrintMinifiedSources: 'Automatically pretty print minified sources',
+  /**
+   *@description Title of a setting under Sources category that can be invoked through the Command Menu.
+   *This setting turns off the automatic formatting of source files in the Sources panel that are detected
+   *to be minified.
+   */
+  doNotAutomaticallyPrettyPrintMinifiedSources: 'Do not automatically pretty print minified sources',
+  /**
    *@description Text for autocompletion
    */
   autocompletion: 'Autocompletion',
@@ -287,6 +299,18 @@ const UIStrings = {
    *@description Title of a setting under the Sources category that can be invoked through the Command Menu
    */
   disableAutocompletion: 'Disable autocompletion',
+  /**
+   *@description Title of a setting under the Sources category in Settings
+   */
+  bracketClosing: 'Auto closing brackets',
+  /**
+   *@description Title of a setting under the Sources category that can be invoked through the Command Menu
+   */
+  enableBracketClosing: 'Enable auto closing brackets',
+  /**
+   *@description Title of a setting under the Sources category that can be invoked through the Command Menu
+   */
+  disableBracketClosing: 'Disable auto closing brackets',
   /**
    *@description Title of a setting under the Sources category in Settings
    */
@@ -371,15 +395,15 @@ const UIStrings = {
   /**
    *@description Title of a setting under the Sources category in Settings
    */
-  wasmAutoStepping: 'When debugging wasm with debug information, do not pause on wasm bytecode if possible',
+  wasmAutoStepping: 'When debugging Wasm with debug information, do not pause on wasm bytecode if possible',
   /**
    *@description Title of a setting under the Sources category in Settings
    */
-  enableWasmAutoStepping: 'Enable wasm auto-stepping',
+  enableWasmAutoStepping: 'Enable Wasm auto-stepping',
   /**
    *@description Title of a setting under the Sources category in Settings
    */
-  disableWasmAutoStepping: 'Disable wasm auto-stepping',
+  disableWasmAutoStepping: 'Disable Wasm auto-stepping',
 
   /**
    *@description Text for command prefix of go to a given line or symbol
@@ -1577,6 +1601,25 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.SOURCES,
+  storageType: Common.Settings.SettingStorageType.Synced,
+  title: i18nLazyString(UIStrings.bracketClosing),
+  settingName: 'text-editor-bracket-closing',
+  settingType: Common.Settings.SettingType.BOOLEAN,
+  defaultValue: true,
+  options: [
+    {
+      value: true,
+      title: i18nLazyString(UIStrings.enableBracketClosing),
+    },
+    {
+      value: false,
+      title: i18nLazyString(UIStrings.disableBracketClosing),
+    },
+  ],
+});
+
+Common.Settings.registerSettingExtension({
+  category: Common.Settings.SettingCategory.SOURCES,
   title: i18nLazyString(UIStrings.bracketMatching),
   settingName: 'text-editor-bracket-matching',
   settingType: Common.Settings.SettingType.BOOLEAN,
@@ -1672,6 +1715,25 @@ Common.Settings.registerSettingExtension({
     {
       value: false,
       title: i18nLazyString(UIStrings.disableAutoFocusOnDebuggerPaused),
+    },
+  ],
+});
+
+Common.Settings.registerSettingExtension({
+  category: Common.Settings.SettingCategory.SOURCES,
+  storageType: Common.Settings.SettingStorageType.Synced,
+  title: i18nLazyString(UIStrings.automaticallyPrettyPrintMinifiedSources),
+  settingName: 'auto-pretty-print-minified',
+  settingType: Common.Settings.SettingType.BOOLEAN,
+  defaultValue: true,
+  options: [
+    {
+      value: true,
+      title: i18nLazyString(UIStrings.automaticallyPrettyPrintMinifiedSources),
+    },
+    {
+      value: false,
+      title: i18nLazyString(UIStrings.doNotAutomaticallyPrettyPrintMinifiedSources),
     },
   ],
 });

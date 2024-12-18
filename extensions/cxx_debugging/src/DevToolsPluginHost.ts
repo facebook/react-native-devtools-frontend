@@ -28,6 +28,10 @@ export class WorkerPlugin implements Chrome.DevTools.LanguageExtensionPlugin, As
   getWasmOp(op: number, stopId: unknown): Promise<WasmValue> {
     return chrome.devtools.languageServices.getWasmOp(op, stopId);
   }
+  reportResourceLoad(resourceUrl: string, status: {success: boolean, errorMessage?: string, size?: number}):
+      Promise<void> {
+    return chrome.devtools.languageServices.reportResourceLoad(resourceUrl, status);
+  }
 
   static async create(
       moduleConfigurations: ModuleConfigurations = DEFAULT_MODULE_CONFIGURATIONS,
@@ -65,7 +69,8 @@ export class WorkerPlugin implements Chrome.DevTools.LanguageExtensionPlugin, As
   }
 
   getFunctionInfo(rawLocation: Chrome.DevTools.RawLocation):
-      Promise<{frames: Chrome.DevTools.FunctionInfo[]}|{missingSymbolFiles: string[]}> {
+      Promise<{frames: Chrome.DevTools.FunctionInfo[], missingSymbolFiles: string[]}|
+              {frames: Chrome.DevTools.FunctionInfo[]}|{missingSymbolFiles: string[]}> {
     return this.rpc.sendMessage('getFunctionInfo', rawLocation);
   }
 
@@ -82,7 +87,7 @@ export class WorkerPlugin implements Chrome.DevTools.LanguageExtensionPlugin, As
   }
 
   evaluate(expression: string, context: Chrome.DevTools.RawLocation, stopId: unknown):
-      Promise<Chrome.DevTools.RemoteObject|null> {
+      Promise<Chrome.DevTools.RemoteObject|Chrome.DevTools.ForeignObject|null> {
     return this.rpc.sendMessage('evaluate', expression, context, stopId);
   }
 

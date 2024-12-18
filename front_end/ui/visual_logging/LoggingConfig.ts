@@ -4,9 +4,19 @@
 
 const LOGGING_ATTRIBUTE = 'jslog';
 
+interface TrackConfig {
+  click?: boolean;
+  dblclick?: boolean;
+  hover?: boolean;
+  drag?: boolean;
+  change?: boolean;
+  keydown?: boolean|string;
+  resize?: boolean;
+}
+
 export interface LoggingConfig {
   ve: number;
-  track?: Map<string, string|undefined>;
+  track?: TrackConfig;
   context?: string;
   parent?: string;
 }
@@ -32,7 +42,7 @@ export enum VisualElements {
   Section = 10,
   SectionHeader = 11,
   Timeline = 12,
-  StylesSelector = 13,
+  CSSRuleHeader = 13,
   Expand = 14,
   ToggleSubpane = 15,
   ControlPoint = 16,
@@ -41,7 +51,7 @@ export enum VisualElements {
   BreakpointMarker = 19,
   DropDown = 20,
   Adorner = 21,
-  /* 22 used to be JumpToSource, but free to grab now */
+  Gutter = 22,
   MetricsBox = 23,
   MetricsBoxPart = 24,
   /* 25 used to be DOMBreakpointsPane, but free to grab now */
@@ -87,7 +97,7 @@ export enum VisualElements {
   /* 65 used to be ToggleElementSearch, but free to grab now */
   PanelTabHeader = 66,
   Menu = 67,
-  /* 68 used to be DeveloperResourcesPanel, but free to grab now */
+  TableRow = 68,
   TableHeader = 69,
   TableCell = 70,
   /* 71 used to be StylesComputedPane, but free to grab now */
@@ -124,7 +134,14 @@ export function parseJsLog(jslog: string): LoggingConfig {
 
   const trackString = getComponent('track:');
   if (trackString) {
-    config.track = new Map<string, string>(trackString.split(',').map(t => t.split(':') as [string, string]));
+    config.track = {};
+    for (const track of trackString.split(',')) {
+      if (track.startsWith('keydown:')) {
+        config.track.keydown = track.substr('keydown:'.length);
+      } else {
+        config.track[track as keyof TrackConfig] = true;
+      }
+    }
   }
 
   return config;
@@ -154,15 +171,7 @@ export interface ConfigStringBuilder {
    * @param options The set of DOM events to track.
    * @returns The builder itself.
    */
-  track: (options: {
-    click?: boolean,
-    dblclick?: boolean,
-    hover?: boolean,
-    drag?: boolean,
-    change?: boolean,
-    keydown?: boolean|string,
-    resize?: boolean,
-  }) => ConfigStringBuilder;
+  track: (options: TrackConfig) => ConfigStringBuilder;
 
   /**
    * Serializes the configuration into a `jslog` string.
@@ -188,15 +197,7 @@ export function makeConfigStringBuilder(veName: VisualElementName, context?: str
       components.push(`parent: ${value}`);
       return this;
     },
-    track: function(options: {
-      click?: boolean,
-      dblclick?: boolean,
-      hover?: boolean,
-      drag?: boolean,
-      change?: boolean,
-      keydown?: boolean|string,
-      resize?: boolean,
-    }): ConfigStringBuilder {
+    track: function(options: TrackConfig): ConfigStringBuilder {
       components.push(`track: ${
           Object.entries(options).map(([key, value]) => value !== true ? `${key}: ${value}` : key).join(', ')}`);
       return this;

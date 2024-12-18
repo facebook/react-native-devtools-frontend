@@ -28,6 +28,10 @@ export function getRemoteBase(location: string = self.location.toString()): {
   return {base: `devtools://devtools/remote/serve_file/${version[1]}/`, version: version[1]};
 }
 
+export function getPathName(): string {
+  return window.location.pathname;
+}
+
 export class Runtime {
   private constructor() {
   }
@@ -78,10 +82,12 @@ export class Runtime {
     return runtimePlatform;
   }
 
-  static isDescriptorEnabled(descriptor: {
-    experiment: ((string | undefined)|null),
-    condition?: Condition,
-  }): boolean {
+  static isDescriptorEnabled(
+      descriptor: {
+        experiment: ((string | undefined)|null),
+        condition?: Condition,
+      },
+      config?: HostConfig): boolean {
     const {experiment} = descriptor;
     if (experiment === '*') {
       return true;
@@ -93,7 +99,7 @@ export class Runtime {
       return false;
     }
     const {condition} = descriptor;
-    return condition ? condition() : true;
+    return condition ? condition(config) : true;
   }
 
   loadLegacyModule(modulePath: string): Promise<void> {
@@ -297,18 +303,18 @@ export const enum ExperimentName {
   IMPORTANT_DOM_PROPERTIES = 'important-dom-properties',
   JUST_MY_CODE = 'just-my-code',
   PRELOADING_STATUS_PANEL = 'preloading-status-panel',
-  TIMELINE_AS_CONSOLE_PROFILE_RESULT_PANEL = 'timeline-as-console-profile-result-panel',
   OUTERMOST_TARGET_SELECTOR = 'outermost-target-selector',
-  JS_PROFILER_TEMP_ENABLE = 'js-profiler-temporarily-enable',
   HIGHLIGHT_ERRORS_ELEMENTS_PANEL = 'highlight-errors-elements-panel',
-  SET_ALL_BREAKPOINTS_EAGERLY = 'set-all-breakpoints-eagerly',
-  SELF_XSS_WARNING = 'self-xss-warning',
   USE_SOURCE_MAP_SCOPES = 'use-source-map-scopes',
-  STORAGE_BUCKETS_TREE = 'storage-buckets-tree',
   NETWORK_PANEL_FILTER_BAR_REDESIGN = 'network-panel-filter-bar-redesign',
-  TRACK_CONTEXT_MENU = 'track-context-menu',
   AUTOFILL_VIEW = 'autofill-view',
   INDENTATION_MARKERS_TEMP_DISABLE = 'sources-frame-indentation-markers-temporarily-disable',
+  TIMELINE_SHOW_POST_MESSAGE_EVENTS = 'timeline-show-postmessage-events',
+  TIMELINE_ANNOTATIONS_OVERLAYS = 'perf-panel-annotations',
+  TIMELINE_SIDEBAR = 'timeline-rpp-sidebar',
+  TIMELINE_DEBUG_MODE = 'timeline-debug-mode',
+  TIMELINE_OBSERVATIONS = 'timeline-observations',
+  TIMELINE_ENHANCED_TRACES = 'timeline-enhanced-traces',
 
   // React Native-specific experiments - must mirror RNExperimentName above
   JS_HEAP_PROFILER_ENABLE = RNExperimentName.JS_HEAP_PROFILER_ENABLE,
@@ -316,11 +322,42 @@ export const enum ExperimentName {
   ENABLE_PERFORMANCE_PANEL = RNExperimentName.ENABLE_PERFORMANCE_PANEL,
 }
 
+export interface HostConfigConsoleInsights {
+  aidaModelId: string;
+  aidaTemperature: number;
+  blocked: boolean;
+  blockedByAge: boolean;
+  blockedByEnterprisePolicy: boolean;
+  blockedByFeatureFlag: boolean;
+  blockedByGeo: boolean;
+  blockedByRollout: boolean;
+  disallowLogging: boolean;
+  enabled: boolean;
+  optIn: boolean;
+}
+
+export interface HostConfigFreestylerDogfood {
+  aidaModelId: string;
+  aidaTemperature: number;
+  enabled: boolean;
+}
+
+export interface HostConfigVeLogging {
+  enabled: boolean;
+  testing: boolean;
+}
+
+export interface HostConfig {
+  devToolsConsoleInsights: HostConfigConsoleInsights;
+  devToolsFreestylerDogfood: HostConfigFreestylerDogfood;
+  devToolsVeLogging: HostConfigVeLogging;
+}
+
 /**
  * When defining conditions make sure that objects used by the function have
  * been instantiated.
  */
-export type Condition = () => boolean;
+export type Condition = (config?: HostConfig) => boolean;
 
 export const conditions = {
   canDock: () => Boolean(Runtime.queryParam('can_dock')),

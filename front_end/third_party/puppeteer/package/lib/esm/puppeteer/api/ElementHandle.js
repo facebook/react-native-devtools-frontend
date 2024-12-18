@@ -82,6 +82,10 @@ var __disposeResources = (this && this.__disposeResources) || (function (Suppres
     var e = new Error(message);
     return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
 });
+var __setFunctionName = (this && this.__setFunctionName) || function (f, name, prefix) {
+    if (typeof name === "symbol") name = name.description ? "[".concat(name.description, "]") : "";
+    return Object.defineProperty(f, "name", { configurable: true, value: prefix ? "".concat(prefix, " ", name) : name });
+};
 import { getQueryHandlerAndSelector } from '../common/GetQueryHandler.js';
 import { LazyArg } from '../common/LazyArg.js';
 import { isString, withSourcePuppeteerURLIfNone } from '../common/util.js';
@@ -132,6 +136,8 @@ let ElementHandle = (() => {
     let _jsonValue_decorators;
     let _$_decorators;
     let _$$_decorators;
+    let _private_$$_decorators;
+    let _private_$$_descriptor;
     let _waitForSelector_decorators;
     let _isVisible_decorators;
     let _isHidden_decorators;
@@ -164,7 +170,8 @@ let ElementHandle = (() => {
             _getProperties_decorators = [throwIfDisposed(), (_b = ElementHandle).bindIsolatedHandle.bind(_b)];
             _jsonValue_decorators = [throwIfDisposed(), (_c = ElementHandle).bindIsolatedHandle.bind(_c)];
             _$_decorators = [throwIfDisposed(), (_d = ElementHandle).bindIsolatedHandle.bind(_d)];
-            _$$_decorators = [throwIfDisposed(), (_e = ElementHandle).bindIsolatedHandle.bind(_e)];
+            _$$_decorators = [throwIfDisposed()];
+            _private_$$_decorators = [(_e = ElementHandle).bindIsolatedHandle.bind(_e)];
             _waitForSelector_decorators = [throwIfDisposed(), (_f = ElementHandle).bindIsolatedHandle.bind(_f)];
             _isVisible_decorators = [throwIfDisposed(), (_g = ElementHandle).bindIsolatedHandle.bind(_g)];
             _isHidden_decorators = [throwIfDisposed(), (_h = ElementHandle).bindIsolatedHandle.bind(_h)];
@@ -195,6 +202,9 @@ let ElementHandle = (() => {
             __esDecorate(this, null, _jsonValue_decorators, { kind: "method", name: "jsonValue", static: false, private: false, access: { has: obj => "jsonValue" in obj, get: obj => obj.jsonValue }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _$_decorators, { kind: "method", name: "$", static: false, private: false, access: { has: obj => "$" in obj, get: obj => obj.$ }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _$$_decorators, { kind: "method", name: "$$", static: false, private: false, access: { has: obj => "$$" in obj, get: obj => obj.$$ }, metadata: _metadata }, null, _instanceExtraInitializers);
+            __esDecorate(this, _private_$$_descriptor = { value: __setFunctionName(async function (selector) {
+                    return await this.#$$impl(selector);
+                }, "#$$") }, _private_$$_decorators, { kind: "method", name: "#$$", static: false, private: true, access: { has: obj => #$$ in obj, get: obj => obj.#$$ }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _waitForSelector_decorators, { kind: "method", name: "waitForSelector", static: false, private: false, access: { has: obj => "waitForSelector" in obj, get: obj => obj.waitForSelector }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _isVisible_decorators, { kind: "method", name: "isVisible", static: false, private: false, access: { has: obj => "isVisible" in obj, get: obj => obj.isVisible }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _isHidden_decorators, { kind: "method", name: "isHidden", static: false, private: false, access: { has: obj => "isHidden" in obj, get: obj => obj.isHidden }, metadata: _metadata }, null, _instanceExtraInitializers);
@@ -223,6 +233,12 @@ let ElementHandle = (() => {
             if (_metadata) Object.defineProperty(this, Symbol.metadata, { enumerable: true, configurable: true, writable: true, value: _metadata });
         }
         /**
+         * @internal
+         * Cached isolatedHandle to prevent
+         * trying to adopt it multiple times
+         */
+        isolatedHandle = __runInitializers(this, _instanceExtraInitializers);
+        /**
          * A given method will have it's `this` replaced with an isolated version of
          * `this` when decorated with this decorator.
          *
@@ -232,54 +248,52 @@ let ElementHandle = (() => {
          */
         static bindIsolatedHandle(target, _) {
             return async function (...args) {
-                const env_1 = { stack: [], error: void 0, hasError: false };
-                try {
-                    // If the handle is already isolated, then we don't need to adopt it
-                    // again.
-                    if (this.realm === this.frame.isolatedRealm()) {
-                        return await target.call(this, ...args);
-                    }
-                    const adoptedThis = __addDisposableResource(env_1, await this.frame.isolatedRealm().adoptHandle(this), false);
-                    const result = await target.call(adoptedThis, ...args);
-                    // If the function returns `adoptedThis`, then we return `this`.
-                    if (result === adoptedThis) {
-                        return this;
-                    }
-                    // If the function returns a handle, transfer it into the current realm.
-                    if (result instanceof JSHandle) {
-                        return await this.realm.transferHandle(result);
-                    }
-                    // If the function returns an array of handlers, transfer them into the
-                    // current realm.
-                    if (Array.isArray(result)) {
-                        await Promise.all(result.map(async (item, index, result) => {
-                            if (item instanceof JSHandle) {
-                                result[index] = await this.realm.transferHandle(item);
-                            }
-                        }));
-                    }
-                    if (result instanceof Map) {
-                        await Promise.all([...result.entries()].map(async ([key, value]) => {
-                            if (value instanceof JSHandle) {
-                                result.set(key, await this.realm.transferHandle(value));
-                            }
-                        }));
-                    }
-                    return result;
+                // If the handle is already isolated, then we don't need to adopt it
+                // again.
+                if (this.realm === this.frame.isolatedRealm()) {
+                    return await target.call(this, ...args);
                 }
-                catch (e_1) {
-                    env_1.error = e_1;
-                    env_1.hasError = true;
+                let adoptedThis;
+                if (this['isolatedHandle']) {
+                    adoptedThis = this['isolatedHandle'];
                 }
-                finally {
-                    __disposeResources(env_1);
+                else {
+                    this['isolatedHandle'] = adoptedThis = await this.frame
+                        .isolatedRealm()
+                        .adoptHandle(this);
                 }
+                const result = await target.call(adoptedThis, ...args);
+                // If the function returns `adoptedThis`, then we return `this`.
+                if (result === adoptedThis) {
+                    return this;
+                }
+                // If the function returns a handle, transfer it into the current realm.
+                if (result instanceof JSHandle) {
+                    return await this.realm.transferHandle(result);
+                }
+                // If the function returns an array of handlers, transfer them into the
+                // current realm.
+                if (Array.isArray(result)) {
+                    await Promise.all(result.map(async (item, index, result) => {
+                        if (item instanceof JSHandle) {
+                            result[index] = await this.realm.transferHandle(item);
+                        }
+                    }));
+                }
+                if (result instanceof Map) {
+                    await Promise.all([...result.entries()].map(async ([key, value]) => {
+                        if (value instanceof JSHandle) {
+                            result.set(key, await this.realm.transferHandle(value));
+                        }
+                    }));
+                }
+                return result;
             };
         }
         /**
          * @internal
          */
-        handle = (__runInitializers(this, _instanceExtraInitializers), void 0);
+        handle;
         /**
          * @internal
          */
@@ -359,7 +373,21 @@ let ElementHandle = (() => {
         /**
          * Queries the current element for an element matching the given selector.
          *
-         * @param selector - The selector to query for.
+         * @param selector -
+         * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
+         * to query page for.
+         * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
+         * can be passed as-is and a
+         * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
+         * allows quering by
+         * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
+         * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
+         * and
+         * {@link https://pptr.dev/guides/page-interactions#xpath-selectors--p-xpath | xpath}
+         * and
+         * {@link https://pptr.dev/guides/page-interactions#querying-elements-in-shadow-dom | combining these queries across shadow roots}.
+         * Alternatively, you can specify the selector type using a
+         * {@link https://pptr.dev/guides/page-interactions#prefixed-selector-syntax | prefix}.
          * @returns A {@link ElementHandle | element handle} to the first element
          * matching the given selector. Otherwise, `null`.
          */
@@ -370,11 +398,42 @@ let ElementHandle = (() => {
         /**
          * Queries the current element for all elements matching the given selector.
          *
-         * @param selector - The selector to query for.
+         * @param selector -
+         * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
+         * to query page for.
+         * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
+         * can be passed as-is and a
+         * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
+         * allows quering by
+         * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
+         * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
+         * and
+         * {@link https://pptr.dev/guides/page-interactions#xpath-selectors--p-xpath | xpath}
+         * and
+         * {@link https://pptr.dev/guides/page-interactions#querying-elements-in-shadow-dom | combining these queries across shadow roots}.
+         * Alternatively, you can specify the selector type using a
+         * {@link https://pptr.dev/guides/page-interactions#prefixed-selector-syntax | prefix}.
          * @returns An array of {@link ElementHandle | element handles} that point to
          * elements matching the given selector.
          */
-        async $$(selector) {
+        async $$(selector, options) {
+            if (options?.isolate === false) {
+                return await this.#$$impl(selector);
+            }
+            return await this.#$$(selector);
+        }
+        /**
+         * Isolates {@link ElementHandle.$$} if needed.
+         *
+         * @internal
+         */
+        get #$$() { return _private_$$_descriptor.value; }
+        /**
+         * Implementation for {@link ElementHandle.$$}.
+         *
+         * @internal
+         */
+        async #$$impl(selector) {
             const { updatedSelector, QueryHandler } = getQueryHandlerAndSelector(selector);
             return await AsyncIterableUtil.collect(QueryHandler.queryAll(this, updatedSelector));
         }
@@ -397,7 +456,21 @@ let ElementHandle = (() => {
          * );
          * ```
          *
-         * @param selector - The selector to query for.
+         * @param selector -
+         * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
+         * to query page for.
+         * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
+         * can be passed as-is and a
+         * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
+         * allows quering by
+         * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
+         * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
+         * and
+         * {@link https://pptr.dev/guides/page-interactions#xpath-selectors--p-xpath | xpath}
+         * and
+         * {@link https://pptr.dev/guides/page-interactions#querying-elements-in-shadow-dom | combining these queries across shadow roots}.
+         * Alternatively, you can specify the selector type using a
+         * {@link https://pptr.dev/guides/page-interactions#prefixed-selector-syntax | prefix}.
          * @param pageFunction - The function to be evaluated in this element's page's
          * context. The first element matching the selector will be passed in as the
          * first argument.
@@ -405,21 +478,21 @@ let ElementHandle = (() => {
          * @returns A promise to the result of the function.
          */
         async $eval(selector, pageFunction, ...args) {
-            const env_2 = { stack: [], error: void 0, hasError: false };
+            const env_1 = { stack: [], error: void 0, hasError: false };
             try {
                 pageFunction = withSourcePuppeteerURLIfNone(this.$eval.name, pageFunction);
-                const elementHandle = __addDisposableResource(env_2, await this.$(selector), false);
+                const elementHandle = __addDisposableResource(env_1, await this.$(selector), false);
                 if (!elementHandle) {
                     throw new Error(`Error: failed to find element matching selector "${selector}"`);
                 }
                 return await elementHandle.evaluate(pageFunction, ...args);
             }
-            catch (e_2) {
-                env_2.error = e_2;
-                env_2.hasError = true;
+            catch (e_1) {
+                env_1.error = e_1;
+                env_1.hasError = true;
             }
             finally {
-                __disposeResources(env_2);
+                __disposeResources(env_1);
             }
         }
         /**
@@ -448,7 +521,21 @@ let ElementHandle = (() => {
          * ).toEqual(['Hello!', 'Hi!']);
          * ```
          *
-         * @param selector - The selector to query for.
+         * @param selector -
+         * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
+         * to query page for.
+         * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
+         * can be passed as-is and a
+         * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
+         * allows quering by
+         * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
+         * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
+         * and
+         * {@link https://pptr.dev/guides/page-interactions#xpath-selectors--p-xpath | xpath}
+         * and
+         * {@link https://pptr.dev/guides/page-interactions#querying-elements-in-shadow-dom | combining these queries across shadow roots}.
+         * Alternatively, you can specify the selector type using a
+         * {@link https://pptr.dev/guides/page-interactions#prefixed-selector-syntax | prefix}.
          * @param pageFunction - The function to be evaluated in the element's page's
          * context. An array of elements matching the given selector will be passed to
          * the function as its first argument.
@@ -456,11 +543,11 @@ let ElementHandle = (() => {
          * @returns A promise to the result of the function.
          */
         async $$eval(selector, pageFunction, ...args) {
-            const env_3 = { stack: [], error: void 0, hasError: false };
+            const env_2 = { stack: [], error: void 0, hasError: false };
             try {
                 pageFunction = withSourcePuppeteerURLIfNone(this.$$eval.name, pageFunction);
                 const results = await this.$$(selector);
-                const elements = __addDisposableResource(env_3, await this.evaluateHandle((_, ...elements) => {
+                const elements = __addDisposableResource(env_2, await this.evaluateHandle((_, ...elements) => {
                     return elements;
                 }, ...results), false);
                 const [result] = await Promise.all([
@@ -471,12 +558,12 @@ let ElementHandle = (() => {
                 ]);
                 return result;
             }
-            catch (e_3) {
-                env_3.error = e_3;
-                env_3.hasError = true;
+            catch (e_2) {
+                env_2.error = e_2;
+                env_2.hasError = true;
             }
             finally {
-                __disposeResources(env_3);
+                __disposeResources(env_2);
             }
         }
         /**
@@ -517,8 +604,11 @@ let ElementHandle = (() => {
          * @throws Throws if an element matching the given selector doesn't appear.
          */
         async waitForSelector(selector, options = {}) {
-            const { updatedSelector, QueryHandler } = getQueryHandlerAndSelector(selector);
-            return (await QueryHandler.waitFor(this, updatedSelector, options));
+            const { updatedSelector, QueryHandler, polling } = getQueryHandlerAndSelector(selector);
+            return (await QueryHandler.waitFor(this, updatedSelector, {
+                polling,
+                ...options,
+            }));
         }
         async #checkVisibility(visibility) {
             return await this.evaluate(async (element, PuppeteerUtil, visibility) => {
@@ -528,15 +618,32 @@ let ElementHandle = (() => {
             }), visibility);
         }
         /**
-         * Checks if an element is visible using the same mechanism as
-         * {@link ElementHandle.waitForSelector}.
+         * An element is considered to be visible if all of the following is
+         * true:
+         *
+         * - the element has
+         *   {@link https://developer.mozilla.org/en-US/docs/Web/API/Window/getComputedStyle | computed styles}.
+         *
+         * - the element has a non-empty
+         *   {@link https://developer.mozilla.org/en-US/docs/Web/API/Element/getBoundingClientRect | bounding client rect}.
+         *
+         * - the element's {@link https://developer.mozilla.org/en-US/docs/Web/CSS/visibility | visibility}
+         *   is not `hidden` or `collapse`.
          */
         async isVisible() {
             return await this.#checkVisibility(true);
         }
         /**
-         * Checks if an element is hidden using the same mechanism as
-         * {@link ElementHandle.waitForSelector}.
+         * An element is considered to be hidden if at least one of the following is true:
+         *
+         * - the element has no
+         *   {@link https://developer.mozilla.org/en-US/docs/Web/API/Window/getComputedStyle | computed styles}.
+         *
+         * - the element has an empty
+         *   {@link https://developer.mozilla.org/en-US/docs/Web/API/Element/getBoundingClientRect | bounding client rect}.
+         *
+         * - the element's {@link https://developer.mozilla.org/en-US/docs/Web/CSS/visibility | visibility}
+         *   is `hidden` or `collapse`.
          */
         async isHidden() {
             return await this.#checkVisibility(false);
@@ -589,7 +696,7 @@ let ElementHandle = (() => {
         }
         /**
          * This method scrolls element into view if needed, and then
-         * uses {@link Page} to hover over the center of the element.
+         * uses {@link Page.mouse} to hover over the center of the element.
          * If the element is detached from DOM, the method throws an error.
          */
         async hover() {
@@ -599,7 +706,7 @@ let ElementHandle = (() => {
         }
         /**
          * This method scrolls element into view if needed, and then
-         * uses {@link Page | Page.mouse} to click in the center of the element.
+         * uses {@link Page.mouse} to click in the center of the element.
          * If the element is detached from DOM, the method throws an error.
          */
         async click(options = {}) {
@@ -844,9 +951,9 @@ let ElementHandle = (() => {
             let frame = this.frame;
             let parentFrame;
             while ((parentFrame = frame?.parentFrame())) {
-                const env_4 = { stack: [], error: void 0, hasError: false };
+                const env_3 = { stack: [], error: void 0, hasError: false };
                 try {
-                    const handle = __addDisposableResource(env_4, await frame.frameElement(), false);
+                    const handle = __addDisposableResource(env_3, await frame.frameElement(), false);
                     if (!handle) {
                         throw new Error('Unsupported frame type');
                     }
@@ -876,12 +983,12 @@ let ElementHandle = (() => {
                     await handle.#intersectBoundingBoxesWithFrame(boxes);
                     frame = parentFrame;
                 }
-                catch (e_4) {
-                    env_4.error = e_4;
-                    env_4.hasError = true;
+                catch (e_3) {
+                    env_3.error = e_3;
+                    env_3.hasError = true;
                 }
                 finally {
-                    __disposeResources(env_4);
+                    __disposeResources(env_3);
                 }
             }
             const box = boxes.find(box => {
@@ -1045,9 +1152,9 @@ let ElementHandle = (() => {
             let frame = this.frame;
             let parentFrame;
             while ((parentFrame = frame?.parentFrame())) {
-                const env_5 = { stack: [], error: void 0, hasError: false };
+                const env_4 = { stack: [], error: void 0, hasError: false };
                 try {
-                    const handle = __addDisposableResource(env_5, await frame.frameElement(), false);
+                    const handle = __addDisposableResource(env_4, await frame.frameElement(), false);
                     if (!handle) {
                         throw new Error('Unsupported frame type');
                     }
@@ -1074,26 +1181,24 @@ let ElementHandle = (() => {
                     point.y += parentBox.top;
                     frame = parentFrame;
                 }
-                catch (e_5) {
-                    env_5.error = e_5;
-                    env_5.hasError = true;
+                catch (e_4) {
+                    env_4.error = e_4;
+                    env_4.hasError = true;
                 }
                 finally {
-                    __disposeResources(env_5);
+                    __disposeResources(env_4);
                 }
             }
             return point;
         }
         async screenshot(options = {}) {
-            const { scrollIntoView = true } = options;
-            let clip = await this.#nonEmptyVisibleBoundingBox();
+            const { scrollIntoView = true, clip } = options;
             const page = this.frame.page();
             // Only scroll the element into view if the user wants it.
             if (scrollIntoView) {
                 await this.scrollIntoViewIfNeeded();
-                // We measure again just in case.
-                clip = await this.#nonEmptyVisibleBoundingBox();
             }
+            const elementClip = await this.#nonEmptyVisibleBoundingBox();
             const [pageLeft, pageTop] = await this.evaluate(() => {
                 if (!window.visualViewport) {
                     throw new Error('window.visualViewport is not supported.');
@@ -1103,9 +1208,15 @@ let ElementHandle = (() => {
                     window.visualViewport.pageTop,
                 ];
             });
-            clip.x += pageLeft;
-            clip.y += pageTop;
-            return await page.screenshot({ ...options, clip });
+            elementClip.x += pageLeft;
+            elementClip.y += pageTop;
+            if (clip) {
+                elementClip.x += clip.x;
+                elementClip.y += clip.y;
+                elementClip.height = clip.height;
+                elementClip.width = clip.width;
+            }
+            return await page.screenshot({ ...options, clip: elementClip });
         }
         async #nonEmptyVisibleBoundingBox() {
             const box = await this.boundingBox();
@@ -1151,12 +1262,12 @@ let ElementHandle = (() => {
          * (full intersection). Defaults to 1.
          */
         async isIntersectingViewport(options = {}) {
-            const env_6 = { stack: [], error: void 0, hasError: false };
+            const env_5 = { stack: [], error: void 0, hasError: false };
             try {
                 await this.assertConnectedElement();
                 // eslint-disable-next-line rulesdir/use-using -- Returns `this`.
                 const handle = await this.#asSVGElementHandle();
-                const target = __addDisposableResource(env_6, handle && (await handle.#getOwnerSVGElement()), false);
+                const target = __addDisposableResource(env_5, handle && (await handle.#getOwnerSVGElement()), false);
                 return await (target ?? this).evaluate(async (element, threshold) => {
                     const visibleRatio = await new Promise(resolve => {
                         const observer = new IntersectionObserver(entries => {
@@ -1168,12 +1279,12 @@ let ElementHandle = (() => {
                     return threshold === 1 ? visibleRatio === 1 : visibleRatio > threshold;
                 }, options.threshold ?? 0);
             }
-            catch (e_6) {
-                env_6.error = e_6;
-                env_6.hasError = true;
+            catch (e_5) {
+                env_5.error = e_5;
+                env_5.hasError = true;
             }
             finally {
-                __disposeResources(env_6);
+                __disposeResources(env_5);
             }
         }
         /**

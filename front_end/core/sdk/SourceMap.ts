@@ -37,6 +37,9 @@ import * as Common from '../common/common.js';
 import * as Platform from '../platform/platform.js';
 import * as Root from '../root/root.js';
 
+import {type CallFrame} from './DebuggerModel.js';
+import {SourceMapScopesInfo} from './SourceMapScopesInfo.js';
+
 /**
  * Type of the base source map JSON object, which contains the sources and the mappings at the very least, plus
  * some additional fields.
@@ -45,22 +48,23 @@ import * as Root from '../root/root.js';
  * @see {@link https://docs.google.com/document/d/1U1RGAehQwRypUTovF1KRlpiOFze0b-_2gc6fAH0KY0k Source Map Revision 3 Proposal}
  */
 export type SourceMapV3Object = {
-  // clang-format off
+  /* eslint-disable @typescript-eslint/naming-convention */
   'version': number,
+  'sources': string[],
+  'mappings': string,
+
   'file'?: string,
   'sourceRoot'?: string,
-  'sources': string[],
   'sourcesContent'?: (string|null)[],
+
   'names'?: string[],
-  'mappings': string,
   'ignoreList'?: number[],
-  // eslint-disable-next-line @typescript-eslint/naming-convention
+  'originalScopes'?: string[],
+  'generatedRanges'?: string,
   'x_google_linecount'?: number,
-  // eslint-disable-next-line @typescript-eslint/naming-convention
   'x_google_ignoreList'?: number[],
-  // eslint-disable-next-line @typescript-eslint/naming-convention
   'x_com_bloomberg_sourcesFunctionMappings'?: string[],
-  // clang-format on
+  /* eslint-enable @typescript-eslint/naming-convention */
 };
 
 /**
@@ -185,6 +189,9 @@ export class SourceMap {
   #mappingsInternal: SourceMapEntry[]|null;
   readonly #sourceInfos: Map<Platform.DevToolsPath.UrlString, SourceInfo>;
 
+  /* eslint-disable-next-line no-unused-private-class-members */
+  #scopesInfo: SourceMapScopesInfo|null = null;
+
   /**
    * Implements Source Map V3 model. See https://github.com/google/closure-compiler/wiki/Source-Maps
    * for format description.
@@ -228,7 +235,31 @@ export class SourceMap {
     return entry.content;
   }
 
-  findEntry(lineNumber: number, columnNumber: number): SourceMapEntry|null {
+  hasScopeInfo(): boolean {
+    this.#ensureMappingsProcessed();
+    return this.#scopesInfo !== null;
+  }
+
+  findEntry(lineNumber: number, columnNumber: number, inlineFrameIndex?: number): SourceMapEntry|null {
+    this.#ensureMappingsProcessed();
+    if (inlineFrameIndex && this.#scopesInfo !== null) {
+      // For inlineFrameIndex != 0 we use the callsite info for the corresponding inlining site.
+      // Note that the callsite for "inlineFrameIndex" is actually in the previous frame.
+      const functions = this.#scopesInfo.findInlinedFunctions(lineNumber, columnNumber);
+      const {callsite} = functions[inlineFrameIndex - 1];
+      if (!callsite) {
+        console.error('Malformed source map. Expected to have a callsite info for index', inlineFrameIndex);
+        return null;
+      }
+      return {
+        lineNumber,
+        columnNumber,
+        sourceURL: this.sourceURLs()[callsite.sourceIndex],
+        sourceLineNumber: callsite.line,
+        sourceColumnNumber: callsite.column,
+        name: undefined,
+      };
+    }
     const mappings = this.mappings();
     const index = Platform.ArrayUtilities.upperBound(
         mappings, undefined, (unused, entry) => lineNumber - entry.lineNumber || columnNumber - entry.columnNumber);
@@ -528,11 +559,12 @@ export class SourceMap {
     }
 
     if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.USE_SOURCE_MAP_SCOPES)) {
-      this.parseScopes(map);
+      this.parseBloombergScopes(map);
+      this.#parseScopes(map);
     }
   }
 
-  private parseScopes(map: SourceMapV3Object): void {
+  private parseBloombergScopes(map: SourceMapV3Object): void {
     if (!map.x_com_bloomberg_sourcesFunctionMappings) {
       return;
     }
@@ -609,6 +641,12 @@ export class SourceMap {
       stack.push(entry);
     }
     return toplevel;
+  }
+
+  #parseScopes(map: SourceMapV3Object): void {
+    if (map.originalScopes && map.generatedRanges) {
+      this.#scopesInfo = SourceMapScopesInfo.parseFromMap(map);
+    }
   }
 
   findScopeEntry(sourceURL: Platform.DevToolsPath.UrlString, sourceLineNumber: number, sourceColumnNumber: number):
@@ -783,6 +821,21 @@ export class SourceMap {
   compatibleForURL(sourceURL: Platform.DevToolsPath.UrlString, other: SourceMap): boolean {
     return this.embeddedContentByURL(sourceURL) === other.embeddedContentByURL(sourceURL) &&
         this.hasIgnoreListHint(sourceURL) === other.hasIgnoreListHint(sourceURL);
+  }
+
+  expandCallFrame(frame: CallFrame): CallFrame[] {
+    this.#ensureMappingsProcessed();
+    if (this.#scopesInfo === null) {
+      return [frame];
+    }
+
+    const functionNames =
+        this.#scopesInfo.findInlinedFunctions(frame.location().lineNumber, frame.location().columnNumber);
+    const result: CallFrame[] = [];
+    for (const [index, fn] of functionNames.entries()) {
+      result.push(frame.createVirtualCallFrame(index, fn.name));
+    }
+    return result;
   }
 }
 

@@ -39,15 +39,41 @@ import inspectorSyntaxHighlightStyles from '../inspectorSyntaxHighlight.css.lega
 
 let themeSupportInstance: ThemeSupport;
 
-const themeValuesCache = new Map<CSSStyleDeclaration, Map<string, string>>();
+const themeValueByTargetByName = new Map<Element|null, Map<string, string>>();
 
 export class ThemeSupport extends EventTarget {
   private themeNameInternal = 'default';
   private customSheets: Set<string> = new Set();
-  private computedRoot = Common.Lazy.lazy(() => window.getComputedStyle(document.documentElement));
+  private computedStyleOfHTML = Common.Lazy.lazy(() => window.getComputedStyle(document.documentElement));
+
+  readonly #documentsToTheme: Set<Document> = new Set([document]);
+
+  readonly #darkThemeMediaQuery: MediaQueryList;
+  readonly #highContrastMediaQuery: MediaQueryList;
+  readonly #onThemeChangeListener = (): void => this.#applyTheme();
+  readonly #onHostThemeChangeListener = (): void => this.fetchColorsAndApplyHostTheme();
 
   private constructor(private setting: Common.Settings.Setting<string>) {
     super();
+
+    // When the theme changes we instantiate a new theme support and reapply.
+    // Equally if the user has set to match the system and the OS preference changes
+    // we perform the same change.
+    this.#darkThemeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    this.#highContrastMediaQuery = window.matchMedia('(forced-colors: active)');
+    this.#darkThemeMediaQuery.addEventListener('change', this.#onThemeChangeListener);
+    this.#highContrastMediaQuery.addEventListener('change', this.#onThemeChangeListener);
+    setting.addChangeListener(this.#onThemeChangeListener);
+    Host.InspectorFrontendHost.InspectorFrontendHostInstance.events.addEventListener(
+        Host.InspectorFrontendHostAPI.Events.ColorThemeChanged, this.#onHostThemeChangeListener);
+  }
+
+  #dispose(): void {
+    this.#darkThemeMediaQuery.removeEventListener('change', this.#onThemeChangeListener);
+    this.#highContrastMediaQuery.removeEventListener('change', this.#onThemeChangeListener);
+    this.setting.removeChangeListener(this.#onThemeChangeListener);
+    Host.InspectorFrontendHost.InspectorFrontendHostInstance.events.removeEventListener(
+        Host.InspectorFrontendHostAPI.Events.ColorThemeChanged, this.#onHostThemeChangeListener);
   }
 
   static hasInstance(): boolean {
@@ -64,44 +90,55 @@ export class ThemeSupport extends EventTarget {
         throw new Error(`Unable to create theme support: setting must be provided: ${new Error().stack}`);
       }
 
+      if (themeSupportInstance) {
+        themeSupportInstance.#dispose();
+      }
       themeSupportInstance = new ThemeSupport(setting);
     }
 
     return themeSupportInstance;
   }
 
-  getComputedValue(variableName: string, target: Element|null = null): string {
-    const computedRoot = target ? window.getComputedStyle(target) : this.computedRoot();
-    if (typeof computedRoot === 'symbol') {
-      throw new Error(`Computed value for property (${variableName}) could not be found on :root.`);
-    }
+  /**
+   * Adds additional `Document` instances that should be themed besides the default
+   * `window.document` in which this ThemeSupport instance was created.
+   */
+  addDocumentToTheme(document: Document): void {
+    this.#documentsToTheme.add(document);
+    this.#fetchColorsAndApplyHostTheme(document);
+  }
 
-    // Since we might query the same variable name from various targets we need to support
+  getComputedValue(propertyName: string, target: Element|null = null): string {
+    // Since we might query the same property name from various targets we need to support
     // per-target caching of computed values. Here we attempt to locate the particular computed
-    // value cache for the target. If no target was specified we use the default computed root,
-    // which belongs to the document element.
-    let computedRootCache = themeValuesCache.get(computedRoot);
-    if (!computedRootCache) {
-      computedRootCache = new Map<string, string>();
-      themeValuesCache.set(computedRoot, computedRootCache);
+    // value cache for the target element. If no target was specified we use the default computed root,
+    // which belongs to the documentElement.
+    let themeValueByName = themeValueByTargetByName.get(target);
+    if (!themeValueByName) {
+      themeValueByName = new Map<string, string>();
+      themeValueByTargetByName.set(target, themeValueByName);
     }
 
     // Since theme changes trigger a reload, we can avoid repeatedly looking up color values
     // dynamically. Instead we can look up the first time and cache them for future use,
     // knowing that the cache will be invalidated by virtue of a reload when the theme changes.
-    let cachedValue = computedRootCache.get(variableName);
-    if (!cachedValue) {
-      cachedValue = computedRoot.getPropertyValue(variableName).trim();
+    let themeValue = themeValueByName.get(propertyName);
+    if (!themeValue) {
+      const styleDeclaration = target ? window.getComputedStyle(target) : this.computedStyleOfHTML();
+      if (typeof styleDeclaration === 'symbol') {
+        throw new Error(`Computed value for property (${propertyName}) could not be found on documentElement.`);
+      }
+      themeValue = styleDeclaration.getPropertyValue(propertyName).trim();
 
       // If we receive back an empty value (nothing has been set) we don't store it for the future.
       // This means that subsequent requests will continue to query the styles in case the value
       // has been set.
-      if (cachedValue) {
-        computedRootCache.set(variableName, cachedValue);
+      if (themeValue) {
+        themeValueByName.set(propertyName, themeValue);
       }
     }
 
-    return cachedValue;
+    return themeValue;
   }
 
   hasTheme(): boolean {
@@ -134,55 +171,59 @@ export class ThemeSupport extends EventTarget {
     this.customSheets.add(sheetText);
   }
 
-  applyTheme(document: Document): void {
+  #applyTheme(): void {
+    for (const document of this.#documentsToTheme) {
+      this.#applyThemeToDocument(document);
+    }
+  }
+
+  #applyThemeToDocument(document: Document): void {
     const isForcedColorsMode = window.matchMedia('(forced-colors: active)').matches;
     const systemPreferredTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default';
 
     const useSystemPreferred = this.setting.get() === 'systemPreferred' || isForcedColorsMode;
     this.themeNameInternal = useSystemPreferred ? systemPreferredTheme : this.setting.get();
-
-    const wasDarkThemed = document.documentElement.classList.contains('-theme-with-dark-background');
-    document.documentElement.classList.toggle('-theme-with-dark-background', this.themeNameInternal === 'dark');
-
-    const isDarkThemed = document.documentElement.classList.contains('-theme-with-dark-background');
-
-    // In the event the theme changes we need to clear caches and notify subscribers.
-    if (wasDarkThemed !== isDarkThemed) {
-      themeValuesCache.clear();
-      this.customSheets.clear();
-      this.dispatchEvent(new ThemeChangeEvent());
-    }
+    document.documentElement.classList.toggle('theme-with-dark-background', this.themeNameInternal === 'dark');
 
     // Baseline is the name of Chrome's default color theme and there are two of these: default and grayscale.
     // [RN] Force 'baseline-grayscale' theme for now.
     document.documentElement.classList.add('baseline-grayscale');
+
+    // In the event the theme changes we need to clear caches and notify subscribers.
+    themeValueByTargetByName.clear();
+    this.customSheets.clear();
+    this.dispatchEvent(new ThemeChangeEvent());
   }
 
-  static async fetchColors(document: Document|undefined): Promise<void> {
+  static clearThemeCache(): void {
+    themeValueByTargetByName.clear();
+  }
+
+  fetchColorsAndApplyHostTheme(): void {
+    for (const document of this.#documentsToTheme) {
+      this.#fetchColorsAndApplyHostTheme(document);
+    }
+  }
+
+  #fetchColorsAndApplyHostTheme(document: Document): void {
     if (Host.InspectorFrontendHost.InspectorFrontendHostInstance.isHostedMode()) {
+      this.#applyThemeToDocument(document);
       return;
     }
-    if (!document) {
-      return;
-    }
+
+    const oldColorsCssLink = document.querySelector('link[href*=\'//theme/colors.css\']');
     const newColorsCssLink = document.createElement('link');
     newColorsCssLink.setAttribute(
         'href', `devtools://theme/colors.css?sets=ui,chrome&version=${(new Date()).getTime().toString()}`);
     newColorsCssLink.setAttribute('rel', 'stylesheet');
     newColorsCssLink.setAttribute('type', 'text/css');
-    const newColorsLoaded = new Promise<boolean>(resolve => {
-      newColorsCssLink.onload = resolve.bind(this, true);
-      newColorsCssLink.onerror = resolve.bind(this, false);
-    });
-    const COLORS_CSS_SELECTOR = 'link[href*=\'//theme/colors.css\']';
-    const colorCssNode = document.querySelector(COLORS_CSS_SELECTOR);
-    document.body.appendChild(newColorsCssLink);
-    if (await newColorsLoaded) {
-      if (colorCssNode) {
-        colorCssNode.remove();
+    newColorsCssLink.onload = () => {
+      if (oldColorsCssLink) {
+        oldColorsCssLink.remove();
       }
-      ThemeSupport.instance().applyTheme(document);
-    }
+      this.#applyThemeToDocument(document);
+    };
+    document.body.appendChild(newColorsCssLink);
   }
 }
 

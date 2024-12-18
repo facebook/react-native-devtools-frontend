@@ -6,8 +6,6 @@ import {defaultTraceEvent} from '../../../testing/TraceHelpers.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
 import * as TraceModel from '../trace.js';
 
-const {assert} = chai;
-
 describe('ScreenshotsHandler', function() {
   const baseEvent = {
     ...defaultTraceEvent,
@@ -44,6 +42,7 @@ describe('ScreenshotsHandler', function() {
         {...baseEvent, ts: TraceModel.Types.Timing.MicroSeconds(100)},
         {...baseEvent, ts: TraceModel.Types.Timing.MicroSeconds(200)},
       ];
+      TraceModel.Helpers.SyntheticEvents.SyntheticEventsManager.initAndActivate(baseEvents);
 
       for (const event of baseEvents) {
         TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);

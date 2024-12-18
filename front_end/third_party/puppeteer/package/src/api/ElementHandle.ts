@@ -10,6 +10,7 @@ import type {Frame} from '../api/Frame.js';
 import {getQueryHandlerAndSelector} from '../common/GetQueryHandler.js';
 import {LazyArg} from '../common/LazyArg.js';
 import type {
+  AwaitableIterable,
   ElementFor,
   EvaluateFuncWith,
   HandleFor,
@@ -29,7 +30,11 @@ import type {
   MouseClickOptions,
 } from './Input.js';
 import {JSHandle} from './JSHandle.js';
-import type {ScreenshotOptions, WaitForSelectorOptions} from './Page.js';
+import type {
+  QueryOptions,
+  ScreenshotOptions,
+  WaitForSelectorOptions,
+} from './Page.js';
 
 /**
  * @public
@@ -146,6 +151,13 @@ export abstract class ElementHandle<
   declare [_isElementHandle]: boolean;
 
   /**
+   * @internal
+   * Cached isolatedHandle to prevent
+   * trying to adopt it multiple times
+   */
+  isolatedHandle?: typeof this;
+
+  /**
    * A given method will have it's `this` replaced with an isolated version of
    * `this` when decorated with this decorator.
    *
@@ -163,7 +175,14 @@ export abstract class ElementHandle<
       if (this.realm === this.frame.isolatedRealm()) {
         return await target.call(this, ...args);
       }
-      using adoptedThis = await this.frame.isolatedRealm().adoptHandle(this);
+      let adoptedThis: This;
+      if (this['isolatedHandle']) {
+        adoptedThis = this['isolatedHandle'];
+      } else {
+        this['isolatedHandle'] = adoptedThis = await this.frame
+          .isolatedRealm()
+          .adoptHandle(this);
+      }
       const result = await target.call(adoptedThis, ...args);
       // If the function returns `adoptedThis`, then we return `this`.
       if (result === adoptedThis) {
@@ -330,7 +349,21 @@ export abstract class ElementHandle<
   /**
    * Queries the current element for an element matching the given selector.
    *
-   * @param selector - The selector to query for.
+   * @param selector -
+   * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
+   * to query page for.
+   * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
+   * can be passed as-is and a
+   * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
+   * allows quering by
+   * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
+   * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
+   * and
+   * {@link https://pptr.dev/guides/page-interactions#xpath-selectors--p-xpath | xpath}
+   * and
+   * {@link https://pptr.dev/guides/page-interactions#querying-elements-in-shadow-dom | combining these queries across shadow roots}.
+   * Alternatively, you can specify the selector type using a
+   * {@link https://pptr.dev/guides/page-interactions#prefixed-selector-syntax | prefix}.
    * @returns A {@link ElementHandle | element handle} to the first element
    * matching the given selector. Otherwise, `null`.
    */
@@ -350,13 +383,53 @@ export abstract class ElementHandle<
   /**
    * Queries the current element for all elements matching the given selector.
    *
-   * @param selector - The selector to query for.
+   * @param selector -
+   * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
+   * to query page for.
+   * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
+   * can be passed as-is and a
+   * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
+   * allows quering by
+   * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
+   * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
+   * and
+   * {@link https://pptr.dev/guides/page-interactions#xpath-selectors--p-xpath | xpath}
+   * and
+   * {@link https://pptr.dev/guides/page-interactions#querying-elements-in-shadow-dom | combining these queries across shadow roots}.
+   * Alternatively, you can specify the selector type using a
+   * {@link https://pptr.dev/guides/page-interactions#prefixed-selector-syntax | prefix}.
    * @returns An array of {@link ElementHandle | element handles} that point to
    * elements matching the given selector.
    */
   @throwIfDisposed()
-  @ElementHandle.bindIsolatedHandle
   async $$<Selector extends string>(
+    selector: Selector,
+    options?: QueryOptions
+  ): Promise<Array<ElementHandle<NodeFor<Selector>>>> {
+    if (options?.isolate === false) {
+      return await this.#$$impl(selector);
+    }
+    return await this.#$$(selector);
+  }
+
+  /**
+   * Isolates {@link ElementHandle.$$} if needed.
+   *
+   * @internal
+   */
+  @ElementHandle.bindIsolatedHandle
+  async #$$<Selector extends string>(
+    selector: Selector
+  ): Promise<Array<ElementHandle<NodeFor<Selector>>>> {
+    return await this.#$$impl(selector);
+  }
+
+  /**
+   * Implementation for {@link ElementHandle.$$}.
+   *
+   * @internal
+   */
+  async #$$impl<Selector extends string>(
     selector: Selector
   ): Promise<Array<ElementHandle<NodeFor<Selector>>>> {
     const {updatedSelector, QueryHandler} =
@@ -385,7 +458,21 @@ export abstract class ElementHandle<
    * );
    * ```
    *
-   * @param selector - The selector to query for.
+   * @param selector -
+   * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
+   * to query page for.
+   * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
+   * can be passed as-is and a
+   * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
+   * allows quering by
+   * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
+   * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
+   * and
+   * {@link https://pptr.dev/guides/page-interactions#xpath-selectors--p-xpath | xpath}
+   * and
+   * {@link https://pptr.dev/guides/page-interactions#querying-elements-in-shadow-dom | combining these queries across shadow roots}.
+   * Alternatively, you can specify the selector type using a
+   * {@link https://pptr.dev/guides/page-interactions#prefixed-selector-syntax | prefix}.
    * @param pageFunction - The function to be evaluated in this element's page's
    * context. The first element matching the selector will be passed in as the
    * first argument.
@@ -440,7 +527,21 @@ export abstract class ElementHandle<
    * ).toEqual(['Hello!', 'Hi!']);
    * ```
    *
-   * @param selector - The selector to query for.
+   * @param selector -
+   * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
+   * to query page for.
+   * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
+   * can be passed as-is and a
+   * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
+   * allows quering by
+   * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
+   * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
+   * and
+   * {@link https://pptr.dev/guides/page-interactions#xpath-selectors--p-xpath | xpath}
+   * and
+   * {@link https://pptr.dev/guides/page-interactions#querying-elements-in-shadow-dom | combining these queries across shadow roots}.
+   * Alternatively, you can specify the selector type using a
+   * {@link https://pptr.dev/guides/page-interactions#prefixed-selector-syntax | prefix}.
    * @param pageFunction - The function to be evaluated in the element's page's
    * context. An array of elements matching the given selector will be passed to
    * the function as its first argument.
@@ -519,13 +620,12 @@ export abstract class ElementHandle<
     selector: Selector,
     options: WaitForSelectorOptions = {}
   ): Promise<ElementHandle<NodeFor<Selector>> | null> {
-    const {updatedSelector, QueryHandler} =
+    const {updatedSelector, QueryHandler, polling} =
       getQueryHandlerAndSelector(selector);
-    return (await QueryHandler.waitFor(
-      this,
-      updatedSelector,
-      options
-    )) as ElementHandle<NodeFor<Selector>> | null;
+    return (await QueryHandler.waitFor(this, updatedSelector, {
+      polling,
+      ...options,
+    })) as ElementHandle<NodeFor<Selector>> | null;
   }
 
   async #checkVisibility(visibility: boolean): Promise<boolean> {
@@ -541,8 +641,17 @@ export abstract class ElementHandle<
   }
 
   /**
-   * Checks if an element is visible using the same mechanism as
-   * {@link ElementHandle.waitForSelector}.
+   * An element is considered to be visible if all of the following is
+   * true:
+   *
+   * - the element has
+   *   {@link https://developer.mozilla.org/en-US/docs/Web/API/Window/getComputedStyle | computed styles}.
+   *
+   * - the element has a non-empty
+   *   {@link https://developer.mozilla.org/en-US/docs/Web/API/Element/getBoundingClientRect | bounding client rect}.
+   *
+   * - the element's {@link https://developer.mozilla.org/en-US/docs/Web/CSS/visibility | visibility}
+   *   is not `hidden` or `collapse`.
    */
   @throwIfDisposed()
   @ElementHandle.bindIsolatedHandle
@@ -551,8 +660,16 @@ export abstract class ElementHandle<
   }
 
   /**
-   * Checks if an element is hidden using the same mechanism as
-   * {@link ElementHandle.waitForSelector}.
+   * An element is considered to be hidden if at least one of the following is true:
+   *
+   * - the element has no
+   *   {@link https://developer.mozilla.org/en-US/docs/Web/API/Window/getComputedStyle | computed styles}.
+   *
+   * - the element has an empty
+   *   {@link https://developer.mozilla.org/en-US/docs/Web/API/Element/getBoundingClientRect | bounding client rect}.
+   *
+   * - the element's {@link https://developer.mozilla.org/en-US/docs/Web/CSS/visibility | visibility}
+   *   is `hidden` or `collapse`.
    */
   @throwIfDisposed()
   @ElementHandle.bindIsolatedHandle
@@ -623,7 +740,7 @@ export abstract class ElementHandle<
 
   /**
    * This method scrolls element into view if needed, and then
-   * uses {@link Page} to hover over the center of the element.
+   * uses {@link Page.mouse} to hover over the center of the element.
    * If the element is detached from DOM, the method throws an error.
    */
   @throwIfDisposed()
@@ -636,7 +753,7 @@ export abstract class ElementHandle<
 
   /**
    * This method scrolls element into view if needed, and then
-   * uses {@link Page | Page.mouse} to click in the center of the element.
+   * uses {@link Page.mouse} to click in the center of the element.
    * If the element is detached from DOM, the method throws an error.
    */
   @throwIfDisposed()
@@ -858,6 +975,14 @@ export abstract class ElementHandle<
     this: ElementHandle<HTMLInputElement>,
     ...paths: string[]
   ): Promise<void>;
+
+  /**
+   * @internal
+   */
+  abstract queryAXTree(
+    name?: string,
+    role?: string
+  ): AwaitableIterable<ElementHandle<Node>>;
 
   /**
    * This method scrolls element into view if needed, and then uses
@@ -1236,19 +1361,15 @@ export abstract class ElementHandle<
     this: ElementHandle<Element>,
     options: Readonly<ElementScreenshotOptions> = {}
   ): Promise<string | Buffer> {
-    const {scrollIntoView = true} = options;
-
-    let clip = await this.#nonEmptyVisibleBoundingBox();
+    const {scrollIntoView = true, clip} = options;
 
     const page = this.frame.page();
 
     // Only scroll the element into view if the user wants it.
     if (scrollIntoView) {
       await this.scrollIntoViewIfNeeded();
-
-      // We measure again just in case.
-      clip = await this.#nonEmptyVisibleBoundingBox();
     }
+    const elementClip = await this.#nonEmptyVisibleBoundingBox();
 
     const [pageLeft, pageTop] = await this.evaluate(() => {
       if (!window.visualViewport) {
@@ -1259,10 +1380,16 @@ export abstract class ElementHandle<
         window.visualViewport.pageTop,
       ] as const;
     });
-    clip.x += pageLeft;
-    clip.y += pageTop;
+    elementClip.x += pageLeft;
+    elementClip.y += pageTop;
+    if (clip) {
+      elementClip.x += clip.x;
+      elementClip.y += clip.y;
+      elementClip.height = clip.height;
+      elementClip.width = clip.width;
+    }
 
-    return await page.screenshot({...options, clip});
+    return await page.screenshot({...options, clip: elementClip});
   }
 
   async #nonEmptyVisibleBoundingBox() {

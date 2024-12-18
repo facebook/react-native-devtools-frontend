@@ -2,9 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-const {assert} = chai;
-import * as TraceModel from '../trace.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
+import * as TraceModel from '../trace.js';
 
 describe('InitiatorsHandler', () => {
   beforeEach(() => {
@@ -194,5 +193,27 @@ describe('InitiatorsHandler', () => {
     assert.deepEqual(
         data.initiatorToEvents.get(webSocketCreateEvent),
         [webSocketSendHandshakeRequestEvent, webSocketReceieveHandshakeResponseEvent]);
+  });
+
+  it('for a PostMessage Handler event the initiator is the PostMessage Dispatch event', async function() {
+    const traceEvents = await TraceLoader.rawEvents(this, 'postmessage-initiators.json.gz');
+    for (const event of traceEvents) {
+      TraceModel.Handlers.ModelHandlers.Initiators.handleEvent(event);
+    }
+    await TraceModel.Handlers.ModelHandlers.Initiators.finalize();
+    const data = TraceModel.Handlers.ModelHandlers.Initiators.data();
+
+    const schedulePostMessageEvent = traceEvents.find(TraceModel.Types.TraceEvents.isTraceEventSchedulePostMessage);
+    if (!schedulePostMessageEvent) {
+      throw new Error('Could not find schedulePostMessageEvent event');
+    }
+
+    const handlePostMessageEvent = traceEvents.find(TraceModel.Types.TraceEvents.isTraceEventHandlePostMessage);
+    if (!handlePostMessageEvent) {
+      throw new Error('Could not find handlePostMessageEvent event');
+    }
+
+    assert.strictEqual(data.eventToInitiator.get(handlePostMessageEvent), schedulePostMessageEvent);
+    assert.deepEqual(data.initiatorToEvents.get(schedulePostMessageEvent), [handlePostMessageEvent]);
   });
 });

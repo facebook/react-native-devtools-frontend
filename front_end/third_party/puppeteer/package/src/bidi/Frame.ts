@@ -20,23 +20,23 @@ import {
   switchMap,
 } from '../../third_party/rxjs/rxjs.js';
 import type {CDPSession} from '../api/CDPSession.js';
-import type {ElementHandle} from '../api/ElementHandle.js';
 import {
   Frame,
   throwIfDetached,
   type GoToOptions,
   type WaitForOptions,
 } from '../api/Frame.js';
-import type {WaitForSelectorOptions} from '../api/Page.js';
 import {PageEvent} from '../api/Page.js';
+import {Accessibility} from '../cdp/Accessibility.js';
 import {
   ConsoleMessage,
   type ConsoleMessageLocation,
 } from '../common/ConsoleMessage.js';
 import {TargetCloseError, UnsupportedOperation} from '../common/Errors.js';
 import type {TimeoutSettings} from '../common/TimeoutSettings.js';
-import type {Awaitable, NodeFor} from '../common/types.js';
+import type {Awaitable} from '../common/types.js';
 import {debugError, fromEmitterEvent, timeout} from '../common/util.js';
+import {isErrorLike} from '../util/ErrorLike.js';
 
 import {BidiCdpSession} from './CDPSession.js';
 import type {BrowsingContext} from './core/BrowsingContext.js';
@@ -72,6 +72,7 @@ export class BidiFrame extends Frame {
 
   override readonly _id: string;
   override readonly client: BidiCdpSession;
+  override readonly accessibility: Accessibility;
 
   private constructor(
     parent: BidiPage | BidiFrame,
@@ -92,6 +93,7 @@ export class BidiFrame extends Frame {
         this
       ),
     };
+    this.accessibility = new Accessibility(this.realms.default);
   }
 
   #initialize(): void {
@@ -105,7 +107,7 @@ export class BidiFrame extends Frame {
     this.browsingContext.on('closed', () => {
       for (const session of BidiCdpSession.sessions.values()) {
         if (session.frame === this) {
-          void session.detach().catch(debugError);
+          session.onClose();
         }
       }
       this.page().trustedEmitter.emit(PageEvent.FrameDetached, this);
@@ -114,13 +116,13 @@ export class BidiFrame extends Frame {
     this.browsingContext.on('request', ({request}) => {
       const httpRequest = BidiHTTPRequest.from(request, this);
       request.once('success', () => {
-        // SAFETY: BidiHTTPRequest will create this before here.
         this.page().trustedEmitter.emit(PageEvent.RequestFinished, httpRequest);
       });
 
       request.once('error', () => {
         this.page().trustedEmitter.emit(PageEvent.RequestFailed, httpRequest);
       });
+      void httpRequest.finalizeInterceptions();
     });
 
     this.browsingContext.on('navigation', ({navigation}) => {
@@ -300,10 +302,18 @@ export class BidiFrame extends Frame {
       // readiness=interactive.
       //
       // Related: https://bugzilla.mozilla.org/show_bug.cgi?id=1846601
-      this.browsingContext.navigate(
-        url,
-        Bidi.BrowsingContext.ReadinessState.Interactive
-      ),
+      this.browsingContext
+        .navigate(url, Bidi.BrowsingContext.ReadinessState.Interactive)
+        .catch(error => {
+          if (
+            isErrorLike(error) &&
+            error.message.includes('net::ERR_HTTP_RESPONSE_CODE_FAILURE')
+          ) {
+            return;
+          }
+
+          throw error;
+        }),
     ]).catch(
       rewriteNavigationError(
         url,
@@ -351,11 +361,7 @@ export class BidiFrame extends Frame {
               }),
               raceWith(
                 fromEmitterEvent(navigation, 'fragment'),
-                fromEmitterEvent(navigation, 'failed').pipe(
-                  map(({url}) => {
-                    throw new Error(`Navigation failed: ${url}`);
-                  })
-                ),
+                fromEmitterEvent(navigation, 'failed'),
                 fromEmitterEvent(navigation, 'aborted').pipe(
                   map(({url}) => {
                     throw new Error(`Navigation aborted: ${url}`);
@@ -401,11 +407,9 @@ export class BidiFrame extends Frame {
           if (!request) {
             return null;
           }
-          const httpRequest = requests.get(request)!;
-          const lastRedirect = httpRequest.redirectChain().at(-1);
-          return (
-            lastRedirect !== undefined ? lastRedirect : httpRequest
-          ).response();
+          const lastRequest = request.lastRedirect ?? request;
+          const httpRequest = requests.get(lastRequest)!;
+          return httpRequest.response();
         }),
         raceWith(
           timeout(ms),
@@ -453,24 +457,12 @@ export class BidiFrame extends Frame {
     await exposedFunction[Symbol.asyncDispose]();
   }
 
-  override waitForSelector<Selector extends string>(
-    selector: Selector,
-    options?: WaitForSelectorOptions
-  ): Promise<ElementHandle<NodeFor<Selector>> | null> {
-    if (selector.startsWith('aria') && !this.page().browser().cdpSupported) {
-      throw new UnsupportedOperation(
-        'ARIA selector is not supported for BiDi!'
-      );
-    }
-
-    return super.waitForSelector(selector, options);
-  }
-
   async createCDPSession(): Promise<CDPSession> {
     const {sessionId} = await this.client.send('Target.attachToTarget', {
       targetId: this._id,
       flatten: true,
     });
+    await this.browsingContext.subscribe([Bidi.ChromiumBidi.BiDiModule.Cdp]);
     return new BidiCdpSession(this, sessionId);
   }
 
@@ -555,6 +547,18 @@ export class BidiFrame extends Frame {
       // SAFETY: ElementHandles are always remote references.
       element.remoteValue() as Bidi.Script.SharedReference,
       files
+    );
+  }
+
+  @throwIfDetached
+  async locateNodes(
+    element: BidiElementHandle,
+    locator: Bidi.BrowsingContext.Locator
+  ): Promise<Bidi.Script.NodeRemoteValue[]> {
+    return await this.browsingContext.locateNodes(
+      locator,
+      // SAFETY: ElementHandles are always remote references.
+      [element.remoteValue() as Bidi.Script.SharedReference]
     );
   }
 }

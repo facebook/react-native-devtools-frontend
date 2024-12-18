@@ -41,7 +41,9 @@ export async function finalize(): Promise<void> {
 
   for (const snapshotEvent of snapshotEvents) {
     const {cat, name, ph, pid, tid} = snapshotEvent;
-    const syntheticEvent: Types.TraceEvents.SyntheticScreenshot = {
+    const syntheticEvent = Helpers.SyntheticEvents.SyntheticEventsManager.registerSyntheticBasedEvent<
+        Types.TraceEvents.SyntheticScreenshot>({
+      rawSourceEvent: snapshotEvent,
       cat,
       name,
       ph,
@@ -52,7 +54,7 @@ export async function finalize(): Promise<void> {
       args: {
         dataUri: `data:image/jpg;base64,${snapshotEvent.args.snapshot}`,
       },
-    };
+    });
     syntheticScreenshotEvents.push(syntheticEvent);
   }
 }
@@ -81,8 +83,9 @@ function getPresentationTimestamp(screenshotEvent: Types.TraceEvents.TraceEventS
   return updatedTs ?? screenshotEvent.ts;
 }
 
+// TODO(crbug/41484172): should be readonly
 export function data(): Types.TraceEvents.SyntheticScreenshot[] {
-  return [...syntheticScreenshotEvents];
+  return syntheticScreenshotEvents;
 }
 
 export function deps(): TraceEventHandlerName[] {

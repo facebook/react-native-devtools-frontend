@@ -9,18 +9,14 @@ import type {CDPSession} from '../api/CDPSession.js';
 import type {Frame} from '../api/Frame.js';
 import {
   type ContinueRequestOverrides,
-  type ErrorCode,
   headersArray,
   HTTPRequest,
-  InterceptResolutionAction,
-  type InterceptResolutionState,
   type ResourceType,
   type ResponseForRequest,
   STATUS_TEXTS,
+  handleError,
 } from '../api/HTTPRequest.js';
-import type {ProtocolError} from '../common/Errors.js';
-import {debugError, isString} from '../common/util.js';
-import {assert} from '../util/assert.js';
+import {debugError} from '../common/util.js';
 
 import type {CdpHTTPResponse} from './HTTPResponse.js';
 
@@ -34,8 +30,7 @@ export class CdpHTTPRequest extends HTTPRequest {
 
   #client: CDPSession;
   #isNavigationRequest: boolean;
-  #allowInterception: boolean;
-  #interceptionHandled = false;
+
   #url: string;
   #resourceType: ResourceType;
 
@@ -44,13 +39,6 @@ export class CdpHTTPRequest extends HTTPRequest {
   #postData?: string;
   #headers: Record<string, string> = {};
   #frame: Frame | null;
-  #continueRequestOverrides: ContinueRequestOverrides;
-  #responseForRequest: Partial<ResponseForRequest> | null = null;
-  #abortErrorReason: Protocol.Network.ErrorReason | null = null;
-  #interceptResolutionState: InterceptResolutionState = {
-    action: InterceptResolutionAction.None,
-  };
-  #interceptHandlers: Array<() => void | PromiseLike<any>>;
   #initiator?: Protocol.Network.Initiator;
 
   override get client(): CDPSession {
@@ -96,7 +84,6 @@ export class CdpHTTPRequest extends HTTPRequest {
     this.#isNavigationRequest =
       data.requestId === data.loaderId && data.type === 'Document';
     this._interceptionId = interceptionId;
-    this.#allowInterception = allowInterception;
     this.#url = data.request.url;
     this.#resourceType = (data.type || 'other').toLowerCase() as ResourceType;
     this.#method = data.request.method;
@@ -104,9 +91,9 @@ export class CdpHTTPRequest extends HTTPRequest {
     this.#hasPostData = data.request.hasPostData ?? false;
     this.#frame = frame;
     this._redirectChain = redirectChain;
-    this.#continueRequestOverrides = {};
-    this.#interceptHandlers = [];
     this.#initiator = data.initiator;
+
+    this.interception.enabled = allowInterception;
 
     for (const [key, value] of Object.entries(data.request.headers)) {
       this.#headers[key.toLowerCase()] = value;
@@ -115,59 +102,6 @@ export class CdpHTTPRequest extends HTTPRequest {
 
   override url(): string {
     return this.#url;
-  }
-
-  override continueRequestOverrides(): ContinueRequestOverrides {
-    assert(this.#allowInterception, 'Request Interception is not enabled!');
-    return this.#continueRequestOverrides;
-  }
-
-  override responseForRequest(): Partial<ResponseForRequest> | null {
-    assert(this.#allowInterception, 'Request Interception is not enabled!');
-    return this.#responseForRequest;
-  }
-
-  override abortErrorReason(): Protocol.Network.ErrorReason | null {
-    assert(this.#allowInterception, 'Request Interception is not enabled!');
-    return this.#abortErrorReason;
-  }
-
-  override interceptResolutionState(): InterceptResolutionState {
-    if (!this.#allowInterception) {
-      return {action: InterceptResolutionAction.Disabled};
-    }
-    if (this.#interceptionHandled) {
-      return {action: InterceptResolutionAction.AlreadyHandled};
-    }
-    return {...this.#interceptResolutionState};
-  }
-
-  override isInterceptResolutionHandled(): boolean {
-    return this.#interceptionHandled;
-  }
-
-  enqueueInterceptAction(
-    pendingHandler: () => void | PromiseLike<unknown>
-  ): void {
-    this.#interceptHandlers.push(pendingHandler);
-  }
-
-  override async finalizeInterceptions(): Promise<void> {
-    await this.#interceptHandlers.reduce((promiseChain, interceptAction) => {
-      return promiseChain.then(interceptAction);
-    }, Promise.resolve());
-    const {action} = this.interceptResolutionState();
-    switch (action) {
-      case 'abort':
-        return await this.#abort(this.#abortErrorReason);
-      case 'respond':
-        if (this.#responseForRequest === null) {
-          throw new Error('Response is missing for the interception');
-        }
-        return await this.#respond(this.#responseForRequest);
-      case 'continue':
-        return await this.#continue(this.#continueRequestOverrides);
-    }
   }
 
   override resourceType(): ResourceType {
@@ -231,50 +165,14 @@ export class CdpHTTPRequest extends HTTPRequest {
     };
   }
 
-  override async continue(
-    overrides: ContinueRequestOverrides = {},
-    priority?: number
-  ): Promise<void> {
-    // Request interception is not supported for data: urls.
-    if (this.#url.startsWith('data:')) {
-      return;
-    }
-    assert(this.#allowInterception, 'Request Interception is not enabled!');
-    assert(!this.#interceptionHandled, 'Request is already handled!');
-    if (priority === undefined) {
-      return await this.#continue(overrides);
-    }
-    this.#continueRequestOverrides = overrides;
-    if (
-      this.#interceptResolutionState.priority === undefined ||
-      priority > this.#interceptResolutionState.priority
-    ) {
-      this.#interceptResolutionState = {
-        action: InterceptResolutionAction.Continue,
-        priority,
-      };
-      return;
-    }
-    if (priority === this.#interceptResolutionState.priority) {
-      if (
-        this.#interceptResolutionState.action === 'abort' ||
-        this.#interceptResolutionState.action === 'respond'
-      ) {
-        return;
-      }
-      this.#interceptResolutionState.action =
-        InterceptResolutionAction.Continue;
-    }
-    return;
-  }
-
-  async #continue(overrides: ContinueRequestOverrides = {}): Promise<void> {
+  /**
+   * @internal
+   */
+  async _continue(overrides: ContinueRequestOverrides = {}): Promise<void> {
     const {url, method, postData, headers} = overrides;
-    this.#interceptionHandled = true;
+    this.interception.handled = true;
 
-    const postDataBinaryBase64 = postData
-      ? Buffer.from(postData).toString('base64')
-      : undefined;
+    const postDataBinaryBase64 = postData ? btoa(postData) : undefined;
 
     if (this._interceptionId === undefined) {
       throw new Error(
@@ -290,50 +188,23 @@ export class CdpHTTPRequest extends HTTPRequest {
         headers: headers ? headersArray(headers) : undefined,
       })
       .catch(error => {
-        this.#interceptionHandled = false;
+        this.interception.handled = false;
         return handleError(error);
       });
   }
 
-  override async respond(
-    response: Partial<ResponseForRequest>,
-    priority?: number
-  ): Promise<void> {
-    // Mocking responses for dataURL requests is not currently supported.
-    if (this.#url.startsWith('data:')) {
-      return;
-    }
-    assert(this.#allowInterception, 'Request Interception is not enabled!');
-    assert(!this.#interceptionHandled, 'Request is already handled!');
-    if (priority === undefined) {
-      return await this.#respond(response);
-    }
-    this.#responseForRequest = response;
-    if (
-      this.#interceptResolutionState.priority === undefined ||
-      priority > this.#interceptResolutionState.priority
-    ) {
-      this.#interceptResolutionState = {
-        action: InterceptResolutionAction.Respond,
-        priority,
-      };
-      return;
-    }
-    if (priority === this.#interceptResolutionState.priority) {
-      if (this.#interceptResolutionState.action === 'abort') {
-        return;
-      }
-      this.#interceptResolutionState.action = InterceptResolutionAction.Respond;
-    }
-  }
+  async _respond(response: Partial<ResponseForRequest>): Promise<void> {
+    this.interception.handled = true;
 
-  async #respond(response: Partial<ResponseForRequest>): Promise<void> {
-    this.#interceptionHandled = true;
-
-    const responseBody: Buffer | null =
-      response.body && isString(response.body)
-        ? Buffer.from(response.body)
-        : (response.body as Buffer) || null;
+    let parsedBody:
+      | {
+          contentLength: number;
+          base64: string;
+        }
+      | undefined;
+    if (response.body) {
+      parsedBody = HTTPRequest.getResponse(response.body);
+    }
 
     const responseHeaders: Record<string, string | string[]> = {};
     if (response.headers) {
@@ -350,10 +221,8 @@ export class CdpHTTPRequest extends HTTPRequest {
     if (response.contentType) {
       responseHeaders['content-type'] = response.contentType;
     }
-    if (responseBody && !('content-length' in responseHeaders)) {
-      responseHeaders['content-length'] = String(
-        Buffer.byteLength(responseBody)
-      );
+    if (parsedBody?.contentLength && !('content-length' in responseHeaders)) {
+      responseHeaders['content-length'] = String(parsedBody.contentLength);
     }
 
     const status = response.status || 200;
@@ -368,46 +237,18 @@ export class CdpHTTPRequest extends HTTPRequest {
         responseCode: status,
         responsePhrase: STATUS_TEXTS[status],
         responseHeaders: headersArray(responseHeaders),
-        body: responseBody ? responseBody.toString('base64') : undefined,
+        body: parsedBody?.base64,
       })
       .catch(error => {
-        this.#interceptionHandled = false;
+        this.interception.handled = false;
         return handleError(error);
       });
   }
 
-  override async abort(
-    errorCode: ErrorCode = 'failed',
-    priority?: number
-  ): Promise<void> {
-    // Request interception is not supported for data: urls.
-    if (this.#url.startsWith('data:')) {
-      return;
-    }
-    const errorReason = errorReasons[errorCode];
-    assert(errorReason, 'Unknown error code: ' + errorCode);
-    assert(this.#allowInterception, 'Request Interception is not enabled!');
-    assert(!this.#interceptionHandled, 'Request is already handled!');
-    if (priority === undefined) {
-      return await this.#abort(errorReason);
-    }
-    this.#abortErrorReason = errorReason;
-    if (
-      this.#interceptResolutionState.priority === undefined ||
-      priority >= this.#interceptResolutionState.priority
-    ) {
-      this.#interceptResolutionState = {
-        action: InterceptResolutionAction.Abort,
-        priority,
-      };
-      return;
-    }
-  }
-
-  async #abort(
+  async _abort(
     errorReason: Protocol.Network.ErrorReason | null
   ): Promise<void> {
-    this.#interceptionHandled = true;
+    this.interception.handled = true;
     if (this._interceptionId === undefined) {
       throw new Error(
         'HTTPRequest is missing _interceptionId needed for Fetch.failRequest'
@@ -420,31 +261,4 @@ export class CdpHTTPRequest extends HTTPRequest {
       })
       .catch(handleError);
   }
-}
-
-const errorReasons: Record<ErrorCode, Protocol.Network.ErrorReason> = {
-  aborted: 'Aborted',
-  accessdenied: 'AccessDenied',
-  addressunreachable: 'AddressUnreachable',
-  blockedbyclient: 'BlockedByClient',
-  blockedbyresponse: 'BlockedByResponse',
-  connectionaborted: 'ConnectionAborted',
-  connectionclosed: 'ConnectionClosed',
-  connectionfailed: 'ConnectionFailed',
-  connectionrefused: 'ConnectionRefused',
-  connectionreset: 'ConnectionReset',
-  internetdisconnected: 'InternetDisconnected',
-  namenotresolved: 'NameNotResolved',
-  timedout: 'TimedOut',
-  failed: 'Failed',
-} as const;
-
-async function handleError(error: ProtocolError) {
-  if (['Invalid header'].includes(error.originalMessage)) {
-    throw error;
-  }
-  // In certain cases, protocol will return error if the request was
-  // already canceled or the page was closed. We should tolerate these
-  // errors.
-  debugError(error);
 }

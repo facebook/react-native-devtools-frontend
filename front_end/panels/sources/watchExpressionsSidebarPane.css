@@ -12,9 +12,13 @@
   .watch-expression-title:hover & {
     opacity: 100%;
   }
+
+  .watch-expression-title:focus-within & {
+    opacity: 100%;
+  }
 }
 
-:host-context(.-theme-with-dark-background) .watch-expression-delete-button {
+:host-context(.theme-with-dark-background) .watch-expression-delete-button {
   /* This is a workaround due to a sprite with hardcoded color.
      It should no longer be necessary after we update icons. */
   filter: brightness(1.5);
@@ -30,7 +34,8 @@
   display: flex;
 }
 
-.watch-expression-title:hover {
+.watch-expression-title:hover,
+.watch-expression-title:focus-within {
   padding-right: 26px;
 }
 
@@ -101,6 +106,10 @@ li.watch-expression-tree-item.selected {
 }
 
 li.watch-expression-tree-item.selected:focus {
+  background: var(--sys-color-tonal-container);
+}
+
+li.watch-expression-tree-item.selected:focus-within:focus-visible {
   background: var(--sys-color-tonal-container);
 }
 

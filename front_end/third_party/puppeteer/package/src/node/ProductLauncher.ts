@@ -98,6 +98,12 @@ export abstract class ProductLauncher {
 
     const launchArgs = await this.computeLaunchArguments(options);
 
+    if (!existsSync(launchArgs.executablePath)) {
+      throw new Error(
+        `Browser was not found at the configured executablePath (${launchArgs.executablePath})`
+      );
+    }
+
     const usePipe = launchArgs.args.includes('--remote-debugging-pipe');
 
     const onProcessExit = async () => {
@@ -105,6 +111,18 @@ export abstract class ProductLauncher {
         isTemp: launchArgs.isTempUserDataDir,
       });
     };
+
+    if (
+      this.#product === 'firefox' &&
+      protocol !== 'webDriverBiDi' &&
+      this.puppeteer.configuration.logLevel === 'warn'
+    ) {
+      console.warn(
+        `Chrome DevTools Protocol (CDP) support for Firefox is deprecated in Puppeteer ` +
+          `and it will be eventually removed. ` +
+          `Use WebDriver BiDi instead (see https://pptr.dev/webdriver-bidi#get-started).`
+      );
+    }
 
     const browserProcess = launch({
       executablePath: launchArgs.executablePath,
@@ -163,9 +181,6 @@ export abstract class ProductLauncher {
             cdpConnection,
             browserCloseCallback,
             {
-              timeout,
-              protocolTimeout,
-              slowMo,
               defaultViewport,
               ignoreHTTPSErrors,
             }
@@ -191,7 +206,7 @@ export abstract class ProductLauncher {
       throw error;
     }
 
-    if (waitForInitialPage && protocol !== 'webDriverBiDi') {
+    if (waitForInitialPage) {
       await this.waitForPageTarget(browser, timeout);
     }
 
@@ -322,14 +337,10 @@ export abstract class ProductLauncher {
     connection: Connection,
     closeCallback: BrowserCloseCallback,
     opts: {
-      timeout: number;
-      protocolTimeout: number | undefined;
-      slowMo: number;
       defaultViewport: Viewport | null;
       ignoreHTTPSErrors?: boolean;
     }
   ): Promise<Browser> {
-    // TODO: use other options too.
     const BiDi = await import(/* webpackIgnore: true */ '../bidi/bidi.js');
     const bidiConnection = await BiDi.connectBidiOverCdp(connection, {
       acceptInsecureCerts: opts.ignoreHTTPSErrors ?? false,
@@ -370,7 +381,6 @@ export abstract class ProductLauncher {
       opts.slowMo,
       opts.protocolTimeout
     );
-    // TODO: use other options too.
     return await BiDi.BidiBrowser.create({
       connection: bidiConnection,
       closeCallback,

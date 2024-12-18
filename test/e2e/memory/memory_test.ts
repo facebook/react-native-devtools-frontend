@@ -10,7 +10,6 @@ import {
   $$,
   assertNotNullOrUndefined,
   clickElement,
-  disableExperiment,
   enableExperiment,
   getBrowserAndPages,
   goToResource,
@@ -25,15 +24,21 @@ import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   changeAllocationSampleViewViaDropdown,
   changeViewViaDropdown,
+  checkExposeInternals,
+  clickOnContextMenuForRetainer,
   expandFocusedRow,
   findSearchResult,
   focusTableRow,
+  getCategoryRow,
+  getCountFromCategoryRow,
   getDataGridRows,
   getDistanceFromCategoryRow,
   getSizesFromCategoryRow,
   getSizesFromSelectedRow,
   navigateToMemoryTab,
+  restoreIgnoredRetainers,
   setClassFilter,
+  setFilterDropdown,
   setSearchFilter,
   takeAllocationProfile,
   takeAllocationTimelineProfile,
@@ -57,7 +62,8 @@ describe('The Memory Panel', function() {
     await navigateToMemoryTab();
   });
 
-  it('Can take several heap snapshots ', async () => {
+  // This test logs assertions to the console.
+  it.skip('[crbug.com/347709947] Can take several heap snapshots ', async () => {
     await goToResource('memory/default.html');
     await navigateToMemoryTab();
     await takeHeapSnapshot();
@@ -81,7 +87,7 @@ describe('The Memory Panel', function() {
       'Detached EventListener',
       'Detached InternalNode',
       'Detached InternalNode',
-      'Detached HTMLDivElement',
+      'Detached <div>',
       'Retainer',
       'Window',
     ]);
@@ -110,7 +116,7 @@ describe('The Memory Panel', function() {
             'EventListener',
             'InternalNode',
             'InternalNode',
-            'HTMLBodyElement',
+            '<body>',
           ]);
         });
       });
@@ -163,7 +169,7 @@ describe('The Memory Panel', function() {
     await navigateToMemoryTab();
     await takeHeapSnapshot();
     await waitForNonEmptyHeapSnapshotData();
-    await setSearchFilter('Detached HTMLDivElement');
+    await setSearchFilter('Detached <div>');
     await waitForSearchResultNumber(3);
   });
 
@@ -172,9 +178,12 @@ describe('The Memory Panel', function() {
     await navigateToMemoryTab();
     await takeHeapSnapshot();
     await waitForNonEmptyHeapSnapshotData();
-    await setSearchFilter('Retainer');
-    await waitForSearchResultNumber(8);
-    await findSearchResult('Retainer');
+    await setSearchFilter('searchable string');
+    await waitForSearchResultNumber(6);
+    // The string object is formatted with double quotes, and the same string
+    // within the iframe's src attribute is formatted with single quotes, so
+    // this should reliably find the string object.
+    await findSearchResult('"searchable string"');
     // The following line checks two things: That the property 'aUniqueName'
     // in the iframe is retaining the Retainer class object, and that the
     // iframe window is not detached.
@@ -268,7 +277,7 @@ describe('The Memory Panel', function() {
     await navigateToMemoryTab();
     await takeHeapSnapshot();
     await waitForNonEmptyHeapSnapshotData();
-    await setSearchFilter('Detached HTMLDivElement');
+    await setSearchFilter('Detached <div>');
     await waitForSearchResultNumber(3);
     await waitUntilRetainerChainSatisfies(retainerChain => {
       return retainerChain.length > 0 && retainerChain[0].propertyName === 'retaining_wrapper';
@@ -278,6 +287,12 @@ describe('The Memory Panel', function() {
     propertyNameElement!.hover();
     const el = await waitFor('div.vbox.flex-auto.no-pointer-events');
     await waitFor('.source-code', el);
+
+    await setSearchFilter('system / descriptorarray');
+    await findSearchResult('system / DescriptorArray');
+    const searchResultElement = await waitFor('.selected.data-grid-data-grid-node span.object-value-null');
+    searchResultElement!.hover();
+    await waitFor('.widget .object-popover-footer');
   });
 
   it('shows the flamechart for an allocation sample', async () => {
@@ -423,7 +438,9 @@ describe('The Memory Panel', function() {
 
   it('Does not include backing store size in the shallow size of a JS Set', async () => {
     await goToResource('memory/set.html');
-    await disableExperiment('heap-snapshot-treat-backing-store-as-containing-object');
+    await enableExperiment('show-option-tp-expose-internals-in-heap-snapshot');
+    await navigateToMemoryTab();
+    await checkExposeInternals();
     const sizes = await runJSSetTest();
 
     // The Set object is small, regardless of the contained content.
@@ -439,7 +456,6 @@ describe('The Memory Panel', function() {
 
   it('Includes backing store size in the shallow size of a JS Set', async () => {
     await goToResource('memory/set.html');
-    await enableExperiment('heap-snapshot-treat-backing-store-as-containing-object');
     const sizes = await runJSSetTest();
 
     // The Set is reported as containing at least 100 pointers.
@@ -468,5 +484,54 @@ describe('The Memory Panel', function() {
     assert.isTrue((await getSizesFromCategoryRow('CustomClass3Key')).retainedSize < 2 ** 15);
     assert.isTrue((await getSizesFromCategoryRow('CustomClass4Key')).retainedSize < 2 ** 15);
     assert.isTrue((await getSizesFromCategoryRow('CustomClass4Retainer')).retainedSize >= 2 ** 15);
+  });
+
+  it('Allows ignoring retainers', async () => {
+    await goToResource('memory/ignoring-retainers.html');
+    await navigateToMemoryTab();
+    await takeHeapSnapshot();
+    await waitForNonEmptyHeapSnapshotData();
+    await setSearchFilter('searchable_string');
+    await waitForSearchResultNumber(2);
+    await findSearchResult('"searchable_string"');
+    await waitForRetainerChain(['Object', 'KeyType', 'Window']);
+    await clickOnContextMenuForRetainer('KeyType', 'Ignore this retainer');
+    await waitForRetainerChain(['Object', 'Object', 'Window']);
+    await clickOnContextMenuForRetainer('x', 'Ignore this retainer');
+    await waitForRetainerChain(['Object', '(internal array)[]', 'WeakMap', 'Window']);
+    await clickOnContextMenuForRetainer('(internal array)[]', 'Ignore this retainer');
+    await waitForRetainerChain(['Object', 'Object', 'Object', 'Object', 'Object', 'Window']);
+    await clickOnContextMenuForRetainer('b', 'Ignore this retainer');
+    await waitForRetainerChain(['(Internalized strings)', '(GC roots)']);
+    await restoreIgnoredRetainers();
+    await waitForRetainerChain(['Object', 'KeyType', 'Window']);
+  });
+
+  it('Can filter the summary view', async () => {
+    await goToResource('memory/filtering.html');
+    await navigateToMemoryTab();
+    await takeHeapSnapshot();
+    await waitForNonEmptyHeapSnapshotData();
+    await setFilterDropdown('Duplicated strings');
+    await setSearchFilter('"duplicatedKey":"duplicatedValue"');
+    await waitForSearchResultNumber(2);
+    await setFilterDropdown('Objects retained by detached DOM nodes');
+    await getCategoryRow('ObjectRetainedByDetachedDom');
+    assert.isTrue(!(await getCategoryRow('ObjectRetainedByBothDetachedDomAndConsole', false)));
+    await setFilterDropdown('Objects retained by the DevTools console');
+    await getCategoryRow('ObjectRetainedByConsole');
+    assert.isTrue(!(await getCategoryRow('ObjectRetainedByBothDetachedDomAndConsole', false)));
+  });
+
+  it('Groups HTML elements by tag name', async () => {
+    await goToResource('memory/dom-details.html');
+    await navigateToMemoryTab();
+    await takeHeapSnapshot();
+    await waitForNonEmptyHeapSnapshotData();
+    await setClassFilter('<div>');
+    assert.strictEqual(3, await getCountFromCategoryRow('<div>'));
+    assert.strictEqual(3, await getCountFromCategoryRow('Detached <div>'));
+    await setSearchFilter('Detached <div data-x="p" data-y="q">');
+    await waitForSearchResultNumber(1);
   });
 });

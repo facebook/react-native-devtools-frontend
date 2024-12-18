@@ -6,7 +6,6 @@ import * as Common from '../../core/common/common.js';
 import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
-import {assertElement} from '../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
 
 import * as Network from './network.js';
@@ -28,7 +27,7 @@ describeWithEnvironment('NetworkLogView', () => {
     networkRequestNode.renderCell(el, 'name');
     const marker = el.querySelector('.network-override-marker');
     const tooltip = el.querySelector('[title="Request headers are overridden"]');
-    assertElement(marker, HTMLDivElement);
+    assert.instanceOf(marker, HTMLDivElement);
     assert.isNotNull(tooltip);
   });
 
@@ -47,7 +46,7 @@ describeWithEnvironment('NetworkLogView', () => {
     networkRequestNode.renderCell(el, 'name');
     const marker = el.querySelector('.network-override-marker');
     const tooltip = el.querySelector('[title="Request content is overridden"]');
-    assertElement(marker, HTMLDivElement);
+    assert.instanceOf(marker, HTMLDivElement);
     assert.isNotNull(tooltip);
   });
 
@@ -68,7 +67,7 @@ describeWithEnvironment('NetworkLogView', () => {
     networkRequestNode.renderCell(el, 'name');
     const marker = el.querySelector('.network-override-marker');
     const tooltip = el.querySelector('[title="Both request content and headers are overridden"]');
-    assertElement(marker, HTMLDivElement);
+    assert.instanceOf(marker, HTMLDivElement);
     assert.isNotNull(tooltip);
   });
 
@@ -123,6 +122,32 @@ describeWithEnvironment('NetworkLogView', () => {
 
     const backgroundColorOfIcon = iconStyle.backgroundColor.toString();
     assert.strictEqual(backgroundColorOfIcon, 'var(--icon-error)');
+  });
+
+  it('show document icon', async () => {
+    const request = SDK.NetworkRequest.NetworkRequest.create(
+        'requestId' as Protocol.Network.RequestId, 'https://www.example.com/' as Platform.DevToolsPath.UrlString,
+        '' as Platform.DevToolsPath.UrlString, null, null, null);
+    request.setResourceType(Common.ResourceType.resourceTypes.Document);
+    request.mimeType = 'text/html';
+
+    const networkRequestNode = new Network.NetworkDataGridNode.NetworkRequestNode(
+        {} as Network.NetworkDataGridNode.NetworkLogViewInterface, request);
+    const el = document.createElement('div');
+
+    networkRequestNode.renderCell(el, 'name');
+    const iconElement = el.querySelector('.icon') as HTMLElement;
+
+    const iconStyle = iconElement.style;
+    const indexOfIconImage = iconStyle.webkitMaskImage.indexOf('Images/') + 7;
+    const iconImage = iconStyle.webkitMaskImage.substring(indexOfIconImage);
+
+    assert.strictEqual('file-document.svg")', iconImage);
+
+    const backgroundColorOfIcon = iconStyle.backgroundColor.toString();
+    assert.strictEqual(backgroundColorOfIcon, 'var(--icon-file-document)');
+    // TODO(barrypollard): Would be good to test the value of --icon-file-document
+    // is correctly set to --sys-color-blue-bright. See https://crbug.com/346714111
   });
 
   it('show media icon', async () => {

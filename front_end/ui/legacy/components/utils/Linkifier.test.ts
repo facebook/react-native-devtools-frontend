@@ -3,12 +3,12 @@
 // found in the LICENSE file.
 
 import * as Platform from '../../../../core/platform/platform.js';
-import {assertNotNullOrUndefined} from '../../../../core/platform/platform.js';
 import * as SDK from '../../../../core/sdk/sdk.js';
 import type * as Protocol from '../../../../generated/protocol.js';
 import * as Bindings from '../../../../models/bindings/bindings.js';
 import * as Breakpoints from '../../../../models/breakpoints/breakpoints.js';
 import * as Workspace from '../../../../models/workspace/workspace.js';
+import {findMenuItemWithLabel} from '../../../../testing/ContextMenuHelpers.js';
 import {
   createTarget,
   describeWithEnvironment,
@@ -21,8 +21,6 @@ import {MockProtocolBackend} from '../../../../testing/MockScopeChain.js';
 import * as UI from '../../legacy.js';
 
 import * as Components from './utils.js';
-
-const {assert} = chai;
 
 const scriptId1 = '1' as Protocol.Runtime.ScriptId;
 const scriptId2 = '2' as Protocol.Runtime.ScriptId;
@@ -92,17 +90,17 @@ describeWithMockConnection('Linkifier', () => {
     const {target, linkifier} = setUpEnvironment();
 
     const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel);
-    assertNotNullOrUndefined(debuggerModel);
+    assert.exists(debuggerModel);
     void debuggerModel.suspendModel();
 
     const lineNumber = 4;
     const url = Platform.DevToolsPath.EmptyUrlString;
     const anchor = linkifier.maybeLinkifyScriptLocation(target, scriptId1, url, lineNumber);
-    assertNotNullOrUndefined(anchor);
+    assert.exists(anchor);
     assert.strictEqual(anchor.textContent, '');
 
     const info = Components.Linkifier.Linkifier.linkInfo(anchor);
-    assertNotNullOrUndefined(info);
+    assert.exists(info);
     assert.isNull(info.uiLocation);
   });
 
@@ -110,14 +108,14 @@ describeWithMockConnection('Linkifier', () => {
     const {target, linkifier} = setUpEnvironment();
 
     const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel);
-    assertNotNullOrUndefined(debuggerModel);
+    assert.exists(debuggerModel);
     void debuggerModel.suspendModel();
 
     const lineNumber = 4;
     // Explicitly set url to empty string and let it resolve through the live location.
     const url = Platform.DevToolsPath.EmptyUrlString;
     const anchor = linkifier.maybeLinkifyScriptLocation(target, scriptId1, url, lineNumber);
-    assertNotNullOrUndefined(anchor);
+    assert.exists(anchor);
     assert.strictEqual(anchor.textContent, '');
 
     void debuggerModel.resumeModel();
@@ -141,8 +139,8 @@ describeWithMockConnection('Linkifier', () => {
       for (const mutation of mutations) {
         if (mutation.type === 'childList') {
           const info = Components.Linkifier.Linkifier.linkInfo(anchor);
-          assertNotNullOrUndefined(info);
-          assertNotNullOrUndefined(info.uiLocation);
+          assert.exists(info);
+          assert.exists(info.uiLocation);
           assert.strictEqual(anchor.textContent, `script.js:${lineNumber + 1}`);
           observer.disconnect();
           done();
@@ -177,13 +175,13 @@ describeWithMockConnection('Linkifier', () => {
     // Ask for a link to a script that has not been registered yet, but has the same url.
     const anchor =
         linkifier.maybeLinkifyScriptLocation(target, scriptId2, url as Platform.DevToolsPath.UrlString, lineNumber);
-    assertNotNullOrUndefined(anchor);
+    assert.exists(anchor);
 
     // This link should not pick up the first script with the same url, since there's no
     // warranty that the first script has anything to do with this one (other than having
     // the same url).
     const info = Components.Linkifier.Linkifier.linkInfo(anchor);
-    assertNotNullOrUndefined(info);
+    assert.exists(info);
     assert.isNull(info.uiLocation);
 
     const scriptParsedEvent2: Protocol.Debugger.ScriptParsedEvent = {
@@ -206,11 +204,11 @@ describeWithMockConnection('Linkifier', () => {
       for (const mutation of mutations) {
         if (mutation.type === 'childList') {
           const info = Components.Linkifier.Linkifier.linkInfo(anchor);
-          assertNotNullOrUndefined(info);
-          assertNotNullOrUndefined(info.uiLocation);
+          assert.exists(info);
+          assert.exists(info.uiLocation);
 
           // Make sure that a uiSourceCode is linked to that anchor.
-          assertNotNullOrUndefined(info.uiLocation.uiSourceCode);
+          assert.exists(info.uiLocation.uiSourceCode);
           observer.disconnect();
           done();
         }
@@ -224,7 +222,7 @@ describeWithMockConnection('Linkifier', () => {
     const {target, linkifier} = setUpEnvironment();
 
     const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel);
-    assertNotNullOrUndefined(debuggerModel);
+    assert.exists(debuggerModel);
     void debuggerModel.suspendModel();
 
     const lineNumber = 4;
@@ -232,7 +230,7 @@ describeWithMockConnection('Linkifier', () => {
     // Explicitly set url to empty string and let it resolve through the live location.
     const url = Platform.DevToolsPath.EmptyUrlString;
     const anchor = linkifier.maybeLinkifyScriptLocation(target, scriptId1, url, lineNumber, options);
-    assertNotNullOrUndefined(anchor);
+    assert.exists(anchor);
     assert.strictEqual(anchor.textContent, '');
 
     void debuggerModel.resumeModel();
@@ -256,8 +254,8 @@ describeWithMockConnection('Linkifier', () => {
       for (const mutation of mutations) {
         if (mutation.type === 'childList') {
           const info = Components.Linkifier.Linkifier.linkInfo(anchor);
-          assertNotNullOrUndefined(info);
-          assertNotNullOrUndefined(info.uiLocation);
+          assert.exists(info);
+          assert.exists(info.uiLocation);
           assert.strictEqual(anchor.textContent, `script.js:${lineNumber + 1}:${options.columnNumber + 1}`);
           observer.disconnect();
           done();
@@ -282,7 +280,7 @@ describeWithMockConnection('Linkifier', () => {
       }],
     });
 
-    assertNotNullOrUndefined(anchor);
+    assert.exists(anchor);
     assert.strictEqual(anchor.textContent, `w.com/a.js:${lineNumber + 1}`);
   });
 
@@ -298,7 +296,7 @@ describeWithMockConnection('Linkifier', () => {
 
          const script = await backend.addScript(target, {content: simpleScriptContent, url}, null);
          const uiSourceCode = debuggerWorkspaceBinding.uiSourceCodeForScript(script);
-         assertNotNullOrUndefined(uiSourceCode);
+         assert.exists(uiSourceCode);
 
          const responder = backend.responderToBreakpointByUrlRequest(url, lineNumber);
          void responder({
@@ -314,12 +312,12 @@ describeWithMockConnection('Linkifier', () => {
          const breakpoint = await breakpointManager.setBreakpoint(
              uiSourceCode, lineNumber, columnNumber, 'x' as Breakpoints.BreakpointManager.UserCondition,
              /* enabled */ true, /* isLogpoint */ true, Breakpoints.BreakpointManager.BreakpointOrigin.USER_ACTION);
-         assertNotNullOrUndefined(breakpoint);
+         assert.exists(breakpoint);
 
          // Create a link that matches exactly the breakpoint location.
          const anchor = linkifier.maybeLinkifyScriptLocation(
              target, script.scriptId, url, lineNumber, {inlineFrameIndex: 0, revealBreakpoint: true});
-         assertNotNullOrUndefined(anchor);
+         assert.exists(anchor);
 
          await debuggerWorkspaceBinding.pendingLiveLocationChangesPromise();
 
@@ -327,7 +325,7 @@ describeWithMockConnection('Linkifier', () => {
          // When clicking the link, `revealables` have predecence over e.g. the
          // UILocation or url.
          const linkInfo = Components.Linkifier.Linkifier.linkInfo(anchor);
-         assertNotNullOrUndefined(linkInfo);
+         assert.exists(linkInfo);
          assert.propertyVal(linkInfo.revealable, 'breakpoint', breakpoint);
        });
 
@@ -359,7 +357,7 @@ describeWithMockConnection('Linkifier', () => {
 
       // Detach the source map and check we get the update event.
       const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel);
-      assertNotNullOrUndefined(debuggerModel);
+      assert.exists(debuggerModel);
       debuggerModel.sourceMapManager().detachSourceMap(script);
 
       await debuggerWorkspaceBinding.pendingLiveLocationChangesPromise();
@@ -379,17 +377,15 @@ describeWithEnvironment('ContentProviderContextMenuProvider', () => {
       contentURL: () => 'https://www.example.com/index.html',
     } as Workspace.UISourceCode.UISourceCode;
     provider.appendApplicableItems({} as Event, contextMenu, uiSourceCode);
-    let openInNewTabItem = contextMenu.revealSection().items.find(
-        (item: UI.ContextMenu.Item) => item.buildDescriptor().label === 'Open in new tab');
-    assertNotNullOrUndefined(openInNewTabItem);
+    let openInNewTabItem = findMenuItemWithLabel(contextMenu.revealSection(), 'Open in new tab');
+    assert.exists(openInNewTabItem);
 
     contextMenu = new UI.ContextMenu.ContextMenu({} as Event);
     uiSourceCode = {
       contentURL: () => 'file://usr/local/example/index.html',
     } as Workspace.UISourceCode.UISourceCode;
     provider.appendApplicableItems({} as Event, contextMenu, uiSourceCode);
-    openInNewTabItem = contextMenu.revealSection().items.find(
-        (item: UI.ContextMenu.Item) => item.buildDescriptor().label === 'Open in new tab');
+    openInNewTabItem = findMenuItemWithLabel(contextMenu.revealSection(), 'Open in new tab');
     assert.isUndefined(openInNewTabItem);
   });
 });
