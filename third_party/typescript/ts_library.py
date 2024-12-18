@@ -41,8 +41,6 @@ GLOBAL_TYPESCRIPT_DEFINITION_FILES = [
     # e.g. TypeScript doesn't provide ResizeObserver definitions so we host them ourselves
     path.join(ROOT_DIRECTORY_OF_REPOSITORY, 'front_end', 'global_typings',
               'global_defs.d.ts'),
-    path.join(ROOT_DIRECTORY_OF_REPOSITORY, 'front_end', 'global_typings',
-              'request_idle_callback.d.ts'),
     # Types for W3C FileSystem API
     path.join(NODE_MODULES_DIRECTORY, '@types', 'filesystem', 'index.d.ts'),
 ]
@@ -200,8 +198,11 @@ def remove_generated_tsbuildinfo_file(tsbuildinfo_output_location):
 
 
 def runEsbuild(opts):
+    ts_config_location = path.join(ROOT_DIRECTORY_OF_REPOSITORY,
+                                   'tsconfig.json')
     cmd = [
         ESBUILD_LOCATION,
+        '--tsconfig=' + ts_config_location,
         '--outdir=' + path.dirname(opts.tsconfig_output_location),
         '--log-level=warning',
         '--sourcemap',
@@ -297,6 +298,8 @@ def main():
         tsconfig['compilerOptions']['types'] = [
             "mocha", "chai", "sinon", "karma-chai-sinon"
         ]
+        # Required for sinon global access.
+        tsconfig['compilerOptions']['allowUmdGlobalAccess'] = True
         if runs_in_node_environment:
             tsconfig['compilerOptions']['types'] += ["node"]
     if runs_in_node_environment:

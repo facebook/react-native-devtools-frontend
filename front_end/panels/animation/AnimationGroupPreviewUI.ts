@@ -20,7 +20,10 @@ export class AnimationGroupPreviewUI {
   constructor(model: AnimationGroup) {
     this.#model = model;
     this.element = document.createElement('button');
-    this.element.setAttribute('jslog', `${VisualLogging.item('animations.buffer-preview').track({click: true})}`);
+    this.element.setAttribute(
+        'jslog', `${VisualLogging.item(`animations.buffer-preview${model.isScrollDriven() ? '-sda' : ''}`).track({
+          click: true,
+        })}`);
     this.element.classList.add('animation-buffer-preview');
     this.element.addEventListener('animationend', () => {
       this.element.classList.add('no-animation');
@@ -29,7 +32,9 @@ export class AnimationGroupPreviewUI {
     this.element.createChild('div', 'animation-paused fill');
 
     if (model.isScrollDriven()) {
-      this.element.appendChild(IconButton.Icon.create('mouse', 'mouse-icon'));
+      this.element.appendChild(IconButton.Icon.create('mouse', 'preview-icon'));
+    } else {
+      this.element.appendChild(IconButton.Icon.create('watch', 'preview-icon'));
     }
 
     this.#removeButtonInternal = this.element.createChild('button', 'animation-remove-button');
@@ -61,7 +66,7 @@ export class AnimationGroupPreviewUI {
         {duration: 200, easing: 'cubic-bezier(0, 0, 0.2, 1)'});
   }
 
-  private render(): void {
+  render(): void {
     this.#svg.removeChildren();
     const maxToShow = 10;
     const numberOfAnimations = Math.min(this.#model.animations().length, maxToShow);

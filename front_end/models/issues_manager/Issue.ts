@@ -173,10 +173,6 @@ export abstract class Issue<IssueCode extends string = string> {
     return [];
   }
 
-  metadataAllowedSites(): Iterable<string> {
-    return [];
-  }
-
   isAssociatedWithRequestId(requestId: string): boolean {
     for (const request of this.requests()) {
       if (request.requestId === requestId) {
@@ -207,6 +203,10 @@ export abstract class Issue<IssueCode extends string = string> {
 
   setHidden(hidden: boolean): void {
     this.#hidden = hidden;
+  }
+
+  maybeCreateConsoleMessage(): SDK.ConsoleModel.ConsoleMessage|undefined {
+    return;
   }
 }
 

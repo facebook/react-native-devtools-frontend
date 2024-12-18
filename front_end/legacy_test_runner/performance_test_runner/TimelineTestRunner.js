@@ -4,7 +4,6 @@
 
 import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
-import * as TimelineModel from '../../models/timeline_model/timeline_model.js';
 import * as Trace from '../../models/trace/trace.js';
 import * as Timeline from '../../panels/timeline/timeline.js';
 import * as Components from '../../ui/legacy/components/utils/utils.js';
@@ -80,16 +79,8 @@ TestRunner.formatters.formatAsInvalidationCause = function(cause) {
   return '{reason: ' + cause.reason + ', stackTrace: ' + stackTrace + '}';
 };
 
-PerformanceTestRunner.createTracingModel = function(events) {
-  const model = new Trace.Legacy.TracingModel();
-  model.addEvents(events);
-  model.tracingComplete();
-  return model;
-};
-
 PerformanceTestRunner.invokeWithTracing = function(functionName, callback, additionalCategories, enableJSSampling) {
-  let categories = '-*,disabled-by-default-devtools.timeline*,devtools.timeline,blink.user_timing,' +
-      Trace.Legacy.LegacyTopLevelEventCategory;
+  let categories = '-*,disabled-by-default-devtools.timeline*,devtools.timeline,blink.user_timing,toplevel';
 
   if (additionalCategories) {
     categories += ',' + additionalCategories;
@@ -114,19 +105,22 @@ PerformanceTestRunner.performanceModel = function() {
   return Timeline.TimelinePanel.TimelinePanel.instance().performanceModel;
 };
 
-PerformanceTestRunner.timelineModel = function() {
-  return PerformanceTestRunner.performanceModel().timelineModel();
+PerformanceTestRunner.traceEngineParsedData = function() {
+  return Timeline.TimelinePanel.TimelinePanel.instance().getTraceEngineDataForLayoutTests();
+};
+PerformanceTestRunner.traceEngineRawEvents = function() {
+  return Timeline.TimelinePanel.TimelinePanel.instance().getTraceEngineRawTraceEventsForLayoutTests();
 };
 
-PerformanceTestRunner.createPerformanceModelWithEvents = async function(events) {
-  const tracingModel = new Trace.Legacy.TracingModel();
-  tracingModel.addEvents(events);
-  tracingModel.tracingComplete();
-  const performanceModel = new Timeline.PerformanceModel.PerformanceModel();
-  await performanceModel.setTracingModel(tracingModel);
-  Timeline.TimelinePanel.TimelinePanel.instance().performanceModel = performanceModel;
-  Timeline.TimelinePanel.TimelinePanel.instance().applyFilters(performanceModel);
-  return performanceModel;
+// NOTE: if you are here and trying to use this method, please think first if
+// you can instead add a unit test to the DevTools repository. That is
+// preferred to layout tests, if possible.
+PerformanceTestRunner.createTraceEngineDataFromEvents = async function(events) {
+  const model = Trace.TraceModel.Model.createWithAllHandlers(Trace.Types.Configuration.defaults());
+  await model.parse(events);
+  // Model only has one trace, so we can hardcode 0 here to get the latest
+  // result.
+  return model.traceParsedData(0);
 };
 
 PerformanceTestRunner.createTimelineController = function() {
@@ -192,35 +186,6 @@ PerformanceTestRunner.performActionsAndPrint = async function(actions, typeName,
   TestRunner.completeTest();
 };
 
-PerformanceTestRunner.printTimelineRecords = function(...names) {
-  const nameSet = new Set(names);
-  for (const event of PerformanceTestRunner.timelineModel().inspectedTargetEvents()) {
-    if (nameSet.has(event.name)) {
-      PerformanceTestRunner.printTraceEventProperties(event);
-    }
-  }
-};
-
-PerformanceTestRunner.printTimelineRecordsWithDetails = async function(...names) {
-  const nameSet = new Set(names);
-  for (const event of PerformanceTestRunner.timelineModel().inspectedTargetEvents()) {
-    if (nameSet.has(event.name)) {
-      await PerformanceTestRunner.printTraceEventPropertiesWithDetails(event);
-    }
-  }
-};
-
-PerformanceTestRunner.walkTimelineEventTree = async function(callback) {
-  const view = new Timeline.EventsTimelineTreeView.EventsTimelineTreeView(
-      Timeline.TimelinePanel.TimelinePanel.instance().filters, null);
-  view.setModel(PerformanceTestRunner.performanceModel(), PerformanceTestRunner.mainTrack());
-  const selection = Timeline.TimelineSelection.TimelineSelection.fromRange(
-      PerformanceTestRunner.timelineModel().minimumRecordTime(),
-      PerformanceTestRunner.timelineModel().maximumRecordTime());
-  view.updateContents(selection);
-  await PerformanceTestRunner.walkTimelineEventTreeUnderNode(callback, view.currentTree, 0);
-};
-
 PerformanceTestRunner.walkTimelineEventTreeUnderNode = async function(callback, root, level) {
   const event = root.event;
 
@@ -230,16 +195,6 @@ PerformanceTestRunner.walkTimelineEventTreeUnderNode = async function(callback, 
 
   for (const child of root.children().values()) {
     await PerformanceTestRunner.walkTimelineEventTreeUnderNode(callback, child, (level || 0) + 1);
-  }
-};
-
-PerformanceTestRunner.printTimestampRecords = function(typeName) {
-  const dividers = PerformanceTestRunner.timelineModel().timeMarkerEvents();
-
-  for (const event of dividers) {
-    if (event.name === typeName) {
-      PerformanceTestRunner.printTraceEventProperties(event);
-    }
   }
 };
 
@@ -268,7 +223,6 @@ PerformanceTestRunner.printTraceEventProperties = function(traceEvent) {
     data: traceEvent.args['data'] || traceEvent.args,
     endTime: traceEvent.endTime || traceEvent.startTime,
     frameId: frameId,
-    stackTrace: TimelineModel.TimelineModel.EventOnTimelineData.forEvent(traceEvent).stackTrace,
     startTime: traceEvent.startTime,
     type: traceEvent.name
   };
@@ -288,24 +242,6 @@ PerformanceTestRunner.printTraceEventPropertiesWithDetails = async function(even
       event, SDK.TargetManager.TargetManager.instance().primaryPageTarget(), new Components.Linkifier.Linkifier());
   TestRunner.waitForPendingLiveLocationUpdates();
   TestRunner.addResult(`Text details for ${event.name}: ${details}`);
-};
-
-PerformanceTestRunner.mainTrack = function() {
-  let mainTrack;
-  for (const track of PerformanceTestRunner.timelineModel().tracks()) {
-    if (track.type === TimelineModel.TimelineModel.TrackType.MainThread && track.forMainFrame) {
-      mainTrack = track;
-    }
-  }
-  return mainTrack;
-};
-
-PerformanceTestRunner.mainTrackEvents = function() {
-  return PerformanceTestRunner.mainTrack().events;
-};
-
-PerformanceTestRunner.findTimelineEvent = function(name, index) {
-  return PerformanceTestRunner.mainTrackEvents().filter(e => e.name === name)[index || 0];
 };
 
 PerformanceTestRunner.findChildEvent = function(events, parentIndex, name) {
@@ -349,14 +285,6 @@ PerformanceTestRunner.dumpFrame = function(frame) {
   }
 
   TestRunner.addObject(formatFields(frame));
-};
-
-PerformanceTestRunner.dumpInvalidations = function(recordType, index, comment) {
-  const event = PerformanceTestRunner.findTimelineEvent(recordType, index || 0);
-
-  TestRunner.addArray(
-      TimelineModel.TimelineModel.InvalidationTracker.invalidationEventsFor(event) || [],
-      PerformanceTestRunner.InvalidationFormatters, '', comment);
 };
 
 PerformanceTestRunner.dumpFlameChartProvider = function(provider, includeGroups) {

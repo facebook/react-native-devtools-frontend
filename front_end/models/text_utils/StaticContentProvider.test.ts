@@ -7,8 +7,6 @@ import type * as Platform from '../../core/platform/platform.js';
 
 import * as TextUtils from './text_utils.js';
 
-const {assert} = chai;
-
 describe('StaticContentProvider', () => {
   const jsonResource = Common.ResourceType.ResourceType.fromMimeType('application/json');
   const testUrl = 'www.testurl.com' as Platform.DevToolsPath.UrlString;
@@ -25,11 +23,10 @@ describe('StaticContentProvider', () => {
     const provider =
         TextUtils.StaticContentProvider.StaticContentProvider.fromString(testUrl, jsonResource, jsonContent);
 
-    const contents = await provider.requestContent();
+    const contents = await provider.requestContentData();
 
-    assert.deepEqual(contents, {
-      content: jsonContent,
-      isEncoded: false,
-    });
+    assert.instanceOf(contents, TextUtils.ContentData.ContentData);
+    assert.strictEqual(contents.text, jsonContent);
+    assert.isFalse(contents.createdFromBase64);
   });
 });

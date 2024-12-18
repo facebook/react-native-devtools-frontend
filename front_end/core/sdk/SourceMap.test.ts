@@ -2,15 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-const {assert} = chai;
-
-import type * as Platform from '../platform/platform.js';
-import {assertNotNullOrUndefined} from '../platform/platform.js';
-import * as SDK from './sdk.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
-
-import {encodeSourceMap} from '../../testing/SourceMapEncoder.js';
 import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
+import {encodeSourceMap, GeneratedRangeBuilder, OriginalScopeBuilder} from '../../testing/SourceMapEncoder.js';
+import type * as Platform from '../platform/platform.js';
+import * as Root from '../root/root.js';
+
+import * as SDK from './sdk.js';
 
 const sourceUrlFoo = '<foo>' as Platform.DevToolsPath.UrlString;
 
@@ -104,7 +102,7 @@ describeWithEnvironment('SourceMap', () => {
   function assertMapping(
       actual: SDK.SourceMap.SourceMapEntry|null, expectedSourceURL: string|undefined,
       expectedSourceLineNumber: number|undefined, expectedSourceColumnNumber: number|undefined) {
-    assertNotNullOrUndefined(actual);
+    assert.exists(actual);
     assert.strictEqual(actual.sourceURL, expectedSourceURL, 'unexpected source URL');
     assert.strictEqual(actual.sourceLineNumber, expectedSourceLineNumber, 'unexpected source line number');
     assert.strictEqual(actual.sourceColumnNumber, expectedSourceColumnNumber, 'unexpected source column number');
@@ -113,7 +111,7 @@ describeWithEnvironment('SourceMap', () => {
   function assertReverseMapping(
       actual: SDK.SourceMap.SourceMapEntry|null, expectedCompiledLineNumber: number,
       expectedCompiledColumnNumber: number) {
-    assertNotNullOrUndefined(actual);
+    assert.exists(actual);
     assert.strictEqual(actual.lineNumber, expectedCompiledLineNumber, 'unexpected compiled line number');
     assert.strictEqual(actual.columnNumber, expectedCompiledColumnNumber, 'unexpected compiled column number');
   }
@@ -275,7 +273,7 @@ describeWithEnvironment('SourceMap', () => {
     assertMapping(sourceMap.findEntry(0, 2), 'example.js', 0, 2);
 
     const emptyEntry = sourceMap.findEntry(0, 1);
-    assertNotNullOrUndefined(emptyEntry);
+    assert.exists(emptyEntry);
     assert.isUndefined(emptyEntry.sourceURL, 'unexpected url present for empty segment');
     assert.isUndefined(emptyEntry.sourceLineNumber, 'unexpected source line number for empty segment');
     assert.isUndefined(emptyEntry.sourceColumnNumber, 'unexpected source line number for empty segment');
@@ -1232,6 +1230,53 @@ describeWithEnvironment('SourceMap', () => {
       const exampleRanges = sourceMap.reverseMapTextRanges(sourceUrlExample, new TextRange(1, 0, 1, 9));
       assert.lengthOf(exampleRanges, 1, 'expected a single maximally merged range');
       assert.deepEqual(exampleRanges[0], new TextRange(1, 0, 2, 7));
+    });
+  });
+
+  describe('findEntry', () => {
+    it('can resolve generated positions with inlineFrameIndex', () => {
+      Root.Runtime.experiments.enableForTest(Root.Runtime.ExperimentName.USE_SOURCE_MAP_SCOPES);
+      // 'foo' calls 'bar', 'bar' calls 'baz'. 'bar' and 'baz' are inlined into 'foo'.
+      const names: string[] = [];
+      const originalScopes = [new OriginalScopeBuilder(names)
+                                  .start(0, 0, 'global')
+                                  .start(10, 0, 'function', 'foo')
+                                  .end(20, 0)
+                                  .start(30, 0, 'function', 'bar')
+                                  .end(40, 0)
+                                  .start(50, 0, 'function', 'baz')
+                                  .end(60, 0)
+                                  .end(70, 0)
+                                  .build()];
+
+      const generatedRanges =
+          new GeneratedRangeBuilder(names)
+              .start(0, 0, {definition: {sourceIdx: 0, scopeIdx: 0}})
+              .start(0, 0, {definition: {sourceIdx: 0, scopeIdx: 1}, isScope: true})
+              .start(0, 5, {definition: {sourceIdx: 0, scopeIdx: 3}, callsite: {sourceIdx: 0, line: 15, column: 0}})
+              .start(0, 5, {definition: {sourceIdx: 0, scopeIdx: 5}, callsite: {sourceIdx: 0, line: 35, column: 0}})
+              .end(0, 10)
+              .end(0, 10)
+              .end(0, 10)
+              .end(0, 10)
+              .build();
+
+      const sourceMap = new SDK.SourceMap.SourceMap(
+          compiledUrl, sourceMapJsonUrl,
+          {version: 3, sources: ['foo.ts'], mappings: '', names, originalScopes, generatedRanges});
+
+      assert.isNull(
+          sourceMap.findEntry(0, 7, 0));  // We don't have mappings, so inlineFrameIndex = 0 ('baz') has no entry.
+
+      const barEntry = sourceMap.findEntry(0, 7, 1);
+      assert.isNotNull(barEntry);
+      assert.strictEqual(barEntry.sourceLineNumber, 35);
+      assert.strictEqual(barEntry.sourceColumnNumber, 0);
+
+      const fooEntry = sourceMap.findEntry(0, 7, 2);
+      assert.isNotNull(fooEntry);
+      assert.strictEqual(fooEntry.sourceLineNumber, 15);
+      assert.strictEqual(fooEntry.sourceColumnNumber, 0);
     });
   });
 });

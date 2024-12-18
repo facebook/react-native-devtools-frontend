@@ -252,10 +252,6 @@ class RNPerfMetrics {
     // (This function is called for other "sub"-panels)
   }
 
-  panelClosed(panelName: string): void {
-    this.sendEvent({eventName: 'PanelClosed', params: {panelName}});
-  }
-
   panelShownInLocation(panelName: string, location: PanelLocation): void {
     // The current panel name will be sent along via #decorateEvent(…)
     this.sendEvent({eventName: 'PanelShown', params: {location, newPanelName: panelName}});

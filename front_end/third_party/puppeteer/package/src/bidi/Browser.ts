@@ -6,7 +6,7 @@
 
 import type {ChildProcess} from 'child_process';
 
-import type * as Bidi from 'chromium-bidi/lib/cjs/protocol/protocol.js';
+import * as Bidi from 'chromium-bidi/lib/cjs/protocol/protocol.js';
 
 import type {BrowserEvents} from '../api/Browser.js';
 import {
@@ -19,7 +19,6 @@ import {
 import {BrowserContextEvent} from '../api/BrowserContext.js';
 import type {Page} from '../api/Page.js';
 import type {Target} from '../api/Target.js';
-import {UnsupportedOperation} from '../common/Errors.js';
 import {EventEmitter} from '../common/EventEmitter.js';
 import {debugError} from '../common/util.js';
 import type {Viewport} from '../common/Viewport.js';
@@ -49,8 +48,7 @@ export interface BidiBrowserOptions {
 export class BidiBrowser extends Browser {
   readonly protocol = 'webDriverBiDi';
 
-  // TODO: Update generator to include fully module
-  static readonly subscribeModules: string[] = [
+  static readonly subscribeModules: [string, ...string[]] = [
     'browsingContext',
     'network',
     'log',
@@ -73,6 +71,9 @@ export class BidiBrowser extends Browser {
     const session = await Session.from(opts.connection, {
       alwaysMatch: {
         acceptInsecureCerts: opts.ignoreHTTPSErrors,
+        unhandledPromptBehavior: {
+          default: Bidi.Session.UserPromptHandlerType.Ignore,
+        },
         webSocketUrl: true,
       },
     });
@@ -133,8 +134,8 @@ export class BidiBrowser extends Browser {
     return !this.#browserName.toLocaleLowerCase().includes('firefox');
   }
 
-  override userAgent(): never {
-    throw new UnsupportedOperation();
+  override async userAgent(): Promise<string> {
+    return this.#browserCore.session.capabilities.userAgent;
   }
 
   #createBrowserContext(userContext: UserContext) {

@@ -7,30 +7,32 @@ import("../../third_party/typescript/typescript.gni")
 
 group("interactions") {
   deps = [
-    ":config",
+    ":test_inputs",
     ":tests",
   ]
 }
 
-ts_library("tests") {
-  testonly = true
-
+node_ts_library("tests") {
   deps = [
     "data_grid",
     "data_grid_controller",
     "helpers",
     "panels/explain",
+    "panels/freestyler",
     "panels/performance/timeline",
     "panels/recorder/injected",
     "text_editor",
     "tree_outline",
     "ui/components",
   ]
+
+  sources = [ "mocharc.ts" ]
 }
 
-copy_to_gen("config") {
-  sources = [
-    ".mocharc.js",
-    "test-runner-config.json",
-  ]
+generated_file("test_inputs") {
+  outputs = [ "$target_gen_dir/tests.txt" ]
+  data_keys = [ "tests" ]
+  rebase = target_gen_dir
+
+  deps = [ ":tests" ]
 }

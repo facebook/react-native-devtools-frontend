@@ -2,24 +2,26 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as i18n from '../../../core/i18n/i18n.js';
 import * as TraceEngine from '../../../models/trace/trace.js';
 import * as ComponentHelpers from '../../../ui/components/helpers/helpers.js';
 import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
 import * as LitHtml from '../../../ui/lit-html/lit-html.js';
+import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import {type Breadcrumb, flattenBreadcrumbs} from './Breadcrumbs.js';
+import {flattenBreadcrumbs} from './Breadcrumbs.js';
 import breadcrumbsUIStyles from './breadcrumbsUI.css.js';
 
 const {render, html} = LitHtml;
 
 export interface BreadcrumbsUIData {
-  breadcrumb: Breadcrumb;
+  breadcrumb: TraceEngine.Types.File.Breadcrumb;
 }
 
 export class BreadcrumbRemovedEvent extends Event {
   static readonly eventName = 'breadcrumbremoved';
 
-  constructor(public breadcrumb: Breadcrumb) {
+  constructor(public breadcrumb: TraceEngine.Types.File.Breadcrumb) {
     super(BreadcrumbRemovedEvent.eventName);
   }
 }
@@ -28,7 +30,7 @@ export class BreadcrumbsUI extends HTMLElement {
   static readonly litTagName = LitHtml.literal`devtools-breadcrumbs-ui`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   readonly #boundRender = this.#render.bind(this);
-  #breadcrumb: Breadcrumb|null = null;
+  #breadcrumb: TraceEngine.Types.File.Breadcrumb|null = null;
 
   connectedCallback(): void {
     this.#shadow.adoptedStyleSheets = [breadcrumbsUIStyles];
@@ -39,7 +41,7 @@ export class BreadcrumbsUI extends HTMLElement {
     void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
   }
 
-  #removeBreadcrumb(breadcrumb: Breadcrumb): void {
+  #removeBreadcrumb(breadcrumb: TraceEngine.Types.File.Breadcrumb): void {
     this.dispatchEvent(new BreadcrumbRemovedEvent(breadcrumb));
   }
 
@@ -67,15 +69,16 @@ export class BreadcrumbsUI extends HTMLElement {
     });
   }
 
-  #renderElement(breadcrumb: Breadcrumb, index: number): LitHtml.LitTemplate {
+  #renderElement(breadcrumb: TraceEngine.Types.File.Breadcrumb, index: number): LitHtml.LitTemplate {
     const breadcrumbRange = TraceEngine.Helpers.Timing.microSecondsToMilliseconds(breadcrumb.window.range);
     // clang-format off
     return html`
-          <div class="breadcrumb" @click=${() => this.#removeBreadcrumb(breadcrumb)}>
+          <div class="breadcrumb" @click=${() => this.#removeBreadcrumb(breadcrumb)}
+          jslog=${VisualLogging.action('timeline.breadcrumb-select').track({click: true})}>
            <span class="${(index !== 0 && breadcrumb.child === null) ? 'last-breadcrumb' : ''} range">
             ${(index === 0) ?
-              `Full range (${breadcrumbRange.toFixed(2)}ms)` :
-              `${breadcrumbRange.toFixed(2)}ms`}
+              `Full range (${i18n.TimeUtilities.preciseMillisToString(breadcrumbRange, 2)})` :
+              `${i18n.TimeUtilities.preciseMillisToString(breadcrumbRange, 2)}`}
             </span>
           </div>
           ${breadcrumb.child !== null ?

@@ -6,8 +6,6 @@ import {describeWithLocale} from '../../testing/EnvironmentHelpers.js';
 
 import * as UI from './legacy.js';
 
-const {assert} = chai;
-
 class MockSuggestBoxDelegate implements UI.SuggestBox.SuggestBoxDelegate {
   readonly appliedSuggestions: {suggestion: string, isIntermediateSuggestion?: boolean}[] = [];
   readonly accceptedSuggestions: string[] = [];
@@ -29,7 +27,7 @@ class MockSuggestBoxDelegate implements UI.SuggestBox.SuggestBoxDelegate {
     this.accceptedSuggestions.push(this.lastAppliedSuggestion.text);
   }
 
-  ariaControlledBy() {
+  ownerElement() {
     return this.element;
   }
 }

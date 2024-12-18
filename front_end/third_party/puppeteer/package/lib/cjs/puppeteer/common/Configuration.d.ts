@@ -29,10 +29,6 @@ export interface Configuration {
      * See {@link PuppeteerNode.launch | puppeteer.launch} on how executable path
      * is inferred.
      *
-     * Use a specific browser version (e.g., 119.0.6045.105). If you use an alias
-     * such `stable` or `canary` it will only work during the installation of
-     * Puppeteer and it will fail when launching the browser.
-     *
      * @example 119.0.6045.105
      * @defaultValue The pinned browser version supported by the current Puppeteer
      * version.
@@ -99,7 +95,7 @@ export interface Configuration {
     /**
      * Tells Puppeteer to not chrome-headless-shell download during installation.
      *
-     * Can be overridden by `PUPPETEER_SKIP_CHROME_HEADLESSS_HELL_DOWNLOAD`.
+     * Can be overridden by `PUPPETEER_SKIP_CHROME_HEADLESS_SHELL_DOWNLOAD`.
      */
     skipChromeHeadlessShellDownload?: boolean;
     /**

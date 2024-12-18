@@ -2,26 +2,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Common from '../../core/common/common.js';
 import type * as Platform from '../../core/platform/platform.js';
-import {assertNotNullOrUndefined} from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
+import {createResource, getMainFrame} from '../../testing/ResourceTreeHelpers.js';
 import * as TextUtils from '../text_utils/text_utils.js';
 import * as Workspace from '../workspace/workspace.js';
 
 import * as Bindings from './bindings.js';
 
-const {assert} = chai;
-
 describeWithMockConnection('ResourceMapping', () => {
   let debuggerModel: SDK.DebuggerModel.DebuggerModel;
   let resourceMapping: Bindings.ResourceMapping.ResourceMapping;
   let uiSourceCode: Workspace.UISourceCode.UISourceCode;
-  let resourceTreeModel: SDK.ResourceTreeModel.ResourceTreeModel;
   let workspace: Workspace.Workspace.WorkspaceImpl;
+  let target: SDK.Target.Target;
 
   // This test simulates the behavior of the ResourceMapping with the
   // following document, which contains two inline <script>s, one with
@@ -66,7 +63,7 @@ describeWithMockConnection('ResourceMapping', () => {
   const OTHER_SCRIPT_ID = '3' as Protocol.Runtime.ScriptId;
 
   beforeEach(async () => {
-    const target = createTarget();
+    target = createTarget();
     const targetManager = target.targetManager();
     targetManager.setScopeTarget(target);
     workspace = Workspace.Workspace.WorkspaceImpl.instance();
@@ -76,14 +73,7 @@ describeWithMockConnection('ResourceMapping', () => {
         {forceNew: true, resourceMapping, targetManager});
 
     // Inject the HTML document resource.
-    const frameId = 'main' as Protocol.Page.FrameId;
-    const mimeType = 'text/html';
-    resourceTreeModel =
-        target.model(SDK.ResourceTreeModel.ResourceTreeModel) as SDK.ResourceTreeModel.ResourceTreeModel;
-    const frame = resourceTreeModel.frameAttached(frameId, null);
-    frame?.addResource(new SDK.Resource.Resource(
-        resourceTreeModel, null, url, url, frameId, null, Common.ResourceType.ResourceType.fromMimeType(mimeType),
-        mimeType, null, null));
+    createResource(getMainFrame(target), url, 'text/html', '');
     uiSourceCode = workspace.uiSourceCodeForURL(url) as Workspace.UISourceCode.UISourceCode;
     assert.isNotNull(uiSourceCode);
 
@@ -102,6 +92,7 @@ describeWithMockConnection('ResourceMapping', () => {
   });
 
   it('creates UISourceCode for added target', () => {
+    const resourceTreeModel = target.model(SDK.ResourceTreeModel.ResourceTreeModel)!;
     resourceMapping.modelRemoved(resourceTreeModel);
     assert.isNull(workspace.uiSourceCodeForURL(url));
     resourceMapping.modelAdded(resourceTreeModel);
@@ -111,12 +102,8 @@ describeWithMockConnection('ResourceMapping', () => {
   it('creates UISourceCode for added out of scope target', () => {
     SDK.TargetManager.TargetManager.instance().setScopeTarget(null);
 
-    const mimeType = 'text/html';
-    const frameId = 'other' as Protocol.Page.FrameId;
     const otherUrl = 'http://example.com/other.html' as Platform.DevToolsPath.UrlString;
-    resourceTreeModel.frames()[0]?.addResource(new SDK.Resource.Resource(
-        resourceTreeModel, null, otherUrl, otherUrl, frameId, null,
-        Common.ResourceType.ResourceType.fromMimeType(mimeType), mimeType, null, null));
+    createResource(getMainFrame(target), otherUrl, 'text/html', '');
     uiSourceCode = workspace.uiSourceCodeForURL(otherUrl) as Workspace.UISourceCode.UISourceCode;
     assert.isNotNull(uiSourceCode);
   });
@@ -170,7 +157,7 @@ describeWithMockConnection('ResourceMapping', () => {
     it('correctly reports all inline <script>s when querying the whole document', () => {
       const rawLocationRanges = resourceMapping.uiLocationRangeToJSLocationRanges(
           uiSourceCode, new TextUtils.TextRange.TextRange(0, 0, 14, 0));
-      assertNotNullOrUndefined(rawLocationRanges);
+      assert.exists(rawLocationRanges);
       assert.lengthOf(rawLocationRanges, SCRIPTS.length);
       for (let i = 0; i < SCRIPTS.length; ++i) {
         let {startLine, startColumn, endLine, endColumn} = SCRIPTS[i];

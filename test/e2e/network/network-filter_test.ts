@@ -7,12 +7,9 @@ import {type ElementHandle} from 'puppeteer-core';
 
 import {
   $textContent,
-  click,
   clickElement,
   disableExperiment,
-  enableExperiment,
   getTestServerPort,
-  reloadDevTools,
   step,
   typeText,
   waitFor,
@@ -22,7 +19,12 @@ import {
 } from '../../shared/helper.js';
 import {describe, it} from '../../shared/mocha-extensions.js';
 import {
+  reloadDevTools,
+} from '../helpers/cross-tool-helper.js';
+import {
+  clearTextFilter,
   getAllRequestNames,
+  getTextFilterContent,
   navigateToNetworkTab,
   setCacheDisabled,
   setPersistLog,
@@ -43,14 +45,6 @@ async function elementTextContent(element: ElementHandle): Promise<string> {
 
 async function checkboxIsChecked(element: ElementHandle<HTMLInputElement>): Promise<boolean> {
   return await element.evaluate(node => node.checked);
-}
-
-async function clearFilter() {
-  await click('.filter-input-container');
-  const clearFilter = await waitFor('.filter-input-clear-button');
-  if (await clearFilter.isIntersectingViewport()) {
-    await clickElement(clearFilter);
-  }
 }
 
 async function openRequestTypeDropdown() {
@@ -126,12 +120,12 @@ describe('The Network Tab', function() {
     let nodes = await waitForMany('.data-grid-data-grid-node > .name-column', 1);
     expect(nodes.length).to.equal(11);
 
-    await clearFilter();
+    await clearTextFilter();
     await typeText('/.*\\..*/');
     nodes = await waitForMany('.data-grid-data-grid-node > .name-column', 1);
     expect(nodes.length).to.equal(11);
 
-    await clearFilter();
+    await clearTextFilter();
     await typeText('/.*\\.svg/');
     nodes = await waitForMany('.data-grid-data-grid-node > .name-column', 1);
     expect(nodes.length).to.equal(10);
@@ -141,7 +135,7 @@ describe('The Network Tab', function() {
     await typeText('/NOTHINGTOMATCH/');
     await waitForNone('.data-grid-data-grid-node > .name-column');
 
-    await clearFilter();
+    await clearTextFilter();
     await typeText('//');
     await waitForNone('.data-grid-data-grid-node > .name-column');
   });
@@ -155,7 +149,7 @@ describe('The Network Tab', function() {
     let nodes = await waitForMany('.data-grid-data-grid-node > .name-column', 1);
     expect(nodes.length).to.equal(7);
 
-    await clearFilter();
+    await clearTextFilter();
     await typeText('is:from-cache');
     nodes = await waitForMany('.data-grid-data-grid-node > .name-column', 1);
     expect(nodes.length).to.equal(3);
@@ -172,7 +166,7 @@ describe('The Network Tab', function() {
     await typeText('://');
     await waitForNone('.data-grid-data-grid-node > .name-column');
 
-    await clearFilter();
+    await clearTextFilter();
     await typeText('scheme:https');
     const nodes = await waitForMany('.data-grid-data-grid-node > .name-column', 1);
     expect(nodes.length).to.equal(11);
@@ -182,14 +176,14 @@ describe('The Network Tab', function() {
     await typeText('localhost');
     await waitForNone('.data-grid-data-grid-node > .name-column');
 
-    await clearFilter();
+    await clearTextFilter();
     await typeText('domain:localhost');
     const nodes = await waitForMany('.data-grid-data-grid-node > .name-column', 1);
     expect(nodes.length).to.equal(11);
   });
 
   it('can filter by partial URL in the log view', async () => {
-    await clearFilter();
+    await clearTextFilter();
     await typeText(`https://localhost:${getTestServerPort()}`);
     const nodes = await waitForMany('.data-grid-data-grid-node > .name-column', 1);
     expect(nodes.length).to.equal(11);
@@ -335,7 +329,7 @@ describe('The Network Tab', function() {
   this.timeout(5000);
 
   beforeEach(async () => {
-    await enableExperiment('network-panel-filter-bar-redesign');
+    await reloadDevTools({enableExperiments: ['network-panel-filter-bar-redesign']});
 
     await navigateToNetworkTab('empty.html');
     await setCacheDisabled(true);
@@ -375,8 +369,6 @@ describe('The Network Tab', function() {
 
   it('persists filters across a reload', async () => {
     await navigateToNetworkTab(SIMPLE_PAGE_URL);
-    let filterInput = await waitFor('.filter-input-field.text-prompt');
-    filterInput.focus();
     await typeText('foo');
 
     await openRequestTypeDropdown();
@@ -386,9 +378,8 @@ describe('The Network Tab', function() {
 
     await categoryXHRFilter.click();
 
-    await reloadDevTools({selectedPanel: {name: 'network'}});
-    filterInput = await waitFor('.filter-input-field.text-prompt');
-    const filterText = await filterInput.evaluate(x => (x as HTMLElement).innerText);
+    await reloadDevTools({selectedPanel: {name: 'network'}, enableExperiments: ['network-panel-filter-bar-redesign']});
+    const filterText = await getTextFilterContent();
     assert.strictEqual(filterText, 'foo');
 
     await openRequestTypeDropdown();

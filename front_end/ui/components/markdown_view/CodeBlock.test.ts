@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import * as Host from '../../../core/host/host.js';
-import {assertNotNullOrUndefined} from '../../../core/platform/platform.js';
 import {
   dispatchClickEvent,
   renderElementIntoDOM,
@@ -13,15 +12,13 @@ import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
 
 import * as MarkdownView from './markdown_view.js';
 
-const {assert} = chai;
-
 describeWithEnvironment('CodeBlock', () => {
   it('copies the code to clipboard', () => {
     const component = new MarkdownView.CodeBlock.CodeBlock();
     component.code = 'test';
     renderElementIntoDOM(component);
     const button = component.shadowRoot!.querySelector('.copy-button');
-    assertNotNullOrUndefined(button);
+    assert.exists(button);
     const clock = sinon.useFakeTimers();
     try {
       assert.strictEqual(button.querySelector('span')?.innerText, 'Copy code');
@@ -65,8 +62,33 @@ describeWithEnvironment('CodeBlock', () => {
       component.displayNotice = true;
       renderElementIntoDOM(component);
       const notice = component.shadowRoot!.querySelector('.notice') as HTMLElement;
-      assertNotNullOrUndefined(notice);
+      assert.exists(notice);
       assert.strictEqual(notice!.innerText, 'Use code snippets with caution');
+    } finally {
+      resetTestDOM();
+    }
+  });
+
+  it('renders toolbar by default', () => {
+    try {
+      const component = new MarkdownView.CodeBlock.CodeBlock();
+      component.code = 'test';
+      renderElementIntoDOM(component);
+      const toolbar = component.shadowRoot!.querySelector('.toolbar') as HTMLElement;
+      assert.exists(toolbar);
+    } finally {
+      resetTestDOM();
+    }
+  });
+
+  it('renders no toolbar when configured', () => {
+    try {
+      const component = new MarkdownView.CodeBlock.CodeBlock();
+      component.code = 'test';
+      component.displayToolbar = false;
+      renderElementIntoDOM(component);
+      const toolbar = component.shadowRoot!.querySelector('.toolbar') as HTMLElement;
+      assert(toolbar === null, '.toolbar was found');
     } finally {
       resetTestDOM();
     }

@@ -10,7 +10,7 @@ import("../visibility.gni")
 devtools_module("trace") {
   sources = [
     "EntriesFilter.ts",
-    "LegacyTracingModel.ts",
+    "LanternComputationData.ts",
     "ModelImpl.ts",
     "Processor.ts",
     "TracingManager.ts",
@@ -24,6 +24,7 @@ devtools_module("trace") {
     "handlers:bundle",
     "helpers:bundle",
     "insights:bundle",
+    "lantern:bundle",
     "root-causes:bundle",
     "types:bundle",
   ]
@@ -36,6 +37,7 @@ devtools_entrypoint("bundle") {
 
   visibility = [
     ":*",
+    "../../../test/interactions/*",
     "../../core/sdk:unittests",
     "../../legacy_test_runner/*",
     "../../panels/lighthouse/*",
@@ -45,8 +47,8 @@ devtools_entrypoint("bundle") {
     "../../services/trace_bounds/*",
     "../../services/tracing/*",
     "../../testing/*",
-    "../../testing/*",
     "../../ui/components/docs/*",
+    "../../ui/legacy/components/utils/*",
     "../timeline_model/*",
     "./*",
   ]
@@ -59,7 +61,6 @@ ts_library("unittests") {
 
   sources = [
     "EntriesFilter.test.ts",
-    "LegacyTracingModel.test.ts",
     "ModelImpl.test.ts",
     "Processor.test.ts",
     "TracingManager.test.ts",

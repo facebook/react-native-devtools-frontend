@@ -50,6 +50,8 @@ export namespace PrivateAPI {
     NetworkRequestFinished = 'network-request-finished',
     OpenResource = 'open-resource',
     PanelSearch = 'panel-search-',
+    ProfilingStarted = 'profiling-started-',
+    ProfilingStopped = 'profiling-stopped-',
     ResourceAdded = 'resource-added',
     ResourceContentCommitted = 'resource-content-committed',
     ViewShown = 'view-shown-',
@@ -89,6 +91,7 @@ export namespace PrivateAPI {
     RegisterRecorderExtensionPlugin = 'registerRecorderExtensionPlugin',
     CreateRecorderView = 'createRecorderView',
     ShowRecorderView = 'showRecorderView',
+    ShowNetworkPanel = 'showNetworkPanel',
     ReportResourceLoad = 'reportResourceLoad',
   }
 
@@ -141,7 +144,9 @@ export namespace PrivateAPI {
   type RegisterRecorderExtensionPluginRequest = {
     command: Commands.RegisterRecorderExtensionPlugin,
     pluginName: string,
-    mediaType?: string, capabilities: RecordingExtensionPluginCapability[], port: MessagePort,
+    capabilities: RecordingExtensionPluginCapability[],
+    port: MessagePort,
+    mediaType?: string,
   };
   type CreateRecorderViewRequest = {
     command: Commands.CreateRecorderView,
@@ -178,7 +183,8 @@ export namespace PrivateAPI {
   type SetSidebarContentRequest = {
     command: Commands.SetSidebarContent,
     id: string,
-    evaluateOnPage?: boolean, expression: string,
+    expression: string,
+    evaluateOnPage?: boolean,
     rootTitle?: string,
     evaluateOptions?: EvaluateOptions,
   };
@@ -227,6 +233,7 @@ export namespace PrivateAPI {
     stopId: unknown,
   };
   type GetWasmOpRequest = {command: Commands.GetWasmOp, op: number, stopId: unknown};
+  type ShowNetworkPanelRequest = {command: Commands.ShowNetworkPanel, filter: string|undefined};
   type ReportResourceLoadRequest = {
     command: Commands.ReportResourceLoad,
     extensionId: string,
@@ -241,7 +248,7 @@ export namespace PrivateAPI {
       OpenResourceRequest|SetOpenResourceHandlerRequest|SetThemeChangeHandlerRequest|ReloadRequest|
       EvaluateOnInspectedPageRequest|GetRequestContentRequest|GetResourceContentRequest|SetResourceContentRequest|
       ForwardKeyboardEventRequest|GetHARRequest|GetPageResourcesRequest|GetWasmLinearMemoryRequest|GetWasmLocalRequest|
-      GetWasmGlobalRequest|GetWasmOpRequest|ReportResourceLoadRequest;
+      GetWasmGlobalRequest|GetWasmOpRequest|ShowNetworkPanelRequest|ReportResourceLoadRequest;
   export type ExtensionServerRequestMessage = PrivateAPI.ServerRequests&{requestId?: number};
 
   type AddRawModuleRequest = {
@@ -344,6 +351,7 @@ namespace APIImpl {
   export interface InspectorExtensionAPI {
     languageServices: PublicAPI.Chrome.DevTools.LanguageExtensions;
     recorder: PublicAPI.Chrome.DevTools.RecorderExtensions;
+    performance: PublicAPI.Chrome.DevTools.Performance;
     network: PublicAPI.Chrome.DevTools.Network;
     panels: PublicAPI.Chrome.DevTools.Panels;
     inspectedWindow: PublicAPI.Chrome.DevTools.InspectedWindow;
@@ -520,6 +528,7 @@ self.injectedExtensionAPI = function(
     this.network = new (Constructor(Network))();
     this.languageServices = new (Constructor(LanguageServicesAPI))();
     this.recorder = new (Constructor(RecorderServicesAPI))();
+    this.performance = new (Constructor(Performance))();
     defineDeprecatedProperty(this, 'webInspector', 'resources', 'network');
   }
 
@@ -577,12 +586,13 @@ self.injectedExtensionAPI = function(
   };
 
   function Panels(this: APIImpl.Panels): void {
-    const panels: {[key: string]: ElementsPanel|SourcesPanel} = {
+    const panels: {[key: string]: ElementsPanel|SourcesPanel|PublicAPI.Chrome.DevTools.NetworkPanel} = {
       elements: new ElementsPanel(),
       sources: new SourcesPanel(),
+      network: new (Constructor(NetworkPanel))(),
     };
 
-    function panelGetter(name: string): ElementsPanel|SourcesPanel {
+    function panelGetter(name: string): ElementsPanel|SourcesPanel|PublicAPI.Chrome.DevTools.NetworkPanel {
       return panels[name];
     }
     for (const panel in panels) {
@@ -950,6 +960,32 @@ self.injectedExtensionAPI = function(
 
   };
 
+  function NetworkPanelImpl(this: PublicAPI.Chrome.DevTools.NetworkPanel): void {
+  }
+
+  (NetworkPanelImpl.prototype as Pick<PublicAPI.Chrome.DevTools.NetworkPanel, 'show'>) = {
+    show: function(options?: {filter: string}): Promise<void> {
+      return new Promise<void>(
+          resolve => extensionServer.sendRequest(
+              {command: PrivateAPI.Commands.ShowNetworkPanel, filter: options?.filter}, () => resolve()));
+    },
+  };
+
+  function PerformanceImpl(this: PublicAPI.Chrome.DevTools.Performance): void {
+    function dispatchProfilingStartedEvent(this: APIImpl.EventSink<() => unknown>): void {
+      this._fire();
+    }
+
+    function dispatchProfilingStoppedEvent(this: APIImpl.EventSink<() => unknown>): void {
+      this._fire();
+    }
+
+    this.onProfilingStarted =
+        new (Constructor(EventSink))(PrivateAPI.Events.ProfilingStarted, dispatchProfilingStartedEvent);
+    this.onProfilingStopped =
+        new (Constructor(EventSink))(PrivateAPI.Events.ProfilingStopped, dispatchProfilingStoppedEvent);
+  }
+
   function declareInterfaceClass<ImplT extends APIImpl.Callable>(implConstructor: ImplT): (
       this: ThisParameterType<ImplT>, ...args: Parameters<ImplT>) => void {
     return function(this: ThisParameterType<ImplT>, ...args: Parameters<ImplT>): void {
@@ -979,6 +1015,7 @@ self.injectedExtensionAPI = function(
 
   const LanguageServicesAPI = declareInterfaceClass(LanguageServicesAPIImpl);
   const RecorderServicesAPI = declareInterfaceClass(RecorderServicesAPIImpl);
+  const Performance = declareInterfaceClass(PerformanceImpl);
   const Button = declareInterfaceClass(ButtonImpl);
   const EventSink = declareInterfaceClass(EventSinkImpl);
   const ExtensionPanel = declareInterfaceClass(ExtensionPanelImpl);
@@ -987,6 +1024,7 @@ self.injectedExtensionAPI = function(
   const PanelWithSidebarClass = declareInterfaceClass(PanelWithSidebarImpl);
   const Request = declareInterfaceClass(RequestImpl);
   const Resource = declareInterfaceClass(ResourceImpl);
+  const NetworkPanel = declareInterfaceClass(NetworkPanelImpl);
 
   class ElementsPanel extends (Constructor(PanelWithSidebarClass)) {
     constructor() {
@@ -1423,6 +1461,7 @@ self.injectedExtensionAPI = function(
   chrome.devtools!.panels.themeName = themeName;
   chrome.devtools!.languageServices = coreAPI.languageServices;
   chrome.devtools!.recorder = coreAPI.recorder;
+  chrome.devtools!.performance = coreAPI.performance;
 
   // default to expose experimental APIs for now.
   if (extensionInfo.exposeExperimentalAPIs !== false) {

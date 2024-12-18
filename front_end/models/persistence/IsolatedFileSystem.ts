@@ -32,8 +32,7 @@ import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
-
-import type * as TextUtils from '../text_utils/text_utils.js';
+import * as TextUtils from '../text_utils/text_utils.js';
 
 import {Events, type IsolatedFileSystemManager} from './IsolatedFileSystemManager.js';
 import {PlatformFileSystem} from './PlatformFileSystem.js';
@@ -55,11 +54,6 @@ const UIStrings = {
    */
   cantReadFileSS: 'Can\'t read file: {PH1}: {PH2}',
   /**
-   *@description Error message when failing to load a file
-   *@example {c:\dir\file.js} PH1
-   */
-  unknownErrorReadingFileS: 'Unknown error reading file: {PH1}',
-  /**
    *@description Text to show something is linked to another
    *@example {example.url} PH1
    */
@@ -74,10 +68,10 @@ export class IsolatedFileSystem extends PlatformFileSystem {
   private readonly excludedFoldersSetting:
       Common.Settings.Setting<{[path: Platform.DevToolsPath.UrlString]: Platform.DevToolsPath.EncodedPathString[]}>;
   private excludedFoldersInternal: Set<Platform.DevToolsPath.EncodedPathString>;
-  private readonly excludedEmbedderFolders: Platform.DevToolsPath.RawPathString[];
-  private readonly initialFilePathsInternal: Set<Platform.DevToolsPath.EncodedPathString>;
-  private readonly initialGitFoldersInternal: Set<Platform.DevToolsPath.EncodedPathString>;
-  private readonly fileLocks: Map<Platform.DevToolsPath.EncodedPathString, Promise<void>>;
+  private readonly excludedEmbedderFolders: Platform.DevToolsPath.RawPathString[] = [];
+  private readonly initialFilePathsInternal = new Set<Platform.DevToolsPath.EncodedPathString>();
+  private readonly initialGitFoldersInternal = new Set<Platform.DevToolsPath.EncodedPathString>();
+  private readonly fileLocks = new Map<Platform.DevToolsPath.EncodedPathString, Promise<unknown>>();
 
   constructor(
       manager: IsolatedFileSystemManager, path: Platform.DevToolsPath.UrlString,
@@ -89,11 +83,6 @@ export class IsolatedFileSystem extends PlatformFileSystem {
     this.excludedFoldersSetting =
         Common.Settings.Settings.instance().createLocalSetting('workspace-excluded-folders', {});
     this.excludedFoldersInternal = new Set(this.excludedFoldersSetting.get()[path] || []);
-    this.excludedEmbedderFolders = [];
-
-    this.initialFilePathsInternal = new Set();
-    this.initialGitFoldersInternal = new Set();
-    this.fileLocks = new Map();
   }
 
   static async create(
@@ -102,7 +91,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
       rootURL: string): Promise<IsolatedFileSystem|null> {
     const domFileSystem = Host.InspectorFrontendHost.InspectorFrontendHostInstance.isolatedFileSystem(name, rootURL);
     if (!domFileSystem) {
-      return null as IsolatedFileSystem | null;
+      return null;
     }
 
     const fileSystem = new IsolatedFileSystem(manager, path, embedderPath, domFileSystem, type);
@@ -113,34 +102,30 @@ export class IsolatedFileSystem extends PlatformFileSystem {
   }
 
   static errorMessage(error: DOMError): string {
-    // @ts-ignore TODO(crbug.com/1172300) Properly type this after jsdoc to ts migration
     return i18nString(UIStrings.fileSystemErrorS, {PH1: error.message});
   }
 
   private serializedFileOperation<T>(path: Platform.DevToolsPath.EncodedPathString, operation: () => Promise<T>):
       Promise<T> {
     const promise = Promise.resolve(this.fileLocks.get(path)).then(() => operation.call(null));
-    this.fileLocks.set(path, promise as unknown as Promise<void>);
+    this.fileLocks.set(path, promise);
     return promise;
   }
 
   override getMetadata(path: Platform.DevToolsPath.EncodedPathString): Promise<Metadata|null> {
-    let fulfill: (arg0: Metadata|null) => void;
-    const promise = new Promise<Metadata|null>(f => {
-      fulfill = f;
-    });
+    const {promise, resolve} = Platform.PromiseUtilities.promiseWithResolvers<Metadata|null>();
     this.domFileSystem.root.getFile(
         Common.ParsedURL.ParsedURL.encodedPathToRawPathString(path), undefined, fileEntryLoaded, errorHandler);
     return promise;
 
     function fileEntryLoaded(entry: FileEntry): void {
-      entry.getMetadata(fulfill, errorHandler);
+      entry.getMetadata(resolve, errorHandler);
     }
 
     function errorHandler(error: DOMError): void {
       const errorMessage = IsolatedFileSystem.errorMessage(error);
       console.error(errorMessage + ' when getting file metadata \'' + path);
-      fulfill(null);
+      resolve(null);
     }
   }
 
@@ -269,10 +254,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
   }
 
   override deleteFile(path: Platform.DevToolsPath.EncodedPathString): Promise<boolean> {
-    let resolveCallback: (arg0: boolean) => void;
-    const promise = new Promise<boolean>(resolve => {
-      resolveCallback = resolve;
-    });
+    const {promise, resolve} = Platform.PromiseUtilities.promiseWithResolvers<boolean>();
     this.domFileSystem.root.getFile(
         Common.ParsedURL.ParsedURL.encodedPathToRawPathString(path), undefined, fileEntryLoaded.bind(this),
         errorHandler.bind(this));
@@ -283,7 +265,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
     }
 
     function fileEntryRemoved(): void {
-      resolveCallback(true);
+      resolve(true);
     }
 
     /**
@@ -292,15 +274,12 @@ export class IsolatedFileSystem extends PlatformFileSystem {
     function errorHandler(this: IsolatedFileSystem, error: DOMError): void {
       const errorMessage = IsolatedFileSystem.errorMessage(error);
       console.error(errorMessage + ' when deleting file \'' + (this.path() + '/' + path) + '\'');
-      resolveCallback(false);
+      resolve(false);
     }
   }
 
   override deleteDirectoryRecursively(path: Platform.DevToolsPath.EncodedPathString): Promise<boolean> {
-    let resolveCallback: (arg0: boolean) => void;
-    const promise = new Promise<boolean>(resolve => {
-      resolveCallback = resolve;
-    });
+    const {promise, resolve} = Platform.PromiseUtilities.promiseWithResolvers<boolean>();
     this.domFileSystem.root.getDirectory(
         Common.ParsedURL.ParsedURL.encodedPathToRawPathString(path), undefined, dirEntryLoaded.bind(this),
         errorHandler.bind(this));
@@ -311,7 +290,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
     }
 
     function dirEntryRemoved(): void {
-      resolveCallback(true);
+      resolve(true);
     }
 
     /**
@@ -320,7 +299,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
     function errorHandler(this: IsolatedFileSystem, error: DOMError): void {
       const errorMessage = IsolatedFileSystem.errorMessage(error);
       console.error(errorMessage + ' when deleting directory \'' + (this.path() + '/' + path) + '\'');
-      resolveCallback(false);
+      resolve(false);
     }
   }
 
@@ -344,58 +323,35 @@ export class IsolatedFileSystem extends PlatformFileSystem {
   }
 
   override requestFileContent(path: Platform.DevToolsPath.EncodedPathString):
-      Promise<TextUtils.ContentProvider.DeferredContent> {
+      Promise<TextUtils.ContentData.ContentDataOrError> {
     return this.serializedFileOperation(path, () => this.innerRequestFileContent(path));
   }
 
   private async innerRequestFileContent(path: Platform.DevToolsPath.EncodedPathString):
-      Promise<TextUtils.ContentProvider.DeferredContent> {
+      Promise<TextUtils.ContentData.ContentDataOrError> {
     const blob = await this.requestFileBlob(path);
     if (!blob) {
-      return {content: null, error: i18nString(UIStrings.blobCouldNotBeLoaded), isEncoded: false};
+      return {error: i18nString(UIStrings.blobCouldNotBeLoaded)};
     }
 
-    const reader = new FileReader();
-    const extension = Common.ParsedURL.ParsedURL.extractExtension(path);
-    const encoded = BinaryExtensions.has(extension);
-    const readPromise = new Promise(x => {
-      reader.onloadend = x;
-    });
-    if (encoded) {
-      reader.readAsBinaryString(blob);
-    } else {
-      reader.readAsText(blob);
-    }
-    await readPromise;
-    if (reader.error) {
-      const error = i18nString(UIStrings.cantReadFileSS, {PH1: path, PH2: reader.error.toString()});
-      console.error(error);
-      return {content: null, isEncoded: false, error};
-    }
-    let result: string|null = null;
-    let error: Common.UIString.LocalizedString|null = null;
+    const mimeType = mimeTypeForBlob(path, blob);
     try {
-      result = reader.result as string;
+      if (Platform.MimeType.isTextType(mimeType)) {
+        return new TextUtils.ContentData.ContentData(await blob.text(), /* isBase64 */ false, mimeType);
+      }
+      return new TextUtils.ContentData.ContentData(await Common.Base64.encode(blob), /* isBase64 */ true, mimeType);
     } catch (e) {
-      result = null;
-      error = i18nString(UIStrings.cantReadFileSS, {PH1: path, PH2: e.message});
+      return {error: i18nString(UIStrings.cantReadFileSS, {PH1: path, PH2: e.message})};
     }
-    if (result === undefined || result === null) {
-      error = error || i18nString(UIStrings.unknownErrorReadingFileS, {PH1: path});
-      console.error(error);
-      return {content: null, isEncoded: false, error};
-    }
-    return {isEncoded: encoded, content: encoded ? btoa(result) : result};
   }
 
   override async setFileContent(path: Platform.DevToolsPath.EncodedPathString, content: string, isBase64: boolean):
       Promise<void> {
     Host.userMetrics.actionTaken(Host.UserMetrics.Action.FileSavedInWorkspace);
-    let callback: (event?: ProgressEvent<EventTarget>) => void;
-    const innerSetFileContent = (): Promise<ProgressEvent<EventTarget>> => {
-      const promise = new Promise<ProgressEvent<EventTarget>>(x => {
-        // @ts-ignore TODO(crbug.com/1172300) Properly type this after jsdoc to ts migration
-        callback = x;
+    let resolve: (result: ProgressEvent<EventTarget>|undefined) => void;
+    const innerSetFileContent = (): Promise<ProgressEvent<EventTarget>|undefined> => {
+      const promise = new Promise<ProgressEvent<EventTarget>|undefined>(x => {
+        resolve = x;
       });
       this.domFileSystem.root.getFile(
           Common.ParsedURL.ParsedURL.encodedPathToRawPathString(path), {create: true}, fileEntryLoaded.bind(this),
@@ -421,7 +377,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
       fileWriter.write(blob);
 
       function fileWritten(): void {
-        fileWriter.onwriteend = callback;
+        fileWriter.onwriteend = resolve;
         fileWriter.truncate(blob.size);
       }
     }
@@ -430,7 +386,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
       // @ts-ignore TODO(crbug.com/1172300) Properly type this after jsdoc to ts migration
       const errorMessage = IsolatedFileSystem.errorMessage(error);
       console.error(errorMessage + ' when setting content for file \'' + (this.path() + '/' + path) + '\'');
-      callback(undefined);
+      resolve(undefined);
     }
   }
 
@@ -459,8 +415,8 @@ export class IsolatedFileSystem extends PlatformFileSystem {
       fileEntry.getParent(dirEntryLoaded.bind(this), errorHandler.bind(this));
     }
 
-    function dirEntryLoaded(this: IsolatedFileSystem, entry: Entry): void {
-      dirEntry = entry as DirectoryEntry;
+    function dirEntryLoaded(this: IsolatedFileSystem, entry: DirectoryEntry): void {
+      dirEntry = entry;
       dirEntry.getFile(newName, undefined, newFileEntryLoaded, newFileEntryLoadErrorHandler.bind(this));
     }
 
@@ -555,7 +511,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
     if (this.excludedFoldersInternal.has(folderPath)) {
       return true;
     }
-    const regex = (this.manager.workspaceFolderExcludePatternSetting() as Common.Settings.RegExpSetting).asRegExp();
+    const regex = (this.manager.workspaceFolderExcludePatternSetting()).asRegExp();
     return Boolean(regex && regex.test(Common.ParsedURL.ParsedURL.encodedPathToRawPathString(folderPath)));
   }
 
@@ -619,6 +575,27 @@ export class IsolatedFileSystem extends PlatformFileSystem {
   override supportsAutomapping(): boolean {
     return this.type() !== 'overrides';
   }
+}
+
+/**
+ * @returns Tries to determine the mime type for this Blob:
+ *   1) If blob.type is non-empty, we return that.
+ *   2) If we know it from the extension, use that.
+ *   3) Check the list of known binary extensions and use application/octet-stream.
+ *   4) Use text/plain
+ */
+function mimeTypeForBlob(path: Platform.DevToolsPath.EncodedPathString, blob: Blob): string {
+  if (blob.type) {
+    return blob.type;
+  }
+
+  const extension = Common.ParsedURL.ParsedURL.extractExtension(path);
+  const maybeMime = Common.ResourceType.ResourceType.mimeFromExtension(extension);
+  if (maybeMime) {
+    return maybeMime;
+  }
+
+  return BinaryExtensions.has(extension) ? 'application/octet-stream' : 'text/plain';
 }
 
 const STYLE_SHEET_EXTENSIONS = new Set<string>(['css', 'scss', 'sass', 'less']);

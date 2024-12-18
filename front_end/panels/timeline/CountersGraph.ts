@@ -75,7 +75,7 @@ export class CountersGraph extends UI.Widget.VBox {
   private readonly header: UI.Widget.HBox;
   readonly toolbar: UI.Toolbar.Toolbar;
   private graphsContainer: UI.Widget.VBox;
-  canvasContainer: UI.Widget.WidgetElement;
+  canvasContainer: typeof UI.Widget.Widget.prototype.element;
   private canvas: HTMLCanvasElement;
   private readonly timelineGrid: PerfUI.TimelineGrid.TimelineGrid;
   private readonly counters: Counter[];
@@ -181,7 +181,7 @@ export class CountersGraph extends UI.Widget.VBox {
       for (const name in counters) {
         const counter = this.countersByName.get(name);
         if (counter) {
-          const {startTime} = TraceEngine.Legacy.timesForEventInMilliseconds(event);
+          const {startTime} = TraceEngine.Helpers.Timing.eventTimingsMilliSeconds(event);
           counter.appendSample(
               startTime, counters[name as 'documents' | 'jsEventListeners' | 'jsHeapSizeUsed' | 'nodes']);
         }

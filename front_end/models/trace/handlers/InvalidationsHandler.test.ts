@@ -2,22 +2,21 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-const {assert} = chai;
-import * as TraceEngine from '../trace.js';
 import type * as Protocol from '../../../generated/protocol.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
+import * as TraceEngine from '../trace.js';
 
-function invalidationDataForTestAssertion(invalidation: TraceEngine.Types.TraceEvents.SyntheticInvalidation): {
+function invalidationDataForTestAssertion(invalidation: TraceEngine.Types.TraceEvents.InvalidationTrackingEvent): {
   nodeId: Protocol.DOM.BackendNodeId,
   nodeName?: string,
   reason?: string,
   stackTrace?: TraceEngine.Types.TraceEvents.TraceEventCallFrame[],
 } {
   return {
-    nodeId: invalidation.nodeId,
-    nodeName: invalidation.nodeName,
-    reason: invalidation.reason,
-    stackTrace: invalidation.stackTrace,
+    nodeId: invalidation.args.data.nodeId,
+    nodeName: invalidation.args.data.nodeName,
+    reason: invalidation.args.data.reason,
+    stackTrace: invalidation.args.data.stackTrace,
   };
 }
 

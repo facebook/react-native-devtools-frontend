@@ -36,7 +36,7 @@ jobs:
       with:
         name: dist-Release-front_end
         path: src/out/Release/gen/front_end
-    - name: Run unit tests
+    - name: Run front_end tests
       run: |
         cd src
-        npm run unittest -- --expanded-reporting
+        npm run test -- front_end

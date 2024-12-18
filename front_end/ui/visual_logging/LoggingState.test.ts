@@ -2,11 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {stabilizeState} from '../../testing/VisualLoggingHelpers.js';
+import {getVeId} from '../../testing/VisualLoggingHelpers.js';
 
 import * as VisualLogging from './visual_logging-testing.js';
-
-const {assert} = chai;
 
 describe('LoggingState', () => {
   let parent: Element;
@@ -20,17 +18,19 @@ describe('LoggingState', () => {
   it('getOrCreateLoggingState creates state entry on demand', () => {
     VisualLogging.LoggingState.getOrCreateLoggingState(parent, {ve: 1});
     const state = VisualLogging.LoggingState.getOrCreateLoggingState(element, {ve: 1, context: '42'}, parent);
-    assert.deepEqual(stabilizeState(state), {
+    assert.deepEqual(state, {
       impressionLogged: false,
       config: {ve: 1, context: '42'},
-      veid: 0,
+      veid: getVeId(element),
       processed: false,
+      size: new DOMRect(0, 0, 0, 0),
       parent: {
         impressionLogged: false,
         config: {ve: 1},
-        veid: 1,
+        veid: getVeId(parent),
         processed: false,
         parent: null,
+        size: new DOMRect(0, 0, 0, 0),
       },
     });
   });

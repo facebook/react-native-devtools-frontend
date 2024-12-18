@@ -92,10 +92,64 @@ const UIStrings = {
    */
   storeAsGlobalVariable: 'Store as global variable',
   /**
+   *@description Text to ignore an object shown in the Retainers pane
+   */
+  ignoreThisRetainer: 'Ignore this retainer',
+  /**
+   *@description Text to undo the "Ignore this retainer" action
+   */
+  stopIgnoringThisRetainer: 'Stop ignoring this retainer',
+  /**
+   *@description Text indicating that a node has been ignored with the "Ignore this retainer" action
+   */
+  ignored: 'ignored',
+  /**
    *@description Text in Heap Snapshot Grid Nodes of a profiler tool that indicates an element contained in another
    * element.
    */
   inElement: 'in',
+  /**
+   *@description A short summary of the text at https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots#compiled-code
+   */
+  compiledCodeSummary: 'Internal data which V8 uses to run functions defined by JavaScript or WebAssembly.',
+  /**
+   *@description A short summary of the text at https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots#concatenated-string
+   */
+  concatenatedStringSummary: 'A string which represents the contents of two other strings joined together.',
+  /**
+   *@description A short summary of the text at https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots#system-context
+   */
+  contextSummary:
+      'An internal object containing variables from a JavaScript scope which may be needed by a function created within that scope.',
+  /**
+   *@description A short description of the data type internal type DescriptorArray, which is described more fully at https://v8.dev/blog/fast-properties
+   */
+  descriptorArraySummary: 'A list of the property names used by a JavaScript Object.',
+  /**
+   *@description A short summary of the text at https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots#array
+   */
+  internalArraySummary: 'An internal array-like data structure (not a JavaScript Array).',
+  /**
+   *@description A short summary of the text at https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots#internal-node
+   */
+  internalNodeSummary: 'An object allocated by a component other than V8, such as C++ objects defined by Blink.',
+  /**
+   *@description A short description of the data type "system / Map" described at https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots#object-shape
+   */
+  mapSummary: 'An internal object representing the shape of a JavaScript Object (not a JavaScript Map).',
+  /**
+   *@description A short summary of the "(object elements)[]" described at https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots#array
+   */
+  objectElementsSummary:
+      'An internal object which stores the indexed properties in a JavaScript Object, such as the contents of an Array.',
+  /**
+   *@description A short summary of the "(object properties)[]" described at https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots#array
+   */
+  objectPropertiesSummary: 'An internal object which stores the named properties in a JavaScript Object.',
+  /**
+   *@description A short summary of the text at https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots#sliced-string
+   */
+  slicedStringSummary: 'A string which represents some of the characters from another string.',
 };
 const str_ = i18n.i18n.registerUIStrings('panels/profiler/HeapSnapshotGridNodes.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -197,7 +251,7 @@ export class HeapSnapshotGridNode extends
   }
 
   queryObjectContent(_heapProfilerModel: SDK.HeapProfilerModel.HeapProfilerModel, _objectGroupName: string):
-      Promise<SDK.RemoteObject.RemoteObject> {
+      Promise<SDK.RemoteObject.RemoteObject|{description: string, link: string}> {
     throw new Error('Not implemented.');
   }
 
@@ -242,7 +296,7 @@ export class HeapSnapshotGridNode extends
   }
 
   createValueCell(columnId: string): HTMLElement {
-    const jslog = VisualLogging.tableCell('numeric-column').track({click: true, resize: true});
+    const jslog = VisualLogging.tableCell('numeric-column').track({click: true});
     const cell = (UI.Fragment.html`<td class="numeric-column" jslog=${jslog} />` as HTMLElement);
     const dataGrid = (this.dataGrid as HeapSnapshotSortableDataGrid);
     if (dataGrid.snapshot && dataGrid.snapshot.totalSize !== 0) {
@@ -426,9 +480,8 @@ export class HeapSnapshotGridNode extends
           }
         }
 
-        // TODO: fix this.
         this.instanceCount += items.length;
-        if (firstNotSerializedPosition < toPosition) {
+        if (firstNotSerializedPosition < toPosition && firstNotSerializedPosition < itemsRange.totalLength) {
           serializeNextChunk.call(this, toPosition);
           return;
         }
@@ -592,7 +645,7 @@ export abstract class HeapSnapshotGenericObjectNode extends HeapSnapshotGridNode
   }
 
   createObjectCellWithValue(valueStyle: string, value: string): HTMLElement {
-    const jslog = VisualLogging.tableCell('object-column').track({click: true, resize: true});
+    const jslog = VisualLogging.tableCell('object-column').track({click: true});
     const fragment = UI.Fragment.Fragment.build`
   <td class="object-column disclosure" jslog=${jslog}>
   <div class="source-code event-properties" style="overflow: visible;" $="container">
@@ -637,10 +690,11 @@ export abstract class HeapSnapshotGenericObjectNode extends HeapSnapshotGridNode
     }
   }
 
-  override async queryObjectContent(heapProfilerModel: SDK.HeapProfilerModel.HeapProfilerModel, objectGroupName: string):
-      Promise<SDK.RemoteObject.RemoteObject> {
+  override async queryObjectContent(
+      heapProfilerModel: SDK.HeapProfilerModel.HeapProfilerModel,
+      objectGroupName: string): Promise<SDK.RemoteObject.RemoteObject|{description: string, link: string}> {
     const remoteObject = await this.tryQueryObjectContent(heapProfilerModel, objectGroupName);
-    return remoteObject ||
+    return remoteObject || this.tryGetTooltipDescription() ||
         heapProfilerModel.runtimeModel().createRemoteObjectFromPrimitiveValue(
             i18nString(UIStrings.previewIsNotAvailable));
   }
@@ -652,6 +706,36 @@ export abstract class HeapSnapshotGenericObjectNode extends HeapSnapshotGridNode
     }
     return await heapProfilerModel.objectForSnapshotObjectId(
         String(this.snapshotNodeId) as Protocol.HeapProfiler.HeapSnapshotObjectId, objectGroupName);
+  }
+
+  tryGetTooltipDescription(): {description: string, link: string}|undefined {
+    const baseLink = 'https://developer.chrome.com/docs/devtools/memory-problems/heap-snapshots#';
+    switch (this.type) {
+      case 'code':
+        return {description: i18nString(UIStrings.compiledCodeSummary), link: baseLink + 'compiled-code'};
+      case 'concatenated string':
+        return {description: i18nString(UIStrings.concatenatedStringSummary), link: baseLink + 'concatenated-string'};
+      case 'sliced string':
+        return {description: i18nString(UIStrings.slicedStringSummary), link: baseLink + 'sliced-string'};
+    }
+    switch (this.type + ':' + this.nameInternal) {
+      case 'array:':  // If nameInternal is empty, then the object is shown as "(internal array)[]".
+        return {description: i18nString(UIStrings.internalArraySummary), link: baseLink + 'array'};
+      case 'array:(object elements)':
+        return {description: i18nString(UIStrings.objectElementsSummary), link: baseLink + 'array'};
+      case 'array:(object properties)':
+      case 'hidden:system / PropertyArray':
+        return {description: i18nString(UIStrings.objectPropertiesSummary), link: baseLink + 'array'};
+      case 'object:system / Context':
+        return {description: i18nString(UIStrings.contextSummary), link: baseLink + 'system-context'};
+      case 'object shape:system / DescriptorArray':
+        return {description: i18nString(UIStrings.descriptorArraySummary), link: baseLink + 'object-shape'};
+      case 'object shape:system / Map':
+        return {description: i18nString(UIStrings.mapSummary), link: baseLink + 'object-shape'};
+      case 'native:InternalNode':
+        return {description: i18nString(UIStrings.internalNodeSummary), link: baseLink + 'internal-node'};
+    }
+    return undefined;
   }
 
   async updateHasChildren(): Promise<void> {
@@ -676,9 +760,11 @@ export abstract class HeapSnapshotGenericObjectNode extends HeapSnapshotGridNode
   override populateContextMenu(
       contextMenu: UI.ContextMenu.ContextMenu, dataDisplayDelegate: DataDisplayDelegate,
       heapProfilerModel: SDK.HeapProfilerModel.HeapProfilerModel|null): void {
-    contextMenu.revealSection().appendItem(i18nString(UIStrings.revealInSummaryView), () => {
-      dataDisplayDelegate.showObject(String(this.snapshotNodeId), i18nString(UIStrings.summary));
-    }, {jslogContext: 'reveal-in-summary'});
+    if (this.shallowSize !== 0) {
+      contextMenu.revealSection().appendItem(i18nString(UIStrings.revealInSummaryView), () => {
+        dataDisplayDelegate.showObject(String(this.snapshotNodeId), i18nString(UIStrings.summary));
+      }, {jslogContext: 'reveal-in-summary'});
+    }
 
     if (this.referenceName) {
       for (const match of this.referenceName.matchAll(/\((?<objectName>[^@)]*) @(?<snapshotNodeId>\d+)\)/g)) {
@@ -830,10 +916,15 @@ export class HeapSnapshotObjectNode extends HeapSnapshotGenericObjectNode {
 }
 
 export class HeapSnapshotRetainingObjectNode extends HeapSnapshotObjectNode {
+  #ignored: boolean;
   constructor(
       dataGrid: HeapSnapshotSortableDataGrid, snapshot: HeapSnapshotProxy,
       edge: HeapSnapshotModel.HeapSnapshotModel.Edge, parentRetainingObjectNode: HeapSnapshotRetainingObjectNode|null) {
     super(dataGrid, snapshot, edge, parentRetainingObjectNode);
+    this.#ignored = edge.node.ignored;
+    if (this.#ignored) {
+      this.data['distance'] = i18nString(UIStrings.ignored);
+    }
   }
 
   override createProvider(): HeapSnapshotProviderProxy {
@@ -858,6 +949,40 @@ export class HeapSnapshotRetainingObjectNode extends HeapSnapshotObjectNode {
     this.expandRetainersChain(20);
   }
 
+  override populateContextMenu(
+      contextMenu: UI.ContextMenu.ContextMenu, dataDisplayDelegate: DataDisplayDelegate,
+      heapProfilerModel: SDK.HeapProfilerModel.HeapProfilerModel|null): void {
+    super.populateContextMenu(contextMenu, dataDisplayDelegate, heapProfilerModel);
+
+    const snapshotNodeIndex = this.snapshotNodeIndex;
+    if (snapshotNodeIndex === undefined) {
+      return;
+    }
+
+    if (this.#ignored) {
+      contextMenu.revealSection().appendItem(i18nString(UIStrings.stopIgnoringThisRetainer), async () => {
+        await this.snapshot.unignoreNodeInRetainersView(snapshotNodeIndex);
+        await this.dataGridInternal.dataSourceChanged();
+      }, {jslogContext: 'stop-ignoring-this-retainer'});
+    } else {
+      contextMenu.revealSection().appendItem(i18nString(UIStrings.ignoreThisRetainer), async () => {
+        await this.snapshot.ignoreNodeInRetainersView(snapshotNodeIndex);
+        await this.dataGridInternal.dataSourceChanged();
+      }, {jslogContext: 'ignore-this-retainer'});
+    }
+  }
+
+  isReachable(): boolean {
+    return (this.distance ?? 0) < HeapSnapshotModel.HeapSnapshotModel.baseUnreachableDistance;
+  }
+
+  override prefixObjectCell(div: Element): void {
+    super.prefixObjectCell(div);
+    if (!this.isReachable()) {
+      div.classList.add('unreachable-ancestor-node');
+    }
+  }
+
   expandRetainersChain(maxExpandLevels: number): void {
     if (!this.populated) {
       void this.once(HeapSnapshotGridNode.Events.PopulateComplete)
@@ -868,12 +993,23 @@ export class HeapSnapshotRetainingObjectNode extends HeapSnapshotObjectNode {
     super.expand();
     if (--maxExpandLevels > 0 && this.children.length > 0) {
       const retainer = (this.children[0] as HeapSnapshotRetainingObjectNode);
-      if ((retainer.distance || 0) > 1) {
+      if ((retainer.distance || 0) > 1 && retainer.isReachable()) {
         retainer.expandRetainersChain(maxExpandLevels);
         return;
       }
     }
     this.dataGridInternal.dispatchEventToListeners(HeapSnapshotSortableDataGridEvents.ExpandRetainersComplete);
+  }
+
+  override comparator(): HeapSnapshotModel.HeapSnapshotModel.ComparatorConfig {
+    const result = super.comparator();
+    if (result.fieldName1 === 'distance') {
+      result.fieldName1 = '!edgeDistance';
+    }
+    if (result.fieldName2 === 'distance') {
+      result.fieldName2 = '!edgeDistance';
+    }
+    return result;
   }
 }
 

@@ -11,8 +11,3 @@ export enum FrontendMessageType {
   System = 'system',
   QueryObjectResult = 'queryObjectResult',
 }
-
-export enum FrontendMessageSource {
-  CSS = 'css',
-  ConsoleAPI = 'console-api',
-}

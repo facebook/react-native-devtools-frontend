@@ -11,17 +11,17 @@ import { type CDPSession } from '../api/CDPSession.js';
 import type { Frame, WaitForOptions } from '../api/Frame.js';
 import type { HTTPResponse } from '../api/HTTPResponse.js';
 import type { JSHandle } from '../api/JSHandle.js';
+import type { Credentials } from '../api/Page.js';
 import { Page, type GeolocationOptions, type MediaFeature, type Metrics, type NewDocumentScriptEvaluation, type ScreenshotOptions, type WaitTimeoutOptions } from '../api/Page.js';
 import type { Cookie, DeleteCookiesRequest, CookieParam } from '../common/Cookie.js';
 import { FileChooser } from '../common/FileChooser.js';
 import type { PDFOptions } from '../common/PDFOptions.js';
 import type { Viewport } from '../common/Viewport.js';
-import { Accessibility } from './Accessibility.js';
 import { Coverage } from './Coverage.js';
 import type { DeviceRequestPrompt } from './DeviceRequestPrompt.js';
 import type { CdpFrame } from './Frame.js';
 import { CdpKeyboard, CdpMouse, CdpTouchscreen } from './Input.js';
-import type { Credentials, NetworkConditions } from './NetworkManager.js';
+import type { NetworkConditions } from './NetworkManager.js';
 import type { CdpTarget } from './Target.js';
 import { Tracing } from './Tracing.js';
 import { CdpWebWorker } from './WebWorker.js';
@@ -30,8 +30,8 @@ import { CdpWebWorker } from './WebWorker.js';
  */
 export declare class CdpPage extends Page {
     #private;
-    static _create(client: CDPSession, target: CdpTarget, ignoreHTTPSErrors: boolean, defaultViewport: Viewport | null): Promise<CdpPage>;
-    constructor(client: CDPSession, target: CdpTarget, ignoreHTTPSErrors: boolean);
+    static _create(client: CDPSession, target: CdpTarget, defaultViewport: Viewport | null): Promise<CdpPage>;
+    constructor(client: CDPSession, target: CdpTarget);
     _client(): CDPSession;
     isServiceWorkerBypassed(): boolean;
     isDragInterceptionEnabled(): boolean;
@@ -46,7 +46,6 @@ export declare class CdpPage extends Page {
     get touchscreen(): CdpTouchscreen;
     get coverage(): Coverage;
     get tracing(): Tracing;
-    get accessibility(): Accessibility;
     frames(): Frame[];
     workers(): CdpWebWorker[];
     setRequestInterception(value: boolean): Promise<void>;
@@ -65,7 +64,7 @@ export declare class CdpPage extends Page {
         default: Function;
     }): Promise<void>;
     removeExposedFunction(name: string): Promise<void>;
-    authenticate(credentials: Credentials): Promise<void>;
+    authenticate(credentials: Credentials | null): Promise<void>;
     setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>;
     setUserAgent(userAgent: string, userAgentMetadata?: Protocol.Emulation.UserAgentMetadata): Promise<void>;
     metrics(): Promise<Metrics>;
@@ -85,7 +84,7 @@ export declare class CdpPage extends Page {
         isScreenUnlocked: boolean;
     }): Promise<void>;
     emulateVisionDeficiency(type?: Protocol.Emulation.SetEmulatedVisionDeficiencyRequest['type']): Promise<void>;
-    setViewport(viewport: Viewport): Promise<void>;
+    setViewport(viewport: Viewport | null): Promise<void>;
     viewport(): Viewport | null;
     evaluateOnNewDocument<Params extends unknown[], Func extends (...args: Params) => unknown = (...args: Params) => unknown>(pageFunction: Func | string, ...args: Params): Promise<NewDocumentScriptEvaluation>;
     removeScriptToEvaluateOnNewDocument(identifier: string): Promise<void>;

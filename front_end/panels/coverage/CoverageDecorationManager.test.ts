@@ -2,9 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Common from '../../core/common/common.js';
 import type * as Platform from '../../core/platform/platform.js';
-import {assertNotNullOrUndefined} from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
@@ -12,6 +10,7 @@ import * as Workspace from '../../models/workspace/workspace.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
 import {MockProtocolBackend} from '../../testing/MockScopeChain.js';
+import {getInitializedResourceTreeModel} from '../../testing/ResourceTreeHelpers.js';
 import {createContentProviderUISourceCode} from '../../testing/UISourceCodeHelpers.js';
 
 import * as Coverage from './coverage.js';
@@ -59,19 +58,7 @@ describeWithMockConnection('CoverageDeocrationManager', () => {
 
     // Wait for the resource tree model to load; otherwise, our uiSourceCodes could be asynchronously
     // invalidated during the test.
-    const resourceTreeModel = target.model(SDK.ResourceTreeModel.ResourceTreeModel);
-    assertNotNullOrUndefined(resourceTreeModel);
-    await new Promise<void>(resolver => {
-      if (resourceTreeModel.cachedResourcesLoaded()) {
-        resolver();
-      } else {
-        const eventListener =
-            resourceTreeModel.addEventListener(SDK.ResourceTreeModel.Events.CachedResourcesLoaded, () => {
-              Common.EventTarget.removeEventListeners([eventListener]);
-              resolver();
-            });
-      }
-    });
+    await getInitializedResourceTreeModel(target);
   });
 
   const URL = 'http://example.com/index.js' as Platform.DevToolsPath.UrlString;
@@ -80,8 +67,8 @@ describeWithMockConnection('CoverageDeocrationManager', () => {
     it('marks lines as "unknown" coverge status if no coverage info is available', async () => {
       await backend.addScript(target, {url: URL, content: 'function foo(a,b){return a+b;}'}, null);
       const uiSourceCode = workspace.uiSourceCodeForURL(URL);
-      assertNotNullOrUndefined(uiSourceCode);
-      await uiSourceCode.requestContent();
+      assert.exists(uiSourceCode);
+      await uiSourceCode.requestContentData();
       const manager = new CoverageDecorationManager(coverageModel, workspace, debuggerBinding, cssBinding);
 
       const usage = await manager.usageByLine(uiSourceCode, lineRangesForContent(uiSourceCode.content()));
@@ -92,8 +79,8 @@ describeWithMockConnection('CoverageDeocrationManager', () => {
     it('marks lines as covered if coverage info says so', async () => {
       await backend.addScript(target, {url: URL, content: 'function foo(a,b){return a+b;}'}, null);
       const uiSourceCode = workspace.uiSourceCodeForURL(URL);
-      assertNotNullOrUndefined(uiSourceCode);
-      await uiSourceCode.requestContent();
+      assert.exists(uiSourceCode);
+      await uiSourceCode.requestContentData();
       coverageModel.usageForRange.returns(true);
       const manager = new CoverageDecorationManager(coverageModel, workspace, debuggerBinding, cssBinding);
 
@@ -108,8 +95,8 @@ describeWithMockConnection('CoverageDeocrationManager', () => {
           'function mulWithOffset(n,t,e){const f=n*t;const u=f;if(e!==undefined){const n=u+e;return n}return u}';
       const script = await backend.addScript(target, {url: URL, content: scriptContent}, null);
       const uiSourceCode = workspace.uiSourceCodeForURL(URL);
-      assertNotNullOrUndefined(uiSourceCode);
-      await uiSourceCode.requestContent();
+      assert.exists(uiSourceCode);
+      await uiSourceCode.requestContentData();
       coverageModel.usageForRange.callsFake((contentProvider, startOffset, endOffset) => {
         assert.strictEqual(contentProvider, script);
         // Everything is covered except the body of the `if`.
@@ -172,8 +159,8 @@ function mulWithOffset(param1, param2, offset) {
 
     it('marks lines as covered if coverage info says so', async () => {
       const uiSourceCode = workspace.uiSourceCodeForURL('file:///tmp/example.js' as Platform.DevToolsPath.UrlString);
-      assertNotNullOrUndefined(uiSourceCode);
-      await uiSourceCode.requestContent();
+      assert.exists(uiSourceCode);
+      await uiSourceCode.requestContentData();
       coverageModel.usageForRange.callsFake((contentProvider, startOffset, endOffset) => {
         assert.strictEqual(contentProvider, script);
         // Everything is covered except the body of the `if`.

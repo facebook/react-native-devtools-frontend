@@ -2,22 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-const {assert} = chai;
-
-import {assertNotNullOrUndefined} from '../../core/platform/platform.js';
 import * as TraceEngine from '../../models/trace/trace.js';
 import {TraceLoader} from '../../testing/TraceLoader.js';
+
 import * as Timeline from './timeline.js';
 
 describe('Initiators', () => {
   it('returns the initiator data', async function() {
-    const traceData = await TraceLoader.traceEngine(this, 'set-timeout-long-task.json.gz');
+    const {traceData} = await TraceLoader.traceEngine(this, 'set-timeout-long-task.json.gz');
 
     const timerFireEvent = Array.from(traceData.Initiators.eventToInitiator.keys())
                                .find(TraceEngine.Types.TraceEvents.isTraceEventTimerFire);
-    assertNotNullOrUndefined(timerFireEvent);
+    assert.exists(timerFireEvent);
     const timerInstallEvent = traceData.Initiators.eventToInitiator.get(timerFireEvent);
-    assertNotNullOrUndefined(timerInstallEvent);
+    assert.exists(timerInstallEvent);
     const initiatorData = Timeline.Initiators.initiatorsDataToDraw(traceData, timerFireEvent, [], []);
 
     assert.deepEqual(initiatorData, [{
@@ -26,21 +24,35 @@ describe('Initiators', () => {
                      }]);
   });
 
+  it('returns the initiator data for network requests', async function() {
+    const {traceData} = await TraceLoader.traceEngine(this, 'network-requests-initiators.json.gz');
+
+    // Find the network request to test, it is initiated by `youtube.com`.
+    const event = traceData.NetworkRequests.byTime.find(event => event.ts === 1491680762420);
+    assert.exists(event);
+    // Find the `youtube.com` network request.
+    const initiator = traceData.NetworkRequests.byTime.find(event => event.ts === 1491680629144);
+    assert.exists(initiator);
+    const initiatorData = Timeline.Initiators.initiatorsDataToDrawForNetwork(traceData, event);
+
+    assert.deepEqual(initiatorData, [{event, initiator}]);
+  });
+
   it('can walk up the tree to find the first parent with an initiator', async function() {
-    const traceData = await TraceLoader.traceEngine(this, 'set-timeout-long-task.json.gz');
+    const {traceData} = await TraceLoader.traceEngine(this, 'set-timeout-long-task.json.gz');
 
     // Find any of the fibonnaci() calls; they have a parent
     // event (TimerFire) that has an initiator.
     const fibonacciCall = traceData.Renderer.allTraceEntries.find(entry => {
       return TraceEngine.Types.TraceEvents.isProfileCall(entry) && entry.callFrame.functionName === 'fibonacci';
     });
-    assertNotNullOrUndefined(fibonacciCall);
+    assert.exists(fibonacciCall);
 
     const timerFireEvent = Array.from(traceData.Initiators.eventToInitiator.keys())
                                .find(TraceEngine.Types.TraceEvents.isTraceEventTimerFire);
-    assertNotNullOrUndefined(timerFireEvent);
+    assert.exists(timerFireEvent);
     const timerInstallEvent = traceData.Initiators.eventToInitiator.get(timerFireEvent);
-    assertNotNullOrUndefined(timerInstallEvent);
+    assert.exists(timerInstallEvent);
 
     // Find the initator data but starting at the fibonacci()
     // call.
@@ -53,14 +65,14 @@ describe('Initiators', () => {
   });
 
   it('will walk back through the initiators to find the entire chain', async function() {
-    const traceData = await TraceLoader.traceEngine(this, 'nested-initiators.json.gz');
+    const {traceData} = await TraceLoader.traceEngine(this, 'nested-initiators.json.gz');
 
     // Find any of the fibonnaci() calls; they have a parent
     // event (TimerFire) that has an initiator.
     const fibonacciCall = traceData.Renderer.allTraceEntries.find(entry => {
       return TraceEngine.Types.TraceEvents.isProfileCall(entry) && entry.callFrame.functionName === 'fibonacci';
     });
-    assertNotNullOrUndefined(fibonacciCall);
+    assert.exists(fibonacciCall);
 
     // Find the initators data but starting at the fibonacci()
     // call. We expect to find two initiatorData objects here:
@@ -77,13 +89,13 @@ describe('Initiators', () => {
   });
 
   it('will walk forward to find the events initiated by the selected entry', async function() {
-    const traceData = await TraceLoader.traceEngine(this, 'nested-initiators.json.gz');
+    const {traceData} = await TraceLoader.traceEngine(this, 'nested-initiators.json.gz');
 
     // Find any of the InstallTimer calls; they initiate other events.
     const timerInstall = traceData.Renderer.allTraceEntries.find(entry => {
       return entry.name === TraceEngine.Types.TraceEvents.KnownEventName.TimerInstall;
     });
-    assertNotNullOrUndefined(timerInstall);
+    assert.exists(timerInstall);
 
     // Find the initatorData objects starting at the TimerInstall
     // call. We expect to find one initatorData here:
@@ -99,19 +111,19 @@ describe('Initiators', () => {
     }
   });
 
-  it('will return the closest modified ancestor as an initiator in a pair if the initiator itself is hidden',
+  it('will return the closest expandable ancestor as an initiator in a pair if the initiator itself is hidden',
      async function() {
-       const traceData = await TraceLoader.traceEngine(this, 'nested-initiators.json.gz');
+       const {traceData} = await TraceLoader.traceEngine(this, 'nested-initiators.json.gz');
 
        // Find any of the InstallTimer calls; they initiate other events.
        const timerInstall = traceData.Renderer.allTraceEntries.find(entry => {
          return entry.name === TraceEngine.Types.TraceEvents.KnownEventName.TimerInstall;
        });
-       assertNotNullOrUndefined(timerInstall);
-       // Get the parent of InstallTimer to add to the modified events array.
-       // When we add TimerInstall to hidden entries list, it will be the closest modified parent and the initiator should point to it.
+       assert.exists(timerInstall);
+       // Get the parent of InstallTimer to add to the expandable events array.
+       // When we add TimerInstall to hidden entries list, it will be the closest expandable parent and the initiator should point to it.
        const timerInstallParent = traceData.Renderer.entryToNode.get(timerInstall)?.parent;
-       assertNotNullOrUndefined(timerInstallParent);
+       assert.exists(timerInstallParent);
 
        // Find the initatorData objects starting at the TimerInstall
        // call. We expect to find one initatorData here:
@@ -124,22 +136,21 @@ describe('Initiators', () => {
        for (const initiatorData of initiatorsData) {
          assert.strictEqual(initiatorData.event.name, TraceEngine.Types.TraceEvents.KnownEventName.TimerFire);
          assert.strictEqual(initiatorData.initiator, timerInstallParent.entry);
-         // Ensure the modified entry is marked as hidden
+         // Ensure the expandable entry is marked as hidden
          assert.strictEqual(initiatorData.isInitiatorHidden, true);
        }
-
      });
 
-  it('will return the closest modified ancestor as an initiated event in a pair if the event itself is hidden',
+  it('will return the closest expandable ancestor as an initiated event in a pair if the event itself is hidden',
      async function() {
-       const traceData = await TraceLoader.traceEngine(this, 'nested-initiators.json.gz');
+       const {traceData} = await TraceLoader.traceEngine(this, 'nested-initiators.json.gz');
 
        // Find any of the fibonnaci() calls; they have a parent
        // event (TimerFire) that has an initiator.
        const fibonacciCall = traceData.Renderer.allTraceEntries.find(entry => {
          return TraceEngine.Types.TraceEvents.isProfileCall(entry) && entry.callFrame.functionName === 'fibonacci';
        });
-       assertNotNullOrUndefined(fibonacciCall);
+       assert.exists(fibonacciCall);
 
        // Find the initatorData objects but starting at the fibonacci()
        // call. We expect to find two initiatorData objects here:
@@ -148,7 +159,7 @@ describe('Initiators', () => {
        let initiatorsData = Timeline.Initiators.initiatorsDataToDraw(traceData, fibonacciCall, [], []);
 
        assert.lengthOf(initiatorsData, 2);
-       // Save the parents of initiated events and the events themselves to get initiators again with those as modified and hidden
+       // Save the parents of initiated events and the events themselves to get initiators again with those as expandable and hidden
        const timerFireParents: TraceEngine.Types.TraceEvents.TraceEventData[] = [];
        const initiatedEvents: TraceEngine.Types.TraceEvents.TraceEventData[] = [];
 
@@ -163,7 +174,7 @@ describe('Initiators', () => {
          }
        }
 
-       // Get initiatorData object again, now with the previously initiated events hidden and parents marked as modified
+       // Get initiatorData object again, now with the previously initiated events hidden and parents marked as expandable
        initiatorsData =
            Timeline.Initiators.initiatorsDataToDraw(traceData, fibonacciCall, initiatedEvents, timerFireParents);
        // The length should not change, just the inititated events.
@@ -173,7 +184,7 @@ describe('Initiators', () => {
          // Ensure each initiatorData object has TimerInstall>TimerFire event to initiator.
          assert.strictEqual(initiatorData.event, timerFireParents[i]);
          assert.strictEqual(initiatorData.initiator.name, TraceEngine.Types.TraceEvents.KnownEventName.TimerInstall);
-         // Ensure the modified entry is marked as hidden
+         // Ensure the expandable entry is marked as hidden
          assert.strictEqual(initiatorData.isEntryHidden, true);
        }
      });

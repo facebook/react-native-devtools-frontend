@@ -29,7 +29,7 @@ export class InterestGroupTreeElement extends ApplicationPanelTreeElement {
   private view: InterestGroupStorageView;
 
   constructor(storagePanel: ResourcesPanel) {
-    super(storagePanel, i18nString(UIStrings.interestGroups), false);
+    super(storagePanel, i18nString(UIStrings.interestGroups), false, 'interest-groups');
     const interestGroupIcon = IconButton.Icon.create('database');
     this.setLeadingIcons([interestGroupIcon]);
     this.view = new InterestGroupStorageView(this);
@@ -39,7 +39,7 @@ export class InterestGroupTreeElement extends ApplicationPanelTreeElement {
     return 'interest-groups://' as Platform.DevToolsPath.UrlString;
   }
 
-  async getInterestGroupDetails(owner: string, name: string): Promise<Protocol.Storage.InterestGroupDetails|null> {
+  async getInterestGroupDetails(owner: string, name: string): Promise<object|null> {
     const mainTarget = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
     if (!mainTarget) {
       return null;

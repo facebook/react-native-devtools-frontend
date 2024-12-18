@@ -133,7 +133,7 @@ const UIStrings = {
    */
   content: 'Content',
   /**
-   *@description Text that refers to the time
+   *@description Noun that refers to a duration in milliseconds.
    */
   time: 'Time',
   /**
@@ -155,7 +155,7 @@ const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined
 
 export class NetworkLogViewColumns {
   private networkLogView: NetworkLogView;
-  private readonly persistantSettings: Common.Settings.Setting<{
+  private readonly persistentSettings: Common.Settings.Setting<{
     [x: string]: {
       visible: boolean,
       title: string,
@@ -190,7 +190,7 @@ export class NetworkLogViewColumns {
       networkLogLargeRowsSetting: Common.Settings.Setting<boolean>) {
     this.networkLogView = networkLogView;
 
-    this.persistantSettings = Common.Settings.Settings.instance().createSetting('network-log-columns', {});
+    this.persistentSettings = Common.Settings.Settings.instance().createSetting('network-log-columns', {});
 
     this.networkLogLargeRowsSetting = networkLogLargeRowsSetting;
     this.networkLogLargeRowsSetting.addChangeListener(this.updateRowsSize, this);
@@ -252,8 +252,8 @@ export class NetworkLogViewColumns {
   }
 
   private setupDataGrid(): void {
-    const defaultColumns = _defaultColumns;
-    const defaultColumnConfig = _defaultColumnConfig;
+    const defaultColumns = DEFAULT_COLUMNS;
+    const defaultColumnConfig = DEFAULT_COLUMN_CONFIG;
     this.columns = ([] as Descriptor[]);
     for (const currentConfigColumn of defaultColumns) {
       const descriptor = Object.assign({}, defaultColumnConfig, currentConfigColumn);
@@ -291,7 +291,7 @@ export class NetworkLogViewColumns {
     this.dataGridInternal.setHeaderContextMenuCallback(this.innerHeaderContextMenu.bind(this));
 
     this.activeWaterfallSortId = WaterfallSortIds.StartTime;
-    this.dataGridInternal.markColumnAsSortedBy(_initialSortColumn, DataGrid.DataGrid.Order.Ascending);
+    this.dataGridInternal.markColumnAsSortedBy(INITIAL_SORT_COLUMN, DataGrid.DataGrid.Order.Ascending);
 
     this.splitWidget = new UI.SplitWidget.SplitWidget(true, true, 'network-panel-split-view-waterfall', 200);
     const widget = this.dataGridInternal.asWidget();
@@ -419,8 +419,11 @@ export class NetworkLogViewColumns {
         (this.waterfallColumn.contentElement.createChild('div', 'network-waterfall-header') as HTMLElement);
     this.waterfallHeaderElement.setAttribute('jslog', `${VisualLogging.tableHeader('waterfall').track({click: true})}`);
     this.waterfallHeaderElement.addEventListener('click', waterfallHeaderClicked.bind(this));
-    this.waterfallHeaderElement.addEventListener(
-        'contextmenu', event => this.innerHeaderContextMenu(new UI.ContextMenu.ContextMenu(event)));
+    this.waterfallHeaderElement.addEventListener('contextmenu', event => {
+      const contextMenu = new UI.ContextMenu.ContextMenu(event);
+      this.innerHeaderContextMenu(contextMenu);
+      void contextMenu.show();
+    });
     this.waterfallHeaderElement.createChild('div', 'hover-layer');
     const innerElement = this.waterfallHeaderElement.createChild('div');
     innerElement.textContent = i18nString(UIStrings.waterfall);
@@ -532,7 +535,9 @@ export class NetworkLogViewColumns {
     const visibleColumns = new Set<string>();
     if (this.gridMode) {
       for (const columnConfig of this.columns) {
-        if (columnConfig.visible) {
+        if (columnConfig.id === 'waterfall') {
+          this.setWaterfallVisibility(columnConfig.visible);
+        } else if (columnConfig.visible) {
           visibleColumns.add(columnConfig.id);
         }
       }
@@ -547,8 +552,9 @@ export class NetworkLogViewColumns {
         // This is just in case.
         visibleColumns.add('name');
       }
+      this.setWaterfallVisibility(false);
     }
-    this.dataGridInternal.setColumnsVisiblity(visibleColumns);
+    this.dataGridInternal.setColumnsVisibility(visibleColumns);
   }
 
   switchViewMode(gridMode: boolean): void {
@@ -556,8 +562,24 @@ export class NetworkLogViewColumns {
       return;
     }
     this.gridMode = gridMode;
+    this.updateColumns();
+    this.updateRowsSize();
+  }
 
-    if (gridMode) {
+  private toggleColumnVisibility(columnConfig: Descriptor): void {
+    this.loadCustomColumnsAndSettings();
+    columnConfig.visible = !columnConfig.visible;
+    this.saveColumnsSettings();
+    this.updateColumns();
+    this.updateRowsSize();
+  }
+
+  private setWaterfallVisibility(visible: boolean): void {
+    if (!this.splitWidget) {
+      return;
+    }
+    this.networkLogView.element.classList.toggle('has-waterfall', visible);
+    if (visible) {
       this.splitWidget.showBoth();
       this.activeScroller = this.waterfallScroller;
       this.waterfallScroller.scrollTop = this.dataGridScroller.scrollTop;
@@ -568,16 +590,6 @@ export class NetworkLogViewColumns {
       this.activeScroller = this.dataGridScroller;
       this.dataGridInternal.setScrollContainer(this.dataGridScroller);
     }
-    this.networkLogView.element.classList.toggle('brief-mode', !gridMode);
-    this.updateColumns();
-    this.updateRowsSize();
-  }
-
-  private toggleColumnVisibility(columnConfig: Descriptor): void {
-    this.loadCustomColumnsAndSettings();
-    columnConfig.visible = !columnConfig.visible;
-    this.saveColumnsSettings();
-    this.updateColumns();
   }
 
   private saveColumnsSettings(): void {
@@ -590,16 +602,16 @@ export class NetworkLogViewColumns {
       saveableSettings[columnConfig.id] = {visible: columnConfig.visible, title: columnConfig.title};
     }
 
-    this.persistantSettings.set(saveableSettings);
+    this.persistentSettings.set(saveableSettings);
   }
 
   private loadCustomColumnsAndSettings(): void {
-    const savedSettings = this.persistantSettings.get();
+    const savedSettings = this.persistentSettings.get();
     const columnIds = Object.keys(savedSettings);
     for (const columnId of columnIds) {
       const setting = savedSettings[columnId];
       let columnConfig = this.columns.find(columnConfig => columnConfig.id === columnId);
-      if (!columnConfig) {
+      if (!columnConfig && setting.title) {
         columnConfig = this.addCustomHeader(setting.title, columnId) || undefined;
       }
       if (columnConfig && columnConfig.hideable && typeof setting.visible === 'boolean') {
@@ -728,10 +740,6 @@ export class NetworkLogViewColumns {
     const dialog = new UI.Dialog.Dialog('manage-custom-headers');
     manageCustomHeaders.show(dialog.contentElement);
     dialog.setSizeBehavior(UI.GlassPane.SizeBehavior.MeasureContent);
-    // @ts-ignore
-    // TypeScript somehow tries to appy the `WidgetElement` class to the
-    // `Document` type of the (Document|Element) union. WidgetElement inherits
-    // from HTMLElement so its valid to be passed here.
     dialog.show(this.networkLogView.element);
   }
 
@@ -761,7 +769,7 @@ export class NetworkLogViewColumns {
       return null;
     }
 
-    const columnConfigBase = Object.assign({}, _defaultColumnConfig, {
+    const columnConfigBase = Object.assign({}, DEFAULT_COLUMN_CONFIG, {
       id: headerId,
       title: headerTitle,
       isResponseHeader: true,
@@ -865,28 +873,24 @@ export class NetworkLogViewColumns {
   }
 
   selectFilmStripFrame(time: number): void {
-    this.eventDividers.set(_filmStripDividerColor, [time]);
+    this.eventDividers.set(FILM_STRIP_DIVIDER_COLOR, [time]);
     this.redrawWaterfallColumn();
   }
 
   clearFilmStripFrame(): void {
-    this.eventDividers.delete(_filmStripDividerColor);
+    this.eventDividers.delete(FILM_STRIP_DIVIDER_COLOR);
     this.redrawWaterfallColumn();
   }
 }
 
-// TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export const _initialSortColumn = 'waterfall';
+const INITIAL_SORT_COLUMN = 'waterfall';
 
 const enum CalculatorTypes {
   Duration = 'Duration',
   Time = 'Time',
 }
 
-// TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export const _defaultColumnConfig: Object = {
+const DEFAULT_COLUMN_CONFIG = {
   subtitle: null,
   visible: false,
   weight: 6,
@@ -899,9 +903,7 @@ export const _defaultColumnConfig: Object = {
   allowInSortByEvenWhenHidden: false,
 };
 
-// TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
-// eslint-disable-next-line @typescript-eslint/naming-convention
-const _temporaryDefaultColumns = [
+const DEFAULT_COLUMNS = [
   {
     id: 'name',
     title: i18nLazyString(UIStrings.name),
@@ -1085,19 +1087,11 @@ const _temporaryDefaultColumns = [
   {
     id: 'waterfall',
     title: i18nLazyString(UIStrings.waterfall),
-    visible: false,
-    hideable: false,
     allowInSortByEvenWhenHidden: true,
   },
 ];
 
-// TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
-// eslint-disable-next-line @typescript-eslint/naming-convention, @typescript-eslint/no-explicit-any
-const _defaultColumns = (_temporaryDefaultColumns as any);
-
-// TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export const _filmStripDividerColor = '#fccc49';
+const FILM_STRIP_DIVIDER_COLOR = '#fccc49';
 
 enum WaterfallSortIds {
   StartTime = 'startTime',

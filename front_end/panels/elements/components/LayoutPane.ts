@@ -474,10 +474,11 @@ export class LayoutPane extends LegacyWrapper.LegacyWrapper.WrappableComponent {
       </label>
       <${Buttons.Button.Button.litTagName} class="show-element"
                                            title=${i18nString(UIStrings.showElementInTheElementsPanel)}
+                                           aria-label=${i18nString(UIStrings.showElementInTheElementsPanel)}
                                            .iconName=${'select-element'}
                                            .jslogContext=${'elements.select-element'}
                                            .size=${Buttons.Button.Size.SMALL}
-                                           .variant=${Buttons.Button.Variant.ROUND}
+                                           .variant=${Buttons.Button.Variant.ICON}
                                            @click=${onElementClick}></${Buttons.Button.Button.litTagName}>
     </div>`;
     // clang-format on

@@ -11,7 +11,6 @@ import '../inspector_main/inspector_main-meta.js';
 import '../../panels/issues/issues-meta.js';
 import '../../panels/mobile_throttling/mobile_throttling-meta.js';
 import '../../panels/network/network-meta.js';
-import '../../panels/js_profiler/js_profiler-meta.js';
 import '../../panels/rn_welcome/rn_welcome-legacy-meta.js';
 
 import * as i18n from '../../core/i18n/i18n.js';
@@ -34,7 +33,6 @@ Host.rnPerfMetrics.entryPointLoadingStarted('rn_inspector');
 RNExperiments.RNExperimentsImpl.setIsReactNativeEntryPoint(true);
 RNExperiments.RNExperimentsImpl.Instance.enableExperimentsByDefault([
   Root.Runtime.ExperimentName.JS_HEAP_PROFILER_ENABLE,
-  Root.Runtime.ExperimentName.JS_PROFILER_TEMP_ENABLE,
   Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
 ]);
 

@@ -63,6 +63,10 @@ export const UIStrings = {
    */
   DataUrlInSvgUse: "Support for data: URLs in SVGUseElement is deprecated and it will be removed in the future.",
   /**
+   * @description Warning displayed to developers that they should not be using `DelegatedInkTrailPresenter.expectedImprovement`.
+   */
+  DelegatedInkExpectedImprovement: "`DelegatedInkTrailPresenter.expectedImprovement` is deprecated due to potential fingerprinting concerns.",
+  /**
    * @description This warning occurs when a script modifies `document.domain` without having set on `Origin-Agent-Cluster` http header. In other words, when a script relies on the default behaviour of `Origin-Agent-Cluster` when setting document.domain.
    */
   DocumentDomainSettingWithoutOriginAgentClusterHeader: "Relaxing the same-origin policy by setting `document.domain` is deprecated, and will be disabled by default. To continue using this feature, please opt-out of origin-keyed agent clusters by sending an `Origin-Agent-Cluster: ?0` header along with the HTTP response for the document and frames. See https://developer.chrome.com/blog/immutable-document-domain/ for more details.",
@@ -78,6 +82,10 @@ export const UIStrings = {
    * @description Warning displayed to developers when the Geolocation API is used from an insecure origin (one that isn't localhost or doesn't use HTTPS) to notify them that this use is deprecated.
    */
   GeolocationInsecureOriginDeprecatedNotRemoved: "`getCurrentPosition()` and `watchPosition()` are deprecated on insecure origins. To use this feature, you should consider switching your application to a secure origin, such as HTTPS. See https://goo.gle/chrome-insecure-origins for more details.",
+  /**
+   * @description Warning displayed to developers when non-standard getInnerHTML function is called. This function is deprecated and will be removed.
+   */
+  GetInnerHTML: "The getInnerHTML() function is deprecated, and will be removed from this browser very soon. Please use getHTML() instead.",
   /**
    * @description This warning occurs when the `getUserMedia()` API is invoked on an insecure (e.g., HTTP) site. This is only permitted on secure sites (e.g., HTTPS).
    */
@@ -231,14 +239,6 @@ export const UIStrings = {
    */
   WebSQL: "Web SQL is deprecated. Please use SQLite WebAssembly or Indexed Database",
   /**
-   * @description A deprecation warning shown in the DevTools Issues tab. 'window-placement' and 'window-management' are the name of the javascript descriptors (do not translate). The warning is shown when web pages attempt to use 'window-placement' in permission APIs (e.g. navigator.permissions.query(...))
-   */
-  WindowPlacementPermissionDescriptorUsed: "The permission descriptor `window-placement` is deprecated. Use `window-management` instead. For more help, check https://bit.ly/window-placement-rename.",
-  /**
-   * @description A deprecation warning shown in the DevTools Issues tab. 'window-placement' and 'window-management' are the name of the policy descriptors (do not translate). The warning is shown when web pages attempt to use 'window-placement' as a permission policy (parsed in iframe or header).
-   */
-  WindowPlacementPermissionPolicyParsed: "The permission policy `window-placement` is deprecated. Use `window-management` instead. For more help, check https://bit.ly/window-placement-rename.",
-  /**
    * @description Warning displayed to developers that they are using `XMLHttpRequest` API in a way that they expect an unsupported character encoding `UTF-16` could be used in the server reply.
    */
   XHRJSONEncodingDetection: "UTF-16 is not supported by response json in `XMLHttpRequest`",
@@ -302,6 +302,9 @@ export const DEPRECATIONS_METADATA: Partial<Record<string, DeprecationDescriptor
   },
   "DocumentDomainSettingWithoutOriginAgentClusterHeader": {
     "milestone": 115
+  },
+  "GetInnerHTML": {
+    "chromeStatusFeature": 5081733588582400
   },
   "IdentityInCanMakePaymentEvent": {
     "chromeStatusFeature": 5190978431352832
@@ -379,14 +382,6 @@ export const DEPRECATIONS_METADATA: Partial<Record<string, DeprecationDescriptor
   "WebSQL": {
     "chromeStatusFeature": 5134293578285056,
     "milestone": 115
-  },
-  "WindowPlacementPermissionDescriptorUsed": {
-    "chromeStatusFeature": 5137018030391296,
-    "milestone": 112
-  },
-  "WindowPlacementPermissionPolicyParsed": {
-    "chromeStatusFeature": 5137018030391296,
-    "milestone": 112
   },
   "XHRJSONEncodingDetection": {
     "milestone": 93

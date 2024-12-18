@@ -2,11 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assertShadowRoot, renderElementIntoDOM} from '../../../../testing/DOMHelpers.js';
+import {renderElementIntoDOM} from '../../../../testing/DOMHelpers.js';
 
 import * as InlineEditor from './inline_editor.js';
-
-const {assert} = chai;
 
 const initialData = {
   lengthText: '42px',
@@ -19,15 +17,13 @@ describe('CSSLength', () => {
     renderElementIntoDOM(component);
     component.data = initialData;
 
-    assertShadowRoot(component.shadowRoot);
+    assert.isNotNull(component.shadowRoot);
     const valueElement = component.shadowRoot.querySelector('.value');
-    const unitElement = component.shadowRoot.querySelector('.unit');
-    if (!valueElement || !unitElement) {
+    if (!valueElement) {
       assert.fail('CSSLength component is not rendered correctly');
       return;
     }
     assert.strictEqual(valueElement.textContent, '42', 'CSSLength value content is not rendered correctly');
-    assert.strictEqual(unitElement.textContent, 'px', 'CSSLength unit content is not rendered correctly');
   });
 
   it('can +/- length values when the value is dragged', async () => {
@@ -35,7 +31,7 @@ describe('CSSLength', () => {
     renderElementIntoDOM(component);
     component.data = initialData;
 
-    assertShadowRoot(component.shadowRoot);
+    assert.isNotNull(component.shadowRoot);
 
     let lengthText = initialData.lengthText;
     component.addEventListener('valuechanged', (event: Event) => {

@@ -34,7 +34,7 @@ const UIStrings = {
   /**
    *@description Text in Coverage View of the Coverage tab
    */
-  urlFilter: 'URL filter',
+  filterByUrl: 'Filter by URL',
   /**
    *@description Label for the type filter in the Converage Panel
    */
@@ -186,7 +186,7 @@ export class CoverageView extends UI.Widget.VBox {
 
     this.textFilterRegExp = null;
     toolbar.appendSeparator();
-    this.filterInput = new UI.Toolbar.ToolbarInput(i18nString(UIStrings.urlFilter), '', 0.4, 1);
+    this.filterInput = new UI.Toolbar.ToolbarFilter(i18nString(UIStrings.filterByUrl), 0.4, 1);
     this.filterInput.setEnabled(false);
     this.filterInput.addEventListener(UI.Toolbar.ToolbarInput.Event.TextChanged, this.onFilterChanged, this);
     toolbar.appendToolbarItem(this.filterInput);
@@ -513,16 +513,24 @@ export class CoverageView extends UI.Widget.VBox {
   private updateStats(): void {
     const all = {total: 0, unused: 0};
     const filtered = {total: 0, unused: 0};
-    let filterApplied = false;
+    const filterApplied = this.textFilterRegExp !== null;
     if (this.model) {
       for (const info of this.model.entries()) {
         all.total += info.size();
         all.unused += info.unusedSize();
         if (this.isVisible(false, info)) {
-          filtered.total += info.size();
-          filtered.unused += info.unusedSize();
-        } else {
-          filterApplied = true;
+          if (this.textFilterRegExp?.test(info.url())) {
+            filtered.total += info.size();
+            filtered.unused += info.unusedSize();
+          } else {
+            // If it doesn't match the filter, calculate the stats from visible children if there are any
+            for (const childInfo of info.sourcesURLCoverageInfo.values()) {
+              if (this.isVisible(false, childInfo)) {
+                filtered.total += childInfo.size();
+                filtered.unused += childInfo.unusedSize();
+              }
+            }
+          }
         }
       }
     }

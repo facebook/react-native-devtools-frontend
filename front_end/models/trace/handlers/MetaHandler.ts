@@ -214,14 +214,61 @@ export function handleEvent(event: Types.TraceEvents.TraceEventData): void {
     for (const frame of (event.args.data.frames ?? [])) {
       updateRendererProcessByFrame(event, frame);
 
-      if (frame.parent) {
-        continue;
+      if (!frame.parent) {
+        topLevelRendererIds.add(frame.processId);
       }
+      /**
+       * The code here uses a few different methods to try to determine the main frame.
+       * The ideal is that the frames have two flags present:
+       *
+       * 1. isOutermostMainFrame (added in April 2024 - crrev.com/c/5424783)
+       * 2. isInPrimaryMainFrame (added in June 2024 - crrev.com/c/5595033)
+       *
+       * The frame where both of these are set to `true` is the main frame. The
+       * reason we need both of these flags to have 100% confidence is because
+       * with the introduction of MPArch and pre-rendering, we can have other
+       * frames that are the outermost frame, but are not the primary process.
+       * Relying on isOutermostMainFrame in isolation caused the engine to
+       * incorrectly identify the wrong frame as main (see crbug.com/343873756).
+       *
+       * See https://source.chromium.org/chromium/chromium/src/+/main:docs/frame_trees.md
+       * for a bit more context on FrameTrees in Chromium.
+       *
+       * To avoid breaking entirely for traces pre-June 2024 that don't have
+       * both of these flags, we will fallback to less accurate methods:
+       *
+       * 1. If we have isOutermostMainFrame, we will use that
+       *    (and accept we might get it wrong)
+       * 2. If we don't have isOutermostMainFrame, we fallback to finding a
+       *    frame that has a URL, but doesn't have a parent. This is a crude
+       *    guess at the main frame...but better than nothing and is historically
+       *    how DevTools identified the main frame.
+       */
 
-      mainFrameId = frame.frame;
-      mainFrameURL = frame.url;
-      topLevelRendererIds.add(frame.processId);
+      const traceHasPrimaryMainFrameFlag = 'isInPrimaryMainFrame' in frame;
+      const traceHasOutermostMainFrameFlag = 'isOutermostMainFrame' in frame;
+
+      if (traceHasPrimaryMainFrameFlag && traceHasOutermostMainFrameFlag) {
+        // Ideal situation: identify the main frame as the one that has both these flags set to true.
+        if (frame.isInPrimaryMainFrame && frame.isOutermostMainFrame) {
+          mainFrameId = frame.frame;
+          mainFrameURL = frame.url;
+        }
+      } else if (traceHasOutermostMainFrameFlag) {
+        // Less ideal: "guess" at the main thread by using this falg.
+        if (frame.isOutermostMainFrame) {
+          mainFrameId = frame.frame;
+          mainFrameURL = frame.url;
+        }
+      } else {
+        // Worst case: guess by seeing if the frame doesn't have a parent, and does have a URL.
+        if (!frame.parent && frame.url) {
+          mainFrameId = frame.frame;
+          mainFrameURL = frame.url;
+        }
+      }
     }
+
     return;
   }
 
@@ -378,27 +425,26 @@ export type MetaHandlerData = {
   processNames: Map<Types.TraceEvents.ProcessID, Types.TraceEvents.TraceEventProcessName>,
   browserThreadId: Types.TraceEvents.ThreadID,
   gpuProcessId: Types.TraceEvents.ProcessID,
+  navigationsByFrameId: Map<string, Types.TraceEvents.TraceEventNavigationStart[]>,
+  navigationsByNavigationId: Map<string, Types.TraceEvents.TraceEventNavigationStart>,
+  threadsInProcess:
+      Map<Types.TraceEvents.ProcessID, Map<Types.TraceEvents.ThreadID, Types.TraceEvents.TraceEventThreadName>>,
+  mainFrameId: string,
+  mainFrameURL: string,
+  /**
+   * A frame can have multiple renderer processes, at the same time,
+   * a renderer process can have multiple URLs. This map tracks the
+   * processes active on a given frame, with the time window in which
+   * they were active. Because a renderer process might have multiple
+   * URLs, each process in each frame has an array of windows, with an
+   * entry for each URL it had.
+   */
+  rendererProcessesByFrame: FrameProcessData,
+  topLevelRendererIds: Set<Types.TraceEvents.ProcessID>,
+  frameByProcessId: Map<Types.TraceEvents.ProcessID, Map<string, Types.TraceEvents.TraceFrame>>,
+  mainFrameNavigations: Types.TraceEvents.TraceEventNavigationStart[],
   gpuThreadId?: Types.TraceEvents.ThreadID,
   viewportRect?: DOMRect,
-              navigationsByFrameId: Map<string, Types.TraceEvents.TraceEventNavigationStart[]>,
-              navigationsByNavigationId: Map<string, Types.TraceEvents.TraceEventNavigationStart>,
-              threadsInProcess:
-                  Map<Types.TraceEvents.ProcessID,
-                      Map<Types.TraceEvents.ThreadID, Types.TraceEvents.TraceEventThreadName>>,
-              mainFrameId: string,
-              mainFrameURL: string,
-              /**
-               * A frame can have multiple renderer processes, at the same time,
-               * a renderer process can have multiple URLs. This map tracks the
-               * processes active on a given frame, with the time window in which
-               * they were active. Because a renderer process might have multiple
-               * URLs, each process in each frame has an array of windows, with an
-               * entry for each URL it had.
-               */
-              rendererProcessesByFrame: FrameProcessData,
-              topLevelRendererIds: Set<Types.TraceEvents.ProcessID>,
-              frameByProcessId: Map<Types.TraceEvents.ProcessID, Map<string, Types.TraceEvents.TraceFrame>>,
-              mainFrameNavigations: Types.TraceEvents.TraceEventNavigationStart[],
 };
 
 // Each frame has a single render process at a given time but it can have
@@ -429,19 +475,19 @@ export function data(): MetaHandlerData {
     traceBounds: {...traceBounds},
     browserProcessId,
     browserThreadId,
-    processNames: new Map(processNames),
+    processNames,
     gpuProcessId,
     gpuThreadId: gpuThreadId === Types.TraceEvents.ThreadID(-1) ? undefined : gpuThreadId,
     viewportRect: viewportRect || undefined,
     mainFrameId,
     mainFrameURL,
-    navigationsByFrameId: new Map(navigationsByFrameId),
-    navigationsByNavigationId: new Map(navigationsByNavigationId),
-    threadsInProcess: new Map(threadsInProcess),
-    rendererProcessesByFrame: new Map(rendererProcessesByFrameId),
-    topLevelRendererIds: new Set(topLevelRendererIds),
-    frameByProcessId: new Map(framesByProcessId),
-    mainFrameNavigations: [...mainFrameNavigations],
+    navigationsByFrameId,
+    navigationsByNavigationId,
+    threadsInProcess,
+    rendererProcessesByFrame: rendererProcessesByFrameId,
+    topLevelRendererIds,
+    frameByProcessId: framesByProcessId,
+    mainFrameNavigations,
     traceIsGeneric,
   };
 }

@@ -17,10 +17,13 @@ import {
 import {describe, it} from '../../shared/mocha-extensions.js';
 import {elementContainsTextWithSelector} from '../helpers/network-helpers.js';
 import {openGoToLineQuickOpen} from '../helpers/quick_open-helpers.js';
+import {togglePreferenceInSettingsTab} from '../helpers/settings-helpers.js';
 import {
   addBreakpointForLine,
   isPrettyPrinted,
+  openFileInSourcesPanel,
   openSourceCodeEditorForFile,
+  RESUME_BUTTON,
   retrieveCodeMirrorEditorContent,
   retrieveTopCallFrameScriptLocation,
   waitForHighlightedLine,
@@ -197,9 +200,47 @@ describe('The Sources Tab', function() {
     await waitForHighlightedLine(6);
   });
 
+  it('automatically pretty-prints minified code (by default)', async () => {
+    await openSourceCodeEditorForFile('minified-sourcecode-1.min.js', 'minified-sourcecode-1.html');
+    const lines = await retrieveCodeMirrorEditorContent();
+    assert.strictEqual(lines.length, 23);
+  });
+
+  it('does not automatically pretty-print minified code (when disabled via settings)', async () => {
+    await togglePreferenceInSettingsTab('Automatically pretty print minified sources', false);
+
+    await openSourceCodeEditorForFile('minified-sourcecode-1.min.js', 'minified-sourcecode-1.html');
+    const lines = await retrieveCodeMirrorEditorContent();
+    assert.strictEqual(lines.length, 3);
+  });
+
   it('does not automatically pretty-print authored code', async () => {
     await openSourceCodeEditorForFile('minified-sourcecode-1.js', 'minified-sourcecode-1.html');
     const lines = await retrieveCodeMirrorEditorContent();
     assert.strictEqual(lines.length, 2);
+  });
+
+  it('shows execution position and inline variables in large pretty-printed minified code', async () => {
+    const {target} = getBrowserAndPages();
+    await openFileInSourcesPanel('minified-sourcecode-2.html');
+
+    // Emulate the button click and wait for the script to open in the Sources panel.
+    const evalPromise = target.evaluate('handleClick();');
+    await waitFor('[aria-label="minified-sourcecode-2.min.js"][aria-selected="true"]');
+
+    // At some point execution position highlights and variable decorations should appear.
+    const [executionLine, executionToken, variableValues] = await Promise.all([
+      waitFor('.cm-executionLine').then(el => el.evaluate(n => n.textContent)),
+      waitFor('.cm-executionToken').then(el => el.evaluate(n => n.textContent)),
+      waitFor('.cm-variableValues').then(el => el.evaluate(n => n.textContent)),
+    ]);
+    assert.strictEqual(executionLine, '    debugger ;');
+    assert.strictEqual(executionToken, 'debugger');
+    assert.strictEqual(variableValues, 'y = 40999');
+
+    await Promise.all([
+      click(RESUME_BUTTON),
+      evalPromise,
+    ]);
   });
 });

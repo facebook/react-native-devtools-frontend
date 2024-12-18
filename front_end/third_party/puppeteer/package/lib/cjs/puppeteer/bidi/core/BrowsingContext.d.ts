@@ -16,6 +16,10 @@ import { UserPrompt } from './UserPrompt.js';
 /**
  * @internal
  */
+export type AddInterceptOptions = Omit<Bidi.Network.AddInterceptParameters, 'contexts'>;
+/**
+ * @internal
+ */
 export type CaptureScreenshotOptions = Omit<Bidi.BrowsingContext.CaptureScreenshotParameters, 'context'>;
 /**
  * @internal
@@ -82,11 +86,12 @@ export declare class BrowsingContext extends EventEmitter<{
     };
 }> {
     #private;
-    static from(userContext: UserContext, parent: BrowsingContext | undefined, id: string, url: string): BrowsingContext;
+    static from(userContext: UserContext, parent: BrowsingContext | undefined, id: string, url: string, originalOpener: string | null): BrowsingContext;
     readonly defaultRealm: WindowRealm;
     readonly id: string;
     readonly parent: BrowsingContext | undefined;
     readonly userContext: UserContext;
+    readonly originalOpener: string | null;
     private constructor();
     get children(): Iterable<BrowsingContext>;
     get closed(): boolean;
@@ -101,6 +106,7 @@ export declare class BrowsingContext extends EventEmitter<{
     traverseHistory(delta: number): Promise<void>;
     navigate(url: string, wait?: Bidi.BrowsingContext.ReadinessState): Promise<void>;
     reload(options?: ReloadOptions): Promise<void>;
+    setCacheBehavior(cacheBehavior: 'default' | 'bypass'): Promise<void>;
     print(options?: PrintOptions): Promise<string>;
     handleUserPrompt(options?: HandleUserPromptOptions): Promise<void>;
     setViewport(options?: SetViewportOptions): Promise<void>;
@@ -108,11 +114,15 @@ export declare class BrowsingContext extends EventEmitter<{
     releaseActions(): Promise<void>;
     createWindowRealm(sandbox: string): WindowRealm;
     addPreloadScript(functionDeclaration: string, options?: AddPreloadScriptOptions): Promise<string>;
+    addIntercept(options: AddInterceptOptions): Promise<string>;
     removePreloadScript(script: string): Promise<void>;
     getCookies(options?: GetCookiesOptions): Promise<Bidi.Network.Cookie[]>;
     setCookie(cookie: Bidi.Storage.PartialCookie): Promise<void>;
     setFiles(element: Bidi.Script.SharedReference, files: string[]): Promise<void>;
+    subscribe(events: [string, ...string[]]): Promise<void>;
+    addInterception(events: [string, ...string[]]): Promise<void>;
     [disposeSymbol](): void;
     deleteCookie(...cookieFilters: Bidi.Storage.CookieFilter[]): Promise<void>;
+    locateNodes(locator: Bidi.BrowsingContext.Locator, startNodes: [Bidi.Script.SharedReference, ...Bidi.Script.SharedReference[]]): Promise<Bidi.Script.NodeRemoteValue[]>;
 }
 //# sourceMappingURL=BrowsingContext.d.ts.map

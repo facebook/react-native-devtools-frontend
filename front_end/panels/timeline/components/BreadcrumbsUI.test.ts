@@ -3,7 +3,8 @@
 // found in the LICENSE file.
 
 import * as TraceEngine from '../../../models/trace/trace.js';
-import {assertShadowRoot, renderElementIntoDOM} from '../../../testing/DOMHelpers.js';
+import {renderElementIntoDOM} from '../../../testing/DOMHelpers.js';
+import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
 import * as Coordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 
 import * as TimelineComponents from './components.js';
@@ -14,11 +15,11 @@ function milliToMicro(x: number): TraceEngine.Types.Timing.MicroSeconds {
   );
 }
 
-describe('BreadcrumbsUI', () => {
+describeWithEnvironment('BreadcrumbsUI', () => {
   const {BreadcrumbsUI} = TimelineComponents.BreadcrumbsUI;
 
   function queryBreadcrumbs(component: HTMLElement): (string)[] {
-    assertShadowRoot(component.shadowRoot);
+    assert.isNotNull(component.shadowRoot);
     const breadcrumbsRanges = component.shadowRoot.querySelectorAll<HTMLElement>('.range');
     return Array.from(breadcrumbsRanges).map(row => {
       return row.textContent?.trim() || '';
@@ -36,7 +37,7 @@ describe('BreadcrumbsUI', () => {
       range: milliToMicro(9),
     };
 
-    const breadcrumb: TimelineComponents.Breadcrumbs.Breadcrumb = {
+    const breadcrumb: TraceEngine.Types.File.Breadcrumb = {
       window: traceWindow,
       child: null,
     };
@@ -48,7 +49,7 @@ describe('BreadcrumbsUI', () => {
     const breadcrumbsRanges = queryBreadcrumbs(component);
 
     assert.deepStrictEqual(breadcrumbsRanges.length, 1);
-    assert.deepStrictEqual(breadcrumbsRanges, ['Full range (9.00ms)']);
+    assert.deepStrictEqual(breadcrumbsRanges, ['Full range (9.00 ms)']);
   });
 
   it('renders all the breadcrumbs provided', async () => {
@@ -68,12 +69,12 @@ describe('BreadcrumbsUI', () => {
       range: milliToMicro(9),
     };
 
-    const breadcrumb2: TimelineComponents.Breadcrumbs.Breadcrumb = {
+    const breadcrumb2: TraceEngine.Types.File.Breadcrumb = {
       window: traceWindow2,
       child: null,
     };
 
-    const breadcrumb: TimelineComponents.Breadcrumbs.Breadcrumb = {
+    const breadcrumb: TraceEngine.Types.File.Breadcrumb = {
       window: traceWindow,
       child: breadcrumb2,
     };
@@ -85,6 +86,6 @@ describe('BreadcrumbsUI', () => {
     const breadcrumbsRanges = queryBreadcrumbs(component);
 
     assert.deepStrictEqual(breadcrumbsRanges.length, 2);
-    assert.deepStrictEqual(breadcrumbsRanges, ['Full range (9.00ms)', '7.00ms']);
+    assert.deepStrictEqual(breadcrumbsRanges, ['Full range (9.00 ms)', '7.00 ms']);
   });
 });

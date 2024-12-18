@@ -10,8 +10,8 @@ import {CONSOLE_TAB_SELECTOR, focusConsolePrompt, STACK_PREVIEW_CONTAINER} from 
 import {openSettingsTab} from '../helpers/settings-helpers.js';
 
 const CONSOLE_MESSAGE_WRAPPER = '.console-message-stack-trace-wrapper';
-const ADD_FILENAME_PATTERN_BUTTON = 'button[aria-label="Add filename pattern"]';
-const ADD_BUTTON = '.editor-buttons .primary-button';
+const ADD_FILENAME_PATTERN_BUTTON = 'devtools-button[aria-label="Add filename pattern"]';
+const ADD_BUTTON = '.editor-buttons devtools-button:nth-of-type(2)';
 const CLOSE_SETTINGS_BUTTON = '.close-button[aria-label="Close"]';
 const SHOW_MORE_LINK = '.show-all-link .link';
 const SHOW_LESS_LINK = '.show-less-link .link';
@@ -32,7 +32,7 @@ describe('The Console Tab', () => {
       {text: '\nshown2 @ showMe.js:6', classes: {}},
       {text: '\nshown1 @ showMe.js:2', classes: {}},
       {text: '\n(anonymous) @ ignoreMe.js:21', classes: {}},
-      {text: '\nPromise.then (async)', classes: {}},
+      {text: '\nPromise.then', classes: {}},
       {text: '\nignoreListed4 @ ignoreMe.js:20', classes: {}},
       {text: '\nignoreListed3 @ ignoreMe.js:16', classes: {}},
       {text: '\nignoreListed2 @ ignoreMe.js:12', classes: {}},
@@ -69,7 +69,7 @@ describe('The Console Tab', () => {
       {text: '\nshown2 @ showMe.js:6', classes: {}},
       {text: '\nshown1 @ showMe.js:2', classes: {}},
       {text: '\n(anonymous) @ ignoreMe.js:21', classes: {'0': 'hidden-row'}},
-      {text: '\nPromise.then (async)', classes: {'0': 'hidden-row'}},
+      {text: '\nPromise.then', classes: {'0': 'hidden-row'}},
       {text: '\nignoreListed4 @ ignoreMe.js:20', classes: {'0': 'hidden-row'}},
       {text: '\nignoreListed3 @ ignoreMe.js:16', classes: {'0': 'hidden-row'}},
       {text: '\nignoreListed2 @ ignoreMe.js:12', classes: {'0': 'hidden-row'}},

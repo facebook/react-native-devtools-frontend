@@ -14,8 +14,6 @@ import {
 
 import * as PerfUI from './perf_ui.js';
 
-const {assert} = chai;
-
 describeWithEnvironment('FlameChart', () => {
   it('sorts decorations, putting candy striping before warning triangles', async () => {
     const decorations: PerfUI.FlameChart.FlameChartDecoration[] = [
@@ -178,10 +176,10 @@ describeWithEnvironment('FlameChart', () => {
       // Ensure that the highlighted div is positioned. We cannot assert exact
       // pixels due to differences in screen sizes and resolution across
       // machines, but we can ensure that they have all been set.
-      assert.isDefined(chartInstance.highlightElement.style.height);
-      assert.isDefined(chartInstance.highlightElement.style.top);
-      assert.isDefined(chartInstance.highlightElement.style.left);
-      assert.isDefined(chartInstance.highlightElement.style.width);
+      assert.exists(chartInstance.highlightElement.style.height);
+      assert.exists(chartInstance.highlightElement.style.top);
+      assert.exists(chartInstance.highlightElement.style.left);
+      assert.exists(chartInstance.highlightElement.style.width);
       // And that it is not hidden.
       assert.isFalse(chartInstance.highlightElement.classList.contains('hidden'));
 
@@ -280,21 +278,21 @@ describeWithEnvironment('FlameChart', () => {
       assert.strictEqual(chartInstance.groupIndexToOffsetForTest(0), 17);
       // For Level 0, it is in Test Group 1, and the group is expanded (not collapsible),
       // so its offset is 17(Group offset) + 17(group header height) = 34
-      assert.isTrue(chartInstance.levelVisibilityForTest(0));
+      assert.isTrue(chartInstance.levelIsVisible(0));
       assert.strictEqual(chartInstance.levelToOffset(0), 34);
       // For Group 1, its offset is
       // 34(level 0 offset) + 17(level 0 height) + 4(style.padding) = 55
       assert.strictEqual(chartInstance.groupIndexToOffsetForTest(1), 55);
       // For Level 1, it is in Group 1, and the group is expanded by default,
       // so its offset is 55(Group offset) + 17(group header height) = 72
-      assert.isTrue(chartInstance.levelVisibilityForTest(1));
+      assert.isTrue(chartInstance.levelIsVisible(1));
       assert.strictEqual(chartInstance.levelToOffset(1), 72);
       // For Group 2, it is nested in Group 1, so its offset is
       // 72(level 1 offset) + 17(level 1 is visible) + 0(no style.padding because nested) = 89
       assert.strictEqual(chartInstance.groupIndexToOffsetForTest(2), 89);
       // For Level 2, it is in Group 2, and the group is not expanded by default (collapsible),
       // so its offset is 89(Group offset) + 17(group header) = 106
-      assert.isFalse(chartInstance.levelVisibilityForTest(2));
+      assert.isFalse(chartInstance.levelIsVisible(2));
       assert.strictEqual(chartInstance.levelToOffset(2), 106);
       // For Group 3 and Level 3, they are "fake" group and level, and are used to show then end of the flame chart.
       // Since Level 2 is invisible (collapsed), so this one has same offset as Level 2.
@@ -313,21 +311,21 @@ describeWithEnvironment('FlameChart', () => {
       assert.strictEqual(chartInstance.groupIndexToOffsetForTest(0), 17);
       // For Level 0, it is in Test Group 1, and the group is hidden,
       // so its offset is same as group offset
-      assert.isFalse(chartInstance.levelVisibilityForTest(0));
+      assert.isFalse(chartInstance.levelIsVisible(0));
       assert.strictEqual(chartInstance.levelToOffset(0), 17);
       // For Group 1, its offset is
       // 17(level 0 offset) + 0(level 0 is hidden) + 4(style.padding) = 21
       assert.strictEqual(chartInstance.groupIndexToOffsetForTest(1), 21);
       // For Level 1, it is in Group 1, and the group is expanded by default,
       // so its offset is 21(Group offset) + 17(group header height) = 38
-      assert.isTrue(chartInstance.levelVisibilityForTest(1));
+      assert.isTrue(chartInstance.levelIsVisible(1));
       assert.strictEqual(chartInstance.levelToOffset(1), 38);
       // For Group 2, it is nested in Group 1, so its offset is
       // 38(level 1 offset) + 17(level 1 is visible) + 0(no style.padding because nested) = 55
       assert.strictEqual(chartInstance.groupIndexToOffsetForTest(2), 55);
       // For Level 2, it is in Group 2, and the group is not expanded by default (collapsible),
       // so its offset is 55(Group offset) + 17(group header) = 72
-      assert.isTrue(chartInstance.levelVisibilityForTest(1));
+      assert.isTrue(chartInstance.levelIsVisible(1));
       assert.strictEqual(chartInstance.levelToOffset(2), 72);
       // For Group 3 and Level 3, they are "fake" group and level, and are used to show then end of the flame chart.
       // Since Level 2 is invisible (collapsed), so this one has same offset as Level 2.
@@ -337,13 +335,13 @@ describeWithEnvironment('FlameChart', () => {
       // Unhide Group 0, so the offset should be same as default (see test "Calculate the level position correctly").
       chartInstance.showGroup(/* groupIndex= */ 0);
       assert.strictEqual(chartInstance.groupIndexToOffsetForTest(0), 17);
-      assert.isTrue(chartInstance.levelVisibilityForTest(0));
+      assert.isTrue(chartInstance.levelIsVisible(0));
       assert.strictEqual(chartInstance.levelToOffset(0), 34);
       assert.strictEqual(chartInstance.groupIndexToOffsetForTest(1), 55);
-      assert.isTrue(chartInstance.levelVisibilityForTest(1));
+      assert.isTrue(chartInstance.levelIsVisible(1));
       assert.strictEqual(chartInstance.levelToOffset(1), 72);
       assert.strictEqual(chartInstance.groupIndexToOffsetForTest(2), 89);
-      assert.isFalse(chartInstance.levelVisibilityForTest(2));
+      assert.isFalse(chartInstance.levelIsVisible(2));
       assert.strictEqual(chartInstance.levelToOffset(2), 106);
       assert.strictEqual(chartInstance.groupIndexToOffsetForTest(3), 106);
       assert.strictEqual(chartInstance.levelToOffset(3), 106);
@@ -390,21 +388,21 @@ describeWithEnvironment('FlameChart', () => {
         assert.strictEqual(chartInstance.groupIndexToOffsetForTest(0), 17);
         // For Level 0, it is in Test Group 1, and the group is expanded (not collapsible),
         // so its offset is 17(Group offset) + 17(group header height) = 34
-        assert.isTrue(chartInstance.levelVisibilityForTest(0));
+        assert.isTrue(chartInstance.levelIsVisible(0));
         assert.strictEqual(chartInstance.levelToOffset(0), 34);
         // For Group 1, it is hidden, so its offset is
         // 34(level 0 offset) + 17(level 0 height) = 51
         assert.strictEqual(chartInstance.groupIndexToOffsetForTest(1), 51);
         // For Level 1, it is in Group 1, and the group is hidden,
         // so its offset is 51(Group offset)
-        assert.isFalse(chartInstance.levelVisibilityForTest(1));
+        assert.isFalse(chartInstance.levelIsVisible(1));
         assert.strictEqual(chartInstance.levelToOffset(1), 51);
         // For Group 2, it is nested in Group 1, so it is also hidden, so its offset is
         // 51(level 1 offset) + 0(level 1 is invisible) = 51
         assert.strictEqual(chartInstance.groupIndexToOffsetForTest(2), 51);
         // For Level 2, it is in Group 2, and the group is hidden,
         // so its offset is 51(Group offset)
-        assert.isFalse(chartInstance.levelVisibilityForTest(2));
+        assert.isFalse(chartInstance.levelIsVisible(2));
         assert.strictEqual(chartInstance.levelToOffset(2), 51);
         // For Group 3 and Level 3, they are "fake" group and level, and are used to show then end of the flame chart.
         // Since Level 2 is invisible (hidden), so this one has same offset as Level 2.
@@ -414,16 +412,16 @@ describeWithEnvironment('FlameChart', () => {
         // Unhide Group 1, so the offset should be same as default (see test "Calculate the level position correctly").
         chartInstance.showGroup(/* groupIndex= */ 1);
         assert.strictEqual(chartInstance.groupIndexToOffsetForTest(0), 17);
-        assert.isTrue(chartInstance.levelVisibilityForTest(0));
+        assert.isTrue(chartInstance.levelIsVisible(0));
         assert.strictEqual(chartInstance.levelToOffset(0), 34);
         assert.strictEqual(chartInstance.groupIndexToOffsetForTest(1), 55);
-        assert.isTrue(chartInstance.levelVisibilityForTest(1));
+        assert.isTrue(chartInstance.levelIsVisible(1));
         assert.strictEqual(chartInstance.levelToOffset(1), 72);
         assert.strictEqual(chartInstance.groupIndexToOffsetForTest(2), 89);
         // Slightly different because Group2 is not longer collapsible.
         // For Level 2, it is in Group 2, and the group is expanded,
         // so its offset is 89(Group offset) + 17(group header) = 106
-        assert.isTrue(chartInstance.levelVisibilityForTest(2));
+        assert.isTrue(chartInstance.levelIsVisible(2));
         assert.strictEqual(chartInstance.levelToOffset(2), 106);
         // For Group 3 and Level 3, they are "fake" group and level, and are used to show then end of the flame chart.
         // Since Level 2 is visible, so its offset is 106(Group offset) + 17(Level 2 height) = 123
@@ -443,21 +441,21 @@ describeWithEnvironment('FlameChart', () => {
         assert.strictEqual(chartInstance.groupIndexToOffsetForTest(0), 17);
         // For Level 0, it is in Test Group 1, and the group is expanded (not collapsible),
         // so its offset is 17(Group offset) + 17(group header height) = 34
-        assert.isTrue(chartInstance.levelVisibilityForTest(0));
+        assert.isTrue(chartInstance.levelIsVisible(0));
         assert.strictEqual(chartInstance.levelToOffset(0), 34);
         // For Group 1, it is hidden, so its offset is
         // 34(level 0 offset) + 17(level 0 height) + 4(style.padding) = 55
         assert.strictEqual(chartInstance.groupIndexToOffsetForTest(1), 55);
         // For Level 1, it is in Group 1, and the group is expanded by default,
         // so its offset is 55(Group offset) + 17(group header height) = 72
-        assert.isTrue(chartInstance.levelVisibilityForTest(1));
+        assert.isTrue(chartInstance.levelIsVisible(1));
         assert.strictEqual(chartInstance.levelToOffset(1), 72);
         // For Group 2, it is nested in Group 1, and it is set to hidden, so its offset is
         // 72(level 1 offset) + 17(level 1 is visible) = 89
         assert.strictEqual(chartInstance.groupIndexToOffsetForTest(2), 89);
         // For Level 2, it is in Group 2, and the group is hidden,
         // so its offset is 51(Group offset)
-        assert.isFalse(chartInstance.levelVisibilityForTest(2));
+        assert.isFalse(chartInstance.levelIsVisible(2));
         assert.strictEqual(chartInstance.levelToOffset(2), 89);
         // For Group 3 and Level 3, they are "fake" group and level, and are used to show then end of the flame chart.
         // Since Level 2 is invisible (hidden), so this one has same offset as Level 2.
@@ -467,16 +465,16 @@ describeWithEnvironment('FlameChart', () => {
         // Unhide Group 1, so the offset should be same as default (see test "Calculate the level position correctly").
         chartInstance.showGroup(/* groupIndex= */ 2);
         assert.strictEqual(chartInstance.groupIndexToOffsetForTest(0), 17);
-        assert.isTrue(chartInstance.levelVisibilityForTest(0));
+        assert.isTrue(chartInstance.levelIsVisible(0));
         assert.strictEqual(chartInstance.levelToOffset(0), 34);
         assert.strictEqual(chartInstance.groupIndexToOffsetForTest(1), 55);
-        assert.isTrue(chartInstance.levelVisibilityForTest(1));
+        assert.isTrue(chartInstance.levelIsVisible(1));
         assert.strictEqual(chartInstance.levelToOffset(1), 72);
         assert.strictEqual(chartInstance.groupIndexToOffsetForTest(2), 89);
         // Slightly different because Group2 is not longer collapsible.
         // For Level 2, it is in Group 2, and the group is expanded,
         // so its offset is 89(Group offset) + 17(group header) = 106
-        assert.isTrue(chartInstance.levelVisibilityForTest(2));
+        assert.isTrue(chartInstance.levelIsVisible(2));
         assert.strictEqual(chartInstance.levelToOffset(2), 106);
         // For Group 3 and Level 3, they are "fake" group and level, and are used to show then end of the flame chart.
         // Since Level 2 is visible, so its offset is 106(Group offset) + 17(Level 2 height) = 123
@@ -659,7 +657,7 @@ describeWithEnvironment('FlameChart', () => {
       });
     });
 
-    describe('coordinatesToGroupIndex', () => {
+    describe('coordinatesToGroupIndexAndHoverType', () => {
       it('returns the correct group index for given coordinates', () => {
         const provider = new IndexAndCoordinatesConversionTestProvider();
         const delegate = new MockFlameChartDelegate();
@@ -680,10 +678,22 @@ describeWithEnvironment('FlameChart', () => {
         // So the group 0 can be mapped from
         //   x: any inside the view
         //   y: 17(inclusive) to 55(exclusive)
-        assert.strictEqual(chartInstance.coordinatesToGroupIndex(0, 16, /* headerOnly= */ false), -1);
-        assert.strictEqual(chartInstance.coordinatesToGroupIndex(0, 17, /* headerOnly= */ false), 0);
-        assert.strictEqual(chartInstance.coordinatesToGroupIndex(0, 50, /* headerOnly= */ false), 0);
-        assert.strictEqual(chartInstance.coordinatesToGroupIndex(0, 55, /* headerOnly= */ false), 1);
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(
+                /* HEADER_LEFT_PADDING + EDIT_BUTTON_SIZE */ 22, 16),
+            {groupIndex: -1, hoverType: PerfUI.FlameChart.HoverType.OUTSIDE_TRACKS});
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(
+                /* HEADER_LEFT_PADDING + EDIT_BUTTON_SIZE */ 22, 17),
+            {groupIndex: 0, hoverType: PerfUI.FlameChart.HoverType.INSIDE_TRACK_HEADER});
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(
+                /* HEADER_LEFT_PADDING + EDIT_BUTTON_SIZE */ 22, 50),
+            {groupIndex: 0, hoverType: PerfUI.FlameChart.HoverType.INSIDE_TRACK});
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(
+                /* HEADER_LEFT_PADDING + EDIT_BUTTON_SIZE */ 22, 55),
+            {groupIndex: 1, hoverType: PerfUI.FlameChart.HoverType.INSIDE_TRACK_HEADER});
       });
 
       it('returns the correct group index for given coordinates after re-order', () => {
@@ -709,10 +719,77 @@ describeWithEnvironment('FlameChart', () => {
         // So the entry 0 can be mapped from
         //   y: 55(inclusive) to 89(exclusive)
         // Now Group 1 will be before Group 0. so (y)54 will be mapped to Group 1
-        assert.strictEqual(chartInstance.coordinatesToGroupIndex(0, 54, /* headerOnly= */ false), 1);
-        assert.strictEqual(chartInstance.coordinatesToGroupIndex(0, 55, /* headerOnly= */ false), 0);
-        assert.strictEqual(chartInstance.coordinatesToGroupIndex(0, 88, /* headerOnly= */ false), 0);
-        assert.strictEqual(chartInstance.coordinatesToGroupIndex(0, 89, /* headerOnly= */ false), -1);
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(
+                /* HEADER_LEFT_PADDING + EDIT_BUTTON_SIZE */ 22, 54),
+            {groupIndex: 1, hoverType: PerfUI.FlameChart.HoverType.INSIDE_TRACK});
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(
+                /* HEADER_LEFT_PADDING + EDIT_BUTTON_SIZE */ 22, 55),
+            {groupIndex: 0, hoverType: PerfUI.FlameChart.HoverType.INSIDE_TRACK_HEADER});
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(
+                /* HEADER_LEFT_PADDING + EDIT_BUTTON_SIZE */ 22, 88),
+            {groupIndex: 0, hoverType: PerfUI.FlameChart.HoverType.INSIDE_TRACK});
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(
+                /* HEADER_LEFT_PADDING + EDIT_BUTTON_SIZE */ 22, 89),
+            {groupIndex: -1, hoverType: PerfUI.FlameChart.HoverType.OUTSIDE_TRACKS});
+      });
+
+      it('returns the correct group index and the icon type for given coordinates', () => {
+        const provider = new IndexAndCoordinatesConversionTestProvider();
+        const delegate = new MockFlameChartDelegate();
+        chartInstance = new PerfUI.FlameChart.FlameChart(provider, delegate);
+
+        // Make the width narrow so that not everything fits
+        chartInstance.setSize(100, 400);
+        chartInstance.setWindowTimes(0, 100);
+        renderChart(chartInstance);
+        const timelineData = chartInstance.timelineData();
+        if (!timelineData) {
+          throw new Error('Could not find timeline data');
+        }
+        const context = (chartInstance.getCanvas().getContext('2d') as CanvasRenderingContext2D);
+        const labelWidth = chartInstance.labelWidthForGroup(context, provider.timelineData()?.groups[0]!);
+
+        // Start of the view
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(0, 17),
+            {groupIndex: 0, hoverType: PerfUI.FlameChart.HoverType.INSIDE_TRACK_HEADER});
+        // End of the title label, For title label checking, the end is included.
+        const endOfTitle = /* HEADER_LEFT_PADDING */ 6 + labelWidth;
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(endOfTitle, 17),
+            {groupIndex: 0, hoverType: PerfUI.FlameChart.HoverType.INSIDE_TRACK_HEADER});
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(endOfTitle + 1, 17),
+            {groupIndex: 0, hoverType: PerfUI.FlameChart.HoverType.INSIDE_TRACK});
+
+        chartInstance.setEditModeForTest(true);
+        // Start of the view (before the first icon). Will return the track header.
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(0, 17),
+            {groupIndex: 0, hoverType: PerfUI.FlameChart.HoverType.INSIDE_TRACK_HEADER});
+        // First icon (Up)
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(/* HEADER_LEFT_PADDING */ 6, 17),
+            {groupIndex: 0, hoverType: PerfUI.FlameChart.HoverType.TRACK_CONFIG_UP_BUTTON});
+        // Second icon (Down)
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(
+                /* HEADER_LEFT_PADDING + EDIT_BUTTON_SIZE */ 25, 17),
+            {groupIndex: 0, hoverType: PerfUI.FlameChart.HoverType.TRACK_CONFIG_DOWN_BUTTON});
+        // Third icon (Hide)
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(
+                /* HEADER_LEFT_PADDING + EDIT_BUTTON_SIZE * 2 + GAP_BETWEEN_EDIT_ICONS */ 44, 17),
+            {groupIndex: 0, hoverType: PerfUI.FlameChart.HoverType.TRACK_CONFIG_HIDE_BUTTON});
+        // This is after the third icon, which is the start of the title label, so should return INSIDE_TRACK_HEADER
+        assert.deepEqual(
+            chartInstance.coordinatesToGroupIndexAndHoverType(
+                /* HEADER_LEFT_PADDING + EDIT_MODE_TOTAL_ICON_WIDTH */ 60, 17),
+            {groupIndex: 0, hoverType: PerfUI.FlameChart.HoverType.INSIDE_TRACK_HEADER});
       });
     });
   });

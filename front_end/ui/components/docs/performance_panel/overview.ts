@@ -26,10 +26,9 @@ async function renderMiniMap(containerSelector: string, options: {showMemory: bo
   if (!container) {
     throw new Error('could not find container');
   }
-  const models = await TraceLoader.TraceLoader.allModels(null, fileName);
+  const {traceData} = await TraceLoader.TraceLoader.traceEngine(null, fileName);
 
-  const mainThread = TraceEngine.Handlers.Threads
-                         .threadsInRenderer(models.traceParsedData.Renderer, models.traceParsedData.AuctionWorklets)
+  const mainThread = TraceEngine.Handlers.Threads.threadsInRenderer(traceData.Renderer, traceData.AuctionWorklets)
                          .find(t => t.type === TraceEngine.Handlers.Threads.ThreadType.MAIN_THREAD);
   if (!mainThread) {
     throw new Error('Could not find main thread.');
@@ -37,16 +36,16 @@ async function renderMiniMap(containerSelector: string, options: {showMemory: bo
   const minimap = new Timeline.TimelineMiniMap.TimelineMiniMap();
   minimap.markAsRoot();
   minimap.show(container);
-  TraceBounds.TraceBounds.BoundsManager.instance().resetWithNewBounds(models.traceParsedData.Meta.traceBounds);
+  TraceBounds.TraceBounds.BoundsManager.instance().resetWithNewBounds(traceData.Meta.traceBounds);
 
   const zoomedWindow = TraceEngine.Extras.MainThreadActivity.calculateWindow(
-      models.traceParsedData.Meta.traceBounds,
+      traceData.Meta.traceBounds,
       mainThread.entries,
   );
   TraceBounds.TraceBounds.BoundsManager.instance().setTimelineVisibleWindow(zoomedWindow);
 
   minimap.setData({
-    traceParsedData: models.traceParsedData,
+    traceParsedData: traceData,
     settings: {
       showMemory: options.showMemory,
       showScreenshots: true,

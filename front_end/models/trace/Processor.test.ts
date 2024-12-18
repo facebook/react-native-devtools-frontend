@@ -6,8 +6,6 @@ import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
 import {TraceLoader} from '../../testing/TraceLoader.js';
 import * as TraceModel from '../trace/trace.js';
 
-const {assert} = chai;
-
 describeWithEnvironment('TraceProcessor', function() {
   it('can use a trace processor', async function() {
     const processor = TraceModel.Processor.TraceProcessor.createWithAllHandlers();
@@ -85,12 +83,12 @@ describeWithEnvironment('TraceProcessor', function() {
 
   it('can be given a subset of handlers to run and will run just those along with the meta handler', async function() {
     const processor = new TraceModel.Processor.TraceProcessor({
-      Animation: TraceModel.Handlers.ModelHandlers.Animations,
+      Animations: TraceModel.Handlers.ModelHandlers.Animations,
     });
     const events = await TraceLoader.rawEvents(this, 'animation.json.gz');
     await processor.parse(events);
     assert.isNotNull(processor.traceParsedData);
-    assert.deepEqual(Object.keys(processor.traceParsedData || {}), ['Meta', 'Animation']);
+    assert.deepEqual(Object.keys(processor.traceParsedData || {}), ['Meta', 'Animations']);
   });
 
   it('does not error if the user does not enable the Meta handler when it is a dependency', async function() {
@@ -120,14 +118,7 @@ describeWithEnvironment('TraceProcessor', function() {
           Samples: TraceModel.Handlers.ModelHandlers.Samples,
           AuctionWorklets: TraceModel.Handlers.ModelHandlers.AuctionWorklets,
         },
-        {
-          ...TraceModel.Types.Configuration.DEFAULT,
-          processing: {
-            ...TraceModel.Types.Configuration.DEFAULT.processing,
-            // This trace is 8252 events long, lets emit 8 updates
-            eventsPerChunk: 1_000,
-          },
-        });
+        TraceModel.Types.Configuration.defaults());
 
     let updateEventCount = 0;
 
@@ -135,9 +126,10 @@ describeWithEnvironment('TraceProcessor', function() {
       updateEventCount++;
     });
 
-    const rawEvents = await TraceLoader.rawEvents(this, 'web-dev.json.gz');
+    const rawEvents = await TraceLoader.rawEvents(this, 'web-dev-outermost-frames.json.gz');
+    // This trace has 106,110 events. At default of 50k chunks we should see 2 updates
     await processor.parse(rawEvents).then(() => {
-      assert.strictEqual(updateEventCount, 8);
+      assert.strictEqual(updateEventCount, 2);
     });
   });
 
@@ -263,17 +255,21 @@ describeWithEnvironment('TraceProcessor', function() {
     });
 
     it('captures errors thrown by insights', async function() {
+      sinon.stub(TraceModel.Processor.TraceProcessor, 'getEnabledInsightRunners').callsFake(() => {
+        return {
+          RenderBlocking: {
+            generateInsight: () => {
+              throw new Error('forced error');
+            },
+            deps: TraceModel.Insights.InsightRunners.RenderBlocking.deps,
+          },
+        };
+      });
+
       const processor = TraceModel.Processor.TraceProcessor.createWithAllHandlers();
       const file = await TraceLoader.rawEvents(this, 'load-simple.json.gz');
 
       await processor.parse(file);
-
-      // Create invalid trace data that forces insights to throw an error
-      processor.traceParsedData?.NetworkRequests.byTime.forEach(r => {
-        // @ts-expect-error
-        r.args.data = null;
-      });
-
       if (!processor.insights) {
         throw new Error('No insights');
       }
@@ -281,11 +277,12 @@ describeWithEnvironment('TraceProcessor', function() {
       const insights = Array.from(processor.insights.values());
       assert.strictEqual(insights.length, 1);
       assert(insights[0].RenderBlocking instanceof Error, 'RenderBlocking did not throw an error');
+      assert.strictEqual(insights[0].RenderBlocking.message, 'forced error');
     });
 
     it('skips insights that are missing one or more dependencies', async function() {
       const processor = new TraceModel.Processor.TraceProcessor({
-        Animation: TraceModel.Handlers.ModelHandlers.Animations,
+        Animations: TraceModel.Handlers.ModelHandlers.Animations,
       });
       const file = await TraceLoader.rawEvents(this, 'load-simple.json.gz');
 
@@ -315,7 +312,7 @@ describeWithEnvironment('TraceProcessor', function() {
         throw new Error('RenderBlocking threw an error');
       }
 
-      assert.strictEqual(insights[0].RenderBlocking.renderBlockingRequests.length, 3);
+      assert.strictEqual(insights[0].RenderBlocking.renderBlockingRequests.length, 2);
     });
 
     it('returns insights for multiple navigations', async function() {

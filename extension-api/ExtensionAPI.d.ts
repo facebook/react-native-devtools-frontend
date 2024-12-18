@@ -6,6 +6,7 @@ export namespace Chrome {
   export namespace DevTools {
     export interface EventSink<ListenerT extends(...args: any) => void> {
       addListener(listener: ListenerT): void;
+      removeListener(listener: ListenerT): void;
     }
 
     export interface Resource {
@@ -70,6 +71,7 @@ export namespace Chrome {
     export interface Panels {
       elements: PanelWithSidebar;
       sources: PanelWithSidebar;
+      network: NetworkPanel;
       themeName: string;
 
       create(title: string, iconPath: string, pagePath: string, callback?: (panel: ExtensionPanel) => unknown): void;
@@ -94,12 +96,17 @@ export namespace Chrome {
       getHAR(callback: (harLog: object) => unknown): void;
     }
 
+    export interface NetworkPanel {
+      show(options?: {filter: string}): Promise<void>;
+    }
+
     export interface DevToolsAPI {
       network: Network;
       panels: Panels;
       inspectedWindow: InspectedWindow;
       languageServices: LanguageExtensions;
       recorder: RecorderExtensions;
+      performance: Performance;
     }
 
     export interface ExperimentalDevToolsAPI {
@@ -171,9 +178,21 @@ export namespace Chrome {
       hasChildren: boolean;
     }
 
+    /**
+     * This refers to a Javascript or a Wasm value of reference type
+     * in the V8 engine. We call it foreign object here to emphasize
+     * the difference with the remote objects managed by a language
+     * extension plugin.
+     */
+    export interface ForeignObject {
+      type: 'reftype';
+      valueClass: 'local'|'global'|'operand';
+      index: number;
+    }
+
     export interface PropertyDescriptor {
       name: string;
-      value: RemoteObject;
+      value: RemoteObject|ForeignObject;
     }
 
     export interface LanguageExtensionPlugin {
@@ -214,7 +233,8 @@ export namespace Chrome {
        * the location is inside of an inlined function with the innermost function at index 0.
        */
       getFunctionInfo(rawLocation: RawLocation):
-          Promise<{frames: Array<FunctionInfo>}|{missingSymbolFiles: Array<string>}>;
+          Promise<{frames: Array<FunctionInfo>, missingSymbolFiles: Array<string>}|{missingSymbolFiles: Array<string>}|
+                  {frames: Array<FunctionInfo>}>;
 
       /**
        * Find locations in raw modules corresponding to the inline function
@@ -239,7 +259,7 @@ export namespace Chrome {
        * opaque key that should be passed to the APIs accessing wasm state, e.g., getWasmLinearMemory. A stopId is
        * invalidated once the debugger resumes.
        */
-      evaluate(expression: string, context: RawLocation, stopId: unknown): Promise<RemoteObject|null>;
+      evaluate(expression: string, context: RawLocation, stopId: unknown): Promise<RemoteObject|ForeignObject|null>;
 
       /**
        * Retrieve properties of the remote object identified by the object id.
@@ -259,7 +279,7 @@ export namespace Chrome {
     }
 
     export type WasmValue = {type: 'i32'|'f32'|'f64', value: number}|{type: 'i64', value: bigint}|
-        {type: 'v128', value: string};
+        {type: 'v128', value: string}|ForeignObject;
 
     export interface LanguageExtensions {
       registerLanguageExtensionPlugin(
@@ -282,6 +302,11 @@ export namespace Chrome {
           Promise<void>;
       unregisterRecorderExtensionPlugin(plugin: RecorderExtensionPlugin): Promise<void>;
       createView(title: string, pagePath: string): Promise<RecorderView>;
+    }
+
+    export interface Performance {
+      onProfilingStarted: EventSink<() => unknown>;
+      onProfilingStopped: EventSink<() => unknown>;
     }
 
     export interface Chrome {

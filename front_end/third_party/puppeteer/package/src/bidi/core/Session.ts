@@ -7,7 +7,6 @@
 import type * as Bidi from 'chromium-bidi/lib/cjs/protocol/protocol.js';
 
 import {EventEmitter} from '../../common/EventEmitter.js';
-import {debugError} from '../../common/util.js';
 import {
   bubble,
   inertIfDisposed,
@@ -17,9 +16,6 @@ import {DisposableStack, disposeSymbol} from '../../util/disposable.js';
 
 import {Browser} from './Browser.js';
 import type {BidiEvents, Commands, Connection} from './Connection.js';
-
-// TODO: Once Chrome supports session.status properly, uncomment this block.
-// const MAX_RETRIES = 5;
 
 /**
  * @internal
@@ -32,69 +28,27 @@ export class Session
     connection: Connection,
     capabilities: Bidi.Session.CapabilitiesRequest
   ): Promise<Session> {
-    // Wait until the session is ready.
-    //
-    // TODO: Once Chrome supports session.status properly, uncomment this block
-    // and remove `getBiDiConnection` in BrowserConnector.
-
-    // let status = {message: '', ready: false};
-    // for (let i = 0; i < MAX_RETRIES; ++i) {
-    //   status = (await connection.send('session.status', {})).result;
-    //   if (status.ready) {
-    //     break;
-    //   }
-    //   // Backoff a little bit each time.
-    //   await new Promise(resolve => {
-    //     return setTimeout(resolve, (1 << i) * 100);
-    //   });
-    // }
-    // if (!status.ready) {
-    //   throw new Error(status.message);
-    // }
-
-    let result;
-    try {
-      result = (
-        await connection.send('session.new', {
-          capabilities,
-        })
-      ).result;
-    } catch (err) {
-      // Chrome does not support session.new.
-      debugError(err);
-      result = {
-        sessionId: '',
-        capabilities: {
-          acceptInsecureCerts: false,
-          browserName: '',
-          browserVersion: '',
-          platformName: '',
-          setWindowRect: false,
-          webSocketUrl: '',
-        },
-      };
-    }
+    const {result} = await connection.send('session.new', {
+      capabilities,
+    });
 
     const session = new Session(connection, result);
     await session.#initialize();
     return session;
   }
 
-  // keep-sorted start
   #reason: string | undefined;
   readonly #disposables = new DisposableStack();
   readonly #info: Bidi.Session.NewResult;
   readonly browser!: Browser;
   @bubble()
   accessor connection: Connection;
-  // keep-sorted end
 
   private constructor(connection: Connection, info: Bidi.Session.NewResult) {
     super();
-    // keep-sorted start
+
     this.#info = info;
     this.connection = connection;
-    // keep-sorted end
   }
 
   async #initialize(): Promise<void> {
@@ -120,7 +74,6 @@ export class Session
     });
   }
 
-  // keep-sorted start block=yes
   get capabilities(): Bidi.Session.NewResult['capabilities'] {
     return this.#info.capabilities;
   }
@@ -133,7 +86,6 @@ export class Session
   get id(): string {
     return this.#info.sessionId;
   }
-  // keep-sorted end
 
   @inertIfDisposed
   private dispose(reason?: string): void {
@@ -163,9 +115,27 @@ export class Session
     // SAFETY: By definition of `disposed`, `#reason` is defined.
     return session.#reason!;
   })
-  async subscribe(events: string[]): Promise<void> {
+  async subscribe(
+    events: [string, ...string[]],
+    contexts?: [string, ...string[]]
+  ): Promise<void> {
     await this.send('session.subscribe', {
       events,
+      contexts,
+    });
+  }
+
+  @throwIfDisposed<Session>(session => {
+    // SAFETY: By definition of `disposed`, `#reason` is defined.
+    return session.#reason!;
+  })
+  async addIntercepts(
+    events: [string, ...string[]],
+    contexts?: [string, ...string[]]
+  ): Promise<void> {
+    await this.send('session.subscribe', {
+      events,
+      contexts,
     });
   }
 

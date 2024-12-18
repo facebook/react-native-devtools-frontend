@@ -5,21 +5,52 @@
 import {TraceLoader} from '../../../testing/TraceLoader.js';
 import * as TraceModel from '../trace.js';
 
-const {assert} = chai;
-
 async function processTrace(context: Mocha.Suite|Mocha.Context|null, path: string): Promise<void> {
   const traceEvents = await TraceLoader.rawEvents(context, path);
+  TraceModel.Handlers.ModelHandlers.Meta.reset();
+  TraceModel.Handlers.ModelHandlers.Meta.initialize();
   for (const event of traceEvents) {
+    TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
     TraceModel.Handlers.ModelHandlers.UserInteractions.handleEvent(event);
   }
+  await TraceModel.Handlers.ModelHandlers.Meta.finalize();
   await TraceModel.Handlers.ModelHandlers.UserInteractions.finalize();
 }
 
+beforeEach(() => {
+  TraceModel.Handlers.ModelHandlers.Meta.reset();
+  TraceModel.Handlers.ModelHandlers.Meta.initialize();
+});
+
 describe('UserInteractionsHandler', function() {
+  function makeFakeInteraction(type: string, options: {
+    startTime: number,
+    endTime: number,
+    interactionId: number,
+    processingStart?: number,
+    processingEnd?: number,
+  }): TraceModel.Types.TraceEvents.SyntheticInteractionPair {
+    const event = {
+      name: 'EventTiming',
+      type,
+      ts: TraceModel.Types.Timing.MicroSeconds(options.startTime),
+      dur: TraceModel.Types.Timing.MicroSeconds(options.endTime - options.startTime),
+      processingStart: TraceModel.Types.Timing.MicroSeconds(options.processingStart || 0),
+      processingEnd: TraceModel.Types.Timing.MicroSeconds(options.processingEnd || 0),
+      interactionId: options.interactionId,
+    };
+
+    return event as unknown as TraceModel.Types.TraceEvents.SyntheticInteractionPair;
+  }
+
   describe('error handling', () => {
     it('throws if not initialized', async () => {
+      TraceModel.Handlers.ModelHandlers.Meta.reset();
+      TraceModel.Handlers.ModelHandlers.Meta.initialize();
+
       // Finalize the handler by calling data and then finalize on it.
       TraceModel.Handlers.ModelHandlers.UserInteractions.data();
+      await TraceModel.Handlers.ModelHandlers.Meta.finalize();
       await TraceModel.Handlers.ModelHandlers.UserInteractions.finalize();
 
       assert.throws(() => {
@@ -96,7 +127,6 @@ describe('UserInteractionsHandler', function() {
     const expectedLongestEvent = data.interactionEvents.find(event => {
       return event.type === 'keydown' && event.interactionId === 7378;
     });
-    assert.isNotNull(expectedLongestEvent);
     assert.strictEqual(data.longestInteractionEvent, expectedLongestEvent);
   });
 
@@ -251,32 +281,13 @@ describe('UserInteractionsHandler', function() {
     for (const event of events) {
       TraceModel.Handlers.ModelHandlers.UserInteractions.handleEvent(event);
     }
+    await TraceModel.Handlers.ModelHandlers.Meta.finalize();
     await TraceModel.Handlers.ModelHandlers.UserInteractions.finalize();
     const timings = TraceModel.Handlers.ModelHandlers.UserInteractions.data().allEvents;
     assert.lengthOf(timings, 3);
   });
 
   describe('collapsing nested interactions', () => {
-    function makeFakeInteraction(type: string, options: {
-      startTime: number,
-      endTime: number,
-      interactionId: number,
-      processingStart?: number,
-      processingEnd?: number,
-    }): TraceModel.Types.TraceEvents.SyntheticInteractionPair {
-      const event = {
-        name: 'EventTiming',
-        type,
-        ts: TraceModel.Types.Timing.MicroSeconds(options.startTime),
-        dur: TraceModel.Types.Timing.MicroSeconds(options.endTime - options.startTime),
-        processingStart: TraceModel.Types.Timing.MicroSeconds(options.processingStart || 0),
-        processingEnd: TraceModel.Types.Timing.MicroSeconds(options.processingEnd || 0),
-        interactionId: options.interactionId,
-      };
-
-      return event as unknown as TraceModel.Types.TraceEvents.SyntheticInteractionPair;
-    }
-
     const {removeNestedInteractions} = TraceModel.Handlers.ModelHandlers.UserInteractions;
 
     it('removes interactions that have the same end time but are not the first event in that block', () => {
@@ -430,5 +441,20 @@ describe('UserInteractionsHandler', function() {
       assert.isTrue(visibleEventInteractionIds.includes('keydown:3628'));
       assert.isFalse(visibleEventInteractionIds.includes('keydown:3621'));
     });
+  });
+
+  it('gets the correct score classification for Interaction to Next Paint event', () => {
+    const eventA = makeFakeInteraction('pointerdown', {startTime: 0, endTime: 10_000, interactionId: 1});
+    assert.strictEqual(
+        TraceModel.Handlers.ModelHandlers.UserInteractions.scoreClassificationForInteractionToNextPaint(eventA.dur),
+        TraceModel.Handlers.ModelHandlers.PageLoadMetrics.ScoreClassification.GOOD);
+    const eventB = makeFakeInteraction('pointerdown', {startTime: 0, endTime: 250_000, interactionId: 1});
+    assert.strictEqual(
+        TraceModel.Handlers.ModelHandlers.UserInteractions.scoreClassificationForInteractionToNextPaint(eventB.dur),
+        TraceModel.Handlers.ModelHandlers.PageLoadMetrics.ScoreClassification.OK);
+    const eventC = makeFakeInteraction('pointerdown', {startTime: 0, endTime: 1_000_000, interactionId: 1});
+    assert.strictEqual(
+        TraceModel.Handlers.ModelHandlers.UserInteractions.scoreClassificationForInteractionToNextPaint(eventC.dur),
+        TraceModel.Handlers.ModelHandlers.PageLoadMetrics.ScoreClassification.BAD);
   });
 });

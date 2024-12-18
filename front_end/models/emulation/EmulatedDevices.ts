@@ -37,7 +37,7 @@ export function computeRelativeImageURL(cssURLValue: string): string {
 
 export class EmulatedDevice {
   title: string;
-  type: string;
+  type: Type;
   order!: number;
   vertical: Orientation;
   horizontal: Orientation;
@@ -50,7 +50,7 @@ export class EmulatedDevice {
   isFoldableScreen: boolean;
   verticalSpanned: Orientation;
   horizontalSpanned: Orientation;
-  #showInternal: string;
+  #showInternal: Show;
   #showByDefault: boolean;
 
   constructor() {
@@ -69,7 +69,7 @@ export class EmulatedDevice {
     this.verticalSpanned = {width: 0, height: 0, outlineInsets: null, outlineImage: null, hinge: null};
     this.horizontalSpanned = {width: 0, height: 0, outlineInsets: null, outlineImage: null, hinge: null};
 
-    this.#showInternal = _Show.Default;
+    this.#showInternal = Show.Default;
     this.#showByDefault = true;
   }
 
@@ -192,7 +192,11 @@ export class EmulatedDevice {
 
       const result = new EmulatedDevice();
       result.title = (parseValue(json, 'title', 'string') as string);
-      result.type = (parseValue(json, 'type', 'string') as string);
+      const type = parseValue(json, 'type', 'string');
+      if (!Object.values(Type).includes(type)) {
+        throw new Error('Emulated device has wrong type: ' + type);
+      }
+      result.type = type;
       result.order = (parseValue(json, 'order', 'number', 0) as number);
       const rawUserAgent = (parseValue(json, 'user-agent', 'string') as string);
       result.userAgent = SDK.NetworkManager.MultitargetNetworkManager.patchUserAgentWithChromeVersion(rawUserAgent);
@@ -255,7 +259,11 @@ export class EmulatedDevice {
         result.modes.push(mode);
       }
       result.#showByDefault = (parseValue(json, 'show-by-default', 'boolean', undefined) as boolean);
-      result.#showInternal = (parseValue(json, 'show', 'string', _Show.Default) as string);
+      const show = parseValue(json, 'show', 'string', Show.Default);
+      if (!Object.values(Show).includes(show)) {
+        throw new Error('Emulated device has wrong show mode: ' + show);
+      }
+      result.#showInternal = show;
 
       return result;
     } catch (e) {
@@ -445,14 +453,14 @@ export class EmulatedDevice {
     }
   }
   show(): boolean {
-    if (this.#showInternal === _Show.Default) {
+    if (this.#showInternal === Show.Default) {
       return this.#showByDefault;
     }
-    return this.#showInternal === _Show.Always;
+    return this.#showInternal === Show.Always;
   }
 
   setShow(show: boolean): void {
-    this.#showInternal = show ? _Show.Always : _Show.Never;
+    this.#showInternal = show ? Show.Always : Show.Never;
   }
 
   copyShowFrom(other: EmulatedDevice): void {
@@ -473,26 +481,24 @@ export const Vertical = 'vertical';
 export const HorizontalSpanned = 'horizontal-spanned';
 export const VerticalSpanned = 'vertical-spanned';
 
-export const Type = {
-  Phone: 'phone',
-  Tablet: 'tablet',
-  Notebook: 'notebook',
-  Desktop: 'desktop',
-  Unknown: 'unknown',
-};
+enum Type {
+  Phone = 'phone',
+  Tablet = 'tablet',
+  Notebook = 'notebook',
+  Desktop = 'desktop',
+  Unknown = 'unknown',
+}
 
-export const Capability = {
-  Touch: 'touch',
-  Mobile: 'mobile',
-};
+export const enum Capability {
+  Touch = 'touch',
+  Mobile = 'mobile',
+}
 
-// TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export const _Show = {
-  Always: 'Always',
-  Default: 'Default',
-  Never: 'Never',
-};
+enum Show {
+  Always = 'Always',
+  Default = 'Default',
+  Never = 'Never',
+}
 
 let emulatedDevicesListInstance: EmulatedDevicesList;
 
@@ -938,19 +944,41 @@ const emulatedDevices = [
     'order': 34,
     'show-by-default': true,
     'foldable-screen': true,
-    'title': 'Galaxy Fold',
+    'title': 'Galaxy Z Fold 5',
     'screen': {
-      'horizontal': {'width': 653, 'height': 280},
-      'device-pixel-ratio': 3,
-      'vertical': {'width': 280, 'height': 653},
-      'vertical-spanned': {'width': 717, 'height': 512},
-      'horizontal-spanned': {'width': 512, 'height': 717},
+      'horizontal': {'width': 882, 'height': 344},
+      'device-pixel-ratio': 2.625,
+      'vertical': {'width': 344, 'height': 882},
+      'vertical-spanned': {
+        'width': 690,
+        'height': 829,
+        'hinge': {
+          'width': 0,
+          'height': 829,
+          'x': 345,
+          'y': 0,
+          'contentColor': {'r': 38, 'g': 38, 'b': 38, 'a': 0.2},
+          'outlineColor': {'r': 38, 'g': 38, 'b': 38, 'a': 0.7},
+        },
+      },
+      'horizontal-spanned': {
+        'width': 829,
+        'height': 690,
+        'hinge': {
+          'width': 829,
+          'height': 0,
+          'x': 0,
+          'y': 345,
+          'contentColor': {'r': 38, 'g': 38, 'b': 38, 'a': 0.2},
+          'outlineColor': {'r': 38, 'g': 38, 'b': 38, 'a': 0.7},
+        },
+      },
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Linux; Android 9.0; SAMSUNG SM-F900U Build/PPR1.180610.011) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36',
+        'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36',
     'user-agent-metadata':
-        {'platform': 'Android', 'platformVersion': '9.0', 'architecture': '', 'model': 'SM-F900U', 'mobile': true},
+        {'platform': 'Android', 'platformVersion': '10.0', 'architecture': '', 'model': 'SM-F946U', 'mobile': true},
     'type': 'phone',
     'modes': [
       {'title': 'default', 'orientation': 'vertical', 'insets': {'left': 0, 'top': 0, 'right': 0, 'bottom': 0}},

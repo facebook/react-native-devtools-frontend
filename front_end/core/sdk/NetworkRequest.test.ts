@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-const {assert} = chai;
-
-import * as Platform from '../platform/platform.js';
-import {assertNotNullOrUndefined} from '../platform/platform.js';
-import * as SDK from './sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
 import {expectCookie} from '../../testing/Cookies.js';
@@ -15,6 +10,9 @@ import {
   describeWithMockConnection,
   setMockConnectionResponseHandler,
 } from '../../testing/MockConnection.js';
+import * as Platform from '../platform/platform.js';
+
+import * as SDK from './sdk.js';
 
 describe('NetworkRequest', () => {
   it('can parse statusText from the first line of responseReceivedExtraInfo\'s headersText', () => {
@@ -89,12 +87,17 @@ describe('NetworkRequest', () => {
       responseHeaders:
           [{name: 'Set-Cookie', value: 'foo=bar'}, {name: 'Set-Cookie', value: 'baz=qux; Secure;Partitioned'}],
       resourceIPAddressSpace: 'Public' as Protocol.Network.IPAddressSpace,
-      cookiePartitionKey: 'partitionKey',
+      cookiePartitionKey: {topLevelSite: 'partitionKey', hasCrossSiteAncestor: false},
     } as unknown as SDK.NetworkRequest.ExtraResponseInfo);
     assert.strictEqual(request.responseCookies.length, 2);
     expectCookie(request.responseCookies[0], {name: 'foo', value: 'bar', size: 8});
-    expectCookie(
-        request.responseCookies[1], {name: 'baz', value: 'qux', secure: true, partitionKey: 'partitionKey', size: 27});
+    expectCookie(request.responseCookies[1], {
+      name: 'baz',
+      value: 'qux',
+      secure: true,
+      partitionKey: {topLevelSite: 'partitionKey', hasCrossSiteAncestor: false},
+      size: 27,
+    });
   });
 
   it('determines whether the response headers have been overridden', () => {
@@ -186,8 +189,11 @@ describe('NetworkRequest', () => {
       statusCode: undefined,
       cookiePartitionKey: undefined,
       cookiePartitionKeyOpaque: undefined,
-      exemptedResponseCookies:
-          [{cookie: cookie, exemptionReason: Protocol.Network.CookieExemptionReason.TPCDHeuristics}],
+      exemptedResponseCookies: [{
+        cookie: cookie,
+        cookieLine: cookie.getCookieLine() as string,
+        exemptionReason: Protocol.Network.CookieExemptionReason.TPCDHeuristics,
+      }],
     });
 
     assert.deepEqual(
@@ -242,14 +248,12 @@ describeWithMockConnection('NetworkRequest', () => {
   let networkManagerForRequestStub: sinon.SinonStub;
   let cookie: SDK.Cookie.Cookie;
   let addBlockedCookieSpy: sinon.SinonSpy;
-  let networkDispatcher: SDK.NetworkManager.NetworkDispatcher;
   let target: SDK.Target.Target;
 
   beforeEach(() => {
     target = createTarget();
     const networkManager = target.model(SDK.NetworkManager.NetworkManager);
-    assertNotNullOrUndefined(networkManager);
-    networkDispatcher = new SDK.NetworkManager.NetworkDispatcher(networkManager);
+    assert.exists(networkManager);
     networkManagerForRequestStub = sinon.stub(SDK.NetworkManager.NetworkManager, 'forRequest').returns(networkManager);
     cookie = new SDK.Cookie.Cookie('name', 'value');
     addBlockedCookieSpy = sinon.spy(SDK.CookieModel.CookieModel.prototype, 'addBlockedCookie');
@@ -263,7 +267,7 @@ describeWithMockConnection('NetworkRequest', () => {
     const removeBlockedCookieSpy = sinon.spy(SDK.CookieModel.CookieModel.prototype, 'removeBlockedCookie');
     setMockConnectionResponseHandler('Network.getCookies', () => ({cookies: []}));
     const cookieModel = target.model(SDK.CookieModel.CookieModel);
-    assertNotNullOrUndefined(cookieModel);
+    assert.exists(cookieModel);
     const url = 'url' as Platform.DevToolsPath.UrlString;
     const request = SDK.NetworkRequest.NetworkRequest.create(
         'requestId' as Protocol.Network.RequestId, url, 'documentURL' as Platform.DevToolsPath.UrlString, null, null,
@@ -287,7 +291,7 @@ describeWithMockConnection('NetworkRequest', () => {
           attribute: null,
           uiString: 'Setting this cookie was blocked due to third-party cookie phaseout. Learn more in the Issues tab.',
         }]));
-    assert.deepStrictEqual(await cookieModel.getCookies([url]), [cookie]);
+    assert.deepStrictEqual(await cookieModel.getCookiesForDomain(''), [cookie]);
 
     request.addExtraResponseInfo({
       responseHeaders: [{name: 'Set-Cookie', value: 'name=value; Path=/'}],
@@ -296,33 +300,14 @@ describeWithMockConnection('NetworkRequest', () => {
       statusCode: undefined,
       cookiePartitionKey: undefined,
       cookiePartitionKeyOpaque: undefined,
-      exemptedResponseCookies: [{cookie, exemptionReason: Protocol.Network.CookieExemptionReason.TPCDHeuristics}],
+      exemptedResponseCookies: [{
+        cookie,
+        cookieLine: cookie.getCookieLine() as string,
+        exemptionReason: Protocol.Network.CookieExemptionReason.TPCDHeuristics,
+      }],
     });
     assert.isTrue(removeBlockedCookieSpy.calledOnceWith(cookie));
-    assert.isEmpty(await cookieModel.getCookies([url]));
-  });
-
-  it('adds blocked request cookies to cookieModel', () => {
-    const requestWillBeSentEvent = {requestId: 'requestId', request: {url: 'example.com'}} as
-        Protocol.Network.RequestWillBeSentEvent;
-    networkDispatcher.requestWillBeSent(requestWillBeSentEvent);
-
-    networkDispatcher.requestForId('requestId')!.addExtraRequestInfo({
-      blockedRequestCookies: [{blockedReasons: [Protocol.Network.CookieBlockedReason.SameSiteLax], cookie}],
-      requestHeaders: [],
-      includedRequestCookies: [],
-      connectTiming: {requestTime: 42},
-    });
-
-    networkDispatcher.loadingFinished(
-        {requestId: 'requestId' as Protocol.Network.RequestId, timestamp: 42, encodedDataLength: 42});
-    assert.isTrue(addBlockedCookieSpy.calledOnceWith(cookie, [
-      {
-        attribute: SDK.Cookie.Attribute.SameSite,
-        uiString:
-            'This cookie was blocked because it had the "SameSite=Lax" attribute and the request was made from a different site and was not initiated by a top-level navigation.',
-      },
-    ]));
+    assert.isEmpty(await cookieModel.getCookiesForDomain(''));
   });
 });
 
@@ -529,5 +514,35 @@ describeWithMockConnection('requestStreamingContent', () => {
     const {chunk} = await eventPromise;
     assert.strictEqual(chunk, 'YmFy');
     assert.strictEqual(streamingContent.content().text, 'foobar');
+  });
+
+  it('waits for "responseReceived" event to construct the StreamingContentData', async () => {
+    networkManager.dispatcher.requestWillBeSent({
+      requestId: '1' as Protocol.Network.RequestId,
+      request: {
+        url: 'https://example.com/index.html',
+      },
+      type: 'Document',
+    } as Protocol.Network.RequestWillBeSentEvent);
+    sinon.stub(target.networkAgent(), 'invoke_streamResourceContent')
+        .returns(Promise.resolve({bufferedData: '', getError: () => undefined}));
+
+    const streamingContentDataPromise = networkManager.requestForId('1')!.requestStreamingContent();
+
+    // Trigger the "responseReceived" on the next event loop tick.
+    setTimeout(() => {
+      networkManager.dispatcher.responseReceived({
+        requestId: '1' as Protocol.Network.RequestId,
+        response: {
+          url: 'https://example.com/index.html',
+          mimeType: 'text/html',
+        } as Protocol.Network.Response,
+      } as Protocol.Network.ResponseReceivedEvent);
+    }, 0);
+
+    const maybeStreamingContent = await streamingContentDataPromise;
+    assert.isFalse(TextUtils.StreamingContentData.isError(maybeStreamingContent));
+    const streamingContent = maybeStreamingContent as TextUtils.StreamingContentData.StreamingContentData;
+    assert.strictEqual(streamingContent.mimeType, 'text/html');
   });
 });

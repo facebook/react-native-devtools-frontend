@@ -44,7 +44,7 @@ const UIStrings = {
   /**
    *@description Example for placeholder text
    */
-  enterRegex: 'Enter regex, for example: https?',
+  filterByRegex: 'Filter using regex (example: https?)',
 };
 const str_ = i18n.i18n.registerUIStrings('panels/network/EventSourceMessagesView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -72,8 +72,8 @@ export class EventSourceMessagesView extends UI.Widget.VBox {
     this.clearAllButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, this.clearMessages, this);
     this.mainToolbar.appendToolbarItem(this.clearAllButton);
 
-    const placeholder = i18nString(UIStrings.enterRegex);
-    this.filterTextInput = new UI.Toolbar.ToolbarInput(placeholder, '', 0.4);
+    const placeholder = i18nString(UIStrings.filterByRegex);
+    this.filterTextInput = new UI.Toolbar.ToolbarFilter(placeholder, 0.4);
     this.filterTextInput.addEventListener(UI.Toolbar.ToolbarInput.Event.TextChanged, this.updateFilterSetting, this);
     const filter = this.messageFilterSetting.get();
     this.filterRegex = null;
@@ -210,9 +210,7 @@ export class EventSourceMessageNode extends DataGrid.SortableDataGrid.SortableDa
   }
 }
 
-// TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export function EventSourceMessageNodeComparator(
+function eventSourceMessageNodeComparator(
     fieldGetter: (arg0: SDK.NetworkRequest.EventSourceMessage) => (number | string), a: EventSourceMessageNode,
     b: EventSourceMessageNode): number {
   const aValue = fieldGetter(a.message);
@@ -223,9 +221,9 @@ export function EventSourceMessageNodeComparator(
 export const Comparators: {
   [x: string]: (arg0: EventSourceMessageNode, arg1: EventSourceMessageNode) => number,
 } = {
-  'id': EventSourceMessageNodeComparator.bind(null, message => message.eventId),
-  'type': EventSourceMessageNodeComparator.bind(null, message => message.eventName),
-  'time': EventSourceMessageNodeComparator.bind(null, message => message.time),
+  'id': eventSourceMessageNodeComparator.bind(null, message => message.eventId),
+  'type': eventSourceMessageNodeComparator.bind(null, message => message.eventName),
+  'time': eventSourceMessageNodeComparator.bind(null, message => message.time),
 };
 
 const clearMessageOffsets = new WeakMap<SDK.NetworkRequest.NetworkRequest, number>();

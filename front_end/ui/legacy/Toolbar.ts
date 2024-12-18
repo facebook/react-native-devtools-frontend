@@ -33,6 +33,7 @@ import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as Root from '../../core/root/root.js';
+import * as Buttons from '../../ui/components/buttons/buttons.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 import * as Adorners from '../components/adorners/adorners.js';
 import * as IconButton from '../components/icon_button/icon_button.js';
@@ -47,8 +48,7 @@ import {type Suggestion} from './SuggestBox.js';
 import {Events as TextPromptEvents, TextPrompt} from './TextPrompt.js';
 import toolbarStyles from './toolbar.css.legacy.js';
 import {Tooltip} from './Tooltip.js';
-import {CheckboxLabel, LongClickController} from './UIUtils.js';
-import * as Utils from './utils/utils.js';
+import {CheckboxLabel, createShadowRootWithCoreStyles, LongClickController} from './UIUtils.js';
 
 const UIStrings = {
   /**
@@ -62,7 +62,11 @@ const UIStrings = {
   /**
    *@description Tooltip shown when the user hovers over the clear icon to empty the text input.
    */
-  clearInput: 'Clear input',
+  clearInput: 'Clear',
+  /**
+   *@description Placeholder for filter bars that shows before the user types in a filter keyword.
+   */
+  filter: 'Filter',
 };
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/Toolbar.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -81,8 +85,7 @@ export class Toolbar {
     this.element.className = className;
     this.element.classList.add('toolbar');
     this.enabled = true;
-    this.shadowRoot =
-        Utils.createShadowRootWithCoreStyles(this.element, {cssFile: toolbarStyles, delegatesFocus: undefined});
+    this.shadowRoot = createShadowRootWithCoreStyles(this.element, {cssFile: toolbarStyles, delegatesFocus: undefined});
     this.contentElement = this.shadowRoot.createChild('div', 'toolbar-shadow');
   }
 
@@ -224,11 +227,7 @@ export class Toolbar {
       button.setText(options.label?.() || action.title());
     }
 
-    let handler = (_event: {
-      // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      data: any,
-    }): void => {
+    let handler = (): void => {
       void action.execute();
     };
     if (options.userActionCode) {
@@ -656,6 +655,79 @@ export class ToolbarButton extends ToolbarItem<ToolbarButton.EventTypes> {
   }
 }
 
+export class ToolbarCombobox extends ToolbarItem<ToolbarButton.EventTypes> {
+  private readonly glyphElement: IconButton.Icon.Icon;
+  private textElement: HTMLElement;
+  private text?: string;
+  private glyph?: string;
+
+  constructor(title: string, isIconDropdown?: boolean, jslogContext?: string) {
+    const element = document.createElement('button');
+    element.classList.add('toolbar-button');
+    super(element);
+    this.element.addEventListener('click', this.clicked.bind(this), false);
+    this.element.addEventListener('mousedown', this.mouseDown.bind(this), false);
+
+    this.glyphElement = new IconButton.Icon.Icon();
+    this.glyphElement.className = 'toolbar-glyph hidden';
+    this.element.appendChild(this.glyphElement);
+    this.textElement = this.element.createChild('div', 'toolbar-text hidden');
+
+    this.setTitle(title);
+    if (jslogContext) {
+      this.element.setAttribute('jslog', `${VisualLogging.action().track({click: true}).context(jslogContext)}`);
+    }
+    this.title = '';
+    if (!isIconDropdown) {
+      this.element.classList.add('toolbar-has-dropdown');
+      const dropdownArrowIcon = IconButton.Icon.create('triangle-down', 'toolbar-dropdown-arrow');
+      this.element.appendChild(dropdownArrowIcon);
+    }
+  }
+
+  setText(text: string): void {
+    if (this.text === text) {
+      return;
+    }
+    this.textElement.textContent = text;
+    this.textElement.classList.toggle('hidden', !text);
+    this.text = text;
+  }
+
+  setGlyph(glyph: string): void {
+    if (this.glyph === glyph) {
+      return;
+    }
+    this.glyphElement.name = !glyph ? null : glyph;
+    this.glyphElement.classList.toggle('hidden', !glyph);
+    this.element.classList.toggle('toolbar-has-glyph', Boolean(glyph));
+    this.glyph = glyph;
+  }
+
+  setDarkText(): void {
+    this.element.classList.add('dark-text');
+  }
+
+  turnShrinkable(): void {
+    this.element.classList.add('toolbar-has-dropdown-shrinkable');
+  }
+
+  clicked(event: Event): void {
+    if (!this.enabled) {
+      return;
+    }
+    this.dispatchEventToListeners(ToolbarButton.Events.Click, event);
+    event.consume();
+  }
+
+  protected mouseDown(event: MouseEvent): void {
+    if (!this.enabled) {
+      return;
+    }
+    this.dispatchEventToListeners(ToolbarButton.Events.MouseDown, event);
+  }
+}
+
 export namespace ToolbarButton {
   export const enum Events {
     Click = 'Click',
@@ -708,21 +780,34 @@ export class ToolbarInput extends ToolbarItem<ToolbarInput.EventTypes> {
       this.element.style.flexShrink = String(shrinkFactor);
     }
 
-    const clearButton = this.element.createChild('div', 'toolbar-input-clear-button');
-    clearButton.title = UIStrings.clearInput;
-    const clearIcon = new IconButton.Icon.Icon();
-    clearIcon.data = {color: 'var(--icon-default)', width: '16px', height: '16px', iconName: 'cross-circle-filled'};
-    clearIcon.classList.add('search-cancel-button');
-    clearButton.appendChild(clearIcon);
+    const clearButtonText = i18nString(UIStrings.clearInput);
+    const clearButton = new Buttons.Button.Button();
+    clearButton.className = 'toolbar-input-clear-button';
+    clearButton.setAttribute('jslog', `${VisualLogging.action('clear').track({click: true}).parent('mapped')}`);
+    VisualLogging.setMappedParent(clearButton, internalPromptElement);
+    clearButton.variant = Buttons.Button.Variant.ICON;
+    clearButton.size = Buttons.Button.Size.SMALL;
+    clearButton.iconName = 'cross-circle-filled';
+    clearButton.title = clearButtonText;
+    clearButton.ariaLabel = clearButtonText;
+    clearButton.tabIndex = -1;
+
     clearButton.addEventListener('click', () => {
       this.setValue('', true);
       this.prompt.focus();
     });
 
+    this.element.appendChild(clearButton);
     this.updateEmptyStyles();
   }
 
   override applyEnabledState(enabled: boolean): void {
+    if (enabled) {
+      this.element.classList.remove('disabled');
+    } else {
+      this.element.classList.add('disabled');
+    }
+
     this.prompt.setEnabled(enabled);
   }
 
@@ -741,6 +826,15 @@ export class ToolbarInput extends ToolbarItem<ToolbarInput.EventTypes> {
   valueWithoutSuggestion(): string {
     return this.prompt.text();
   }
+
+  clearAutocomplete(): void {
+    this.prompt.clearAutocomplete();
+  }
+
+  focus(): void {
+    this.prompt.focus();
+  }
+
   private onKeydownCallback(event: KeyboardEvent): void {
     if (event.key === 'Enter' && this.prompt.text()) {
       this.dispatchEventToListeners(ToolbarInput.Event.EnterPressed, this.prompt.text());
@@ -759,6 +853,21 @@ export class ToolbarInput extends ToolbarItem<ToolbarInput.EventTypes> {
 
   private updateEmptyStyles(): void {
     this.element.classList.toggle('toolbar-input-empty', !this.prompt.text());
+  }
+}
+
+export class ToolbarFilter extends ToolbarInput {
+  constructor(
+      filterBy?: Common.UIString.LocalizedString, growFactor?: number, shrinkFactor?: number, tooltip?: string,
+      completions?: ((arg0: string, arg1: string, arg2?: boolean|undefined) => Promise<Suggestion[]>),
+      dynamicCompletions?: boolean, jslogContext?: string) {
+    const filterPlaceholder = filterBy ? filterBy : i18nString(UIStrings.filter);
+    super(
+        filterPlaceholder, filterPlaceholder, growFactor, shrinkFactor, tooltip, completions, dynamicCompletions,
+        jslogContext);
+
+    const filterIcon = IconButton.Icon.create('filter');
+    this.element.prepend(filterIcon);
   }
 }
 
@@ -821,12 +930,14 @@ export class ToolbarToggle extends ToolbarButton {
   }
 }
 
-export class ToolbarMenuButton extends ToolbarButton {
+export class ToolbarMenuButton extends ToolbarCombobox {
   private readonly contextMenuHandler: (arg0: ContextMenu) => void;
   private readonly useSoftMenu: boolean;
   private triggerTimeout?: number;
-  constructor(contextMenuHandler: (arg0: ContextMenu) => void, useSoftMenu?: boolean, jslogContext?: string) {
-    super('', 'dots-vertical', undefined, jslogContext);
+  constructor(
+      contextMenuHandler: (arg0: ContextMenu) => void, isIconDropdown?: boolean, useSoftMenu?: boolean,
+      jslogContext?: string) {
+    super('', isIconDropdown, jslogContext);
     if (jslogContext) {
       this.element.setAttribute('jslog', `${VisualLogging.dropDown().track({click: true}).context(jslogContext)}`);
     }
@@ -853,8 +964,12 @@ export class ToolbarMenuButton extends ToolbarButton {
       useSoftMenu: this.useSoftMenu,
       x: this.element.getBoundingClientRect().left,
       y: this.element.getBoundingClientRect().top + this.element.offsetHeight,
+      // Without rAF, pointer events will be un-ignored too early, and a single click causes the
+      // context menu to be closed and immediately re-opened on Windows (https://crbug.com/339560549).
+      onSoftMenuClosed: () => requestAnimationFrame(() => this.element.removeAttribute('aria-expanded')),
     });
     this.contextMenuHandler(contextMenu);
+    this.element.setAttribute('aria-expanded', 'true');
     void contextMenu.show();
   }
 
@@ -990,10 +1105,7 @@ export class ToolbarComboBox extends ToolbarItem<void> {
   }
 
   select(option: Element): void {
-    this.selectElementInternal.selectedIndex =
-        // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        Array.prototype.indexOf.call((this.selectElementInternal as any), option);
+    this.selectElementInternal.selectedIndex = Array.prototype.indexOf.call(this.selectElementInternal, option);
   }
 
   setSelectedIndex(index: number): void {
@@ -1073,10 +1185,12 @@ export class ToolbarSettingComboBox extends ToolbarComboBox {
 export class ToolbarCheckbox extends ToolbarItem<void> {
   inputElement: HTMLInputElement;
 
-  constructor(text: string, tooltip?: string, listener?: ((arg0: MouseEvent) => void), jslogContext?: string) {
+  constructor(
+      text: string, tooltip?: string, listener?: ((arg0: MouseEvent) => void), jslogContext?: string, small?: boolean) {
     super(CheckboxLabel.create(text));
     this.element.classList.add('checkbox');
     this.inputElement = (this.element as CheckboxLabel).checkboxElement;
+    this.inputElement.classList.toggle('small', small);
     if (tooltip) {
       // install on the checkbox
       Tooltip.install(this.inputElement, tooltip);

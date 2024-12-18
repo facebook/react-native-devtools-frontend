@@ -124,6 +124,7 @@ group("unittests") {
     "models/bindings:unittests",
     "models/breakpoints:unittests",
     "models/cpu_profile:unittests",
+    "models/crux-manager:unittests",
     "models/emulation:unittests",
     "models/extensions:unittests",
     "models/formatter:unittests",
@@ -141,6 +142,9 @@ group("unittests") {
     "models/trace/handlers:unittests",
     "models/trace/helpers:unittests",
     "models/trace/insights:unittests",
+    "models/trace/lantern/core:unittests",
+    "models/trace/lantern/graph:unittests",
+    "models/trace/lantern/simulation:unittests",
     "models/trace/root-causes:unittests",
     "models/trace/types:unittests",
     "models/workspace:unittests",
@@ -162,6 +166,7 @@ group("unittests") {
     "panels/elements:unittests",
     "panels/emulation:unittests",
     "panels/explain:unittests",
+    "panels/freestyler:unittests",
     "panels/issues:unittests",
     "panels/layer_viewer:unittests",
     "panels/layers:unittests",
@@ -173,7 +178,6 @@ group("unittests") {
     "panels/network:unittests",
     "panels/network/components:unittests",
     "panels/performance_monitor:unittests",
-    "panels/profiler:unittests",
     "panels/protocol_monitor:unittests",
     "panels/protocol_monitor/components:unittests",
     "panels/recorder:unittests",
@@ -194,7 +198,9 @@ group("unittests") {
     "panels/sources/components:unittests",
     "panels/timeline:unittests",
     "panels/timeline/components:unittests",
+    "panels/timeline/components/insights:unittests",
     "panels/timeline/fixtures/traces",
+    "panels/timeline/overlays:unittests",
     "panels/timeline/track_appenders:unittests",
     "panels/utils:unittests",
     "panels/web_audio:unittests",
@@ -240,8 +246,18 @@ group("unittests") {
     "ui/legacy/components/source_frame:unittests",
     "ui/legacy/components/utils:unittests",
     "ui/legacy/theme_support:unittests",
-    "ui/legacy/utils:unittests",
     "ui/lit-html:unittests",
     "ui/visual_logging:unittests",
+  ]
+}
+
+generated_file("test_inputs") {
+  outputs = [ "$target_gen_dir/tests.txt" ]
+  data_keys = [ "tests" ]
+  rebase = target_gen_dir
+
+  deps = [
+    ":unittests",
+    "../inspector_overlay:unittests",
   ]
 }

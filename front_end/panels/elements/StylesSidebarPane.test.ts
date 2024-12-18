@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import {renderElementIntoDOM} from '../../testing/DOMHelpers.js';
@@ -10,15 +9,13 @@ import {
   describeWithEnvironment,
   describeWithLocale,
 } from '../../testing/EnvironmentHelpers.js';
-import {describeWithRealConnection} from '../../testing/RealConnection.js';
+import {describeWithMockConnection} from '../../testing/MockConnection.js';
 import * as InlineEditor from '../../ui/legacy/components/inline_editor/inline_editor.js';
 
 import * as Elements from './elements.js';
 
-const {assert} = chai;
-
 describe('StylesSidebarPane', () => {
-  describeWithRealConnection('StylesSidebarPane', () => {
+  describeWithMockConnection('StylesSidebarPane', () => {
     it('unescapes CSS strings', () => {
       assert.strictEqual(
           Elements.StylesSidebarPane.unescapeCssString(
@@ -51,11 +48,11 @@ describe('StylesSidebarPane', () => {
     });
 
     describe('rebuildSectionsForMatchedStyleRulesForTest', () => {
-      it('should add @position-fallback section to the end', async () => {
+      it('should add @position-try section', async () => {
         const stylesSidebarPane = Elements.StylesSidebarPane.StylesSidebarPane.instance({forceNew: true});
         const matchedStyles = await SDK.CSSMatchedStyles.CSSMatchedStyles.create({
           cssModel: stylesSidebarPane.cssModel() as SDK.CSSModel.CSSModel,
-          node: stylesSidebarPane.node() as SDK.DOMModel.DOMNode,
+          node: sinon.createStubInstance(SDK.DOMModel.DOMNode),
           inlinePayload: null,
           attributesPayload: null,
           matchedPayload: [],
@@ -64,15 +61,14 @@ describe('StylesSidebarPane', () => {
           inheritedPseudoPayload: [],
           animationsPayload: [],
           parentLayoutNodeId: undefined,
-          positionFallbackRules: [{
-            name: {text: '--compass'},
-            tryRules: [{
-              origin: Protocol.CSS.StyleSheetOrigin.Regular,
-              style: {
-                cssProperties: [{name: 'bottom', value: 'anchor(--anchor-name bottom)'}],
-                shorthandEntries: [],
-              },
-            }],
+          positionTryRules: [{
+            name: {text: '--try-one'},
+            origin: Protocol.CSS.StyleSheetOrigin.Regular,
+            style: {
+              cssProperties: [{name: 'bottom', value: 'anchor(--anchor-name bottom)'}],
+              shorthandEntries: [],
+            },
+            active: false,
           }],
           propertyRules: [],
           cssPropertyRegistrations: [],
@@ -83,9 +79,9 @@ describe('StylesSidebarPane', () => {
             await stylesSidebarPane.rebuildSectionsForMatchedStyleRulesForTest(matchedStyles, new Map(), new Map());
 
         assert.strictEqual(sectionBlocks.length, 2);
-        assert.strictEqual(sectionBlocks[1].titleElement()?.textContent, '@position-fallback --compass');
+        assert.strictEqual(sectionBlocks[1].titleElement()?.textContent, '@position-try --try-one');
         assert.strictEqual(sectionBlocks[1].sections.length, 1);
-        assert.instanceOf(sectionBlocks[1].sections[0], Elements.StylePropertiesSection.TryRuleSection);
+        assert.instanceOf(sectionBlocks[1].sections[0], Elements.StylePropertiesSection.PositionTryRuleSection);
       });
     });
 
@@ -93,7 +89,7 @@ describe('StylesSidebarPane', () => {
       const stylesSidebarPane = Elements.StylesSidebarPane.StylesSidebarPane.instance({forceNew: true});
       const matchedStyles = await SDK.CSSMatchedStyles.CSSMatchedStyles.create({
         cssModel: stylesSidebarPane.cssModel() as SDK.CSSModel.CSSModel,
-        node: stylesSidebarPane.node() as SDK.DOMModel.DOMNode,
+        node: sinon.createStubInstance(SDK.DOMModel.DOMNode),
         inlinePayload: null,
         attributesPayload: null,
         matchedPayload: [],
@@ -102,7 +98,7 @@ describe('StylesSidebarPane', () => {
         inheritedPseudoPayload: [],
         animationsPayload: [],
         parentLayoutNodeId: undefined,
-        positionFallbackRules: [],
+        positionTryRules: [],
         propertyRules: [],
         cssPropertyRegistrations: [],
         fontPaletteValuesRule: {
@@ -123,97 +119,6 @@ describe('StylesSidebarPane', () => {
       assert.strictEqual(sectionBlocks[1].titleElement()?.textContent, '@font-palette-values --palette');
       assert.strictEqual(sectionBlocks[1].sections.length, 1);
       assert.instanceOf(sectionBlocks[1].sections[0], Elements.StylePropertiesSection.FontPaletteValuesRuleSection);
-    });
-  });
-
-  interface RendererTracePoint {
-    text: string;
-    matchType: string;
-  }
-
-  class RendererTrace {
-    #points: RendererTracePoint[] = [];
-
-    push(point: RendererTracePoint): void {
-      this.#points.push(point);
-    }
-
-    toString(): string|undefined {
-      if (!this.#points.length) {
-        return undefined;
-      }
-      const indent = this.#points.map(({text}) => text.length).reduce((a, b) => Math.max(a, b));
-      return this.#points.map(({text, matchType}) => `${text.padEnd(indent, ' ')}: ${matchType}`).join('\n');
-    }
-
-    reset(): void {
-      this.#points.splice(0);
-    }
-  }
-
-  describeWithEnvironment('StylesSidebarPropertyRenderer', () => {
-    const trace = new RendererTrace();
-    beforeEach(() => {
-      sinon.stub(Elements.PropertyParser.Renderer.prototype, 'renderedMatchForTest').callsFake((nodes, match) => {
-        trace.push({text: match.text, matchType: match.type});
-      });
-    });
-
-    afterEach(() => trace.reset());
-
-    it('runs animation handler for animation property', () => {
-      const renderer =
-          new Elements.StylesSidebarPane.StylesSidebarPropertyRenderer(null, null, 'animation', 'example 5s');
-      renderer.setAnimationHandler(() => document.createTextNode(nodeContents));
-
-      const nodeContents = 'nodeContents';
-
-      const node = renderer.renderValue();
-      assert.deepEqual(node.textContent, nodeContents, trace.toString());
-    });
-
-    it('parses lengths correctly', () => {
-      Root.Runtime.experiments.disableForTest('css-type-component-length-deprecate');
-      const renderer =
-          new Elements.StylesSidebarPane.StylesSidebarPropertyRenderer(null, null, 'width', 'calc(6em + 7em)');
-      renderer.setLengthHandler(() => document.createTextNode('MATCH'));
-
-      const node = renderer.renderValue();
-
-      assert.deepEqual(node.textContent, 'calc(MATCH + MATCH)', trace.toString());
-    });
-
-    it('parses font-family correctly', () => {
-      const renderer = new Elements.StylesSidebarPane.StylesSidebarPropertyRenderer(
-          null, null, 'font-family', '"Gill Sans", sans-serif');
-      renderer.setFontHandler(() => document.createTextNode('MATCH'));
-      const node = renderer.renderValue();
-      assert.deepEqual(node.textContent, 'MATCH, MATCH', trace.toString());
-    });
-
-    it('parses font-* correctly', () => {
-      for (const fontSize of ['-.23', 'smaller', '17px']) {
-        const renderer =
-            new Elements.StylesSidebarPane.StylesSidebarPropertyRenderer(null, null, 'font-size', fontSize);
-        renderer.setFontHandler(() => document.createTextNode('MATCH'));
-        const node = renderer.renderValue();
-        assert.deepEqual(node.textContent, 'MATCH', trace.toString());
-      }
-      const renderer =
-          new Elements.StylesSidebarPane.StylesSidebarPropertyRenderer(null, null, 'font-size', 'calc(17px + 17px)');
-      renderer.setFontHandler(() => document.createTextNode('MATCH'));
-      const node = renderer.renderValue();
-
-      // The bogus match on `calc` is expected.
-      assert.deepEqual(node.textContent, 'MATCH(MATCH + MATCH)', trace.toString());
-    });
-
-    it('parses font-family correctly', () => {
-      const renderer = new Elements.StylesSidebarPane.StylesSidebarPropertyRenderer(
-          null, null, 'font-family', '"Gill Sans", sans-serif');
-      renderer.setFontHandler(() => document.createTextNode('MATCH'));
-      const node = renderer.renderValue();
-      assert.deepEqual(node.textContent, 'MATCH, MATCH', trace.toString());
     });
   });
 

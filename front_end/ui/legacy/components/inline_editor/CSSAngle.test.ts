@@ -2,11 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assertShadowRoot, renderElementIntoDOM} from '../../../../testing/DOMHelpers.js';
+import {renderElementIntoDOM} from '../../../../testing/DOMHelpers.js';
 
 import * as InlineEditor from './inline_editor.js';
-
-const {assert} = chai;
 
 const assertPopoverOpen = (root: ShadowRoot) => {
   const popover = root.querySelector('.popover');
@@ -45,8 +43,6 @@ const assertNewAngleFromEvent =
     };
 
 const initialData: InlineEditor.CSSAngle.CSSAngleData = {
-  propertyName: 'background',
-  propertyValue: 'linear-gradient(45deg, red, green)',
   angleText: '45deg',
   containingPane: document.createElement('div'),
 };
@@ -57,7 +53,7 @@ describe('CSSAngle', () => {
     renderElementIntoDOM(component);
     component.data = initialData;
 
-    assertShadowRoot(component.shadowRoot);
+    assert.isNotNull(component.shadowRoot);
 
     assertPopoverClosed(component.shadowRoot);
     togglePopover(component.shadowRoot);
@@ -77,7 +73,7 @@ describe('CSSAngle', () => {
       isPopoverOpen = popoverToggledEvent.data.open;
     });
 
-    assertShadowRoot(component.shadowRoot);
+    assert.isNotNull(component.shadowRoot);
 
     assertPopoverClosed(component.shadowRoot);
     togglePopover(component.shadowRoot);
@@ -93,7 +89,7 @@ describe('CSSAngle', () => {
     renderElementIntoDOM(component);
     component.data = initialData;
 
-    assertShadowRoot(component.shadowRoot);
+    assert.isNotNull(component.shadowRoot);
 
     let cssAngleText = initialData.angleText;
     component.addEventListener('unitchanged', (event: Event) => {
@@ -115,7 +111,7 @@ describe('CSSAngle', () => {
     renderElementIntoDOM(component);
     component.data = initialData;
 
-    assertShadowRoot(component.shadowRoot);
+    assert.isNotNull(component.shadowRoot);
 
     let cssAngleText = initialData.angleText;
     component.addEventListener('valuechanged', (event: Event) => {
@@ -150,7 +146,7 @@ describe('CSSAngle', () => {
         assert.strictEqual(popoverEvent.data.open, shouldPopoverEventBeOpen);
       });
 
-      assertShadowRoot(component.shadowRoot);
+      assert.isNotNull(component.shadowRoot);
 
       assertPopoverClosed(component.shadowRoot);
       shouldPopoverEventBeOpen = true;

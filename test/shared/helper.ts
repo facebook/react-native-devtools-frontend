@@ -9,7 +9,6 @@ import type * as puppeteer from 'puppeteer-core';
 import {type DevToolsFrontendReloadOptions} from '../conductor/frontend_tab.js';
 import {getDevToolsFrontendHostname, reloadDevTools} from '../conductor/hooks.js';
 import {getBrowserAndPages, getTestServerPort} from '../conductor/puppeteer-state.js';
-import {getTestRunnerConfigSetting} from '../conductor/test_runner_config.js';
 
 import {AsyncScope} from './async-scope.js';
 
@@ -247,6 +246,12 @@ export const getTextContent =
   return text ?? undefined;
 };
 
+export const getAllTextContents =
+    async(selector: string, root?: puppeteer.JSHandle, handler = 'pierce'): Promise<Array<string|null>> => {
+  const allElements = await $$(selector, root, handler);
+  return Promise.all(allElements.map(e => e.evaluate(e => e.textContent)));
+};
+
 /**
  * Match multiple elements based on a selector and return their textContents, but only for those
  * elements that are visible.
@@ -436,6 +441,10 @@ export const setDevToolsSettings = async (settings: Record<string, string>) => {
   await reloadDevTools();
 };
 
+export function goToHtml(html: string): Promise<void> {
+  return goTo(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+}
+
 export const goTo = async (url: string, options: puppeteer.WaitForOptions = {}) => {
   const {target} = getBrowserAndPages();
   await target.goto(url, options);
@@ -461,11 +470,7 @@ export const goToResourceWithCustomHost = async (host: string, path: string) => 
 };
 
 export const getResourcesPath = (host: string = 'localhost') => {
-  let resourcesPath = getTestRunnerConfigSetting('hosted-server-e2e-resources-path', '/test/e2e/resources');
-  if (!resourcesPath.startsWith('/')) {
-    resourcesPath = `/${resourcesPath}`;
-  }
-  return `https://${host}:${getTestServerPort()}${resourcesPath}`;
+  return `https://${host}:${getTestServerPort()}/test/e2e/resources`;
 };
 
 export const step = async (description: string, step: Function) => {

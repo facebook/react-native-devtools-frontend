@@ -279,7 +279,7 @@ describe('The Network Request view', () => {
     let messages = await waitForMessages(messagesView, 3);
     await assertBaseState(messagesView);
 
-    const inputSelector = '[aria-placeholder="Enter regex, for example: https?';
+    const inputSelector = '[aria-placeholder="Filter using regex (example: https?)';
 
     const filterInput = await waitFor(inputSelector, messagesView);
 
@@ -290,7 +290,7 @@ describe('The Network Request view', () => {
     assertMessage(messages[0], knownMessages[0]);
 
     // clear
-    await click('[title="Clear input"]', {
+    await click('[title="Clear"]', {
       root: messagesView,
     });
     await assertBaseState(messagesView);
@@ -348,9 +348,9 @@ describe('The Network Request view', () => {
     let messages = await waitForMessages(4);
 
     const filterInput =
-        await waitFor('[aria-label="Enter regex, for example: (web)?socket"][role=textbox]', messagesView);
+        await waitFor('[aria-label="Filter using regex (example: (web)?socket)"][role=textbox]', messagesView);
     await filterInput.focus();
-    await typeText('ping');
+    await typeText('p[ai]ng');
 
     messages = await waitForMessages(2);
     assert.deepEqual(messages, ['ping', 'ping']);
@@ -642,7 +642,7 @@ describe('The Network Request view', () => {
     await waitForSomeRequestsToAppear(2);
 
     await selectRequestByName('image.svg?id=42&param=a%20b');
-    const SEARCH_QUERY = '[aria-label="Search Query"]';
+    const SEARCH_QUERY = '[aria-label="Find"]';
     const SEARCH_RESULT = '.search-result';
     const {frontend} = getBrowserAndPages();
 
