@@ -1798,6 +1798,17 @@
   margin: 0;
 }
 
+.tUXIEFu9F_lS1kviOJqI .tUXIEFu9F_lS1kviOJqI {
+  margin-left: 1rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.tUXIEFu9F_lS1kviOJqI label:has(input:disabled) {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .eMk7OK1dSU4XuQKUmWp0 {
   position: absolute;
   z-index: 3;
