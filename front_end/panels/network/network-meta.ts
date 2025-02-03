@@ -148,6 +148,7 @@ UI.ViewManager.registerViewExtension({
   commandPrompt: i18nLazyString(UIStrings.showNetwork),
   title: i18nLazyString(UIStrings.network),
   order: 40,
+  isPreviewFeature: true,
   condition: Root.Runtime.conditions.reactNativeUnstableNetworkPanel,
   async loadView() {
     const Network = await loadNetworkModule();
