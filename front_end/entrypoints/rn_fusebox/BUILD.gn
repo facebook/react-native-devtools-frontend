@@ -11,7 +11,7 @@ devtools_module("rn_fusebox") {
   sources = [
     "FuseboxAppMetadataObserver.ts",
     "FuseboxReconnectDeviceButton.ts",
-    "FuseboxProfilingBuildObserver.ts",
+    "FuseboxExperimentsObserver.ts",
     "FuseboxWindowTitleManager.ts",
   ]
 

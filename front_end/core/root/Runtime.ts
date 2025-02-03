@@ -280,6 +280,7 @@ export enum RNExperimentName {
   REACT_NATIVE_SPECIFIC_UI = 'react-native-specific-ui',
   JS_HEAP_PROFILER_ENABLE = 'js-heap-profiler-enable',
   ENABLE_PERFORMANCE_PANEL = 'enable-performance-panel',
+  ENABLE_NETWORK_PANEL = 'enable-network-panel',
 }
 
 // TODO(crbug.com/1167717): Make this a const enum again
@@ -320,6 +321,7 @@ export const enum ExperimentName {
   JS_HEAP_PROFILER_ENABLE = RNExperimentName.JS_HEAP_PROFILER_ENABLE,
   REACT_NATIVE_SPECIFIC_UI = RNExperimentName.REACT_NATIVE_SPECIFIC_UI,
   ENABLE_PERFORMANCE_PANEL = RNExperimentName.ENABLE_PERFORMANCE_PANEL,
+  ENABLE_NETWORK_PANEL = RNExperimentName.ENABLE_NETWORK_PANEL,
 }
 
 export interface HostConfigConsoleInsights {
@@ -362,5 +364,7 @@ export type Condition = (config?: HostConfig) => boolean;
 export const conditions = {
   canDock: () => Boolean(Runtime.queryParam('can_dock')),
   notSourcesHideAddFolder: () => Boolean(Runtime.queryParam(ConditionName.NOT_SOURCES_HIDE_ADD_FOLDER)),
-  reactNativeUnstableNetworkPanel: () => Boolean(Runtime.queryParam(ConditionName.REACT_NATIVE_UNSTABLE_NETWORK_PANEL)),
+  reactNativeUnstableNetworkPanel: () =>
+      Boolean(Runtime.queryParam(ConditionName.REACT_NATIVE_UNSTABLE_NETWORK_PANEL)) ||
+      experiments.isEnabled(ExperimentName.ENABLE_NETWORK_PANEL),
 };

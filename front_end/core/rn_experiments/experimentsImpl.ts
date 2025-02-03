@@ -191,3 +191,10 @@ Instance.register({
   unstable: true,
   enabledByDefault: ({ isReactNativeEntryPoint }) => !isReactNativeEntryPoint,
 });
+
+Instance.register({
+  name: RNExperimentName.ENABLE_NETWORK_PANEL,
+  title: 'Enable Network panel',
+  unstable: true,
+  enabledByDefault: () => false,
+});

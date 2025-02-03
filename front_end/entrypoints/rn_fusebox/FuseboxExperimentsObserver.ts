@@ -13,19 +13,24 @@ import FuseboxWindowTitleManager from './FuseboxWindowTitleManager.js';
 
 const UIStrings = {
   /**
-   * @description Message for the "settings changed" banner shown when a reload is required.
+   * @description Message for the "settings changed" banner shown when a reload is required for the Performance panel.
    */
-  reloadRequiredMessage: '[Profiling build first run] One or more settings have changed. Please reload to access the Performance panel.',
+  reloadRequiredForPerformancePanelMessage:
+      '[Profiling build first run] One or more settings have changed. Please reload to access the Performance panel.',
+  /**
+   * @description Message for the "settings changed" banner shown when a reload is required for the Network panel.
+   */
+  reloadRequiredForNetworkPanelMessage: 'Network panel is now available for dogfooding. Please reload to access it.',
 };
 
-const str_ = i18n.i18n.registerUIStrings('entrypoints/rn_fusebox/FuseboxProfilingBuildModeObserver.ts', UIStrings);
+const str_ = i18n.i18n.registerUIStrings('entrypoints/rn_fusebox/FuseboxExperimentsObserver.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 /**
  * [Experimental] Model observer which configures available DevTools features
- * when a profiling build is identified.
+ * based on the target's capabilities, e.g. when a profiling build is identified, or when network inspection is supported.
  */
-export default class FuseboxProfilingBuildObserver implements
+export default class FuseboxFeatureObserver implements
     SDK.TargetManager.SDKModelObserver<SDK.ReactNativeApplicationModel.ReactNativeApplicationModel> {
   constructor(targetManager: SDK.TargetManager.TargetManager) {
     targetManager.observeModels(SDK.ReactNativeApplicationModel.ReactNativeApplicationModel, this);
@@ -43,16 +48,20 @@ export default class FuseboxProfilingBuildObserver implements
 
   #handleMetadataUpdated(
       event: Common.EventTarget.EventTargetEvent<Protocol.ReactNativeApplication.MetadataUpdatedEvent>): void {
-    const {unstable_isProfilingBuild} = event.data;
+    const {unstable_isProfilingBuild, unstable_networkInspectionEnabled} = event.data;
 
     if (unstable_isProfilingBuild) {
       FuseboxWindowTitleManager.instance().setSuffix('[PROFILING]');
-      this.#hideUnsupportedFeatures();
+      this.#hideUnsupportedFeaturesForProfilingBuilds();
       this.#ensurePerformancePanelEnabled();
+    }
+
+    if (unstable_networkInspectionEnabled) {
+      this.#ensureNetworkPanelEnabled();
     }
   }
 
-  #hideUnsupportedFeatures(): void {
+  #hideUnsupportedFeaturesForProfilingBuilds(): void {
     UI.ViewManager.ViewManager.instance()
       .resolveLocation(UI.ViewManager.ViewLocationValues.PANEL)
       .then(location => {
@@ -83,9 +92,24 @@ export default class FuseboxProfilingBuildObserver implements
       const inspectorView = UI.InspectorView?.InspectorView?.instance();
       if (inspectorView) {
         inspectorView.displayReloadRequiredWarning(
-          i18nString(UIStrings.reloadRequiredMessage),
+            i18nString(UIStrings.reloadRequiredForPerformancePanelMessage),
         );
       }
     }
+  }
+
+  #ensureNetworkPanelEnabled(): void {
+    if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.ENABLE_NETWORK_PANEL)) {
+      return;
+    }
+
+    Root.Runtime.experiments.setEnabled(
+        Root.Runtime.ExperimentName.ENABLE_NETWORK_PANEL,
+        true,
+    );
+
+    UI.InspectorView?.InspectorView?.instance()?.displayReloadRequiredWarning(
+        i18nString(UIStrings.reloadRequiredForNetworkPanelMessage),
+    );
   }
 }

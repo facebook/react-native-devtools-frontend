@@ -57,6 +57,10 @@ export namespace ReactNativeApplication {
      * Whether the app is a profiling build.
      */
     unstable_isProfilingBuild?: boolean;
+    /**
+     * Enables the Network Panel.
+     */
+    unstable_networkInspectionEnabled?: boolean;
   }
 }
 

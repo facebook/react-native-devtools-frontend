@@ -891,7 +891,7 @@ grd_files_debug_sources = [
   "front_end/entrypoints/node_app/NodeMain.js",
   "front_end/entrypoints/node_app/nodeConnectionsPanel.css.js",
   "front_end/entrypoints/rn_fusebox/FuseboxAppMetadataObserver.js",
-  "front_end/entrypoints/rn_fusebox/FuseboxProfilingBuildObserver.js",
+  "front_end/entrypoints/rn_fusebox/FuseboxExperimentsObserver.js",
   "front_end/entrypoints/rn_fusebox/FuseboxReconnectDeviceButton.js",
   "front_end/entrypoints/rn_fusebox/FuseboxWindowTitleManager.js",
   "front_end/entrypoints/shell/browser_compatibility_guard.js",

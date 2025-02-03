@@ -25,7 +25,7 @@ import * as UI from '../../ui/legacy/legacy.js';
 import * as Main from '../main/main.js';
 import FuseboxAppMetadataObserver from './FuseboxAppMetadataObserver.js';
 import FuseboxReconnectDeviceButton from './FuseboxReconnectDeviceButton.js';
-import FuseboxProfilingBuildObserver from './FuseboxProfilingBuildObserver.js';
+import FuseboxExperimentsObserver from './FuseboxExperimentsObserver.js';
 
 import type * as Platform from '../../core/platform/platform.js';
 import type * as Sources from '../../panels/sources/sources.js';
@@ -164,6 +164,6 @@ UI.Toolbar.registerToolbarItem({
 });
 
 new FuseboxAppMetadataObserver(SDK.TargetManager.TargetManager.instance());
-new FuseboxProfilingBuildObserver(SDK.TargetManager.TargetManager.instance());
+new FuseboxExperimentsObserver(SDK.TargetManager.TargetManager.instance());
 
 Host.rnPerfMetrics.entryPointLoadingFinished('rn_fusebox');
