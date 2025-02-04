@@ -28,3 +28,5 @@ experimental domain ReactNativeApplication
       optional string reactNativeVersion
       # Whether the app is a profiling build.
       optional boolean unstable_isProfilingBuild
+      # Enables the Network Panel.
+      optional boolean unstable_networkInspectionEnabled

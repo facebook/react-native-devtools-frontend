@@ -24,6 +24,10 @@ const UIStrings = {
    */
   network: 'Network',
   /**
+   *@description Title of the Network tool (Expo, unstable)
+   */
+  networkExpoUnstable: 'Network (Expo, unstable)',
+  /**
    *@description Command for showing the 'Network request blocking' tool
    */
   showNetworkRequestBlocking: 'Show Network request blocking',
@@ -126,6 +130,7 @@ const UIStrings = {
 };
 const str_ = i18n.i18n.registerUIStrings('panels/network/network-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
+const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 let loadedNetworkModule: (typeof Network|undefined);
 
 async function loadNetworkModule(): Promise<typeof Network> {
@@ -146,7 +151,9 @@ UI.ViewManager.registerViewExtension({
   location: UI.ViewManager.ViewLocationValues.PANEL,
   id: 'network',
   commandPrompt: i18nLazyString(UIStrings.showNetwork),
-  title: i18nLazyString(UIStrings.network),
+  title: () => Root.Runtime.experiments.isEnabled(Root.Runtime.RNExperimentName.ENABLE_NETWORK_PANEL) ?
+      i18nString(UIStrings.network) :
+      i18nString(UIStrings.networkExpoUnstable),
   order: 40,
   condition: Root.Runtime.conditions.reactNativeUnstableNetworkPanel,
   async loadView() {

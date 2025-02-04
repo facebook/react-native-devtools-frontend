@@ -63,6 +63,12 @@
                             "description": "Whether the app is a profiling build.",
                             "optional": true,
                             "type": "boolean"
+                        },
+                        {
+                            "name": "unstable_networkInspectionEnabled",
+                            "description": "Enables the Network Panel.",
+                            "optional": true,
+                            "type": "boolean"
                         }
                     ]
                 }
