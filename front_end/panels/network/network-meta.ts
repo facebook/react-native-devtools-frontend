@@ -155,6 +155,7 @@ UI.ViewManager.registerViewExtension({
       i18nString(UIStrings.network) :
       i18nString(UIStrings.networkExpoUnstable),
   order: 40,
+  isPreviewFeature: true,
   condition: Root.Runtime.conditions.reactNativeUnstableNetworkPanel,
   async loadView() {
     const Network = await loadNetworkModule();
