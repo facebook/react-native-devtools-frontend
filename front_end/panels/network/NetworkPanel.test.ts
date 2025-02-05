@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
+import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Logs from '../../models/logs/logs.js';
 import * as TraceEngine from '../../models/trace/trace.js';
@@ -89,6 +90,7 @@ describeWithMockConnection('NetworkPanel', () => {
   beforeEach(async () => {
     UI.ActionRegistration.maybeRemoveActionExtension('network.toggle-recording');
     UI.ActionRegistration.maybeRemoveActionExtension('network.clear');
+    Root.Runtime.experiments.register(Root.Runtime.RNExperimentName.ENABLE_NETWORK_PANEL, 'Network for test');
     await import('./network-meta.js');
     createTarget();
     const dummyStorage = new Common.Settings.SettingsStorage({});
