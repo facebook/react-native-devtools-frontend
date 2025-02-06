@@ -278,14 +278,16 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
   private recordingPageReload: boolean;
   private readonly millisecondsToRecordAfterLoadEvent: number;
   private readonly toggleRecordAction: UI.ActionRegistration.Action;
-  private readonly recordReloadAction: UI.ActionRegistration.Action;
+  // Null for React Native entrypoints, see https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+  private readonly recordReloadAction: UI.ActionRegistration.Action | null;
   readonly #historyManager: TimelineHistoryManager;
   private disableCaptureJSProfileSetting: Common.Settings.Setting<boolean>;
   private readonly captureLayersAndPicturesSetting: Common.Settings.Setting<boolean>;
   private readonly captureSelectorStatsSetting: Common.Settings.Setting<boolean>;
   readonly #thirdPartyTracksSetting: Common.Settings.Setting<boolean>;
   private showScreenshotsSetting: Common.Settings.Setting<boolean>;
-  private showMemorySetting: Common.Settings.Setting<boolean>;
+  // Null for React Native entrypoints, see https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+  private showMemorySetting: Common.Settings.Setting<boolean> | null;
   private readonly panelToolbar: UI.Toolbar.Toolbar;
   private readonly panelRightToolbar: UI.Toolbar.Toolbar;
   private readonly timelinePane: UI.Widget.VBox;
@@ -362,7 +364,8 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     this.recordingPageReload = false;
     this.millisecondsToRecordAfterLoadEvent = 5000;
     this.toggleRecordAction = UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.toggle-recording');
-    this.recordReloadAction = UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.record-reload');
+    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+    this.recordReloadAction = isReactNative ? null : UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.record-reload');
 
     this.#historyManager = new TimelineHistoryManager(this.#minimapComponent);
 
@@ -383,9 +386,14 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     this.showScreenshotsSetting.setTitle(i18nString(UIStrings.screenshots));
     this.showScreenshotsSetting.addChangeListener(this.updateMiniMap, this);
 
-    this.showMemorySetting = Common.Settings.Settings.instance().createSetting('timeline-show-memory', false);
-    this.showMemorySetting.setTitle(i18nString(UIStrings.memory));
-    this.showMemorySetting.addChangeListener(this.onModeChanged, this);
+    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+    if (isReactNative) {
+      this.showMemorySetting = null;
+    } else {
+      this.showMemorySetting = Common.Settings.Settings.instance().createSetting('timeline-show-memory', false);
+      this.showMemorySetting.setTitle(i18nString(UIStrings.memory));
+      this.showMemorySetting.addChangeListener(this.onModeChanged, this);
+    }
 
     this.#thirdPartyTracksSetting = TimelinePanel.extensionDataVisibilitySetting();
     this.#thirdPartyTracksSetting.addChangeListener(this.#extensionDataVisibilityChanged, this);
@@ -637,7 +645,10 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
   private populateToolbar(): void {
     // Record
     this.panelToolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButton(this.toggleRecordAction));
-    this.panelToolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButton(this.recordReloadAction));
+    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+    if (!isReactNative && this.recordReloadAction !== null) {
+      this.panelToolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButton(this.recordReloadAction));
+    }
     this.clearButton = new UI.Toolbar.ToolbarButton(i18nString(UIStrings.clear), 'clear');
     this.clearButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, () => this.onClearButton());
     this.panelToolbar.appendToolbarItem(this.clearButton);
@@ -695,9 +706,12 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
       this.panelToolbar.appendToolbarItem(this.showScreenshotsToolbarCheckbox);
     }
 
-    this.showMemoryToolbarCheckbox =
+    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+    if (!isReactNative && this.showMemorySetting !== null) {
+      this.showMemoryToolbarCheckbox =
         this.createSettingCheckbox(this.showMemorySetting, i18nString(UIStrings.showMemoryTimeline));
-    this.panelToolbar.appendToolbarItem(this.showMemoryToolbarCheckbox);
+      this.panelToolbar.appendToolbarItem(this.showMemoryToolbarCheckbox);
+    }
 
     // GC
     this.panelToolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButtonForId('components.collect-garbage'));
@@ -948,13 +962,14 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
       isCpuProfile,
       settings: {
         showScreenshots: this.showScreenshotsSetting.get(),
-        showMemory: this.showMemorySetting.get(),
+        showMemory: !isReactNative && this.showMemorySetting !== null && this.showMemorySetting.get(), // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
       },
     });
   }
 
   private onModeChanged(): void {
-    this.flameChart.updateCountersGraphToggle(this.showMemorySetting.get());
+    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+    this.flameChart.updateCountersGraphToggle(!isReactNative && this.showMemorySetting !== null && this.showMemorySetting.get());
     this.updateMiniMap();
     this.doResize();
     this.select(null);
@@ -1250,7 +1265,10 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
   private updateTimelineControls(): void {
     this.toggleRecordAction.setToggled(this.state === State.Recording);
     this.toggleRecordAction.setEnabled(this.state === State.Recording || this.state === State.Idle);
-    this.recordReloadAction.setEnabled(isNode ? false : this.state === State.Idle);
+    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+    if (!isReactNative && this.recordReloadAction !== null) {
+      this.recordReloadAction.setEnabled(isNode ? false : this.state === State.Idle);
+    }
     this.#historyManager.setEnabled(this.state === State.Idle);
     this.clearButton.setEnabled(this.state === State.Idle);
     this.panelToolbar.setEnabled(this.state !== State.Loading);

@@ -152,6 +152,7 @@ UI.ActionRegistration.registerActionExtension({
       shortcut: 'Meta+Shift+E',
     },
   ],
+  experiment: Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI, // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
 });
 
 UI.ActionRegistration.registerActionExtension({

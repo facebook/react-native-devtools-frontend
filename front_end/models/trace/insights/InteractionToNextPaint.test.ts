@@ -4,6 +4,7 @@
 
 import {TraceLoader} from '../../../testing/TraceLoader.js';
 import * as TraceModel from '../trace.js';
+import {initializeGlobalVars} from '../../../testing/EnvironmentHelpers.js';
 
 export async function processTrace(testContext: Mocha.Suite|Mocha.Context|null, traceFile: string) {
   const {traceData, insights} = await TraceLoader.traceEngine(testContext, traceFile);
@@ -15,6 +16,11 @@ export async function processTrace(testContext: Mocha.Suite|Mocha.Context|null, 
 }
 
 describe('InteractionToNextPaint', function() {
+  before(async () => {
+    // [RN] This will register required REACT_NATIVE_SPECIFIC_UI experiment.
+    await initializeGlobalVars();
+  });
+
   const test = (traceFile: string, longest?: number, highPercentile?: number) => {
     if (highPercentile === undefined) {
       highPercentile = longest;

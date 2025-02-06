@@ -80,6 +80,8 @@ export type TimelineFlameChartEntry =
 
 export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectWrapper<EventTypes> implements
     PerfUI.FlameChart.FlameChartDataProvider {
+  private isReactNative: boolean = false;
+
   private droppedFramePatternCanvas: HTMLCanvasElement;
   private partialFramePatternCanvas: HTMLCanvasElement;
   private timelineDataInternal: PerfUI.FlameChart.FlameChartTimelineData|null;
@@ -114,6 +116,12 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
 
   constructor() {
     super();
+
+    // [RN] Used to scope down available features for React Native targets
+    this.isReactNative = Root.Runtime.experiments.isEnabled(
+      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+    );
+
     this.reset();
     this.#font = `${PerfUI.Font.DEFAULT_FONT_SIZE} ${PerfUI.Font.getFontFamilyForCanvas()}`;
     this.droppedFramePatternCanvas = document.createElement('canvas');
@@ -364,7 +372,10 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
   #processInspectorTrace(): void {
     if (!this.isCpuProfile) {
       // CPU Profiles do not have frames and screenshots.
-      this.#appendFramesAndScreenshotsTrack();
+      // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+      if (!this.isReactNative) {
+        this.#appendFramesAndScreenshotsTrack();
+      }
     }
 
     const weight = (track: {type?: string, forMainFrame?: boolean, appenderName?: TrackAppenderName}): number => {

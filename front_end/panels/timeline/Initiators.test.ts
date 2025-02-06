@@ -4,10 +4,16 @@
 
 import * as TraceEngine from '../../models/trace/trace.js';
 import {TraceLoader} from '../../testing/TraceLoader.js';
+import {initializeGlobalVars} from '../../testing/EnvironmentHelpers.js';
 
 import * as Timeline from './timeline.js';
 
 describe('Initiators', () => {
+  before(async () => {
+    // [RN] This will register required REACT_NATIVE_SPECIFIC_UI experiment.
+    await initializeGlobalVars();
+  });
+
   it('returns the initiator data', async function() {
     const {traceData} = await TraceLoader.traceEngine(this, 'set-timeout-long-task.json.gz');
 

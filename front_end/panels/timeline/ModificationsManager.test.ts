@@ -5,8 +5,14 @@
 import type * as TraceEngine from '../../models/trace/trace.js';
 import {TraceLoader} from '../../testing/TraceLoader.js';
 import * as Timeline from './timeline.js';
+import {initializeGlobalVars} from '../../testing/EnvironmentHelpers.js';
 
 describe('ModificationsManager', () => {
+  before(async () => {
+    // [RN] This will register required REACT_NATIVE_SPECIFIC_UI experiment.
+    await initializeGlobalVars();
+  });
+
   it('applies modifications when present in a trace file', async function() {
     await TraceLoader.traceEngine(null, 'web-dev-modifications.json.gz');
     const modificationsManager = Timeline.ModificationsManager.ModificationsManager.activeManager();

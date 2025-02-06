@@ -10,6 +10,7 @@ import {data as auctionWorkletsData} from './AuctionWorkletsHandler.js';
 import {data as metaHandlerData, type FrameProcessData} from './MetaHandler.js';
 import {data as samplesHandlerData} from './SamplesHandler.js';
 import {HandlerState, type TraceEventHandlerName} from './types.js';
+import * as Root from '../../../core/root/root.js';
 
 /**
  * This handler builds the hierarchy of trace events and profile calls
@@ -22,6 +23,8 @@ import {HandlerState, type TraceEventHandlerName} from './types.js';
  * and, for compatibility purposes, typed as an extension to the trace
  * event type.
  */
+
+let isReactNative: boolean;
 
 const processes = new Map<Types.TraceEvents.ProcessID, RendererProcess>();
 
@@ -79,6 +82,11 @@ export function initialize(): void {
   if (handlerState !== HandlerState.UNINITIALIZED) {
     throw new Error('Renderer Handler was not reset');
   }
+
+  // [RN] Used to scope down available features for React Native targets
+  isReactNative = Root.Runtime.experiments.isEnabled(
+    Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+  );
 
   handlerState = HandlerState.INITIALIZED;
 }
@@ -245,6 +253,11 @@ export function assignThreadName(
  *  - Deletes processes with an unkonwn origin.
  */
 export function sanitizeProcesses(processes: Map<Types.TraceEvents.ProcessID, RendererProcess>): void {
+  // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+  if (isReactNative) {
+    return;
+  }
+
   const auctionWorklets = auctionWorkletsData().worklets;
   const metaData = metaHandlerData();
   if (metaData.traceIsGeneric) {
