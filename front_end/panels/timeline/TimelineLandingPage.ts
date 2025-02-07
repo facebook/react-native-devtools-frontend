@@ -48,10 +48,16 @@ interface Options {
 }
 
 export class TimelineLandingPage extends UI.Widget.VBox {
+  private readonly isReactNative: boolean = false;
   private readonly toggleRecordAction: UI.ActionRegistration.Action;
 
   constructor(toggleRecordAction: UI.ActionRegistration.Action, options?: Options) {
     super();
+
+    // [RN] Used to scope down available features for React Native targets
+    this.isReactNative = Root.Runtime.experiments.isEnabled(
+      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+    );
 
     this.toggleRecordAction = toggleRecordAction;
 
@@ -83,7 +89,8 @@ export class TimelineLandingPage extends UI.Widget.VBox {
     const recordKey = encloseWithTag(
         'b',
         UI.ShortcutRegistry.ShortcutRegistry.instance().shortcutsForAction('timeline.toggle-recording')[0].title());
-    const reloadKey = encloseWithTag(
+    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+    const reloadKey = this.isReactNative ? null : encloseWithTag(
         'b', UI.ShortcutRegistry.ShortcutRegistry.instance().shortcutsForAction('timeline.record-reload')[0].title());
     const navigateNode = encloseWithTag('b', i18nString(UIStrings.wasd));
 
@@ -91,14 +98,18 @@ export class TimelineLandingPage extends UI.Widget.VBox {
     const centered = this.contentElement.createChild('div');
 
     const recordButton = UI.UIUtils.createInlineButton(UI.Toolbar.Toolbar.createActionButton(this.toggleRecordAction));
-    const reloadButton =
+    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+    const reloadButton = this.isReactNative ? null :
         UI.UIUtils.createInlineButton(UI.Toolbar.Toolbar.createActionButtonForId('timeline.record-reload'));
 
     centered.createChild('p').appendChild(i18n.i18n.getFormatLocalizedString(
         str_, UIStrings.clickTheRecordButtonSOrHitSTo, {PH1: recordButton, PH2: recordKey}));
 
-    centered.createChild('p').appendChild(i18n.i18n.getFormatLocalizedString(
+    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+    if (!this.isReactNative && reloadButton !== null && reloadKey !== null) {
+      centered.createChild('p').appendChild(i18n.i18n.getFormatLocalizedString(
         str_, UIStrings.clickTheReloadButtonSOrHitSTo, {PH1: reloadButton, PH2: reloadKey}));
+    }
 
     centered.createChild('p').appendChild(i18n.i18n.getFormatLocalizedString(
         str_, UIStrings.afterRecordingSelectAnAreaOf, {PH1: navigateNode, PH2: learnMoreNode}));

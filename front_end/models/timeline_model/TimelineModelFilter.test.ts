@@ -5,8 +5,14 @@
 import {TraceLoader} from '../../testing/TraceLoader.js';
 import * as TimelineModel from '../timeline_model/timeline_model.js';
 import * as TraceEngine from '../trace/trace.js';
+import {initializeGlobalVars} from '../../testing/EnvironmentHelpers.js';
 
 describe('TimelineModelFilter', () => {
+  before(async () => {
+    // [RN] This will register required REACT_NATIVE_SPECIFIC_UI experiment.
+    await initializeGlobalVars();
+  });
+
   describe('TimelineVisibleEventsFilter', () => {
     it('accepts events that are set in the constructor and rejects other events', async function() {
       const {traceData} = await TraceLoader.traceEngine(this, 'user-timings.json.gz');
@@ -78,6 +84,11 @@ describe('TimelineModelFilter', () => {
   });
 
   describe('ExclusiveNameFilter', () => {
+    before(async () => {
+      // [RN] This will register required REACT_NATIVE_SPECIFIC_UI experiment.
+      await initializeGlobalVars();
+    });
+
     it('accepts events that do not match the provided set of names to exclude', async function() {
       const {traceData} = await TraceLoader.traceEngine(this, 'user-timings.json.gz');
       const userTimingEvent = (traceData.UserTimings.performanceMeasures).at(0);

@@ -7,6 +7,7 @@
 import * as TraceModel from '../../trace.js';
 import * as Lantern from '../lantern.js';
 import {loadTrace, runTraceEngine} from '../testing/testing.js';
+import {initializeGlobalVars} from '../../../../testing/EnvironmentHelpers.js';
 
 const {NetworkAnalyzer} = Lantern.Core;
 
@@ -19,6 +20,8 @@ describe('NetworkAnalyzer', () => {
   let trace: Lantern.Types.Trace;
   let traceWithRedirect: Lantern.Types.Trace;
   before(async function() {
+    // [RN] This will register required REACT_NATIVE_SPECIFIC_UI experiment.
+    await initializeGlobalVars();
     trace = await loadTrace(this, 'lantern/paul/trace.json.gz');
     traceWithRedirect = await loadTrace(this, 'lantern/redirect/trace.json.gz');
   });

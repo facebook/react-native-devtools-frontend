@@ -8,6 +8,7 @@
 
 import {TraceLoader} from '../../testing/TraceLoader.js';
 import * as TraceEngine from '../trace/trace.js';
+import {initializeGlobalVars} from '../../testing/EnvironmentHelpers.js';
 
 function getMainThread(traceData: TraceEngine.Handlers.ModelHandlers.Renderer.RendererHandlerData):
     TraceEngine.Handlers.ModelHandlers.Renderer.RendererThread {
@@ -38,6 +39,11 @@ function findFirstEntry(
 }
 
 describe('EntriesFilter', function() {
+  before(async () => {
+    // [RN] This will register required REACT_NATIVE_SPECIFIC_UI experiment.
+    await initializeGlobalVars();
+  });
+
   it('parses a stack and returns an empty list of invisible entries', async function() {
     const {traceData} = await TraceLoader.traceEngine(this, 'basic-stack.json.gz');
     const stack = new TraceEngine.EntriesFilter.EntriesFilter(traceData.Renderer.entryToNode);

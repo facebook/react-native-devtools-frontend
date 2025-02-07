@@ -8,6 +8,7 @@ import type * as TraceModel from '../trace.js';
 import * as Types from '../types/types.js';
 
 import {InsightRunners} from './insights.js';
+import {initializeGlobalVars} from '../../../testing/EnvironmentHelpers.js';
 
 export async function processTrace(testContext: Mocha.Suite|Mocha.Context|null, traceFile: string) {
   const {traceData, insights} = await TraceLoader.traceEngine(testContext, traceFile);
@@ -34,6 +35,11 @@ function getInsight(insights: TraceModel.Insights.Types.TraceInsightData, naviga
 const INVALIDATION_WINDOW = Helpers.Timing.secondsToMicroseconds(Types.Timing.Seconds(0.5));
 
 describe('CumulativeLayoutShift', function() {
+  before(async () => {
+    // [RN] This will register required REACT_NATIVE_SPECIFIC_UI experiment.
+    await initializeGlobalVars();
+  });
+
   describe('non composited animations', function() {
     it('gets the correct non composited animations', async function() {
       const {data, insights} = await processTrace(this, 'non-composited-animation.json.gz');
