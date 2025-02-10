@@ -132,6 +132,7 @@ const REGISTERED_EXPERIMENTS = [
   Root.Runtime.ExperimentName.TIMELINE_SHOW_POST_MESSAGE_EVENTS,
   Root.Runtime.ExperimentName.TIMELINE_ENHANCED_TRACES,
   Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+  Root.Runtime.ExperimentName.NOT_REACT_NATIVE_SPECIFIC_UI,
 ];
 
 export async function initializeGlobalVars({reset = true} = {}) {

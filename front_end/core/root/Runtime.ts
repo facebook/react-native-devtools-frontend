@@ -320,6 +320,7 @@ export const enum ExperimentName {
   // React Native-specific experiments - must mirror RNExperimentName above
   JS_HEAP_PROFILER_ENABLE = RNExperimentName.JS_HEAP_PROFILER_ENABLE,
   REACT_NATIVE_SPECIFIC_UI = RNExperimentName.REACT_NATIVE_SPECIFIC_UI,
+  NOT_REACT_NATIVE_SPECIFIC_UI = '!' + RNExperimentName.REACT_NATIVE_SPECIFIC_UI,
   ENABLE_PERFORMANCE_PANEL = RNExperimentName.ENABLE_PERFORMANCE_PANEL,
   ENABLE_NETWORK_PANEL = RNExperimentName.ENABLE_NETWORK_PANEL,
 }
