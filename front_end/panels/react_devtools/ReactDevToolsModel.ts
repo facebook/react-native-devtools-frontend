@@ -202,7 +202,8 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
   }
 
   #handleReloadAppForProfiling(): void {
-    SDK.ResourceTreeModel.ResourceTreeModel.reloadAllPages(false);
+    const mainTarget = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
+    void mainTarget?.pageAgent().invoke_reload({ignoreCache: true});
   }
 
   #handleBackendExecutionContextUnavailable({data: errorMessage}: ReactDevToolsBindingsBackendExecutionContextUnavailableEvent): void {

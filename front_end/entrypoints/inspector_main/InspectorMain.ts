@@ -122,6 +122,25 @@ Common.Runnable.registerEarlyInitializationRunnable(InspectorMainImpl.instance);
 
 export class ReloadActionDelegate implements UI.ActionRegistration.ActionDelegate {
   handleAction(_context: UI.Context.Context, actionId: string): boolean {
+    const isReactNative = Root.Runtime.experiments.isEnabled(
+      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+    );
+    
+    // [RN] Fork reload handling. React Native targets do not initialize
+    // ResourceTreeModel (Capability.DOM), and there is no hard reload concept.
+    if (isReactNative) {
+      switch (actionId) {
+        case 'inspector-main.reload':
+        case 'inspector-main.hard-reload':
+          const mainTarget = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
+          if (!mainTarget) {
+            return false;
+          }
+          void mainTarget.pageAgent().invoke_reload({ignoreCache: true});
+          return true;
+      }
+    }
+
     switch (actionId) {
       case 'inspector-main.reload':
         SDK.ResourceTreeModel.ResourceTreeModel.reloadAllPages(false);
