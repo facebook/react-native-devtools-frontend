@@ -36,6 +36,7 @@ import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
+import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import type * as Extensions from '../../models/extensions/extensions.js';
@@ -194,9 +195,15 @@ export class NetworkPanel extends UI.Panel.Panel implements
   recordLogSetting: Common.Settings.Setting<boolean>;
   private readonly throttlingSelect: UI.Toolbar.ToolbarComboBox;
   private readonly displayScreenshotDelay: number;
+  private readonly isReactNative: boolean = false;
 
   constructor(displayScreenshotDelay: number) {
     super('network');
+
+    // [RN] Used to scope down available features for React Native targets
+    this.isReactNative = Root.Runtime.experiments.isEnabled(
+      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+    );
 
     this.displayScreenshotDelay = displayScreenshotDelay;
     this.networkLogShowOverviewSetting =
@@ -417,20 +424,23 @@ export class NetworkPanel extends UI.Panel.Panel implements
     this.panelToolbar.appendToolbarItem(new UI.Toolbar.ToolbarSettingCheckbox(
         this.preserveLogSetting, i18nString(UIStrings.doNotClearLogOnPageReload), i18nString(UIStrings.preserveLog)));
 
-    this.panelToolbar.appendSeparator();
-    const disableCacheCheckbox = new UI.Toolbar.ToolbarSettingCheckbox(
-        Common.Settings.Settings.instance().moduleSetting('cache-disabled'),
-        i18nString(UIStrings.disableCacheWhileDevtoolsIsOpen), i18nString(UIStrings.disableCache));
-    this.panelToolbar.appendToolbarItem(disableCacheCheckbox);
+    // [RN] Disable cache and network conditions
+    if (!this.isReactNative) {
+      this.panelToolbar.appendSeparator();
+      const disableCacheCheckbox = new UI.Toolbar.ToolbarSettingCheckbox(
+          Common.Settings.Settings.instance().moduleSetting('cache-disabled'),
+          i18nString(UIStrings.disableCacheWhileDevtoolsIsOpen), i18nString(UIStrings.disableCache));
+      this.panelToolbar.appendToolbarItem(disableCacheCheckbox);
 
-    this.panelToolbar.appendToolbarItem(this.throttlingSelect);
+      this.panelToolbar.appendToolbarItem(this.throttlingSelect);
 
-    const networkConditionsButton = new UI.Toolbar.ToolbarButton(
-        i18nString(UIStrings.moreNetworkConditions), 'network-settings', undefined, 'network-conditions');
-    networkConditionsButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, () => {
-      void UI.ViewManager.ViewManager.instance().showView('network.config');
-    }, this);
-    this.panelToolbar.appendToolbarItem(networkConditionsButton);
+      const networkConditionsButton = new UI.Toolbar.ToolbarButton(
+          i18nString(UIStrings.moreNetworkConditions), 'network-settings', undefined, 'network-conditions');
+      networkConditionsButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, () => {
+        void UI.ViewManager.ViewManager.instance().showView('network.config');
+      }, this);
+      this.panelToolbar.appendToolbarItem(networkConditionsButton);
+    }
 
     this.rightToolbar.appendToolbarItem(new UI.Toolbar.ToolbarItem(this.progressBarContainer));
     this.rightToolbar.appendSeparator();
@@ -452,9 +462,12 @@ export class NetworkPanel extends UI.Panel.Panel implements
     settingsToolbarRight.appendToolbarItem(new UI.Toolbar.ToolbarSettingCheckbox(
         Common.Settings.Settings.instance().moduleSetting('network.group-by-frame'),
         i18nString(UIStrings.groupRequestsByTopLevelRequest), i18nString(UIStrings.groupByFrame)));
-    settingsToolbarRight.appendToolbarItem(new UI.Toolbar.ToolbarSettingCheckbox(
-        this.networkRecordFilmStripSetting, i18nString(UIStrings.captureScreenshotsWhenLoadingA),
-        i18nString(UIStrings.captureScreenshots)));
+    // [RN] Disable capture screenshots toggle
+    if (!this.isReactNative) {
+      settingsToolbarRight.appendToolbarItem(new UI.Toolbar.ToolbarSettingCheckbox(
+          this.networkRecordFilmStripSetting, i18nString(UIStrings.captureScreenshotsWhenLoadingA),
+          i18nString(UIStrings.captureScreenshots)));
+    }
 
     this.panelToolbar.appendSeparator();
     const importHarButton =

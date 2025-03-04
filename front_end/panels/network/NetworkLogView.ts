@@ -521,11 +521,18 @@ export class NetworkLogView extends Common.ObjectWrapper.eventMixin<EventTypes, 
   private readonly summaryToolbarInternal: UI.Toolbar.Toolbar;
   private readonly filterBar: UI.FilterBar.FilterBar;
   private readonly textFilterSetting: Common.Settings.Setting<string>;
+  private readonly isReactNative: boolean = false;
 
   constructor(
       filterBar: UI.FilterBar.FilterBar, progressBarContainer: Element,
       networkLogLargeRowsSetting: Common.Settings.Setting<boolean>) {
     super();
+
+    // [RN] Used to scope down available features for React Native targets
+    this.isReactNative = Root.Runtime.experiments.isEnabled(
+      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+    );
+
     this.setMinimumSize(50, 64);
 
     this.element.id = 'network-container';
@@ -599,14 +606,17 @@ export class NetworkLogView extends Common.ObjectWrapper.eventMixin<EventTypes, 
     filterBar.addFilter(this.invertFilterUI);
     filterBar.addDivider();
 
-    const filterItems =
-        Object.entries(Common.ResourceType.resourceCategories).map(([key, category]) => ({
-                                                                     name: category.title(),
-                                                                     label: () => category.shortTitle(),
-                                                                     title: category.title(),
-                                                                     jslogContext:
-                                                                         Platform.StringUtilities.toKebabCase(key),
-                                                                   }));
+    const filterItems = Object.entries(
+      this.isReactNative
+        ? Common.ResourceType.resourceCategoriesReactNative
+        : Common.ResourceType.resourceCategories
+    ).map(([key, category]) => ({
+      name: category.title(),
+      label: () => category.shortTitle(),
+      title: category.title(),
+      jslogContext:
+          Platform.StringUtilities.toKebabCase(key),
+    }));
 
     if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.NETWORK_PANEL_FILTER_BAR_REDESIGN)) {
       this.resourceCategoryFilterUI = new DropDownTypesUI(filterItems, this.networkResourceTypeFiltersSetting);
@@ -2873,9 +2883,15 @@ export class MoreFiltersDropDownUI extends
   private activeFiltersCount: HTMLElement;
   private activeFiltersCountAdorner: Adorners.Adorner.Adorner;
   private hasChanged = false;
+  private readonly isReactNative: boolean = false;
 
   constructor() {
     super();
+
+    // [RN] Used to disable web-specific filters
+    this.isReactNative = Root.Runtime.experiments.isEnabled(
+      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+    );
 
     this.networkHideDataURLSetting = Common.Settings.Settings.instance().createSetting('network-hide-data-url', false);
     this.networkHideChromeExtensionsSetting =
@@ -2951,22 +2967,26 @@ export class MoreFiltersDropDownUI extends
           tooltip: i18nString(UIStrings.hidesDataAndBlobUrls),
           jslogContext: 'hide-data-urls',
         });
-    this.contextMenu.defaultSection().appendCheckboxItem(
-        i18nString(UIStrings.chromeExtensions),
-        () => this.networkHideChromeExtensionsSetting.set(!this.networkHideChromeExtensionsSetting.get()), {
-          checked: this.networkHideChromeExtensionsSetting.get(),
-          tooltip: i18nString(UIStrings.hideChromeExtension),
-          jslogContext: 'hide-extension-urls',
-        });
-    this.contextMenu.defaultSection().appendSeparator();
+    if (!this.isReactNative) {
+      this.contextMenu.defaultSection().appendCheckboxItem(
+          i18nString(UIStrings.chromeExtensions),
+          () => this.networkHideChromeExtensionsSetting.set(!this.networkHideChromeExtensionsSetting.get()), {
+            checked: this.networkHideChromeExtensionsSetting.get(),
+            tooltip: i18nString(UIStrings.hideChromeExtension),
+            jslogContext: 'hide-extension-urls',
+          });
+      this.contextMenu.defaultSection().appendSeparator();
+    }
 
-    this.contextMenu.defaultSection().appendCheckboxItem(
-        i18nString(UIStrings.hasBlockedCookies),
-        () => this.networkShowBlockedCookiesOnlySetting.set(!this.networkShowBlockedCookiesOnlySetting.get()), {
-          checked: this.networkShowBlockedCookiesOnlySetting.get(),
-          tooltip: i18nString(UIStrings.onlyShowRequestsWithBlockedCookies),
-          jslogContext: 'only-blocked-response-cookies',
-        });
+    if (!this.isReactNative) {
+      this.contextMenu.defaultSection().appendCheckboxItem(
+          i18nString(UIStrings.hasBlockedCookies),
+          () => this.networkShowBlockedCookiesOnlySetting.set(!this.networkShowBlockedCookiesOnlySetting.get()), {
+            checked: this.networkShowBlockedCookiesOnlySetting.get(),
+            tooltip: i18nString(UIStrings.onlyShowRequestsWithBlockedCookies),
+            jslogContext: 'only-blocked-response-cookies',
+          });
+    }
     this.contextMenu.defaultSection().appendCheckboxItem(
         i18nString(UIStrings.blockedRequests),
         () => this.networkOnlyBlockedRequestsSetting.set(!this.networkOnlyBlockedRequestsSetting.get()), {
@@ -2974,13 +2994,15 @@ export class MoreFiltersDropDownUI extends
           tooltip: i18nString(UIStrings.onlyShowBlockedRequests),
           jslogContext: 'only-blocked-requests',
         });
-    this.contextMenu.defaultSection().appendCheckboxItem(
-        i18nString(UIStrings.thirdParty),
-        () => this.networkOnlyThirdPartySetting.set(!this.networkOnlyThirdPartySetting.get()), {
-          checked: this.networkOnlyThirdPartySetting.get(),
-          tooltip: i18nString(UIStrings.onlyShowThirdPartyRequests),
-          jslogContext: 'only-3rd-party-requests',
-        });
+    if (!this.isReactNative) {
+      this.contextMenu.defaultSection().appendCheckboxItem(
+          i18nString(UIStrings.thirdParty),
+          () => this.networkOnlyThirdPartySetting.set(!this.networkOnlyThirdPartySetting.get()), {
+            checked: this.networkOnlyThirdPartySetting.get(),
+            tooltip: i18nString(UIStrings.onlyShowThirdPartyRequests),
+            jslogContext: 'only-3rd-party-requests',
+          });
+    }
 
     void this.contextMenu.show();
   }
