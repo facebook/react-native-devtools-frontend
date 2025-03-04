@@ -1,6 +1,6 @@
-# rn-chrome-devtools-frontend
+# react-native-devtools-frontend
 
-Source code for React Native's debugger frontend, based on Chrome DevTools. This project is periodically compiled and checked into the React Native repo as [`@react-native/debugger-frontend`](https://github.com/facebook/react-native/tree/main/packages/debugger-frontend).
+Source code for the [React Native DevTools](https://reactnative.dev/docs/next/react-native-devtools) frontend, based on Chrome DevTools. This project is periodically compiled and checked into the React Native repo as [`@react-native/debugger-frontend`](https://github.com/facebook/react-native/tree/main/packages/debugger-frontend).
 
 This repository is a fork of [ChromeDevTools/devtools-frontend](https://github.com/ChromeDevTools/devtools-frontend).
 
