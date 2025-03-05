@@ -370,6 +370,14 @@ export const resourceCategories = {
   Other: new ResourceCategory(i18nLazyString(UIStrings.other), i18nLazyString(UIStrings.other)),
 };
 
+export const resourceCategoriesReactNative = {
+  XHR: new ResourceCategory(i18nLazyString(UIStrings.fetchAndXHR), i18n.i18n.lockedLazyString('Fetch/XHR')),
+  Script: new ResourceCategory(i18nLazyString(UIStrings.javascript), i18nLazyString(UIStrings.js)),
+  Image: new ResourceCategory(i18nLazyString(UIStrings.image), i18nLazyString(UIStrings.img)),
+  Media: new ResourceCategory(i18nLazyString(UIStrings.media), i18nLazyString(UIStrings.media)),
+  Other: new ResourceCategory(i18nLazyString(UIStrings.other), i18nLazyString(UIStrings.other)),
+};
+
 /**
  * This enum is a superset of all types defined in WebCore::InspectorPageAgent::resourceTypeJson
  * For DevTools-only types that are based on MIME-types that are backed by other request types
