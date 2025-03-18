@@ -639,13 +639,15 @@ export class NetworkLogView extends Common.ObjectWrapper.eventMixin<EventTypes, 
       UI.Tooltip.Tooltip.install(this.dataURLFilterUI.element(), i18nString(UIStrings.hidesDataAndBlobUrls));
       filterBar.addFilter(this.dataURLFilterUI);
 
-      this.hideChromeExtensionsUI = new UI.FilterBar.CheckboxFilterUI(
-          'chrome-extension', i18nString(UIStrings.chromeExtensions), true, this.networkHideChromeExtensions,
-          'hide-extension-urls');
-      this.hideChromeExtensionsUI.addEventListener(
+      if (!this.isReactNative) {
+        this.hideChromeExtensionsUI = new UI.FilterBar.CheckboxFilterUI(
+            'chrome-extension', i18nString(UIStrings.chromeExtensions), true, this.networkHideChromeExtensions,
+            'hide-extension-urls');
+        this.hideChromeExtensionsUI.addEventListener(
           UI.FilterBar.FilterUIEvents.FilterChanged, this.filterChanged.bind(this), this);
-      UI.Tooltip.Tooltip.install(this.hideChromeExtensionsUI.element(), i18nString(UIStrings.hideChromeExtension));
-      filterBar.addFilter(this.hideChromeExtensionsUI);
+          UI.Tooltip.Tooltip.install(this.hideChromeExtensionsUI.element(), i18nString(UIStrings.hideChromeExtension));
+          filterBar.addFilter(this.hideChromeExtensionsUI);
+      }
 
       this.resourceCategoryFilterUI =
           new UI.FilterBar.NamedBitSetFilterUI(filterItems, this.networkResourceTypeFiltersSetting);
@@ -654,14 +656,16 @@ export class NetworkLogView extends Common.ObjectWrapper.eventMixin<EventTypes, 
           UI.FilterBar.FilterUIEvents.FilterChanged, this.filterChanged.bind(this), this);
       filterBar.addFilter(this.resourceCategoryFilterUI);
 
-      this.onlyBlockedResponseCookiesFilterUI = new UI.FilterBar.CheckboxFilterUI(
-          'only-show-blocked-cookies', i18nString(UIStrings.hasBlockedCookies), true,
-          this.networkShowBlockedCookiesOnlySetting, 'only-show-blocked-cookies');
-      this.onlyBlockedResponseCookiesFilterUI.addEventListener(
-          UI.FilterBar.FilterUIEvents.FilterChanged, this.filterChanged.bind(this), this);
-      UI.Tooltip.Tooltip.install(
-          this.onlyBlockedResponseCookiesFilterUI.element(), i18nString(UIStrings.onlyShowRequestsWithBlockedCookies));
-      filterBar.addFilter(this.onlyBlockedResponseCookiesFilterUI);
+      if (!this.isReactNative) {
+        this.onlyBlockedResponseCookiesFilterUI = new UI.FilterBar.CheckboxFilterUI(
+            'only-show-blocked-cookies', i18nString(UIStrings.hasBlockedCookies), true,
+            this.networkShowBlockedCookiesOnlySetting, 'only-show-blocked-cookies');
+        this.onlyBlockedResponseCookiesFilterUI.addEventListener(
+            UI.FilterBar.FilterUIEvents.FilterChanged, this.filterChanged.bind(this), this);
+        UI.Tooltip.Tooltip.install(
+            this.onlyBlockedResponseCookiesFilterUI.element(), i18nString(UIStrings.onlyShowRequestsWithBlockedCookies));
+        filterBar.addFilter(this.onlyBlockedResponseCookiesFilterUI);
+      }
 
       this.onlyBlockedRequestsUI = new UI.FilterBar.CheckboxFilterUI(
           'only-show-blocked-requests', i18nString(UIStrings.blockedRequests), true,
@@ -671,14 +675,16 @@ export class NetworkLogView extends Common.ObjectWrapper.eventMixin<EventTypes, 
       UI.Tooltip.Tooltip.install(this.onlyBlockedRequestsUI.element(), i18nString(UIStrings.onlyShowBlockedRequests));
       filterBar.addFilter(this.onlyBlockedRequestsUI);
 
-      this.onlyThirdPartyFilterUI = new UI.FilterBar.CheckboxFilterUI(
-          'only-show-third-party', i18nString(UIStrings.thirdParty), true, this.networkOnlyThirdPartySetting,
-          'only-show-third-party');
-      this.onlyThirdPartyFilterUI.addEventListener(
-          UI.FilterBar.FilterUIEvents.FilterChanged, this.filterChanged.bind(this), this);
-      UI.Tooltip.Tooltip.install(
-          this.onlyThirdPartyFilterUI.element(), i18nString(UIStrings.onlyShowThirdPartyRequests));
-      filterBar.addFilter(this.onlyThirdPartyFilterUI);
+      if (!this.isReactNative) {
+        this.onlyThirdPartyFilterUI = new UI.FilterBar.CheckboxFilterUI(
+            'only-show-third-party', i18nString(UIStrings.thirdParty), true, this.networkOnlyThirdPartySetting,
+            'only-show-third-party');
+        this.onlyThirdPartyFilterUI.addEventListener(
+            UI.FilterBar.FilterUIEvents.FilterChanged, this.filterChanged.bind(this), this);
+        UI.Tooltip.Tooltip.install(
+            this.onlyThirdPartyFilterUI.element(), i18nString(UIStrings.onlyShowThirdPartyRequests));
+        filterBar.addFilter(this.onlyThirdPartyFilterUI);
+      }
     }
 
     this.filterParser = new TextUtils.TextUtils.FilterParser(searchKeys);
