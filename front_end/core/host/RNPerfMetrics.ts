@@ -142,8 +142,8 @@ class RNPerfMetrics {
     });
   }
 
-  remoteDebuggingTerminated(reason: string): void {
-    this.sendEvent({eventName: 'Connection.DebuggingTerminated', params: {reason}});
+  remoteDebuggingTerminated(params: {reason?: string, code?: string, errorType?: string} = {}): void {
+    this.sendEvent({eventName: 'Connection.DebuggingTerminated', params});
   }
 
   developerResourceLoadingStarted(parsedURL: ParsedURL, loadingMethod: DeveloperResourceLoaded): void {
@@ -333,7 +333,9 @@ export type BrowserErrorEvent = Readonly<{
 export type RemoteDebuggingTerminatedEvent = Readonly<{
   eventName: 'Connection.DebuggingTerminated',
   params: Readonly<{
-    reason: string,
+    reason?: string,
+    code?: string,
+    errorType?: string,
   }>,
 }>;
 

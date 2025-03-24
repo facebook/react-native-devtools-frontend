@@ -102,13 +102,16 @@ export class RemoteDebuggingTerminatedScreen extends VBox {
     );
   }
 
-  static show(reason: string): void {
+  static show(
+    uiMessage: string,
+    connectionLostDetails?: {reason?: string, code?: string, errorType?: string}
+  ): void {
     const dialog = new Dialog('remote-debnugging-terminated');
     dialog.setSizeBehavior(SizeBehavior.MeasureContent);
     dialog.setDimmed(true);
-    new RemoteDebuggingTerminatedScreen(reason, () => dialog.hide()).show(dialog.contentElement);
+    new RemoteDebuggingTerminatedScreen(uiMessage, () => dialog.hide()).show(dialog.contentElement);
     dialog.show();
-    Host.rnPerfMetrics.remoteDebuggingTerminated(reason);
+    Host.rnPerfMetrics.remoteDebuggingTerminated(connectionLostDetails);
   }
 
   #createFeedbackSection(feedbackLink: string): LitHtml.TemplateResult {
