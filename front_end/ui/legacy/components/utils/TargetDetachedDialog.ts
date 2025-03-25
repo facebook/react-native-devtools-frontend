@@ -33,9 +33,9 @@ export class TargetDetachedDialog extends SDK.SDKModel.SDKModel<void> implements
     UI.RemoteDebuggingTerminatedScreen.RemoteDebuggingTerminatedScreen.show(reason);
   }
 
-  static webSocketConnectionLost(): void {
+  static webSocketConnectionLost(connectionLostDetails?: {reason?: string, code?: string, errorType?: string}): void {
     UI.RemoteDebuggingTerminatedScreen.RemoteDebuggingTerminatedScreen.show(
-        i18nString(UIStrings.websocketDisconnected));
+        i18nString(UIStrings.websocketDisconnected), connectionLostDetails);
   }
 
   targetCrashed(): void {

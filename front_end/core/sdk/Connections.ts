@@ -78,10 +78,10 @@ export class WebSocketConnection implements ProtocolClient.InspectorBackend.Conn
   #socket: WebSocket|null;
   onMessage: ((arg0: (Object|string)) => void)|null;
   #onDisconnect: ((arg0: string) => void)|null;
-  #onWebSocketDisconnect: (() => void)|null;
+  #onWebSocketDisconnect: ((connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void)|null;
   #connected: boolean;
   #messages: string[];
-  constructor(url: Platform.DevToolsPath.UrlString, onWebSocketDisconnect: () => void) {
+  constructor(url: Platform.DevToolsPath.UrlString, onWebSocketDisconnect: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void) {
     this.#socket = new WebSocket(url);
     this.#socket.onerror = this.onError.bind(this);
     this.#socket.onopen = this.onOpen.bind(this);
@@ -107,9 +107,9 @@ export class WebSocketConnection implements ProtocolClient.InspectorBackend.Conn
     this.#onDisconnect = onDisconnect;
   }
 
-  private onError(): void {
+  private onError(ev: Event): void {
     if (this.#onWebSocketDisconnect) {
-      this.#onWebSocketDisconnect.call(null);
+      this.#onWebSocketDisconnect.call(null, {errorType: ev.type});
     }
     if (this.#onDisconnect) {
       // This is called if error occurred while connecting.
@@ -129,9 +129,9 @@ export class WebSocketConnection implements ProtocolClient.InspectorBackend.Conn
     this.#messages = [];
   }
 
-  private onClose(): void {
+  private onClose(ev: CloseEvent): void {
     if (this.#onWebSocketDisconnect) {
-      this.#onWebSocketDisconnect.call(null);
+      this.#onWebSocketDisconnect.call(null, {reason: ev.reason, code: String(ev.code || 0)});
     }
     if (this.#onDisconnect) {
       this.#onDisconnect.call(null, 'websocket closed');
@@ -264,13 +264,13 @@ export class ParallelConnection implements ParallelConnectionInterface {
 }
 
 export async function initMainConnection(
-    createRootTarget: () => Promise<void>, websocketConnectionLost: () => void): Promise<void> {
+    createRootTarget: () => Promise<void>, websocketConnectionLost: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void): Promise<void> {
   ProtocolClient.InspectorBackend.Connection.setFactory(createMainConnection.bind(null, websocketConnectionLost));
   await createRootTarget();
   Host.InspectorFrontendHost.InspectorFrontendHostInstance.connectionReady();
 }
 
-function createMainConnection(websocketConnectionLost: () => void): ProtocolClient.InspectorBackend.Connection {
+function createMainConnection(websocketConnectionLost: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void): ProtocolClient.InspectorBackend.Connection {
   const wsParam = Root.Runtime.Runtime.queryParam('ws');
   const wssParam = Root.Runtime.Runtime.queryParam('wss');
   if (wsParam || wssParam) {
