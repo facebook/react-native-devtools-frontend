@@ -35,6 +35,7 @@ import type * as Sources from '../../panels/sources/sources.js';
 Host.rnPerfMetrics.registerPerfMetricsGlobalPostMessageHandler();
 Host.rnPerfMetrics.registerGlobalErrorReporting();
 Host.rnPerfMetrics.setLaunchId(Root.Runtime.Runtime.queryParam('launchId'));
+Host.rnPerfMetrics.setTelemetryInfo(JSON.parse(Root.Runtime.Runtime.queryParam('telemetryInfo') || '{}'));
 Host.rnPerfMetrics.entryPointLoadingStarted('rn_fusebox');
 
 const UIStrings = {

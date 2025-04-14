@@ -28,6 +28,7 @@ import * as Host from '../../core/host/host.js';
  */
 Host.rnPerfMetrics.registerPerfMetricsGlobalPostMessageHandler();
 Host.rnPerfMetrics.setLaunchId(Root.Runtime.Runtime.queryParam('launchId'));
+Host.rnPerfMetrics.setTelemetryInfo(JSON.parse(Root.Runtime.Runtime.queryParam('telemetryInfo') || '{}'));
 Host.rnPerfMetrics.entryPointLoadingStarted('rn_inspector');
 
 RNExperiments.RNExperimentsImpl.setIsReactNativeEntryPoint(true);
