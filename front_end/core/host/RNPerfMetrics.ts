@@ -24,6 +24,7 @@ class RNPerfMetrics {
   readonly #consoleErrorMethod = 'error';
   #listeners: Set<RNReliabilityEventListener> = new Set();
   #launchId: string|null = null;
+  #telemetryInfo: Object = {};
   // map of panel location to panel name
   #currentPanels: Map<PanelLocation, string> = new Map();
 
@@ -117,6 +118,10 @@ class RNPerfMetrics {
 
   setLaunchId(launchId: string|null): void {
     this.#launchId = launchId;
+  }
+
+  setTelemetryInfo(telemetryInfo: Object): void {
+    this.#telemetryInfo = telemetryInfo;
   }
 
   entryPointLoadingStarted(entryPoint: EntryPoint): void {
@@ -263,6 +268,7 @@ class RNPerfMetrics {
     const commonFields: CommonEventFields = {
       timestamp: getPerfTimestamp(),
       launchId: this.#launchId,
+      telemetryInfo: this.#telemetryInfo,
       currentPanels: this.#currentPanels,
     };
 
@@ -295,6 +301,7 @@ function maybeWrapError(baseMessage: string, error: unknown): [string, Error] {
 type CommonEventFields = Readonly<{
   timestamp: DOMHighResTimeStamp,
   launchId: string | void | null,
+  telemetryInfo: Object,
   currentPanels: Map<PanelLocation, string>,
 }>;
 
