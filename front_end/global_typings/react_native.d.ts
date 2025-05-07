@@ -12,6 +12,5 @@ declare global {
     var enableReactNativeOpenInExternalEditor: boolean|undefined;
     var reactNativeOpenInEditorButtonImage: string|undefined;
     var FB_ONLY__reactNativeFeedbackLink: string|undefined;
-    var FB_ONLY__enablePerformance: any;
   }
 }
