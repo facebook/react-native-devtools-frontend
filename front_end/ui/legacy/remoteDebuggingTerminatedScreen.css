@@ -6,6 +6,7 @@
 
 .widget {
   padding: 20px;
+  user-select: all;
 }
 
 .remote-debugging-terminated-title {
@@ -17,7 +18,7 @@
 .remote-debugging-terminated-message {
   font-size: 14px;
   margin: 5px 0;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .remote-debugging-terminated-options {
@@ -26,7 +27,6 @@
   grid-gap: 8px;
   align-items: center;
   padding-top: 12px;
-  border-top: 1px solid var(--color-details-hairline-light);
 }
 
 .remote-debugging-terminated-label {
@@ -45,7 +45,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 16px;
   padding: 12px 16px;
   background-color: var(--color-background-elevation-1);
   border-radius: 6px;
@@ -56,9 +55,13 @@
   margin-bottom: 8px;
 }
 
-.remote-debugging-terminated-reason {
-  --override-reason-color: #8b0000;
+.remote-debugging-terminated-feedback-launch-id {
+  color: red;
+}
 
+.remote-debugging-terminated-reason {
+  --override-reason-color: red;
+  line-height: 32px;
   color: var(--override-reason-color);
 }
 
