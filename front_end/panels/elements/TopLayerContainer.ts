@@ -8,16 +8,15 @@ import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import * as ElementsComponents from './components/components.js';
+import type {ElementsTreeElement} from './ElementsTreeElement.js';
 import * as ElementsTreeOutline from './ElementsTreeOutline.js';
-
-import {type ElementsTreeElement} from './ElementsTreeElement.js';
 
 const UIStrings = {
   /**
    *@description Link text content in Elements Tree Outline of the Elements panel. When clicked, it "reveals" the true location of an element.
    */
   reveal: 'reveal',
-};
+} as const;
 
 const str_ = i18n.i18n.registerUIStrings('panels/elements/TopLayerContainer.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -25,7 +24,7 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class TopLayerContainer extends UI.TreeOutline.TreeElement {
   tree: ElementsTreeOutline.ElementsTreeOutline;
   document: SDK.DOMModel.DOMDocument;
-  currentTopLayerDOMNodes: Set<SDK.DOMModel.DOMNode> = new Set();
+  currentTopLayerDOMNodes = new Set<SDK.DOMModel.DOMNode>();
   topLayerUpdateThrottler: Common.Throttler.Throttler;
 
   constructor(tree: ElementsTreeOutline.ElementsTreeOutline, document: SDK.DOMModel.DOMDocument) {
@@ -84,8 +83,7 @@ export class TopLayerContainer extends UI.TreeOutline.TreeElement {
   private removeCurrentTopLayerElementsAdorners(): void {
     for (const node of this.currentTopLayerDOMNodes) {
       const topLayerTreeElement = this.tree.treeElementByNode.get(node);
-      // TODO(changhaohan): remove only top layer adorner.
-      topLayerTreeElement?.removeAllAdorners();
+      topLayerTreeElement?.removeAdornersByType(ElementsComponents.AdornerManager.RegisteredAdorners.TOP_LAYER);
     }
   }
 
@@ -96,8 +94,7 @@ export class TopLayerContainer extends UI.TreeOutline.TreeElement {
         ElementsComponents.AdornerManager.RegisteredAdorners.TOP_LAYER);
     const adornerContent = document.createElement('span');
     adornerContent.classList.add('adorner-with-icon');
-    const linkIcon = new IconButton.Icon.Icon();
-    linkIcon.name = 'select-element';
+    const linkIcon = IconButton.Icon.create('select-element');
     const adornerText = document.createElement('span');
     adornerText.textContent = `top-layer (${topLayerElementIndex})`;
     adornerContent.append(linkIcon);

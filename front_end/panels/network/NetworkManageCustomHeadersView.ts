@@ -24,7 +24,7 @@ const UIStrings = {
    *@description Text in Network Manage Custom Headers View of the Network panel
    */
   headerName: 'Header Name',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/network/NetworkManageCustomHeadersView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -44,19 +44,20 @@ export class NetworkManageCustomHeadersView extends UI.Widget.VBox implements UI
   private editor?: UI.ListWidget.Editor<CustomHeader>;
 
   constructor(
-      columnData: {
+      columnData: Array<{
         title: string,
         editable: boolean,
-      }[],
+      }>,
       addHeaderColumnCallback: (arg0: string) => boolean,
       changeHeaderColumnCallback: (arg0: string, arg1: string) => boolean,
       removeHeaderColumnCallback: (arg0: string) => boolean) {
     super(true);
+    this.registerRequiredCSS(networkManageCustomHeadersViewStyles);
 
-    this.contentElement.classList.add('custom-headers-wrapper');
     this.contentElement.createChild('div', 'header').textContent = i18nString(UIStrings.manageHeaderColumns);
 
     this.list = new UI.ListWidget.ListWidget(this);
+    this.list.registerRequiredCSS(networkManageCustomHeadersViewStyles);
     this.list.element.classList.add('custom-headers-list');
 
     const placeholder = document.createElement('div');
@@ -81,9 +82,8 @@ export class NetworkManageCustomHeadersView extends UI.Widget.VBox implements UI
   }
 
   override wasShown(): void {
+    super.wasShown();
     this.headersUpdated();
-    this.list.registerCSSFiles([networkManageCustomHeadersViewStyles]);
-    this.registerCSSFiles([networkManageCustomHeadersViewStyles]);
   }
 
   private headersUpdated(): void {

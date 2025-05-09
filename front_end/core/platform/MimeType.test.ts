@@ -179,6 +179,8 @@ describe('isTextType', () => {
     ['application/json', true],
     ['image/svg+xml', true],
     ['application/manifest+json', true],
+    ['multipart/mixed', true],
+    ['application/vnd.linkedin.normalized+json+2.1', true],
   ]);
 
   it('determines if a mime type has text content', () => {

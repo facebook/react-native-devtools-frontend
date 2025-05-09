@@ -11,7 +11,6 @@ import {
   waitFor,
   waitForFunction,
 } from '../../shared/helper.js';
-import {describe, it} from '../../shared/mocha-extensions.js';
 import {openSoftContextMenuAndClickOnItem} from '../helpers/context-menu-helpers.js';
 import {
   getCallFrameNames,
@@ -26,11 +25,11 @@ describe('Sources Tab', () => {
     });
 
     await step('wait for the page to stop on the "debugger" statement', async () => {
-      target.evaluate('foo();');
+      void target.evaluate('foo();');
       await waitFor(PAUSE_INDICATOR_SELECTOR);
 
       const callFrameNames = await getCallFrameNames();
-      assert.deepStrictEqual(callFrameNames.slice(0, 3), ['baz', 'bar', 'foo']);
+      assert.deepEqual(callFrameNames.slice(0, 3), ['baz', 'bar', 'foo']);
     });
 
     await step('restart frame "bar"', async () => {

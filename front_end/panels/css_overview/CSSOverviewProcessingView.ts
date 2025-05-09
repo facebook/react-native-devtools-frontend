@@ -14,7 +14,7 @@ const UIStrings = {
    *@description Text to cancel something
    */
   cancel: 'Cancel',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/css_overview/CSSOverviewProcessingView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -23,6 +23,7 @@ export class CSSOverviewProcessingView extends UI.Widget.Widget {
   fragment?: UI.Fragment.Fragment;
   constructor(controller: OverviewController) {
     super();
+    this.registerRequiredCSS(cssOverviewProcessingViewStyles);
 
     this.#controller = controller;
     this.#render();
@@ -30,7 +31,7 @@ export class CSSOverviewProcessingView extends UI.Widget.Widget {
 
   #render(): void {
     const cancelButton = UI.UIUtils.createTextButton(
-        i18nString(UIStrings.cancel), () => this.#controller.dispatchEventToListeners(Events.RequestOverviewCancel),
+        i18nString(UIStrings.cancel), () => this.#controller.dispatchEventToListeners(Events.REQUEST_OVERVIEW_CANCEL),
         {jslogContext: 'css-overview.cancel-processing', variant: Buttons.Button.Variant.OUTLINED});
     this.setDefaultFocusedElement(cancelButton);
 
@@ -43,10 +44,5 @@ export class CSSOverviewProcessingView extends UI.Widget.Widget {
 
     this.contentElement.appendChild(this.fragment.element());
     this.contentElement.style.overflow = 'auto';
-  }
-
-  override wasShown(): void {
-    super.wasShown();
-    this.registerCSSFiles([cssOverviewProcessingViewStyles]);
   }
 }

@@ -4,7 +4,7 @@
 
 import * as SDK from '../../../core/sdk/sdk.js';
 import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
-import * as TraceEngine from '../trace.js';
+import * as Trace from '../trace.js';
 
 describeWithEnvironment('Trace Metadata', () => {
   it('returns the associated metadata', async () => {
@@ -13,19 +13,31 @@ describeWithEnvironment('Trace Metadata', () => {
     sinon.stub(cpuThrottlingManager, 'getHardwareConcurrency').returns(Promise.resolve(1));
     sinon.stub(cpuThrottlingManager, 'cpuThrottlingRate').returns(2);
     const networkManager = SDK.NetworkManager.MultitargetNetworkManager.instance({forceNew: true});
+    sinon.stub(networkManager, 'isThrottling').returns(true);
     sinon.stub(networkManager, 'networkConditions').returns({
       title: 'Slow 3G',
       download: 1,
-      upload: 1,
-      latency: 1,
+      upload: 2,
+      latency: 3,
     });
-    const metadata = await TraceEngine.Extras.Metadata.forNewRecording(/* isCpuProfile= */ false);
+    const metadata = await Trace.Extras.Metadata.forNewRecording(/* isCpuProfile= */ false);
     assert.deepEqual(metadata, {
       source: 'DevTools',
       startTime: undefined,
       cpuThrottling: 2,
       networkThrottling: 'Slow 3G',
-      dataOrigin: TraceEngine.Types.File.DataOrigin.TraceEvents,
+      networkThrottlingConditions: {
+        download: 1,
+        latency: 3,
+        upload: 2,
+        packetLoss: undefined,
+        packetQueueLength: undefined,
+        packetReordering: undefined,
+        targetLatency: undefined,
+      },
+      cruxFieldData: undefined,
+      dataOrigin: Trace.Types.File.DataOrigin.TRACE_EVENTS,
+      emulatedDeviceTitle: undefined,
       hardwareConcurrency: 1,
     });
   });
@@ -36,19 +48,31 @@ describeWithEnvironment('Trace Metadata', () => {
     sinon.stub(cpuThrottlingManager, 'getHardwareConcurrency').returns(Promise.resolve(1));
     sinon.stub(cpuThrottlingManager, 'cpuThrottlingRate').returns(2);
     const networkManager = SDK.NetworkManager.MultitargetNetworkManager.instance({forceNew: true});
+    sinon.stub(networkManager, 'isThrottling').returns(true);
     sinon.stub(networkManager, 'networkConditions').returns({
       title: () => 'Slow 3G',
       download: 1,
       upload: 1,
       latency: 1,
     });
-    const metadata = await TraceEngine.Extras.Metadata.forNewRecording(/* isCpuProfile= */ false);
+    const metadata = await Trace.Extras.Metadata.forNewRecording(/* isCpuProfile= */ false);
     assert.deepEqual(metadata, {
       source: 'DevTools',
       startTime: undefined,
       cpuThrottling: 2,
       networkThrottling: 'Slow 3G',
-      dataOrigin: TraceEngine.Types.File.DataOrigin.TraceEvents,
+      networkThrottlingConditions: {
+        download: 1,
+        latency: 1,
+        upload: 1,
+        packetLoss: undefined,
+        packetQueueLength: undefined,
+        packetReordering: undefined,
+        targetLatency: undefined,
+      },
+      emulatedDeviceTitle: undefined,
+      cruxFieldData: undefined,
+      dataOrigin: Trace.Types.File.DataOrigin.TRACE_EVENTS,
       hardwareConcurrency: 1,
     });
   });
@@ -59,19 +83,31 @@ describeWithEnvironment('Trace Metadata', () => {
     const getHardwareConcurrencyStub = sinon.stub(cpuThrottlingManager, 'getHardwareConcurrency');
     sinon.stub(cpuThrottlingManager, 'cpuThrottlingRate').returns(2);
     const networkManager = SDK.NetworkManager.MultitargetNetworkManager.instance({forceNew: true});
+    sinon.stub(networkManager, 'isThrottling').returns(true);
     sinon.stub(networkManager, 'networkConditions').returns({
       title: () => 'Slow 3G',
       download: 1,
       upload: 1,
       latency: 1,
     });
-    const metadata = await TraceEngine.Extras.Metadata.forNewRecording(/* isCpuProfile= */ false);
+    const metadata = await Trace.Extras.Metadata.forNewRecording(/* isCpuProfile= */ false);
     assert.deepEqual(metadata, {
       source: 'DevTools',
       startTime: undefined,
       cpuThrottling: 2,
       networkThrottling: 'Slow 3G',
-      dataOrigin: TraceEngine.Types.File.DataOrigin.TraceEvents,
+      networkThrottlingConditions: {
+        download: 1,
+        latency: 1,
+        upload: 1,
+        packetLoss: undefined,
+        packetQueueLength: undefined,
+        packetReordering: undefined,
+        targetLatency: undefined,
+      },
+      cruxFieldData: undefined,
+      dataOrigin: Trace.Types.File.DataOrigin.TRACE_EVENTS,
+      emulatedDeviceTitle: undefined,
       hardwareConcurrency: undefined,
     });
     assert.strictEqual(getHardwareConcurrencyStub.callCount, 0);

@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import type * as puppeteer from 'puppeteer-core';
+
 import {
   assertNotNullOrUndefined,
   click,
@@ -13,7 +15,6 @@ import {
   waitForElementWithTextContent,
   waitForNoElementsWithTextContent,
 } from '../../shared/helper.js';
-import {describe, it} from '../../shared/mocha-extensions.js';
 import {toggleAccessibilityTree} from '../helpers/elements-helpers.js';
 
 describe('Accessibility Tree in the Elements Tab', function() {
@@ -34,8 +35,9 @@ describe('Accessibility Tree in the Elements Tab', function() {
         `RootWebArea\xa0"Simple page with aria labeled element" focusable:\xa0true url:\xa0${
             getResourcesPath()}/elements/accessibility-simple-page.html`);
     const arrowIconContainer =
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await iframeDoc.evaluateHandle(node => (node as any).parentElementOrShadowHost().parentElement.parentElement);
+        (await iframeDoc.evaluateHandle(
+            // eslint-disable-next-line  @typescript-eslint/no-explicit-any
+            node => (node as any).parentElementOrShadowHost().parentElement.parentElement)) as puppeteer.ElementHandle;
     assertNotNullOrUndefined(arrowIconContainer);
     await click('.arrow-icon', {root: arrowIconContainer});
     await waitForElementWithTextContent(`link\xa0"cats" focusable:\xa0true url:\xa0${getResourcesPath()}/elements/x`);
@@ -50,7 +52,7 @@ describe('Accessibility Tree in the Elements Tab', function() {
     await toggleAccessibilityTree();
     await waitForElementWithTextContent(`link\xa0"cats" focusable:\xa0true url:\xa0${getResourcesPath()}/elements/x`);
     await target.bringToFront();
-    const link = await target.waitForSelector('aria/cats [role="link"]');
+    const link = await target.waitForSelector('aria/cats[role="link"]');
     await link!.evaluate(node => {
       (node as HTMLElement).innerText = 'dogs';
     });
@@ -70,7 +72,7 @@ describe('Accessibility Tree in the Elements Tab', function() {
     await frontend.bringToFront();
     await toggleAccessibilityTree();
     await target.bringToFront();
-    const link = await target.waitForSelector('aria/cats [role="link"]');
+    const link = await target.waitForSelector('aria/cats[role="link"]');
     assertNotNullOrUndefined(link);
     await frontend.bringToFront();
     await waitForElementWithTextContent(`link\xa0"cats" focusable:\xa0true url:\xa0${getResourcesPath()}/elements/x`);
@@ -92,7 +94,7 @@ describe('Accessibility Tree in the Elements Tab', function() {
     await frontend.bringToFront();
     await toggleAccessibilityTree();
     await target.bringToFront();
-    const link = await target.waitForSelector('aria/cats [role="link"]');
+    const link = await target.waitForSelector('aria/cats[role="link"]');
     await frontend.bringToFront();
     await waitForElementWithTextContent(`link\xa0"cats" focusable:\xa0true url:\xa0${getResourcesPath()}/elements/x`);
     await target.bringToFront();

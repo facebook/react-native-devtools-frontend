@@ -62,7 +62,7 @@ describeWithLocale('IssueCounter', () => {
       });
 
       const icons = extractIconGroups(shadowRoot);
-      assert.strictEqual(icons.length, 2);
+      assert.lengthOf(icons, 2);
       assert.deepEqual(icons.map(c => c.label), ['2', '1']);
       const iconNames = icons.map(c => 'iconName' in c.iconData ? c.iconData.iconName : undefined);
       assert.deepEqual(iconNames, ['issue-cross-filled', 'issue-exclamation-filled']);
@@ -77,7 +77,7 @@ describeWithLocale('IssueCounter', () => {
 
       {
         const icons = extractIconGroups(shadowRoot);
-        assert.strictEqual(icons.length, 2);
+        assert.lengthOf(icons, 2);
         assert.deepEqual(icons.map(c => c.label), ['2', '1']);
         const iconNames = icons.map(c => 'iconName' in c.iconData ? c.iconData.iconName : undefined);
         assert.deepEqual(iconNames, ['issue-cross-filled', 'issue-exclamation-filled']);
@@ -87,7 +87,7 @@ describeWithLocale('IssueCounter', () => {
 
       {
         const icons = extractIconGroups(shadowRoot);
-        assert.strictEqual(icons.length, 3);
+        assert.lengthOf(icons, 3);
         assert.deepEqual(icons.map(c => c.label), ['3', '2', '1']);
         const iconNames = icons.map(c => 'iconName' in c.iconData ? c.iconData.iconName : undefined);
         assert.deepEqual(iconNames, ['issue-cross-filled', 'issue-exclamation-filled', 'issue-text-filled']);
@@ -103,17 +103,17 @@ describeWithLocale('IssueCounter', () => {
 
       {
         const icons = extractIconGroups(shadowRoot);
-        assert.strictEqual(icons.length, 2);
+        assert.lengthOf(icons, 2);
         assert.deepEqual(icons.map(c => c.label), ['2', '1']);
         const iconNames = icons.map(c => 'iconName' in c.iconData ? c.iconData.iconName : undefined);
         assert.deepEqual(iconNames, ['issue-cross-filled', 'issue-exclamation-filled']);
       }
 
-      component.data = {...component.data, displayMode: IssueCounter.IssueCounter.DisplayMode.OnlyMostImportant};
+      component.data = {...component.data, displayMode: IssueCounter.IssueCounter.DisplayMode.ONLY_MOST_IMPORTANT};
 
       {
         const icons = extractIconGroups(shadowRoot);
-        assert.strictEqual(icons.length, 1);
+        assert.lengthOf(icons, 1);
         assert.deepEqual(icons.map(c => c.label), ['2']);
         const iconNames = icons.map(c => 'iconName' in c.iconData ? c.iconData.iconName : undefined);
         assert.deepEqual(iconNames, ['issue-cross-filled']);
@@ -141,12 +141,12 @@ describeWithLocale('IssueCounter', () => {
       const issuesManager = new MockIssuesManager([]);
       const {shadowRoot} = renderIssueCounter({
         issuesManager: issuesManager as unknown as IssuesManager.IssuesManager.IssuesManager,
-        displayMode: IssueCounter.IssueCounter.DisplayMode.ShowAlways,
+        displayMode: IssueCounter.IssueCounter.DisplayMode.SHOW_ALWAYS,
         throttlerTimeout: 0,
       });
 
       const icons = extractIconGroups(shadowRoot);
-      assert.strictEqual(icons.length, 3);
+      assert.lengthOf(icons, 3);
       assert.deepEqual(icons.map(c => c.label), ['2', '1', '0']);
       const iconNames = icons.map(c => 'iconName' in c.iconData ? c.iconData.iconName : undefined);
       assert.deepEqual(iconNames, ['issue-cross-filled', 'issue-exclamation-filled', 'issue-text-filled']);
@@ -156,13 +156,13 @@ describeWithLocale('IssueCounter', () => {
       const issuesManager = new MockIssuesManager([]);
       const {shadowRoot} = renderIssueCounter({
         issuesManager: issuesManager as unknown as IssuesManager.IssuesManager.IssuesManager,
-        displayMode: IssueCounter.IssueCounter.DisplayMode.ShowAlways,
+        displayMode: IssueCounter.IssueCounter.DisplayMode.SHOW_ALWAYS,
         throttlerTimeout: 0,
       });
 
       {
         const icons = extractIconGroups(shadowRoot);
-        assert.strictEqual(icons.length, 3);
+        assert.lengthOf(icons, 3);
         assert.deepEqual(icons.map(c => c.label), ['2', '1', '0']);
         const iconNames = icons.map(c => 'iconName' in c.iconData ? c.iconData.iconName : undefined);
         assert.deepEqual(iconNames, ['issue-cross-filled', 'issue-exclamation-filled', 'issue-text-filled']);
@@ -172,7 +172,7 @@ describeWithLocale('IssueCounter', () => {
 
       {
         const icons = extractIconGroups(shadowRoot);
-        assert.strictEqual(icons.length, 3);
+        assert.lengthOf(icons, 3);
         assert.deepEqual(icons.map(c => c.label), ['3', '2', '1']);
         const iconNames = icons.map(c => 'iconName' in c.iconData ? c.iconData.iconName : undefined);
         assert.deepEqual(iconNames, ['issue-cross-filled', 'issue-exclamation-filled', 'issue-text-filled']);
@@ -190,7 +190,7 @@ describeWithLocale('IssueCounter', () => {
       });
 
       const icons = extractIconGroups(shadowRoot);
-      assert.strictEqual(icons.length, 1);
+      assert.lengthOf(icons, 1);
       assert.deepEqual(icons.map(c => c.label), [null]);
       const iconNames = icons.map(c => 'iconName' in c.iconData ? c.iconData.iconName : undefined);
       assert.deepEqual(iconNames, ['issue-cross-filled']);
@@ -199,9 +199,9 @@ describeWithLocale('IssueCounter', () => {
     it('renders correctly with only improvement issues', () => {
       const issuesManager = new MockIssuesManager([]);
       issuesManager.setNumberOfIssues(new Map([
-        [IssuesManager.Issue.IssueKind.Improvement, 3],
-        [IssuesManager.Issue.IssueKind.BreakingChange, 0],
-        [IssuesManager.Issue.IssueKind.PageError, 0],
+        [IssuesManager.Issue.IssueKind.IMPROVEMENT, 3],
+        [IssuesManager.Issue.IssueKind.BREAKING_CHANGE, 0],
+        [IssuesManager.Issue.IssueKind.PAGE_ERROR, 0],
       ]));
       const {shadowRoot} = renderIssueCounter({
         issuesManager: issuesManager as unknown as IssuesManager.IssuesManager.IssuesManager,
@@ -210,7 +210,7 @@ describeWithLocale('IssueCounter', () => {
       });
 
       const icons = extractIconGroups(shadowRoot);
-      assert.strictEqual(icons.length, 1);
+      assert.lengthOf(icons, 1);
       assert.deepEqual(icons.map(c => c.label), [null]);
       const iconNames = icons.map(c => 'iconName' in c.iconData ? c.iconData.iconName : undefined);
       assert.deepEqual(iconNames, ['issue-text-filled']);

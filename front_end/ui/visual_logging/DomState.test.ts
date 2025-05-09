@@ -112,12 +112,12 @@ describe('DomState', () => {
     const {loggables} = VisualLogging.DomState.getDomState([document]);
     assert.sameDeepMembers(loggables, [
       {element: el('1'), parent: undefined},
-      {element: el('1311', shadow) as Element, parent: el('1')},
+      {element: el('1311', shadow), parent: el('1')},
       {element: el('12'), parent: el('1')},
     ]);
   });
 
-  it('walks slots in the assigned order', () => {
+  it('walks slots in the assigned order and ignores the rest of light DOM', () => {
     class TestComponent extends HTMLElement {
       private render() {
         const shadow = this.attachShadow({mode: 'open'});
@@ -138,7 +138,8 @@ describe('DomState', () => {
           <div jslog="TreeItem" id="11" slot="slot-1">
             <div id="111" jslog="TreeItem"></div>
           </div>
-          <div id="12" slot="slot-2" jslog="TreeItem">
+          <div id="12" slot="slot-2" jslog="TreeItem"></div>
+          <div id="13" jslog="TreeItem"></div>
         </ve-test-component>
       </div>`;
     const {loggables} = VisualLogging.DomState.getDomState([document]);
@@ -152,6 +153,19 @@ describe('DomState', () => {
       {element: el('c2', shadow), parent: el('1')},
       {element: el('12'), parent: el('c2', shadow)},
     ]);
+  });
+
+  it('ignores template elements', () => {
+    container.innerHTML = `
+      <template jslog="TreeItem">
+        <div jslog="TreeItem" id="11" slot="slot-1">
+          <div id="111" jslog="TreeItem"></div>
+        </div>
+        <div id="12" slot="slot-2" jslog="TreeItem">
+        <div id="13" jslog="TreeItem">
+      </div>`;
+    const {loggables} = VisualLogging.DomState.getDomState([document]);
+    assert.isEmpty(loggables);
   });
 
   it('returns shadow roots', () => {
@@ -191,28 +205,37 @@ describe('DomState', () => {
       <div id="1" class="box" style="left: 50px; top: 0;"></div>
       <div id="2" class="box" style="left: 0; top: 50px;"></div>`;
 
-    assert.deepStrictEqual(
+    assert.deepEqual(
         VisualLogging.DomState.visibleOverlap(el('1'), new DOMRect(0, 0, 200, 200)), new DOMRect(50, 0, 100, 100));
-    assert.deepStrictEqual(
+    assert.deepEqual(
         VisualLogging.DomState.visibleOverlap(el('2'), new DOMRect(0, 0, 200, 200)), new DOMRect(0, 50, 100, 100));
 
-    assert.deepStrictEqual(
+    assert.deepEqual(
         VisualLogging.DomState.visibleOverlap(el('1'), new DOMRect(0, 0, 100, 100)), new DOMRect(50, 0, 50, 100));
-    assert.deepStrictEqual(
+    assert.deepEqual(
         VisualLogging.DomState.visibleOverlap(el('2'), new DOMRect(0, 0, 100, 100)), new DOMRect(0, 50, 100, 50));
 
     assert.isNull(VisualLogging.DomState.visibleOverlap(el('1'), new DOMRect(0, 0, 50, 50)));
     assert.isNull(VisualLogging.DomState.visibleOverlap(el('2'), new DOMRect(0, 0, 50, 50)));
 
     assert.isNull(VisualLogging.DomState.visibleOverlap(el('1'), new DOMRect(0, 0, 50, 100)));
-    assert.deepStrictEqual(
+    assert.deepEqual(
         VisualLogging.DomState.visibleOverlap(el('2'), new DOMRect(0, 0, 50, 100)), new DOMRect(0, 50, 50, 50));
 
     assert.isNull(VisualLogging.DomState.visibleOverlap(el('1'), new DOMRect(25, 25, 25, 50)));
-    assert.deepStrictEqual(
+    assert.deepEqual(
         VisualLogging.DomState.visibleOverlap(el('2'), new DOMRect(25, 25, 25, 50)), new DOMRect(25, 50, 25, 25));
 
     assert.isNull(VisualLogging.DomState.visibleOverlap(el('1'), new DOMRect(25, 25, 30, 30)));
     assert.isNull(VisualLogging.DomState.visibleOverlap(el('2'), new DOMRect(25, 25, 30, 30)));
+  });
+
+  it('identifies small visible elements', () => {
+    container.innerHTML = `
+      <div id="1" class="box" style="width: 100px; height: 5px;"></div>
+      <div id="2" class="box" style="width: 0; height: 5px;"></div>`;
+
+    assert.isNotNull(VisualLogging.DomState.visibleOverlap(el('1'), new DOMRect(0, 0, 200, 200)));
+    assert.isNull(VisualLogging.DomState.visibleOverlap(el('2'), new DOMRect(0, 0, 200, 200)));
   });
 });

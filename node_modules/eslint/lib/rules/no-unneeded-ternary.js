@@ -28,10 +28,13 @@ module.exports = {
     meta: {
         type: "suggestion",
 
+        defaultOptions: [{ defaultAssignment: true }],
+
         docs: {
             description: "Disallow ternary operators when simpler alternatives exist",
             recommended: false,
-            url: "https://eslint.org/docs/rules/no-unneeded-ternary"
+            frozen: true,
+            url: "https://eslint.org/docs/latest/rules/no-unneeded-ternary"
         },
 
         schema: [
@@ -39,8 +42,7 @@ module.exports = {
                 type: "object",
                 properties: {
                     defaultAssignment: {
-                        type: "boolean",
-                        default: true
+                        type: "boolean"
                     }
                 },
                 additionalProperties: false
@@ -56,9 +58,8 @@ module.exports = {
     },
 
     create(context) {
-        const options = context.options[0] || {};
-        const defaultAssignment = options.defaultAssignment !== false;
-        const sourceCode = context.getSourceCode();
+        const [{ defaultAssignment }] = context.options;
+        const sourceCode = context.sourceCode;
 
         /**
          * Test if the node is a boolean literal
@@ -76,7 +77,7 @@ module.exports = {
          * @returns {string} A string representing an inverted expression
          */
         function invertExpression(node) {
-            if (node.type === "BinaryExpression" && Object.prototype.hasOwnProperty.call(OPERATOR_INVERSES, node.operator)) {
+            if (node.type === "BinaryExpression" && Object.hasOwn(OPERATOR_INVERSES, node.operator)) {
                 const operatorToken = sourceCode.getFirstTokenBetween(
                     node.left,
                     node.right,
@@ -144,7 +145,7 @@ module.exports = {
                     context.report({
                         node,
                         messageId: "unnecessaryConditionalAssignment",
-                        fix: fixer => {
+                        fix(fixer) {
                             const shouldParenthesizeAlternate =
                                 (
                                     astUtils.getPrecedence(node.alternate) < OR_PRECEDENCE ||

@@ -28,8 +28,8 @@
 //  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 //  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import {type AreaBounds, type Bounds} from './common.js';
-import {drawGridLabels, type GridLabelState} from './css_grid_label_helpers.js';
+import type {AreaBounds, Bounds} from './common.js';
+import {drawGridLabels, type GridLabelState, isHorizontalWritingMode} from './css_grid_label_helpers.js';
 import {applyMatrixToPoint, buildPath, emptyBounds, hatchFillPath} from './highlight_common.js';
 
 // TODO(alexrudenko): Grid label unit tests depend on this style so it cannot be extracted yet.
@@ -312,17 +312,18 @@ export function drawLayoutGridHighlight(
 }
 
 function applyWritingModeTransformation(writingMode: string, gridBounds: Bounds, context: CanvasRenderingContext2D) {
-  if (writingMode !== 'vertical-rl' && writingMode !== 'vertical-lr') {
+  if (isHorizontalWritingMode(writingMode)) {
     return;
   }
 
   const topLeft = gridBounds.allPoints[0];
+  const topRight = gridBounds.allPoints[1];
   const bottomLeft = gridBounds.allPoints[3];
 
   // Move to the top-left corner to do all transformations there.
   context.translate(topLeft.x, topLeft.y);
 
-  if (writingMode === 'vertical-rl') {
+  if (writingMode === 'vertical-rl' || writingMode === 'sideways-rl') {
     context.rotate(90 * Math.PI / 180);
     context.translate(0, -1 * (bottomLeft.y - topLeft.y));
   }
@@ -332,6 +333,11 @@ function applyWritingModeTransformation(writingMode: string, gridBounds: Bounds,
     context.scale(1, -1);
   }
 
+  if (writingMode === 'sideways-lr') {
+    context.rotate(-90 * Math.PI / 180);
+    context.translate(-1 * (topRight.x - topLeft.x), 0);
+  }
+
   // Move back to the original point.
   context.translate(topLeft.x * -1, topLeft.y * -1);
 }
@@ -339,9 +345,9 @@ function applyWritingModeTransformation(writingMode: string, gridBounds: Bounds,
 function drawGridLines(
     context: CanvasRenderingContext2D, highlight: GridHighlight, direction: 'row'|'column',
     emulationScaleFactor: number) {
-  const tracks = highlight[`${direction}s` as 'rows' | 'columns'];
-  const color = highlight.gridHighlightConfig[`${direction}LineColor` as 'rowLineColor' | 'columnLineColor'];
-  const dash = highlight.gridHighlightConfig[`${direction}LineDash` as 'rowLineDash' | 'columnLineDash'];
+  const tracks = highlight[`${direction}s`];
+  const color = highlight.gridHighlightConfig[`${direction}LineColor`];
+  const dash = highlight.gridHighlightConfig[`${direction}LineDash`];
 
   if (!color) {
     return null;

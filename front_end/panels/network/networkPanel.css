@@ -44,7 +44,8 @@
   --network-grid-navigation-color: var(--ref-palette-blue90);
   --network-grid-initiator-path-color: var(--ref-palette-green90);
   --network-grid-initiated-path-color: var(--ref-palette-error80);
-  --network-grid-focus-selected-color-has-error: var(--sys-color-error-container);
+  --network-grid-focus-selected-color-has-error: var(--sys-color-surface-error);
+  --network-grid-focus-selected-color-has-warning: var(--sys-color-surface-yellow);
   --network-grid-from-frame-color: var(--ref-palette-cyan95);
   --network-grid-is-product-color: var(--ref-palette-yellow95);
   --network-frame-divider-color: var(--ref-palette-yellow60);
@@ -146,30 +147,27 @@
 }
 
 .network-settings-pane {
+  display: grid;
+  grid-template-columns: 50% 50%;
   flex: none;
-  background-color: var(--sys-color-cdt-base-container);
-}
-
-.network-settings-pane .toolbar {
-  flex: 1 1;
-}
-
-.network-toolbar-container {
-  display: flex;
-  flex: none;
-}
-
-.network-toolbar-container > :first-child {
-  flex: 1 1 auto;
-}
-
-.panel.network .toolbar {
   background-color: var(--sys-color-cdt-base-container);
   border-bottom: 1px solid var(--sys-color-divider);
 }
 
+.network-toolbar-container {
+  display: flex;
+  align-items: flex-start;
+  flex: none;
+  background-color: var(--sys-color-cdt-base-container);
+  border-bottom: 1px solid var(--sys-color-divider);
+
+  & > :first-child {
+    flex: 1 1 auto;
+  }
+}
+
 @media (forced-colors: active) {
-  .panel.network .toolbar {
+  .panel.network devtools-toolbar {
     background-color: canvas;
   }
 }

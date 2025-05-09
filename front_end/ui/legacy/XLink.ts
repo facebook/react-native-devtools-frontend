@@ -4,17 +4,17 @@
 
 import * as Host from '../../core/host/host.js';
 import * as Platform from '../../core/platform/platform.js';
-import * as LitHtml from '../lit-html/lit-html.js';
+import {html} from '../lit/lit.js';
 import * as VisualLogging from '../visual_logging/visual_logging.js';
 
 import * as ARIAUtils from './ARIAUtils.js';
-import {type ContextMenu, type Provider} from './ContextMenu.js';
-import {html} from './Fragment.js';
+import type {ContextMenu, Provider} from './ContextMenu.js';
+import {html as xhtml} from './Fragment.js';
 import {Tooltip} from './Tooltip.js';
 import {
-  addReferrerToURLIfNecessary,
   copyLinkAddressLabel,
   MaxLengthForDisplayedURLs,
+  openInNewTab,
   openLinkExternallyLabel,
 } from './UIUtils.js';
 import {XElement} from './XElement.js';
@@ -24,16 +24,17 @@ export class XLink extends XElement {
   private clickable: boolean;
   private readonly onClick: (arg0: Event) => void;
   private readonly onKeyDown: (arg0: KeyboardEvent) => void;
-  static create(url: string, linkText?: string, className?: string, preventClick?: boolean, jsLogContext?: string):
-      HTMLElement {
+  static create(
+      url: string, linkText?: string, className?: string, preventClick?: boolean, jsLogContext?: string,
+      tabindex = '0'): HTMLElement {
     if (!linkText) {
       linkText = url;
     }
     className = className || '';
     // clang-format off
     // TODO(dgozman): migrate css from 'devtools-link' to 'x-link'.
-    const element = html `
-  <x-link href='${url}' tabindex="0" class='${className} devtools-link' ${preventClick ? 'no-click' : ''}
+    const element = xhtml `
+  <x-link href='${url}' tabindex='${tabindex}' class='${className} devtools-link' ${preventClick ? 'no-click' : ''}
   jslog=${VisualLogging.link().track({click: true, keydown:'Enter|Space'}).context(jsLogContext)}>${Platform.StringUtilities.trimMiddle(linkText, MaxLengthForDisplayedURLs)}</x-link>`;
     // clang-format on
     return element as HTMLElement;
@@ -54,7 +55,7 @@ export class XLink extends XElement {
     this.onClick = (event: Event) => {
       event.consume(true);
       if (this.hrefInternal) {
-        Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(this.hrefInternal);
+        openInNewTab(this.hrefInternal);
       }
       this.dispatchEvent(new Event('x-link-invoke'));
     };
@@ -62,7 +63,7 @@ export class XLink extends XElement {
       if (Platform.KeyboardUtilities.isEnterOrSpaceKey(event)) {
         event.consume(true);
         if (this.hrefInternal) {
-          Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(this.hrefInternal);
+          openInNewTab(this.hrefInternal);
         }
       }
       this.dispatchEvent(new Event('x-link-invoke'));
@@ -71,7 +72,7 @@ export class XLink extends XElement {
 
   static override get observedAttributes(): string[] {
     // TODO(dgozman): should be super.observedAttributes, but it does not compile.
-    return XElement.observedAttributes.concat(['href', 'no-click', 'title']);
+    return XElement.observedAttributes.concat(['href', 'no-click', 'title', 'tabindex']);
   }
 
   get href(): Platform.DevToolsPath.UrlString|null {
@@ -91,14 +92,12 @@ export class XLink extends XElement {
         newValue = '';
       }
       let href: Platform.DevToolsPath.UrlString|null = null;
-      let url: URL|null = null;
       try {
-        url = new URL(addReferrerToURLIfNecessary(newValue as Platform.DevToolsPath.UrlString));
-        href = url.toString() as Platform.DevToolsPath.UrlString;
+        const url = new URL(newValue);
+        if (url.protocol !== 'javascript:') {
+          href = Platform.DevToolsPath.urlString`${url}`;
+        }
       } catch {
-      }
-      if (url && url.protocol === 'javascript:') {
-        href = null;
       }
 
       this.hrefInternal = href;
@@ -106,6 +105,13 @@ export class XLink extends XElement {
         Tooltip.install(this, newValue);
       }
       this.updateClick();
+      return;
+    }
+
+    if (attr === 'tabindex') {
+      if (oldValue !== newValue) {
+        this.setAttribute('tabindex', newValue || '0');
+      }
       return;
     }
 
@@ -137,7 +143,7 @@ export class ContextMenuProvider implements Provider<Node> {
     const node: XLink = targetNode;
     contextMenu.revealSection().appendItem(openLinkExternallyLabel(), () => {
       if (node.href) {
-        Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(node.href);
+        openInNewTab(node.href);
       }
     }, {jslogContext: 'open-in-new-tab'});
     contextMenu.revealSection().appendItem(copyLinkAddressLabel(), () => {
@@ -150,4 +156,4 @@ export class ContextMenuProvider implements Provider<Node> {
 
 customElements.define('x-link', XLink);
 
-export const sample = LitHtml.html`<p>Hello, <x-link>world!</x-link></p>`;
+export const sample = html`<p>Hello, <x-link>world!</x-link></p>`;

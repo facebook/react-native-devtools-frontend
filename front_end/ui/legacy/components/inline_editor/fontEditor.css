@@ -64,7 +64,7 @@
   border-top: 1px solid var(--sys-color-divider);
 }
 
-.chrome-select.font-editor-select {
+select.font-editor-select {
   min-width: 50px;
   min-height: 27px;
 }
@@ -77,7 +77,8 @@ input::-webkit-inner-spin-button {
 
 .preview-text {
   max-width: 300px;
-  word-break: break-word;
+  word-break: normal;
+  overflow-wrap: anywhere;
   display: block;
 }
 

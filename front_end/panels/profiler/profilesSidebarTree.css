@@ -40,7 +40,15 @@ li.wait .icon {
   content: none;
 }
 
+li devtools-button {
+  min-width: var(--sys-size-12);
+  visibility: hidden;
+}
+
 /* Tree outline overrides */
+.heap-snapshot-sidebar-tree-item:not(:hover) devtools-button {
+  visibility: hidden;
+}
 
 .heap-snapshot-sidebar-tree-item.wait .icon {
   mask-image: unset;
@@ -121,7 +129,7 @@ ol.tree-outline {
   margin-top: var(--sys-size-6);
   line-height: var(--sys-size-8);
 
-  &:hover:not(:has(span[is="dt-checkbox"])) .selection {
+  &:hover:not(:has(dt-checkbox)) .selection {
     background-color: transparent;
   }
 }
@@ -176,8 +184,18 @@ li .titles {
 
 li .titles > .title-container {
   z-index: 1;
-  text-overflow: ellipsis;
   overflow: hidden;
+}
+
+li .titles > .title-container:has(:not(.editing)) {
+  text-overflow: ellipsis;
+}
+
+li .titles > .title-container .title.editing {
+  display: flex;
+  overflow: hidden;
+  margin-inline: 0;
+  padding-inline: 0;
 }
 
 li.small .titles {
@@ -198,11 +216,6 @@ li .subtitle {
 
 li.small .subtitle {
   display: none;
-}
-
-li devtools-button {
-  min-width: var(--sys-size-12);
-  visibility: hidden;
 }
 
 li.selected:hover devtools-button {

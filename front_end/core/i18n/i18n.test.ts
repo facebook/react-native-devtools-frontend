@@ -79,6 +79,14 @@ describe('getLocalizedLanguageRegion', () => {
 describe('getFormatLocalizedString', () => {
   let i18nInstance: i18nRaw.I18n.I18n;
   beforeEach(() => {
+    i18n.DevToolsLocale.DevToolsLocale.instance({
+      create: true,
+      data: {
+        navigatorLanguage: 'en-US',
+        settingLanguage: 'en-US',
+        lookupClosestDevToolsLocale: () => 'en-US',
+      },
+    });
     i18nInstance = new i18nRaw.I18n.I18n(['en-US'], 'en-US');
     i18nInstance.registerLocaleData('en-US', {});  // Always fall back to UIStrings.
   });
@@ -118,6 +126,43 @@ describe('getFormatLocalizedString', () => {
   });
 });
 
+describe('falling back when a locale errors', () => {
+  it('reverts to using the UIStrings directly', async () => {
+    i18n.DevToolsLocale.DevToolsLocale.instance({
+      create: true,
+      data: {
+        // Create the locale and set en-GB to default. This test is going to
+        // assert that when there is an error with the en-GB string that we
+        // fallback.
+        navigatorLanguage: 'en-GB',
+        settingLanguage: 'en-GB',
+        lookupClosestDevToolsLocale: () => 'en-GB',
+      },
+    });
+    const i18nInstance = new i18nRaw.I18n.I18n(['en-GB', 'en-US'], 'en-US');
+
+    // Recreate the bug that can happen in Canary: the en-US translation is up
+    // to date (no PH1 placeholder), but the en-GB translation is out of date.
+    // We expect that in this instance we should fallback to en-US.
+    i18nInstance.registerLocaleData('en-US', {
+      'test.ts | placeholder': {message: 'US: hello world'},
+    });
+    // Register the (outdated) en-GB string.
+    i18nInstance.registerLocaleData('en-GB', {
+      'test.ts | placeholder': {message: 'GB: hello {PH1}'},
+    });
+
+    const uiStrings = {placeholder: 'US: hello world'};
+    const registeredStrings = i18nInstance.registerFileStrings('test.ts', uiStrings);
+
+    // We should see "hello world" because we don't pass the placeholder value,
+    // and that means the en-GB translations are invalid, and we fallback to
+    // the UIStrings.
+    const output = i18n.i18n.getLocalizedString(registeredStrings, uiStrings.placeholder);
+    assert.strictEqual(output, 'US: hello world');
+  });
+});
+
 describe('fetchAndRegisterLocaleData', () => {
   let fetchStub: sinon.SinonStub;
 
@@ -148,8 +193,7 @@ describe('fetchAndRegisterLocaleData', () => {
     // this test. This means we only check the last part of the URL with which `fetch`
     // was called.
     const actualUrl = fetchStub.args[0][0];
-    assert.isTrue(
-        actualUrl.endsWith('gen/front_end/core/i18n/locales/en-US.json'), `Actually called with ${actualUrl}`);
+    assert.isTrue(actualUrl.endsWith('front_end/core/i18n/locales/en-US.json'), `Actually called with ${actualUrl}`);
   });
 
   it('fetches non-bundled locale files from the remote service endpoint', async () => {

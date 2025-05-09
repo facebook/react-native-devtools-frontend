@@ -3,24 +3,21 @@
 // found in the LICENSE file.
 
 import {waitFor} from '../../../../shared/helper.js';
-import {describe, itScreenshot} from '../../../../shared/mocha-extensions.js';
 import {assertElementScreenshotUnchanged} from '../../../../shared/screenshots.js';
-import {loadComponentDocExample, preloadForCodeCoverage} from '../../../helpers/shared.js';
+import {loadComponentDocExample} from '../../../helpers/shared.js';
 
 describe('Layout shifts track', function() {
-  preloadForCodeCoverage('performance_panel/track_example.html');
-
   const urlForTest = 'performance_panel/track_example.html?track=LayoutShifts&fileName=cls-single-frame';
 
   itScreenshot('renders the layout shifts track correctly', async () => {
     await loadComponentDocExample(`${urlForTest}`);
     const flameChart = await waitFor('.flame-chart-main-pane');
-    await assertElementScreenshotUnchanged(flameChart, 'performance/layout_shifts_track.png', 2);
+    await assertElementScreenshotUnchanged(flameChart, 'performance/layout_shifts_track.png');
   });
 
   itScreenshot('renders the track (dark mode)', async () => {
     await loadComponentDocExample(`${urlForTest}&expanded=true&darkMode=true`);
     const flameChart = await waitFor('.flame-chart-main-pane');
-    await assertElementScreenshotUnchanged(flameChart, 'performance/layout_shifts_track_dark_mode.png', 2);
+    await assertElementScreenshotUnchanged(flameChart, 'performance/layout_shifts_track_dark_mode.png');
   });
 });

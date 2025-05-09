@@ -12,7 +12,7 @@
   border: 1px solid var(--sys-color-neutral-outline);
   border-radius: var(--sys-shape-corner-small);
   background-color: var(--app-color-menu-background);
-  box-shadow: var(--sys-elevation-level3); /* stylelint-disable-line plugin/use_theme_colors */
+  box-shadow: var(--sys-elevation-level3);
 }
 
 :host-context(.theme-with-dark-background) .soft-context-menu {
@@ -23,7 +23,7 @@
   padding-right: var(--sys-size-14);
 }
 
-.dockside-title + .toolbar {
+.dockside-title + devtools-toolbar {
   margin-right: -8px;
 }
 
@@ -104,6 +104,7 @@
   text-align: right;
   padding-left: var(--sys-size-6);
 
+  .soft-context-menu-disabled &,
   .soft-context-menu-item-mouse-over & {
     color: inherit;
   }

@@ -37,12 +37,12 @@ export declare class DeviceRequestPromptDevice {
  * @example
  *
  * ```ts
- * const [deviceRequest] = Promise.all([
+ * const [devicePrompt] = Promise.all([
  *   page.waitForDevicePrompt(),
  *   page.click('#connect-bluetooth'),
  * ]);
  * await devicePrompt.select(
- *   await devicePrompt.waitForDevice(({name}) => name.includes('My Device'))
+ *   await devicePrompt.waitForDevice(({name}) => name.includes('My Device')),
  * );
  * ```
  *

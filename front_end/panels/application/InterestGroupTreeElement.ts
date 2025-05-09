@@ -11,7 +11,7 @@ import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 
 import {ApplicationPanelTreeElement} from './ApplicationPanelTreeElement.js';
 import {InterestGroupStorageView} from './InterestGroupStorageView.js';
-import {type ResourcesPanel} from './ResourcesPanel.js';
+import type {ResourcesPanel} from './ResourcesPanel.js';
 
 const UIStrings = {
   /**
@@ -21,7 +21,7 @@ const UIStrings = {
    * outcome of a FLEDGE auction. (https://developer.chrome.com/blog/fledge-api/)
    */
   interestGroups: 'Interest groups',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/application/InterestGroupTreeElement.ts', UIStrings);
 export const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -44,8 +44,7 @@ export class InterestGroupTreeElement extends ApplicationPanelTreeElement {
     if (!mainTarget) {
       return null;
     }
-    const response =
-        await mainTarget.storageAgent().invoke_getInterestGroupDetails({'ownerOrigin': owner, 'name': name});
+    const response = await mainTarget.storageAgent().invoke_getInterestGroupDetails({ownerOrigin: owner, name});
     return response.details;
   }
 

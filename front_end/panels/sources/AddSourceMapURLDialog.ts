@@ -21,7 +21,7 @@ const UIStrings = {
    *@description Text to add something
    */
   add: 'Add',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/sources/AddSourceMapURLDialog.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class AddDebugInfoURLDialog extends UI.Widget.HBox {
@@ -31,7 +31,8 @@ export class AddDebugInfoURLDialog extends UI.Widget.HBox {
   private constructor(
       label: Platform.UIString.LocalizedString, jslogContext: string,
       callback: (arg0: Platform.DevToolsPath.UrlString) => void) {
-    super(/* isWebComponent */ true);
+    super(/* useShadowDom */ true);
+    this.registerRequiredCSS(dialogStyles);
 
     this.contentElement.createChild('label').textContent = label;
 
@@ -45,7 +46,7 @@ export class AddDebugInfoURLDialog extends UI.Widget.HBox {
     this.contentElement.appendChild(addButton);
 
     this.dialog = new UI.Dialog.Dialog(jslogContext);
-    this.dialog.setSizeBehavior(UI.GlassPane.SizeBehavior.MeasureContent);
+    this.dialog.setSizeBehavior(UI.GlassPane.SizeBehavior.MEASURE_CONTENT);
     this.dialog.setDefaultFocusedElement(this.input);
 
     this.callback = callback;
@@ -62,10 +63,6 @@ export class AddDebugInfoURLDialog extends UI.Widget.HBox {
 
   override show(): void {
     super.show(this.dialog.contentElement);
-    // UI.Dialog extends GlassPane and overrides the `show` method with a wider
-    // accepted type. However, TypeScript uses the supertype declaration to
-    // determine the full type, which requires a `!Document`.
-    // @ts-ignore
     this.dialog.show();
   }
 
@@ -83,9 +80,5 @@ export class AddDebugInfoURLDialog extends UI.Widget.HBox {
       event.consume(true);
       this.apply();
     }
-  }
-  override wasShown(): void {
-    super.wasShown();
-    this.registerCSSFiles([dialogStyles]);
   }
 }

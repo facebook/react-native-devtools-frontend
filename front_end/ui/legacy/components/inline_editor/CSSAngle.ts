@@ -2,11 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as LitHtml from '../../../lit-html/lit-html.js';
+import './CSSAngleEditor.js';
+import './CSSAngleSwatch.js';
 
-import cssAngleStyles from './cssAngle.css.js';
-import {CSSAngleEditor, type CSSAngleEditorData} from './CSSAngleEditor.js';
-import {CSSAngleSwatch, type CSSAngleSwatchData} from './CSSAngleSwatch.js';
+import * as Lit from '../../../lit/lit.js';
+
+import cssAngleStylesRaw from './cssAngle.css.js';
 import {
   type Angle,
   AngleUnit,
@@ -18,8 +19,12 @@ import {
 } from './CSSAngleUtils.js';
 import {ValueChangedEvent} from './InlineEditorUtils.js';
 
-const {render, html} = LitHtml;
-const styleMap = LitHtml.Directives.styleMap;
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const cssAngleStyles = new CSSStyleSheet();
+cssAngleStyles.replaceSync(cssAngleStylesRaw.cssText);
+
+const {render, html} = Lit;
+const styleMap = Lit.Directives.styleMap;
 
 export class PopoverToggledEvent extends Event {
   static readonly eventName = 'popovertoggled';
@@ -54,11 +59,10 @@ export interface CSSAngleData {
 
 const DefaultAngle = {
   value: 0,
-  unit: AngleUnit.Rad,
+  unit: AngleUnit.RAD,
 };
 
 export class CSSAngle extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-css-angle`;
   private readonly shadow = this.attachShadow({mode: 'open'});
   private angle: Angle = DefaultAngle;
   private displayedAngle: Angle = DefaultAngle;
@@ -116,7 +120,7 @@ export class CSSAngle extends HTMLElement {
     if (miniIconBottom && miniIconLeft) {
       // We offset mini icon's X and Y positions with the containing styles
       // pane's positions because DevTools' root SplitWidget's
-      // insertion-point-sidebar slot, where most of the DevTools content lives,
+      // sidebar slot, where most of the DevTools content lives,
       // has an offset of positions, which makes all of its children's DOMRect
       // positions to have this offset.
       const offsetTop = this.containingPane.getBoundingClientRect().top;
@@ -162,6 +166,7 @@ export class CSSAngle extends HTMLElement {
     this.displayedAngle = roundAngleByUnit(convertAngleUnit(angle, this.displayedAngle.unit));
     this.angle = this.displayedAngle;
     this.dispatchEvent(new ValueChangedEvent(`${this.angle.value}${this.angle.unit}`));
+    this.render();
   }
 
   private displayNextUnit(): void {
@@ -227,14 +232,14 @@ export class CSSAngle extends HTMLElement {
     render(html`
       <div class="css-angle" @focusout=${this.minify} @keydown=${this.onKeydown} tabindex="-1">
         <div class="preview">
-          <${CSSAngleSwatch.litTagName}
+          <devtools-css-angle-swatch
             @click=${this.onMiniIconClick}
             @mousedown=${this.consume}
             @dblclick=${this.consume}
             .data=${{
               angle: this.angle,
-            } as CSSAngleSwatchData}>
-          </${CSSAngleSwatch.litTagName}><slot></slot></div>
+            }}>
+          </devtools-css-angle-swatch><slot></slot></div>
         ${this.popoverOpen ? this.renderPopover() : null}
       </div>
     `, this.shadow, {
@@ -243,7 +248,7 @@ export class CSSAngle extends HTMLElement {
     // clang-format on
   }
 
-  private renderPopover(): LitHtml.TemplateResult {
+  private renderPopover(): Lit.TemplateResult {
     let contextualBackground = '';
     if (this.propertyValue && !this.propertyValue.match(/url\(.*\)/i)) {
       contextualBackground = this.propertyValue;
@@ -252,7 +257,7 @@ export class CSSAngle extends HTMLElement {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
     return html`
-    <${CSSAngleEditor.litTagName}
+    <devtools-css-angle-editor
       class="popover popover-css-angle"
       style=${styleMap({top: this.popoverStyleTop, left: this.popoverStyleLeft})}
       .data=${{
@@ -261,10 +266,10 @@ export class CSSAngle extends HTMLElement {
           this.updateAngle(angle);
         },
         background: contextualBackground,
-      } as CSSAngleEditorData}
-    ></${CSSAngleEditor.litTagName}>
+      }}
+    ></devtools-css-angle-editor>
     `;
-    // clang-format on
+        // clang-format on
   }
 }
 

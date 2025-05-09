@@ -28,27 +28,24 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+import '../../ui/components/report_view/report_view.js';
+import '../../ui/legacy/legacy.js';
+
 import * as i18n from '../../core/i18n/i18n.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Buttons from '../../ui/components/buttons/buttons.js';
-import * as ReportView from '../../ui/components/report_view/report_view.js';
 import * as DataGrid from '../../ui/legacy/components/data_grid/data_grid.js';
 import * as ObjectUI from '../../ui/legacy/components/object_ui/object_ui.js';
 import * as UI from '../../ui/legacy/legacy.js';
-import * as LitHtml from '../../ui/lit-html/lit-html.js';
+import * as Lit from '../../ui/lit/lit.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import * as ApplicationComponents from './components/components.js';
-import {
-  type Database,
-  type DatabaseId,
-  type Entry,
-  type Index,
-  type IndexedDBModel,
-  type ObjectStore,
-  type ObjectStoreMetadata,
-} from './IndexedDBModel.js';
+import type {
+  Database, DatabaseId, Entry, Index, IndexedDBModel, ObjectStore, ObjectStoreMetadata} from './IndexedDBModel.js';
 import indexedDBViewsStyles from './indexedDBViews.css.js';
+
+const {html} = Lit;
 
 const UIStrings = {
   /**
@@ -68,10 +65,14 @@ const UIStrings = {
    */
   refreshDatabase: 'Refresh database',
   /**
-   *@description Text in Indexed DBViews of the Application panel
+   *@description Text in Application panel IndexedDB delete confirmation dialog
    *@example {msb} PH1
    */
-  pleaseConfirmDeleteOfSDatabase: 'Please confirm delete of "{PH1}" database.',
+  confirmDeleteDatabase: 'Delete "{PH1}" database?',
+  /**
+   *@description Explanation text in Application panel IndexedDB delete confirmation dialog
+   */
+  databaseWillBeRemoved: 'The selected database and contained data will be removed.',
   /**
    *@description Text in Indexed DBViews of the Application panel
    */
@@ -146,7 +147,7 @@ const UIStrings = {
    *@example {2} PH1
    */
   keyGeneratorValueS: 'Key generator value: {PH1}',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/application/IndexedDBViews.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -166,20 +167,19 @@ export class IDBDatabaseView extends ApplicationComponents.StorageMetadataView.S
     return this.database?.databaseId.name;
   }
 
-  override async renderReportContent(): Promise<LitHtml.LitTemplate> {
+  override async renderReportContent(): Promise<Lit.LitTemplate> {
     if (!this.database) {
-      return LitHtml.nothing;
+      return Lit.nothing;
     }
-    return LitHtml.html`
+    return html`
       ${await super.renderReportContent()}
       ${this.key(i18nString(UIStrings.version))}
       ${this.value(this.database.version.toString())}
       ${this.key(i18nString(UIStrings.objectStores))}
       ${this.value(this.database.objectStores.size.toString())}
-      <${ReportView.ReportView.ReportSectionDivider.litTagName}></${
-        ReportView.ReportView.ReportSectionDivider.litTagName}>
-      <${ReportView.ReportView.ReportSection.litTagName}>
-      <${Buttons.Button.Button.litTagName}
+      <devtools-report-divider></devtools-report-divider>
+      <devtools-report-section>
+      <devtools-button
           aria-label=${i18nString(UIStrings.deleteDatabase)}
           .variant=${Buttons.Button.Variant.OUTLINED}
           @click=${this.deleteDatabase}
@@ -187,8 +187,8 @@ export class IDBDatabaseView extends ApplicationComponents.StorageMetadataView.S
       click: true,
     })}>
         ${i18nString(UIStrings.deleteDatabase)}
-      </${Buttons.Button.Button.litTagName}>&nbsp;
-      <${Buttons.Button.Button.litTagName}
+      </devtools-button>&nbsp;
+      <devtools-button
           aria-label=${i18nString(UIStrings.refreshDatabase)}
           .variant=${Buttons.Button.Variant.OUTLINED}
           @click=${this.refreshDatabaseButtonClicked}
@@ -196,8 +196,8 @@ export class IDBDatabaseView extends ApplicationComponents.StorageMetadataView.S
       click: true,
     })}>
         ${i18nString(UIStrings.refreshDatabase)}
-      </${Buttons.Button.Button.litTagName}>
-      </${ReportView.ReportView.ReportSection.litTagName}>
+      </devtools-button>
+      </devtools-report-section>
       `;
   }
 
@@ -226,7 +226,8 @@ export class IDBDatabaseView extends ApplicationComponents.StorageMetadataView.S
 
   private async deleteDatabase(): Promise<void> {
     const ok = await UI.UIUtils.ConfirmDialog.show(
-        i18nString(UIStrings.pleaseConfirmDeleteOfSDatabase, {PH1: this.database.databaseId.name}), this,
+        i18nString(UIStrings.databaseWillBeRemoved),
+        i18nString(UIStrings.confirmDeleteDatabase, {PH1: this.database.databaseId.name}), this,
         {jslogContext: 'delete-database-confirmation'});
     if (ok) {
       void this.model.deleteDatabase(this.database.databaseId);
@@ -275,6 +276,7 @@ export class IDBDataView extends UI.View.SimpleView {
       model: IndexedDBModel, databaseId: DatabaseId, objectStore: ObjectStore, index: Index|null,
       refreshObjectStoreCallback: () => void) {
     super(i18nString(UIStrings.idb));
+    this.registerRequiredCSS(indexedDBViewsStyles);
 
     this.model = model;
     this.databaseId = databaseId;
@@ -285,18 +287,18 @@ export class IDBDataView extends UI.View.SimpleView {
     this.element.setAttribute('jslog', `${VisualLogging.pane('indexed-db-data-view')}`);
 
     this.refreshButton = new UI.Toolbar.ToolbarButton(i18nString(UIStrings.refresh), 'refresh');
-    this.refreshButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, this.refreshButtonClicked, this);
+    this.refreshButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.refreshButtonClicked, this);
     this.refreshButton.element.setAttribute('jslog', `${VisualLogging.action('refresh').track({click: true})}`);
 
     this.deleteSelectedButton = new UI.Toolbar.ToolbarButton(i18nString(UIStrings.deleteSelected), 'bin');
-    this.deleteSelectedButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, _event => {
+    this.deleteSelectedButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, _event => {
       void this.deleteButtonClicked(null);
     });
     this.deleteSelectedButton.element.setAttribute(
         'jslog', `${VisualLogging.action('delete-selected').track({click: true})}`);
 
     this.clearButton = new UI.Toolbar.ToolbarButton(i18nString(UIStrings.clearObjectStore), 'clear');
-    this.clearButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, () => {
+    this.clearButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, () => {
       void this.clearButtonClicked();
     }, this);
     this.clearButton.element.setAttribute('jslog', `${VisualLogging.action('clear-all').track({click: true})}`);
@@ -370,10 +372,9 @@ export class IDBDataView extends UI.View.SimpleView {
       columns,
       deleteCallback: this.deleteButtonClicked.bind(this),
       refreshCallback: this.updateData.bind(this, true),
-      editCallback: undefined,
     });
     dataGrid.setStriped(true);
-    dataGrid.addEventListener(DataGrid.DataGrid.Events.SelectedNode, () => {
+    dataGrid.addEventListener(DataGrid.DataGrid.Events.SELECTED_NODE, () => {
       this.updateToolbarEnablement();
       this.updateSelectionColor();
     }, this);
@@ -417,8 +418,8 @@ export class IDBDataView extends UI.View.SimpleView {
   }
 
   private createEditorToolbar(): void {
-    const editorToolbar = new UI.Toolbar.Toolbar('data-view-toolbar', this.element);
-    editorToolbar.element.setAttribute('jslog', `${VisualLogging.toolbar()}`);
+    const editorToolbar = this.element.createChild('devtools-toolbar', 'data-view-toolbar');
+    editorToolbar.setAttribute('jslog', `${VisualLogging.toolbar()}`);
 
     editorToolbar.appendToolbarItem(this.refreshButton);
     editorToolbar.appendToolbarItem(this.clearButton);
@@ -428,17 +429,17 @@ export class IDBDataView extends UI.View.SimpleView {
 
     this.pageBackButton =
         new UI.Toolbar.ToolbarButton(i18nString(UIStrings.showPreviousPage), 'triangle-left', undefined, 'prev-page');
-    this.pageBackButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, this.pageBackButtonClicked, this);
+    this.pageBackButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.pageBackButtonClicked, this);
     editorToolbar.appendToolbarItem(this.pageBackButton);
 
     this.pageForwardButton =
         new UI.Toolbar.ToolbarButton(i18nString(UIStrings.showNextPage), 'triangle-right', undefined, 'next-page');
     this.pageForwardButton.setEnabled(false);
-    this.pageForwardButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, this.pageForwardButtonClicked, this);
+    this.pageForwardButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.pageForwardButtonClicked, this);
     editorToolbar.appendToolbarItem(this.pageForwardButton);
 
     this.keyInput = new UI.Toolbar.ToolbarFilter(i18nString(UIStrings.filterByKey), 0.5);
-    this.keyInput.addEventListener(UI.Toolbar.ToolbarInput.Event.TextChanged, this.updateData.bind(this, false));
+    this.keyInput.addEventListener(UI.Toolbar.ToolbarInput.Event.TEXT_CHANGED, this.updateData.bind(this, false));
     editorToolbar.appendToolbarItem(this.keyInput);
     editorToolbar.appendToolbarItem(new UI.Toolbar.ToolbarSeparator());
 
@@ -478,7 +479,10 @@ export class IDBDataView extends UI.View.SimpleView {
     this.updateData(true);
   }
 
-  update(objectStore: ObjectStore, index: Index|null): void {
+  update(objectStore: ObjectStore|null = null, index: Index|null = null): void {
+    if (!objectStore) {
+      return;
+    }
     this.objectStore = objectStore;
     this.index = index;
 
@@ -499,7 +503,7 @@ export class IDBDataView extends UI.View.SimpleView {
     let result;
     try {
       result = JSON.parse(keyString);
-    } catch (e) {
+    } catch {
       result = keyString;
     }
     return result;
@@ -649,14 +653,9 @@ export class IDBDataView extends UI.View.SimpleView {
     this.dataGrid.selectedNode?.element().querySelectorAll('.source-code').forEach(element => {
       const shadowRoot = element.shadowRoot;
       const sheet = new CSSStyleSheet();
-      sheet.replaceSync('::selection {background-color: var(--sys-color-state-focus-select);}');
+      sheet.replaceSync('::selection {background-color: var(--sys-color-state-focus-select); color: currentColor;}');
       shadowRoot?.adoptedStyleSheets.push(sheet);
     });
-  }
-
-  override wasShown(): void {
-    super.wasShown();
-    this.registerCSSFiles([indexedDBViewsStyles]);
   }
 }
 
@@ -694,8 +693,6 @@ export class IDBDataGridNode extends DataGrid.DataGrid.DataGridNode<unknown> {
             value, undefined /* linkifier */, true /* skipProto */, true /* readOnly */);
         cell.appendChild(objectElement);
         break;
-      }
-      default: {
       }
     }
 

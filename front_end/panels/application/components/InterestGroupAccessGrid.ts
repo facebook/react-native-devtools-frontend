@@ -2,13 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../../ui/legacy/components/data_grid/data_grid.js';
+
 import * as i18n from '../../../core/i18n/i18n.js';
 import type * as Protocol from '../../../generated/protocol.js';
-import * as DataGrid from '../../../ui/components/data_grid/data_grid.js';
-import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
+// inspectorCommonStyles is imported for the empty state styling that is used for the start view
+// eslint-disable-next-line rulesdir/es-modules-import
+import inspectorCommonStyles from '../../../ui/legacy/inspectorCommon.css.js';
+import * as Lit from '../../../ui/lit/lit.js';
 
 import interestGroupAccessGridStyles from './interestGroupAccessGrid.css.js';
+
+const {html} = Lit;
 
 const UIStrings = {
   /**
@@ -43,117 +48,88 @@ const UIStrings = {
    */
   groupName: 'Name',
   /**
-   *@description Text shown instead of a table when the table would be empty.
+   *@description Text shown when no interest groups are detected.
+   * An interest group is an ad targeting group stored on the browser that can
+   * be used to show a certain set of advertisements in the future as the
+   * outcome of a FLEDGE auction.
    */
-  noEvents: 'No interest group events recorded.',
-};
+  noEvents: 'No interest group events detected',
+  /**
+   *@description Text shown when no interest groups are detected and explains what this page is about.
+   * An interest group is an ad targeting group stored on the browser that can
+   * be used to show a certain set of advertisements in the future as the
+   * outcome of a FLEDGE auction.
+   */
+  interestGroupDescription: 'On this page you can inspect and analyze interest groups',
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/application/components/InterestGroupAccessGrid.ts', UIStrings);
 export const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class InterestGroupAccessGrid extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-interest-group-access-grid`;
   readonly #shadow = this.attachShadow({mode: 'open'});
-  #datastores: Array<Protocol.Storage.InterestGroupAccessedEvent> = [];
+  #datastores: Protocol.Storage.InterestGroupAccessedEvent[] = [];
 
   connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [interestGroupAccessGridStyles];
     this.#render();
   }
 
-  set data(data: Array<Protocol.Storage.InterestGroupAccessedEvent>) {
+  // eslint-disable-next-line rulesdir/set-data-type-reference
+  set data(data: Protocol.Storage.InterestGroupAccessedEvent[]) {
     this.#datastores = data;
     this.#render();
   }
 
   #render(): void {
     // clang-format off
-    LitHtml.render(LitHtml.html`
-      <div>
-        <span class="heading">Interest Groups</span>
-        <${IconButton.Icon.Icon.litTagName} class="info-icon" title=${
-            i18nString(UIStrings.allInterestGroupStorageEvents)}
-          .data=${
-            {iconName: 'info', color: 'var(--icon-default)', width: '16px'} as
-            IconButton.Icon.IconWithName}>
-        </${IconButton.Icon.Icon.litTagName}>
-        ${this.#renderGridOrNoDataMessage()}
-      </div>
+    Lit.render(html`
+      <style>${interestGroupAccessGridStyles.cssText}</style>
+      <style>${inspectorCommonStyles.cssText}</style>
+      ${this.#datastores.length === 0 ?
+        html`
+          <div class="empty-state">
+            <span class="empty-state-header">${i18nString(UIStrings.noEvents)}</span>
+            <span class="empty-state-description">${i18nString(UIStrings.interestGroupDescription)}</span>
+          </div>`:
+        html`
+          <div>
+            <span class="heading">Interest Groups</span>
+            <devtools-icon class="info-icon"
+                          title=${i18nString(UIStrings.allInterestGroupStorageEvents)}
+                          .data=${{iconName: 'info', color: 'var(--icon-default)', width: '16px'}}>
+            </devtools-icon>
+            ${this.#renderGrid()}
+          </div>`}
     `, this.#shadow, {host: this});
     // clang-format on
   }
 
-  #renderGridOrNoDataMessage(): LitHtml.TemplateResult {
-    if (this.#datastores.length === 0) {
-      return LitHtml.html`<div class="no-events-message">${i18nString(UIStrings.noEvents)}</div>`;
-    }
-
-    const gridData: DataGrid.DataGridController.DataGridControllerData = {
-      columns: [
-        {
-          id: 'event-time',
-          title: i18nString(UIStrings.eventTime),
-          widthWeighting: 10,
-          hideable: false,
-          visible: true,
-          sortable: true,
-        },
-        {
-          id: 'event-type',
-          title: i18nString(UIStrings.eventType),
-          widthWeighting: 5,
-          hideable: false,
-          visible: true,
-          sortable: true,
-        },
-        {
-          id: 'event-group-owner',
-          title: i18nString(UIStrings.groupOwner),
-          widthWeighting: 10,
-          hideable: false,
-          visible: true,
-          sortable: true,
-        },
-        {
-          id: 'event-group-name',
-          title: i18nString(UIStrings.groupName),
-          widthWeighting: 10,
-          hideable: false,
-          visible: true,
-          sortable: true,
-        },
-      ],
-      rows: this.#buildRows(),
-      initialSort: {
-        columnId: 'event-time',
-        direction: DataGrid.DataGridUtils.SortDirection.ASC,
-      },
-    };
-
-    return LitHtml.html`
-      <${DataGrid.DataGridController.DataGridController.litTagName} .data=${
-        gridData as DataGrid.DataGridController.DataGridControllerData}></${
-        DataGrid.DataGridController.DataGridController.litTagName}>
+  #renderGrid(): Lit.TemplateResult {
+    return html`
+      <devtools-data-grid @select=${this.#onSelect} striped inline>
+        <table>
+          <tr>
+            <th id="event-time" sortable weight="10">${i18nString(UIStrings.eventTime)}</td>
+            <th id="event-type" sortable weight="5">${i18nString(UIStrings.eventType)}</td>
+            <th id="event-group-owner" sortable weight="10">${i18nString(UIStrings.groupOwner)}</td>
+            <th id="event-group-name" sortable weight="10">${i18nString(UIStrings.groupName)}</td>
+          </tr>
+          ${this.#datastores.map((event, index) => html`
+          <tr data-index=${index}>
+            <td>${new Date(1e3 * event.accessTime).toLocaleString()}</td>
+            <td>${event.type}</td>
+            <td>${event.ownerOrigin}</td>
+            <td>${event.name}</td>
+          </tr>
+        `)}
+        </table>
+      </devtools-data-grid>
     `;
   }
 
-  #buildRows(): DataGrid.DataGridUtils.Row[] {
-    return this.#datastores.map(event => ({
-                                  cells: [
-                                    {
-                                      columnId: 'event-time',
-                                      value: event.accessTime,
-                                      renderer: this.#renderDateForDataGridCell.bind(this),
-                                    },
-                                    {columnId: 'event-type', value: event.type},
-                                    {columnId: 'event-group-owner', value: event.ownerOrigin},
-                                    {columnId: 'event-group-name', value: event.name},
-                                  ],
-                                }));
-  }
-
-  #renderDateForDataGridCell(value: DataGrid.DataGridUtils.CellValue): LitHtml.TemplateResult {
-    const date = new Date(1e3 * (value as number));
-    return LitHtml.html`${date.toLocaleString()}`;
+  #onSelect(event: CustomEvent<HTMLElement|null>): void {
+    if (event.detail) {
+      this.dispatchEvent(new CustomEvent('select', {detail: this.#datastores[Number(event.detail.dataset.index)]}));
+    }
   }
 }
 

@@ -6,11 +6,11 @@ import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
 
-import {type ConsoleGroupViewMessage, type ConsoleViewMessage} from './ConsoleViewMessage.js';
+import type {ConsoleGroupViewMessage, ConsoleViewMessage} from './ConsoleViewMessage.js';
 
-export type LevelsMask = {
-  [x: string]: boolean,
-};
+export interface LevelsMask {
+  [x: string]: boolean;
+}
 
 export class ConsoleFilter {
   name: string;
@@ -107,9 +107,8 @@ export class ConsoleFilter {
             break;
           }
           case FilterType.Source: {
-            const sourceNameForMessage = message.source ?
-                SDK.ConsoleModel.MessageSourceDisplayName.get((message.source as SDK.ConsoleModel.MessageSource)) :
-                message.source;
+            const sourceNameForMessage =
+                message.source ? SDK.ConsoleModel.MessageSourceDisplayName.get((message.source)) : message.source;
             if (!passesFilter(filter, sourceNameForMessage, true /* exactMatch */)) {
               return false;
             }
@@ -134,7 +133,7 @@ export class ConsoleFilter {
       if (!value) {
         return !filter.text === !filter.negative;
       }
-      const filterText = (filter.text as string).toLowerCase();
+      const filterText = (filter.text).toLowerCase();
       const lowerCaseValue = value.toLowerCase();
       if (exactMatch && (lowerCaseValue === filterText) === filter.negative) {
         return false;
@@ -148,7 +147,9 @@ export class ConsoleFilter {
 }
 
 export enum FilterType {
+  /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   Context = 'context',
   Source = 'source',
   Url = 'url',
+  /* eslint-enable @typescript-eslint/naming-convention */
 }

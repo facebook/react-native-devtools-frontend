@@ -4,8 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type FS from 'fs/promises';
-
 import type {OperatorFunction} from '../../third_party/rxjs/rxjs.js';
 import {
   filter,
@@ -18,8 +16,10 @@ import {
   timer,
 } from '../../third_party/rxjs/rxjs.js';
 import type {CDPSession} from '../api/CDPSession.js';
+import {environment} from '../environment.js';
 import {packageVersion} from '../generated/version.js';
 import {assert} from '../util/assert.js';
+import {mergeUint8Arrays} from '../util/encoding.js';
 
 import {debug} from './Debug.js';
 import {TimeoutError} from './Errors.js';
@@ -54,7 +54,7 @@ export class PuppeteerURL {
 
   static fromCallSite(
     functionName: string,
-    site: NodeJS.CallSite
+    site: NodeJS.CallSite,
   ): PuppeteerURL {
     const url = new PuppeteerURL();
     url.#functionName = functionName;
@@ -99,7 +99,7 @@ export class PuppeteerURL {
  */
 export const withSourcePuppeteerURLIfNone = <T extends NonNullable<unknown>>(
   functionName: string,
-  object: T
+  object: T,
 ): T => {
   if (Object.prototype.hasOwnProperty.call(object, SOURCE_URL)) {
     return object;
@@ -125,7 +125,7 @@ export const withSourcePuppeteerURLIfNone = <T extends NonNullable<unknown>>(
 export const getSourcePuppeteerURLIfAvailable = <
   T extends NonNullable<unknown>,
 >(
-  object: T
+  object: T,
 ): PuppeteerURL | undefined => {
   if (Object.prototype.hasOwnProperty.call(object, SOURCE_URL)) {
     return object[SOURCE_URL as keyof T] as PuppeteerURL;
@@ -172,6 +172,7 @@ export const isDate = (obj: unknown): obj is Date => {
  * @internal
  */
 export function evaluationString(
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   fun: Function | string,
   ...args: unknown[]
 ): string {
@@ -193,38 +194,14 @@ export function evaluationString(
 /**
  * @internal
  */
-let fs: typeof FS | null = null;
-/**
- * @internal
- */
-export async function importFSPromises(): Promise<typeof FS> {
-  if (!fs) {
-    try {
-      fs = await import('fs/promises');
-    } catch (error) {
-      if (error instanceof TypeError) {
-        throw new Error(
-          'Cannot write to a path outside of a Node-like environment.'
-        );
-      }
-      throw error;
-    }
-  }
-  return fs;
-}
-
-/**
- * @internal
- */
-export async function getReadableAsBuffer(
+export async function getReadableAsTypedArray(
   readable: ReadableStream<Uint8Array>,
-  path?: string
-): Promise<Buffer | null> {
+  path?: string,
+): Promise<Uint8Array | null> {
   const buffers: Uint8Array[] = [];
   const reader = readable.getReader();
   if (path) {
-    const fs = await importFSPromises();
-    const fileHandle = await fs.open(path, 'w+');
+    const fileHandle = await environment.value.fs.promises.open(path, 'w+');
     try {
       while (true) {
         const {done, value} = await reader.read();
@@ -247,7 +224,11 @@ export async function getReadableAsBuffer(
     }
   }
   try {
-    return Buffer.concat(buffers);
+    const concat = mergeUint8Arrays(buffers);
+    if (concat.length === 0) {
+      return null;
+    }
+    return concat;
   } catch (error) {
     debugError(error);
     return null;
@@ -263,7 +244,7 @@ export async function getReadableAsBuffer(
  */
 export async function getReadableFromProtocolStream(
   client: CDPSession,
-  handle: string
+  handle: string,
 ): Promise<ReadableStream<Uint8Array>> {
   return new ReadableStream({
     async pull(controller) {
@@ -294,7 +275,7 @@ export async function getReadableFromProtocolStream(
  * @internal
  */
 export function validateDialogType(
-  type: string
+  type: string,
 ): 'alert' | 'confirm' | 'prompt' | 'beforeunload' {
   let dialogType = null;
   const validDialogTypes = new Set([
@@ -320,7 +301,7 @@ export function timeout(ms: number, cause?: Error): Observable<never> {
     : timer(ms).pipe(
         map(() => {
           throw new TimeoutError(`Timed out after waiting ${ms}ms`, {cause});
-        })
+        }),
       );
 }
 
@@ -333,7 +314,8 @@ export const UTILITY_WORLD_NAME =
 /**
  * @internal
  */
-export const SOURCE_URL_REGEX = /^[\040\t]*\/\/[@#] sourceURL=\s*(\S*?)\s*$/m;
+export const SOURCE_URL_REGEX =
+  /^[\x20\t]*\/\/[@#] sourceURL=\s{0,10}(\S*?)\s{0,10}$/m;
 /**
  * @internal
  */
@@ -351,7 +333,7 @@ export const NETWORK_IDLE_TIME = 500;
  */
 export function parsePDFOptions(
   options: PDFOptions = {},
-  lengthUnit: 'in' | 'cm' = 'in'
+  lengthUnit: 'in' | 'cm' = 'in',
 ): ParsedPDFOptions {
   const defaults: Omit<ParsedPDFOptions, 'width' | 'height' | 'margin'> = {
     scale: 1,
@@ -372,7 +354,9 @@ export function parsePDFOptions(
   let height = 11;
   if (options.format) {
     const format =
-      paperFormats[options.format.toLowerCase() as LowerCasePaperFormat];
+      paperFormats[options.format.toLowerCase() as LowerCasePaperFormat][
+        lengthUnit
+      ];
     assert(format, 'Unknown paper format: ' + options.format);
     width = format.width;
     height = format.height;
@@ -417,7 +401,7 @@ export const unitToPixels = {
 
 function convertPrintParameterToInches(
   parameter?: string | number,
-  lengthUnit: 'in' | 'cm' = 'in'
+  lengthUnit: 'in' | 'cm' = 'in',
 ): number | undefined {
   if (typeof parameter === 'undefined') {
     return undefined;
@@ -443,7 +427,7 @@ function convertPrintParameterToInches(
     pixels = value * unitToPixels[unit as keyof typeof unitToPixels];
   } else {
     throw new Error(
-      'page.pdf() Cannot handle parameter type: ' + typeof parameter
+      'page.pdf() Cannot handle parameter type: ' + typeof parameter,
     );
   }
   return pixels / unitToPixels[lengthUnit];
@@ -472,7 +456,7 @@ export function fromEmitterEvent<
  */
 export function fromAbortSignal(
   signal?: AbortSignal,
-  cause?: Error
+  cause?: Error,
 ): Observable<never> {
   return signal
     ? fromEvent(signal, 'abort').pipe(
@@ -483,7 +467,7 @@ export function fromAbortSignal(
           }
 
           throw new Error(signal.reason, {cause});
-        })
+        }),
       )
     : NEVER;
 }
@@ -492,7 +476,7 @@ export function fromAbortSignal(
  * @internal
  */
 export function filterAsync<T>(
-  predicate: (value: T) => boolean | PromiseLike<boolean>
+  predicate: (value: T) => boolean | PromiseLike<boolean>,
 ): OperatorFunction<T, T> {
   return mergeMap<T, Observable<T>>((value): Observable<T> => {
     return from(Promise.resolve(predicate(value))).pipe(
@@ -501,7 +485,7 @@ export function filterAsync<T>(
       }),
       map(() => {
         return value;
-      })
+      }),
     );
   });
 }

@@ -26,7 +26,9 @@ describeWithMockConnection('AccessibilityTreeView', () => {
 
   const updatesUiOnEvent = (inScope: boolean) => async () => {
     SDK.TargetManager.TargetManager.instance().setScopeTarget(inScope ? target : null);
-    new Elements.AccessibilityTreeView.AccessibilityTreeView(toggleButoon, treeComponent);
+    const view = new Elements.AccessibilityTreeView.AccessibilityTreeView(toggleButoon, treeComponent);
+    view.markAsRoot();
+    view.show(document.body);
 
     const model = target.model(SDK.AccessibilityModel.AccessibilityModel);
     const treeComponentDataSet = sinon.spy(treeComponent, 'data', ['set']);
@@ -34,12 +36,13 @@ describeWithMockConnection('AccessibilityTreeView', () => {
       id: MAIN_FRAME_ID,
     } as SDK.ResourceTreeModel.ResourceTreeFrame);
 
-    model!.dispatchEventToListeners(SDK.AccessibilityModel.Events.TreeUpdated, {
+    model!.dispatchEventToListeners(SDK.AccessibilityModel.Events.TREE_UPDATED, {
       root: {numChildren: () => 0, role: () => null, getFrameId: () => MAIN_FRAME_ID, id: () => 'id'} as unknown as
           SDK.AccessibilityModel.AccessibilityNode,
     });
     await new Promise<void>(resolve => queueMicrotask(resolve));
     assert.strictEqual(treeComponentDataSet.set.called, inScope);
+    view.detach();
   };
 
   it('updates UI on in scope update event', updatesUiOnEvent(true));

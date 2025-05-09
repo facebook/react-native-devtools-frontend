@@ -33,6 +33,8 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+import './Toolbar.js'; // eslint-disable-line import/no-duplicates
+
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
@@ -41,11 +43,10 @@ import * as Buttons from '../components/buttons/buttons.js';
 import * as IconButton from '../components/icon_button/icon_button.js';
 
 import * as ARIAUtils from './ARIAUtils.js';
-import {HistoryInput} from './HistoryInput.js';
 import {InspectorView} from './InspectorView.js';
-import searchableViewStyles from './searchableView.css.legacy.js';
-import {Toolbar, ToolbarButton, ToolbarText, ToolbarToggle} from './Toolbar.js';
-import {createTextButton} from './UIUtils.js';
+import searchableViewStyles from './searchableView.css.js';
+import {ToolbarButton, ToolbarText, ToolbarToggle} from './Toolbar.js';  // eslint-disable-line import/no-duplicates
+import {createHistoryInput, createTextButton} from './UIUtils.js';
 import {VBox} from './Widget.js';
 
 const UIStrings = {
@@ -122,7 +123,7 @@ const UIStrings = {
    *@description Text on a button to search previous instance for the ctrl+F search bar
    */
   clearInput: 'Clear',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/SearchableView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -131,7 +132,7 @@ function createClearButton(jslogContext: string): Buttons.Button.Button {
   button.data = {
     variant: Buttons.Button.Variant.ICON,
     size: Buttons.Button.Size.SMALL,
-    jslogContext: jslogContext,
+    jslogContext,
     title: i18nString(UIStrings.clearInput),
     iconName: 'cross-circle-filled',
   };
@@ -150,7 +151,7 @@ export class SearchableView extends VBox {
   private readonly footerElementContainer: HTMLElement;
   private readonly footerElement: HTMLElement;
   private replaceToggleButton: ToolbarToggle;
-  private searchInputElement: HistoryInput;
+  private searchInputElement: HTMLInputElement;
   private matchesElement: HTMLElement;
   private searchNavigationPrevElement: ToolbarButton;
   private searchNavigationNextElement: ToolbarButton;
@@ -180,11 +181,11 @@ export class SearchableView extends VBox {
     this.footerElement = this.footerElementContainer.createChild('div', 'toolbar-search');
     this.footerElement.setAttribute('jslog', `${VisualLogging.toolbar('search').track({resize: true})}`);
 
-    const replaceToggleToolbar = new Toolbar('replace-toggle-toolbar', this.footerElement);
+    const replaceToggleToolbar = this.footerElement.createChild('devtools-toolbar', 'replace-toggle-toolbar');
     this.replaceToggleButton =
         new ToolbarToggle(i18nString(UIStrings.enableFindAndReplace), 'replace', undefined, 'replace');
     ARIAUtils.setLabel(this.replaceToggleButton.element, i18nString(UIStrings.enableFindAndReplace));
-    this.replaceToggleButton.addEventListener(ToolbarButton.Events.Click, this.toggleReplace, this);
+    this.replaceToggleButton.addEventListener(ToolbarButton.Events.CLICK, this.toggleReplace, this);
     replaceToggleToolbar.appendToolbarItem(this.replaceToggleButton);
 
     // Elements within `searchInputElements` are added according to their expected tab order.
@@ -193,9 +194,7 @@ export class SearchableView extends VBox {
     const searchIcon = IconButton.Icon.create('search');
     iconAndInput.appendChild(searchIcon);
 
-    this.searchInputElement = HistoryInput.create();
-    this.searchInputElement.type = 'search';
-    this.searchInputElement.classList.add('search-replace', 'search');
+    this.searchInputElement = createHistoryInput('search', 'search-replace search');
     this.searchInputElement.id = 'search-input-field';
     this.searchInputElement.autocomplete = 'off';
     this.searchInputElement.placeholder = i18nString(UIStrings.findString);
@@ -207,7 +206,7 @@ export class SearchableView extends VBox {
     iconAndInput.appendChild(this.searchInputElement);
 
     const replaceInputElements = searchInputElements.createChild('div', 'replace-element input-line');
-    this.replaceInputElement = replaceInputElements.createChild('input', 'search-replace') as HTMLInputElement;
+    this.replaceInputElement = replaceInputElements.createChild('input', 'search-replace');
     this.replaceInputElement.addEventListener('keydown', this.onReplaceKeyDown.bind(this), true);
     this.replaceInputElement.placeholder = i18nString(UIStrings.replace);
     this.replaceInputElement.setAttribute(
@@ -272,16 +271,16 @@ export class SearchableView extends VBox {
     const buttonsContainer = this.footerElement.createChild('div', 'toolbar-search-buttons');
     const firstRowButtons = buttonsContainer.createChild('div', 'first-row-buttons');
 
-    const toolbar = new Toolbar('toolbar-search-options', firstRowButtons);
+    const toolbar = firstRowButtons.createChild('devtools-toolbar', 'toolbar-search-options');
     this.searchNavigationPrevElement =
         new ToolbarButton(i18nString(UIStrings.searchPrevious), 'chevron-up', undefined, 'select-previous');
-    this.searchNavigationPrevElement.addEventListener(ToolbarButton.Events.Click, () => this.onPrevButtonSearch());
+    this.searchNavigationPrevElement.addEventListener(ToolbarButton.Events.CLICK, () => this.onPrevButtonSearch());
     toolbar.appendToolbarItem(this.searchNavigationPrevElement);
     ARIAUtils.setLabel(this.searchNavigationPrevElement.element, i18nString(UIStrings.searchPrevious));
 
     this.searchNavigationNextElement =
         new ToolbarButton(i18nString(UIStrings.searchNext), 'chevron-down', undefined, 'select-next');
-    this.searchNavigationNextElement.addEventListener(ToolbarButton.Events.Click, () => this.onNextButtonSearch());
+    this.searchNavigationNextElement.addEventListener(ToolbarButton.Events.CLICK, () => this.onNextButtonSearch());
     ARIAUtils.setLabel(this.searchNavigationNextElement.element, i18nString(UIStrings.searchNext));
     toolbar.appendToolbarItem(this.searchNavigationNextElement);
 
@@ -355,8 +354,7 @@ export class SearchableView extends VBox {
   }
 
   private toggleReplace(): void {
-    const replaceEnabled = !this.replaceToggleButton.toggled();
-    this.replaceToggleButton.setToggled(replaceEnabled);
+    const replaceEnabled = this.replaceToggleButton.isToggled();
     const label =
         replaceEnabled ? i18nString(UIStrings.disableFindAndReplace) : i18nString(UIStrings.enableFindAndReplace);
     ARIAUtils.setLabel(this.replaceToggleButton.element, label);
@@ -427,10 +425,6 @@ export class SearchableView extends VBox {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const untypedSearchProvider = (this.searchProvider as any);
     this.updateSearchMatchesCountAndCurrentMatchIndex(untypedSearchProvider.currentSearchMatches, currentMatchIndex);
-  }
-
-  isSearchVisible(): boolean {
-    return Boolean(this.searchIsVisible);
   }
 
   closeSearch(): void {
@@ -529,7 +523,7 @@ export class SearchableView extends VBox {
     let queryCandidate;
     if (!this.searchInputElement.hasFocus()) {
       const selection = InspectorView.instance().element.window().getSelection();
-      if (selection && selection.rangeCount) {
+      if (selection?.rangeCount) {
         queryCandidate = selection.toString().replace(/\r?\n.*/, '');
       }
     }
@@ -633,7 +627,7 @@ export class SearchableView extends VBox {
   }
 
   private updateSecondRowVisibility(): void {
-    const secondRowVisible = this.replaceToggleButton.toggled();
+    const secondRowVisible = this.replaceToggleButton.isToggled();
     this.footerElementContainer.classList.toggle('replaceable', secondRowVisible);
 
     if (secondRowVisible) {
@@ -736,7 +730,7 @@ export class SearchConfig {
         regex = new RegExp(query.substring(1, query.length - 1), modifiers);
         fromQuery = true;
       }
-    } catch (e) {
+    } catch {
       // Silent catch.
     }
 

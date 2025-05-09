@@ -33,7 +33,15 @@ const UIStrings = {
   /**
    *@description The UI destination when right clicking an item that can be revealed
    */
+  securityPanel: 'Security panel',
+  /**
+   *@description The UI destination when right clicking an item that can be revealed
+   */
   sourcesPanel: 'Sources panel',
+  /**
+   *@description The UI destination when right clicking an item that can be revealed
+   */
+  timelinePanel: 'Performance panel',
   /**
    *@description The UI destination when right clicking an item that can be revealed
    */
@@ -42,7 +50,11 @@ const UIStrings = {
    * @description The UI destination when revealing loaded resources through the Developer Resources Panel
    */
   developerResourcesPanel: 'Developer Resources panel',
-};
+  /**
+   * @description The UI destination when revealing loaded resources through the Animations panel
+   */
+  animationsPanel: 'Animations panel',
+} as const;
 const str_ = i18n.i18n.registerUIStrings('core/common/Revealer.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
@@ -66,7 +78,7 @@ let revealerRegistry: RevealerRegistry|undefined;
  * @see Revealer
  */
 export class RevealerRegistry {
-  private readonly registeredRevealers: RevealerRegistration<unknown>[] = [];
+  private readonly registeredRevealers: Array<RevealerRegistration<unknown>> = [];
 
   /**
    * Yields the singleton instance, creating it on-demand when necessary.
@@ -114,7 +126,7 @@ export class RevealerRegistry {
     return await revealers[0].reveal(revealable, omitFocus);
   }
 
-  getApplicableRegisteredRevealers(revealable: unknown): RevealerRegistration<unknown>[] {
+  getApplicableRegisteredRevealers(revealable: unknown): Array<RevealerRegistration<unknown>> {
     return this.registeredRevealers.filter(registration => {
       for (const contextType of registration.contextTypes()) {
         if (revealable instanceof contextType) {
@@ -152,7 +164,7 @@ export function registerRevealer<T>(registration: RevealerRegistration<T>): void
  * @param revealable the object to reveal.
  * @param omitFocus whether to omit focusing on the presentation of `revealable` afterwards.
  */
-export async function reveal(revealable: unknown, omitFocus: boolean = false): Promise<void> {
+export async function reveal(revealable: unknown, omitFocus = false): Promise<void> {
   await RevealerRegistry.instance().reveal(revealable, omitFocus);
 }
 
@@ -169,9 +181,12 @@ export const RevealerDestination = {
   CHANGES_DRAWER: i18nLazyString(UIStrings.changesDrawer),
   ISSUES_VIEW: i18nLazyString(UIStrings.issuesView),
   NETWORK_PANEL: i18nLazyString(UIStrings.networkPanel),
+  TIMELINE_PANEL: i18nLazyString(UIStrings.timelinePanel),
   APPLICATION_PANEL: i18nLazyString(UIStrings.applicationPanel),
   SOURCES_PANEL: i18nLazyString(UIStrings.sourcesPanel),
+  SECURITY_PANEL: i18nLazyString(UIStrings.securityPanel),
   MEMORY_INSPECTOR_PANEL: i18nLazyString(UIStrings.memoryInspectorPanel),
+  ANIMATIONS_PANEL: i18nLazyString(UIStrings.animationsPanel),
 };
 
 export type RevealerDestination = () => Platform.UIString.LocalizedString;

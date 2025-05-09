@@ -40,12 +40,12 @@ import {
   Location,
   LOGPOINT_SOURCE_URL,
 } from './DebuggerModel.js';
-import {type FrameAssociated} from './FrameAssociated.js';
-import {type PageResourceLoadInitiator} from './PageResourceLoader.js';
+import type {FrameAssociated} from './FrameAssociated.js';
+import type {PageResourceLoadInitiator} from './PageResourceLoader.js';
 import {ResourceTreeModel} from './ResourceTreeModel.js';
-import {type ExecutionContext} from './RuntimeModel.js';
-import {type SourceMap} from './SourceMap.js';
-import {type Target} from './Target.js';
+import type {ExecutionContext} from './RuntimeModel.js';
+import type {SourceMap} from './SourceMap.js';
+import type {Target} from './Target.js';
 
 const UIStrings = {
   /**
@@ -56,7 +56,7 @@ const UIStrings = {
    *@description Error message when failing to load a script source text
    */
   unableToFetchScriptSource: 'Unable to fetch script source.',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('core/sdk/Script.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -302,7 +302,7 @@ export class Script implements TextUtils.ContentProvider.ContentProvider, FrameA
     }
     try {
       return this.isWasm() ? await this.loadWasmContent() : await this.loadTextContent();
-    } catch (err) {
+    } catch {
       // TODO(bmeurer): Propagate errors as exceptions / rejections.
       return {error: i18nString(UIStrings.unableToFetchScriptSource)};
     }
@@ -311,7 +311,7 @@ export class Script implements TextUtils.ContentProvider.ContentProvider, FrameA
   async getWasmBytecode(): Promise<ArrayBuffer> {
     const base64 = await this.debuggerModel.target().debuggerAgent().invoke_getWasmBytecode({scriptId: this.scriptId});
     const response = await fetch(`data:application/wasm;base64,${base64.bytecode}`);
-    return response.arrayBuffer();
+    return await response.arrayBuffer();
   }
 
   originalContentProvider(): TextUtils.ContentProvider.ContentProvider {
@@ -490,7 +490,7 @@ function frameIdForScript(script: Script): Protocol.Page.FrameId|null {
   }
   // This is to overcome compilation cache which doesn't get reset.
   const resourceTreeModel = script.debuggerModel.target().model(ResourceTreeModel);
-  if (!resourceTreeModel || !resourceTreeModel.mainFrame) {
+  if (!resourceTreeModel?.mainFrame) {
     return null;
   }
   return resourceTreeModel.mainFrame.id;
@@ -498,7 +498,7 @@ function frameIdForScript(script: Script): Protocol.Page.FrameId|null {
 
 export const sourceURLRegex = /^[\x20\t]*\/\/[@#] sourceURL=\s*(\S*?)\s*$/;
 
-async function disassembleWasm(content: string): Promise<TextUtils.WasmDisassembly.WasmDisassembly> {
+export async function disassembleWasm(content: string): Promise<TextUtils.WasmDisassembly.WasmDisassembly> {
   const worker = Common.Worker.WorkerWrapper.fromURL(
       new URL('../../entrypoints/wasmparser_worker/wasmparser_worker-entrypoint.js', import.meta.url));
   const promise = new Promise<TextUtils.WasmDisassembly.WasmDisassembly>((resolve, reject) => {

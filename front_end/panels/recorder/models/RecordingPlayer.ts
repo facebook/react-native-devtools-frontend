@@ -10,25 +10,25 @@ import * as PuppeteerService from '../../../services/puppeteer/puppeteer.js';
 import * as PuppeteerReplay from '../../../third_party/puppeteer-replay/puppeteer-replay.js';
 import type * as puppeteer from '../../../third_party/puppeteer/puppeteer.js';
 
-import {type Step, type UserFlow} from './Schema.js';
+import type {Step, UserFlow} from './Schema.js';
 
 export const enum PlayRecordingSpeed {
-  Normal = 'normal',
-  Slow = 'slow',
-  VerySlow = 'very_slow',
-  ExtremelySlow = 'extremely_slow',
+  NORMAL = 'normal',
+  SLOW = 'slow',
+  VERY_SLOW = 'very_slow',
+  EXTREMELY_SLOW = 'extremely_slow',
 }
 
 const speedDelayMap: Record<PlayRecordingSpeed, number> = {
-  [PlayRecordingSpeed.Normal]: 0,
-  [PlayRecordingSpeed.Slow]: 500,
-  [PlayRecordingSpeed.VerySlow]: 1000,
-  [PlayRecordingSpeed.ExtremelySlow]: 2000,
+  [PlayRecordingSpeed.NORMAL]: 0,
+  [PlayRecordingSpeed.SLOW]: 500,
+  [PlayRecordingSpeed.VERY_SLOW]: 1000,
+  [PlayRecordingSpeed.EXTREMELY_SLOW]: 2000,
 } as const;
 
 export const enum ReplayResult {
-  Failure = 'Failure',
-  Success = 'Success',
+  FAILURE = 'Failure',
+  SUCCESS = 'Success',
 }
 
 export const defaultTimeout = 5000;  // ms
@@ -41,16 +41,14 @@ function isPageTarget(target: Protocol.Target.TargetInfo): boolean {
 }
 
 export class RecordingPlayer extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
-  #stopPromise: Promise<void>;
-  #resolveStopPromise?: Function;
   userFlow: UserFlow;
   speed: PlayRecordingSpeed;
   timeout: number;
   breakpointIndexes: Set<number>;
-  steppingOver: boolean = false;
+  steppingOver = false;
   aborted = false;
-  abortPromise: Promise<void>;
-  #abortResolveFn?: Function;
+  #stopPromise = Promise.withResolvers<void>();
+  #abortPromise = Promise.withResolvers<void>();
   #runner?: PuppeteerReplay.Runner;
 
   constructor(
@@ -68,20 +66,11 @@ export class RecordingPlayer extends Common.ObjectWrapper.ObjectWrapper<EventTyp
     this.speed = speed;
     this.timeout = userFlow.timeout || defaultTimeout;
     this.breakpointIndexes = breakpointIndexes;
-    this.#stopPromise = new Promise(resolve => {
-      this.#resolveStopPromise = resolve;
-    });
-
-    this.abortPromise = new Promise(resolve => {
-      this.#abortResolveFn = resolve;
-    });
   }
 
   #resolveAndRefreshStopPromise(): void {
-    this.#resolveStopPromise?.();
-    this.#stopPromise = new Promise(resolve => {
-      this.#resolveStopPromise = resolve;
-    });
+    this.#stopPromise.resolve();
+    this.#stopPromise = Promise.withResolvers();
   }
 
   static async connectPuppeteer(): Promise<{
@@ -191,18 +180,22 @@ export class RecordingPlayer extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   async stop(): Promise<void> {
-    await Promise.race([this.#stopPromise, this.abortPromise]);
+    await Promise.race([this.#stopPromise, this.#abortPromise]);
+  }
+
+  get abortPromise(): Promise<void> {
+    return this.#abortPromise.promise;
   }
 
   abort(): void {
     this.aborted = true;
-    this.#abortResolveFn?.();
+    this.#abortPromise.resolve();
     this.#runner?.abort();
   }
 
   disposeForTesting(): void {
-    this.#resolveStopPromise?.();
-    this.#abortResolveFn?.();
+    this.#stopPromise.resolve();
+    this.#abortPromise.resolve();
   }
 
   continue(): void {
@@ -243,22 +236,19 @@ export class RecordingPlayer extends Common.ObjectWrapper.ObjectWrapper<EventTyp
       }
 
       override async beforeEachStep?(step: Step, flow: UserFlow): Promise<void> {
-        let resolver: () => void = () => {};
-        const promise = new Promise<void>(r => {
-          resolver = r;
-        });
-        player.dispatchEventToListeners(Events.Step, {
+        const {resolve, promise} = Promise.withResolvers<void>();
+        player.dispatchEventToListeners(Events.STEP, {
           step,
-          resolve: resolver,
+          resolve,
         });
         await promise;
         const currentStepIndex = flow.steps.indexOf(step);
         const shouldStopAtCurrentStep = player.steppingOver || player.breakpointIndexes.has(currentStepIndex);
         const shouldWaitForSpeed = step.type !== 'setViewport' && step.type !== 'navigate' && !player.aborted;
         if (shouldStopAtCurrentStep) {
-          player.dispatchEventToListeners(Events.Stop);
+          player.dispatchEventToListeners(Events.STOP);
           await player.stop();
-          player.dispatchEventToListeners(Events.Continue);
+          player.dispatchEventToListeners(Events.CONTINUE);
         } else if (shouldWaitForSpeed) {
           await Promise.race([
             new Promise(
@@ -278,6 +268,10 @@ export class RecordingPlayer extends Common.ObjectWrapper.ObjectWrapper<EventTyp
         if (Common.ParsedURL.schemeIs(page?.url() as Platform.DevToolsPath.UrlString, 'devtools:') &&
             (step.type === 'setViewport' || step.type === 'navigate')) {
           return;
+        }
+        if (step.type === 'navigate' &&
+            Common.ParsedURL.schemeIs(step.url as Platform.DevToolsPath.UrlString, 'chrome:')) {
+          throw new Error('Not allowed to replay on chrome:// URLs');
         }
         // Focus the target in case it's not focused.
         await this.page.bringToFront();
@@ -302,29 +296,29 @@ export class RecordingPlayer extends Common.ObjectWrapper.ObjectWrapper<EventTyp
       await RecordingPlayer.disconnectPuppeteer(browser);
     }
     if (this.aborted) {
-      this.dispatchEventToListeners(Events.Abort);
+      this.dispatchEventToListeners(Events.ABORT);
     } else if (error) {
-      this.dispatchEventToListeners(Events.Error, error);
+      this.dispatchEventToListeners(Events.ERROR, error);
     } else {
-      this.dispatchEventToListeners(Events.Done);
+      this.dispatchEventToListeners(Events.DONE);
     }
   }
 }
 
 export const enum Events {
-  Abort = 'Abort',
-  Done = 'Done',
-  Step = 'Step',
-  Stop = 'Stop',
-  Error = 'Error',
-  Continue = 'Continue',
+  ABORT = 'Abort',
+  DONE = 'Done',
+  STEP = 'Step',
+  STOP = 'Stop',
+  ERROR = 'Error',
+  CONTINUE = 'Continue',
 }
 
-type EventTypes = {
-  [Events.Abort]: void,
-  [Events.Done]: void,
-  [Events.Step]: {step: Step, resolve: () => void},
-  [Events.Stop]: void,
-  [Events.Continue]: void,
-  [Events.Error]: Error,
-};
+interface EventTypes {
+  [Events.ABORT]: void;
+  [Events.DONE]: void;
+  [Events.STEP]: {step: Step, resolve: () => void};
+  [Events.STOP]: void;
+  [Events.CONTINUE]: void;
+  [Events.ERROR]: Error;
+}

@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import * as Platform from '../../../core/platform/platform.js';
-import * as LitHtml from '../../lit-html/lit-html.js';
+import {html, render} from '../../lit/lit.js';
 
 import textPromptStyles from './textPrompt.css.js';
 
@@ -24,15 +24,10 @@ export class PromptInputEvent extends Event {
 }
 
 export class TextPrompt extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-text-prompt`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   #ariaLabelText = '';
   #prefixText = '';
   #suggestionText = '';
-
-  connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [textPromptStyles];
-  }
 
   set data(data: TextPromptData) {
     this.#ariaLabelText = data.ariaLabel;
@@ -124,12 +119,14 @@ export class TextPrompt extends HTMLElement {
   }
 
   #render(): void {
-    const output = LitHtml.html`
+    const output = html`
+      <style>${textPromptStyles.cssText}</style>
       <span class="prefix">${this.#prefixText} </span>
       <span class="text-prompt-input"><input class="input" aria-label=${
         this.#ariaLabelText} spellcheck="false" @input=${this.onInput} @keydown=${
-        this.onKeyDown}/><input class="suggestion" aria-label=${this.#ariaLabelText + ' Suggestion'}></span>`;
-    LitHtml.render(output, this.#shadow, {host: this});
+        this.onKeyDown}/><input class="suggestion" tabindex=-1 aria-label=${
+        this.#ariaLabelText + ' Suggestion'}></span>`;
+    render(output, this.#shadow, {host: this});
   }
 }
 
@@ -141,6 +138,6 @@ declare global {
   }
 
   interface HTMLElementEventMap {
-    'promptinputchanged': PromptInputEvent;
+    promptinputchanged: PromptInputEvent;
   }
 }

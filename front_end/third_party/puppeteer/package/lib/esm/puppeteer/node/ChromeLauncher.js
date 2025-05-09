@@ -3,18 +3,18 @@
  * Copyright 2023 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
-import { mkdtemp } from 'fs/promises';
-import os from 'os';
-import path from 'path';
+import { mkdtemp } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { computeSystemExecutablePath, Browser as SupportedBrowsers, ChromeReleaseChannel as BrowsersChromeReleaseChannel, } from '@puppeteer/browsers';
 import { debugError } from '../common/util.js';
 import { assert } from '../util/assert.js';
-import { ProductLauncher } from './ProductLauncher.js';
+import { BrowserLauncher } from './BrowserLauncher.js';
 import { rm } from './util/fs.js';
 /**
  * @internal
  */
-export class ChromeLauncher extends ProductLauncher {
+export class ChromeLauncher extends BrowserLauncher {
     constructor(puppeteer) {
         super(puppeteer, 'chrome');
     }
@@ -80,7 +80,9 @@ export class ChromeLauncher extends ProductLauncher {
         let chromeExecutable = executablePath;
         if (!chromeExecutable) {
             assert(channel || !this.puppeteer._isPuppeteerCore, `An \`executablePath\` or \`channel\` must be specified for \`puppeteer-core\``);
-            chromeExecutable = this.executablePath(channel, options.headless ?? true);
+            chromeExecutable = channel
+                ? this.executablePath(channel)
+                : this.resolveExecutablePath(options.headless ?? true);
         }
         return {
             executablePath: chromeExecutable,
@@ -149,7 +151,7 @@ export class ChromeLauncher extends ProductLauncher {
             '--disable-breakpad',
             '--disable-client-side-phishing-detection',
             '--disable-component-extensions-with-background-pages',
-            '--disable-component-update',
+            '--disable-crash-reporter', // No crash reporting in CfT.
             '--disable-default-apps',
             '--disable-dev-shm-usage',
             '--disable-extensions',
@@ -163,8 +165,8 @@ export class ChromeLauncher extends ProductLauncher {
             '--disable-sync',
             '--enable-automation',
             '--export-tagged-pdf',
-            '--generate-pdf-document-outline',
             '--force-color-profile=srgb',
+            '--generate-pdf-document-outline',
             '--metrics-recording-only',
             '--no-first-run',
             '--password-store=basic',
@@ -192,7 +194,7 @@ export class ChromeLauncher extends ProductLauncher {
         chromeArguments.push(...args);
         return chromeArguments;
     }
-    executablePath(channel, headless) {
+    executablePath(channel, validatePath = true) {
         if (channel) {
             return computeSystemExecutablePath({
                 browser: SupportedBrowsers.CHROME,
@@ -200,7 +202,7 @@ export class ChromeLauncher extends ProductLauncher {
             });
         }
         else {
-            return this.resolveExecutablePath(headless);
+            return this.resolveExecutablePath(undefined, validatePath);
         }
     }
 }

@@ -19,21 +19,11 @@
   font-size: 15px;
   background-color: var(--sys-color-surface2);
   padding: 1px 4px;
+  flex-shrink: 0;
 }
 
-.reporting-placeholder {
-  flex-grow: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  color: var(--sys-color-token-subtle);
-  min-width: min-content;
-  text-align: center;
-}
-
-devtools-data-grid-controller {
-  border: 1px solid var(--sys-color-divider);
+devtools-data-grid {
+  flex: auto;
 }
 
 .inline-icon {

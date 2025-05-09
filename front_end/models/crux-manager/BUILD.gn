@@ -4,14 +4,16 @@
 
 import("../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../scripts/build/ninja/devtools_module.gni")
-import("../../../third_party/typescript/typescript.gni")
+import("../../../scripts/build/typescript/typescript.gni")
 
 devtools_module("crux-manager") {
   sources = [ "CrUXManager.ts" ]
 
   deps = [
     "../../core/common:bundle",
+    "../../core/root:bundle",
     "../../core/sdk:bundle",
+    "../emulation:bundle",
   ]
 }
 
@@ -23,6 +25,7 @@ devtools_entrypoint("bundle") {
   visibility = [
     ":*",
     "../../panels/timeline/*",
+    "../trace/*",
   ]
 }
 

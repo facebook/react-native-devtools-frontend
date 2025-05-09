@@ -11,7 +11,9 @@ import {
   getBrowserAndPages,
   goToResource,
   setCheckBox,
+  typeText,
   waitFor,
+  waitForAria,
   waitForFunction,
 } from '../../shared/helper.js';
 
@@ -64,7 +66,7 @@ export async function getSelectedRequestName() {
     return null;
   }
   return await request.evaluate(node => {
-    return node && node.childNodes[1].textContent;
+    return node?.childNodes[1].textContent;
   });
 }
 
@@ -110,6 +112,10 @@ export async function setCacheDisabled(disabled: boolean): Promise<void> {
   await setCheckBox('[title^="Disable cache"]', disabled);
 }
 
+export async function setInvert(invert: boolean) {
+  await setCheckBox('[title="Invert"]', invert);
+}
+
 export async function setTimeWindow(): Promise<void> {
   const overviewGridCursorArea = await waitFor('.overview-grid-cursor-area');
   await overviewGridCursorArea.click({offset: {x: 0, y: 10}});
@@ -120,20 +126,26 @@ export async function clearTimeWindow(): Promise<void> {
   await overviewGridCursorArea.click({count: 2});
 }
 
+export async function setTextFilter(text: string): Promise<void> {
+  const toolbarHandle = await waitFor('.text-filter');
+  const input = await waitForAria('Filter', toolbarHandle);
+  await input.focus();
+  await typeText(text);
+}
+
 export async function getTextFilterContent(): Promise<string> {
   const toolbarHandle = await waitFor('.text-filter');
   const textFilterContent = toolbarHandle.evaluate(toolbar => {
-    const input = toolbar.shadowRoot?.querySelector('[aria-label="Filter"]');
-    return input?.textContent ?? '';
+    return toolbar.querySelector('[aria-label="Filter"]')?.textContent ?? '';
   });
-  return textFilterContent;
+  return await textFilterContent;
 }
 
 export async function clearTextFilter(): Promise<void> {
   const textFilterContent = await getTextFilterContent();
   if (textFilterContent) {
     const toolbarHandle = await waitFor('.text-filter');
-    await click('devtools-button', {root: toolbarHandle});
+    await click('[aria-label="Clear"]', {root: toolbarHandle});
   }
 }
 
@@ -166,32 +178,28 @@ export function veImpressionForNetworkPanel(options?: {newFilterBar?: boolean}) 
         veImpression('DropDown', 'request-types'),
         veImpression('DropDown', 'more-filters'),
         veImpression('Toggle', 'invert-filter'),
-        veImpression('TextField'),
+        veImpression('TextField', 'filter'),
       ] :
       [
-        veImpression('TextField'),
-        veImpression('Toggle', 'invert-filter'),
-        veImpression('Toggle', 'hide-data-urls'),
-        veImpression('Toggle', 'hide-extension-urls'),
+        veImpression('DropDown', 'more-filters'),
         veImpression(
             'Section', 'filter-bitset',
             [
               veImpression('Item', 'all'),
-              veImpression('Item', 'FetchandXHR'),
-              veImpression('Item', 'Document'),
-              veImpression('Item', 'CSS'),
-              veImpression('Item', 'JavaScript'),
-              veImpression('Item', 'Font'),
-              veImpression('Item', 'Image'),
-              veImpression('Item', 'Media'),
-              veImpression('Item', 'Manifest'),
-              veImpression('Item', 'WebSocket'),
-              veImpression('Item', 'WebAssembly'),
-              veImpression('Item', 'Other'),
+              veImpression('Item', 'xhr'),
+              veImpression('Item', 'document'),
+              veImpression('Item', 'stylesheet'),
+              veImpression('Item', 'script'),
+              veImpression('Item', 'font'),
+              veImpression('Item', 'image'),
+              veImpression('Item', 'media'),
+              veImpression('Item', 'manifest'),
+              veImpression('Item', 'socket'),
+              veImpression('Item', 'wasm'),
+              veImpression('Item', 'other'),
             ]),
-        veImpression('Toggle', 'only-show-blocked-cookies'),
-        veImpression('Toggle', 'only-show-blocked-requests'),
-        veImpression('Toggle', 'only-show-third-party'),
+        veImpression('TextField', 'filter'),
+        veImpression('Toggle', 'invert-filter'),
       ];
   return veImpression('Panel', 'network', [
     veImpression('Toolbar', 'filter-bar', filterBar),
@@ -209,9 +217,14 @@ export function veImpressionForNetworkPanel(options?: {newFilterBar?: boolean}) 
           veImpression('Toggle', 'cache-disabled'),
           veImpression('DropDown', 'preferred-network-condition'),
         ]),
-    veImpression('Pane', 'network-overview'),
+    veImpression('Timeline', 'network-overview'),
     veImpression('Toggle', 'network-settings'),
-    veImpression('Link', 'learn-more'),
+    veImpression(
+        'Section', 'empty-view',
+        [
+          veImpression('Action', 'inspector-main.reload'),
+          veImpression('Link', 'learn-more'),
+        ]),
     veImpression('TableHeader', 'name'),
     veImpression('TableHeader', 'status'),
     veImpression('TableHeader', 'type'),
