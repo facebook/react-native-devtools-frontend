@@ -4,6 +4,7 @@
 
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import * as Root from '../../core/root/root.js';
 import type * as Platform from '../../core/platform/platform.js';
 import * as LitHtml from '../../ui/lit-html/lit-html.js';
 
@@ -51,6 +52,11 @@ const UIStrings = {
    */
   sendFeedbackMessage: '[FB-only] Please send feedback if this disconnection is unexpected.',
   /**
+   * @description Text in a dialog box to prompt for feedback if the disconnection is unexpected,
+   * telling the user what's their session ID for easier debugging
+   */
+  sendFeedbackLaunchIdMessage: 'Please include the following session ID:',
+  /**
    * @description Label of the FB-only 'send feedback' button.
    */
   sendFeedback: 'Send feedback',
@@ -76,8 +82,10 @@ export class RemoteDebuggingTerminatedScreen extends VBox {
         <h1 class="remote-debugging-terminated-title">${i18nString(UIStrings.title)}</h1>
         <div class="remote-debugging-terminated-message">
           <span>${i18nString(UIStrings.debuggingConnectionWasClosed)}</span>
+          <br/>
           <span class="remote-debugging-terminated-reason">${reason}</span>
         </div>
+        ${feedbackLink !== null && feedbackLink !== undefined ? this.#createFeedbackSection(feedbackLink) : null}
         <div class="remote-debugging-terminated-options">
           <div class="remote-debugging-terminated-label">
             ${i18nString(UIStrings.reconnectWhenReadyByReopening)}
@@ -95,7 +103,6 @@ export class RemoteDebuggingTerminatedScreen extends VBox {
           jslogContext: 'dismiss',
         })}
         </div>
-        ${feedbackLink !== null && feedbackLink !== undefined ? this.#createFeedbackSection(feedbackLink) : null}
       `,
         this.contentElement,
         {host: this},
@@ -121,9 +128,22 @@ export class RemoteDebuggingTerminatedScreen extends VBox {
       );
     };
 
+    const launchId = Root.Runtime.Runtime.queryParam('launchId');
+
     return html`
       <div class="remote-debugging-terminated-feedback-container">
         <div class="remote-debugging-terminated-feedback-label">${i18nString(UIStrings.sendFeedbackMessage)}</div>
+        ${launchId ?
+          html`
+            <div class="remote-debugging-terminated-feedback-label">
+              ${i18nString(UIStrings.sendFeedbackLaunchIdMessage)}
+            </div>
+            <div class="remote-debugging-terminated-feedback-launch-id">
+              ${launchId}
+            </div>
+          ` : ''
+        }
+        <br/>
         ${
         createTextButton(
             i18nString(UIStrings.sendFeedback),

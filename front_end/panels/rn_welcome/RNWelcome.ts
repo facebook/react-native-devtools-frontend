@@ -7,6 +7,7 @@ import type * as Common from '../../core/common/common.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 
 import rnWelcomeStyles from './rnWelcome.css.js';
@@ -25,6 +26,8 @@ const UIStrings = {
   docsLabel: 'Debugging docs',
   /** @description "What's new" link */
   whatsNewLabel: "What's new",
+  /** @description Description for sharing the session ID of the current session with the user */
+  sessionIdMessage: "[FB-only] The session ID for this React Native DevTools lauch is: ",
   /** @description "Debugging Basics" title (docs item 1) */
   docsDebuggingBasics: 'Debugging Basics',
   /** @description "Debugging Basics" item detail */
@@ -132,6 +135,8 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
       import.meta.url,
     ).toString();
 
+    const launchId = Root.Runtime.Runtime.queryParam('launchId');
+    
     render(html`
       <div class="rn-welcome-panel">
         <header class="rn-welcome-hero">
@@ -162,6 +167,13 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
               ${i18nString(UIStrings.whatsNewLabel)}
             </x-link>
           </div>
+          ${launchId ? html`
+            <div class="rn-session-id">
+              ${i18nString(UIStrings.sessionIdMessage)}
+              <br/>
+              ${launchId}
+            </div>
+          ` : ''}
           ${this.#reactNativeVersion !== null && this.#reactNativeVersion !== undefined ? html`
               <p class="rn-welcome-version">React Native: <code>${this.#reactNativeVersion}</code></p>
             ` : null}
