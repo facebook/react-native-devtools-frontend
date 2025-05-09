@@ -8,7 +8,6 @@ import {
   goToResource,
   waitForElementWithTextContent,
 } from '../../shared/helper.js';
-import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   expandSelectedNodeRecursively,
   getContentOfSelectedNode,
@@ -25,9 +24,6 @@ describe('The Elements tab', () => {
 
     // Wait for the file to be loaded and selectors to be shown.
     await waitForElementsStyleSection();
-
-    // Check to make sure we have the correct node selected after opening a file.
-    await waitForContentOfSelectedElementsNode('<body>\u200B');
     await expandSelectedNodeRecursively();
 
     // Wait for the expansion and select the final child in the tree.

@@ -2,16 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Common from '../common/common.js';
 import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 import * as Protocol from '../../generated/protocol.js';
+import * as Common from '../common/common.js';
 
 import {CSSModel} from './CSSModel.js';
 import {MultitargetNetworkManager} from './NetworkManager.js';
 import {Events, OverlayModel} from './OverlayModel.js';
-
-import {Capability, type Target} from './Target.js';
 import {SDKModel} from './SDKModel.js';
+import {Capability, type Target} from './Target.js';
 
 export class EmulationModel extends SDKModel<void> {
   readonly #emulationAgent: ProtocolProxyApi.EmulationApi;
@@ -19,6 +18,7 @@ export class EmulationModel extends SDKModel<void> {
   #cssModel: CSSModel|null;
   readonly #overlayModelInternal: OverlayModel|null;
   readonly #mediaConfiguration: Map<string, string>;
+  #cpuPressureEnabled: boolean;
   #touchEnabled: boolean;
   #touchMobile: boolean;
   #touchEmulationAllowed: boolean;
@@ -35,7 +35,7 @@ export class EmulationModel extends SDKModel<void> {
     this.#cssModel = target.model(CSSModel);
     this.#overlayModelInternal = target.model(OverlayModel);
     if (this.#overlayModelInternal) {
-      this.#overlayModelInternal.addEventListener(Events.InspectModeWillBeToggled, () => {
+      this.#overlayModelInternal.addEventListener(Events.INSPECT_MODE_WILL_BE_TOGGLED, () => {
         void this.updateTouch();
       }, this);
     }
@@ -68,6 +68,24 @@ export class EmulationModel extends SDKModel<void> {
         isScreenUnlocked: boolean,
       });
       await this.setIdleOverride(emulationParams);
+    });
+
+    const cpuPressureDetectionSetting = Common.Settings.Settings.instance().moduleSetting('emulation.cpu-pressure');
+    cpuPressureDetectionSetting.addChangeListener(async () => {
+      const settingValue = cpuPressureDetectionSetting.get();
+
+      if (settingValue === 'none') {
+        await this.setPressureSourceOverrideEnabled(false);
+        this.#cpuPressureEnabled = false;
+        return;
+      }
+
+      if (!this.#cpuPressureEnabled) {
+        this.#cpuPressureEnabled = true;
+        await this.setPressureSourceOverrideEnabled(true);
+      }
+
+      await this.setPressureStateOverride(settingValue);
     });
 
     const mediaTypeSetting = Common.Settings.Settings.instance().moduleSetting<string>('emulated-css-media');
@@ -179,6 +197,7 @@ export class EmulationModel extends SDKModel<void> {
       updateDisabledImageFormats();
     }
 
+    this.#cpuPressureEnabled = false;
     this.#touchEmulationAllowed = true;
     this.#touchEnabled = false;
     this.#touchMobile = false;
@@ -194,7 +213,7 @@ export class EmulationModel extends SDKModel<void> {
   }
 
   supportsDeviceEmulation(): boolean {
-    return this.target().hasAllCapabilities(Capability.DeviceEmulation);
+    return this.target().hasAllCapabilities(Capability.DEVICE_EMULATION);
   }
 
   async resetPageScaleFactor(): Promise<void> {
@@ -211,6 +230,18 @@ export class EmulationModel extends SDKModel<void> {
 
   overlayModel(): OverlayModel|null {
     return this.#overlayModelInternal;
+  }
+
+  async setPressureSourceOverrideEnabled(enabled: boolean): Promise<void> {
+    await this.#emulationAgent.invoke_setPressureSourceOverrideEnabled(
+        {source: Protocol.Emulation.PressureSource.Cpu, enabled});
+  }
+
+  async setPressureStateOverride(pressureState: string): Promise<void> {
+    await this.#emulationAgent.invoke_setPressureStateOverride({
+      source: Protocol.Emulation.PressureSource.Cpu,
+      state: pressureState as Protocol.Emulation.PressureState,
+    });
   }
 
   async emulateLocation(location: Location|null): Promise<void> {
@@ -290,10 +321,10 @@ export class EmulationModel extends SDKModel<void> {
     await this.#emulationAgent.invoke_clearIdleOverride();
   }
 
-  private async emulateCSSMedia(type: string, features: {
-    name: string,
-    value: string,
-  }[]): Promise<void> {
+  private async emulateCSSMedia(type: string, features: Array<{
+                                  name: string,
+                                  value: string,
+                                }>): Promise<void> {
     await this.#emulationAgent.invoke_setEmulatedMedia({media: type, features});
     if (this.#cssModel) {
       this.#cssModel.mediaQueryResultChanged();
@@ -415,7 +446,7 @@ export class EmulationModel extends SDKModel<void> {
         value: this.#mediaConfiguration.get('prefers-reduced-transparency') ?? '',
       },
     ];
-    return this.emulateCSSMedia(type, features);
+    return await this.emulateCSSMedia(type, features);
   }
 }
 
@@ -598,4 +629,4 @@ export class DeviceOrientation {
   }
 }
 
-SDKModel.register(EmulationModel, {capabilities: Capability.Emulation, autostart: true});
+SDKModel.register(EmulationModel, {capabilities: Capability.EMULATION, autostart: true});

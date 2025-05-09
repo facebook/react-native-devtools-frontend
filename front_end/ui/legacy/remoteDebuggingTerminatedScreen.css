@@ -4,8 +4,11 @@
  * found in the LICENSE file.
  */
 
-.widget {
-  padding: 20px;
+.header {
+  padding-top: var(--sys-size-3);
+  margin: var(--sys-size-5) var(--sys-size-5) var(--sys-size-5)
+    var(--sys-size-8);
+  font: var(--sys-typescale-body2-medium);
 }
 
 .remote-debugging-terminated-title {

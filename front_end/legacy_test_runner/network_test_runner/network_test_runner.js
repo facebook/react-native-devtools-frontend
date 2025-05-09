@@ -48,7 +48,7 @@ NetworkTestRunner.waitForWebsocketFrameReceived = function(wsRequest, message) {
     }
   }
 
-  return TestRunner.waitForEvent(SDK.NetworkRequest.Events.WebsocketFrameAdded, wsRequest, checkFrame);
+  return TestRunner.waitForEvent(SDK.NetworkRequest.Events.WEBSOCKET_FRAME_ADDED, wsRequest, checkFrame);
 
   function checkFrame(frame) {
     return frame.type === SDK.NetworkRequest.WebSocketFrameType.Receive && frame.text === message;
@@ -195,6 +195,7 @@ NetworkTestRunner.HARPropertyFormatters = {
   timings: 'formatAsTypeName',
   version: 'formatAsTypeName',
   wait: 'formatAsTypeName',
+  _connectionId: 'formatAsTypeName',
   _transferSize: 'formatAsTypeName',
   _error: 'skip',
   _initiator: 'formatAsTypeName',

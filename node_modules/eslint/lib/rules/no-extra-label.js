@@ -23,7 +23,8 @@ module.exports = {
         docs: {
             description: "Disallow unnecessary labels",
             recommended: false,
-            url: "https://eslint.org/docs/rules/no-extra-label"
+            frozen: true,
+            url: "https://eslint.org/docs/latest/rules/no-extra-label"
         },
 
         schema: [],
@@ -35,7 +36,7 @@ module.exports = {
     },
 
     create(context) {
-        const sourceCode = context.getSourceCode();
+        const sourceCode = context.sourceCode;
         let scopeInfo = null;
 
         /**

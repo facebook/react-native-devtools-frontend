@@ -1,4 +1,4 @@
-# Guide on end-to-end testing
+# E2E Testing
 
 This directory hosts the end-to-end tests we run on DevTools. These tests open a target page and a DevTools frontend page, for which the DevTools frontend connects to the target page over CDP. We use [Puppeteer] to talk over CDP and all functionality of Puppeteer is available to you as well when writing end-to-end tests. We use [Mocha] as testing framework.
 
@@ -9,18 +9,133 @@ The tests therefore have a dual purpose:
 1. Verify that core user stories are working as intended and are not broken by a particular DevTools frontend change.
 1. Serve as documentation and reference point for how DevTools is intended to be used.
 
-## Skipping tests
+[TOC]
 
-You can disable a test for all platforms using `it.skip`. If you are disabling a flaky test, consider disabling it only on the affected platforms. For example,
+## Running E2E tests
+
+The end-to-end tests are implicitly run as part of `npm run test`,
+but that also runs all the other test suites. To run only
+**all end-to-end tests**, use:
+
+```
+npm run test test/e2e
+```
+
+To use `out/Debug` instead of the default `out/Default` target
+directory, use:
+
+```
+npm run test -- -t Debug test/e2e
+```
+
+To run the end-to-end tests in **debug mode**, use:
+
+```
+npm run test -- --debug test/e2e
+```
+
+To run only **specific end-to-end tests** from a single `_test.ts`
+file, say `console-log_test.ts` for example, use:
+
+```
+npm run test test/e2e/console/console-log_test.ts
+```
+
+Check the output of `npm run test -- --help` for an overview of
+all options.
+
+## Debugging E2E tests
+
+You can debug the "DevTools under test" with DevTools-on-DevTools. Use the
+standard DevTools key combination to open another DevTools instance while
+you look at the "DevTools under test". You can set breakpoints and inspect
+the status of the "DevTools under test" this way. You can debug the puppeteer
+side by inspecting the Node.js process that runs the e2e suite. Either open
+`chrome://inspect` or click the Node.js icon in any open DevTools window to
+connect to the puppeteer process. You can step through the puppeteer test
+code this way.
+
+To listen to the frontend's console:
 
 ```js
+getBrowserAndPages().frontend.on('console', msg => console.log(msg.text()));
+```
+
+### Debugging E2E tests with VSCode
+
+There's experimental support for running unit tests directly from
+within VSCode. Open the "Run and Debug" sidebar, select "Run end-to-end tests
+in VS Code debugger" from the dropdown, and click the start button or
+press F5.
+
+![Debugging E2E tests with VSCode](../../docs/images/debugging-e2e-tests-with-vscode.png "Debugging E2E tests with VSCode")
+
+Current limitations when using VSCode for e2e and interactions tests:
+
+- VSCode only attaches to the node portion of the code (mostly the test files
+  and the test helpers), not to Chrome.
+- VSCode debugging only works with headless mode.
+
+## Dealing with flaky E2E tests
+
+To skip a flaky E2E test, create a new bug on [crbug.com](https://crbug.com) in the
+`Chromium > Platform > DevTools` component, and modify the `it` or `describe`
+block accordingly by adding `.skip` to it, adding a preceeding comment
+why the test is skipp and adding the `crbug.com` reference to the test
+block string. For example
+
+```js
+describe('Foo', () => {
+  it('can return bar', () => {
+    assert.strictEqual((new Foo()).bar(), 'bar');
+  });
+
+  ...
+});
+```
+
+would be changed to look like this
+
+```js
+describe('Foo', () => {
+  // Flaking on multiple bots on CQ after recent CL xyz.
+  it.skip('[crbug.com/12345678] can return bar', () => {
+    assert.strictEqual((new Foo()).bar(), 'bar');
+  });
+
+  ...
+});
+```
+
+if only the one test case should be skipped, or like this
+
+```js
+// Flaking on multiple bots on CQ after recent CL xyz.
+describe.skip('[crbug.com/12345678] Foo', () => {
+  it('can return bar', () => {
+    assert.strictEqual((new Foo()).bar(), 'bar');
+  });
+
+  ...
+});
+```
+
+if all the tests for `Foo` should be skipped. Note that it is preferable to
+skip individual tests so that test results list the skipped tests, rather than
+skipping groups of tests.
+
+If you are disabling a flaky test, consider disabling it only on the affected
+platforms. For example:
+
+```js
+// Consistently flakes on Mac and Windows bots.
 it.skipOnPlatforms(['mac', 'win32'], '[crbug.com/xxx] ...', () => {...});
+
+// Skipped on Linux because the world isn't round.
 it.skipOnPlatforms(['linux'], '[crbug.com/xxx] ...', () => {...});
 ```
 
-To use `skipOnPlatforms`, you need to import `it` from `test/shared/mocha-extensions.ts`.
-
-## Debugging flaky tests
+### De-flaking E2E tests
 
 The `it.repeat` helper is useful for reproducing a flaky test failure. e.g.
 
@@ -30,18 +145,16 @@ it.repeat(20, 'find element', async () => {...});
 
 `it.repeat` behaves like `it.only` in that it will cause just that single test to be run.
 
-## Debugging flaky tests
-
 To see if certain tests are flaky you can use the E2E stressor bots. Open a CL with your test changes and run the following command specifying your test file:
 
 ```sh
-git cl try -B devtools-frontend/try -b e2e_stressor_linux -b e2e_stressor_win64 -b e2e_stressor_mac -p e2e_env='{"TEST_PATTERNS":"network/network-datagrid_test.ts","ITERATIONS":20}'
+git cl try -B devtools-frontend/try -b e2e_stressor_linux -b e2e_stressor_win64 -b e2e_stressor_mac -p runner_args='test/e2e/sources/navigator-view_test.ts --repeat=80'
 ```
 
 or multiple test files:
 
 ```sh
-git cl try -B devtools-frontend/try -b e2e_stressor_linux -b e2e_stressor_win64 -b e2e_stressor_mac -p e2e_env='{"TEST_PATTERNS":"network/network-datagrid_test.ts,network/network_test.ts","ITERATIONS":20}'
+git cl try -B devtools-frontend/try -b e2e_stressor_linux -b e2e_stressor_win64 -b e2e_stressor_mac -p runner_args='test/e2e/sources/navigator-view_test.ts test/e2e/sources/snippets_test.ts --repeat=80'
 ```
 
 This will run the specified tests on dedicated bots with the specified number of iterations. Note that in order for iterations to work the test should be using `it` from `mocha_extensions.ts`.
@@ -51,12 +164,9 @@ The following command runs the stressor bot on all files of the latest commit wi
 ```sh
 git cl try -B devtools-frontend/try \
   -b e2e_stressor_linux \
-  -p e2e_env="{ \
-    \"TEST_PATTERNS\": \"$(git diff-tree --no-commit-id --name-only HEAD -r | grep test/e2e | cut -c 10- - | tr "\n" ",")_\", \
-    \"STRESS\": true, \
-    \"LATE_PROMISES\": true, \
-    \"ITERATIONS\": 20 \
-  }"
+  -p runner_args="\
+    $(git diff-tree --no-commit-id --name-only HEAD -r | grep test/e2e | grep -v e2e/helpers | cut -c 10- - | tr "\n" " ") \
+    --repeat=20"
 ```
 
 > By default, tests are run using the debug build. To run it with the release build, append `-p builder_config=Release` to the end of the command.

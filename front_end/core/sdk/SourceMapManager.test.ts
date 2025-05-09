@@ -6,15 +6,16 @@ import type * as Protocol from '../../generated/protocol.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
 import {setupPageResourceLoaderForSourceMap} from '../../testing/SourceMapHelpers.js';
-import type * as Platform from '../platform/platform.js';
+import * as Platform from '../platform/platform.js';
 
 import * as SDK from './sdk.js';
 
+const {urlString} = Platform.DevToolsPath;
 const content = JSON.stringify({
-  'version': 3,
-  'file': '/script.js',
-  'mappings': '',
-  'sources': [
+  version: 3,
+  file: '/script.js',
+  mappings: '',
+  sources: [
     '/original-script.js',
   ],
 });
@@ -22,13 +23,13 @@ const content = JSON.stringify({
 describeWithMockConnection('SourceMapManager', () => {
   it('uses url for a worker\'s source maps from frame', async () => {
     setupPageResourceLoaderForSourceMap(content);
-    const frameUrl = 'https://frame-host/index.html' as Platform.DevToolsPath.UrlString;
-    const scriptUrl = 'https://script-host/script.js' as Platform.DevToolsPath.UrlString;
-    const sourceUrl = 'script.js' as Platform.DevToolsPath.UrlString;
-    const sourceMapUrl = 'script.js.map' as Platform.DevToolsPath.UrlString;
+    const frameUrl = urlString`https://frame-host/index.html`;
+    const scriptUrl = urlString`https://script-host/script.js`;
+    const sourceUrl = urlString`script.js`;
+    const sourceMapUrl = urlString`script.js.map`;
 
     const mainTarget =
-        createTarget({id: 'main' as Protocol.Target.TargetID, name: 'main', type: SDK.Target.Type.Frame});
+        createTarget({id: 'main' as Protocol.Target.TargetID, name: 'main', type: SDK.Target.Type.FRAME});
     mainTarget.setInspectedURL(frameUrl);
 
     const workerTarget = createTarget({
@@ -50,22 +51,21 @@ describeWithMockConnection('SourceMapManager', () => {
 
     const sourceMap = await sourceMapManager.sourceMapForClientPromise(script);
     // Check that the URLs are resolved relative to the frame.
-    assert.strictEqual(sourceMap?.url(), 'https://frame-host/script.js.map' as Platform.DevToolsPath.UrlString);
-    assert.deepEqual(
-        sourceMap?.sourceURLs(), ['https://frame-host/original-script.js' as Platform.DevToolsPath.UrlString]);
+    assert.strictEqual(sourceMap?.url(), urlString`https://frame-host/script.js.map`);
+    assert.deepEqual(sourceMap?.sourceURLs(), [urlString`https://frame-host/original-script.js`]);
   });
 
   it('can handle source maps in a data URL frame', async () => {
     setupPageResourceLoaderForSourceMap(content);
-    const sourceUrl = 'script.js' as Platform.DevToolsPath.UrlString;
-    const sourceMapUrl = `data:test/html;base64,${btoa(content)}` as Platform.DevToolsPath.UrlString;
+    const sourceUrl = urlString`script.js`;
+    const sourceMapUrl = urlString`${`data:test/html;base64,${btoa(content)}`}`;
     const frameSource =
         '<script>0\n//# sourceURL=' + sourceUrl + '\n//# sourceMappingURL=' + sourceMapUrl + '</script>';
-    const frameUrl = `data:test/html;base64,${btoa(frameSource)}` as Platform.DevToolsPath.UrlString;
-    const scriptUrl = 'https://script-host/script.js' as Platform.DevToolsPath.UrlString;
+    const frameUrl = urlString`${`data:test/html;base64,${btoa(frameSource)}`}`;
+    const scriptUrl = urlString`https://script-host/script.js`;
 
     const mainTarget =
-        createTarget({id: 'main' as Protocol.Target.TargetID, name: 'main', type: SDK.Target.Type.Frame});
+        createTarget({id: 'main' as Protocol.Target.TargetID, name: 'main', type: SDK.Target.Type.FRAME});
     mainTarget.setInspectedURL(frameUrl);
 
     const debuggerModel = mainTarget.model(SDK.DebuggerModel.DebuggerModel);
@@ -79,12 +79,12 @@ describeWithMockConnection('SourceMapManager', () => {
     sourceMapManager.attachSourceMap(script, sourceUrl, sourceMapUrl);
 
     const sourceMap = await sourceMapManager.sourceMapForClientPromise(script);
-    assert.deepEqual(sourceMap?.sourceURLs(), ['/original-script.js' as Platform.DevToolsPath.UrlString]);
+    assert.deepEqual(sourceMap?.sourceURLs(), [urlString`/original-script.js`]);
   });
 });
 
 describe('SourceMapManager', () => {
-  const sourceURL = 'http://localhost/foo.js' as Platform.DevToolsPath.UrlString;
+  const sourceURL = urlString`http://localhost/foo.js`;
   const sourceMappingURL = `${sourceURL}.map`;
 
   beforeEach(() => {
@@ -99,7 +99,7 @@ describe('SourceMapManager', () => {
 
   const createTarget = () => {
     const target = sinon.createStubInstance(SDK.Target.Target);
-    target.type.returns(SDK.Target.Type.Frame);
+    target.type.returns(SDK.Target.Type.FRAME);
     return target;
   };
 

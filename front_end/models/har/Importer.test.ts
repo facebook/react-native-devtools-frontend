@@ -25,6 +25,7 @@ const exampleLog = new HAR.HARFormat.HARLog({
   }],
   entries: [
     {
+      _connectionId: '1',
       _initiator: {
         type: 'script',
         requestId: '12',
@@ -59,7 +60,7 @@ const exampleLog = new HAR.HARFormat.HARLog({
       _priority: 'High',
       _resourceType: 'xhr',
       cache: {},
-      connection: '1',
+      connection: '6789',
       request: {
         method: 'POST',
         url: 'https://example.com/api/testEndpoint?param1=test',
@@ -97,6 +98,9 @@ const exampleLog = new HAR.HARFormat.HARLog({
         _fetchedViaServiceWorker: true,
         _responseCacheStorageCacheName: 'v1',
         _serviceWorkerResponseSource: 'cache-storage',
+        _serviceWorkerRouterRuleIdMatched: 1,
+        _serviceWorkerRouterMatchedSourceType: 'cache',
+        _serviceWorkerRouterActualSourceType: 'network',
       },
       serverIPAddress: '127.0.0.1',
       startedDateTime: '2020-12-14T17:35:53.241Z',
@@ -114,10 +118,13 @@ const exampleLog = new HAR.HARFormat.HARLog({
         _workerReady: 2,
         _workerFetchStart: 10,
         _workerRespondWithSettled: 300,
+        _workerRouterEvaluationStart: 100,
+        _workerCacheLookupStart: 200,
       },
     },
     {
       pageref: 'page_0',
+      _connectionId: '1',
       _initiator: {
         type: 'script',
         stack: {
@@ -133,7 +140,7 @@ const exampleLog = new HAR.HARFormat.HARLog({
         },
       },
       cache: {},
-      connection: '1',
+      connection: '6789',
       request: {
         method: 'POST',
         url: 'https://example.com/api/testEndpoint?param2=test2',
@@ -202,9 +209,9 @@ describe('HAR Importer', () => {
     assert.strictEqual(parsedRequest.requestId(), 'har-0');
     assert.strictEqual(parsedRequest.url(), 'https://example.com/api/testEndpoint?param1=test');
     assert.strictEqual(parsedRequest.documentURL, 'https://example.com/api/testEndpoint?param1=test');
-    assert.strictEqual(parsedRequest.frameId, null);
-    assert.strictEqual(parsedRequest.loaderId, null);
-    assert.deepStrictEqual(
+    assert.isNull(parsedRequest.frameId);
+    assert.isNull(parsedRequest.loaderId);
+    assert.deepEqual(
         parsedRequest.initiator() as HAR.HARFormat.HARInitiator,
         {
           type: Protocol.Network.InitiatorType.Script,
@@ -256,9 +263,12 @@ describe('HAR Importer', () => {
 
   it('Parses service worker info in entries', () => {
     const parsedRequest = requests[0];
-    assert.strictEqual(parsedRequest.fetchedViaServiceWorker, true);
+    assert.isTrue(parsedRequest.fetchedViaServiceWorker);
     assert.strictEqual(parsedRequest.getResponseCacheStorageCacheName(), 'v1');
     assert.strictEqual(parsedRequest.serviceWorkerResponseSource(), 'cache-storage');
+    assert.strictEqual(parsedRequest.serviceWorkerRouterInfo?.ruleIdMatched, 1);
+    assert.strictEqual(parsedRequest.serviceWorkerRouterInfo?.matchedSourceType, 'cache');
+    assert.strictEqual(parsedRequest.serviceWorkerRouterInfo?.actualSourceType, 'network');
   });
 
   it('Parses the request timings', () => {
@@ -284,6 +294,20 @@ describe('HAR Importer', () => {
       workerFetchStart: 10,
       workerRespondWithSettled: 300,
       workerStart: 30,
+      workerRouterEvaluationStart: 100,
+      workerCacheLookupStart: 200,
     });
+  });
+
+  it('Parses the remote address correctly', () => {
+    for (const request of requests) {
+      assert.strictEqual(request.remoteAddress(), '127.0.0.1:6789');
+    }
+  });
+
+  it('Parses the Chrome-specific connection ID', () => {
+    for (const request of requests) {
+      assert.strictEqual(request.connectionId, '1');
+    }
   });
 });

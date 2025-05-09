@@ -2,12 +2,12 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("../../../../third_party/typescript/typescript.gni")
+import("../../../../scripts/build/typescript/typescript.gni")
 
 node_ts_library("components") {
   sources = [
+    "ButtonDialog_test.ts",
     "Dialog_test.ts",
-    "IconDialog_test.ts",
     "SelectMenu_test.ts",
     "ShortcutDialog_test.ts",
   ]

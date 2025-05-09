@@ -56,7 +56,7 @@ describe('SettingCheckbox', () => {
     assert.isFalse(checkbox.checked);
   });
 
-  it('can be reassigned to a different settings', () => {
+  it('can be reassigned to a different setting', () => {
     const setting1 = createFakeSetting<boolean>('setting1', true);
     const setting2 = createFakeSetting<boolean>('setting2', true);
     const {component, checkbox} = renderSettingCheckbox({setting: setting1});
@@ -74,6 +74,13 @@ describe('SettingCheckbox', () => {
     checkbox.click();
 
     assert.isTrue(setting.get());
+  });
+
+  it('renders override text if provided', () => {
+    const setting = createFakeSetting<boolean>('setting', false);
+    const {component} = renderSettingCheckbox({setting, textOverride: 'Text override'});
+
+    assert.strictEqual(component.shadowRoot!.querySelector('label')!.innerText, 'Text override');
   });
 
   it('ignores clicks when disabled', () => {
@@ -94,7 +101,7 @@ describe('SettingCheckbox', () => {
       settingType: Common.Settings.SettingType.BOOLEAN,
       defaultValue: false,
       disabledCondition: () => {
-        return {disabled: true, reason: 'reason'};
+        return {disabled: true, reasons: ['reason']};
       },
     });
 
@@ -114,13 +121,14 @@ describe('SettingCheckbox', () => {
       settingType: Common.Settings.SettingType.BOOLEAN,
       defaultValue: false,
       disabledCondition: () => {
-        return {disabled: true, reason: 'reason'};
+        return {disabled: true, reasons: ['reason']};
       },
     });
 
     const {component} = renderSettingCheckbox({setting});
 
-    assert.strictEqual((component.shadowRoot!.querySelector('.disabled-reason') as HTMLElement).title, 'reason');
+    assert.strictEqual(
+        (component.shadowRoot!.querySelector('.disabled-reason') as HTMLElement).getAttribute('title'), 'reason');
   });
 
   it('is disabled for a disabled deprecated settings', () => {

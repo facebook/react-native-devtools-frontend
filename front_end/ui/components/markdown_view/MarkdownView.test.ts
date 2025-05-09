@@ -5,56 +5,64 @@
 import {renderElementIntoDOM} from '../../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
 import * as Marked from '../../../third_party/marked/marked.js';
-import * as LitHtml from '../../lit-html/lit-html.js';
+import * as Lit from '../../lit/lit.js';
 
 import * as MarkdownView from './markdown_view.js';
 
-type TestToken = {
-  type: string,
-  tokens?: Marked.Marked.Token[],
-  text?: string,
-  href?: string,
-  items?: Object[],
-  depth?: number,
-};
+const {html} = Lit;
+
+interface TestToken {
+  type: string;
+  tokens?: Marked.Marked.Token[];
+  text?: string;
+  href?: string;
+  items?: Object[];
+  depth?: number;
+}
 
 function getFakeToken(token: TestToken): Marked.Marked.Token {
   return token as unknown as Marked.Marked.Token;
 }
 
+function renderTemplateResult(templateResult: Lit.TemplateResult): HTMLElement {
+  const container = document.createElement('container');
+  Lit.render(templateResult, container);
+  return container;
+}
+
 describeWithEnvironment('MarkdownView', () => {
   describe('tokenizer', () => {
     it('tokenizers links in single quotes', () => {
-      assert.deepStrictEqual(Marked.Marked.lexer('\'https://example.com\''), [
+      assert.deepEqual(Marked.Marked.lexer('\'https://example.test\''), [
         {
-          'raw': '\'https://example.com\'',
-          'text': '\'https://example.com\'',
-          'tokens': [
+          raw: '\'https://example.test\'',
+          text: '\'https://example.test\'',
+          tokens: [
             {
-              'raw': '\'',
-              'text': '&#39;',
-              'type': 'text',
+              raw: '\'',
+              text: '&#39;',
+              type: 'text',
             },
             {
-              'href': 'https://example.com',
-              'raw': 'https://example.com',
-              'text': 'https://example.com',
-              'tokens': [
+              href: 'https://example.test',
+              raw: 'https://example.test',
+              text: 'https://example.test',
+              tokens: [
                 {
-                  'raw': 'https://example.com',
-                  'text': 'https://example.com',
-                  'type': 'text',
+                  raw: 'https://example.test',
+                  text: 'https://example.test',
+                  type: 'text',
                 },
               ],
-              'type': 'link',
+              type: 'link',
             },
             {
-              'raw': '\'',
-              'text': '&#39;',
-              'type': 'text',
+              raw: '\'',
+              text: '&#39;',
+              type: 'text',
             },
           ],
-          'type': 'paragraph',
+          type: 'paragraph',
         },
       ] as unknown as Marked.Marked.TokensList);
     });
@@ -63,45 +71,53 @@ describeWithEnvironment('MarkdownView', () => {
     const renderer = new MarkdownView.MarkdownView.MarkdownLitRenderer();
 
     it('wraps paragraph tokens in <p> tags', () => {
-      const renderResult = renderer.renderToken(getFakeToken({type: 'paragraph', tokens: []}));
-      assert.deepStrictEqual(renderResult.strings.raw, ['<p>', '']);
+      const container = renderTemplateResult(renderer.renderToken(getFakeToken({type: 'paragraph', tokens: []})));
+
+      assert.exists(container.querySelector('p'));
     });
 
     it('wraps an unordered list token in <ul> tags', () => {
-      const renderResult = renderer.renderToken(getFakeToken({type: 'list', items: []}));
-      assert.deepStrictEqual(renderResult.strings.raw, ['<ul>', '</ul>']);
+      const container = renderTemplateResult(renderer.renderToken(getFakeToken({type: 'list', items: []})));
+
+      assert.exists(container.querySelector('ul'));
     });
 
     it('wraps list items in <li> tags', () => {
-      const renderResult = renderer.renderToken(getFakeToken({type: 'list_item', tokens: []}));
-      assert.deepStrictEqual(renderResult.strings.raw, ['<li>', '']);
+      const container = renderTemplateResult(renderer.renderToken(getFakeToken({type: 'list_item', tokens: []})));
+      assert.exists(container.querySelector('li'));
     });
 
     it('wraps a codespan token in <code> tags', () => {
-      const renderResult = renderer.renderToken(getFakeToken({type: 'codespan', text: 'const foo = 42;'}));
-      assert.deepStrictEqual(renderResult.strings.raw, ['<code>', '</code>']);
-      assert.deepStrictEqual(renderResult.values, ['const foo = 42;']);
+      const container =
+          renderTemplateResult(renderer.renderToken(getFakeToken({type: 'codespan', text: 'const foo = 42;'})));
+
+      const code = container.querySelector('code');
+      assert.exists(code);
+      assert.deepEqual(code.textContent, 'const foo = 42;');
     });
 
     it('renders childless text tokens as-is', () => {
-      const renderResult = renderer.renderToken(getFakeToken({type: 'text', text: 'Simple text token'}));
-      assert.deepStrictEqual(renderResult.values, ['Simple text token']);
+      const container =
+          renderTemplateResult(renderer.renderToken(getFakeToken({type: 'text', text: 'Simple text token'})));
+
+      assert.lengthOf(container.childTextNodes(), 1);
+      assert.deepEqual(container.childTextNodes()[0].textContent, 'Simple text token');
     });
 
     it('renders nested text tokens correctly', () => {
-      const renderResult = renderer.renderToken(getFakeToken({
+      const container = renderTemplateResult(renderer.renderToken(getFakeToken({
         type: 'text',
         text: 'This text should not be rendered. Only the subtokens!',
         tokens: [
           getFakeToken({type: 'text', text: 'Nested raw text'}),
           getFakeToken({type: 'codespan', text: 'and a nested codespan to boot'}),
         ],
-      }));
+      })));
 
-      const renderedParts = renderResult.values[0] as LitHtml.TemplateResult[];
-      assert.strictEqual(renderedParts.length, 2);
-      assert.deepStrictEqual(renderedParts[0].values, ['Nested raw text']);
-      assert.deepStrictEqual(renderedParts[1].values, ['and a nested codespan to boot']);
+      assert.notInclude(container.textContent, 'This text should not be rendered. Only the subtokens!');
+      assert.include(container.textContent, 'Nested raw text');
+      assert.exists(container.querySelector('code'));
+      assert.deepEqual(container.querySelector('code')?.textContent, 'and a nested codespan to boot');
     });
 
     it('throws an error for invalid or unsupported token types', () => {
@@ -159,27 +175,105 @@ describeWithEnvironment('MarkdownView', () => {
 
       assert.isTrue(renderResult.includes('<em'));
     });
+    it('sets custom classes on the token types', () => {
+      renderer.addCustomClasses({em: 'custom-class'});
+
+      const renderResult = renderer.renderToken(getFakeToken({type: 'em', text: 'em text'}));
+      const container = renderTemplateResult(renderResult);
+      assert.isTrue(
+          container.querySelector('em')?.classList.contains('custom-class'), 'Expected custom-class to be applied');
+    });
   });
 
   describe('MarkdownInsightRenderer renderToken', () => {
     const renderer = new MarkdownView.MarkdownView.MarkdownInsightRenderer();
-    it('renders link as an x-link', () => {
+    it('renders link as texts', () => {
       const result =
-          renderer.renderToken({type: 'link', text: 'learn more', href: 'exampleLink'} as Marked.Marked.Token);
-      assert((result.values[0] as HTMLElement).tagName === 'X-LINK');
+          renderer.renderToken({type: 'link', text: 'learn more', href: 'https://example.test'} as Marked.Marked.Token);
+      assert(result.values[0] === 'learn more');
     });
-    it('renders images as an x-link', () => {
+    it('renders link urls as texts', () => {
+      const result = renderer.renderToken({type: 'link', href: 'https://example.test'} as Marked.Marked.Token);
+      assert(result.values[0] === 'https://example.test');
+    });
+    it('does not render URLs with "javascript:"', () => {
+      const result = renderer.renderToken(
+          {type: 'link', text: 'learn more', href: 'javascript:alert("test")'} as Marked.Marked.Token);
+      assert(result.values[0] === undefined);
+    });
+    it('does not render chrome:// URLs', () => {
       const result =
-          renderer.renderToken({type: 'image', text: 'learn more', href: 'exampleLink'} as Marked.Marked.Token);
-      assert((result.values[0] as HTMLElement).tagName === 'X-LINK');
+          renderer.renderToken({type: 'link', text: 'learn more', href: 'chrome://settings'} as Marked.Marked.Token);
+      assert(result.values[0] === undefined);
     });
-    it('renders headers as a strong element', () => {
-      const result = renderer.renderToken({type: 'heading', text: 'learn more'} as Marked.Marked.Token);
-      assert(result.strings.join('').includes('<strong>'));
+    it('does not render invalid URLs', () => {
+      const result = renderer.renderToken({type: 'link', text: 'learn more', href: '123'} as Marked.Marked.Token);
+      assert(result.values[0] === undefined);
+    });
+    it('renders images as text', () => {
+      const result = renderer.renderToken(
+          {type: 'image', text: 'learn more', href: 'https://example.test'} as Marked.Marked.Token);
+      assert(result.values[0] === 'learn more');
+    });
+    it('renders image urls as text', () => {
+      const result = renderer.renderToken({type: 'image', href: 'https://example.test'} as Marked.Marked.Token);
+      assert(result.values[0] === 'https://example.test');
+    });
+    it('renders headings as headings with the `insight` class', () => {
+      const renderResult = renderer.renderToken(getFakeToken({type: 'heading', text: 'a heading text', depth: 3}));
+      const container = renderTemplateResult(renderResult);
+      assert.isTrue(
+          container.querySelector('h3')?.classList.contains('insight'), 'Expected `insight`-class to be applied');
     });
     it('renders unsupported tokens', () => {
       const result = renderer.renderToken({type: 'html', raw: '<!DOCTYPE html>'} as Marked.Marked.Token);
       assert(result.values.join('').includes('<!DOCTYPE html>'));
+    });
+    it('detects language but default to provided', () => {
+      let result =
+          renderer.detectCodeLanguage({text: 'const int foo = "bar"', lang: 'cpp'} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, 'cpp');
+      result = renderer.detectCodeLanguage({text: '', lang: 'cpp'} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, 'cpp');
+    });
+    it('detects JavaScript language', () => {
+      let result = renderer.detectCodeLanguage({text: 'const t = 2', lang: ''} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, 'js');
+      result = renderer.detectCodeLanguage({text: 'let t = 2', lang: ''} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, 'js');
+      result = renderer.detectCodeLanguage({text: 'var t = 2', lang: ''} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, 'js');
+      result = renderer.detectCodeLanguage({text: 'function t(){}', lang: ''} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, 'js');
+      result = renderer.detectCodeLanguage({text: 'async function t(){}', lang: ''} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, 'js');
+      result = renderer.detectCodeLanguage(
+          {text: 'import puppeteer from "puppeteer-core"', lang: ''} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, 'js');
+    });
+    it('doesn`t detect JavaScript language', () => {
+      let result = renderer.detectCodeLanguage({text: 'constant F', lang: ''} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, '');
+      result = renderer.detectCodeLanguage({text: 'variable', lang: ''} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, '');
+      result = renderer.detectCodeLanguage(
+          {text: 'functions are better then classes', lang: ''} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, '');
+      result = renderer.detectCodeLanguage(
+          {text: 'asynchronous code it hard to understand', lang: ''} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, '');
+    });
+    it('detects CSS language', () => {
+      let result = renderer.detectCodeLanguage({text: '.myClass {}', lang: ''} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, 'css');
+      result = renderer.detectCodeLanguage({text: '.myClass{}', lang: ''} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, 'css');
+      result = renderer.detectCodeLanguage({text: 'my-component {}', lang: ''} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, 'css');
+      result = renderer.detectCodeLanguage({text: 'my-component::after {}', lang: ''} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, 'css');
+      result = renderer.detectCodeLanguage({text: '.foo::[name="bar"] {}', lang: ''} as Marked.Marked.Tokens.Code);
+      assert.strictEqual(result, 'css');
     });
   });
 
@@ -214,12 +308,12 @@ ${paragraphText}
       assert.isNotNull(component.shadowRoot);
 
       const paragraphs = Array.from(component.shadowRoot.querySelectorAll('p'));
-      assert.strictEqual(paragraphs.length, 1);
+      assert.lengthOf(paragraphs, 1);
       assert.strictEqual(paragraphs[0].innerText, paragraphText);
 
       const listItems = Array.from(component.shadowRoot.querySelectorAll('li'));
-      assert.strictEqual(listItems.length, 2);
-      assert.deepStrictEqual(listItems.map(item => item.textContent), listItemTexts);
+      assert.lengthOf(listItems, 2);
+      assert.deepEqual(listItems.map(item => item.textContent), listItemTexts);
     });
 
     it('renders a codeblock', () => {
@@ -234,9 +328,9 @@ console.log('test')
     it('renders using a custom renderer', () => {
       const codeBlock =
           renderString('`console.log()`', 'code', new class extends MarkdownView.MarkdownView.MarkdownLitRenderer {
-            override templateForToken(token: Marked.Marked.Token): LitHtml.TemplateResult|null {
+            override templateForToken(token: Marked.Marked.Token): Lit.TemplateResult|null {
               if (token.type === 'codespan') {
-                return LitHtml.html`<code>overriden</code>`;
+                return html`<code>overriden</code>`;
               }
               return super.templateForToken(token as Marked.Marked.MarkedToken);
             }

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {type Chrome} from '../../../extension-api/ExtensionAPI.js';
+import type {Chrome} from '../../../extension-api/ExtensionAPI.js';
 import {createEmbindPool} from '../src/DWARFSymbols.js';
 
 import type * as LLDBEvalTests from './LLDBEvalTests.js';
@@ -60,7 +60,7 @@ class LLDBEvalDebugger implements LLDBEvalTests.Debugger {
   async evaluate(expr: string): Promise<LLDBEvalTests.EvalResult> {
     const {callFrame, rawLocation} = await this.#debugger.waitForPause();
     if (!this.#plugin.evaluate) {
-      throw Error('not implemented');
+      throw new Error('Not implemented');
     }
     try {
       const resultObject = await this.#plugin.evaluate(expr, rawLocation, this.#debugger.stopIdForCallFrame(callFrame));

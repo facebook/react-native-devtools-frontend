@@ -2,14 +2,38 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as LitHtml from '../../lit-html/lit-html.js';
+import {html, nothing, render} from '../../lit/lit.js';
 
-import reportStyles from './report.css.js';
-import reportKeyStyles from './reportKey.css.js';
-import reportSectionStyles from './reportSection.css.js';
-import reportSectionDividerStyles from './reportSectionDivider.css.js';
-import reportSectionHeaderStyles from './reportSectionHeader.css.js';
-import reportValueStyles from './reportValue.css.js';
+import reportStylesRaw from './report.css.js';
+import reportKeyStylesRaw from './reportKey.css.js';
+import reportSectionStylesRaw from './reportSection.css.js';
+import reportSectionDividerStylesRaw from './reportSectionDivider.css.js';
+import reportSectionHeaderStylesRaw from './reportSectionHeader.css.js';
+import reportValueStylesRaw from './reportValue.css.js';
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const reportStyles = new CSSStyleSheet();
+reportStyles.replaceSync(reportStylesRaw.cssText);
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const reportKeyStyles = new CSSStyleSheet();
+reportKeyStyles.replaceSync(reportKeyStylesRaw.cssText);
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const reportSectionStyles = new CSSStyleSheet();
+reportSectionStyles.replaceSync(reportSectionStylesRaw.cssText);
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const reportSectionDividerStyles = new CSSStyleSheet();
+reportSectionDividerStyles.replaceSync(reportSectionDividerStylesRaw.cssText);
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const reportSectionHeaderStyles = new CSSStyleSheet();
+reportSectionHeaderStyles.replaceSync(reportSectionHeaderStylesRaw.cssText);
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const reportValueStyles = new CSSStyleSheet();
+reportValueStyles.replaceSync(reportValueStylesRaw.cssText);
 
 /**
  * The `Report` component can be used to display static information. A report
@@ -19,7 +43,7 @@ import reportValueStyles from './reportValue.css.js';
  *
  * Example:
  * ```
- *   <devtools-report .data=${{reportTitle: 'Optional Title'} as Components.ReportView.ReportData}>
+ *   <devtools-report .data=${{reportTitle: 'Optional Title'}}>
  *     <devtools-report-section-header>Some Header</devtools-report-section-header>
  *     <devtools-report-key>Key (rendered in the left column)</devtools-report-key>
  *     <devtools-report-value>Value (rendered in the right column)</devtools-report-value>
@@ -34,10 +58,8 @@ export interface ReportData {
   reportTitle: string;
 }
 export class Report extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-report`;
-
   readonly #shadow = this.attachShadow({mode: 'open'});
-  #reportTitle: string = '';
+  #reportTitle = '';
 
   set data({reportTitle}: ReportData) {
     this.#reportTitle = reportTitle;
@@ -52,9 +74,9 @@ export class Report extends HTMLElement {
   #render(): void {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    LitHtml.render(LitHtml.html`
+    render(html`
+      ${this.#reportTitle ? html`<div class="report-title">${this.#reportTitle}</div>` : nothing}
       <div class="content">
-        ${this.#reportTitle ? LitHtml.html`<div class="report-title">${this.#reportTitle}</div>` : LitHtml.nothing}
         <slot></slot>
       </div>
     `, this.#shadow, {host: this});
@@ -67,7 +89,6 @@ export interface ReportSectionData {
 }
 
 export class ReportSection extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-report-section`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   connectedCallback(): void {
     this.#shadow.adoptedStyleSheets = [reportSectionStyles];
@@ -76,7 +97,7 @@ export class ReportSection extends HTMLElement {
   #render(): void {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    LitHtml.render(LitHtml.html`
+    render(html`
       <div class="section">
         <slot></slot>
       </div>
@@ -86,8 +107,6 @@ export class ReportSection extends HTMLElement {
 }
 
 export class ReportSectionHeader extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-report-section-header`;
-
   readonly #shadow = this.attachShadow({mode: 'open'});
   connectedCallback(): void {
     this.#shadow.adoptedStyleSheets = [reportSectionHeaderStyles];
@@ -97,7 +116,7 @@ export class ReportSectionHeader extends HTMLElement {
   #render(): void {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    LitHtml.render(LitHtml.html`
+    render(html`
       <div class="section-header">
         <slot></slot>
       </div>
@@ -107,8 +126,6 @@ export class ReportSectionHeader extends HTMLElement {
 }
 
 export class ReportSectionDivider extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-report-divider`;
-
   readonly #shadow = this.attachShadow({mode: 'open'});
   connectedCallback(): void {
     this.#shadow.adoptedStyleSheets = [reportSectionDividerStyles];
@@ -118,7 +135,7 @@ export class ReportSectionDivider extends HTMLElement {
   #render(): void {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    LitHtml.render(LitHtml.html`
+    render(html`
       <div class="section-divider">
       </div>
     `, this.#shadow, {host: this});
@@ -127,8 +144,6 @@ export class ReportSectionDivider extends HTMLElement {
 }
 
 export class ReportKey extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-report-key`;
-
   readonly #shadow = this.attachShadow({mode: 'open'});
   connectedCallback(): void {
     this.#shadow.adoptedStyleSheets = [reportKeyStyles];
@@ -138,7 +153,7 @@ export class ReportKey extends HTMLElement {
   #render(): void {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    LitHtml.render(LitHtml.html`
+    render(html`
       <div class="key"><slot></slot></div>
     `, this.#shadow, {host: this});
     // clang-format on
@@ -146,8 +161,6 @@ export class ReportKey extends HTMLElement {
 }
 
 export class ReportValue extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-report-value`;
-
   readonly #shadow = this.attachShadow({mode: 'open'});
   connectedCallback(): void {
     this.#shadow.adoptedStyleSheets = [reportValueStyles];
@@ -157,7 +170,7 @@ export class ReportValue extends HTMLElement {
   #render(): void {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    LitHtml.render(LitHtml.html`
+    render(html`
       <div class="value"><slot></slot></div>
     `, this.#shadow, {host: this});
     // clang-format on

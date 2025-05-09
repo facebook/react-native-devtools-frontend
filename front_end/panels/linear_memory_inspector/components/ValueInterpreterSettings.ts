@@ -5,20 +5,24 @@
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Platform from '../../../core/platform/platform.js';
 import * as Input from '../../../ui/components/input/input.js';
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
+import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
 import {ValueType, valueTypeToLocalizedString} from './ValueInterpreterDisplayUtils.js';
-import valueInterpreterSettingsStyles from './valueInterpreterSettings.css.js';
+import valueInterpreterSettingsStylesRaw from './valueInterpreterSettings.css.js';
 
-const {render, html} = LitHtml;
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const valueInterpreterSettingsStyles = new CSSStyleSheet();
+valueInterpreterSettingsStyles.replaceSync(valueInterpreterSettingsStylesRaw.cssText);
+
+const {render, html} = Lit;
 
 const UIStrings = {
   /**
    *@description Name of a group of selectable value types that do not fall under integer and floating point value types, e.g. Pointer32. The group appears name appears under the Value Interpreter Settings.
    */
   otherGroup: 'Other',
-};
+} as const;
 const str_ =
     i18n.i18n.registerUIStrings('panels/linear_memory_inspector/components/ValueInterpreterSettings.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -28,21 +32,21 @@ export interface ValueInterpreterSettingsData {
 }
 
 const enum ValueTypeGroup {
-  Integer = 'Integer',
-  Float = 'Floating point',
-  Other = 'Other',
+  INTEGER = 'Integer',
+  FLOAT = 'Floating point',
+  OTHER = 'Other',
 }
 
 const GROUP_TO_TYPES = new Map(
     [
-      [ValueTypeGroup.Integer, [ValueType.Int8, ValueType.Int16, ValueType.Int32, ValueType.Int64]],
-      [ValueTypeGroup.Float, [ValueType.Float32, ValueType.Float64]],
-      [ValueTypeGroup.Other, [ValueType.Pointer32, ValueType.Pointer64]],
+      [ValueTypeGroup.INTEGER, [ValueType.INT8, ValueType.INT16, ValueType.INT32, ValueType.INT64]],
+      [ValueTypeGroup.FLOAT, [ValueType.FLOAT32, ValueType.FLOAT64]],
+      [ValueTypeGroup.OTHER, [ValueType.POINTER32, ValueType.POINTER64]],
     ],
 );
 
 function valueTypeGroupToLocalizedString(group: ValueTypeGroup): string {
-  if (group === ValueTypeGroup.Other) {
+  if (group === ValueTypeGroup.OTHER) {
     return i18nString(UIStrings.otherGroup);
   }
 
@@ -61,10 +65,9 @@ export class TypeToggleEvent extends Event {
 }
 
 export class ValueInterpreterSettings extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-linear-memory-inspector-interpreter-settings`;
 
   readonly #shadow = this.attachShadow({mode: 'open'});
-  #valueTypes: Set<ValueType> = new Set();
+  #valueTypes = new Set<ValueType>();
 
   connectedCallback(): void {
     this.#shadow.adoptedStyleSheets = [Input.checkboxStyles, valueInterpreterSettingsStyles];
@@ -91,7 +94,7 @@ export class ValueInterpreterSettings extends HTMLElement {
       `, this.#shadow, {host: this});
   }
 
-  #plotTypeSelections(group: ValueTypeGroup): LitHtml.TemplateResult {
+  #plotTypeSelections(group: ValueTypeGroup): Lit.TemplateResult {
     const types = GROUP_TO_TYPES.get(group);
     if (!types) {
       throw new Error(`Unknown group ${group}`);

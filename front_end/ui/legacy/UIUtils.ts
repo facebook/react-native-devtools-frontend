@@ -33,36 +33,41 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+import './Toolbar.js';
+
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
+import * as Root from '../../core/root/root.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
 import * as Buttons from '../components/buttons/buttons.js';
 import * as IconButton from '../components/icon_button/icon_button.js';
 import * as VisualLogging from '../visual_logging/visual_logging.js';
 
-import applicationColorTokensStyles from './applicationColorTokens.css.legacy.js';
 import * as ARIAUtils from './ARIAUtils.js';
-import checkboxTextLabelStyles from './checkboxTextLabel.css.legacy.js';
-import confirmDialogStyles from './confirmDialog.css.legacy.js';
-import designTokensStyles from './designTokens.css.legacy.js';
+import checkboxTextLabelStyles from './checkboxTextLabel.css.js';
+import confirmDialogStyles from './confirmDialog.css.js';
 import {Dialog} from './Dialog.js';
 import {Size} from './Geometry.js';
 import {GlassPane, PointerEventsBehavior, SizeBehavior} from './GlassPane.js';
-import inlineButtonStyles from './inlineButton.css.legacy.js';
-import inspectorCommonStyles from './inspectorCommon.css.legacy.js';
-import {KeyboardShortcut} from './KeyboardShortcut.js';
-import radioButtonStyles from './radioButton.css.legacy.js';
-import sliderStyles from './slider.css.legacy.js';
-import smallBubbleStyles from './smallBubble.css.legacy.js';
-import textButtonStyles from './textButton.css.legacy.js';
+import inlineButtonStyles from './inlineButton.css.js';
+import inspectorCommonStyles from './inspectorCommon.css.js';
+import {KeyboardShortcut, Keys} from './KeyboardShortcut.js';
+import smallBubbleStyles from './smallBubble.css.js';
 import * as ThemeSupport from './theme_support/theme_support.js';
-import themeColorsStyles from './themeColors.css.legacy.js';
-import tokens from './tokens.css.legacy.js';
-import {Toolbar, type ToolbarButton} from './Toolbar.js';
+import type {ToolbarButton} from './Toolbar.js';
 import {Tooltip} from './Tooltip.js';
-import {type TreeOutline} from './Treeoutline.js';
+import type {TreeOutline} from './Treeoutline.js';
 import {Widget} from './Widget.js';
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'dt-checkbox': CheckboxLabel;
+    'dt-close-button': DevToolsCloseButton;
+    'dt-icon-label': DevToolsIconLabel;
+    'dt-small-bubble': DevToolsSmallBubble;
+  }
+}
 
 const UIStrings = {
   /**
@@ -109,7 +114,7 @@ const UIStrings = {
    *@description Text to cancel something
    */
   cancel: 'Cancel',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/UIUtils.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -174,7 +179,7 @@ class DragHandler {
     this.glassPaneInUse = true;
     if (!DragHandler.glassPaneUsageCount++) {
       DragHandler.glassPane = new GlassPane();
-      DragHandler.glassPane.setPointerEventsBehavior(PointerEventsBehavior.BlockedByGlassPane);
+      DragHandler.glassPane.setPointerEventsBehavior(PointerEventsBehavior.BLOCKED_BY_GLASS_PANE);
       if (DragHandler.documentForMouseOut) {
         DragHandler.glassPane.show(DragHandler.documentForMouseOut);
       }
@@ -211,7 +216,7 @@ class DragHandler {
       return;
     }
 
-    if (elementDragStart && !elementDragStart((event as MouseEvent))) {
+    if (elementDragStart && !elementDragStart((event))) {
       return;
     }
 
@@ -227,7 +232,7 @@ class DragHandler {
       if (targetDocument.defaultView && targetDocument.defaultView.top) {
         this.dragEventsTargetDocumentTop = targetDocument.defaultView.top.document;
       }
-    } catch (e) {
+    } catch {
       this.dragEventsTargetDocumentTop = this.dragEventsTargetDocument;
     }
 
@@ -380,19 +385,23 @@ export const StyleValueDelimiters = ' \xA0\t\n"\':;,/()';
 
 export function getValueModificationDirection(event: Event): string|null {
   let direction: 'Up'|'Down'|null = null;
-  if (event.type === 'wheel') {
+  if (event instanceof WheelEvent) {
     // When shift is pressed while spinning mousewheel, delta comes as wheelDeltaX.
-    const wheelEvent = (event as WheelEvent);
-    if (wheelEvent.deltaY < 0 || wheelEvent.deltaX < 0) {
+    if (event.deltaY < 0 || event.deltaX < 0) {
       direction = 'Up';
-    } else if (wheelEvent.deltaY > 0 || wheelEvent.deltaX > 0) {
+    } else if (event.deltaY > 0 || event.deltaX > 0) {
       direction = 'Down';
     }
-  } else {
-    const keyEvent = (event as KeyboardEvent);
-    if (keyEvent.key === 'ArrowUp' || keyEvent.key === 'PageUp') {
+  } else if (event instanceof MouseEvent) {
+    if (event.movementX < 0) {
+      direction = 'Down';
+    } else if (event.movementX > 0) {
       direction = 'Up';
-    } else if (keyEvent.key === 'ArrowDown' || keyEvent.key === 'PageDown') {
+    }
+  } else if (event instanceof KeyboardEvent) {
+    if (event.key === 'ArrowUp' || event.key === 'PageUp') {
+      direction = 'Up';
+    } else if (event.key === 'ArrowDown' || event.key === 'PageDown') {
       direction = 'Down';
     }
   }
@@ -468,13 +477,13 @@ export function modifiedFloatNumber(number: number, event: Event, modifierMultip
   // When shift is pressed, increase by 10.
   // When alt is pressed, increase by 0.1.
   // Otherwise increase by 1.
-  let delta = 1;
+  let delta = mouseEvent.type === 'mousemove' ? Math.abs(mouseEvent.movementX) : 1;
   if (KeyboardShortcut.eventHasCtrlEquivalentKey(mouseEvent)) {
-    delta = 100;
+    delta *= 100;
   } else if (mouseEvent.shiftKey) {
-    delta = 10;
+    delta *= 10;
   } else if (mouseEvent.altKey) {
-    delta = 0.1;
+    delta *= 0.1;
   }
 
   if (direction === 'Down') {
@@ -501,7 +510,7 @@ export function createReplacementString(
   let number;
   let replacementString: string|null = null;
   let matches = /(.*#)([\da-fA-F]+)(.*)/.exec(wordString);
-  if (matches && matches.length) {
+  if (matches?.length) {
     prefix = matches[1];
     suffix = matches[3];
     number = modifiedHexValue(matches[2], event);
@@ -510,7 +519,7 @@ export function createReplacementString(
     }
   } else {
     matches = /(.*?)(-?(?:\d+(?:\.\d+)?|\.\d+))(.*)/.exec(wordString);
-    if (matches && matches.length) {
+    if (matches?.length) {
       prefix = matches[1];
       suffix = matches[3];
       number = modifiedFloatNumber(parseFloat(matches[2]), event);
@@ -524,11 +533,15 @@ export function createReplacementString(
 }
 
 export function isElementValueModification(event: Event): boolean {
-  const arrowKeyOrWheelEvent =
-      ((event as KeyboardEvent).key === 'ArrowUp' || (event as KeyboardEvent).key === 'ArrowDown' ||
-       event.type === 'wheel');
-  const pageKeyPressed = ((event as KeyboardEvent).key === 'PageUp' || (event as KeyboardEvent).key === 'PageDown');
-  return arrowKeyOrWheelEvent || pageKeyPressed;
+  if (event instanceof MouseEvent) {
+    const {type} = event;
+    return type === 'mousemove' || type === 'wheel';
+  }
+  if (event instanceof KeyboardEvent) {
+    const {key} = event;
+    return key === 'ArrowUp' || key === 'ArrowDown' || key === 'PageUp' || key === 'PageDown';
+  }
+  return false;
 }
 
 export function handleElementValueModifications(
@@ -541,7 +554,7 @@ export function handleElementValueModifications(
   void VisualLogging.logKeyDown(event.currentTarget, event, 'element-value-modification');
 
   const selection = element.getComponentSelection();
-  if (!selection || !selection.rangeCount) {
+  if (!selection?.rangeCount) {
     return false;
   }
 
@@ -555,7 +568,7 @@ export function handleElementValueModifications(
       selectionRange.startContainer, selectionRange.startOffset, StyleValueDelimiters, element);
   const wordString = wordRange.toString();
 
-  if (suggestionHandler && suggestionHandler(wordString)) {
+  if (suggestionHandler?.(wordString)) {
     return false;
   }
 
@@ -603,7 +616,7 @@ export function anotherProfilerActiveLabel(): string {
 }
 
 export function asyncStackTraceLabel(
-    description: string|undefined, previousCallFrames: {functionName: string}[]): string {
+    description: string|undefined, previousCallFrames: Array<{functionName: string}>): string {
   if (description) {
     if (description === 'Promise.resolve') {
       return i18nString(UIStrings.promiseResolvedAsync);
@@ -621,9 +634,12 @@ export function asyncStackTraceLabel(
   return i18nString(UIStrings.asyncCall);
 }
 
-export function installComponentRootStyles(element: Element): void {
-  injectCoreStyles(element);
+export function addPlatformClass(element: HTMLElement): void {
   element.classList.add('platform-' + Host.Platform.platform());
+}
+
+export function installComponentRootStyles(element: HTMLElement): void {
+  injectCoreStyles(element);
 
   // Detect overlay scrollbar enable by checking for nonzero scrollbar width.
   if (!Host.Platform.isMac() && measuredScrollbarWidth(element.ownerDocument) === 0) {
@@ -679,6 +695,7 @@ export function runCSSAnimationOnce(element: Element, className: string): void {
   function animationEndCallback(): void {
     element.classList.remove(className);
     element.removeEventListener('webkitAnimationEnd', animationEndCallback, false);
+    element.removeEventListener('animationcancel', animationEndCallback, false);
   }
 
   if (element.classList.contains(className)) {
@@ -686,6 +703,7 @@ export function runCSSAnimationOnce(element: Element, className: string): void {
   }
 
   element.addEventListener('webkitAnimationEnd', animationEndCallback, false);
+  element.addEventListener('animationcancel', animationEndCallback, false);
   element.classList.add(className);
 }
 
@@ -820,6 +838,7 @@ export function highlightRangesWithStyleClass(
   return highlightNodes;
 }
 
+// Used in chromium/src/third_party/blink/web_tests/http/tests/devtools/components/utilities-highlight-results.js
 export function applyDomChanges(domChanges: HighlightChange[]): void {
   for (let i = 0, size = domChanges.length; i < size; ++i) {
     const entry = domChanges[i];
@@ -866,7 +885,7 @@ export function measurePreferredSize(element: Element, containerElement?: Elemen
 }
 
 class InvokeOnceHandlers {
-  private handlers: Map<Object, Set<Function>>|null;
+  private handlers: Map<object, Set<(...args: any[]) => void>>|null;
   private readonly autoInvoke: boolean;
   constructor(autoInvoke: boolean) {
     this.handlers = null;
@@ -934,10 +953,10 @@ export function invokeOnceAfterBatchUpdate(object: Object, method: () => void): 
 }
 
 export function animateFunction(
-    window: Window, func: Function, params: {
+    window: Window, func: (...args: any[]) => void, params: Array<{
       from: number,
       to: number,
-    }[],
+    }>,
     duration: number, animationComplete?: (() => void)): () => void {
   const start = window.performance.now();
   let raf = window.requestAnimationFrame(animationStep);
@@ -1078,12 +1097,15 @@ export function createTextButton(text: string, clickHandler?: ((arg0: Event) => 
   jslogContext?: string,
   variant?: Buttons.Button.Variant,
   title?: string,
+  icon?: string,
 }): Buttons.Button.Button {
   const button = new Buttons.Button.Button();
   if (opts?.className) {
     button.className = opts.className;
   }
+
   button.textContent = text;
+  button.iconName = opts?.icon;
   button.variant = opts?.variant ? opts.variant : Buttons.Button.Variant.OUTLINED;
   if (clickHandler) {
     button.addEventListener('click', clickHandler);
@@ -1115,14 +1137,55 @@ export function createInput(className?: string, type?: string, jslogContext?: st
   return element;
 }
 
-export function createSelect(name: string, options: string[]|Map<string, string[]>[]|Set<string>): HTMLSelectElement {
+export function createHistoryInput(type = 'search', className?: string): HTMLInputElement {
+  const history = [''];
+  let historyPosition = 0;
+
+  const historyInput = document.createElement('input');
+  historyInput.type = type;
+  if (className) {
+    historyInput.className = className;
+  }
+  historyInput.addEventListener('input', onInput, false);
+  historyInput.addEventListener('keydown', onKeydown, false);
+  return historyInput;
+
+  function onInput(_event: Event): void {
+    if (history.length === historyPosition + 1) {
+      history[historyPosition] = historyInput.value;
+    }
+  }
+
+  function onKeydown(event: KeyboardEvent): void {
+    if (event.keyCode === Keys.Up.code) {
+      historyPosition = Math.max(historyPosition - 1, 0);
+      historyInput.value = history[historyPosition];
+      historyInput.dispatchEvent(new Event('input', {bubbles: true, cancelable: true}));
+      event.consume(true);
+    } else if (event.keyCode === Keys.Down.code) {
+      historyPosition = Math.min(historyPosition + 1, history.length - 1);
+      historyInput.value = history[historyPosition];
+      historyInput.dispatchEvent(new Event('input', {bubbles: true, cancelable: true}));
+      event.consume(true);
+    } else if (event.keyCode === Keys.Enter.code) {
+      if (history.length > 1 && history[history.length - 2] === historyInput.value) {
+        return;
+      }
+      history[history.length - 1] = historyInput.value;
+      historyPosition = history.length - 1;
+      history.push('');
+    }
+  }
+}
+
+export function createSelect(
+    name: string, options: string[]|Array<Map<string, string[]>>|Set<string>): HTMLSelectElement {
   const select = document.createElement('select');
-  select.classList.add('chrome-select');
   ARIAUtils.setLabel(select, name);
   for (const option of options) {
     if (option instanceof Map) {
       for (const [key, value] of option) {
-        const optGroup = (select.createChild('optgroup') as HTMLOptGroupElement);
+        const optGroup = select.createChild('optgroup');
         optGroup.label = key;
         for (const child of value) {
           if (typeof child === 'string') {
@@ -1158,22 +1221,10 @@ export function createLabel(title: string, className?: string, associatedControl
   return element;
 }
 
-export function createRadioLabel(
-    name: string, title: string, checked?: boolean, jslogContext?: string): DevToolsRadioButton {
-  const element = (document.createElement('span', {is: 'dt-radio'}) as DevToolsRadioButton);
-  element.radioElement.name = name;
-  element.radioElement.checked = Boolean(checked);
-  createTextChild(element.labelElement, title);
-  if (jslogContext) {
-    element.radioElement.setAttribute('jslog', `${VisualLogging.toggle().track({change: true}).context(jslogContext)}`);
-  }
-  return element;
-}
-
 export function createIconLabel(
     options: {title?: string, iconName: string, color?: string, width?: '14px'|'20px', height?: '14px'|'20px'}):
     DevToolsIconLabel {
-  const element = (document.createElement('span', {is: 'dt-icon-label'}) as DevToolsIconLabel);
+  const element = document.createElement('dt-icon-label');
   if (options.title) {
     element.createChild('span').textContent = options.title;
   }
@@ -1186,12 +1237,63 @@ export function createIconLabel(
   return element;
 }
 
-export function createSlider(min: number, max: number, tabIndex: number): Element {
-  const element = (document.createElement('span', {is: 'dt-slider'}) as DevToolsSlider);
-  element.sliderElement.min = String(min);
-  element.sliderElement.max = String(max);
-  element.sliderElement.step = String(1);
-  element.sliderElement.tabIndex = tabIndex;
+/**
+ * Creates a radio button, which is comprised of a `<label>` and an `<input type="radio">` element.
+ *
+ * The returned pair contains the `label` element and and the `radio` input element. The latter is
+ * a child of the `label`, and therefore no association via `for` attribute is necessary to make
+ * the radio button accessible.
+ *
+ * The element is automatically styled correctly, as long as the core styles (in particular
+ * `inspectorCommon.css` is injected into the current document / shadow root). The lit
+ * equivalent of calling this method is:
+ *
+ * ```js
+ * const jslog = VisualLogging.toggle().track({change: true}).context(jslogContext);
+ * html`<label><input type="radio" name=${name} jslog=${jslog}>${title}</label>`
+ * ```
+ *
+ * @param name the name of the radio group.
+ * @param title the label text for the radio button.
+ * @param jslogContext the context string for the `jslog` attribute.
+ * @returns the pair of `HTMLLabelElement` and `HTMLInputElement`.
+ * @see https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/radio
+ */
+export function createRadioButton(
+    name: string, title: string, jslogContext: string): {label: HTMLLabelElement, radio: HTMLInputElement} {
+  const label = document.createElement('label');
+  const radio = label.createChild('input');
+  radio.type = 'radio';
+  radio.name = name;
+  radio.setAttribute('jslog', `${VisualLogging.toggle().track({change: true}).context(jslogContext)}`);
+  createTextChild(label, title);
+  return {label, radio};
+}
+
+/**
+ * Creates an `<input type="range">` element with the specified parameters (a slider)
+ * and a `step` of 1 (the default for the element).
+ *
+ * The element is automatically styled correctly, as long as the core styles (in particular
+ * `inspectorCommon.css` is injected into the current document / shadow root). The lit
+ * equivalent of calling this method is:
+ *
+ * ```js
+ * html`<input type="range" min=${min} max=${max} tabindex=${tabIndex}>`
+ * ```
+ *
+ * @param min the minimum allowed value.
+ * @param max the maximum allowed value.
+ * @param tabIndex the value for the `tabindex` attribute.
+ * @returns the newly created `HTMLInputElement` for the slider.
+ * @see https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/range
+ */
+export function createSlider(min: number, max: number, tabIndex: number): HTMLInputElement {
+  const element = document.createElement('input');
+  element.type = 'range';
+  element.min = String(min);
+  element.max = String(max);
+  element.tabIndex = tabIndex;
   return element;
 }
 
@@ -1200,7 +1302,7 @@ export function setTitle(element: HTMLElement, title: string): void {
   Tooltip.install(element, title);
 }
 
-export class CheckboxLabel extends HTMLSpanElement {
+export class CheckboxLabel extends HTMLElement {
   private readonly shadowRootInternal!: DocumentFragment;
   checkboxElement!: HTMLInputElement;
   textElement!: HTMLElement;
@@ -1209,22 +1311,19 @@ export class CheckboxLabel extends HTMLSpanElement {
     super();
     CheckboxLabel.lastId = CheckboxLabel.lastId + 1;
     const id = 'ui-checkbox-label' + CheckboxLabel.lastId;
-    this.shadowRootInternal =
-        createShadowRootWithCoreStyles(this, {cssFile: checkboxTextLabelStyles, delegatesFocus: undefined});
-    this.checkboxElement = (this.shadowRootInternal.createChild('input') as HTMLInputElement);
+    this.shadowRootInternal = createShadowRootWithCoreStyles(this, {cssFile: checkboxTextLabelStyles});
+    this.checkboxElement = this.shadowRootInternal.createChild('input');
     this.checkboxElement.type = 'checkbox';
     this.checkboxElement.setAttribute('id', id);
-    this.textElement = this.shadowRootInternal.createChild('label', 'dt-checkbox-text') as HTMLElement;
+    this.textElement = this.shadowRootInternal.createChild('label', 'dt-checkbox-text');
     this.textElement.setAttribute('for', id);
     this.shadowRootInternal.createChild('slot');
   }
 
-  static create(title?: string, checked?: boolean, subtitle?: string, jslogContext?: string, small?: boolean):
-      CheckboxLabel {
-    if (!CheckboxLabel.constructorInternal) {
-      CheckboxLabel.constructorInternal = registerCustomElement('span', 'dt-checkbox', CheckboxLabel);
-    }
-    const element = (CheckboxLabel.constructorInternal() as CheckboxLabel);
+  static create(
+      title?: Platform.UIString.LocalizedString, checked?: boolean, subtitle?: Platform.UIString.LocalizedString,
+      jslogContext?: string, small?: boolean): CheckboxLabel {
+    const element = document.createElement('dt-checkbox');
     element.checkboxElement.checked = Boolean(checked);
     if (jslogContext) {
       element.checkboxElement.setAttribute(
@@ -1241,19 +1340,25 @@ export class CheckboxLabel extends HTMLSpanElement {
     return element;
   }
 
+  /** Only to be used when the checkbox label is 'generated' (a regex, a className, etc). Most checkboxes should be create()'d with UIStrings */
+  static createWithStringLiteral(
+      title?: string, checked?: boolean, subtitle?: Platform.UIString.LocalizedString, jslogContext?: string,
+      small?: boolean): CheckboxLabel {
+    const stringLiteral = title as Platform.UIString.LocalizedString;
+    return CheckboxLabel.create(stringLiteral, checked, subtitle, jslogContext, small);
+  }
+
   private static lastId = 0;
-  static constructorInternal: (() => Element)|null = null;
 }
 
-export class DevToolsIconLabel extends HTMLSpanElement {
+customElements.define('dt-checkbox', CheckboxLabel);
+
+export class DevToolsIconLabel extends HTMLElement {
   readonly #icon: IconButton.Icon.Icon;
 
   constructor() {
     super();
-    const root = createShadowRootWithCoreStyles(this, {
-      cssFile: undefined,
-      delegatesFocus: undefined,
-    });
+    const root = createShadowRootWithCoreStyles(this);
     this.#icon = new IconButton.Icon.Icon();
     this.#icon.style.setProperty('margin-right', '4px');
     this.#icon.style.setProperty('vertical-align', 'baseline');
@@ -1273,67 +1378,14 @@ export class DevToolsIconLabel extends HTMLSpanElement {
   }
 }
 
-let labelId = 0;
+customElements.define('dt-icon-label', DevToolsIconLabel);
 
-export class DevToolsRadioButton extends HTMLSpanElement {
-  radioElement: HTMLInputElement;
-  labelElement: HTMLLabelElement;
-
-  constructor() {
-    super();
-    this.radioElement = (this.createChild('input', 'dt-radio-button') as HTMLInputElement);
-    this.labelElement = (this.createChild('label') as HTMLLabelElement);
-
-    const id = 'dt-radio-button-id' + (++labelId);
-    this.radioElement.id = id;
-    this.radioElement.type = 'radio';
-    this.labelElement.htmlFor = id;
-    const root = createShadowRootWithCoreStyles(this, {cssFile: radioButtonStyles, delegatesFocus: undefined});
-    root.createChild('slot');
-    this.addEventListener('click', this.radioClickHandler.bind(this), false);
-  }
-
-  radioClickHandler(): void {
-    if (this.radioElement.checked || this.radioElement.disabled) {
-      return;
-    }
-    this.radioElement.checked = true;
-    this.radioElement.dispatchEvent(new Event('change'));
-  }
-}
-
-registerCustomElement('span', 'dt-radio', DevToolsRadioButton);
-registerCustomElement('span', 'dt-icon-label', DevToolsIconLabel);
-
-export class DevToolsSlider extends HTMLSpanElement {
-  sliderElement: HTMLInputElement;
-
-  constructor() {
-    super();
-    const root = createShadowRootWithCoreStyles(this, {cssFile: sliderStyles, delegatesFocus: undefined});
-    this.sliderElement = document.createElement('input');
-    this.sliderElement.classList.add('dt-range-input');
-    this.sliderElement.type = 'range';
-    root.appendChild(this.sliderElement);
-  }
-
-  set value(amount: number) {
-    this.sliderElement.value = String(amount);
-  }
-
-  get value(): number {
-    return Number(this.sliderElement.value);
-  }
-}
-
-registerCustomElement('span', 'dt-slider', DevToolsSlider);
-
-export class DevToolsSmallBubble extends HTMLSpanElement {
+export class DevToolsSmallBubble extends HTMLElement {
   private textElement: Element;
 
   constructor() {
     super();
-    const root = createShadowRootWithCoreStyles(this, {cssFile: smallBubbleStyles, delegatesFocus: undefined});
+    const root = createShadowRootWithCoreStyles(this, {cssFile: smallBubbleStyles});
     this.textElement = root.createChild('div');
     this.textElement.className = 'info';
     this.textElement.createChild('slot');
@@ -1344,37 +1396,41 @@ export class DevToolsSmallBubble extends HTMLSpanElement {
   }
 }
 
-registerCustomElement('span', 'dt-small-bubble', DevToolsSmallBubble);
+customElements.define('dt-small-bubble', DevToolsSmallBubble);
 
-export class DevToolsCloseButton extends HTMLDivElement {
-  private button: Buttons.Button.Button;
+export class DevToolsCloseButton extends HTMLElement {
+  #button: Buttons.Button.Button;
 
   constructor() {
     super();
-    const root = createShadowRootWithCoreStyles(this, {delegatesFocus: undefined});
-    this.button = new Buttons.Button.Button();
-    this.button.data = {variant: Buttons.Button.Variant.ICON, iconName: 'cross'};
-    this.button.classList.add('close-button');
-    this.button.setAttribute('jslog', `${VisualLogging.close().track({click: true})}`);
-    Tooltip.install(this.button, i18nString(UIStrings.close));
-    ARIAUtils.setLabel(this.button, i18nString(UIStrings.close));
-    root.appendChild(this.button);
+    const root = createShadowRootWithCoreStyles(this);
+    this.#button = new Buttons.Button.Button();
+    this.#button.data = {variant: Buttons.Button.Variant.ICON, iconName: 'cross'};
+    this.#button.classList.add('close-button');
+    this.#button.setAttribute('jslog', `${VisualLogging.close().track({click: true})}`);
+    Tooltip.install(this.#button, i18nString(UIStrings.close));
+    ARIAUtils.setLabel(this.#button, i18nString(UIStrings.close));
+    root.appendChild(this.#button);
   }
 
   setAccessibleName(name: string): void {
-    ARIAUtils.setLabel(this.button, name);
+    ARIAUtils.setLabel(this.#button, name);
+  }
+
+  setSize(size: Buttons.Button.Size): void {
+    this.#button.size = size;
   }
 
   setTabbable(tabbable: boolean): void {
     if (tabbable) {
-      this.button.tabIndex = 0;
+      this.#button.tabIndex = 0;
     } else {
-      this.button.tabIndex = -1;
+      this.#button.tabIndex = -1;
     }
   }
 }
 
-registerCustomElement('div', 'dt-close-button', DevToolsCloseButton);
+customElements.define('dt-close-button', DevToolsCloseButton);
 
 export function bindInput(
     input: HTMLInputElement, apply: (arg0: string) => void, validate: (arg0: string) => {
@@ -1504,34 +1560,6 @@ export function measureTextWidth(context: CanvasRenderingContext2D, text: string
 
 let measureTextWidthCache: Map<string, Map<string, number>>|null = null;
 
-/**
- * Adds a 'utm_source=devtools' as query parameter to the url.
- */
-export function addReferrerToURL(url: Platform.DevToolsPath.UrlString): Platform.DevToolsPath.UrlString {
-  if (/(\?|&)utm_source=devtools/.test(url)) {
-    return url;
-  }
-  if (url.indexOf('?') === -1) {
-    // If the URL does not contain a query, add the referrer query after path
-    // and before (potential) anchor.
-    return url.replace(/^([^#]*)(#.*)?$/g, '$1?utm_source=devtools$2') as Platform.DevToolsPath.UrlString;
-  }
-  // If the URL already contains a query, add the referrer query after the last query
-  // and before (potential) anchor.
-  return url.replace(/^([^#]*)(#.*)?$/g, '$1&utm_source=devtools$2') as Platform.DevToolsPath.UrlString;
-}
-
-/**
- * We want to add a referrer query param to every request to
- * 'web.dev' or 'developers.google.com'.
- */
-export function addReferrerToURLIfNecessary(url: Platform.DevToolsPath.UrlString): Platform.DevToolsPath.UrlString {
-  if (/(\/\/developers.google.com\/|\/\/web.dev\/|\/\/developer.chrome.com\/)/.test(url)) {
-    return addReferrerToURL(url);
-  }
-  return url;
-}
-
 export function loadImage(url: string): Promise<HTMLImageElement|null> {
   return new Promise(fulfill => {
     const image = new Image();
@@ -1554,11 +1582,14 @@ export function createFileSelectorElement(callback: (arg0: File) => void, accept
   }
   fileSelectorElement.style.display = 'none';
   fileSelectorElement.tabIndex = -1;
-  fileSelectorElement.onchange = () => {
-    if (fileSelectorElement.files) {
+  fileSelectorElement.addEventListener('change', () => {
+    if (fileSelectorElement.files?.length) {
       callback(fileSelectorElement.files[0]);
     }
-  };
+  });
+  fileSelectorElement.addEventListener('click', () => {
+    fileSelectorElement.value = '';
+  });
 
   return fileSelectorElement;
 }
@@ -1566,16 +1597,16 @@ export function createFileSelectorElement(callback: (arg0: File) => void, accept
 export const MaxLengthForDisplayedURLs = 150;
 
 export class MessageDialog {
-  static async show(message: string, where?: Element|Document, jslogContext?: string): Promise<void> {
+  static async show(header: string, message: string, where?: Element|Document, jslogContext?: string): Promise<void> {
     const dialog = new Dialog(jslogContext);
-    dialog.setSizeBehavior(SizeBehavior.MeasureContent);
+    dialog.setSizeBehavior(SizeBehavior.MEASURE_CONTENT);
     dialog.setDimmed(true);
-    const shadowRoot = createShadowRootWithCoreStyles(
-        dialog.contentElement, {cssFile: confirmDialogStyles, delegatesFocus: undefined});
+    const shadowRoot = createShadowRootWithCoreStyles(dialog.contentElement, {cssFile: confirmDialogStyles});
     const content = shadowRoot.createChild('div', 'widget');
     await new Promise(resolve => {
       const okButton = createTextButton(
           i18nString(UIStrings.ok), resolve, {jslogContext: 'confirm', variant: Buttons.Button.Variant.PRIMARY});
+      content.createChild('span', 'header').textContent = header;
       content.createChild('div', 'message').createChild('span').textContent = message;
       content.createChild('div', 'button').appendChild(okButton);
       dialog.setOutsideClickCallback(event => {
@@ -1590,14 +1621,17 @@ export class MessageDialog {
 }
 
 export class ConfirmDialog {
-  static async show(message: string, where?: Element|Document, options?: ConfirmDialogOptions): Promise<boolean> {
+  static async show(message: string, header?: string, where?: Element|Document, options?: ConfirmDialogOptions):
+      Promise<boolean> {
     const dialog = new Dialog(options?.jslogContext);
-    dialog.setSizeBehavior(SizeBehavior.MeasureContent);
+    dialog.setSizeBehavior(SizeBehavior.MEASURE_CONTENT);
     dialog.setDimmed(true);
     ARIAUtils.setLabel(dialog.contentElement, message);
-    const shadowRoot = createShadowRootWithCoreStyles(
-        dialog.contentElement, {cssFile: confirmDialogStyles, delegatesFocus: undefined});
+    const shadowRoot = createShadowRootWithCoreStyles(dialog.contentElement, {cssFile: confirmDialogStyles});
     const content = shadowRoot.createChild('div', 'widget');
+    if (header) {
+      content.createChild('span', 'header').textContent = header;
+    }
     content.createChild('div', 'message').createChild('span').textContent = message;
     const buttonsBar = content.createChild('div', 'button');
     const result = await new Promise<boolean>(resolve => {
@@ -1621,11 +1655,10 @@ export class ConfirmDialog {
 
 export function createInlineButton(toolbarButton: ToolbarButton): Element {
   const element = document.createElement('span');
-  const shadowRoot = createShadowRootWithCoreStyles(element, {cssFile: inlineButtonStyles, delegatesFocus: undefined});
+  const shadowRoot = createShadowRootWithCoreStyles(element, {cssFile: inlineButtonStyles});
   element.classList.add('inline-button');
-  const toolbar = new Toolbar('');
+  const toolbar = shadowRoot.createChild('devtools-toolbar');
   toolbar.appendToolbarItem(toolbarButton);
-  shadowRoot.appendChild(toolbar.element);
   return element;
 }
 
@@ -1647,7 +1680,7 @@ export abstract class Renderer {
       return null;
     }
     const renderer = await extension.loadRenderer();
-    return renderer.render(object, options);
+    return await renderer.render(object, options);
   }
 }
 
@@ -1758,9 +1791,10 @@ export function getApplicableRegisteredRenderers(object: Object): RendererRegist
     return false;
   }
 }
+
 export interface RendererRegistration {
   loadRenderer: () => Promise<Renderer>;
-  contextTypes: () => Array<Function>;
+  contextTypes: () => Array<Platform.Constructor.ConstructorOrAbstract<unknown>>;
 }
 
 export interface ConfirmDialogOptions {
@@ -1782,7 +1816,7 @@ function updateWidgetfocusWidgetForNode(node: Node|null): void {
   }
 
   let widget = Widget.get(node);
-  while (widget && widget.parentWidget()) {
+  while (widget?.parentWidget()) {
     const parentWidget = widget.parentWidget();
     if (!parentWidget) {
       break;
@@ -1794,7 +1828,7 @@ function updateWidgetfocusWidgetForNode(node: Node|null): void {
 }
 
 function updateXWidgetfocusWidgetForNode(node: Node|null): void {
-  node = node && node.parentNodeOrShadowHost();
+  node = node?.parentNodeOrShadowHost() ?? null;
   const XWidgetCtor = customElements.get('x-widget');
   let widget = null;
   while (node) {
@@ -1818,20 +1852,22 @@ function focusChanged(event: Event): void {
   updateXWidgetfocusWidgetForNode(element);
 }
 
-export function injectCoreStyles(root: Element|ShadowRoot): void {
-  ThemeSupport.ThemeSupport.instance().appendStyle(root, applicationColorTokensStyles);
-  ThemeSupport.ThemeSupport.instance().appendStyle(root, designTokensStyles);
-  ThemeSupport.ThemeSupport.instance().appendStyle(root, inspectorCommonStyles);
-  ThemeSupport.ThemeSupport.instance().appendStyle(root, textButtonStyles);
-  ThemeSupport.ThemeSupport.instance().appendStyle(root, themeColorsStyles);
-  ThemeSupport.ThemeSupport.instance().appendStyle(root, tokens);
-
-  ThemeSupport.ThemeSupport.instance().injectHighlightStyleSheets(root);
-  ThemeSupport.ThemeSupport.instance().injectCustomStyleSheets(root);
+export function injectCoreStyles(elementOrShadowRoot: Element|ShadowRoot): void {
+  ThemeSupport.ThemeSupport.instance().appendStyle(elementOrShadowRoot, inspectorCommonStyles);
+  ThemeSupport.ThemeSupport.instance().appendStyle(elementOrShadowRoot, Buttons.textButtonStyles);
 }
 
+/**
+ * Creates a new shadow DOM tree with the core styles and an optional list of
+ * additional styles, and attaches it to the specified `element`.
+ *
+ * @param element the `Element` to attach the shadow DOM tree to.
+ * @param options optional additional style sheets and options for `Element#attachShadow()`.
+ * @returns the newly created `ShadowRoot`.
+ * @see https://developer.mozilla.org/en-US/docs/Web/API/Element/attachShadow
+ */
 export function createShadowRootWithCoreStyles(
-    element: Element, options: {cssFile?: CSSStyleSheet[]|{cssContent: string}, delegatesFocus?: boolean} = {
+    element: Element, options: {cssFile?: Array<{cssText: string}>|{cssText: string}, delegatesFocus?: boolean} = {
       delegatesFocus: undefined,
       cssFile: undefined,
     }): ShadowRoot {
@@ -1842,12 +1878,12 @@ export function createShadowRootWithCoreStyles(
 
   const shadowRoot = element.attachShadow({mode: 'open', delegatesFocus});
   injectCoreStyles(shadowRoot);
-  if (cssFile) {
-    if ('cssContent' in cssFile) {
-      ThemeSupport.ThemeSupport.instance().appendStyle(shadowRoot, cssFile);
-    } else {
-      shadowRoot.adoptedStyleSheets = cssFile;
+  if (Array.isArray(cssFile)) {
+    for (const cf of cssFile) {
+      ThemeSupport.ThemeSupport.instance().appendStyle(shadowRoot, cf);
     }
+  } else if (cssFile) {
+    ThemeSupport.ThemeSupport.instance().appendStyle(shadowRoot, cssFile);
   }
   shadowRoot.addEventListener('focus', focusChanged, true);
   return shadowRoot;
@@ -1878,17 +1914,34 @@ export function measuredScrollbarWidth(document?: Document|null): number {
   return cachedMeasuredScrollbarWidth;
 }
 
-export function registerCustomElement(
-    localName: string, typeExtension: string, definition: new () => HTMLElement): () => Element {
-  self.customElements.define(typeExtension, class extends definition {
-    constructor() {
-      // The JSDoc above does not allow the super call to have no params, but
-      // it seems to be the nearest to something both Closure and TS understand.
-      // @ts-ignore crbug.com/1011811: Fix after Closure has been removed.
-      super();
-      // TODO(einbinder) convert to classes and custom element tags
-      this.setAttribute('is', typeExtension);
+/**
+ * Opens the given `url` in a new Chrome tab.
+ *
+ * If the `url` is a Google owned documentation page (currently that includes
+ * `web.dev`, `developers.google.com`, and `developer.chrome.com`), the `url`
+ * will also be checked for UTM parameters:
+ *
+ * - If no `utm_source` search parameter is present, this method will add a new
+ *   search parameter `utm_source=devtools` to `url`.
+ * - If no `utm_campaign` search parameter is present, and DevTools is running
+ *   within a branded build, this method will add `utm_campaign=<channel>` to
+ *   the search parameters, with `<channel>` being the release channel of
+ *   Chrome ("stable", "beta", "dev", or "canary").
+ *
+ * @param url the URL to open in a new tab.
+ * @throws TypeError if `url` is not a valid URL.
+ * @see https://en.wikipedia.org/wiki/UTM_parameters
+ */
+export function openInNewTab(url: URL|string): void {
+  url = new URL(`${url}`);
+  if (['developer.chrome.com', 'developers.google.com', 'web.dev'].includes(url.hostname)) {
+    if (!url.searchParams.has('utm_source')) {
+      url.searchParams.append('utm_source', 'devtools');
     }
-  }, {extends: localName});
-  return (): Element => document.createElement(localName, {is: typeExtension});
+    const {channel} = Root.Runtime.hostConfig;
+    if (!url.searchParams.has('utm_campaign') && typeof channel === 'string') {
+      url.searchParams.append('utm_campaign', channel);
+    }
+  }
+  Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(Platform.DevToolsPath.urlString`${url}`);
 }

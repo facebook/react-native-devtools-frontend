@@ -2,7 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as TraceEngine from '../../models/trace/trace.js';
+import * as Trace from '../../models/trace/trace.js';
+import {doubleRaf} from '../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
 import {TraceLoader} from '../../testing/TraceLoader.js';
 
@@ -11,69 +12,145 @@ import * as Timeline from './timeline.js';
 class MockViewDelegate implements Timeline.TimelinePanel.TimelineModeViewDelegate {
   select(_selection: Timeline.TimelineSelection.TimelineSelection|null): void {
   }
-  selectEntryAtTime(_events: TraceEngine.Types.TraceEvents.TraceEventData[]|null, _time: number): void {
+  set3PCheckboxDisabled(_disabled: boolean): void {
   }
-  highlightEvent(_event: TraceEngine.Types.TraceEvents.TraceEventData|null): void {
+  selectEntryAtTime(_events: Trace.Types.Events.Event[]|null, _time: number): void {
+  }
+  highlightEvent(_event: Trace.Types.Events.Event|null): void {
   }
   element = document.createElement('div');
 }
 
-function getRowDataForNetworkDetailsElement(details: ShadowRoot) {
-  return Array.from(details.querySelectorAll<HTMLDivElement>('.network-request-details-row')).map(row => {
-    const title = row.querySelector<HTMLDivElement>('.title')?.innerText;
-    // The innerText in here will contain a `\n` and a few space for each child <div> tag, so just remove these empty
-    // characters for easier test.
-    const regExpForLineBreakAndFollowingSpaces = /\n[\s]+/g;
-    const value =
-        row.querySelector<HTMLDivElement>('.value')?.innerText.replaceAll(regExpForLineBreakAndFollowingSpaces, '');
-    return {title, value};
-  });
-}
-
 describeWithEnvironment('TimelineDetailsView', function() {
   const mockViewDelegate = new MockViewDelegate();
-  it('displays the details of a network request event correctly', async function() {
-    const {traceData} = await TraceLoader.traceEngine(this, 'lcp-web-font.json.gz');
-    const detailsView = new Timeline.TimelineDetailsView.TimelineDetailsView(mockViewDelegate);
 
-    const networkRequests = traceData.NetworkRequests.byTime;
+  it('displays the details of a network request event correctly', async function() {
+    const {parsedTrace, insights} = await TraceLoader.traceEngine(this, 'lcp-web-font.json.gz');
+    const detailsView = new Timeline.TimelineDetailsView.TimelineDetailsPane(mockViewDelegate);
+
+    const networkRequests = parsedTrace.NetworkRequests.byTime;
     const cssRequest = networkRequests.find(request => {
       return request.args.data.url === 'https://chromedevtools.github.io/performance-stories/lcp-web-font/app.css';
     });
     if (!cssRequest) {
       throw new Error('Could not find expected network request.');
     }
-    const selection = Timeline.TimelineSelection.TimelineSelection.fromTraceEvent(cssRequest);
+    const selection = Timeline.TimelineSelection.selectionFromEvent(cssRequest);
 
-    await detailsView.setModel(traceData, null);
+    await detailsView.setModel({
+      parsedTrace,
+      selectedEvents: null,
+      traceInsightsSets: insights,
+      eventToRelatedInsightsMap: null,
+      entityMapper: null
+    });
     await detailsView.setSelection(selection);
 
     const detailsContentElement = detailsView.getDetailsContentElementForTest();
-    assert.strictEqual(detailsContentElement.childNodes.length, 1);
-    const detailsElementShadowRoot = (detailsContentElement.childNodes[0] as HTMLElement).shadowRoot;
-    if (!detailsElementShadowRoot) {
-      throw new Error('Could not find expected element to test.');
-    }
-    const rowData = getRowDataForNetworkDetailsElement(detailsElementShadowRoot);
-
-    const durationInnerText = '12.58 ms' +
-        'Queuing and connecting0' +
-        'Request sent and waiting0' +
-        'Content downloading8.29 ms' +
-        'Waiting on main thread4.29 ms';
     assert.deepEqual(
-        rowData,
-        [
-          {title: 'URL', value: 'chromedevtools.github.io/performance-stories/lcp-web-font/app.css'},
-          {title: 'Request Method', value: 'GET'},
-          {title: 'Initial Priority', value: 'Highest'},
-          {title: 'Priority', value: 'Highest'},
-          {title: 'Mime Type', value: 'text/css'},
-          {title: 'Encoded Data', value: ' (from cache)'},
-          {title: 'Decoded Body', value: '96 B'},
-          {title: 'From cache', value: 'Yes'},
-          {title: 'Duration', value: durationInnerText},
-        ],
+        Array.from(detailsContentElement.children).map(n => n.localName),
+        ['devtools-performance-network-request-details']);
+
+    const content = detailsContentElement.firstElementChild?.shadowRoot;
+    assert(content);
+    assert.lengthOf(content.querySelectorAll('div.network-request-details-row'), 9);
+    assert.lengthOf(content.querySelectorAll('div.network-request-details-item'), 2);
+    assert.lengthOf(content.querySelectorAll('devtools-related-insight-chips'), 1);
+  });
+
+  it('displays the details for a frame correctly', async function() {
+    const {parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
+    const detailsView = new Timeline.TimelineDetailsView.TimelineDetailsPane(mockViewDelegate);
+    await detailsView.setModel({
+      parsedTrace,
+      selectedEvents: null,
+      traceInsightsSets: null,
+      eventToRelatedInsightsMap: null,
+      entityMapper: null
+    });
+
+    const frame = parsedTrace.Frames.frames.at(0);
+    assert.isOk(frame);
+    const selection = Timeline.TimelineSelection.selectionFromEvent(frame);
+    await detailsView.setSelection(selection);
+    await doubleRaf();  // to let the image be fetched + rendered.
+    const detailsContentElement = detailsView.getDetailsContentElementForTest();
+    const frameImg = detailsContentElement.querySelector('.timeline-filmstrip-preview img');
+    assert.instanceOf(frameImg, HTMLImageElement);
+    assert.isDefined(frameImg.src);
+
+    const duration = detailsContentElement.querySelector<HTMLElement>('[data-row-title="Duration"]');
+    assert.isOk(duration);
+    assert.strictEqual(duration.innerText, 'Duration37.85 ms (at 109.82 ms)');
+  });
+
+  // Semi-regularly flaking on CQ bots.
+  it.skip('[crbug.com/406981939]: renders the layout shift component for a single layout shift', async function() {
+    const {parsedTrace} = await TraceLoader.traceEngine(this, 'shift-attribution.json.gz');
+    const detailsView = new Timeline.TimelineDetailsView.TimelineDetailsPane(mockViewDelegate);
+    await detailsView.setModel({
+      parsedTrace,
+      selectedEvents: null,
+      traceInsightsSets: null,
+      eventToRelatedInsightsMap: null,
+      entityMapper: null
+    });
+
+    const layoutShift = parsedTrace.LayoutShifts.clusters.at(0)?.events.at(0);
+    assert.isOk(layoutShift);
+    const selection = Timeline.TimelineSelection.selectionFromEvent(layoutShift);
+    await detailsView.setSelection(selection);
+    const detailsContentElement = detailsView.getDetailsContentElementForTest();
+    // Assert that the right component is rendered. This component has its own
+    // tests for its contents so no need to duplicate those here.
+    const layoutShiftDetails = detailsContentElement.querySelector('devtools-performance-layout-shift-details');
+    assert.isNotNull(layoutShiftDetails);
+  });
+
+  // Semi-regularly flaking on CQ bots.
+  it.skip('[crbug.com/406981939]: renders the layout shift component for a selected cluster', async function() {
+    const {parsedTrace} = await TraceLoader.traceEngine(this, 'shift-attribution.json.gz');
+    const detailsView = new Timeline.TimelineDetailsView.TimelineDetailsPane(mockViewDelegate);
+    await detailsView.setModel({
+      parsedTrace,
+      selectedEvents: null,
+      traceInsightsSets: null,
+      eventToRelatedInsightsMap: null,
+      entityMapper: null
+    });
+
+    const layoutShiftCluster = parsedTrace.LayoutShifts.clusters.at(0);
+    assert.isOk(layoutShiftCluster);
+    const selection = Timeline.TimelineSelection.selectionFromEvent(layoutShiftCluster);
+    await detailsView.setSelection(selection);
+    const detailsContentElement = detailsView.getDetailsContentElementForTest();
+    // Assert that the right component is rendered. This component has its own
+    // tests for its contents so no need to duplicate those here.
+    const layoutShiftDetails = detailsContentElement.querySelector('devtools-performance-layout-shift-details');
+    assert.isNotNull(layoutShiftDetails);
+  });
+
+  it('updates the range details when the user has a range selected', async function() {
+    const {parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
+    const detailsView = new Timeline.TimelineDetailsView.TimelineDetailsPane(mockViewDelegate);
+    await detailsView.setModel({
+      parsedTrace,
+      // We have to set selected events for the range selection UI to be drawn
+      // (without the set of events we can't generate the range stats)
+      selectedEvents: parsedTrace.Renderer.allTraceEntries,
+      traceInsightsSets: null,
+      eventToRelatedInsightsMap: null,
+      entityMapper: null
+    });
+    const bounds = Trace.Helpers.Timing.traceWindowMilliSeconds(parsedTrace.Meta.traceBounds);
+    const selection = Timeline.TimelineSelection.selectionFromRangeMilliSeconds(
+        bounds.min,
+        bounds.max,
     );
+    await detailsView.setSelection(selection);
+    const detailsContentElement = detailsView.getDetailsContentElementForTest();
+    const component = detailsContentElement.querySelector<HTMLElement>('devtools-performance-timeline-summary');
+    const range = component?.shadowRoot?.querySelector<HTMLElement>('.summary-range');
+    assert.strictEqual(range?.innerText, 'Range:  0 ms – 5.39 s');
   });
 });

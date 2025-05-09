@@ -3,20 +3,17 @@
 // found in the LICENSE file.
 
 import {dispatchKeyDownEvent, renderElementIntoDOM} from '../../../testing/DOMHelpers.js';
-import * as Coordinator from '../render_coordinator/render_coordinator.js';
 
 import * as Buttons from './buttons.js';
 
-const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
-
 describe('Button', () => {
-  const iconUrl = new URL('../../../Images/file-image.svg', import.meta.url).toString();
+  const iconName = 'file-image';
 
-  async function renderButton(
+  function renderButton(
       data: Buttons.Button.ButtonData = {
         variant: Buttons.Button.Variant.PRIMARY,
       },
-      text = 'Button'): Promise<Buttons.Button.Button> {
+      text = 'Button'): Buttons.Button.Button {
     const button = new Buttons.Button.Button();
     button.data = data;
     // Toolbar and round buttons do not take text, and error if you try to set any.
@@ -24,17 +21,16 @@ describe('Button', () => {
       button.innerText = text;
     }
     renderElementIntoDOM(button);
-    await coordinator.done();
     return button;
   }
 
-  async function testClick(
+  function testClick(
       data: Buttons.Button.ButtonData = {
         variant: Buttons.Button.Variant.PRIMARY,
         disabled: false,
       },
-      expectedClickCount = 1): Promise<void> {
-    const button = await renderButton(data);
+      expectedClickCount = 1): void {
+    const button = renderButton(data);
 
     let clicks = 0;
     button.onclick = () => clicks++;
@@ -50,14 +46,42 @@ describe('Button', () => {
     assert.strictEqual(clicks, expectedClickCount);
   }
 
-  it('primary button can be clicked', async () => {
-    await testClick({
+  it('changes to `disabled` state are reflect in the property', () => {
+    const button = renderButton();
+    button.disabled = false;
+    assert.isFalse(button.disabled);
+    button.disabled = true;
+    assert.isTrue(button.disabled);
+  });
+
+  describe('focus', () => {
+    it('correctly focuses the <button> element in the shadow DOM', () => {
+      const button = renderButton();
+
+      button.focus();
+
+      assert.isTrue(button.shadowRoot!.querySelector('button')!.hasFocus());
+    });
+  });
+
+  describe('hasFocus', () => {
+    it('correctly reflects the focus state of the button', () => {
+      const button = renderButton();
+
+      button.focus();
+
+      assert.isTrue(button.hasFocus());
+    });
+  });
+
+  it('primary button can be clicked', () => {
+    testClick({
       variant: Buttons.Button.Variant.PRIMARY,
     });
   });
 
-  it('disabled primary button cannot be clicked', async () => {
-    await testClick(
+  it('disabled primary button cannot be clicked', () => {
+    testClick(
         {
           variant: Buttons.Button.Variant.PRIMARY,
           disabled: true,
@@ -65,14 +89,14 @@ describe('Button', () => {
         0);
   });
 
-  it('secondary button can be clicked', async () => {
-    await testClick({
+  it('secondary button can be clicked', () => {
+    testClick({
       variant: Buttons.Button.Variant.OUTLINED,
     });
   });
 
-  it('disabled secondary button cannot be clicked', async () => {
-    await testClick(
+  it('disabled secondary button cannot be clicked', () => {
+    testClick(
         {
           variant: Buttons.Button.Variant.OUTLINED,
           disabled: true,
@@ -80,32 +104,32 @@ describe('Button', () => {
         0);
   });
 
-  it('toolbar button can be clicked', async () => {
-    await testClick({
+  it('toolbar button can be clicked', () => {
+    testClick({
       variant: Buttons.Button.Variant.TOOLBAR,
-      iconUrl,
+      iconName,
     });
   });
 
-  it('disabled toolbar button cannot be clicked', async () => {
-    await testClick(
+  it('disabled toolbar button cannot be clicked', () => {
+    testClick(
         {
           variant: Buttons.Button.Variant.TOOLBAR,
-          iconUrl,
+          iconName,
           disabled: true,
         },
         0);
   });
 
-  it('gets the no additional classes set for the inner button if only text is provided', async () => {
-    const button = await renderButton();
+  it('gets the no additional classes set for the inner button if only text is provided', () => {
+    const button = renderButton();
     const innerButton = button.shadowRoot?.querySelector('button') as HTMLButtonElement;
     assert.isTrue(!innerButton.classList.contains('text-with-icon'));
     assert.isTrue(!innerButton.classList.contains('only-icon'));
   });
 
-  it('gets title set', async () => {
-    const button = await renderButton({
+  it('gets title set', () => {
+    const button = renderButton({
       variant: Buttons.Button.Variant.PRIMARY,
       title: 'Custom',
     });
@@ -113,15 +137,14 @@ describe('Button', () => {
     assert.strictEqual(innerButton.title, 'Custom');
 
     button.title = 'Custom2';
-    await coordinator.done();
     assert.strictEqual(innerButton.title, 'Custom2');
   });
 
-  it('gets the text-with-icon class set for the inner button if text and icon is provided', async () => {
-    const button = await renderButton(
+  it('gets the text-with-icon class set for the inner button if text and icon is provided', () => {
+    const button = renderButton(
         {
           variant: Buttons.Button.Variant.PRIMARY,
-          iconUrl,
+          iconName,
         },
         'text');
     const innerButton = button.shadowRoot?.querySelector('button') as HTMLButtonElement;
@@ -129,11 +152,11 @@ describe('Button', () => {
     assert.isTrue(!innerButton.classList.contains('only-icon'));
   });
 
-  it('gets the only-icon class set for the inner button if only icon is provided', async () => {
-    const button = await renderButton(
+  it('gets the only-icon class set for the inner button if only icon is provided', () => {
+    const button = renderButton(
         {
           variant: Buttons.Button.Variant.PRIMARY,
-          iconUrl,
+          iconName,
         },
         '');
     const innerButton = button.shadowRoot?.querySelector('button') as HTMLButtonElement;
@@ -141,8 +164,8 @@ describe('Button', () => {
     assert.isTrue(innerButton.classList.contains('only-icon'));
   });
 
-  it('gets the `small` class set for the inner button if size === SMALL', async () => {
-    const button = await renderButton(
+  it('gets the `small` class set for the inner button if size === SMALL', () => {
+    const button = renderButton(
         {
           variant: Buttons.Button.Variant.PRIMARY,
           size: Buttons.Button.Size.SMALL,
@@ -152,19 +175,33 @@ describe('Button', () => {
     assert.isTrue(innerButton.classList.contains('small'));
   });
 
-  it('does not get the `small` class set for the inner button if size === MEDIUM', async () => {
-    const button = await renderButton(
+  it('does not get the `small` class set for the inner button if size === MEDIUM', () => {
+    const button = renderButton(
         {
           variant: Buttons.Button.Variant.PRIMARY,
-          iconUrl,
+          iconName,
         },
         '');
     const innerButton = button.shadowRoot?.querySelector('button') as HTMLButtonElement;
     assert.isFalse(innerButton.classList.contains('small'));
   });
 
+  it('prevents only "keydown" events for Enter and Space to bubble up', () => {
+    const button = renderButton({variant: Buttons.Button.Variant.PRIMARY});
+    const onKeydown = sinon.spy();
+    button.addEventListener('keydown', onKeydown);
+
+    const innerButton = button.shadowRoot!.querySelector('button') as HTMLButtonElement;
+    dispatchKeyDownEvent(innerButton, {bubbles: true, composed: true, key: 'Enter'});
+    dispatchKeyDownEvent(innerButton, {bubbles: true, composed: true, key: ' '});
+    dispatchKeyDownEvent(innerButton, {bubbles: true, composed: true, key: 'x'});
+
+    assert.isTrue(onKeydown.calledOnce);
+    assert.strictEqual(onKeydown.getCall(0).args[0].key, 'x');
+  });
+
   describe('in forms', () => {
-    async function renderForm(data: Buttons.Button.ButtonData = {
+    function renderForm(data: Buttons.Button.ButtonData = {
       variant: Buttons.Button.Variant.PRIMARY,
     }) {
       const form = document.createElement('form');
@@ -187,12 +224,11 @@ describe('Button', () => {
       form.append(button);
 
       renderElementIntoDOM(form);
-      await coordinator.done();
       return reference;
     }
 
-    it('submits a form with button[type=submit]', async () => {
-      const state = await renderForm({
+    it('submits a form with button[type=submit]', () => {
+      const state = renderForm({
         variant: Buttons.Button.Variant.PRIMARY,
         type: 'submit',
       });
@@ -200,8 +236,8 @@ describe('Button', () => {
       assert.strictEqual(state.submitCount, 1);
     });
 
-    it('does not submit a form with button[type=button]', async () => {
-      const state = await renderForm({
+    it('does not submit a form with button[type=button]', () => {
+      const state = renderForm({
         variant: Buttons.Button.Variant.PRIMARY,
         type: 'button',
       });
@@ -209,8 +245,8 @@ describe('Button', () => {
       assert.strictEqual(state.submitCount, 0);
     });
 
-    it('resets a form with button[type=reset]', async () => {
-      const state = await renderForm({
+    it('resets a form with button[type=reset]', () => {
+      const state = renderForm({
         variant: Buttons.Button.Variant.PRIMARY,
         type: 'reset',
       });

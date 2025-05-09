@@ -38,12 +38,10 @@ devtools-create-recording-view {
 .header {
   background-color: var(--sys-color-cdt-base-container);
   display: flex;
-  flex-direction: row;
+  flex-flow: row wrap;
   align-items: center;
   border-bottom: 1px solid var(--sys-color-divider);
   padding: 0 5px;
-  min-height: 29px;
-  max-height: 29px;
   gap: 3px;
 }
 
@@ -55,30 +53,53 @@ devtools-create-recording-view {
 }
 
 select {
-  border-radius: 2px;
-  border: 1px solid transparent;
-  height: 24px;
-  max-width: 180px;
+  appearance: none;
+  user-select: none;
+  border: none;
+  border-radius: var(--sys-shape-corner-extra-small);
+  height: var(--sys-size-9);
+  max-width: 140px;
   min-width: 140px;
-  padding: 0 5px;
+  padding: 0 var(--sys-size-6) 0 var(--sys-size-5);
   position: relative;
   color: var(--sys-color-on-surface);
-  background-color: var(--sys-color-cdt-base-container);
+  background-color: transparent;
   text-overflow: ellipsis;
-}
+  background-image: var(--combobox-dropdown-arrow);
+  background-position: right center;
+  background-repeat: no-repeat;
 
-select:disabled {
-  color: var(--sys-color-state-disabled);
-}
+  &:hover {
+    background-color: var(--sys-color-state-hover-on-subtle);
+  }
 
-select:not([disabled]):hover,
-select:not([disabled]):focus-visible,
-select:not([disabled]):active {
-  background-color: var(--sys-color-state-hover-on-subtle);
-}
+  &:active {
+    background-color: var(--sys-color-state-ripple-neutral-on-subtle);
+  }
 
-select:not([disabled]):focus-visible {
-  box-shadow: 0 0 0 2px var(--sys-color-state-focus-ring);
+  &:hover:active {
+    background: var(--combobox-dropdown-arrow),
+      linear-gradient(
+        var(--sys-color-state-hover-on-subtle),
+        var(--sys-color-state-hover-on-subtle)
+      ),
+      linear-gradient(
+        var(--sys-color-state-ripple-neutral-on-subtle),
+        var(--sys-color-state-ripple-neutral-on-subtle)
+      );
+    background-position: right center;
+    background-repeat: no-repeat;
+  }
+
+  &:disabled {
+    pointer-events: none;
+    color: var(--sys-color-state-disabled);
+    background-color: var(--sys-color-state-disabled-container);
+  }
+
+  &:focus-visible {
+    outline: var(--sys-size-2) solid var(--sys-color-state-focus-ring);
+  }
 }
 
 select option {
@@ -117,10 +138,46 @@ devtools-recording-list-view {
   outline-offset: 3px;
 }
 
-.feedback .x-link:focus-visible {
+.feedback .x-link:focus-visible,
+.empty-state-description .x-link:focus-visible {
   outline: -webkit-focus-ring-color auto 1px;
 }
 
-devtools-shortcut-dialog {
-  padding-right: 6px;
+.empty-state {
+  margin: var(--sys-size-5);
+  display: flex;
+  flex-grow: 1;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+  min-height: fit-content;
+  min-width: fit-content;
+
+  > * {
+    max-width: var(--sys-size-29);
+  }
+
+  .empty-state-header {
+    font: var(--sys-typescale-headline5);
+    margin-bottom: var(--sys-size-3);
+  }
+
+  .empty-state-description {
+    font: var(--sys-typescale-body4-regular);
+    color: var(--sys-color-on-surface-subtle);
+
+    > x-link {
+      white-space: nowrap;
+      margin-left: var(--sys-size-3);
+      cursor: pointer;
+      text-decoration: underline;
+      color: var(--sys-color-primary);
+      outline-offset: var(--sys-size-2);
+    }
+  }
+
+  > devtools-button {
+    margin-top: var(--sys-size-7);
+  }
 }

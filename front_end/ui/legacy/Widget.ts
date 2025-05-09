@@ -31,7 +31,7 @@
 import '../../core/dom_extension/dom_extension.js';
 
 import * as Platform from '../../core/platform/platform.js';
-import * as Helpers from '../components/helpers/helpers.js';
+import * as Lit from '../../ui/lit/lit.js';
 
 import {Constraints, Size} from './Geometry.js';
 import * as ThemeSupport from './theme_support/theme_support.js';
@@ -49,6 +49,125 @@ function assert(condition: unknown, message: string): void {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+interface WidgetConstructor<WidgetT extends Widget&WidgetParams, WidgetParams> {
+  new(element: WidgetElement<WidgetT, WidgetParams>): WidgetT;
+}
+
+export class WidgetConfig<WidgetT extends Widget&WidgetParams, WidgetParams> {
+  constructor(readonly widgetClass: WidgetConstructor<WidgetT, WidgetParams>, readonly widgetParams?: WidgetParams) {
+  }
+}
+
+export function widgetConfig<WidgetT extends Widget&WidgetParams, WidgetParams>(
+    widgetClass: WidgetConstructor<WidgetT, WidgetParams>, widgetParams?: WidgetParams):
+    // This is a workaround for https://github.com/runem/lit-analyzer/issues/163
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    WidgetConfig<any, any> {
+  return new WidgetConfig(widgetClass, widgetParams);
+}
+
+export class WidgetElement<WidgetT extends Widget&WidgetParams, WidgetParams = object> extends HTMLElement {
+  #widgetClass?: WidgetConstructor<WidgetT, WidgetParams>;
+  #widgetParams?: WidgetParams;
+  createWidget(): WidgetT {
+    if (!this.#widgetClass) {
+      throw new Error('No widgetClass defined');
+    }
+
+    const widget = new this.#widgetClass(this);
+    if (this.#widgetParams) {
+      Object.assign(widget, this.#widgetParams);
+    }
+    widget.requestUpdate();
+    return widget;
+  }
+
+  set widgetConfig(config: WidgetConfig<WidgetT, WidgetParams>) {
+    const widget = Widget.get(this);
+    if (widget) {
+      let needsUpdate = false;
+      for (const key in config.widgetParams) {
+        if (config.widgetParams.hasOwnProperty(key) && config.widgetParams[key] !== this.#widgetParams?.[key]) {
+          needsUpdate = true;
+        }
+      }
+      if (needsUpdate) {
+        Object.assign(widget, config.widgetParams);
+        widget.requestUpdate();
+      }
+    }
+    this.#widgetClass = config.widgetClass;
+    this.#widgetParams = config.widgetParams;
+  }
+
+  getWidget(): WidgetT|undefined {
+    return Widget.get(this) as WidgetT | undefined;
+  }
+
+  connectedCallback(): void {
+    const widget = Widget.getOrCreateWidget(this);
+    if (!widget.element.parentElement) {
+      widget.markAsRoot();
+    }
+    widget.show(this.parentElement as HTMLElement, undefined, /* suppressOrphanWidgetError= */ true);
+  }
+
+  override appendChild<T extends Node>(child: T): T {
+    if (child instanceof HTMLElement && child.tagName !== 'STYLE') {
+      Widget.getOrCreateWidget(child).show(this);
+      return child;
+    }
+    return super.appendChild(child);
+  }
+
+  override insertBefore<T extends Node>(child: T, referenceChild: Node): T {
+    if (child instanceof HTMLElement && child.tagName !== 'STYLE') {
+      Widget.getOrCreateWidget(child).show(this, referenceChild);
+      return child;
+    }
+    return super.insertBefore(child, referenceChild);
+  }
+
+  override removeChild<T extends Node>(child: T): T {
+    const childWidget = Widget.get(child as unknown as HTMLElement);
+    if (childWidget) {
+      childWidget.detach();
+      return child;
+    }
+    return super.removeChild(child);
+  }
+
+  override removeChildren(): void {
+    for (const child of this.children) {
+      const childWidget = Widget.get(child as unknown as HTMLElement);
+      if (childWidget) {
+        childWidget.detach();
+      }
+    }
+    super.removeChildren();
+  }
+}
+
+customElements.define('devtools-widget', WidgetElement);
+
+interface Constructor<T, Args extends unknown[]> {
+  new(...args: Args): T;
+}
+
+export function widgetRef<T extends Widget, Args extends unknown[]>(
+    type: Constructor<T, Args>, callback: (_: T) => void): ReturnType<typeof Lit.Directives.ref> {
+  return Lit.Directives.ref((e?: Element) => {
+    if (!(e instanceof HTMLElement)) {
+      return;
+    }
+    const widget = Widget.getOrCreateWidget(e);
+    if (!(widget instanceof type)) {
+      throw new Error(`Expected an element with a widget of type ${type.name} but got ${e?.constructor?.name}`);
+    }
+    callback(widget);
+  });
 }
 
 const widgetCounterMap = new WeakMap<Node, number>();
@@ -71,11 +190,16 @@ function decrementWidgetCounter(parentElement: Element, childElement: Element): 
   }
 }
 
+// The resolved `updateComplete` promise, which is used as a marker for the
+// Widget's `#updateComplete` private property to indicate that there's no
+// pending update.
+const UPDATE_COMPLETE = Promise.resolve(true);
+const UPDATE_COMPLETE_RESOLVE = (_result: boolean): void => {};
+
 export class Widget {
-  readonly element: HTMLDivElement;
-  contentElement: HTMLDivElement;
-  private shadowRoot: ShadowRoot|undefined;
-  private readonly isWebComponent: boolean|undefined;
+  readonly element: HTMLElement;
+  contentElement: HTMLElement;
+  private shadowRoot: typeof Element.prototype.shadowRoot;
   protected visibleInternal: boolean;
   private isRoot: boolean;
   private isShowingInternal: boolean;
@@ -90,22 +214,22 @@ export class Widget {
   private constraintsInternal?: Constraints;
   private invalidationsRequested?: boolean;
   private externallyManaged?: boolean;
-  constructor(isWebComponent?: boolean, delegatesFocus?: boolean) {
-    this.contentElement = document.createElement('div');
-    this.contentElement.classList.add('widget');
-    if (isWebComponent) {
-      this.element = document.createElement('div');
+  #updateComplete = UPDATE_COMPLETE;
+  #updateCompleteResolve = UPDATE_COMPLETE_RESOLVE;
+  #updateRequestID = 0;
+  constructor(useShadowDom?: boolean, delegatesFocus?: boolean, element?: HTMLElement) {
+    this.element = element || document.createElement('div');
+    this.shadowRoot = this.element.shadowRoot;
+    if (useShadowDom && !this.shadowRoot) {
       this.element.classList.add('vbox');
       this.element.classList.add('flex-auto');
-      this.shadowRoot = createShadowRootWithCoreStyles(this.element, {
-        cssFile: undefined,
-        delegatesFocus,
-      });
+      this.shadowRoot = createShadowRootWithCoreStyles(this.element, {delegatesFocus});
+      this.contentElement = document.createElement('div');
       this.shadowRoot.appendChild(this.contentElement);
     } else {
-      this.element = this.contentElement;
+      this.contentElement = this.element;
     }
-    this.isWebComponent = isWebComponent;
+    this.contentElement.classList.add('widget');
     widgetMap.set(this.element, this);
     this.visibleInternal = false;
     this.isRoot = false;
@@ -127,6 +251,17 @@ export class Widget {
    */
   static get(node: Node): Widget|undefined {
     return widgetMap.get(node);
+  }
+
+  static getOrCreateWidget(element: HTMLElement): Widget {
+    const widget = Widget.get(element);
+    if (widget) {
+      return widget;
+    }
+    if (element instanceof WidgetElement) {
+      return element.createWidget();
+    }
+    return new Widget(undefined, undefined, element);
   }
 
   markAsRoot(): void {
@@ -169,15 +304,14 @@ export class Widget {
   }
 
   private inNotification(): boolean {
-    return Boolean(this.notificationDepth) ||
-        Boolean(this.parentWidgetInternal && this.parentWidgetInternal.inNotification());
+    return Boolean(this.notificationDepth) || Boolean(this.parentWidgetInternal?.inNotification());
   }
 
   private parentIsShowing(): boolean {
     if (this.isRoot) {
       return true;
     }
-    return this.parentWidgetInternal !== null && this.parentWidgetInternal.isShowing();
+    return this.parentWidgetInternal?.isShowing() ?? false;
   }
 
   protected callOnVisibleChildren(method: (this: Widget) => void): void {
@@ -256,7 +390,7 @@ export class Widget {
   async ownerViewDisposed(): Promise<void> {
   }
 
-  show(parentElement: Element, insertBefore?: Node|null): void {
+  show(parentElement: Element, insertBefore?: Node|null, suppressOrphanWidgetError = false): void {
     assert(parentElement, 'Attempt to attach widget with no parent element');
 
     if (!this.isRoot) {
@@ -265,6 +399,12 @@ export class Widget {
       let currentWidget = undefined;
       while (!currentWidget) {
         if (!currentParent) {
+          if (suppressOrphanWidgetError) {
+            this.isRoot = true;
+            console.warn('A Widget has silently been marked as a root widget');
+            this.show(parentElement, insertBefore);
+            return;
+          }
           throw new Error('Attempt to attach widget to orphan node');
         }
         currentWidget = widgetMap.get(currentParent);
@@ -386,6 +526,15 @@ export class Widget {
       return;
     }
 
+    // Cancel any pending update.
+    if (this.#updateRequestID !== 0) {
+      cancelAnimationFrame(this.#updateRequestID);
+      this.#updateCompleteResolve(true);
+      this.#updateCompleteResolve = UPDATE_COMPLETE_RESOLVE;
+      this.#updateComplete = UPDATE_COMPLETE;
+      this.#updateRequestID = 0;
+    }
+
     // hideOnDetach means that we should never remove element from dom - content
     // has iframes and detaching it will hurt.
     //
@@ -465,24 +614,13 @@ export class Widget {
     this.doResize();
   }
 
-  registerRequiredCSS(cssFile: {cssContent: string}): void {
-    if (this.isWebComponent) {
-      ThemeSupport.ThemeSupport.instance().appendStyle((this.shadowRoot as DocumentFragment), cssFile);
-    } else {
-      ThemeSupport.ThemeSupport.instance().appendStyle(this.element, cssFile);
+  registerRequiredCSS(...cssFiles: Array<{cssText: string}>): void {
+    for (const cssFile of cssFiles) {
+      ThemeSupport.ThemeSupport.instance().appendStyle(this.shadowRoot ?? this.element, cssFile);
     }
   }
 
-  registerCSSFiles(cssFiles: CSSStyleSheet[]): void {
-    let root: ShadowRoot|Document;
-    if (this.isWebComponent && this.shadowRoot !== undefined) {
-      root = this.shadowRoot;
-    } else {
-      root = Helpers.GetRootNode.getRootNode(this.contentElement);
-    }
-    root.adoptedStyleSheets = root.adoptedStyleSheets.concat(cssFiles);
-  }
-
+  // Unused, but useful for debugging.
   printWidgetHierarchy(): void {
     const lines: string[] = [];
     this.collectWidgetHierarchy('', lines);
@@ -523,7 +661,7 @@ export class Widget {
       return;
     }
 
-    if (this.defaultFocusedChild && this.defaultFocusedChild.visibleInternal) {
+    if (this.defaultFocusedChild?.visibleInternal) {
       this.defaultFocusedChild.focus();
     } else {
       for (const child of this.childrenInternal) {
@@ -567,7 +705,11 @@ export class Widget {
   }
 
   setMinimumSize(width: number, height: number): void {
-    this.constraintsInternal = new Constraints(new Size(width, height));
+    this.minimumSize = new Size(width, height);
+  }
+
+  set minimumSize(size: Size) {
+    this.constraintsInternal = new Constraints(size);
     this.invalidateConstraints();
   }
 
@@ -617,6 +759,79 @@ export class Widget {
     assert(!this.parentWidgetInternal, 'Attempt to mark widget as externally managed after insertion to the DOM');
     this.externallyManaged = true;
   }
+
+  /**
+   * Override this method in derived classes to perform the actual view update.
+   *
+   * This is not meant to be called directly, but invoked (indirectly) through
+   * the `requestAnimationFrame` and executed with the animation frame. Instead,
+   * use the `requestUpdate()` method to schedule an asynchronous update.
+   *
+   * @return can either return nothing or a promise; in that latter case, the
+   *         update logic will await the resolution of the returned promise
+   *         before proceeding.
+   */
+  performUpdate(): Promise<void>|void {
+  }
+
+  async #performUpdateCallback(): Promise<boolean> {
+    // Mark this update cycle as complete by assigning
+    // the marker sentinel.
+    this.#updateComplete = UPDATE_COMPLETE;
+    this.#updateCompleteResolve = UPDATE_COMPLETE_RESOLVE;
+    this.#updateRequestID = 0;
+
+    // Run the actual update logic.
+    await this.performUpdate();
+
+    // Resolve the `updateComplete` with `true` if no
+    // new update was triggered during this cycle.
+    return this.#updateComplete === UPDATE_COMPLETE;
+  }
+
+  /**
+   * Schedules an asynchronous update for this widget.
+   *
+   * The update will be deduplicated and executed with the next animation
+   * frame.
+   */
+  requestUpdate(): void {
+    if (this.#updateComplete === UPDATE_COMPLETE) {
+      this.#updateComplete = new Promise((resolve, reject) => {
+        this.#updateCompleteResolve = resolve;
+        this.#updateRequestID = requestAnimationFrame(() => this.#performUpdateCallback().then(resolve, reject));
+      });
+    }
+  }
+
+  /**
+   * The `updateComplete` promise resolves when the widget has finished updating.
+   *
+   * Use `updateComplete` to wait for an update:
+   * ```js
+   * await widget.updateComplete;
+   * // do stuff
+   * ```
+   *
+   * This method is primarily useful for unit tests, to wait for widgets to build
+   * their DOM. For example:
+   * ```js
+   * // Set up the test widget, and wait for the initial update cycle to complete.
+   * const widget = new SomeWidget(someData);
+   * widget.requestUpdate();
+   * await widget.updateComplete;
+   *
+   * // Assert state of the widget.
+   * assert.isTrue(widget.someDataLoaded);
+   * ```
+   *
+   * @returns a promise that resolves to a `boolean` when the widget has finished
+   *          updating, the value is `true` if there are no more pending updates,
+   *          and `false` if the update cycle triggered another update.
+   */
+  get updateComplete(): Promise<boolean> {
+    return this.#updateComplete;
+  }
 }
 
 const storedScrollPositions = new WeakMap<Element, {
@@ -625,8 +840,12 @@ const storedScrollPositions = new WeakMap<Element, {
 }>();
 
 export class VBox extends Widget {
-  constructor(isWebComponent?: boolean, delegatesFocus?: boolean) {
-    super(isWebComponent, delegatesFocus);
+  constructor(useShadowDom?: boolean|HTMLElement, delegatesFocus?: boolean, element?: HTMLElement) {
+    if (useShadowDom instanceof HTMLElement) {
+      element = useShadowDom;
+      useShadowDom = false;
+    }
+    super(useShadowDom, delegatesFocus, element);
     this.contentElement.classList.add('vbox');
   }
 
@@ -645,8 +864,8 @@ export class VBox extends Widget {
 }
 
 export class HBox extends Widget {
-  constructor(isWebComponent?: boolean) {
-    super(isWebComponent);
+  constructor(useShadowDom?: boolean) {
+    super(useShadowDom);
     this.contentElement.classList.add('hbox');
   }
 

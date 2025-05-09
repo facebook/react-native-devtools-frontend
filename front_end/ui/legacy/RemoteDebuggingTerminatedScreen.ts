@@ -5,7 +5,7 @@
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
-import * as LitHtml from '../../ui/lit-html/lit-html.js';
+import * as Lit from '../../ui/lit/lit.js';
 
 import {Dialog} from './Dialog.js';
 import {SizeBehavior} from './GlassPane.js';
@@ -19,11 +19,16 @@ const UIStrings = {
    */
   title: 'DevTools is disconnected',
   /**
-   * @description Text in a dialog box in DevTools stating why remote debugging has been terminated.
+   * @description Text in a dialog box in DevTools stating that remote debugging has been terminated.
    * "Remote debugging" here means that DevTools on a PC is inspecting a website running on an actual mobile device
    * (see https://developer.chrome.com/docs/devtools/remote-debugging/).
    */
-  debuggingConnectionWasClosed: 'Debugging connection was closed. Reason: ',
+  debuggingConnectionWasClosed: 'Debugging connection was closed',
+  /**
+   *@description Text in a dialog box in DevTools stating the reason for remote debugging being terminated.
+   *@example {target_closed} PH1
+   */
+  connectionClosedReason: 'Reason: {PH1}.',
   /**
    * @description Text in a dialog box showing how to reconnect to DevTools when remote debugging has been terminated.
    * "Remote debugging" here means that DevTools on a PC is inspecting a website running on an actual mobile device
@@ -54,17 +59,16 @@ const UIStrings = {
    * @description Label of the FB-only 'send feedback' button.
    */
   sendFeedback: 'Send feedback',
-};
-
+} as const;
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/RemoteDebuggingTerminatedScreen.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-const {render, html} = LitHtml;
+const {render, html} = Lit;
 
 export class RemoteDebuggingTerminatedScreen extends VBox {
   constructor(reason: string, onClose?: () => void) {
     super(true);
-    this.registerCSSFiles([remoteDebuggingTerminatedScreenStyles]);
+    this.registerRequiredCSS(remoteDebuggingTerminatedScreenStyles);
 
     const handleReconnect = (): void => {
       window.location.reload();
@@ -107,14 +111,14 @@ export class RemoteDebuggingTerminatedScreen extends VBox {
     connectionLostDetails?: {reason?: string, code?: string, errorType?: string}
   ): void {
     const dialog = new Dialog('remote-debnugging-terminated');
-    dialog.setSizeBehavior(SizeBehavior.MeasureContent);
+    dialog.setSizeBehavior(SizeBehavior.MEASURE_CONTENT);
     dialog.setDimmed(true);
     new RemoteDebuggingTerminatedScreen(uiMessage, () => dialog.hide()).show(dialog.contentElement);
     dialog.show();
     Host.rnPerfMetrics.remoteDebuggingTerminated(connectionLostDetails);
   }
 
-  #createFeedbackSection(feedbackLink: string): LitHtml.TemplateResult {
+  #createFeedbackSection(feedbackLink: string): Lit.TemplateResult {
     const handleSendFeedback = (): void => {
       Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(
           feedbackLink as Platform.DevToolsPath.UrlString,

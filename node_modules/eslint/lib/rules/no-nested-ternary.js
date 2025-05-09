@@ -17,7 +17,8 @@ module.exports = {
         docs: {
             description: "Disallow nested ternary expressions",
             recommended: false,
-            url: "https://eslint.org/docs/rules/no-nested-ternary"
+            frozen: true,
+            url: "https://eslint.org/docs/latest/rules/no-nested-ternary"
         },
 
         schema: [],

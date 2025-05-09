@@ -32,8 +32,8 @@ import * as Common from '../../core/common/common.js';
 import type * as Platform from '../../core/platform/platform.js';
 import type * as TextUtils from '../text_utils/text_utils.js';
 
+import type {SearchConfig} from './SearchConfig.js';
 import {UISourceCode, type UISourceCodeMetadata} from './UISourceCode.js';
-import {type SearchConfig} from './SearchConfig.js';
 
 export interface Project {
   workspace(): WorkspaceImpl;
@@ -81,15 +81,17 @@ export interface Project {
   uiSourceCodes(): Iterable<UISourceCode>;
 }
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
+/* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
 export enum projectTypes {
   Debugger = 'debugger',
   Formatter = 'formatter',
+  Inspector = 'inspector',
   Network = 'network',
   FileSystem = 'filesystem',
   ContentScripts = 'contentscripts',
   Service = 'service',
 }
+/* eslint-enable @typescript-eslint/naming-convention */
 
 export abstract class ProjectStore implements Project {
   private readonly workspaceInternal: WorkspaceImpl;
@@ -322,6 +324,7 @@ export class WorkspaceImpl extends Common.ObjectWrapper.ObjectWrapper<EventTypes
 }
 
 export enum Events {
+  /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   UISourceCodeAdded = 'UISourceCodeAdded',
   UISourceCodeRemoved = 'UISourceCodeRemoved',
   UISourceCodeRenamed = 'UISourceCodeRenamed',
@@ -330,6 +333,7 @@ export enum Events {
   WorkingCopyCommittedByUser = 'WorkingCopyCommittedByUser',
   ProjectAdded = 'ProjectAdded',
   ProjectRemoved = 'ProjectRemoved',
+  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
 export interface UISourceCodeRenamedEvent {
@@ -347,13 +351,13 @@ export interface WorkingCopyCommitedEvent {
   encoded?: boolean;
 }
 
-export type EventTypes = {
-  [Events.UISourceCodeAdded]: UISourceCode,
-  [Events.UISourceCodeRemoved]: UISourceCode,
-  [Events.UISourceCodeRenamed]: UISourceCodeRenamedEvent,
-  [Events.WorkingCopyChanged]: WorkingCopyChangedEvent,
-  [Events.WorkingCopyCommitted]: WorkingCopyCommitedEvent,
-  [Events.WorkingCopyCommittedByUser]: WorkingCopyCommitedEvent,
-  [Events.ProjectAdded]: Project,
-  [Events.ProjectRemoved]: Project,
-};
+export interface EventTypes {
+  [Events.UISourceCodeAdded]: UISourceCode;
+  [Events.UISourceCodeRemoved]: UISourceCode;
+  [Events.UISourceCodeRenamed]: UISourceCodeRenamedEvent;
+  [Events.WorkingCopyChanged]: WorkingCopyChangedEvent;
+  [Events.WorkingCopyCommitted]: WorkingCopyCommitedEvent;
+  [Events.WorkingCopyCommittedByUser]: WorkingCopyCommitedEvent;
+  [Events.ProjectAdded]: Project;
+  [Events.ProjectRemoved]: Project;
+}

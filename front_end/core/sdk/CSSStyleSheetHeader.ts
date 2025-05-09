@@ -2,17 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import type * as Protocol from '../../generated/protocol.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
 import * as Common from '../common/common.js';
 import * as i18n from '../i18n/i18n.js';
 import * as Platform from '../platform/platform.js';
-import * as Root from '../root/root.js';
-import type * as Protocol from '../../generated/protocol.js';
 
-import {type CSSModel} from './CSSModel.js';
+import type {CSSModel} from './CSSModel.js';
 import {DeferredDOMNode} from './DOMModel.js';
-import {type FrameAssociated} from './FrameAssociated.js';
-import {type PageResourceLoadInitiator} from './PageResourceLoader.js';
+import type {FrameAssociated} from './FrameAssociated.js';
+import type {PageResourceLoadInitiator} from './PageResourceLoader.js';
 import {ResourceTreeModel} from './ResourceTreeModel.js';
 
 const UIStrings = {
@@ -24,7 +23,7 @@ const UIStrings = {
    *@description Error message to display when a source CSS file could not be retrieved.
    */
   thereWasAnErrorRetrievingThe: 'There was an error retrieving the source styles.',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('core/sdk/CSSStyleSheetHeader.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -107,11 +106,7 @@ export class CSSStyleSheetHeader implements TextUtils.ContentProvider.ContentPro
   }
 
   resourceURL(): Platform.DevToolsPath.UrlString {
-    const url = this.isViaInspector() ? this.viaInspectorResourceURL() : this.sourceURL;
-    if (!url && Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.STYLES_PANE_CSS_CHANGES)) {
-      return this.dynamicStyleURL();
-    }
-    return url;
+    return this.isViaInspector() ? this.viaInspectorResourceURL() : this.sourceURL;
   }
 
   private getFrameURLPath(): string {
@@ -134,11 +129,7 @@ export class CSSStyleSheetHeader implements TextUtils.ContentProvider.ContentPro
   }
 
   private viaInspectorResourceURL(): Platform.DevToolsPath.UrlString {
-    return `inspector://${this.getFrameURLPath()}inspector-stylesheet` as Platform.DevToolsPath.UrlString;
-  }
-
-  private dynamicStyleURL(): Platform.DevToolsPath.UrlString {
-    return `stylesheet://${this.getFrameURLPath()}style#${this.id}` as Platform.DevToolsPath.UrlString;
+    return `inspector:///inspector-stylesheet#${this.id}` as Platform.DevToolsPath.UrlString;
   }
 
   lineNumberInSource(lineNumberInStyleSheet: number): number {

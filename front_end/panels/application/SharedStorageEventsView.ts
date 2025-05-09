@@ -5,7 +5,6 @@
 import * as i18n from '../../core/i18n/i18n.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
-import type * as DataGrid from '../../ui/components/data_grid/data_grid.js';
 import * as SourceFrame from '../../ui/legacy/components/source_frame/source_frame.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
@@ -15,20 +14,21 @@ import sharedStorageEventsViewStyles from './sharedStorageEventsView.css.js';
 
 const UIStrings = {
   /**
-   *@description Placeholder text instructing the user how to display shared
-   *storage event details.
+   *@description Placeholder text if no shared storage event has been selected.
+   * Shared storage allows to store and access data that can be shared across different sites.
+   * A shared storage event is for example an access from a site to that storage.
    */
-  clickToDisplayBody: 'Click on any shared storage event to display the event parameters.',
-};
+  noEventSelected: 'No shared storage event selected',
+  /**
+   *@description Placeholder text instructing the user how to display shared
+   * storage event details.
+   * Shared storage allows to store and access data that can be shared across different sites.
+   * A shared storage event is for example an access from a site to that storage.
+   */
+  clickToDisplayBody: 'Click on any shared storage event to display the event parameters',
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/application/SharedStorageEventsView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-
-interface WrappedEvent {
-  accessTime: string;
-  accessType: string;
-  ownerOrigin: string;
-  eventParams: Object;
-}
 
 function eventEquals(
     a: Protocol.Storage.SharedStorageAccessedEvent, b: Protocol.Storage.SharedStorageAccessedEvent): boolean {
@@ -47,23 +47,21 @@ export class SharedStorageEventsView extends UI.SplitWidget.SplitWidget {
     this.element.setAttribute('jslog', `${VisualLogging.pane('shared-storage-events')}`);
 
     const topPanel = new UI.Widget.VBox();
-    this.#noDisplayView = new UI.Widget.VBox();
+    this.#noDisplayView =
+        new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.noEventSelected), i18nString(UIStrings.clickToDisplayBody));
 
     topPanel.setMinimumSize(0, 80);
     this.setMainWidget(topPanel);
     this.#noDisplayView.setMinimumSize(0, 40);
     this.setSidebarWidget(this.#noDisplayView);
+    this.hideSidebar();
 
     topPanel.contentElement.appendChild(this.#sharedStorageEventGrid);
-    this.#sharedStorageEventGrid.addEventListener('cellfocused', this.#onFocus.bind(this));
+    this.#sharedStorageEventGrid.addEventListener('select', this.#onFocus.bind(this));
     this.#sharedStorageEventGrid.setAttribute('jslog', `${VisualLogging.section('events-table')}`);
 
     this.#getMainFrameResourceTreeModel()?.addEventListener(
         SDK.ResourceTreeModel.Events.PrimaryPageChanged, this.clearEvents, this);
-
-    this.#noDisplayView.contentElement.classList.add('placeholder');
-    const noDisplayDiv = this.#noDisplayView.contentElement.createChild('div');
-    noDisplayDiv.textContent = i18nString(UIStrings.clickToDisplayBody);
   }
 
   #getMainFrameResourceTreeModel(): SDK.ResourceTreeModel.ResourceTreeModel|null {
@@ -83,7 +81,7 @@ export class SharedStorageEventsView extends UI.SplitWidget.SplitWidget {
     super.wasShown();
     const sidebar = this.sidebarWidget();
     if (sidebar) {
-      sidebar.registerCSSFiles([sharedStorageEventsViewStyles]);
+      sidebar.registerRequiredCSS(sharedStorageEventsViewStyles);
     }
   }
 
@@ -98,6 +96,10 @@ export class SharedStorageEventsView extends UI.SplitWidget.SplitWidget {
       return;
     }
 
+    if (this.showMode() !== UI.SplitWidget.ShowMode.BOTH) {
+      this.showBoth();
+    }
+
     this.#events.push(event);
     this.#sharedStorageEventGrid.data = this.#events;
   }
@@ -106,23 +108,17 @@ export class SharedStorageEventsView extends UI.SplitWidget.SplitWidget {
     this.#events = [];
     this.#sharedStorageEventGrid.data = this.#events;
     this.setSidebarWidget(this.#noDisplayView);
+    this.hideSidebar();
   }
 
   async #onFocus(event: Event): Promise<void> {
-    const focusedEvent = event as DataGrid.DataGridEvents.BodyCellFocusedEvent;
-    const row = focusedEvent.data.row;
-    if (!row) {
+    const focusedEvent = event as CustomEvent<HTMLElement>;
+    const datastore = focusedEvent.detail;
+    if (!datastore) {
       return;
     }
 
-    const wrappedEvent: WrappedEvent = {
-      accessTime: row.cells.find(cell => cell.columnId === 'event-time')?.value as string,
-      accessType: row.cells.find(cell => cell.columnId === 'event-type')?.value as string,
-      ownerOrigin: row.cells.find(cell => cell.columnId === 'event-owner-origin')?.value as string,
-      eventParams: JSON.parse(row.cells.find(cell => cell.columnId === 'event-params')?.value as string),
-    } as WrappedEvent;
-
-    const jsonView = SourceFrame.JSONView.JSONView.createViewSync(wrappedEvent);
+    const jsonView = SourceFrame.JSONView.JSONView.createViewSync(datastore);
     jsonView.setMinimumSize(0, 40);
     this.setSidebarWidget(jsonView);
   }
@@ -131,7 +127,7 @@ export class SharedStorageEventsView extends UI.SplitWidget.SplitWidget {
     this.#defaultId = id;
   }
 
-  getEventsForTesting(): Array<Protocol.Storage.SharedStorageAccessedEvent> {
+  getEventsForTesting(): Protocol.Storage.SharedStorageAccessedEvent[] {
     return this.#events;
   }
 

@@ -23,7 +23,7 @@ describeWithMockConnection('InterestGroupTreeElement', () => {
   };
 
   it('reads details', async () => {
-    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
+    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
     const frameTarget = createTarget({parentTarget: tabTarget});
     createTarget({parentTarget: tabTarget, subtype: 'prerender'});
     const view =
@@ -32,6 +32,6 @@ describeWithMockConnection('InterestGroupTreeElement', () => {
         .withArgs({ownerOrigin: OWNER, name: NAME})
         .returns(Promise.resolve({details: DETAILS} as Protocol.Storage.GetInterestGroupDetailsResponse));
     const details = await view.getInterestGroupDetails(OWNER, NAME);
-    assert.deepStrictEqual(details, DETAILS);
+    assert.deepEqual(details, DETAILS);
   });
 });

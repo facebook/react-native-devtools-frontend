@@ -29,8 +29,6 @@ READ_LOCATION = path.join(ROOT_DIRECTORY, 'third_party', 'blink', 'renderer',
 # Deprecations in this list are exempt from code generation as they are not
 # dispatched to the DevTools.
 EXEMPTED_FROM_DEVTOOLS_GENERATION = {
-    "ThirdPartyCookieAccessWarning",
-    "ThirdPartyCookieAccessError",
 }
 
 
@@ -89,7 +87,7 @@ with open(GENERATED_LOCATION, mode="w+") as f:
         f.write("   * @description %s\n" % note)
         f.write("   */\n")
         f.write("  %s: %s,\n" % (name, json.dumps(message)))
-    f.write("};\n")
+    f.write("} as const;\n")
     f.write("\n")
     f.write("export interface DeprecationDescriptor {\n")
     f.write("  milestone?: number;\n")

@@ -14,20 +14,20 @@ describe('Cookie', () => {
     assert.strictEqual(cookie.name(), 'name');
     assert.strictEqual(cookie.value(), 'value');
 
-    assert.strictEqual(cookie.type(), undefined);
-    assert.strictEqual(cookie.httpOnly(), false);
-    assert.strictEqual(cookie.secure(), false);
-    assert.strictEqual(cookie.sameSite(), undefined);
+    assert.isUndefined(cookie.type());
+    assert.isFalse(cookie.httpOnly());
+    assert.isFalse(cookie.secure());
+    assert.isUndefined(cookie.sameSite());
     assert.strictEqual(cookie.priority(), 'Medium');
-    assert.strictEqual(cookie.session(), true);
-    assert.strictEqual(cookie.path(), undefined);
-    assert.strictEqual(cookie.domain(), undefined);
-    assert.strictEqual(cookie.expires(), undefined);
-    assert.strictEqual(cookie.maxAge(), undefined);
+    assert.isTrue(cookie.session());
+    assert.isUndefined(cookie.path());
+    assert.isUndefined(cookie.domain());
+    assert.isUndefined(cookie.expires());
+    assert.isUndefined(cookie.maxAge());
     assert.strictEqual(cookie.size(), 0);
-    assert.strictEqual(cookie.url(), null);
-    assert.strictEqual(cookie.partitionKey(), undefined);
-    assert.strictEqual(cookie.getCookieLine(), null);
+    assert.isNull(cookie.url());
+    assert.isUndefined(cookie.partitionKey());
+    assert.isNull(cookie.getCookieLine());
   });
 
   it('can be created from a protocol Cookie with all optional fields set', () => {
@@ -55,24 +55,24 @@ describe('Cookie', () => {
     assert.strictEqual(cookie.name(), 'name');
     assert.strictEqual(cookie.value(), 'value');
 
-    assert.strictEqual(cookie.type(), null);
-    assert.strictEqual(cookie.httpOnly(), true);
-    assert.strictEqual(cookie.secure(), true);
+    assert.isNull(cookie.type());
+    assert.isTrue(cookie.httpOnly());
+    assert.isTrue(cookie.secure());
     assert.strictEqual(cookie.sameSite(), 'Strict');
-    assert.strictEqual(cookie.session(), false);
+    assert.isFalse(cookie.session());
     assert.strictEqual(cookie.path(), '/test');
     assert.strictEqual(cookie.domain(), '.example.com');
     assert.strictEqual(cookie.expires(), expires);
-    assert.strictEqual(cookie.maxAge(), undefined);
+    assert.isUndefined(cookie.maxAge());
     assert.strictEqual(cookie.size(), 23);
     assert.strictEqual(String(cookie.url()), 'https://.example.com/test');
-    assert.strictEqual(cookie.getCookieLine(), null);
+    assert.isNull(cookie.getCookieLine());
     assert.strictEqual(cookie.sourcePort(), 443);
     assert.strictEqual(cookie.sourceScheme(), Protocol.Network.CookieSourceScheme.Secure);
     assert.strictEqual(cookie.partitionKey().topLevelSite, 'https://a.com');
-    assert.strictEqual(cookie.partitionKey().hasCrossSiteAncestor, false);
-    assert.strictEqual(cookie.partitionKeyOpaque(), false);
-    assert.strictEqual(cookie.partitioned(), true);
+    assert.isFalse(cookie.partitionKey().hasCrossSiteAncestor);
+    assert.isFalse(cookie.partitionKeyOpaque());
+    assert.isTrue(cookie.partitioned());
   });
 
   // The jsdoc states that the fields are required, not optional
@@ -97,19 +97,19 @@ describe('Cookie', () => {
     assert.strictEqual(cookie.name(), 'name');
     assert.strictEqual(cookie.value(), 'value');
 
-    assert.strictEqual(cookie.type(), null);
-    assert.strictEqual(cookie.httpOnly(), false);
-    assert.strictEqual(cookie.secure(), false);
-    assert.strictEqual(cookie.sameSite(), undefined);
+    assert.isNull(cookie.type());
+    assert.isFalse(cookie.httpOnly());
+    assert.isFalse(cookie.secure());
+    assert.isUndefined(cookie.sameSite());
     assert.strictEqual(cookie.priority(), 'Medium');
     // Session cookie status is derived from the presence of max-age or expires fields.
-    assert.strictEqual(cookie.session(), true);
+    assert.isTrue(cookie.session());
     assert.strictEqual(cookie.path(), '/test');
     assert.strictEqual(cookie.domain(), '.example.com');
-    assert.strictEqual(cookie.maxAge(), undefined);
+    assert.isUndefined(cookie.maxAge());
     assert.strictEqual(cookie.size(), 23);
     assert.strictEqual(String(cookie.url()), 'http://.example.com/test');
-    assert.strictEqual(cookie.getCookieLine(), null);
+    assert.isNull(cookie.getCookieLine());
     assert.strictEqual(cookie.sourcePort(), 80);
     assert.strictEqual(cookie.sourceScheme(), Protocol.Network.CookieSourceScheme.NonSecure);
   });
@@ -135,47 +135,47 @@ describe('Cookie', () => {
     assert.strictEqual(cookie.name(), 'name');
     assert.strictEqual(cookie.value(), 'value');
 
-    assert.strictEqual(cookie.type(), null);
-    assert.strictEqual(cookie.httpOnly(), false);
-    assert.strictEqual(cookie.secure(), false);
-    assert.strictEqual(cookie.sameSite(), undefined);
+    assert.isNull(cookie.type());
+    assert.isFalse(cookie.httpOnly());
+    assert.isFalse(cookie.secure());
+    assert.isUndefined(cookie.sameSite());
     assert.strictEqual(cookie.priority(), 'Medium');
     // Session cookie status is derived from the presence of max-age or expires fields.
-    assert.strictEqual(cookie.session(), true);
+    assert.isTrue(cookie.session());
     assert.strictEqual(cookie.path(), '/test');
     assert.strictEqual(cookie.domain(), '.example.com');
-    assert.strictEqual(cookie.maxAge(), undefined);
+    assert.isUndefined(cookie.maxAge());
     assert.strictEqual(cookie.size(), 23);
     assert.strictEqual(String(cookie.url()), 'http://.example.com:8000/test');
-    assert.strictEqual(cookie.getCookieLine(), null);
+    assert.isNull(cookie.getCookieLine());
     assert.strictEqual(cookie.sourcePort(), 8000);
     assert.strictEqual(cookie.sourceScheme(), Protocol.Network.CookieSourceScheme.NonSecure);
   });
 
   it('can handle secure urls', () => {
     const cookie = new SDK.Cookie.Cookie('name', 'value');
-    cookie.addAttribute(SDK.Cookie.Attribute.Secure);
-    cookie.addAttribute(SDK.Cookie.Attribute.Domain, 'example.com');
-    cookie.addAttribute(SDK.Cookie.Attribute.Path, '/test');
+    cookie.addAttribute(SDK.Cookie.Attribute.SECURE);
+    cookie.addAttribute(SDK.Cookie.Attribute.DOMAIN, 'example.com');
+    cookie.addAttribute(SDK.Cookie.Attribute.PATH, '/test');
     assert.strictEqual(String(cookie.url()), 'https://example.com/test');
   });
 
   it('can handle insecure urls', () => {
     const cookie = new SDK.Cookie.Cookie('name', 'value');
-    cookie.addAttribute(SDK.Cookie.Attribute.Domain, 'example.com');
-    cookie.addAttribute(SDK.Cookie.Attribute.Path, '/test');
+    cookie.addAttribute(SDK.Cookie.Attribute.DOMAIN, 'example.com');
+    cookie.addAttribute(SDK.Cookie.Attribute.PATH, '/test');
     assert.strictEqual(String(cookie.url()), 'http://example.com/test');
   });
 
   it('can set SDK.Cookie.Attribute used as flags', () => {
     const cookie = new SDK.Cookie.Cookie('name', 'value');
-    cookie.addAttribute(SDK.Cookie.Attribute.HttpOnly);
-    assert.strictEqual(cookie.httpOnly(), true);
+    cookie.addAttribute(SDK.Cookie.Attribute.HTTP_ONLY);
+    assert.isTrue(cookie.httpOnly());
   });
 
   it('can set SDK.Cookie.Attribute used as key=value', () => {
     const cookie = new SDK.Cookie.Cookie('name', 'value');
-    cookie.addAttribute(SDK.Cookie.Attribute.Path, '/test');
+    cookie.addAttribute(SDK.Cookie.Attribute.PATH, '/test');
     assert.strictEqual(cookie.path(), '/test');
   });
 
@@ -186,7 +186,7 @@ describe('Cookie', () => {
 
   it('can change the priority', () => {
     const cookie = new SDK.Cookie.Cookie('name', 'value');
-    cookie.addAttribute(SDK.Cookie.Attribute.Priority, 'Low');
+    cookie.addAttribute(SDK.Cookie.Attribute.PRIORITY, 'Low');
     assert.strictEqual(cookie.priority(), 'Low');
   });
 
@@ -198,14 +198,14 @@ describe('Cookie', () => {
 
   it('can calculate the expiration date for session cookies', () => {
     const cookie = new SDK.Cookie.Cookie('name', 'value');
-    assert.strictEqual(cookie.expiresDate(new Date()), null);
+    assert.isNull(cookie.expiresDate(new Date()));
   });
 
   it('can calculate the expiration date for max age cookies', () => {
     const cookie = new SDK.Cookie.Cookie('name', 'value');
     const now = new Date();
     const expires = Math.floor(now.getTime()) + 3600 * 1000;
-    cookie.addAttribute(SDK.Cookie.Attribute.MaxAge, '3600');
+    cookie.addAttribute(SDK.Cookie.Attribute.MAX_AGE, '3600');
     const expiresDate = cookie.expiresDate(now);
     assert.strictEqual(expiresDate!.toISOString(), new Date(expires).toISOString());
   });
@@ -214,7 +214,7 @@ describe('Cookie', () => {
     const cookie = new SDK.Cookie.Cookie('name', 'value');
     const now = new Date();
     const expires = Math.floor(now.getTime()) + 3600 * 1000;
-    cookie.addAttribute(SDK.Cookie.Attribute.Expires, expires);
+    cookie.addAttribute(SDK.Cookie.Attribute.EXPIRES, expires);
     const expiresDate = cookie.expiresDate(now);
     assert.strictEqual(expiresDate!.toISOString(), new Date(expires).toISOString());
   });
@@ -236,7 +236,7 @@ describe('Cookie', () => {
 
   it('detects the Partitioned attribute in the Set-Cookie header', () => {
     const cookie = new SDK.Cookie.Cookie('name', 'value');
-    cookie.addAttribute(SDK.Cookie.Attribute.Partitioned);
+    cookie.addAttribute(SDK.Cookie.Attribute.PARTITIONED);
     assert.isTrue(cookie.partitioned());
     assert.isFalse(cookie.hasCrossSiteAncestor());
     assert.strictEqual(cookie.topLevelSite(), '');

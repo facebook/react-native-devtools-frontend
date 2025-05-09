@@ -20,7 +20,7 @@ const UIStrings = {
    *@description Tooltip for the 3-dots menu in the Memory panel profiles list.
    */
   profileOptions: 'Profile options',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/profiler/ProfileSidebarTreeElement.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -35,8 +35,7 @@ export class ProfileSidebarTreeElement extends UI.TreeOutline.TreeElement {
   small: boolean;
   readonly dataDisplayDelegate: DataDisplayDelegate;
   profile: ProfileHeader;
-  saveLinkElement?: HTMLElement;
-  editing?: UI.InplaceEditor.Controller|null;
+  editing: UI.InplaceEditor.Controller|null;
   constructor(dataDisplayDelegate: DataDisplayDelegate, profile: ProfileHeader, className: string) {
     super('', false);
     this.iconElement = document.createElement('div');
@@ -58,13 +57,15 @@ export class ProfileSidebarTreeElement extends UI.TreeOutline.TreeElement {
     this.menuElement.tabIndex = -1;
     this.menuElement.addEventListener('click', this.handleContextMenuEvent.bind(this));
     this.menuElement.setAttribute('jslog', `${VisualLogging.dropDown('profile-options').track({click: true})}`);
+    UI.Tooltip.Tooltip.install(this.menuElement, i18nString(UIStrings.profileOptions));
 
     this.titleElement.textContent = profile.title;
     this.className = className;
     this.small = false;
     this.dataDisplayDelegate = dataDisplayDelegate;
     this.profile = profile;
-    profile.addEventListener(ProfileHeaderEvents.UpdateStatus, this.updateStatus, this);
+    profile.addEventListener(ProfileHeaderEvents.UPDATE_STATUS, this.updateStatus, this);
+    this.editing = null;
   }
 
   updateStatus(event: Common.EventTarget.EventTargetEvent<StatusUpdate>): void {
@@ -92,21 +93,28 @@ export class ProfileSidebarTreeElement extends UI.TreeOutline.TreeElement {
     if (!container) {
       return;
     }
-    const config = new UI.InplaceEditor.Config(this.editingCommitted.bind(this), this.editingCancelled.bind(this));
+    const config =
+        new UI.InplaceEditor.Config(this.editingCommitted.bind(this), this.editingCancelled.bind(this), undefined);
     this.editing = UI.InplaceEditor.InplaceEditor.startEditing(container, config);
   }
 
-  editingCommitted(container: Element, newTitle: string): void {
-    delete this.editing;
-    this.profile.setTitle(newTitle);
+  editingCommitted(_container: Element, newTitle: string): void {
+    if (newTitle.trim().length === 0) {
+      if (this.editing) {
+        this.editing.cancel();
+      }
+    } else {
+      this.editing = null;
+      this.profile.setTitle(newTitle);
+    }
   }
 
   editingCancelled(): void {
-    delete this.editing;
+    this.editing = null;
   }
 
   dispose(): void {
-    this.profile.removeEventListener(ProfileHeaderEvents.UpdateStatus, this.updateStatus, this);
+    this.profile.removeEventListener(ProfileHeaderEvents.UPDATE_STATUS, this.updateStatus, this);
   }
 
   override onselect(): boolean {

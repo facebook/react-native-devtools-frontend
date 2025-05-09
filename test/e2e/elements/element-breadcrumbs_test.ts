@@ -5,13 +5,11 @@
 import {assert} from 'chai';
 
 import {clickElement, goToResource, waitForElementWithTextContent} from '../../shared/helper.js';
-import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   assertSelectedElementsNodeTextIncludes,
   expandSelectedNodeRecursively,
   getBreadcrumbsTextContent,
   getSelectedBreadcrumbTextContent,
-  waitForContentOfSelectedElementsNode,
   waitForElementsStyleSection,
   waitForSelectedTreeElementSelectorWithTextcontent,
 } from '../helpers/elements-helpers.js';
@@ -22,9 +20,6 @@ describe('Element breadcrumbs', () => {
   beforeEach(async function() {
     await goToResource('elements/element-breadcrumbs.html');
     await waitForElementsStyleSection();
-
-    // Check to make sure we have the correct node selected after opening a file
-    await waitForContentOfSelectedElementsNode('<body>\u200B');
 
     // expand the tree and then navigate down to the target node
     await expandSelectedNodeRecursively();

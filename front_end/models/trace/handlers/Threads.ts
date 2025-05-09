@@ -5,19 +5,19 @@
 import type * as Helpers from '../helpers/helpers.js';
 import type * as Types from '../types/types.js';
 
-import {type AuctionWorkletsData} from './AuctionWorkletsHandler.js';
+import type {AuctionWorkletsData} from './AuctionWorkletsHandler.js';
 import type * as Renderer from './RendererHandler.js';
-import {type TraceParseData} from './types.js';
+import type {ParsedTrace} from './types.js';
 
 export interface ThreadData {
-  pid: Types.TraceEvents.ProcessID;
-  tid: Types.TraceEvents.ThreadID;
-  entries: readonly Types.TraceEvents.SyntheticTraceEntry[];
+  pid: Types.Events.ProcessID;
+  tid: Types.Events.ThreadID;
+  entries: readonly Types.Events.Event[];
   processIsOnMainFrame: boolean;
   tree: Helpers.TreeHelpers.TraceEntryTree;
   type: ThreadType;
   name: string|null;
-  entryToNode: Map<Types.TraceEvents.SyntheticTraceEntry, Helpers.TreeHelpers.TraceEntryNode>;
+  entryToNode: Map<Types.Events.Event, Helpers.TreeHelpers.TraceEntryNode>;
 }
 
 export const enum ThreadType {
@@ -31,7 +31,7 @@ export const enum ThreadType {
 }
 
 function getThreadTypeForRendererThread(
-    pid: Types.TraceEvents.ProcessID, thread: Renderer.RendererThread,
+    pid: Types.Events.ProcessID, thread: Renderer.RendererThread,
     auctionWorkletsData: AuctionWorkletsData): ThreadType {
   let threadType = ThreadType.OTHER;
   if (thread.name === 'CrRendererMain') {
@@ -82,26 +82,34 @@ export function threadsInRenderer(
   return foundThreads;
 }
 
+const threadsInTraceCache = new WeakMap<ParsedTrace, readonly ThreadData[]>();
+
 /**
  * Given trace parsed data, this helper will return a high level array of
  * ThreadData. This is useful because it allows you to get a list of threads
  * regardless of if the trace is a CPU Profile or a Tracing profile. Thus you
  * can use this helper to iterate over threads in confidence that it will work
  * for both trace types.
+ * The resulting data is cached per-trace, so you can safely call this multiple times.
  */
-export function threadsInTrace(traceParseData: TraceParseData): readonly ThreadData[] {
-  // If we have Renderer threads, we prefer to use those. In the event that a
-  // trace is a CPU Profile trace, we will never have Renderer threads, so we
-  // know if there are no Renderer threads that we can fallback to using the
-  // data from the SamplesHandler.
-  const threadsFromRenderer = threadsInRenderer(traceParseData.Renderer, traceParseData.AuctionWorklets);
+export function threadsInTrace(parsedTrace: ParsedTrace): readonly ThreadData[] {
+  const cached = threadsInTraceCache.get(parsedTrace);
+  if (cached) {
+    return cached;
+  }
+
+  // If we have Renderer threads, we prefer to use those.
+  const threadsFromRenderer = threadsInRenderer(parsedTrace.Renderer, parsedTrace.AuctionWorklets);
   if (threadsFromRenderer.length) {
+    threadsInTraceCache.set(parsedTrace, threadsFromRenderer);
     return threadsFromRenderer;
   }
 
+  // If it's a CPU Profile trace, there will be no Renderer threads.
+  // We can fallback to using the data from the SamplesHandler.
   const foundThreads: ThreadData[] = [];
-  if (traceParseData.Samples.profilesInProcess.size) {
-    for (const [pid, process] of traceParseData.Samples.profilesInProcess) {
+  if (parsedTrace.Samples.profilesInProcess.size) {
+    for (const [pid, process] of parsedTrace.Samples.profilesInProcess) {
       for (const [tid, thread] of process) {
         if (!thread.profileTree) {
           // Drop threads where we could not create the tree; this indicates
@@ -120,11 +128,12 @@ export function threadsInTrace(traceParseData: TraceParseData): readonly ThreadD
           processIsOnMainFrame: false,
           tree: thread.profileTree,
           type: ThreadType.CPU_PROFILE,
-          entryToNode: traceParseData.Samples.entryToNode,
+          entryToNode: parsedTrace.Samples.entryToNode,
         });
       }
     }
   }
 
+  threadsInTraceCache.set(parsedTrace, foundThreads);
   return foundThreads;
 }

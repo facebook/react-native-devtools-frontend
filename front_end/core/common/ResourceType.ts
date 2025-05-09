@@ -70,9 +70,9 @@ const UIStrings = {
    */
   doc: 'Doc',
   /**
-   *@description Text that appears on a button for the websocket resource type filter.
+   *@description Text that appears on a button for the websocket, webtransport, directsocket resource type filter.
    */
-  ws: 'WS',
+  socketShort: 'Socket',
   /**
    *@description Text that appears in a tooltip for the WebAssembly types filter.
    */
@@ -128,6 +128,10 @@ const UIStrings = {
   /**
    *@description Name of a network resource type
    */
+  directsocket: 'DirectSocket',
+  /**
+   *@description Name of a network resource type
+   */
   signedexchange: 'SignedExchange',
   /**
    *@description Name of a network resource type
@@ -145,7 +149,8 @@ const UIStrings = {
    *@description Name of a network initiator type
    */
   webbundle: 'WebBundle',
-};
+} as const;
+
 const str_ = i18n.i18n.registerUIStrings('core/common/ResourceType.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
@@ -227,6 +232,9 @@ export class ResourceType {
   }
 
   static mimeFromURL(url: Platform.DevToolsPath.UrlString): string|undefined {
+    if (url.startsWith('snippet://') || url.startsWith('debugger://')) {
+      return 'text/javascript';
+    }
     const name = ParsedURL.extractName(url);
     if (mimeTypeByName.has(name)) {
       return mimeTypeByName.get(name);
@@ -252,7 +260,9 @@ export class ResourceType {
    * Adds suffixes iff the mimeType is 'text/javascript' to denote whether the JS is minified or from
    * a source map.
    */
-  static mediaTypeForMetrics(mimeType: string, isFromSourceMap: boolean, isMinified: boolean): string {
+  static mediaTypeForMetrics(
+      mimeType: string, isFromSourceMap: boolean, isMinified: boolean, isSnippet: boolean,
+      isDebugger: boolean): string {
     if (mimeType !== 'text/javascript') {
       return mimeType;
     }
@@ -264,6 +274,12 @@ export class ResourceType {
     }
     if (isMinified) {
       return 'text/javascript+minified';
+    }
+    if (isSnippet) {
+      return 'text/javascript+snippet';
+    }
+    if (isDebugger) {
+      return 'text/javascript+eval';
     }
     return 'text/javascript+plain';
   }
@@ -343,31 +359,36 @@ export class ResourceType {
 }
 
 export class ResourceCategory {
+  readonly name: string;
   title: () => Platform.UIString.LocalizedString;
   shortTitle: () => Platform.UIString.LocalizedString;
-  constructor(title: () => Platform.UIString.LocalizedString, shortTitle: () => Platform.UIString.LocalizedString) {
+  constructor(
+      name: string, title: () => Platform.UIString.LocalizedString,
+      shortTitle: () => Platform.UIString.LocalizedString) {
+    this.name = name;
     this.title = title;
     this.shortTitle = shortTitle;
-  }
-
-  static categoryByTitle(title: string): ResourceCategory|null {
-    const allCategories = Object.values(resourceCategories);
-    return allCategories.find(category => category.title() === title) || null;
   }
 }
 
 export const resourceCategories = {
-  XHR: new ResourceCategory(i18nLazyString(UIStrings.fetchAndXHR), i18n.i18n.lockedLazyString('Fetch/XHR')),
-  Document: new ResourceCategory(i18nLazyString(UIStrings.document), i18nLazyString(UIStrings.doc)),
-  Stylesheet: new ResourceCategory(i18nLazyString(UIStrings.css), i18nLazyString(UIStrings.css)),
-  Script: new ResourceCategory(i18nLazyString(UIStrings.javascript), i18nLazyString(UIStrings.js)),
-  Font: new ResourceCategory(i18nLazyString(UIStrings.font), i18nLazyString(UIStrings.font)),
-  Image: new ResourceCategory(i18nLazyString(UIStrings.image), i18nLazyString(UIStrings.img)),
-  Media: new ResourceCategory(i18nLazyString(UIStrings.media), i18nLazyString(UIStrings.media)),
-  Manifest: new ResourceCategory(i18nLazyString(UIStrings.manifest), i18nLazyString(UIStrings.manifest)),
-  WebSocket: new ResourceCategory(i18nLazyString(UIStrings.websocket), i18nLazyString(UIStrings.ws)),
-  Wasm: new ResourceCategory(i18nLazyString(UIStrings.webassembly), i18nLazyString(UIStrings.wasm)),
-  Other: new ResourceCategory(i18nLazyString(UIStrings.other), i18nLazyString(UIStrings.other)),
+  XHR: new ResourceCategory(
+      'Fetch and XHR', i18nLazyString(UIStrings.fetchAndXHR), i18n.i18n.lockedLazyString('Fetch/XHR')),
+  Document: new ResourceCategory(UIStrings.document, i18nLazyString(UIStrings.document), i18nLazyString(UIStrings.doc)),
+  Stylesheet: new ResourceCategory(UIStrings.css, i18nLazyString(UIStrings.css), i18nLazyString(UIStrings.css)),
+  Script:
+      new ResourceCategory(UIStrings.javascript, i18nLazyString(UIStrings.javascript), i18nLazyString(UIStrings.js)),
+  Font: new ResourceCategory(UIStrings.font, i18nLazyString(UIStrings.font), i18nLazyString(UIStrings.font)),
+  Image: new ResourceCategory(UIStrings.image, i18nLazyString(UIStrings.image), i18nLazyString(UIStrings.img)),
+  Media: new ResourceCategory(UIStrings.media, i18nLazyString(UIStrings.media), i18nLazyString(UIStrings.media)),
+  Manifest:
+      new ResourceCategory(UIStrings.manifest, i18nLazyString(UIStrings.manifest), i18nLazyString(UIStrings.manifest)),
+  Socket: new ResourceCategory(
+      'Socket', i18n.i18n.lockedLazyString('WebSocket | WebTransport | DirectSocket'),
+      i18nLazyString(UIStrings.socketShort)),
+  Wasm: new ResourceCategory(
+      UIStrings.webassembly, i18nLazyString(UIStrings.webassembly), i18nLazyString(UIStrings.wasm)),
+  Other: new ResourceCategory(UIStrings.other, i18nLazyString(UIStrings.other), i18nLazyString(UIStrings.other)),
 };
 
 export const resourceCategoriesReactNative = {
@@ -396,10 +417,11 @@ export const resourceTypes = {
   Fetch: new ResourceType('fetch', i18nLazyString(UIStrings.fetch), resourceCategories.XHR, true),
   Prefetch: new ResourceType('prefetch', i18n.i18n.lockedLazyString('Prefetch'), resourceCategories.Document, true),
   EventSource: new ResourceType('eventsource', i18nLazyString(UIStrings.eventsource), resourceCategories.XHR, true),
-  WebSocket: new ResourceType('websocket', i18nLazyString(UIStrings.websocket), resourceCategories.WebSocket, false),
-  // TODO(yoichio): Consider creating new category WT or WS/WT with WebSocket.
+  WebSocket: new ResourceType('websocket', i18nLazyString(UIStrings.websocket), resourceCategories.Socket, false),
   WebTransport:
-      new ResourceType('webtransport', i18nLazyString(UIStrings.webtransport), resourceCategories.WebSocket, false),
+      new ResourceType('webtransport', i18nLazyString(UIStrings.webtransport), resourceCategories.Socket, false),
+  DirectSocket:
+      new ResourceType('directsocket', i18nLazyString(UIStrings.directsocket), resourceCategories.Socket, false),
   Wasm: new ResourceType('wasm', i18nLazyString(UIStrings.wasm), resourceCategories.Wasm, false),
   Manifest: new ResourceType('manifest', i18nLazyString(UIStrings.manifest), resourceCategories.Manifest, true),
   SignedExchange:

@@ -35,11 +35,27 @@
   max-width: 120px;
 }
 
+.concurrency-details {
+  margin: var(--sys-size-5) var(--sys-size-10);
+  display: flex;
+  align-items: center;
+}
+
+.concurrency-details input {
+  width: 50px;
+  /* Clear out unexpected margin applied to `.sensors-view input` */
+  margin: 0;
+}
+
+.concurrency-hidden {
+  visibility: hidden;
+}
+
 .sensors-view input:focus::-webkit-input-placeholder {
   color: transparent !important; /* stylelint-disable-line declaration-no-important */
 }
 
-.sensors-view .chrome-select {
+.sensors-view select {
   width: 200px;
 }
 
@@ -127,10 +143,7 @@
 .orientation-box {
   width: 62px;
   height: 122px;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
+  inset: 0;
   margin: auto;
   transform: rotate3d(1, 0, 0, 90deg);
 }

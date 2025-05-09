@@ -2,29 +2,36 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import './CodeBlock.js';
+import './MarkdownImage.js';
+import './MarkdownLink.js';
+
 import type * as Marked from '../../../third_party/marked/marked.js';
-import * as UI from '../../legacy/legacy.js';
-import * as LitHtml from '../../lit-html/lit-html.js';
+import * as Lit from '../../lit/lit.js';
+import * as VisualLogging from '../../visual_logging/visual_logging.js';
 
-import {CodeBlock} from './CodeBlock.js';
-import {MarkdownImage, type MarkdownImageData} from './MarkdownImage.js';
-import {MarkdownLink, type MarkdownLinkData} from './MarkdownLink.js';
-import markdownViewStyles from './markdownView.css.js';
+import markdownViewStylesRaw from './markdownView.css.js';
 
-const html = LitHtml.html;
-const render = LitHtml.render;
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const markdownViewStyles = new CSSStyleSheet();
+markdownViewStyles.replaceSync(markdownViewStylesRaw.cssText);
+
+const html = Lit.html;
+const render = Lit.render;
 
 export interface MarkdownViewData {
   tokens: Marked.Marked.Token[];
   renderer?: MarkdownLitRenderer;
+  animationEnabled?: boolean;
 }
 
 export class MarkdownView extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-markdown-view`;
   readonly #shadow = this.attachShadow({mode: 'open'});
 
   #tokenData: readonly Marked.Marked.Token[] = [];
   #renderer = new MarkdownLitRenderer();
+  #animationEnabled = false;
+  #isAnimating = false;
 
   connectedCallback(): void {
     this.#shadow.adoptedStyleSheets = [markdownViewStyles];
@@ -35,11 +42,73 @@ export class MarkdownView extends HTMLElement {
     if (data.renderer) {
       this.#renderer = data.renderer;
     }
+
+    if (data.animationEnabled) {
+      this.#animationEnabled = true;
+      this.#renderer.addCustomClasses({
+        paragraph: 'pending',
+        heading: 'pending',
+        list_item: 'pending',
+        code: 'pending',
+      });
+    } else {
+      this.#finishAnimations();
+    }
+
     this.#update();
+  }
+
+  #finishAnimations(): void {
+    const animatingElements = this.#shadow.querySelectorAll('.animating');
+    for (const element of animatingElements) {
+      element.classList.remove('animating');
+    }
+
+    const pendingElements = this.#shadow.querySelectorAll('.pending');
+    for (const element of pendingElements) {
+      element.classList.remove('pending');
+    }
+    this.#isAnimating = false;
+    this.#animationEnabled = false;
+    this.#renderer.removeCustomClasses({
+      paragraph: 'pending',
+      heading: 'pending',
+      list_item: 'pending',
+      code: 'pending',
+    });
+  }
+
+  #animate(): void {
+    if (this.#isAnimating) {
+      return;
+    }
+
+    this.#isAnimating = true;
+    const reveal = (): void => {
+      const pendingElement = this.#shadow.querySelector('.pending');
+      if (!pendingElement) {
+        this.#isAnimating = false;
+        return;
+      }
+
+      pendingElement.addEventListener('animationend', () => {
+        pendingElement.classList.remove('animating');
+        reveal();
+      }, {once: true});
+
+      pendingElement.classList.remove('pending');
+      pendingElement.classList.add('animating');
+    };
+
+    reveal();
   }
 
   #update(): void {
     this.#render();
+
+    if (this.#animationEnabled) {
+      this.#animate();
+    }
   }
 
   #render(): void {
@@ -66,7 +135,32 @@ declare global {
  * Default renderer is used for the IssuesPanel and allows only well-known images and links to be embedded.
  */
 export class MarkdownLitRenderer {
-  renderChildTokens(token: Marked.Marked.Token): LitHtml.TemplateResult[] {
+  #customClasses: Record<string, Set<string>> = {};
+
+  addCustomClasses(customClasses: Record<Marked.Marked.Token['type'], string>): void {
+    for (const [type, className] of Object.entries(customClasses)) {
+      if (!this.#customClasses[type]) {
+        this.#customClasses[type] = new Set();
+      }
+      this.#customClasses[type].add(className);
+    }
+  }
+
+  removeCustomClasses(customClasses: Record<Marked.Marked.Token['type'], string>): void {
+    for (const [type, className] of Object.entries(customClasses)) {
+      if (this.#customClasses[type]) {
+        this.#customClasses[type].delete(className);
+      }
+    }
+  }
+
+  protected customClassMapForToken(type: Marked.Marked.Token['type']): Lit.Directive.DirectiveResult {
+    const classNames = this.#customClasses[type] || new Set();
+    const classInfo = Object.fromEntries([...classNames].map(className => [className, true]));
+    return Lit.Directives.classMap(classInfo);
+  }
+
+  renderChildTokens(token: Marked.Marked.Token): Lit.TemplateResult[] {
     if ('tokens' in token && token.tokens) {
       return token.tokens.map(token => this.renderToken(token));
     }
@@ -74,7 +168,7 @@ export class MarkdownLitRenderer {
   }
 
   /**
-   * Unescape will get rid of the escaping done by Marked to avoid double escaping due to escaping it also with Lit-html.
+   * Unescape will get rid of the escaping done by Marked to avoid double escaping due to escaping it also with lit.
    * Table taken from: front_end/third_party/marked/package/src/helpers.js
    */
   unescape(text: string): string {
@@ -91,7 +185,7 @@ export class MarkdownLitRenderer {
     });
   }
 
-  renderText(token: Marked.Marked.Token): LitHtml.TemplateResult {
+  renderText(token: Marked.Marked.Token): Lit.TemplateResult {
     if ('tokens' in token && token.tokens) {
       return html`${this.renderChildTokens(token)}`;
     }
@@ -101,68 +195,80 @@ export class MarkdownLitRenderer {
     return html`${this.unescape('text' in token ? token.text : '')}`;
   }
 
-  renderHeading(heading: Marked.Marked.Tokens.Heading): LitHtml.TemplateResult {
+  renderHeading(heading: Marked.Marked.Tokens.Heading): Lit.TemplateResult {
+    const customClass = this.customClassMapForToken('heading');
     switch (heading.depth) {
       case 1:
-        return html`<h1>${this.renderText(heading)}</h1>`;
+        return html`<h1 class=${customClass}>${this.renderText(heading)}</h1>`;
       case 2:
-        return html`<h2>${this.renderText(heading)}</h2>`;
+        return html`<h2 class=${customClass}>${this.renderText(heading)}</h2>`;
       case 3:
-        return html`<h3>${this.renderText(heading)}</h3>`;
+        return html`<h3 class=${customClass}>${this.renderText(heading)}</h3>`;
       case 4:
-        return html`<h4>${this.renderText(heading)}</h4>`;
+        return html`<h4 class=${customClass}>${this.renderText(heading)}</h4>`;
       case 5:
-        return html`<h5>${this.renderText(heading)}</h5>`;
+        return html`<h5 class=${customClass}>${this.renderText(heading)}</h5>`;
       default:
-        return html`<h6>${this.renderText(heading)}</h6>`;
+        return html`<h6 class=${customClass}>${this.renderText(heading)}</h6>`;
     }
   }
 
-  renderCodeBlock(token: Marked.Marked.Tokens.Code): LitHtml.TemplateResult {
+  renderCodeBlock(token: Marked.Marked.Tokens.Code): Lit.TemplateResult {
     // clang-format off
-    return html`<${CodeBlock.litTagName}
+    return html`<devtools-code-block
+      class=${this.customClassMapForToken('code')}
       .code=${this.unescape(token.text)}
-      .codeLang=${token.lang}>
-    </${CodeBlock.litTagName}>`;
-    // clang-format one
+      .codeLang=${token.lang || ''}>
+    </devtools-code-block>`;
+    // clang-format on
   }
 
-  templateForToken(token: Marked.Marked.MarkedToken): LitHtml.TemplateResult|null {
+  templateForToken(token: Marked.Marked.MarkedToken): Lit.TemplateResult|null {
     switch (token.type) {
       case 'paragraph':
-        return html`<p>${this.renderChildTokens(token)}`;
+        return html`<p class=${this.customClassMapForToken('paragraph')}>${this.renderChildTokens(token)}</p>`;
       case 'list':
-        return html`<ul>${token.items.map(token => {
+        return html`<ul class=${this.customClassMapForToken('list')}>${token.items.map(token => {
           return this.renderToken(token);
         })}</ul>`;
       case 'list_item':
-        return html`<li>${this.renderChildTokens(token)}`;
+        return html`<li class=${this.customClassMapForToken('list_item')}>${this.renderChildTokens(token)}</li>`;
       case 'text':
         return this.renderText(token);
       case 'codespan':
-        return html`<code>${this.unescape(token.text)}</code>`;
+        return html`<code class=${this.customClassMapForToken('codespan')}>${this.unescape(token.text)}</code>`;
       case 'code':
         return this.renderCodeBlock(token);
       case 'space':
         return html``;
       case 'link':
-        return html`<${MarkdownLink.litTagName} .data=${{key: token.href, title: token.text} as MarkdownLinkData}></${
-            MarkdownLink.litTagName}>`;
+        return html`<devtools-markdown-link
+        class=${this.customClassMapForToken('link')}
+        .data=${{
+        key:
+          token.href, title: token.text,
+        }
+        }></devtools-markdown-link>`;
       case 'image':
-        return html`<${MarkdownImage.litTagName} .data=${{key: token.href, title: token.text} as MarkdownImageData}></${
-            MarkdownImage.litTagName}>`;
+        return html`<devtools-markdown-image
+        class=${this.customClassMapForToken('image')}
+        .data=${{
+        key:
+          token.href, title: token.text,
+        }
+        }></devtools-markdown-image>`;
       case 'heading':
         return this.renderHeading(token);
       case 'strong':
-        return html`<strong>${this.renderText(token)}</strong>`;
+        return html`<strong class=${this.customClassMapForToken('strong')}>${this.renderText(token)}</strong>`;
       case 'em':
-        return html`<em>${this.renderText(token)}</em>`;
+        return html`<em class=${this.customClassMapForToken('em')}>${this.renderText(token)}</em>`;
       default:
         return null;
     }
   }
 
-  renderToken(token: Marked.Marked.Token): LitHtml.TemplateResult {
+  renderToken(token: Marked.Marked.Token): Lit.TemplateResult {
     const template = this.templateForToken(token as Marked.Marked.MarkedToken);
     if (template === null) {
       throw new Error(`Markdown token type '${token.type}' not supported.`);
@@ -172,31 +278,80 @@ export class MarkdownLitRenderer {
 }
 
 /**
- * Renderer used in Console Insights and Freestyler for the text generated by an LLM.
+ * Renderer used in Console Insights and AI assistance for the text generated by an LLM.
  */
 export class MarkdownInsightRenderer extends MarkdownLitRenderer {
-  override renderToken(token: Marked.Marked.Token): LitHtml.TemplateResult {
-    const template = this.templateForToken(token);
+  #citationClickHandler: (index: number) => void;
+
+  constructor(citationClickHandler?: (index: number) => void) {
+    super();
+    this.#citationClickHandler = citationClickHandler || (() => {});
+    this.addCustomClasses({heading: 'insight'});
+  }
+
+  override renderToken(token: Marked.Marked.Token): Lit.TemplateResult {
+    const template = this.templateForToken(token as Marked.Marked.MarkedToken);
     if (template === null) {
-      return LitHtml.html`${token.raw}`;
+      return html`${token.raw}`;
     }
     return template;
   }
 
-  override templateForToken(token: Marked.Marked.Token): LitHtml.TemplateResult|null {
+  sanitizeUrl(maybeUrl: string): string|null {
+    try {
+      const url = new URL(maybeUrl);
+      if (url.protocol === 'https:' || url.protocol === 'http:') {
+        return url.toString();
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  detectCodeLanguage(token: Marked.Marked.Tokens.Code): string {
+    if (token.lang) {
+      return token.lang;
+    }
+
+    if (/^(\.|#)?[\w:\[\]="'-\.]* ?{/m.test(token.text) || /^@import/.test(token.text)) {
+      return 'css';
+    }
+    if (/^(var|const|let|function|async|import)\s/.test(token.text)) {
+      return 'js';
+    }
+
+    return '';
+  }
+
+  override templateForToken(token: Marked.Marked.Token): Lit.TemplateResult|null {
     switch (token.type) {
       case 'heading':
-        return html`<strong>${this.renderText(token)}</strong>`;
+        return this.renderHeading(token as Marked.Marked.Tokens.Heading);
       case 'link':
-      case 'image':
-        return LitHtml.html`${
-            UI.XLink.XLink.create(token.href, token.text, undefined, undefined, 'link-in-explanation')}`;
+      case 'image': {
+        const sanitizedUrl = this.sanitizeUrl(token.href);
+        if (!sanitizedUrl) {
+          return null;
+        }
+        // Only links pointing to resources within DevTools can be rendered here.
+        return html`${token.text ?? token.href}`;
+      }
       case 'code':
-        return LitHtml.html`<${CodeBlock.litTagName}
+        return html`<devtools-code-block
+          class=${this.customClassMapForToken('code')}
           .code=${this.unescape(token.text)}
-          .codeLang=${token.lang}
+          .codeLang=${this.detectCodeLanguage(token as Marked.Marked.Tokens.Code)}
           .displayNotice=${true}>
-        </${CodeBlock.litTagName}>`;
+        </devtools-code-block>`;
+      case 'citation':
+        // clang-format off
+        return html`<sup><button
+            class="citation"
+            jslog=${VisualLogging.link('inline-citation').track({click: true})}
+            @click=${this.#citationClickHandler.bind(this, Number(token.linkText))}
+          >[${token.linkText}]</button></sup>`;
+        // clang-format on
     }
     return super.templateForToken(token as Marked.Marked.MarkedToken);
   }

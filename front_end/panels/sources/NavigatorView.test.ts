@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
-import type * as Platform from '../../core/platform/platform.js';
+import * as Platform from '../../core/platform/platform.js';
 import * as Root from '../../core/root/root.js';
 import type * as SDK from '../../core/sdk/sdk.js';
 import * as Bindings from '../../models/bindings/bindings.js';
@@ -14,12 +14,15 @@ import * as Workspace from '../../models/workspace/workspace.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {
   describeWithMockConnection,
+  dispatchEvent,
   setMockConnectionResponseHandler,
 } from '../../testing/MockConnection.js';
-import {addChildFrame, createResource, setMockResourceTree} from '../../testing/ResourceTreeHelpers.js';
+import {addChildFrame, createResource, getMainFrame, setMockResourceTree} from '../../testing/ResourceTreeHelpers.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import * as Sources from './sources.js';
+
+const {urlString} = Platform.DevToolsPath;
 
 describeWithMockConnection('NavigatorView', () => {
   let target: SDK.Target.Target;
@@ -74,20 +77,200 @@ describeWithMockConnection('NavigatorView', () => {
   }
 
   it('can discard multiple childless frames', async () => {
-    const url = 'http://example.com/index.html' as Platform.DevToolsPath.UrlString;
+    const url = urlString`http://example.com/index.html`;
 
     const childFrame = await addChildFrame(target);
     const {project} = addResourceAndUISourceCode(url, childFrame, '', 'text/html');
 
     const navigatorView = Sources.SourcesNavigator.NetworkNavigatorView.instance({forceNew: true});
     const children = navigatorView.scriptsTree.rootElement().children();
-    assert.strictEqual(children.length, 1, 'The NavigatorView root node should have 1 child before node removal');
+    assert.lengthOf(children, 1, 'The NavigatorView root node should have 1 child before node removal');
     assert.strictEqual(children[0].title, 'top');
 
     // Remove leaf node and assert that node removal propagates up to the root node.
     project.removeUISourceCode(url);
-    assert.strictEqual(
-        navigatorView.scriptsTree.rootElement().children().length, 0,
+    assert.lengthOf(
+        navigatorView.scriptsTree.rootElement().children(), 0,
         'The NavigarorView root node should not have any children after node removal');
+  });
+
+  describe('domain node display name', () => {
+    it('should use the project origin if the url matches the default context', async () => {
+      const mainFrame = await getMainFrame(target);
+
+      const url = urlString`http://example.com/index.html`;
+      addResourceAndUISourceCode(url, mainFrame, '', 'text/html');
+
+      dispatchEvent(target, 'Runtime.executionContextCreated', {
+        context: {
+          id: 1,
+          origin: 'http://example.com',
+          name: 'Main Context',
+          uniqueId: 'main_context',
+          auxData: {
+            isDefault: true,
+            type: 'default',
+            frameId: mainFrame.id,
+          },
+        },
+      });
+      dispatchEvent(target, 'Runtime.executionContextCreated', {
+        context: {
+          id: 2,
+          origin: 'chrome-extension://ahfhijdlegdabablpippeagghigmibma',
+          name: 'Extension Context',
+          uniqueId: 'extension_context',
+          auxData: {
+            isDefault: false,
+            type: 'isolated',
+            frameId: mainFrame.id,
+          },
+        },
+      });
+
+      const navigatorView = Sources.SourcesNavigator.NetworkNavigatorView.instance({forceNew: true});
+      const topChildren = navigatorView.scriptsTree.rootElement().children();
+      assert.lengthOf(topChildren, 1);
+      assert.strictEqual(topChildren[0].title, 'top');
+
+      const children = topChildren[0].children();
+      assert.lengthOf(children, 1);
+      assert.strictEqual(children[0].title, 'example.com');
+    });
+
+    it('should use a matching context name if the url does not match the default context', async () => {
+      const mainFrame = await getMainFrame(target);
+
+      const url = urlString`chrome-extension://ahfhijdlegdabablpippeagghigmibma/script.js`;
+      addResourceAndUISourceCode(url, mainFrame, '', 'text/html');
+
+      dispatchEvent(target, 'Runtime.executionContextCreated', {
+        context: {
+          id: 1,
+          origin: 'http://example.com',
+          name: 'Main Context',
+          uniqueId: 'main_context',
+          auxData: {
+            isDefault: true,
+            type: 'default',
+            frameId: mainFrame.id,
+          },
+        },
+      });
+      dispatchEvent(target, 'Runtime.executionContextCreated', {
+        context: {
+          id: 2,
+          origin: 'chrome-extension://ahfhijdlegdabablpippeagghigmibma',
+          name: 'Extension Context',
+          uniqueId: 'extension_context',
+          auxData: {
+            isDefault: false,
+            type: 'isolated',
+            frameId: mainFrame.id,
+          },
+        },
+      });
+
+      const navigatorView = Sources.SourcesNavigator.NetworkNavigatorView.instance({forceNew: true});
+      const topChildren = navigatorView.scriptsTree.rootElement().children();
+      assert.lengthOf(topChildren, 1);
+      assert.strictEqual(topChildren[0].title, 'top');
+
+      const children = topChildren[0].children();
+      assert.lengthOf(children, 1);
+      assert.strictEqual(children[0].title, 'Extension Context');
+    });
+
+    it('should prioritize the default context', async () => {
+      const mainFrame = await getMainFrame(target);
+
+      const url = urlString`http://example.com/index.html`;
+      addResourceAndUISourceCode(url, mainFrame, '', 'text/html');
+
+      dispatchEvent(target, 'Runtime.executionContextCreated', {
+        context: {
+          id: 1,
+          origin: 'http://example.com',
+          name: 'Other Context',
+          uniqueId: 'other_context',
+          auxData: {
+            isDefault: false,
+            type: 'isolated',
+            frameId: mainFrame.id,
+          },
+        },
+      });
+
+      // Default context comes last, but this should still indicate that the
+      // project origin should be used as the display name.
+      dispatchEvent(target, 'Runtime.executionContextCreated', {
+        context: {
+          id: 2,
+          origin: 'http://example.com',
+          name: 'Main Context',
+          uniqueId: 'main_context',
+          auxData: {
+            isDefault: true,
+            type: 'default',
+            frameId: mainFrame.id,
+          },
+        },
+      });
+
+      const navigatorView = Sources.SourcesNavigator.NetworkNavigatorView.instance({forceNew: true});
+      const topChildren = navigatorView.scriptsTree.rootElement().children();
+      assert.lengthOf(topChildren, 1);
+      assert.strictEqual(topChildren[0].title, 'top');
+
+      const children = topChildren[0].children();
+      assert.lengthOf(children, 1);
+      assert.strictEqual(children[0].title, 'example.com');
+    });
+
+    it('should ignore contexts with no name', async () => {
+      const mainFrame = await getMainFrame(target);
+
+      const url = urlString`http://example.com/index.html`;
+      addResourceAndUISourceCode(url, mainFrame, '', 'text/html');
+
+      dispatchEvent(target, 'Runtime.executionContextCreated', {
+        context: {
+          id: 1,
+          origin: 'http://example.com',
+          name: '',
+          uniqueId: 'no_name_context',
+          auxData: {
+            isDefault: false,
+            type: 'isolated',
+            frameId: mainFrame.id,
+          },
+        },
+      });
+
+      const navigatorView = Sources.SourcesNavigator.NetworkNavigatorView.instance({forceNew: true});
+      const topChildren = navigatorView.scriptsTree.rootElement().children();
+      assert.lengthOf(topChildren, 1);
+      assert.strictEqual(topChildren[0].title, 'top');
+
+      const children = topChildren[0].children();
+      assert.lengthOf(children, 1);
+      assert.strictEqual(children[0].title, 'example.com');
+    });
+
+    it('should indicate if a display name cannot be found', async () => {
+      const mainFrame = await getMainFrame(target);
+
+      const url = urlString`*bad url*`;
+      addResourceAndUISourceCode(url, mainFrame, '', 'text/html');
+
+      const navigatorView = Sources.SourcesNavigator.NetworkNavigatorView.instance({forceNew: true});
+      const topChildren = navigatorView.scriptsTree.rootElement().children();
+      assert.lengthOf(topChildren, 1);
+      assert.strictEqual(topChildren[0].title, 'top');
+
+      const children = topChildren[0].children();
+      assert.lengthOf(children, 1);
+      assert.strictEqual(children[0].title, '(no domain)');
+    });
   });
 });

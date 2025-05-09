@@ -3,12 +3,19 @@
 // found in the LICENSE file.
 
 import * as CodeHighlighter from '../../../ui/components/code_highlighter/code_highlighter.js';
-// eslint-disable-next-line rulesdir/es_modules_import
-import codeHighlighterStyles from '../../../ui/components/code_highlighter/codeHighlighter.css.js';
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
+import codeHighlighterStylesRaw from '../../../ui/components/code_highlighter/codeHighlighter.css.js';
+import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import contentEditableStyles from './suggestionInput.css.js';
+import contentEditableStylesRaw from './suggestionInput.css.js';
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const codeHighlighterStyles = new CSSStyleSheet();
+codeHighlighterStyles.replaceSync(codeHighlighterStylesRaw.cssText);
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const contentEditableStyles = new CSSStyleSheet();
+contentEditableStyles.replaceSync(contentEditableStylesRaw.cssText);
 
 const mod = (a: number, n: number): number => {
   return ((a % n) + n) % n;
@@ -23,7 +30,7 @@ function assert<T>(
   }
 }
 
-const {html, Decorators, Directives, LitElement} = LitHtml;
+const {html, Decorators, Directives, LitElement} = Lit;
 const {customElement, property, state} = Decorators;
 const {classMap} = Directives;
 
@@ -39,6 +46,7 @@ const jsonPropertyOptions = {
   hasChanged(value: unknown, oldValue: unknown): boolean {
     return JSON.stringify(value) !== JSON.stringify(oldValue);
   },
+  attribute: false,
 };
 
 @customElement('devtools-editable-content')
@@ -120,8 +128,8 @@ class SuggestEvent extends Event {
  */
 class SuggestionInitEvent extends Event {
   static readonly eventName = 'suggestioninit';
-  listeners: [string, (event: Event) => void][];
-  constructor(listeners: [string, (event: Event) => void][]) {
+  listeners: Array<[string, (event: Event) => void]>;
+  constructor(listeners: Array<[string, (event: Event) => void]>) {
     super(SuggestionInitEvent.eventName);
     this.listeners = listeners;
   }
@@ -140,7 +148,7 @@ const defaultSuggestionFilter = (option: string, query: string): boolean =>
 class SuggestionBox extends LitElement {
   static override styles = [contentEditableStyles];
 
-  @property(jsonPropertyOptions) declare options: Readonly<string[]>;
+  @property(jsonPropertyOptions) declare options: readonly string[];
   @property() declare expression: string;
   @property() declare suggestionFilter?: SuggestionFilter;
 
@@ -201,7 +209,7 @@ class SuggestionBox extends LitElement {
     );
   }
 
-  override willUpdate(changedProperties: LitHtml.PropertyValues<this>): void {
+  override willUpdate(changedProperties: Lit.PropertyValues<this>): void {
     if (changedProperties.has('options')) {
       this.options = Object.freeze([...this.options].sort());
     }
@@ -213,7 +221,7 @@ class SuggestionBox extends LitElement {
     }
   }
 
-  protected override render(): LitHtml.TemplateResult|undefined {
+  protected override render(): Lit.TemplateResult|undefined {
     if (this.#suggestions.length === 0) {
       return;
     }
@@ -248,8 +256,8 @@ export class SuggestionInput extends LitElement {
   /**
    * State passed to devtools-suggestion-box.
    */
-  @property(jsonPropertyOptions) declare options: Readonly<string[]>;
-  @property() declare autocomplete?: boolean;
+  @property(jsonPropertyOptions) declare options: readonly string[];
+  @property({type: Boolean}) declare autocomplete?: boolean;
   @property() declare suggestionFilter?: SuggestionFilter;
   @state() declare expression: string;
 
@@ -259,7 +267,7 @@ export class SuggestionInput extends LitElement {
   @property() declare placeholder: string;
   @property() declare value: string;
   @property({type: Boolean}) declare disabled: boolean;
-  @property() declare strikethrough: boolean;
+  @property({type: Boolean}) declare strikethrough: boolean;
   @property() declare mimeType: string;
   @property() declare jslogContext?: string;
 
@@ -336,19 +344,19 @@ export class SuggestionInput extends LitElement {
   };
 
   protected override willUpdate(
-      properties: LitHtml.PropertyValues<this>,
+      properties: Lit.PropertyValues<this>,
       ): void {
     if (properties.has('value')) {
       this.expression = this.value;
     }
   }
 
-  protected override render(): LitHtml.TemplateResult {
+  protected override render(): Lit.TemplateResult {
     // clang-format off
     return html`<devtools-editable-content
         ?disabled=${this.disabled}
         class=${classMap({
-          'strikethrough': !this.strikethrough,
+          strikethrough: !this.strikethrough,
         })}
         .enterKeyHint=${'done'}
         .value=${this.value}

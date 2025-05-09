@@ -36,6 +36,7 @@ import * as SDK from '../../core/sdk/sdk.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
+import type {ComputedStyleModel} from './ComputedStyleModel.js';
 import {ElementsSidebarPane} from './ElementsSidebarPane.js';
 import metricsSidebarPaneStyles from './metricsSidebarPane.css.js';
 
@@ -44,15 +45,16 @@ export class MetricsSidebarPane extends ElementsSidebarPane {
   previousPropertyDataCandidate: SDK.CSSProperty.CSSProperty|null;
   private inlineStyle: SDK.CSSStyleDeclaration.CSSStyleDeclaration|null;
   private highlightMode: string;
-  private boxElements: {
+  private boxElements: Array<{
     element: HTMLElement,
     name: string,
     backgroundColor: string,
-  }[];
+  }>;
   private isEditingMetrics?: boolean;
 
-  constructor() {
-    super();
+  constructor(computedStyleModel: ComputedStyleModel) {
+    super(computedStyleModel);
+    this.registerRequiredCSS(metricsSidebarPaneStyles);
 
     this.originalPropertyData = null;
     this.previousPropertyDataCandidate = null;
@@ -428,7 +430,7 @@ export class MetricsSidebarPane extends ElementsSidebarPane {
   }
 
   private applyUserInput(
-      element: Element, userInput: string, previousContent: string, context: {
+      element: Element, userInput: string, previousContent: string|null, context: {
         box: string,
         styleProperty: string,
         computedStyle: Map<string, string>,
@@ -519,17 +521,18 @@ export class MetricsSidebarPane extends ElementsSidebarPane {
     }
   }
 
-  private editingCommitted(element: Element, userInput: string, previousContent: string, context: {
-    box: string,
-    styleProperty: string,
-    computedStyle: Map<string, string>,
-    keyDownHandler: (arg0: Event) => void,
-  }): void {
+  private editingCommitted(
+      element: Element,
+      userInput: string,
+      previousContent: string|null,
+      context: {
+        box: string,
+        styleProperty: string,
+        computedStyle: Map<string, string>,
+        keyDownHandler: (arg0: Event) => void,
+      },
+      ): void {
     this.editingEnded(element, context);
     this.applyUserInput(element, userInput, previousContent, context, true);
-  }
-  override wasShown(): void {
-    super.wasShown();
-    this.registerCSSFiles([metricsSidebarPaneStyles]);
   }
 }

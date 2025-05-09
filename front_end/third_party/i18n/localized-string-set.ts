@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
 // Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.
 
-import {type LocalizedMessages, type UIStrings} from './i18n-impl.js';
+import type {LocalizedMessages, UIStrings} from './i18n-impl.js';
 
 import * as IntlMessageFormat from '../intl-messageformat/intl-messageformat.js';
 
@@ -94,9 +94,19 @@ export class LocalizedStringSet {
     }
 
     const formatter = this.getMessageFormatterFor(message);
-    const translatedString = formatter.format() as string;
-    this.cachedSimpleStrings.set(message, translatedString);
-    return translatedString;
+    try {
+      const translatedString = formatter.format() as string;
+      this.cachedSimpleStrings.set(message, translatedString);
+      return translatedString;
+    } catch  {
+      // The message could have been updated and use different placeholders then
+      // the translation. This is a rare edge case so it's fine to create a temporary
+      // IntlMessageFormat and fall back to the UIStrings message.
+      const formatter = new IntlMessageFormat.IntlMessageFormat(message, this.localeForFormatter, undefined, {ignoreTag: true});
+      const translatedString = formatter.format() as string;
+      this.cachedSimpleStrings.set(message, translatedString);
+      return translatedString;
+    }
   }
 
   private getFormattedLocalizedString(message: string, values: Values): string {
@@ -108,7 +118,7 @@ export class LocalizedStringSet {
 
     try {
       return formatter.format(values) as string;
-    } catch (e) {
+    } catch {
       // The message could have been updated and use different placeholders then
       // the translation. This is a rare edge case so it's fine to create a temporary
       // IntlMessageFormat and fall back to the UIStrings message.

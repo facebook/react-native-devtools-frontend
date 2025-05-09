@@ -82,10 +82,11 @@ export class Multimap<K, V> {
 /**
  * Gets value for key, assigning a default if value is falsy.
  */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export function getWithDefault<K extends {}, V>(
     map: WeakMap<K, V>|Map<K, V>, key: K, defaultValueFactory: (key?: K) => V): V {
   let value = map.get(key);
-  if (!value) {
+  if (value === undefined || value === null) {
     value = defaultValueFactory(key);
     map.set(key, value);
   }

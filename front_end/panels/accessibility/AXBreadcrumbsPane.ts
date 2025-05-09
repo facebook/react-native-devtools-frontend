@@ -12,7 +12,7 @@ import * as Feedback from '../../ui/components/panel_feedback/panel_feedback.js'
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
-import {type AccessibilitySidebarView} from './AccessibilitySidebarView.js';
+import type {AccessibilitySidebarView} from './AccessibilitySidebarView.js';
 import {AccessibilitySubPane} from './AccessibilitySubPane.js';
 import axBreadcrumbsStyles from './axBreadcrumbs.css.js';
 
@@ -40,8 +40,8 @@ const UIStrings = {
   /**
    *@description Message saying that DevTools must be restarted before the experiment is enabled.
    */
-  reloadRequired: 'Reload required before the change takes effect.',
-};
+  reloadRequired: 'Reload required before the change takes effect',
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/accessibility/AXBreadcrumbsPane.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class AXBreadcrumbsPane extends AccessibilitySubPane {
@@ -55,6 +55,7 @@ export class AXBreadcrumbsPane extends AccessibilitySubPane {
 
   constructor(axSidebarView: AccessibilitySidebarView) {
     super(i18nString(UIStrings.accessibilityTree));
+    this.registerRequiredCSS(axBreadcrumbsStyles);
 
     this.element.classList.add('ax-subpane');
     this.element.tabIndex = -1;
@@ -308,7 +309,7 @@ export class AXBreadcrumbsPane extends AccessibilitySubPane {
       return;
     }
     const breadcrumb = elementsToAXBreadcrumb.get(breadcrumbElement);
-    if (!breadcrumb || !breadcrumb.isDOMNode()) {
+    if (!breadcrumb?.isDOMNode()) {
       return;
     }
     this.setHoveredBreadcrumb(breadcrumb);
@@ -424,10 +425,6 @@ export class AXBreadcrumbsPane extends AccessibilitySubPane {
     }
     void contextMenu.show();
   }
-  override wasShown(): void {
-    super.wasShown();
-    this.registerCSSFiles([axBreadcrumbsStyles]);
-  }
 }
 
 const elementsToAXBreadcrumb = new WeakMap<Element, AXBreadcrumb>();
@@ -489,7 +486,7 @@ export class AXBreadcrumb {
     } else {
       this.appendRoleElement(this.axNodeInternal.role());
       const axNodeName = this.axNodeInternal.name();
-      if (axNodeName && axNodeName.value) {
+      if (axNodeName?.value) {
         this.nodeWrapper.createChild('span', 'separator').textContent = '\xA0';
         this.appendNameElement(axNodeName.value as string);
       }
@@ -639,9 +636,9 @@ export class AXBreadcrumb {
   }
 }
 
-type RoleStyles = {
-  [type: string]: string,
-};
+interface RoleStyles {
+  [type: string]: string;
+}
 
 export const RoleStyles: RoleStyles = {
   internalRole: 'ax-internal-role',

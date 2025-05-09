@@ -2,22 +2,27 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as LitHtml from '../../lit-html/lit-html.js';
+import * as Lit from '../../lit/lit.js';
 import * as VisualLogging from '../../visual_logging/visual_logging.js';
 
-import expandableListStyles from './expandableList.css.js';
+import expandableListStylesRaw from './expandableList.css.js';
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const expandableListStyles = new CSSStyleSheet();
+expandableListStyles.replaceSync(expandableListStylesRaw.cssText);
+
+const {html, Directives: {ifDefined}} = Lit;
 
 export interface ExpandableListData {
-  rows: LitHtml.TemplateResult[];
+  rows: Lit.TemplateResult[];
   title?: string;
 }
 
 export class ExpandableList extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-expandable-list`;
 
   readonly #shadow = this.attachShadow({mode: 'open'});
   #expanded = false;
-  #rows: LitHtml.TemplateResult[] = [];
+  #rows: Lit.TemplateResult[] = [];
   #title?: string;
 
   set data(data: ExpandableListData) {
@@ -42,21 +47,21 @@ export class ExpandableList extends HTMLElement {
 
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    LitHtml.render(
-        LitHtml.html`
+    Lit.render(
+        html`
       <div class="expandable-list-container">
         <div>
           ${this.#rows.length > 1 ?
-            LitHtml.html`
-              <button title='${this.#title}' aria-label='${this.#title}' aria-expanded=${this.#expanded ? 'true' : 'false'} @click=${() => this.#onArrowClick()} class="arrow-icon-button">
+            html`
+              <button title='${ifDefined(this.#title)}' aria-label='${ifDefined(this.#title)}' aria-expanded=${this.#expanded ? 'true' : 'false'} @click=${() => this.#onArrowClick()} class="arrow-icon-button">
                 <span class="arrow-icon ${this.#expanded ? 'expanded' : ''}"
                 jslog=${VisualLogging.expand().track({click: true})}></span>
               </button>
             `
-          : LitHtml.nothing}
+          : Lit.nothing}
         </div>
         <div class="expandable-list-items">
-          ${this.#rows.filter((_, index) => (this.#expanded || index === 0)).map(row => LitHtml.html`
+          ${this.#rows.filter((_, index) => (this.#expanded || index === 0)).map(row => html`
             ${row}
           `)}
         </div>

@@ -21,20 +21,22 @@ describeWithMockConnection('ExecutionContextSelector', () => {
     new Main.ExecutionContextSelector.ExecutionContextSelector(
         SDK.TargetManager.TargetManager.instance(), UI.Context.Context.instance());
 
-    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
-    const mainFrameTarget = createTarget({type: SDK.Target.Type.Frame, parentTarget: tabTarget});
-    const subframeTarget = createTarget({type: SDK.Target.Type.Frame, parentTarget: mainFrameTarget});
-    const prerenderTarget = createTarget({type: SDK.Target.Type.Frame, parentTarget: tabTarget, subtype: 'prerender'});
+    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
+    const mainFrameTarget = createTarget({type: SDK.Target.Type.FRAME, parentTarget: tabTarget});
+    const subframeTarget = createTarget({type: SDK.Target.Type.FRAME, parentTarget: mainFrameTarget});
+    const prerenderTarget = createTarget({type: SDK.Target.Type.FRAME, parentTarget: tabTarget, subtype: 'prerender'});
+    const serviceWorkerTarget = createTarget({type: SDK.Target.Type.ServiceWorker});
+    const workerTarget = createTarget({type: SDK.Target.Type.Worker});
 
     const contextSetFlavor = sinon.spy(UI.Context.Context.instance(), 'setFlavor');
 
-    const sentExecutionContextCreated = (target: SDK.Target.Target) => {
-      const frame = getMainFrame(target);
+    const sentExecutionContextCreated = (target: SDK.Target.Target, includeFrameId = true) => {
+      const frameId = includeFrameId ? getMainFrame(target).id : undefined;
 
       const runtimeModel = target.model(SDK.RuntimeModel.RuntimeModel);
       runtimeModel!.dispatchEventToListeners(
           SDK.RuntimeModel.Events.ExecutionContextCreated,
-          {isDefault: true, frameId: frame.id, target: () => target} as SDK.RuntimeModel.ExecutionContext);
+          {isDefault: true, frameId, target: () => target} as SDK.RuntimeModel.ExecutionContext);
     };
 
     sentExecutionContextCreated(subframeTarget);
@@ -49,6 +51,14 @@ describeWithMockConnection('ExecutionContextSelector', () => {
 
     contextSetFlavor.resetHistory();
     sentExecutionContextCreated(prerenderTarget);
+    assert.isFalse(contextSetFlavor.called);
+
+    contextSetFlavor.resetHistory();
+    sentExecutionContextCreated(serviceWorkerTarget, /* includeFrameId */ false);
+    assert.isFalse(contextSetFlavor.called);
+
+    contextSetFlavor.resetHistory();
+    sentExecutionContextCreated(workerTarget, /* includeFrameId */ false);
     assert.isFalse(contextSetFlavor.called);
   });
 });

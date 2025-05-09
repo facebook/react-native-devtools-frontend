@@ -7,7 +7,6 @@ import {assert} from 'chai';
 import {
   getBrowserAndPages,
 } from '../../shared/helper.js';
-import {describe, it} from '../../shared/mocha-extensions.js';
 import {getConsoleMessages, navigateToConsoleTab} from '../helpers/console-helpers.js';
 
 describe('The Console Tab', () => {
@@ -15,7 +14,7 @@ describe('The Console Tab', () => {
     await navigateToConsoleTab();
     const {target} = getBrowserAndPages();
 
-    target.reload();
+    await target.reload();
 
     const result = (await getConsoleMessages('alert-toString-exception'))[0];
     assert.strictEqual(result, 'Uncaught Exception in toString().');

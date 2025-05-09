@@ -74,19 +74,12 @@ const UIStrings = {
   learnMore: 'Learn more',
   /**
    *@description Explanation why it is advisable to specify an 'id' field in the manifest.
-   *@example {Note:} PH1
-   *@example {id} PH2
-   *@example {start_url} PH3
-   *@example {id} PH4
-   *@example {/index.html} PH5
-   *@example {(button for copying suggested value into clipboard)} PH6
+   *@example {/index.html} PH1
+   *@example {(button for copying suggested value into clipboard)} PH2
    */
   appIdNote:
-      '{PH1} {PH2} is not specified in the manifest, {PH3} is used instead. To specify an App ID that matches the current identity, set the {PH4} field to {PH5} {PH6}.',
-  /**
-   *@description Label for reminding the user of something important. Is shown in bold and followed by the actual note to show the user.
-   */
-  note: 'Note:',
+      'Note: `id` is not specified in the manifest, `start_url` is used instead. To specify an App ID that matches the current identity, set the `id` field to {PH1} {PH2}.',
+
   /**
    *@description Tooltip text that appears when hovering over a button which copies the previous text to the clipboard.
    */
@@ -437,7 +430,7 @@ const UIStrings = {
    *@description Text for emulation OS selection dropdown
    */
   selectWindowControlsOverlayEmulationOs: 'Emulate the Window Controls Overlay on',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/application/AppManifestView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -450,14 +443,14 @@ export type ParsedSize = {
   formatted: string,
 };
 
-type Screenshot = {
-  src: string,
-  type?: string,
-  sizes?: string,
-  label?: string,
-  form_factor?: string,  // eslint-disable-line @typescript-eslint/naming-convention
-  platform?: string,
-};
+interface Screenshot {
+  src: string;
+  type?: string;
+  sizes?: string;
+  label?: string;
+  form_factor?: string;  // eslint-disable-line @typescript-eslint/naming-convention
+  platform?: string;
+}
 
 export class AppManifestView extends Common.ObjectWrapper.eventMixin<EventTypes, typeof UI.Widget.VBox>(UI.Widget.VBox)
     implements SDK.TargetManager.Observer {
@@ -493,6 +486,7 @@ export class AppManifestView extends Common.ObjectWrapper.eventMixin<EventTypes,
       emptyView: UI.EmptyWidget.EmptyWidget, reportView: UI.ReportView.ReportView,
       throttler: Common.Throttler.Throttler) {
     super(true);
+    this.registerRequiredCSS(appManifestViewStyles);
 
     this.contentElement.classList.add('manifest-container');
     this.contentElement.setAttribute('jslog', `${VisualLogging.pane('manifest')}`);
@@ -504,7 +498,7 @@ export class AppManifestView extends Common.ObjectWrapper.eventMixin<EventTypes,
     this.emptyView.hideWidget();
 
     this.reportView = reportView;
-
+    this.reportView.registerRequiredCSS(appManifestViewStyles);
     this.reportView.element.classList.add('manifest-view-header');
     this.reportView.show(this.contentElement);
     this.reportView.hideWidget();
@@ -586,7 +580,7 @@ export class AppManifestView extends Common.ObjectWrapper.eventMixin<EventTypes,
             void this.updateManifest(true);
           }),
       this.serviceWorkerManager.addEventListener(
-          SDK.ServiceWorkerManager.Events.RegistrationUpdated,
+          SDK.ServiceWorkerManager.Events.REGISTRATION_UPDATED,
           () => {
             void this.updateManifest(false);
           }),
@@ -618,7 +612,7 @@ export class AppManifestView extends Common.ObjectWrapper.eventMixin<EventTypes,
 
     void this.throttler.schedule(
         () => this.renderManifest(url, data, errors, installabilityErrors, appId),
-        immediately ? Common.Throttler.Scheduling.AsSoonAsPossible : Common.Throttler.Scheduling.Default);
+        immediately ? Common.Throttler.Scheduling.AS_SOON_AS_POSSIBLE : Common.Throttler.Scheduling.DEFAULT);
   }
 
   private async renderManifest(
@@ -630,12 +624,12 @@ export class AppManifestView extends Common.ObjectWrapper.eventMixin<EventTypes,
     if ((!data || data === '{}') && !errors.length) {
       this.emptyView.showWidget();
       this.reportView.hideWidget();
-      this.dispatchEventToListeners(Events.ManifestDetected, false);
+      this.dispatchEventToListeners(Events.MANIFEST_DETECTED, false);
       return;
     }
     this.emptyView.hideWidget();
     this.reportView.showWidget();
-    this.dispatchEventToListeners(Events.ManifestDetected, true);
+    this.dispatchEventToListeners(Events.MANIFEST_DETECTED, true);
 
     const link = Components.Linkifier.Linkifier.linkifyURL(url);
     link.tabIndex = 0;
@@ -690,31 +684,24 @@ export class AppManifestView extends Common.ObjectWrapper.eventMixin<EventTypes,
 
       if (!stringProperty('id')) {
         const suggestedIdNote = appIdField.createChild('div', 'multiline-value');
-        const noteSpan = document.createElement('b');
-        noteSpan.textContent = i18nString(UIStrings.note);
-        const idSpan = document.createElement('code');
-        idSpan.textContent = 'id';
-        const idSpan2 = document.createElement('code');
-        idSpan2.textContent = 'id';
-        const startUrlSpan = document.createElement('code');
-        startUrlSpan.textContent = 'start_url';
         const suggestedIdSpan = document.createElement('code');
         suggestedIdSpan.textContent = recommendedId;
 
         const copyButton = new Buttons.Button.Button();
+        copyButton.data = {
+          variant: Buttons.Button.Variant.ICON,
+          iconName: 'copy',
+          size: Buttons.Button.Size.SMALL,
+          jslogContext: 'manifest.copy-id',
+          title: i18nString(UIStrings.copyToClipboard),
+        };
         copyButton.className = 'inline-button';
-        copyButton.variant = Buttons.Button.Variant.ICON;
-        copyButton.size = Buttons.Button.Size.SMALL;
-        copyButton.iconName = 'copy';
-        copyButton.jslogContext = 'manifest.copy-id';
-        copyButton.title = i18nString(UIStrings.copyToClipboard);
         copyButton.addEventListener('click', () => {
           UI.ARIAUtils.alert(i18nString(UIStrings.copiedToClipboard, {PH1: recommendedId}));
           Host.InspectorFrontendHost.InspectorFrontendHostInstance.copyText(recommendedId);
         });
-        suggestedIdNote.appendChild(i18n.i18n.getFormatLocalizedString(
-            str_, UIStrings.appIdNote,
-            {PH1: noteSpan, PH2: idSpan, PH3: startUrlSpan, PH4: idSpan2, PH5: suggestedIdSpan, PH6: copyButton}));
+        suggestedIdNote.appendChild(
+            i18n.i18n.getFormatLocalizedString(str_, UIStrings.appIdNote, {PH1: suggestedIdSpan, PH2: copyButton}));
       }
     } else {
       this.identitySection.removeField(i18nString(UIStrings.computedAppId));
@@ -907,19 +894,18 @@ export class AppManifestView extends Common.ObjectWrapper.eventMixin<EventTypes,
     this.installabilitySection.element.classList.toggle('hidden', !installabilityErrors.length);
     const errorMessages = this.getInstallabilityErrorMessages(installabilityErrors);
     for (const error of errorMessages) {
-      const icon = UI.UIUtils.createIconLabel({title: error, iconName: 'warning-filled', color: 'var(--icon-warning)'});
-      this.installabilitySection.appendRow().appendChild(icon);
+      const msgElement = document.createTextNode(error);
+      this.installabilitySection.appendRow().appendChild(msgElement);
     }
 
     this.errorsSection.element.classList.toggle('hidden', !errors.length && !imageErrors.length && !warnings.length);
     for (const warning of warnings) {
-      const icon =
-          UI.UIUtils.createIconLabel({title: warning, iconName: 'warning-filled', color: 'var(--icon-warning)'});
-      this.errorsSection.appendRow().appendChild(icon);
+      const msgElement = document.createTextNode(warning);
+      this.errorsSection.appendRow().appendChild(msgElement);
     }
     for (const error of imageErrors) {
-      const icon = UI.UIUtils.createIconLabel({title: error, iconName: 'warning-filled', color: 'var(--icon-warning)'});
-      this.errorsSection.appendRow().appendChild(icon);
+      const msgElement = document.createTextNode(error);
+      this.errorsSection.appendRow().appendChild(msgElement);
     }
 
     function stringProperty(name: string): string {
@@ -970,7 +956,7 @@ export class AppManifestView extends Common.ObjectWrapper.eventMixin<EventTypes,
     this.windowControlsSection.appendRow().appendChild(
         i18n.i18n.getFormatLocalizedString(str_, UIStrings.wcoNeedHelpReadMore, {PH1: wcoDocumentationLink}));
 
-    this.dispatchEventToListeners(Events.ManifestRendered);
+    this.dispatchEventToListeners(Events.MANIFEST_RENDERED);
   }
 
   getInstallabilityErrorMessages(installabilityErrors: Protocol.Page.InstallabilityError[]): string[] {
@@ -1089,7 +1075,7 @@ export class AppManifestView extends Common.ObjectWrapper.eventMixin<EventTypes,
     try {
       await result;
       return {wrapper, image};
-    } catch (e) {
+    } catch {
     }
     return null;
   }
@@ -1233,11 +1219,6 @@ export class AppManifestView extends Common.ObjectWrapper.eventMixin<EventTypes,
     field.appendChild(wrapper);
     return {imageResourceErrors, squareSizedIconAvailable, naturalWidth, naturalHeight};
   }
-  override wasShown(): void {
-    super.wasShown();
-    this.reportView.registerCSSFiles([appManifestViewStyles]);
-    this.registerCSSFiles([appManifestViewStyles]);
-  }
 
   private async appendWindowControlsToSection(
       overlayModel: SDK.OverlayModel.OverlayModel, url: Platform.DevToolsPath.UrlString,
@@ -1257,11 +1238,10 @@ export class AppManifestView extends Common.ObjectWrapper.eventMixin<EventTypes,
       await this.overlayModel?.toggleWindowControlsToolbar(wcoOsCheckbox.checkboxElement.checked);
     });
 
-    const osSelectElement = (wcoOsCheckbox.createChild('select', 'chrome-select') as HTMLSelectElement);
-    osSelectElement.appendChild(
-        UI.UIUtils.createOption('Windows', SDK.OverlayModel.EmulatedOSType.WindowsOS, 'windows'));
-    osSelectElement.appendChild(UI.UIUtils.createOption('macOS', SDK.OverlayModel.EmulatedOSType.MacOS, 'macos'));
-    osSelectElement.appendChild(UI.UIUtils.createOption('Linux', SDK.OverlayModel.EmulatedOSType.LinuxOS, 'linux'));
+    const osSelectElement = wcoOsCheckbox.createChild('select');
+    osSelectElement.appendChild(UI.UIUtils.createOption('Windows', SDK.OverlayModel.EmulatedOSType.WINDOWS, 'windows'));
+    osSelectElement.appendChild(UI.UIUtils.createOption('macOS', SDK.OverlayModel.EmulatedOSType.MAC, 'macos'));
+    osSelectElement.appendChild(UI.UIUtils.createOption('Linux', SDK.OverlayModel.EmulatedOSType.LINUX, 'linux'));
     osSelectElement.selectedIndex = 0;
 
     if (this.overlayModel) {
@@ -1284,11 +1264,11 @@ export class AppManifestView extends Common.ObjectWrapper.eventMixin<EventTypes,
 }
 
 export const enum Events {
-  ManifestDetected = 'ManifestDetected',
-  ManifestRendered = 'ManifestRendered',
+  MANIFEST_DETECTED = 'ManifestDetected',
+  MANIFEST_RENDERED = 'ManifestRendered',
 }
 
-export type EventTypes = {
-  [Events.ManifestDetected]: boolean,
-  [Events.ManifestRendered]: void,
-};
+export interface EventTypes {
+  [Events.MANIFEST_DETECTED]: boolean;
+  [Events.MANIFEST_RENDERED]: void;
+}

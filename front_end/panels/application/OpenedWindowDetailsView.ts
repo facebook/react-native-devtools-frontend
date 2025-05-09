@@ -23,7 +23,7 @@ const UIStrings = {
   /**
    *@description Title for a link to the Elements panel
    */
-  clickToRevealInElementsPanel: 'Click to reveal in Elements panel',
+  clickToOpenInElementsPanel: 'Click to open in Elements panel',
   /**
    *@description Name of a network resource type
    */
@@ -85,7 +85,7 @@ const UIStrings = {
    *and warnings through the Report-to API. Following this label will be the URL of the server.
    */
   reportingTo: 'reporting to',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/application/OpenedWindowDetailsView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 const booleanToYesNo = (b: boolean): Common.UIString.LocalizedString =>
@@ -120,8 +120,7 @@ async function maybeCreateLinkToElementsPanel(opener: Protocol.Page.FrameId|SDK.
     return null;
   }
   const linkElement = linkifyIcon(
-      'code-circle', i18nString(UIStrings.clickToRevealInElementsPanel),
-      () => Common.Revealer.reveal(linkTargetDOMNode));
+      'code-circle', i18nString(UIStrings.clickToOpenInElementsPanel), () => Common.Revealer.reveal(linkTargetDOMNode));
   const label = document.createElement('span');
   label.textContent = `<${linkTargetDOMNode.nodeName().toLocaleLowerCase()}>`;
   linkElement.insertBefore(label, linkElement.firstChild);
@@ -148,6 +147,7 @@ export class OpenedWindowDetailsView extends UI.ThrottledWidget.ThrottledWidget 
 
   constructor(targetInfo: Protocol.Target.TargetInfo, isWindowClosed: boolean) {
     super();
+    this.registerRequiredCSS(openedWindowDetailsViewStyles);
     this.targetInfo = targetInfo;
     this.isWindowClosed = isWindowClosed;
 
@@ -156,6 +156,7 @@ export class OpenedWindowDetailsView extends UI.ThrottledWidget.ThrottledWidget 
     this.reportView = new UI.ReportView.ReportView(this.buildTitle());
 
     this.reportView.show(this.contentElement);
+    this.reportView.registerRequiredCSS(openedWindowDetailsViewStyles);
     this.reportView.element.classList.add('frame-details-report-container');
 
     this.documentSection = this.reportView.appendSection(i18nString(UIStrings.document));
@@ -204,11 +205,6 @@ export class OpenedWindowDetailsView extends UI.ThrottledWidget.ThrottledWidget 
   setTargetInfo(targetInfo: Protocol.Target.TargetInfo): void {
     this.targetInfo = targetInfo;
   }
-  override wasShown(): void {
-    super.wasShown();
-    this.reportView.registerCSSFiles([openedWindowDetailsViewStyles]);
-    this.registerCSSFiles([openedWindowDetailsViewStyles]);
-  }
 }
 
 export class WorkerDetailsView extends UI.ThrottledWidget.ThrottledWidget {
@@ -220,6 +216,7 @@ export class WorkerDetailsView extends UI.ThrottledWidget.ThrottledWidget {
 
   constructor(targetInfo: Protocol.Target.TargetInfo) {
     super();
+    this.registerRequiredCSS(openedWindowDetailsViewStyles);
     this.targetInfo = targetInfo;
 
     this.contentElement.classList.add('frame-details-container');
@@ -228,6 +225,7 @@ export class WorkerDetailsView extends UI.ThrottledWidget.ThrottledWidget {
         new UI.ReportView.ReportView(this.targetInfo.title || this.targetInfo.url || i18nString(UIStrings.worker));
 
     this.reportView.show(this.contentElement);
+    this.reportView.registerRequiredCSS(openedWindowDetailsViewStyles);
     this.reportView.element.classList.add('frame-details-report-container');
 
     this.documentSection = this.reportView.appendSection(i18nString(UIStrings.document));
@@ -298,10 +296,5 @@ export class WorkerDetailsView extends UI.ThrottledWidget.ThrottledWidget {
 
   override async doUpdate(): Promise<void> {
     await this.updateCoopCoepStatus();
-  }
-  override wasShown(): void {
-    super.wasShown();
-    this.reportView.registerCSSFiles([openedWindowDetailsViewStyles]);
-    this.registerCSSFiles([openedWindowDetailsViewStyles]);
   }
 }

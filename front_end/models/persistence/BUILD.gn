@@ -5,7 +5,7 @@
 import("../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../scripts/build/ninja/devtools_module.gni")
 import("../../../scripts/build/ninja/generate_css.gni")
-import("../../../third_party/typescript/typescript.gni")
+import("../../../scripts/build/typescript/typescript.gni")
 import("../visibility.gni")
 
 generate_css("css_files") {
@@ -18,6 +18,7 @@ generate_css("css_files") {
 devtools_module("persistence") {
   sources = [
     "Automapping.ts",
+    "AutomaticFileSystemManager.ts",
     "EditFileSystemView.ts",
     "FileSystemWorkspaceBinding.ts",
     "IsolatedFileSystem.ts",
@@ -39,8 +40,10 @@ devtools_module("persistence") {
     "../../generated:protocol",
     "../../models/bindings:bundle",
     "../../models/breakpoints:bundle",
+    "../../models/project_settings:bundle",
     "../../models/text_utils:bundle",
     "../../models/workspace:bundle",
+    "../../ui/components/cards:bundle",
     "../../ui/legacy:bundle",
     "../../ui/legacy/components/utils:bundle",
   ]
@@ -58,10 +61,13 @@ devtools_entrypoint("bundle") {
     ":*",
     "../../core/sdk:unittests",
     "../../entrypoints/main/*",
+    "../../panels/ai_assistance/*",
+    "../../panels/changes/*",
     "../../panels/network/*",
     "../../panels/recorder/*",
     "../../panels/snippets/*",
     "../../panels/sources/*",
+    "../../panels/utils/*",
     "../../testing/*",
     "../bindings:unittests",
     "../workspace:unittests",
@@ -90,6 +96,7 @@ ts_library("unittests") {
   testonly = true
 
   sources = [
+    "AutomaticFileSystemManager.test.ts",
     "NetworkPersistenceManager.test.ts",
     # TODO(huntie): Restore this test
     # "PersistenceAction.test.ts",

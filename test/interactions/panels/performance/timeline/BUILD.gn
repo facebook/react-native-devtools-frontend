@@ -2,11 +2,12 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("../../../../../third_party/typescript/typescript.gni")
+import("../../../../../scripts/build/typescript/typescript.gni")
 
 node_ts_library("timeline") {
   sources = [
     "animations_track_test.ts",
+    "annotations_test.ts",
     "auction_worklets_tracks_test.ts",
     "flamechart_test.ts",
     "gpu_track_test.ts",
@@ -15,6 +16,7 @@ node_ts_library("timeline") {
     "network_track_test.ts",
     "overview_test.ts",
     "rasterizer_tracks_test.ts",
+    "revealing-insights_test.ts",
     "thread_tracks_test.ts",
     "timeline_history_manager_test.ts",
     "timeline_selection_test.ts",

@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import {click, closeAllCloseableTabs, goToResource, timeout, waitFor} from '../../shared/helper.js';
-import {describe, it} from '../../shared/mocha-extensions.js';
 import {navigateToConsoleTab, waitForConsoleInfoMessageAndClickOnLink} from '../helpers/console-helpers.js';
 import {
   clickOnContextMenuItemFromTab,
@@ -17,7 +16,7 @@ import {clickOnFirstLinkInStylesPanel, navigateToElementsTab} from '../helpers/e
 import {LAYERS_TAB_SELECTOR} from '../helpers/layers-helpers.js';
 import {MEMORY_TAB_ID, navigateToMemoryTab} from '../helpers/memory-helpers.js';
 import {
-  navigateToPerformanceSidebarTab,
+  navigateToBottomUpTab,
   navigateToPerformanceTab,
   startRecording,
   stopRecording,
@@ -63,7 +62,7 @@ describe('A user can navigate across', function() {
     // changing at least twice), to ensure that there's at least a single tick within
     // `default.html` below.
     const statusIndicator = await waitFor('.timeline-status-dialog .progress .indicator');
-    const statusIndicatorValues = new Set<Number>();
+    const statusIndicatorValues = new Set<number>();
     do {
       const indicatorValue = await statusIndicator.evaluate(n => Number(n.getAttribute('aria-valuenow')));
       if (statusIndicatorValues.has(indicatorValue)) {
@@ -75,7 +74,7 @@ describe('A user can navigate across', function() {
 
     await stopRecording();
 
-    await navigateToPerformanceSidebarTab('Bottom-Up');
+    await navigateToBottomUpTab();
 
     await click('.devtools-link[title*="default.html"]');
     await waitFor('.panel[aria-label="sources"]');
@@ -102,7 +101,8 @@ describe('A user can move tabs', function() {
 });
 
 describe('A user can open panels via the "panel" query param', function() {
-  it('Layers is shown', async () => {
+  // Flaky on windows
+  it.skipOnPlatforms(['win32'], '[crbug.com/377280477] Layers is shown', async () => {
     await reloadDevTools({queryParams: {panel: 'layers'}});
     await tabExistsInMainPanel(LAYERS_TAB_SELECTOR);
   });

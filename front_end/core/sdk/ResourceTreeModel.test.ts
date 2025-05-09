@@ -65,7 +65,7 @@ describeWithMockConnection('ResourceTreeModel', () => {
     const manager = target.model(SDK.StorageKeyManager.StorageKeyManager);
     assert.exists(manager);
     const storageKeyAddedPromise = new Promise<void>(resolve => {
-      manager.addEventListener(SDK.StorageKeyManager.Events.StorageKeyAdded, () => {
+      manager.addEventListener(SDK.StorageKeyManager.Events.STORAGE_KEY_ADDED, () => {
         resolve();
       });
     });
@@ -75,12 +75,12 @@ describeWithMockConnection('ResourceTreeModel', () => {
     assert.strictEqual(resourceTreeModel?.frames().length, 1);
 
     const mainStorageKeyChangedPromise = new Promise<void>(resolve => {
-      manager.addEventListener(SDK.StorageKeyManager.Events.MainStorageKeyChanged, () => {
+      manager.addEventListener(SDK.StorageKeyManager.Events.MAIN_STORAGE_KEY_CHANGED, () => {
         resolve();
       });
     });
     const storageKeyRemovedPromise = new Promise<void>(resolve => {
-      manager.addEventListener(SDK.StorageKeyManager.Events.StorageKeyRemoved, () => {
+      manager.addEventListener(SDK.StorageKeyManager.Events.STORAGE_KEY_REMOVED, () => {
         resolve();
       });
     });
@@ -97,7 +97,7 @@ describeWithMockConnection('ResourceTreeModel', () => {
   }
 
   it('calls reloads only top frames', () => {
-    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
+    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
     const mainFrameTarget = createTarget({parentTarget: tabTarget});
     const subframeTarget = createTarget({parentTarget: mainFrameTarget});
     const reloadMainFramePage = sinon.spy(getResourceTreeModel(mainFrameTarget), 'reloadPage');
@@ -116,12 +116,12 @@ describeWithMockConnection('ResourceTreeModel', () => {
     assert.isNotNull(resourceTreeModel.mainFrame);
     resourceTreeModel.reloadPage();
     assert.isTrue(reload.calledOnce);
-    assert.deepStrictEqual(
+    assert.deepEqual(
         reload.args[0], [{ignoreCache: undefined, loaderId: LOADER_ID, scriptToEvaluateOnLoad: undefined}]);
   });
 
   it('identifies not top frame', async () => {
-    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
+    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
     const mainFrameTarget = createTarget({parentTarget: tabTarget});
     const subframeTarget = createTarget({parentTarget: mainFrameTarget});
 
@@ -133,7 +133,7 @@ describeWithMockConnection('ResourceTreeModel', () => {
 
   it('emits PrimaryPageChanged event upon prerender activation', async () => {
     SDK.ChildTargetManager.ChildTargetManager.install();
-    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
+    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
     const childTargetManager = tabTarget.model(SDK.ChildTargetManager.ChildTargetManager);
     assert.exists(childTargetManager);
 
@@ -157,26 +157,26 @@ describeWithMockConnection('ResourceTreeModel', () => {
     assert.exists(resourceTreeModel);
 
     const primaryPageChangedEvents:
-        {frame: SDK.ResourceTreeModel.ResourceTreeFrame, type: SDK.ResourceTreeModel.PrimaryPageChangeType}[] = [];
+        Array<{frame: SDK.ResourceTreeModel.ResourceTreeFrame, type: SDK.ResourceTreeModel.PrimaryPageChangeType}> = [];
     resourceTreeModel.addEventListener(
         SDK.ResourceTreeModel.Events.PrimaryPageChanged, event => primaryPageChangedEvents.push(event.data));
 
     const frame = resourceTreeModel.frameAttached('frame_id' as Protocol.Page.FrameId, null);
     childTargetManager.targetInfoChanged({targetInfo: {...targetInfo, subtype: undefined}});
 
-    assert.strictEqual(primaryPageChangedEvents.length, 1);
+    assert.lengthOf(primaryPageChangedEvents, 1);
     assert.strictEqual(primaryPageChangedEvents[0].frame, frame);
-    assert.strictEqual(primaryPageChangedEvents[0].type, SDK.ResourceTreeModel.PrimaryPageChangeType.Activation);
+    assert.strictEqual(primaryPageChangedEvents[0].type, SDK.ResourceTreeModel.PrimaryPageChangeType.ACTIVATION);
   });
 
   it('emits PrimaryPageChanged event only upon navigation of the primary frame', async () => {
-    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
+    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
     const mainFrameTarget = createTarget({parentTarget: tabTarget});
     const subframeTarget = createTarget({parentTarget: mainFrameTarget});
     const prerenderTarget = createTarget({parentTarget: tabTarget, subtype: 'prerender'});
 
     const primaryPageChangedEvents:
-        {frame: SDK.ResourceTreeModel.ResourceTreeFrame, type: SDK.ResourceTreeModel.PrimaryPageChangeType}[] = [];
+        Array<{frame: SDK.ResourceTreeModel.ResourceTreeFrame, type: SDK.ResourceTreeModel.PrimaryPageChangeType}> = [];
 
     [getResourceTreeModel(mainFrameTarget), getResourceTreeModel(subframeTarget), getResourceTreeModel(prerenderTarget)]
         .forEach(resourceTreeModel => {
@@ -185,15 +185,15 @@ describeWithMockConnection('ResourceTreeModel', () => {
         });
 
     navigate(getMainFrame(mainFrameTarget));
-    assert.strictEqual(primaryPageChangedEvents.length, 1);
+    assert.lengthOf(primaryPageChangedEvents, 1);
     assert.strictEqual(primaryPageChangedEvents[0].frame.id, 'main');
-    assert.strictEqual(primaryPageChangedEvents[0].type, SDK.ResourceTreeModel.PrimaryPageChangeType.Navigation);
+    assert.strictEqual(primaryPageChangedEvents[0].type, SDK.ResourceTreeModel.PrimaryPageChangeType.NAVIGATION);
 
     navigate(getMainFrame(subframeTarget), {parentId: MAIN_FRAME_ID, id: 'child' as Protocol.Page.FrameId});
-    assert.strictEqual(primaryPageChangedEvents.length, 1);
+    assert.lengthOf(primaryPageChangedEvents, 1);
 
     navigate(getMainFrame(prerenderTarget));
-    assert.strictEqual(primaryPageChangedEvents.length, 1);
+    assert.lengthOf(primaryPageChangedEvents, 1);
   });
 
   it('rebuilds the resource tree upon bfcache-navigation', async () => {

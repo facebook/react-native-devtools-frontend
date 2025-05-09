@@ -4,18 +4,26 @@
  * found in the LICENSE file.
  */
 
-[slot="insertion-point-main"] {
+[slot="main"] {
   flex-direction: column;
   display: flex;
 }
 
-[slot="insertion-point-sidebar"] {
+[slot="sidebar"] {
   overflow: auto;
 }
 
 .diff-container {
   flex: 1;
   overflow: auto;
+
+  & .widget:first-child {
+    height: 100%;
+  }
+
+  .combined-diff-view {
+    padding: var(--sys-size-6);
+  }
 }
 
 :focus.selected {

@@ -9,11 +9,11 @@ import * as Common from '../common/common.js';
 import * as i18n from '../i18n/i18n.js';
 import * as Root from '../root/root.js';
 
-import {type CSSModel} from './CSSModel.js';
+import type {CSSModel} from './CSSModel.js';
 import {DebuggerModel, Events as DebuggerModelEvents} from './DebuggerModel.js';
 import {DeferredDOMNode, DOMModel, type DOMNode, Events as DOMModelEvents} from './DOMModel.js';
 import {OverlayPersistentHighlighter} from './OverlayPersistentHighlighter.js';
-import {type RemoteObject} from './RemoteObject.js';
+import type {RemoteObject} from './RemoteObject.js';
 import {SDKModel} from './SDKModel.js';
 import {Capability, type Target} from './Target.js';
 import {TargetManager} from './TargetManager.js';
@@ -23,7 +23,7 @@ const UIStrings = {
    *@description Text in Overlay Model
    */
   pausedInDebugger: 'Paused in debugger',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('core/sdk/OverlayModel.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -52,9 +52,9 @@ export interface Hinge {
 }
 
 export const enum EmulatedOSType {
-  WindowsOS = 'Windows',
-  MacOS = 'Mac',
-  LinuxOS = 'Linux',
+  WINDOWS = 'Windows',
+  MAC = 'Mac',
+  LINUX = 'Linux',
 }
 
 interface PlatformOverlayDimensions {
@@ -73,8 +73,8 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
   readonly #domModel: DOMModel;
   overlayAgent: ProtocolProxyApi.OverlayApi;
   readonly #debuggerModel: DebuggerModel|null;
-  #inspectModeEnabledInternal: boolean;
-  #hideHighlightTimeout: number|null;
+  #inspectModeEnabledInternal = false;
+  #hideHighlightTimeout: number|null = null;
   #defaultHighlighter: Highlighter;
   #highlighter: Highlighter;
   #showPaintRectsSetting: Common.Settings.Setting<boolean>;
@@ -83,12 +83,11 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
   #showDebugBordersSetting: Common.Settings.Setting<boolean>;
   #showFPSCounterSetting: Common.Settings.Setting<boolean>;
   #showScrollBottleneckRectsSetting: Common.Settings.Setting<boolean>;
-  #showWebVitalsSetting: Common.Settings.Setting<boolean>;
-  #registeredListeners: Common.EventTarget.EventDescriptor[];
-  #showViewportSizeOnResize: boolean;
+  #registeredListeners: Common.EventTarget.EventDescriptor[] = [];
+  #showViewportSizeOnResize = true;
   #persistentHighlighter: OverlayPersistentHighlighter|null;
   readonly #sourceOrderHighlighter: SourceOrderHighlighter;
-  #sourceOrderModeActiveInternal: boolean;
+  #sourceOrderModeActiveInternal = false;
   #windowControls: WindowControls;
 
   constructor(target: Target) {
@@ -112,9 +111,6 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
           DebuggerModelEvents.GlobalObjectCleared, this.updatePausedInDebuggerMessage, this);
     }
 
-    this.#inspectModeEnabledInternal = false;
-
-    this.#hideHighlightTimeout = null;
     this.#defaultHighlighter = new DefaultHighlighter(this);
     this.#highlighter = this.#defaultHighlighter;
 
@@ -126,10 +122,7 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
     this.#showFPSCounterSetting = Common.Settings.Settings.instance().moduleSetting<boolean>('show-fps-counter');
     this.#showScrollBottleneckRectsSetting =
         Common.Settings.Settings.instance().moduleSetting<boolean>('show-scroll-bottleneck-rects');
-    this.#showWebVitalsSetting = Common.Settings.Settings.instance().moduleSetting<boolean>('show-web-vitals');
 
-    this.#registeredListeners = [];
-    this.#showViewportSizeOnResize = true;
     if (!target.suspended()) {
       void this.overlayAgent.invoke_enable();
       void this.wireAgentToSettings();
@@ -137,13 +130,13 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
 
     this.#persistentHighlighter = new OverlayPersistentHighlighter(this, {
       onGridOverlayStateChanged: ({nodeId, enabled}) =>
-          this.dispatchEventToListeners(Events.PersistentGridOverlayStateChanged, {nodeId, enabled}),
+          this.dispatchEventToListeners(Events.PERSISTENT_GRID_OVERLAY_STATE_CHANGED, {nodeId, enabled}),
       onFlexOverlayStateChanged: ({nodeId, enabled}) =>
-          this.dispatchEventToListeners(Events.PersistentFlexContainerOverlayStateChanged, {nodeId, enabled}),
+          this.dispatchEventToListeners(Events.PERSISTENT_FLEX_CONTAINER_OVERLAY_STATE_CHANGED, {nodeId, enabled}),
       onContainerQueryOverlayStateChanged: ({nodeId, enabled}) =>
-          this.dispatchEventToListeners(Events.PersistentContainerQueryOverlayStateChanged, {nodeId, enabled}),
+          this.dispatchEventToListeners(Events.PERSISTENT_CONTAINER_QUERY_OVERLAY_STATE_CHANGED, {nodeId, enabled}),
       onScrollSnapOverlayStateChanged: ({nodeId, enabled}) =>
-          this.dispatchEventToListeners(Events.PersistentScrollSnapOverlayStateChanged, {nodeId, enabled}),
+          this.dispatchEventToListeners(Events.PERSISTENT_SCROLL_SNAP_OVERLAY_STATE_CHANGED, {nodeId, enabled}),
     });
     this.#domModel.addEventListener(DOMModelEvents.NodeRemoved, () => {
       if (!this.#persistentHighlighter) {
@@ -167,7 +160,6 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
     });
 
     this.#sourceOrderHighlighter = new SourceOrderHighlighter(this);
-    this.#sourceOrderModeActiveInternal = false;
     this.#windowControls = new WindowControls(this.#domModel.cssModel());
   }
 
@@ -185,11 +177,11 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
   }
 
   static async muteHighlight(): Promise<void[]> {
-    return Promise.all(TargetManager.instance().models(OverlayModel).map(model => model.suspendModel()));
+    return await Promise.all(TargetManager.instance().models(OverlayModel).map(model => model.suspendModel()));
   }
 
   static async unmuteHighlight(): Promise<void[]> {
-    return Promise.all(TargetManager.instance().models(OverlayModel).map(model => model.resumeModel()));
+    return await Promise.all(TargetManager.instance().models(OverlayModel).map(model => model.resumeModel()));
   }
 
   static highlightRect(rect: HighlightRect): void {
@@ -236,8 +228,6 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
       this.#showScrollBottleneckRectsSetting.addChangeListener(
           () => this.overlayAgent.invoke_setShowScrollBottleneckRects(
               {show: this.#showScrollBottleneckRectsSetting.get()})),
-      this.#showWebVitalsSetting.addChangeListener(
-          () => this.overlayAgent.invoke_setShowWebVitals({show: this.#showWebVitalsSetting.get()})),
     ];
 
     if (this.#showPaintRectsSetting.get()) {
@@ -257,9 +247,6 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
     }
     if (this.#showScrollBottleneckRectsSetting.get()) {
       void this.overlayAgent.invoke_setShowScrollBottleneckRects({show: true});
-    }
-    if (this.#showWebVitalsSetting.get()) {
-      void this.overlayAgent.invoke_setShowWebVitals({show: true});
     }
     if (this.#debuggerModel && this.#debuggerModel.isPaused()) {
       this.updatePausedInDebuggerMessage();
@@ -308,7 +295,7 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
       Promise<void> {
     await this.#domModel.requestDocument();
     this.#inspectModeEnabledInternal = mode !== Protocol.Overlay.InspectMode.None;
-    this.dispatchEventToListeners(Events.InspectModeWillBeToggled, this);
+    this.dispatchEventToListeners(Events.INSPECT_MODE_WILL_BE_TOGGLED, this);
     void this.#highlighter.setInspectMode(mode, this.buildHighlightConfig('all', showDetailedTooltip));
   }
 
@@ -480,27 +467,6 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
     return this.#sourceOrderModeActiveInternal;
   }
 
-  highlightIsolatedElementInPersistentOverlay(nodeId: Protocol.DOM.NodeId): void {
-    if (!this.#persistentHighlighter) {
-      return;
-    }
-    this.#persistentHighlighter.highlightIsolatedElementInOverlay(nodeId);
-  }
-
-  hideIsolatedElementInPersistentOverlay(nodeId: Protocol.DOM.NodeId): void {
-    if (!this.#persistentHighlighter) {
-      return;
-    }
-    this.#persistentHighlighter.hideIsolatedElementInOverlay(nodeId);
-  }
-
-  isHighlightedIsolatedElementInPersistentOverlay(nodeId: Protocol.DOM.NodeId): boolean {
-    if (!this.#persistentHighlighter) {
-      return false;
-    }
-    return this.#persistentHighlighter.isIsolatedElementHighlighted(nodeId);
-  }
-
   private delayedHideHighlight(delay: number): void {
     if (this.#hideHighlightTimeout === null) {
       this.#hideHighlightTimeout = window.setTimeout(() => this.highlightInOverlay({clear: true}), delay);
@@ -519,8 +485,7 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
     if (hinge) {
       const {x, y, width, height, contentColor, outlineColor} = hinge;
       void this.overlayAgent.invoke_setShowHinge({
-        hingeConfig:
-            {rect: {x: x, y: y, width: width, height: height}, contentColor: contentColor, outlineColor: outlineColor},
+        hingeConfig: {rect: {x, y, width, height}, contentColor, outlineColor},
       });
     } else {
       void this.overlayAgent.invoke_setShowHinge({});
@@ -555,7 +520,7 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
     const showRulers = Common.Settings.Settings.instance().moduleSetting('show-metrics-rulers').get();
     const highlightConfig: Protocol.Overlay.HighlightConfig = {
       showInfo: mode === 'all' || mode === 'container-outline',
-      showRulers: showRulers,
+      showRulers,
       showStyles: showDetailedToolip,
       showAccessibilityInfo: showDetailedToolip,
       showExtensionLines: showRulers,
@@ -778,7 +743,7 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
   nodeHighlightRequested({nodeId}: Protocol.Overlay.NodeHighlightRequestedEvent): void {
     const node = this.#domModel.nodeForId(nodeId);
     if (node) {
-      this.dispatchEventToListeners(Events.HighlightNodeRequested, node);
+      this.dispatchEventToListeners(Events.HIGHLIGHT_NODE_REQUESTED, node);
     }
   }
 
@@ -797,16 +762,16 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
     } else {
       void Common.Revealer.reveal(deferredNode);
     }
-    this.dispatchEventToListeners(Events.ExitedInspectMode);
+    this.dispatchEventToListeners(Events.EXITED_INSPECT_MODE);
   }
 
   screenshotRequested({viewport}: Protocol.Overlay.ScreenshotRequestedEvent): void {
-    this.dispatchEventToListeners(Events.ScreenshotRequested, viewport);
-    this.dispatchEventToListeners(Events.ExitedInspectMode);
+    this.dispatchEventToListeners(Events.SCREENSHOT_REQUESTED, viewport);
+    this.dispatchEventToListeners(Events.EXITED_INSPECT_MODE);
   }
 
   inspectModeCanceled(): void {
-    this.dispatchEventToListeners(Events.ExitedInspectMode);
+    this.dispatchEventToListeners(Events.EXITED_INSPECT_MODE);
   }
 
   static inspectNodeHandler: ((node: DOMNode) => void)|null = null;
@@ -816,7 +781,7 @@ export class OverlayModel extends SDKModel<EventTypes> implements ProtocolProxyA
   }
 
   async hasStyleSheetText(url: Platform.DevToolsPath.UrlString): Promise<boolean> {
-    return this.#windowControls.initializeStyleSheetText(url);
+    return await this.#windowControls.initializeStyleSheetText(url);
   }
 }
 
@@ -828,7 +793,7 @@ export class WindowControls {
 
   #config: Protocol.Overlay.WindowControlsOverlayConfig = {
     showCSS: false,
-    selectedPlatform: EmulatedOSType.WindowsOS,
+    selectedPlatform: EmulatedOSType.WINDOWS,
     themeColor: '#ffffff',
   };
 
@@ -944,14 +909,14 @@ export class WindowControls {
 }
 
 export const enum Events {
-  InspectModeWillBeToggled = 'InspectModeWillBeToggled',
-  ExitedInspectMode = 'InspectModeExited',
-  HighlightNodeRequested = 'HighlightNodeRequested',
-  ScreenshotRequested = 'ScreenshotRequested',
-  PersistentGridOverlayStateChanged = 'PersistentGridOverlayStateChanged',
-  PersistentFlexContainerOverlayStateChanged = 'PersistentFlexContainerOverlayStateChanged',
-  PersistentScrollSnapOverlayStateChanged = 'PersistentScrollSnapOverlayStateChanged',
-  PersistentContainerQueryOverlayStateChanged = 'PersistentContainerQueryOverlayStateChanged',
+  INSPECT_MODE_WILL_BE_TOGGLED = 'InspectModeWillBeToggled',
+  EXITED_INSPECT_MODE = 'InspectModeExited',
+  HIGHLIGHT_NODE_REQUESTED = 'HighlightNodeRequested',
+  SCREENSHOT_REQUESTED = 'ScreenshotRequested',
+  PERSISTENT_GRID_OVERLAY_STATE_CHANGED = 'PersistentGridOverlayStateChanged',
+  PERSISTENT_FLEX_CONTAINER_OVERLAY_STATE_CHANGED = 'PersistentFlexContainerOverlayStateChanged',
+  PERSISTENT_SCROLL_SNAP_OVERLAY_STATE_CHANGED = 'PersistentScrollSnapOverlayStateChanged',
+  PERSISTENT_CONTAINER_QUERY_OVERLAY_STATE_CHANGED = 'PersistentContainerQueryOverlayStateChanged',
 }
 
 export interface ChangedNodeId {
@@ -959,16 +924,16 @@ export interface ChangedNodeId {
   enabled: boolean;
 }
 
-export type EventTypes = {
-  [Events.InspectModeWillBeToggled]: OverlayModel,
-  [Events.ExitedInspectMode]: void,
-  [Events.HighlightNodeRequested]: DOMNode,
-  [Events.ScreenshotRequested]: Protocol.Page.Viewport,
-  [Events.PersistentGridOverlayStateChanged]: ChangedNodeId,
-  [Events.PersistentFlexContainerOverlayStateChanged]: ChangedNodeId,
-  [Events.PersistentScrollSnapOverlayStateChanged]: ChangedNodeId,
-  [Events.PersistentContainerQueryOverlayStateChanged]: ChangedNodeId,
-};
+export interface EventTypes {
+  [Events.INSPECT_MODE_WILL_BE_TOGGLED]: OverlayModel;
+  [Events.EXITED_INSPECT_MODE]: void;
+  [Events.HIGHLIGHT_NODE_REQUESTED]: DOMNode;
+  [Events.SCREENSHOT_REQUESTED]: Protocol.Page.Viewport;
+  [Events.PERSISTENT_GRID_OVERLAY_STATE_CHANGED]: ChangedNodeId;
+  [Events.PERSISTENT_FLEX_CONTAINER_OVERLAY_STATE_CHANGED]: ChangedNodeId;
+  [Events.PERSISTENT_SCROLL_SNAP_OVERLAY_STATE_CHANGED]: ChangedNodeId;
+  [Events.PERSISTENT_CONTAINER_QUERY_OVERLAY_STATE_CHANGED]: ChangedNodeId;
+}
 
 export interface Highlighter {
   highlightInOverlay(data: HighlightData, config: Protocol.Overlay.HighlightConfig): void;

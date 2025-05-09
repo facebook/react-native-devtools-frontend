@@ -36,7 +36,7 @@ const UIStrings = {
    *@example {X25519} PH2
    */
   keyExchangeWithGroup: '{PH1} with {PH2}',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/security/SecurityModel.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
@@ -76,15 +76,17 @@ export function securityStateCompare(a: Protocol.Security.SecurityState, b: Prot
   return SECURITY_STATE_ORDER.indexOf(a) - SECURITY_STATE_ORDER.indexOf(b);
 }
 
-SDK.SDKModel.SDKModel.register(SecurityModel, {capabilities: SDK.Target.Capability.Security, autostart: false});
+SDK.SDKModel.SDKModel.register(SecurityModel, {capabilities: SDK.Target.Capability.SECURITY, autostart: false});
 
 export enum Events {
+  /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   VisibleSecurityStateChanged = 'VisibleSecurityStateChanged',
+  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
-export type EventTypes = {
-  [Events.VisibleSecurityStateChanged]: PageVisibleSecurityState,
-};
+export interface EventTypes {
+  [Events.VisibleSecurityStateChanged]: PageVisibleSecurityState;
+}
 
 export const SummaryMessages: {[x: string]: () => string} = {
   [Protocol.Security.SecurityState.Unknown]: i18nLazyString(UIStrings.theSecurityOfThisPageIsUnknown),

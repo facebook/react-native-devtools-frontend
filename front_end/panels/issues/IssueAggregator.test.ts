@@ -17,6 +17,16 @@ import {StubIssue} from '../../testing/StubIssue.js';
 
 import * as Issues from './issues.js';
 
+function requestIds(...issues: Issues.IssueAggregator.AggregatedIssue[]): Set<string|undefined> {
+  const requestIds = new Set<string|undefined>();
+  for (const issue of issues) {
+    for (const {requestId} of issue.requests()) {
+      requestIds.add(requestId);
+    }
+  }
+  return requestIds;
+}
+
 describeWithEnvironment('AggregatedIssue', () => {
   const aggregationKey = 'key' as unknown as Issues.IssueAggregator.AggregationKey;
   it('deduplicates network requests across issues', () => {
@@ -27,8 +37,7 @@ describeWithEnvironment('AggregatedIssue', () => {
     aggregatedIssue.addInstance(issue1);
     aggregatedIssue.addInstance(issue2);
 
-    const actualRequestIds = [...aggregatedIssue.requests()].map(r => r.requestId).sort();
-    assert.deepStrictEqual(actualRequestIds, ['id1', 'id2']);
+    assert.deepEqual(requestIds(aggregatedIssue), new Set(['id1', 'id2']));
   });
 
   it('deduplicates affected cookies across issues', () => {
@@ -42,7 +51,7 @@ describeWithEnvironment('AggregatedIssue', () => {
     aggregatedIssue.addInstance(issue3);
 
     const actualCookieNames = [...aggregatedIssue.cookies()].map(c => c.name).sort();
-    assert.deepStrictEqual(actualCookieNames, ['cookie1', 'cookie2']);
+    assert.deepEqual(actualCookieNames, ['cookie1', 'cookie2']);
   });
 });
 
@@ -62,14 +71,11 @@ describeWithMockConnection('IssueAggregator', () => {
     const mockManager = new MockIssuesManager([]) as unknown as IssuesManager.IssuesManager.IssuesManager;
     const aggregator = new Issues.IssueAggregator.IssueAggregator(mockManager);
     mockManager.dispatchEventToListeners(
-        IssuesManager.IssuesManager.Events.IssueAdded, {issuesModel: model, issue: issue1});
+        IssuesManager.IssuesManager.Events.ISSUE_ADDED, {issuesModel: model, issue: issue1});
     mockManager.dispatchEventToListeners(
-        IssuesManager.IssuesManager.Events.IssueAdded, {issuesModel: model, issue: issue2});
+        IssuesManager.IssuesManager.Events.ISSUE_ADDED, {issuesModel: model, issue: issue2});
 
-    const issues = Array.from(aggregator.aggregatedIssues());
-    assert.strictEqual(issues.length, 1);
-    const requestIds = [...issues[0].requests()].map(r => r.requestId).sort();
-    assert.deepStrictEqual(requestIds, ['id1', 'id2']);
+    assert.deepEqual(requestIds(...aggregator.aggregatedIssues()), new Set(['id1', 'id2']));
   });
 
   it('deduplicates issues with the same code added before its creation', () => {
@@ -83,14 +89,11 @@ describeWithMockConnection('IssueAggregator', () => {
         new MockIssuesManager([issue1b, issue3]) as unknown as IssuesManager.IssuesManager.IssuesManager;
     const aggregator = new Issues.IssueAggregator.IssueAggregator(mockManager);
     mockManager.dispatchEventToListeners(
-        IssuesManager.IssuesManager.Events.IssueAdded, {issuesModel: model, issue: issue1});
+        IssuesManager.IssuesManager.Events.ISSUE_ADDED, {issuesModel: model, issue: issue1});
     mockManager.dispatchEventToListeners(
-        IssuesManager.IssuesManager.Events.IssueAdded, {issuesModel: model, issue: issue2});
+        IssuesManager.IssuesManager.Events.ISSUE_ADDED, {issuesModel: model, issue: issue2});
 
-    const issues = Array.from(aggregator.aggregatedIssues());
-    assert.strictEqual(issues.length, 1);
-    const requestIds = [...issues[0].requests()].map(r => r.requestId).sort();
-    assert.deepStrictEqual(requestIds, ['id1', 'id2', 'id3']);
+    assert.deepEqual(requestIds(...aggregator.aggregatedIssues()), new Set(['id1', 'id2', 'id3']));
   });
 
   it('keeps issues with different codes separate', () => {
@@ -104,59 +107,59 @@ describeWithMockConnection('IssueAggregator', () => {
         new MockIssuesManager([issue1b, issue3]) as unknown as IssuesManager.IssuesManager.IssuesManager;
     const aggregator = new Issues.IssueAggregator.IssueAggregator(mockManager);
     mockManager.dispatchEventToListeners(
-        IssuesManager.IssuesManager.Events.IssueAdded, {issuesModel: model, issue: issue1});
+        IssuesManager.IssuesManager.Events.ISSUE_ADDED, {issuesModel: model, issue: issue1});
     mockManager.dispatchEventToListeners(
-        IssuesManager.IssuesManager.Events.IssueAdded, {issuesModel: model, issue: issue2});
+        IssuesManager.IssuesManager.Events.ISSUE_ADDED, {issuesModel: model, issue: issue2});
 
     const issues = Array.from(aggregator.aggregatedIssues());
-    assert.strictEqual(issues.length, 3);
+    assert.lengthOf(issues, 3);
     const issueCodes = issues.map(r => r.aggregationKey().toString()).sort((a, b) => a.localeCompare(b));
-    assert.deepStrictEqual(issueCodes, ['codeA', 'codeB', 'codeC']);
+    assert.deepEqual(issueCodes, ['codeA', 'codeB', 'codeC']);
   });
 
   describe('aggregates issue kind', () => {
     it('for a single issue', () => {
-      const issues = StubIssue.createFromIssueKinds([IssuesManager.Issue.IssueKind.Improvement]);
+      const issues = StubIssue.createFromIssueKinds([IssuesManager.Issue.IssueKind.IMPROVEMENT]);
 
       const mockManager = new MockIssuesManager(issues) as unknown as IssuesManager.IssuesManager.IssuesManager;
       const aggregator = new Issues.IssueAggregator.IssueAggregator(mockManager);
 
       const aggregatedIssues = Array.from(aggregator.aggregatedIssues());
-      assert.strictEqual(aggregatedIssues.length, 1);
+      assert.lengthOf(aggregatedIssues, 1);
       const aggregatedIssue = aggregatedIssues[0];
-      assert.strictEqual(aggregatedIssue.getKind(), IssuesManager.Issue.IssueKind.Improvement);
+      assert.strictEqual(aggregatedIssue.getKind(), IssuesManager.Issue.IssueKind.IMPROVEMENT);
     });
 
     it('for issues of two different kinds', () => {
       const issues = StubIssue.createFromIssueKinds([
-        IssuesManager.Issue.IssueKind.Improvement,
-        IssuesManager.Issue.IssueKind.BreakingChange,
-        IssuesManager.Issue.IssueKind.Improvement,
+        IssuesManager.Issue.IssueKind.IMPROVEMENT,
+        IssuesManager.Issue.IssueKind.BREAKING_CHANGE,
+        IssuesManager.Issue.IssueKind.IMPROVEMENT,
       ]);
 
       const mockManager = new MockIssuesManager(issues) as unknown as IssuesManager.IssuesManager.IssuesManager;
       const aggregator = new Issues.IssueAggregator.IssueAggregator(mockManager);
 
       const aggregatedIssues = Array.from(aggregator.aggregatedIssues());
-      assert.strictEqual(aggregatedIssues.length, 1);
+      assert.lengthOf(aggregatedIssues, 1);
       const aggregatedIssue = aggregatedIssues[0];
-      assert.strictEqual(aggregatedIssue.getKind(), IssuesManager.Issue.IssueKind.BreakingChange);
+      assert.strictEqual(aggregatedIssue.getKind(), IssuesManager.Issue.IssueKind.BREAKING_CHANGE);
     });
 
     it('for issues of three different kinds', () => {
       const issues = StubIssue.createFromIssueKinds([
-        IssuesManager.Issue.IssueKind.BreakingChange,
-        IssuesManager.Issue.IssueKind.PageError,
-        IssuesManager.Issue.IssueKind.Improvement,
+        IssuesManager.Issue.IssueKind.BREAKING_CHANGE,
+        IssuesManager.Issue.IssueKind.PAGE_ERROR,
+        IssuesManager.Issue.IssueKind.IMPROVEMENT,
       ]);
 
       const mockManager = new MockIssuesManager(issues) as unknown as IssuesManager.IssuesManager.IssuesManager;
       const aggregator = new Issues.IssueAggregator.IssueAggregator(mockManager);
 
       const aggregatedIssues = Array.from(aggregator.aggregatedIssues());
-      assert.strictEqual(aggregatedIssues.length, 1);
+      assert.lengthOf(aggregatedIssues, 1);
       const aggregatedIssue = aggregatedIssues[0];
-      assert.strictEqual(aggregatedIssue.getKind(), IssuesManager.Issue.IssueKind.PageError);
+      assert.strictEqual(aggregatedIssue.getKind(), IssuesManager.Issue.IssueKind.PAGE_ERROR);
     });
   });
 });
@@ -180,14 +183,14 @@ describeWithMockConnection('IssueAggregator', () => {
     const mockManager = new MockIssuesManager([]) as unknown as IssuesManager.IssuesManager.IssuesManager;
     const aggregator = new Issues.IssueAggregator.IssueAggregator(mockManager);
     mockManager.dispatchEventToListeners(
-        IssuesManager.IssuesManager.Events.IssueAdded, {issuesModel: model, issue: issue1});
+        IssuesManager.IssuesManager.Events.ISSUE_ADDED, {issuesModel: model, issue: issue1});
     mockManager.dispatchEventToListeners(
-        IssuesManager.IssuesManager.Events.IssueAdded, {issuesModel: model, issue: issue2});
+        IssuesManager.IssuesManager.Events.ISSUE_ADDED, {issuesModel: model, issue: issue2});
 
     const issues = Array.from(aggregator.aggregatedIssues());
-    assert.strictEqual(issues.length, 1);
+    assert.lengthOf(issues, 1);
     const resolutions = [...issues[0].getHeavyAdIssues()].map(r => r.details().resolution).sort();
-    assert.deepStrictEqual(resolutions, [
+    assert.deepEqual(resolutions, [
       Protocol.Audits.HeavyAdResolutionStatus.HeavyAdBlocked,
       Protocol.Audits.HeavyAdResolutionStatus.HeavyAdWarning,
     ]);
@@ -216,13 +219,13 @@ describeWithMockConnection('IssueAggregator', () => {
       const aggregator = new Issues.IssueAggregator.IssueAggregator(mockManager);
       for (const issue of [issue1, issue2, issue3, issue4]) {
         mockManager.dispatchEventToListeners(
-            IssuesManager.IssuesManager.Events.IssueAdded, {issuesModel: model, issue: issue});
+            IssuesManager.IssuesManager.Events.ISSUE_ADDED, {issuesModel: model, issue});
       }
 
       const issues = Array.from(aggregator.aggregatedIssues());
-      assert.strictEqual(issues.length, 1);
+      assert.lengthOf(issues, 1);
       const locations = [...issues[0].sources()].sort((x, y) => JSON.stringify(x).localeCompare(JSON.stringify(y)));
-      assert.deepStrictEqual(locations, [
+      assert.deepEqual(locations, [
         {url: 'bar', lineNumber: 1, columnNumber: 1, scriptId: scriptId1},
         {url: 'bar', lineNumber: 1, columnNumber: 1},
         {url: 'baz', lineNumber: 1, columnNumber: 1},
@@ -260,8 +263,8 @@ describeWithMockConnection('IssueAggregator', () => {
     ];
 
     hideIssueByCodeSetting.set({
-      'HiddenStubIssue1': IssuesManager.IssuesManager.IssueStatus.Hidden,
-      'HiddenStubIssue2': IssuesManager.IssuesManager.IssueStatus.Hidden,
+      HiddenStubIssue1: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
+      HiddenStubIssue2: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
     });
 
     for (const issue of issues) {
@@ -284,14 +287,14 @@ describeWithMockConnection('IssueAggregator', () => {
     }
 
     hideIssueByCodeSetting.set({
-      'HiddenStubIssue1': IssuesManager.IssuesManager.IssueStatus.Hidden,
+      HiddenStubIssue1: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
     });
     assert.strictEqual(aggregator.numberOfAggregatedIssues(), 3);
     assert.strictEqual(aggregator.numberOfHiddenAggregatedIssues(), 1);
 
     hideIssueByCodeSetting.set({
-      'HiddenStubIssue1': IssuesManager.IssuesManager.IssueStatus.Hidden,
-      'HiddenStubIssue2': IssuesManager.IssuesManager.IssueStatus.Hidden,
+      HiddenStubIssue1: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
+      HiddenStubIssue2: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
     });
     assert.strictEqual(aggregator.numberOfAggregatedIssues(), 2);
     assert.strictEqual(aggregator.numberOfHiddenAggregatedIssues(), 2);
@@ -306,10 +309,10 @@ describeWithMockConnection('IssueAggregator', () => {
     ];
 
     hideIssueByCodeSetting.set({
-      'HiddenStubIssue1': IssuesManager.IssuesManager.IssueStatus.Hidden,
-      'HiddenStubIssue2': IssuesManager.IssuesManager.IssueStatus.Hidden,
-      'UnhiddenStubIssue1': IssuesManager.IssuesManager.IssueStatus.Hidden,
-      'UnhiddenStubIssue2': IssuesManager.IssuesManager.IssueStatus.Hidden,
+      HiddenStubIssue1: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
+      HiddenStubIssue2: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
+      UnhiddenStubIssue1: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
+      UnhiddenStubIssue2: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
     });
 
     for (const issue of issues) {
@@ -320,10 +323,10 @@ describeWithMockConnection('IssueAggregator', () => {
     assert.strictEqual(aggregator.numberOfAggregatedIssues(), 0);
 
     hideIssueByCodeSetting.set({
-      'HiddenStubIssue1': IssuesManager.IssuesManager.IssueStatus.Hidden,
-      'HiddenStubIssue2': IssuesManager.IssuesManager.IssueStatus.Hidden,
-      'UnhiddenStubIssue1': IssuesManager.IssuesManager.IssueStatus.Unhidden,
-      'UnhiddenStubIssue2': IssuesManager.IssuesManager.IssueStatus.Hidden,
+      HiddenStubIssue1: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
+      HiddenStubIssue2: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
+      UnhiddenStubIssue1: IssuesManager.IssuesManager.IssueStatus.UNHIDDEN,
+      UnhiddenStubIssue2: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
     });
 
     assert.strictEqual(aggregator.numberOfAggregatedIssues(), 1);
@@ -339,10 +342,10 @@ describeWithMockConnection('IssueAggregator', () => {
     ];
 
     hideIssueByCodeSetting.set({
-      'HiddenStubIssue1': IssuesManager.IssuesManager.IssueStatus.Hidden,
-      'HiddenStubIssue2': IssuesManager.IssuesManager.IssueStatus.Hidden,
-      'UnhiddenStubIssue1': IssuesManager.IssuesManager.IssueStatus.Hidden,
-      'UnhiddenStubIssue2': IssuesManager.IssuesManager.IssueStatus.Hidden,
+      HiddenStubIssue1: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
+      HiddenStubIssue2: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
+      UnhiddenStubIssue1: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
+      UnhiddenStubIssue2: IssuesManager.IssuesManager.IssueStatus.HIDDEN,
     });
 
     for (const issue of issues) {
@@ -355,6 +358,56 @@ describeWithMockConnection('IssueAggregator', () => {
     issuesManager.unhideAllIssues();
 
     assert.strictEqual(aggregator.numberOfAggregatedIssues(), 4);
+    assert.strictEqual(aggregator.numberOfHiddenAggregatedIssues(), 0);
+  });
+});
+
+describeWithMockConnection('IssueAggregator', () => {
+  function getTestMitigationCookieIssue(warningReason: Protocol.Audits.CookieWarningReason): IssuesManager.Issue.Issue {
+    return IssuesManager.IssuesManager.createIssuesFromProtocolIssue(model, {
+      code: Protocol.Audits.InspectorIssueCode.CookieIssue,
+      details: {
+        cookieIssueDetails: {
+          cookie: {
+            name: 'test',
+            path: '/',
+            domain: 'a.test',
+          },
+          cookieExclusionReasons: [],
+          cookieWarningReasons: [warningReason],
+          operation: Protocol.Audits.CookieOperation.ReadCookie,
+          cookieUrl: 'a.test',
+        },
+      },
+    })[0];
+  }
+
+  let issuesManager: IssuesManager.IssuesManager.IssuesManager;
+  let model: SDK.IssuesModel.IssuesModel;
+
+  beforeEach(() => {
+    const showThirdPartyIssuesSetting = createFakeSetting('third party flag', true);
+    issuesManager = new IssuesManager.IssuesManager.IssuesManager(showThirdPartyIssuesSetting);
+    const target = createTarget();
+    model = target.model(SDK.IssuesModel.IssuesModel) as SDK.IssuesModel.IssuesModel;
+  });
+
+  it('should not aggregate mitigation related cookie issues', async () => {
+    // Preexisting issues should not be added
+    issuesManager.addIssue(
+        model, getTestMitigationCookieIssue(Protocol.Audits.CookieWarningReason.WarnDeprecationTrialMetadata));
+    issuesManager.addIssue(
+        model, getTestMitigationCookieIssue(Protocol.Audits.CookieWarningReason.WarnThirdPartyCookieHeuristic));
+
+    const aggregator = new Issues.IssueAggregator.IssueAggregator(issuesManager);
+
+    // Issues added after aggregator creation should not exist either
+    issuesManager.addIssue(
+        model, getTestMitigationCookieIssue(Protocol.Audits.CookieWarningReason.WarnDeprecationTrialMetadata));
+    issuesManager.addIssue(
+        model, getTestMitigationCookieIssue(Protocol.Audits.CookieWarningReason.WarnThirdPartyCookieHeuristic));
+
+    assert.strictEqual(aggregator.numberOfAggregatedIssues(), 0);
     assert.strictEqual(aggregator.numberOfHiddenAggregatedIssues(), 0);
   });
 });
