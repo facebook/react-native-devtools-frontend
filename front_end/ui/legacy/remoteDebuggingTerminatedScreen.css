@@ -6,7 +6,7 @@
 
 .widget {
   padding: 20px;
-  user-select: all;
+  user-select: text;
 }
 
 .remote-debugging-terminated-title {
@@ -26,7 +26,6 @@
   grid-template-columns: 1fr auto;
   grid-gap: 8px;
   align-items: center;
-  padding-top: 12px;
 }
 
 .remote-debugging-terminated-label {
@@ -48,6 +47,7 @@
   padding: 12px 16px;
   background-color: var(--color-background-elevation-1);
   border-radius: 6px;
+  margin-bottom: 12px;
 }
 
 .remote-debugging-terminated-feedback-label {

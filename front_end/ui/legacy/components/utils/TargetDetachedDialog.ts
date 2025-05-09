@@ -13,7 +13,16 @@ const UIStrings = {
    *@description Text on the remote debugging window to indicate the connection is lost
    */
   websocketDisconnected: 'WebSocket disconnected',
+  /**
+   *@description Text on the remote debugging window to indicate the connection cannot be made because the device is not connected
+   */
+  websocketDisconnectedNonRegisteredDevice: 'The corresponding application for this instance of DevTools cannot be found. Please re-lauch DevTools from the terminal.',
 };
+
+const DisconnectedReasonsUIStrings = {
+  NON_REGISTERED_DEVICE: UIStrings.websocketDisconnectedNonRegisteredDevice
+}
+
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/components/utils/TargetDetachedDialog.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class TargetDetachedDialog extends SDK.SDKModel.SDKModel<void> implements ProtocolProxyApi.InspectorDispatcher {
@@ -33,9 +42,21 @@ export class TargetDetachedDialog extends SDK.SDKModel.SDKModel<void> implements
     UI.RemoteDebuggingTerminatedScreen.RemoteDebuggingTerminatedScreen.show(reason);
   }
 
+  static getCustomUiReason(connectionLostDetails?: {reason?: string, code?: string, errorType?: string}): string | null {
+    if (!connectionLostDetails) {
+      return null;
+    }
+
+    if (connectionLostDetails.code === "1011" && connectionLostDetails.reason?.includes('[NON_REGISTERED_DEVICE]')) {
+      return i18nString(DisconnectedReasonsUIStrings.NON_REGISTERED_DEVICE);
+    }
+
+    return null;
+  }
+
   static webSocketConnectionLost(connectionLostDetails?: {reason?: string, code?: string, errorType?: string}): void {
-    UI.RemoteDebuggingTerminatedScreen.RemoteDebuggingTerminatedScreen.show(
-        i18nString(UIStrings.websocketDisconnected), connectionLostDetails);
+    const uiReason = TargetDetachedDialog.getCustomUiReason(connectionLostDetails) || i18nString(UIStrings.websocketDisconnected);
+    UI.RemoteDebuggingTerminatedScreen.RemoteDebuggingTerminatedScreen.show(uiReason, connectionLostDetails);
   }
 
   targetCrashed(): void {
