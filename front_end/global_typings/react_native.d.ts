@@ -10,6 +10,7 @@ declare global {
     var enableReactNativePerfMetrics: boolean|undefined;
     var enableReactNativePerfMetricsGlobalPostMessage: boolean|undefined;
     var enableReactNativeOpenInExternalEditor: boolean|undefined;
+    var enableDisplayingFullDisconnectedReason: boolean|undefined;
     var reactNativeOpenInEditorButtonImage: string|undefined;
     var FB_ONLY__reactNativeFeedbackLink: string|undefined;
     var FB_ONLY__enablePerformance: any;
