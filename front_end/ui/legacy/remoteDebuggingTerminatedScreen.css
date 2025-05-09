@@ -61,8 +61,11 @@
 
 .remote-debugging-terminated-reason {
   --override-reason-color: red;
-  line-height: 32px;
   color: var(--override-reason-color);
+  margin: 8px;
+  textarea {
+    width: 100%;
+  }
 }
 
 .theme-with-dark-background .reason,
