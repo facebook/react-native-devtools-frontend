@@ -13,7 +13,21 @@ const UIStrings = {
    *@description Text on the remote debugging window to indicate the connection is lost
    */
   websocketDisconnected: 'WebSocket disconnected',
+  /**
+   *@description Text on the remote debugging window to indicate the connection cannot be made because the device is not connected
+   */
+  websocketDisconnectedUnregisteredDevice: 'The corresponding app for this DevTools session cannot be found. Please relaunch DevTools from the terminal.',
+  /**
+ *@description Text on the remote debugging window to indicate the connection to corresponding device was lost
+  */
+  websocketDisconnectedConnectionLost: 'Connection lost to corresponding device'
 };
+
+const DisconnectedReasonsUIStrings = {
+  UREGISTERED_DEVICE: UIStrings.websocketDisconnectedUnregisteredDevice,
+  CONNECTION_LOST: UIStrings.websocketDisconnectedConnectionLost
+}
+
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/components/utils/TargetDetachedDialog.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class TargetDetachedDialog extends SDK.SDKModel.SDKModel<void> implements ProtocolProxyApi.InspectorDispatcher {
@@ -33,9 +47,25 @@ export class TargetDetachedDialog extends SDK.SDKModel.SDKModel<void> implements
     UI.RemoteDebuggingTerminatedScreen.RemoteDebuggingTerminatedScreen.show(reason);
   }
 
+  static getCustomUiReason(connectionLostDetails?: {reason?: string, code?: string, errorType?: string}): string | null {
+    if (!connectionLostDetails) {
+      return null;
+    }
+
+    if (connectionLostDetails.code === "1011" && connectionLostDetails.reason?.includes('[UREGISTERED_DEVICE]')) {
+      return i18nString(DisconnectedReasonsUIStrings.UREGISTERED_DEVICE);
+    }
+
+    if (connectionLostDetails.code === "1000" && connectionLostDetails.reason?.includes('[CONNECTION_LOST]')) {
+      return i18nString(DisconnectedReasonsUIStrings.CONNECTION_LOST);
+    }
+
+    return null;
+  }
+
   static webSocketConnectionLost(connectionLostDetails?: {reason?: string, code?: string, errorType?: string}): void {
-    UI.RemoteDebuggingTerminatedScreen.RemoteDebuggingTerminatedScreen.show(
-        i18nString(UIStrings.websocketDisconnected), connectionLostDetails);
+    const uiReason = TargetDetachedDialog.getCustomUiReason(connectionLostDetails) || i18nString(UIStrings.websocketDisconnected);
+    UI.RemoteDebuggingTerminatedScreen.RemoteDebuggingTerminatedScreen.show(uiReason, connectionLostDetails);
   }
 
   targetCrashed(): void {
