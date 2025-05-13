@@ -4,6 +4,7 @@
 
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import * as Root from '../../core/root/root.js';
 import type * as Platform from '../../core/platform/platform.js';
 import * as LitHtml from '../../ui/lit-html/lit-html.js';
 
@@ -24,6 +25,12 @@ const UIStrings = {
    * (see https://developer.chrome.com/docs/devtools/remote-debugging/).
    */
   debuggingConnectionWasClosed: 'Debugging connection was closed. Reason: ',
+  /**
+   * @description Text in a dialog box in DevTools providing extra details on why remote debugging has been terminated.
+   * "Remote debugging" here means that DevTools on a PC is inspecting a website running on an actual mobile device
+   * (see https://developer.chrome.com/docs/devtools/remote-debugging/).
+   */
+  debuggingConnectionWasClosedDetails: 'Details: ',
   /**
    * @description Text in a dialog box showing how to reconnect to DevTools when remote debugging has been terminated.
    * "Remote debugging" here means that DevTools on a PC is inspecting a website running on an actual mobile device
@@ -51,6 +58,11 @@ const UIStrings = {
    */
   sendFeedbackMessage: '[FB-only] Please send feedback if this disconnection is unexpected.',
   /**
+   * @description Text in a dialog box to prompt for feedback if the disconnection is unexpected,
+   * telling the user what's their session ID for easier debugging
+   */
+  sendFeedbackLaunchIdMessage: 'Please include the following session ID:',
+  /**
    * @description Label of the FB-only 'send feedback' button.
    */
   sendFeedback: 'Send feedback',
@@ -62,7 +74,11 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 const {render, html} = LitHtml;
 
 export class RemoteDebuggingTerminatedScreen extends VBox {
-  constructor(reason: string, onClose?: () => void) {
+  constructor(
+    reason: string,
+    connectionLostDetails?: {reason?: string, code?: string, errorType?: string},
+    onClose?: () => void
+  ) {
     super(true);
     this.registerCSSFiles([remoteDebuggingTerminatedScreenStyles]);
 
@@ -75,19 +91,28 @@ export class RemoteDebuggingTerminatedScreen extends VBox {
         html`
         <h1 class="remote-debugging-terminated-title">${i18nString(UIStrings.title)}</h1>
         <div class="remote-debugging-terminated-message">
-          <span>${i18nString(UIStrings.debuggingConnectionWasClosed)}</span>
-          <span class="remote-debugging-terminated-reason">${reason}</span>
+          <div>${i18nString(UIStrings.debuggingConnectionWasClosed)}</div>
+          <div class="remote-debugging-terminated-reason">${reason}</div>
+          ${globalThis.enableDisplayingFullDisconnectedReason ?
+            html`
+              <div>
+                ${i18nString(UIStrings.debuggingConnectionWasClosedDetails)}
+              </div>
+              <div class="remote-debugging-terminated-reason">
+                <textarea disabled rows="5">${JSON.stringify(connectionLostDetails, null, 2)}</textarea>
+              </div>
+            ` : ''}
         </div>
+        ${feedbackLink !== null && feedbackLink !== undefined ? this.#createFeedbackSection(feedbackLink) : null}
         <div class="remote-debugging-terminated-options">
           <div class="remote-debugging-terminated-label">
             ${i18nString(UIStrings.reconnectWhenReadyByReopening)}
           </div>
-          ${
-            createTextButton(
-                i18nString(UIStrings.reconnectDevtools),
-                handleReconnect,
-                {className: 'primary-button', jslogContext: 'reconnect'},
-                )}
+          ${createTextButton(
+            i18nString(UIStrings.reconnectDevtools),
+            handleReconnect,
+            {className: 'primary-button', jslogContext: 'reconnect'},
+          )}
           <div class="remote-debugging-terminated-label">
             ${i18nString(UIStrings.closeDialogDetail)}
           </div>
@@ -95,7 +120,6 @@ export class RemoteDebuggingTerminatedScreen extends VBox {
           jslogContext: 'dismiss',
         })}
         </div>
-        ${feedbackLink !== null && feedbackLink !== undefined ? this.#createFeedbackSection(feedbackLink) : null}
       `,
         this.contentElement,
         {host: this},
@@ -109,7 +133,7 @@ export class RemoteDebuggingTerminatedScreen extends VBox {
     const dialog = new Dialog('remote-debnugging-terminated');
     dialog.setSizeBehavior(SizeBehavior.MeasureContent);
     dialog.setDimmed(true);
-    new RemoteDebuggingTerminatedScreen(uiMessage, () => dialog.hide()).show(dialog.contentElement);
+    new RemoteDebuggingTerminatedScreen(uiMessage, connectionLostDetails, () => dialog.hide()).show(dialog.contentElement);
     dialog.show();
     Host.rnPerfMetrics.remoteDebuggingTerminated(connectionLostDetails);
   }
@@ -121,9 +145,22 @@ export class RemoteDebuggingTerminatedScreen extends VBox {
       );
     };
 
+    const launchId = Root.Runtime.Runtime.queryParam('launchId');
+
     return html`
       <div class="remote-debugging-terminated-feedback-container">
         <div class="remote-debugging-terminated-feedback-label">${i18nString(UIStrings.sendFeedbackMessage)}</div>
+        ${launchId ?
+          html`
+            <div class="remote-debugging-terminated-feedback-label">
+              ${i18nString(UIStrings.sendFeedbackLaunchIdMessage)}
+            </div>
+            <div class="remote-debugging-terminated-feedback-launch-id">
+              ${launchId}
+            </div>
+          ` : ''
+        }
+        <br/>
         ${
         createTextButton(
             i18nString(UIStrings.sendFeedback),
