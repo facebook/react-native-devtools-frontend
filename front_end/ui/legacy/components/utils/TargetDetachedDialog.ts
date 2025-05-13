@@ -20,13 +20,12 @@ const UIStrings = {
   /**
  *@description Text on the remote debugging window to indicate the connection to corresponding device was lost
   */
-  websocketDisconnectedConnectionLost: 'Connection lost to corresponding device'
+  websocketDisconnectedConnectionLost: 'Connection lost to corresponding device.',
+    /**
+ *@description Text on the remote debugging window to indicate a disconnection happened because a second dev tools instance was opened
+  */
+  websocketDisconnectedNewDebuggerOpened: 'Disconnected due to opening a second DevTools window for the same app.'
 };
-
-const DisconnectedReasonsUIStrings = {
-  UREGISTERED_DEVICE: UIStrings.websocketDisconnectedUnregisteredDevice,
-  CONNECTION_LOST: UIStrings.websocketDisconnectedConnectionLost
-}
 
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/components/utils/TargetDetachedDialog.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -53,11 +52,15 @@ export class TargetDetachedDialog extends SDK.SDKModel.SDKModel<void> implements
     }
 
     if (connectionLostDetails.code === "1011" && connectionLostDetails.reason?.includes('[UREGISTERED_DEVICE]')) {
-      return i18nString(DisconnectedReasonsUIStrings.UREGISTERED_DEVICE);
+      return i18nString(UIStrings.websocketDisconnectedUnregisteredDevice);
     }
 
     if (connectionLostDetails.code === "1000" && connectionLostDetails.reason?.includes('[CONNECTION_LOST]')) {
-      return i18nString(DisconnectedReasonsUIStrings.CONNECTION_LOST);
+      return i18nString(UIStrings.websocketDisconnectedConnectionLost);
+    }
+
+    if (connectionLostDetails.code === "1000" && connectionLostDetails.reason?.includes('[NEW_DEBUGGER_OPENED]')) {
+      return i18nString(UIStrings.websocketDisconnectedNewDebuggerOpened);
     }
 
     return null;
