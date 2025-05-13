@@ -27,7 +27,7 @@ const UIStrings = {
   /** @description "What's new" link */
   whatsNewLabel: "What's new",
   /** @description Description for sharing the session ID of the current session with the user */
-  sessionIdMessage: "[FB-only] The session ID for this React Native DevTools lauch is: ",
+  sessionIdMessage: "[FB-only] The ID for this React Native DevTools session is:",
   /** @description "Debugging Basics" title (docs item 1) */
   docsDebuggingBasics: 'Debugging Basics',
   /** @description "Debugging Basics" item detail */
