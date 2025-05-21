@@ -60,6 +60,7 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
   private readonly options: RNWelcomeOptions;
 
   #reactNativeVersion: string|undefined;
+  #isProfilingBuild: boolean = false;
 
   static instance(options: RNWelcomeOptions): RNWelcomeImpl {
     if (!rnWelcomeImplInstance) {
@@ -81,14 +82,19 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
     super.wasShown();
     this.registerCSSFiles([rnWelcomeStyles]);
     this.render();
-    UI.InspectorView.InspectorView.instance().showDrawer({focus: true, hasTargetDrawer: false});
+
+    if (!this.#isProfilingBuild) {
+      UI.InspectorView.InspectorView.instance().showDrawer({focus: true, hasTargetDrawer: false});
+    }
   }
 
   modelAdded(model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel): void {
     model.ensureEnabled();
     model.addEventListener(
         SDK.ReactNativeApplicationModel.Events.MetadataUpdated, this.#handleMetadataUpdated, this);
+
     this.#reactNativeVersion = model.metadataCached?.reactNativeVersion;
+    this.#isProfilingBuild = model.metadataCached?.unstable_isProfilingBuild || false;
   }
 
   modelRemoved(model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel): void {
@@ -99,6 +105,7 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
   #handleMetadataUpdated(
       event: Common.EventTarget.EventTargetEvent<Protocol.ReactNativeApplication.MetadataUpdatedEvent>): void {
     this.#reactNativeVersion = event.data.reactNativeVersion;
+    this.#isProfilingBuild = event.data.unstable_isProfilingBuild || false;
 
     if (this.isShowing()) {
       this.render();
@@ -136,7 +143,7 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
     ).toString();
 
     const launchId = Root.Runtime.Runtime.queryParam('launchId');
-    
+
     render(html`
       <div class="rn-welcome-panel">
         <header class="rn-welcome-hero">

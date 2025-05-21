@@ -62,17 +62,28 @@ export default class FuseboxFeatureObserver implements
   }
 
   #hideUnsupportedFeaturesForProfilingBuilds(): void {
-    UI.ViewManager.ViewManager.instance()
-      .resolveLocation(UI.ViewManager.ViewLocationValues.PANEL)
-      .then(location => {
+    UI.InspectorView.InspectorView.instance().closeDrawer();
+
+    const viewManager = UI.ViewManager.ViewManager.instance();
+    const panelLocationPromise = viewManager.resolveLocation(UI.ViewManager.ViewLocationValues.PANEL);
+    const drawerLocationPromise = viewManager.resolveLocation(UI.ViewManager.ViewLocationValues.DRAWER_VIEW);
+    void Promise.all([panelLocationPromise, drawerLocationPromise])
+      .then(([panelLocation, drawerLocation]) => {
         UI.ViewManager.getRegisteredViewExtensions().forEach(view => {
-          switch (view.viewId()) {
-            case 'sources':
-            case 'network':
-            case 'react-devtools-components':
-            case 'react-devtools-profiler':
-              location?.removeView(view);
-              break;
+          if (view.location() === UI.ViewManager.ViewLocationValues.DRAWER_VIEW) {
+            drawerLocation?.removeView(view);
+          } else {
+            switch (view.viewId()) {
+              case 'console':
+              case 'heap-profiler':
+              case 'live-heap-profile':
+              case 'sources':
+              case 'network':
+              case 'react-devtools-components':
+              case 'react-devtools-profiler':
+                panelLocation?.removeView(view);
+                break;
+            }
           }
         });
       });
