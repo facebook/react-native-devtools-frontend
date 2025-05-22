@@ -51,7 +51,7 @@ export class TargetDetachedDialog extends SDK.SDKModel.SDKModel<void> implements
       return null;
     }
 
-    if (connectionLostDetails.code === "1011" && connectionLostDetails.reason?.includes('[UREGISTERED_DEVICE]')) {
+    if (connectionLostDetails.code === "1011" && connectionLostDetails.reason?.includes('[UNREGISTERED_DEVICE]')) {
       return i18nString(UIStrings.websocketDisconnectedUnregisteredDevice);
     }
 
