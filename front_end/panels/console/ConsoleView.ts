@@ -289,7 +289,8 @@ export class ConsoleView extends UI.Widget.VBox implements
   private readonly timestampsSetting: Common.Settings.Setting<unknown>;
   private readonly consoleHistoryAutocompleteSetting: Common.Settings.Setting<boolean>;
   private selfXssWarningDisabledSetting: Common.Settings.Setting<boolean>;
-  readonly pinPane: ConsolePinPane;
+  // TODO(T225263604): Restore Live Expressions panel
+  // readonly pinPane: ConsolePinPane;
   private viewport: ConsoleViewport;
   private messagesElement: HTMLElement;
   private messagesCountElement: HTMLElement;
@@ -406,8 +407,9 @@ export class ConsoleView extends UI.Widget.VBox implements
     toolbar.appendSeparator();
     toolbar.appendToolbarItem(this.consoleContextSelector.toolbarItem());
     toolbar.appendSeparator();
-    const liveExpressionButton = UI.Toolbar.Toolbar.createActionButtonForId('console.create-pin');
-    toolbar.appendToolbarItem(liveExpressionButton);
+    // TODO(T225263604): Restore Live Expressions panel
+    // const liveExpressionButton = UI.Toolbar.Toolbar.createActionButtonForId('console.create-pin');
+    // toolbar.appendToolbarItem(liveExpressionButton);
     toolbar.appendSeparator();
     toolbar.appendToolbarItem(this.filter.textFilterUI);
     toolbar.appendToolbarItem(this.filter.levelMenuButton);
@@ -481,9 +483,10 @@ export class ConsoleView extends UI.Widget.VBox implements
     this.showSettingsPaneSetting.addChangeListener(
         () => settingsPane.element.classList.toggle('hidden', !this.showSettingsPaneSetting.get()));
 
-    this.pinPane = new ConsolePinPane(liveExpressionButton, () => this.prompt.focus());
-    this.pinPane.element.classList.add('console-view-pinpane');
-    this.pinPane.show(this.contentsElement);
+    // TODO(T225263604): Restore Live Expressions panel
+    // this.pinPane = new ConsolePinPane(liveExpressionButton, () => this.prompt.focus());
+    // this.pinPane.element.classList.add('console-view-pinpane');
+    // this.pinPane.show(this.contentsElement);
 
     this.viewport = new ConsoleViewport(this);
     this.viewport.setStickToBottom(true);
@@ -1827,9 +1830,10 @@ export class ActionDelegate implements UI.ActionRegistration.ActionDelegate {
       case 'console.clear.history':
         ConsoleView.instance().clearHistory();
         return true;
-      case 'console.create-pin':
-        ConsoleView.instance().pinPane.addPin('', true /* userGesture */);
-        return true;
+      // TODO(T225263604): Restore Live Expressions panel
+      // case 'console.create-pin':
+      //   ConsoleView.instance().pinPane.addPin('', true /* userGesture */);
+      //   return true;
     }
     return false;
   }
