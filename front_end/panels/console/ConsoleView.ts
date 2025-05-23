@@ -470,8 +470,9 @@ export class ConsoleView extends UI.Widget.VBox implements
 
     ConsoleView.appendSettingsCheckboxToToolbar(
         settingsToolbarRight, monitoringXHREnabledSetting, i18nString(UIStrings.logXMLHttpRequests));
-    ConsoleView.appendSettingsCheckboxToToolbar(
-        settingsToolbarRight, 'console-eager-eval', i18nString(UIStrings.eagerlyEvaluateTextInThePrompt));
+    // TODO(T225263604): Restore this setting
+    // ConsoleView.appendSettingsCheckboxToToolbar(
+    //     settingsToolbarRight, 'console-eager-eval', i18nString(UIStrings.eagerlyEvaluateTextInThePrompt));
     ConsoleView.appendSettingsCheckboxToToolbar(
         settingsToolbarRight, this.consoleHistoryAutocompleteSetting, i18nString(UIStrings.autocompleteFromHistory));
     ConsoleView.appendSettingsCheckboxToToolbar(
