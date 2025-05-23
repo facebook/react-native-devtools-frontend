@@ -229,16 +229,17 @@ UI.ActionRegistration.registerActionExtension({
   },
 });
 
-UI.ActionRegistration.registerActionExtension({
-  actionId: 'console.create-pin',
-  category: UI.ActionRegistration.ActionCategory.CONSOLE,
-  title: i18nLazyString(UIStrings.createLiveExpression),
-  iconClass: UI.ActionRegistration.IconClass.EYE,
-  async loadActionDelegate() {
-    const Console = await loadConsoleModule();
-    return new Console.ConsoleView.ActionDelegate();
-  },
-});
+// TODO(T225263604): Restore Live Expressions panel
+// UI.ActionRegistration.registerActionExtension({
+//   actionId: 'console.create-pin',
+//   category: UI.ActionRegistration.ActionCategory.CONSOLE,
+//   title: i18nLazyString(UIStrings.createLiveExpression),
+//   iconClass: UI.ActionRegistration.IconClass.EYE,
+//   async loadActionDelegate() {
+//     const Console = await loadConsoleModule();
+//     return new Console.ConsoleView.ActionDelegate();
+//   },
+// });
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.CONSOLE,
@@ -380,24 +381,25 @@ Common.Settings.registerSettingExtension({
   ],
 });
 
-Common.Settings.registerSettingExtension({
-  category: Common.Settings.SettingCategory.CONSOLE,
-  storageType: Common.Settings.SettingStorageType.Synced,
-  title: i18nLazyString(UIStrings.eagerEvaluation),
-  settingName: 'console-eager-eval',
-  settingType: Common.Settings.SettingType.BOOLEAN,
-  defaultValue: true,
-  options: [
-    {
-      value: true,
-      title: i18nLazyString(UIStrings.eagerlyEvaluateConsolePromptText),
-    },
-    {
-      value: false,
-      title: i18nLazyString(UIStrings.doNotEagerlyEvaluateConsole),
-    },
-  ],
-});
+// TODO(T225263604): Restore this setting
+// Common.Settings.registerSettingExtension({
+//   category: Common.Settings.SettingCategory.CONSOLE,
+//   storageType: Common.Settings.SettingStorageType.Synced,
+//   title: i18nLazyString(UIStrings.eagerEvaluation),
+//   settingName: 'console-eager-eval',
+//   settingType: Common.Settings.SettingType.BOOLEAN,
+//   defaultValue: true,
+//   options: [
+//     {
+//       value: true,
+//       title: i18nLazyString(UIStrings.eagerlyEvaluateConsolePromptText),
+//     },
+//     {
+//       value: false,
+//       title: i18nLazyString(UIStrings.doNotEagerlyEvaluateConsole),
+//     },
+//   ],
+// });
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.CONSOLE,
