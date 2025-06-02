@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
 import {
   makeCompleteEvent,
   makeFlowEvents,
@@ -25,7 +26,7 @@ async function buildAsyncJSCallsHandlerData(events: Trace.Types.Events.Event[]):
   await Trace.Handlers.ModelHandlers.AsyncJSCalls.finalize();
   return Trace.Handlers.ModelHandlers.AsyncJSCalls.data();
 }
-describe('AsyncJSCallsHandler', function() {
+describeWithEnvironment('AsyncJSCallsHandler', function() {
   describe('Resolving JS task schedulers to task run entrypoints', function() {
     it('associates a JS task scheduler profile call with the corresponding task run entry point', async function() {
       const jsTaskScheduler = makeProfileCall('setTimeout', 0, 50, pid, tid);

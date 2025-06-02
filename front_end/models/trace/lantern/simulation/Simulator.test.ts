@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import type * as Protocol from '../../../../generated/protocol.js';
+import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
 import {TraceLoader} from '../../../../testing/TraceLoader.js';
 import * as Trace from '../../trace.js';
 import * as Lantern from '../lantern.js';
@@ -74,7 +75,7 @@ function cpuTask({tid, ts, duration}: {
   return {tid, ts, dur} as Trace.Lantern.Types.TraceEvent;
 }
 
-describe('DependencyGraph/Simulator', () => {
+describeWithEnvironment('DependencyGraph/Simulator', () => {
   // Insulate the simulator tests from DNS multiplier changes
   let originalDNSMultiplier = 1;
   let trace: Lantern.Types.Trace;

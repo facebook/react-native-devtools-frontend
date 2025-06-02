@@ -271,17 +271,3 @@ UI.Toolbar.registerToolbarItem({
   order: 98,
   location: UI.Toolbar.ToolbarItemLocation.MAIN_TOOLBAR_RIGHT,
 });
-
-UI.Toolbar.registerToolbarItem({
-  async loadItem() {
-    const InspectorMain = await loadInspectorMainModule();
-    return InspectorMain.OutermostTargetSelector.OutermostTargetSelector.instance();
-  },
-  order: 98,
-  location: UI.Toolbar.ToolbarItemLocation.MAIN_TOOLBAR_RIGHT,
-  showLabel: undefined,
-  condition: undefined,
-  separator: undefined,
-  actionId: undefined,
-  experiment: Root.Runtime.ExperimentName.OUTERMOST_TARGET_SELECTOR,
-});

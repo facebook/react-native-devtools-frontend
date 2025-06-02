@@ -2,12 +2,33 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Platform from '../../../../core/platform/platform.js';
+import * as i18n from '../../../../core/i18n/i18n.js';
 import * as SDK from '../../../../core/sdk/sdk.js';
 import type * as ProtocolProxyApi from '../../../../generated/protocol-proxy-api.js';
 import type * as Protocol from '../../../../generated/protocol.js';
 import * as UI from '../../legacy.js';
 
+const UIStrings = {
+  /**
+   *@description Text on the remote debugging window to indicate the connection is lost
+   */
+  websocketDisconnected: 'WebSocket disconnected',
+  /**
+   *@description Text on the remote debugging window to indicate the connection cannot be made because the device is not connected
+   */
+  websocketDisconnectedUnregisteredDevice: 'The corresponding app for this DevTools session cannot be found. Please relaunch DevTools from the terminal.',
+  /**
+   *@description Text on the remote debugging window to indicate the connection to corresponding device was lost
+   */
+  websocketDisconnectedConnectionLost: 'Connection lost to corresponding device.',
+    /**
+     *@description Text on the remote debugging window to indicate a disconnection happened because a second dev tools instance was opened
+     */
+  websocketDisconnectedNewDebuggerOpened: 'Disconnected due to opening a second DevTools window for the same app.'
+} as const;
+
+const str_ = i18n.i18n.registerUIStrings('ui/legacy/components/utils/TargetDetachedDialog.ts', UIStrings);
+const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class TargetDetachedDialog extends SDK.SDKModel.SDKModel<void> implements ProtocolProxyApi.InspectorDispatcher {
   private static hideCrashedDialog: (() => void)|null;
   constructor(target: SDK.Target.Target) {
@@ -25,8 +46,29 @@ export class TargetDetachedDialog extends SDK.SDKModel.SDKModel<void> implements
     UI.RemoteDebuggingTerminatedScreen.RemoteDebuggingTerminatedScreen.show(reason);
   }
 
-  static connectionLost(connectionLostDetails?: {reason?: Platform.UIString.LocalizedString, code?: string, errorType?: string}): void {
-    UI.RemoteDebuggingTerminatedScreen.RemoteDebuggingTerminatedScreen.show(connectionLostDetails?.reason!, connectionLostDetails);
+  static getCustomUiReason(connectionLostDetails?: {reason?: string, code?: string, errorType?: string}): string | null {
+    if (!connectionLostDetails) {
+      return null;
+    }
+
+    if (connectionLostDetails.code === '1011' && connectionLostDetails.reason?.includes('[UNREGISTERED_DEVICE]')) {
+      return i18nString(UIStrings.websocketDisconnectedUnregisteredDevice);
+    }
+
+    if (connectionLostDetails.code === '1000' && connectionLostDetails.reason?.includes('[CONNECTION_LOST]')) {
+      return i18nString(UIStrings.websocketDisconnectedConnectionLost);
+    }
+
+    if (connectionLostDetails.code === '1000' && connectionLostDetails.reason?.includes('[NEW_DEBUGGER_OPENED]')) {
+      return i18nString(UIStrings.websocketDisconnectedNewDebuggerOpened);
+    }
+
+    return null;
+  }
+
+  static connectionLost(connectionLostDetails?: {reason?: string, code?: string, errorType?: string}): void {
+    const uiReason = TargetDetachedDialog.getCustomUiReason(connectionLostDetails) || i18nString(UIStrings.websocketDisconnected);
+    UI.RemoteDebuggingTerminatedScreen.RemoteDebuggingTerminatedScreen.show(uiReason, connectionLostDetails);
   }
 
   targetCrashed(): void {

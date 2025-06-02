@@ -89,13 +89,13 @@ export class WebSocketConnection implements ProtocolClient.InspectorBackend.Conn
   #socket: WebSocket|null;
   onMessage: ((arg0: (Object|string)) => void)|null;
   #onDisconnect: ((arg0: string) => void)|null;
-  #onWebSocketDisconnect: ((connectionLostDetails?: {reason?: Platform.UIString.LocalizedString, code?: string, errorType?: string}) => void)|null;
+  #onWebSocketDisconnect: ((connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void)|null;
   #connected: boolean;
   #messages: string[];
   constructor(
       url: Platform.DevToolsPath.UrlString,
-      onWebSocketDisconnect: (connectionLostDetails?: {reason?: Platform.UIString.LocalizedString, code?: string, errorType?: string}) => void) {
-        
+      onWebSocketDisconnect: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void) {
+
     this.#socket = new WebSocket(url);
     this.#socket.onerror = this.onError.bind(this);
     this.#socket.onopen = this.onOpen.bind(this);
@@ -121,9 +121,9 @@ export class WebSocketConnection implements ProtocolClient.InspectorBackend.Conn
     this.#onDisconnect = onDisconnect;
   }
 
-  private onError(ev: Event): void {
+  private onError(event: Event): void {
     if (this.#onWebSocketDisconnect) {
-      this.#onWebSocketDisconnect.call(null, {reason: i18nString(UIStrings.websocketDisconnected)});
+      this.#onWebSocketDisconnect.call(null, {reason: i18nString(UIStrings.websocketDisconnected), errorType: event.type});
     }
     if (this.#onDisconnect) {
       // This is called if error occurred while connecting.
@@ -143,9 +143,9 @@ export class WebSocketConnection implements ProtocolClient.InspectorBackend.Conn
     this.#messages = [];
   }
 
-  private onClose(ev: CloseEvent): void {
+  private onClose(event: CloseEvent): void {
     if (this.#onWebSocketDisconnect) {
-      this.#onWebSocketDisconnect.call(null, {reason: i18nString(UIStrings.websocketDisconnected)});
+      this.#onWebSocketDisconnect.call(null, {reason: event.reason, code: String(event.code || 0)});
     }
     if (this.#onDisconnect) {
       this.#onDisconnect.call(null, 'websocket closed');
@@ -279,13 +279,13 @@ export class ParallelConnection implements ParallelConnectionInterface {
 
 export async function initMainConnection(
     createRootTarget: () => Promise<void>,
-    onConnectionLost: (connectionLostDetails?: {reason?: Platform.UIString.LocalizedString, code?: string, errorType?: string}) => void): Promise<void> {
+    onConnectionLost: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void): Promise<void> {
   ProtocolClient.InspectorBackend.Connection.setFactory(createMainConnection.bind(null, onConnectionLost));
   await createRootTarget();
   Host.InspectorFrontendHost.InspectorFrontendHostInstance.connectionReady();
 }
 
-function createMainConnection(onConnectionLost: (connectionLostDetails?: {reason?: Platform.UIString.LocalizedString, code?: string, errorType?: string}) => void):
+function createMainConnection(onConnectionLost: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void):
     ProtocolClient.InspectorBackend.Connection {
   if (Root.Runtime.getPathName().includes('rehydrated_devtools_app')) {
     return new RehydratingConnection(onConnectionLost);
@@ -293,7 +293,15 @@ function createMainConnection(onConnectionLost: (connectionLostDetails?: {reason
   const wsParam = Root.Runtime.Runtime.queryParam('ws');
   const wssParam = Root.Runtime.Runtime.queryParam('wss');
   if (wsParam || wssParam) {
-    const ws = (wsParam ? `ws://${wsParam}` : `wss://${wssParam}`) as Platform.DevToolsPath.UrlString;
+    const scheme = wsParam ? 'ws' : 'wss';
+    // ws[s]Param is either:
+    // 1. The hierarchical part of a URL (with the scheme and :// removed).
+    // 2. A path-absolute URL (beginning with `/`) relative to the current host. This is only meaningful in hosted mode.
+    let schemelessUrl = (wsParam ? wsParam : wssParam) as string;
+    if (Host.InspectorFrontendHost.InspectorFrontendHostInstance.isHostedMode() && schemelessUrl.startsWith('/')) {
+      schemelessUrl = `${window.location.host}${schemelessUrl}`;
+    }
+    const ws = `${scheme}://${schemelessUrl}` as Platform.DevToolsPath.UrlString;
     return new WebSocketConnection(ws, onConnectionLost);
   }
   if (Host.InspectorFrontendHost.InspectorFrontendHostInstance.isHostedMode()) {

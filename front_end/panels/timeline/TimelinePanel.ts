@@ -551,10 +551,14 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
       this.showMemorySetting.addChangeListener(this.onMemoryModeChanged, this);
     }
 
-    this.#dimThirdPartiesSetting = Common.Settings.Settings.instance().createSetting(
-      'timeline-dim-third-parties', false, Common.Settings.SettingStorageType.SESSION);
-    this.#dimThirdPartiesSetting.setTitle(i18nString(UIStrings.dimThirdParties));
-    this.#dimThirdPartiesSetting.addChangeListener(this.onDimThirdPartiesChanged, this);
+    // [RN] Used to scope down available features for React Native targets
+    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+    if (!isReactNative) {
+      this.#dimThirdPartiesSetting = Common.Settings.Settings.instance().createSetting(
+        'timeline-dim-third-parties', false, Common.Settings.SettingStorageType.SESSION);
+      this.#dimThirdPartiesSetting.setTitle(i18nString(UIStrings.dimThirdParties));
+      this.#dimThirdPartiesSetting.addChangeListener(this.onDimThirdPartiesChanged, this);
+    }
 
     this.#thirdPartyTracksSetting = TimelinePanel.extensionDataVisibilitySetting();
     this.#thirdPartyTracksSetting.addChangeListener(this.#extensionDataVisibilityChanged, this);
@@ -1539,14 +1543,15 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
       isCpuProfile,
       settings: {
         showScreenshots: this.showScreenshotsSetting.get(),
-        showMemory: !isReactNative && this.showMemorySetting !== null && this.showMemorySetting.get(), // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+        showMemory: isReactNative ? false : (this.showMemorySetting?.get() || false), // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
       },
     });
   }
 
   private onMemoryModeChanged(): void {
+    // [RN] Used to scope down available features for React Native targets
     // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
-    this.flameChart.updateCountersGraphToggle(!isReactNative && this.showMemorySetting !== null && this.showMemorySetting.get());
+    this.flameChart.updateCountersGraphToggle(isReactNative ? false : (this.showMemorySetting?.get() || false));
     this.updateMiniMap();
     this.doResize();
     this.select(null);

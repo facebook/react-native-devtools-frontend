@@ -312,7 +312,7 @@ export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableCompon
   #cruxManager = CrUXManager.CrUXManager.instance();
 
   #toggleRecordAction: UI.ActionRegistration.Action;
-  #recordReloadAction: UI.ActionRegistration.Action;
+  // #recordReloadAction: UI.ActionRegistration.Action;
 
   #logsEl?: LiveMetricsLogs;
   #tooltipContainerEl?: Element;
@@ -325,7 +325,8 @@ export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableCompon
     super();
 
     this.#toggleRecordAction = UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.toggle-recording');
-    this.#recordReloadAction = UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.record-reload');
+    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+    // this.#recordReloadAction = UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.record-reload');
   }
 
   set isNode(isNode: boolean) {
@@ -1138,9 +1139,6 @@ export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableCompon
             </div>
             <div id="record" class="record-action-card">
               ${this.#renderRecordAction(this.#toggleRecordAction)}
-            </div>
-            <div id="record-page-load" class="record-action-card">
-              ${this.#renderRecordAction(this.#recordReloadAction)}
             </div>
           </aside>
         </div>

@@ -4,15 +4,16 @@
 // found in the LICENSE file.
 
 import type * as Common from '../../core/common/common.js';
-import * as UI from '../../ui/legacy/legacy.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import type * as Platform from '../../core/platform/platform.js';
+import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
+import type * as Protocol from '../../generated/protocol.js';
+import * as UI from '../../ui/legacy/legacy.js';
+import {html, render} from '../../ui/lit/lit.js';
 
 import rnWelcomeStyles from './rnWelcome.css.js';
-import * as LitHtml from '../../ui/lit-html/lit-html.js';
-import type * as Platform from '../../core/platform/platform.js';
-import type * as Protocol from '../../generated/protocol.js';
 
 const UIStrings = {
   /** @description Beta label */
@@ -25,6 +26,8 @@ const UIStrings = {
   docsLabel: 'Debugging docs',
   /** @description "What's new" link */
   whatsNewLabel: "What's new",
+  /** @description Description for sharing the session ID of the current session with the user */
+  sessionIdMessage: '[FB-only] The ID for this React Native DevTools session is:',
   /** @description "Debugging Basics" title (docs item 1) */
   docsDebuggingBasics: 'Debugging Basics',
   /** @description "Debugging Basics" item detail */
@@ -37,26 +40,26 @@ const UIStrings = {
   docsNativeDebugging: 'Native Debugging',
   /** @description "Native Debugging" item detail */
   docsNativeDebuggingDetail: 'Find out more about native debugging tools',
-};
-const {render, html} = LitHtml;
+} as const;
 
 const str_ = i18n.i18n.registerUIStrings('panels/rn_welcome/RNWelcome.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 let rnWelcomeImplInstance: RNWelcomeImpl;
 
-type RNWelcomeOptions = {
-  debuggerBrandName: () => Platform.UIString.LocalizedString,
-  showBetaLabel?: boolean,
-  showTechPreviewLabel?: boolean,
-  showDocs?: boolean,
-};
+interface RNWelcomeOptions {
+  debuggerBrandName: () => Platform.UIString.LocalizedString;
+  showBetaLabel?: boolean;
+  showTechPreviewLabel?: boolean;
+  showDocs?: boolean;
+}
 
 export class RNWelcomeImpl extends UI.Widget.VBox implements
     SDK.TargetManager.SDKModelObserver<SDK.ReactNativeApplicationModel.ReactNativeApplicationModel> {
   private readonly options: RNWelcomeOptions;
 
   #reactNativeVersion: string|undefined;
+  #isProfilingBuild = false;
 
   static instance(options: RNWelcomeOptions): RNWelcomeImpl {
     if (!rnWelcomeImplInstance) {
@@ -67,6 +70,7 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
 
   private constructor(options: RNWelcomeOptions) {
     super(true, true);
+    this.registerRequiredCSS(rnWelcomeStyles);
 
     this.options = options;
 
@@ -76,26 +80,31 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
 
   override wasShown(): void {
     super.wasShown();
-    this.registerCSSFiles([rnWelcomeStyles]);
     this.render();
-    UI.InspectorView.InspectorView.instance().showDrawer({focus: true, hasTargetDrawer: false});
+
+    if (!this.#isProfilingBuild) {
+      UI.InspectorView.InspectorView.instance().showDrawer({focus: true, hasTargetDrawer: false});
+    }
   }
 
   modelAdded(model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel): void {
     model.ensureEnabled();
     model.addEventListener(
-        SDK.ReactNativeApplicationModel.Events.MetadataUpdated, this.#handleMetadataUpdated, this);
+        SDK.ReactNativeApplicationModel.Events.METADATA_UPDATED, this.#handleMetadataUpdated, this);
+
     this.#reactNativeVersion = model.metadataCached?.reactNativeVersion;
+    this.#isProfilingBuild = model.metadataCached?.unstable_isProfilingBuild || false;
   }
 
   modelRemoved(model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel): void {
     model.removeEventListener(
-        SDK.ReactNativeApplicationModel.Events.MetadataUpdated, this.#handleMetadataUpdated, this);
+        SDK.ReactNativeApplicationModel.Events.METADATA_UPDATED, this.#handleMetadataUpdated, this);
   }
 
   #handleMetadataUpdated(
       event: Common.EventTarget.EventTargetEvent<Protocol.ReactNativeApplication.MetadataUpdatedEvent>): void {
     this.#reactNativeVersion = event.data.reactNativeVersion;
+    this.#isProfilingBuild = event.data.unstable_isProfilingBuild || false;
 
     if (this.isShowing()) {
       this.render();
@@ -132,6 +141,8 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
       import.meta.url,
     ).toString();
 
+    const launchId = Root.Runtime.Runtime.queryParam('launchId');
+
     render(html`
       <div class="rn-welcome-panel">
         <header class="rn-welcome-hero">
@@ -162,6 +173,13 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
               ${i18nString(UIStrings.whatsNewLabel)}
             </x-link>
           </div>
+          ${launchId ? html`
+            <div class="rn-session-id">
+              ${i18nString(UIStrings.sessionIdMessage)}
+              <br/>
+              ${launchId}
+            </div>
+          ` : ''}
           ${this.#reactNativeVersion !== null && this.#reactNativeVersion !== undefined ? html`
               <p class="rn-welcome-version">React Native: <code>${this.#reactNativeVersion}</code></p>
             ` : null}

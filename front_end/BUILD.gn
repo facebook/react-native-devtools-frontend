@@ -77,12 +77,9 @@ node_action("html_entrypoints") {
     "js_app",
     "ndb_app",
     "node_app",
-<<<<<<< HEAD
     "rn_fusebox",
     "rn_inspector",
-=======
     "rehydrated_devtools_app",
->>>>>>> chromedevtools/chromium/7103
     "worker_app",
     "device_mode_emulation_frame",
   ]

@@ -392,11 +392,13 @@ export const resourceCategories = {
 };
 
 export const resourceCategoriesReactNative = {
-  XHR: new ResourceCategory(i18nLazyString(UIStrings.fetchAndXHR), i18n.i18n.lockedLazyString('Fetch/XHR')),
-  Script: new ResourceCategory(i18nLazyString(UIStrings.javascript), i18nLazyString(UIStrings.js)),
-  Image: new ResourceCategory(i18nLazyString(UIStrings.image), i18nLazyString(UIStrings.img)),
-  Media: new ResourceCategory(i18nLazyString(UIStrings.media), i18nLazyString(UIStrings.media)),
-  Other: new ResourceCategory(i18nLazyString(UIStrings.other), i18nLazyString(UIStrings.other)),
+  XHR: new ResourceCategory(
+    'Fetch and XHR', i18nLazyString(UIStrings.fetchAndXHR), i18n.i18n.lockedLazyString('Fetch/XHR')),
+  Script:
+    new ResourceCategory(UIStrings.javascript, i18nLazyString(UIStrings.javascript), i18nLazyString(UIStrings.js)),
+  Image: new ResourceCategory(UIStrings.image, i18nLazyString(UIStrings.image), i18nLazyString(UIStrings.img)),
+  Media: new ResourceCategory(UIStrings.media, i18nLazyString(UIStrings.media), i18nLazyString(UIStrings.media)),
+  Other: new ResourceCategory(UIStrings.other, i18nLazyString(UIStrings.other), i18nLazyString(UIStrings.other)),
 };
 
 /**

@@ -3,10 +3,12 @@
 // found in the LICENSE file.
 
 import type * as Platform from '../../../core/platform/platform.js';
+import * as Root from '../../../core/root/root.js';
 import type * as Protocol from '../../../generated/protocol.js';
 import * as Trace from '../../../models/trace/trace.js';
 
 export class EntityMapper {
+  #isReactNative: boolean;
   #parsedTrace: Trace.Handlers.Types.ParsedTrace;
   #entityMappings: Trace.Handlers.Helpers.EntityMappings;
   #firstPartyEntity: Trace.Handlers.Helpers.Entity|null;
@@ -22,11 +24,20 @@ export class EntityMapper {
   constructor(parsedTrace: Trace.Handlers.Types.ParsedTrace) {
     this.#parsedTrace = parsedTrace;
     this.#entityMappings = this.#parsedTrace.Renderer.entityMappings;
+    this.#isReactNative = Root.Runtime.experiments.isEnabled(
+      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+    );
     this.#firstPartyEntity = this.#findFirstPartyEntity();
     this.#thirdPartyEvents = this.#getThirdPartyEvents();
   }
 
   #findFirstPartyEntity(): Trace.Handlers.Helpers.Entity|null {
+    // [RN] Used to scope down available features for React Native targets
+    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+    if (this.#isReactNative) {
+      return null;
+    }
+
     // As a starting point, we consider the first navigation as the 1P.
     const nav = Array.from(this.#parsedTrace.Meta.navigationsByNavigationId.values()).sort((a, b) => a.ts - b.ts)[0];
     const firstPartyUrl = nav?.args.data?.documentLoaderURL ?? this.#parsedTrace.Meta.mainFrameURL;
@@ -48,6 +59,11 @@ export class EntityMapper {
    * Returns an entity for a given event if any.
    */
   entityForEvent(event: Trace.Types.Events.Event): Trace.Handlers.Helpers.Entity|null {
+    // [RN] Used to scope down available features for React Native targets
+    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+    if (this.#isReactNative) {
+      return null;
+    }
     return this.#entityMappings.entityByEvent.get(event) ?? null;
   }
 

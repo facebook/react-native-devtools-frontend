@@ -54,7 +54,6 @@ import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import {ConsoleContextSelector} from './ConsoleContextSelector.js';
 import {ConsoleFilter, FilterType, type LevelsMask} from './ConsoleFilter.js';
-import {ConsolePinPane} from './ConsolePinPane.js';
 import {ConsolePrompt, Events as ConsolePromptEvents} from './ConsolePrompt.js';
 import {ConsoleSidebar, Events} from './ConsoleSidebar.js';
 import consoleViewStyles from './consoleView.css.js';
@@ -148,10 +147,6 @@ const UIStrings = {
    *@description Description of a setting that controls whether XMLHttpRequests are logged in the console.
    */
   logXMLHttpRequests: 'Log XMLHttpRequests',
-  /**
-   *@description Tooltip text that appears on the setting when hovering over it in Console View of the Console panel
-   */
-  eagerlyEvaluateTextInThePrompt: 'Eagerly evaluate text in the prompt',
   /**
    *@description Description of a setting that controls whether text typed in the console should be autocompleted from commands executed in the local console history.
    */
@@ -295,7 +290,8 @@ export class ConsoleView extends UI.Widget.VBox implements
   private readonly timestampsSetting: Common.Settings.Setting<unknown>;
   private readonly consoleHistoryAutocompleteSetting: Common.Settings.Setting<boolean>;
   private selfXssWarningDisabledSetting: Common.Settings.Setting<boolean>;
-  readonly pinPane: ConsolePinPane;
+  // TODO(T225263604): Restore Live Expressions panel
+  // readonly pinPane: ConsolePinPane;
   private viewport: ConsoleViewport;
   private messagesElement: HTMLElement;
   private messagesCountElement: HTMLElement;
@@ -416,8 +412,9 @@ export class ConsoleView extends UI.Widget.VBox implements
     toolbar.appendSeparator();
     toolbar.appendToolbarItem(this.consoleContextSelector.toolbarItem());
     toolbar.appendSeparator();
-    const liveExpressionButton = UI.Toolbar.Toolbar.createActionButton('console.create-pin');
-    toolbar.appendToolbarItem(liveExpressionButton);
+    // TODO(T225263604): Restore Live Expressions panel
+    // const liveExpressionButton = UI.Toolbar.Toolbar.createActionButton('console.create-pin');
+    // toolbar.appendToolbarItem(liveExpressionButton);
     toolbar.appendSeparator();
     toolbar.appendToolbarItem(this.filter.textFilterUI);
     toolbar.appendToolbarItem(this.filter.levelMenuButton);
@@ -452,7 +449,8 @@ export class ConsoleView extends UI.Widget.VBox implements
     UI.ARIAUtils.setLabel(settingsPane, i18nString(UIStrings.consoleSettings));
     UI.ARIAUtils.markAsGroup(settingsPane);
 
-    const consoleEagerEvalSetting = Common.Settings.Settings.instance().moduleSetting('console-eager-eval');
+    // TODO(T225263604): Restore this setting
+    // const consoleEagerEvalSetting = Common.Settings.Settings.instance().moduleSetting('console-eager-eval');
     const preserveConsoleLogSetting = Common.Settings.Settings.instance().moduleSetting('preserve-console-log');
     const userActivationEvalSetting = Common.Settings.Settings.instance().moduleSetting('console-user-activation-eval');
     settingsPane.append(
@@ -463,9 +461,10 @@ export class ConsoleView extends UI.Widget.VBox implements
         UI.SettingsUI.createSettingCheckbox(
             i18nString(UIStrings.preserveLog), preserveConsoleLogSetting,
             i18nString(UIStrings.doNotClearLogOnPageReload)),
-        UI.SettingsUI.createSettingCheckbox(
-            consoleEagerEvalSetting.title(), consoleEagerEvalSetting,
-            i18nString(UIStrings.eagerlyEvaluateTextInThePrompt)),
+        // TODO(T225263604): Restore this setting
+        // UI.SettingsUI.createSettingCheckbox(
+        //     consoleEagerEvalSetting.title(), consoleEagerEvalSetting,
+        //     i18nString(UIStrings.eagerlyEvaluateTextInThePrompt)),
         UI.SettingsUI.createSettingCheckbox(
             i18nString(UIStrings.selectedContextOnly), this.filter.filterByExecutionContextSetting,
             i18nString(UIStrings.onlyShowMessagesFromTheCurrentContext)),
@@ -488,10 +487,10 @@ export class ConsoleView extends UI.Widget.VBox implements
     }
     this.showSettingsPaneSetting.addChangeListener(
         () => settingsPane.classList.toggle('hidden', !this.showSettingsPaneSetting.get()));
-
-    this.pinPane = new ConsolePinPane(liveExpressionButton, () => this.prompt.focus());
-    this.pinPane.element.classList.add('console-view-pinpane');
-    this.pinPane.show(this.contentsElement);
+    // TODO(T225263604): Restore Live Expressions panel
+    // this.pinPane = new ConsolePinPane(liveExpressionButton, () => this.prompt.focus());
+    // this.pinPane.element.classList.add('console-view-pinpane');
+    // this.pinPane.show(this.contentsElement);
 
     this.viewport = new ConsoleViewport(this);
     this.viewport.setStickToBottom(true);
@@ -1830,9 +1829,10 @@ export class ActionDelegate implements UI.ActionRegistration.ActionDelegate {
       case 'console.clear.history':
         ConsoleView.instance().clearHistory();
         return true;
-      case 'console.create-pin':
-        ConsoleView.instance().pinPane.addPin('', true /* userGesture */);
-        return true;
+      // TODO(T225263604): Restore Live Expressions panel
+      // case 'console.create-pin':
+      //   ConsoleView.instance().pinPane.addPin('', true /* userGesture */);
+      //   return true;
     }
     return false;
   }

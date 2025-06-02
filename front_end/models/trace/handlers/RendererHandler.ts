@@ -26,11 +26,6 @@ import type {HandlerName} from './types.js';
  * event type.
  */
 
-// [RN] Used to scope down available features for React Native targets
-let isReactNative = Root.Runtime.experiments.isEnabled(
-  Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
-);
-
 const processes = new Map<Types.Events.ProcessID, RendererProcess>();
 
 let entityMappings: HandlerHelpers.EntityMappings = {
@@ -255,8 +250,9 @@ export function assignThreadName(
  *  - Deletes processes with an unknown origin.
  */
 export function sanitizeProcesses(processes: Map<Types.Events.ProcessID, RendererProcess>): void {
+  // [RN] Used to scope down available features for React Native targets
   // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
-  if (isReactNative) {
+  if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI)) {
     return;
   }
   const auctionWorklets = auctionWorkletsData().worklets;

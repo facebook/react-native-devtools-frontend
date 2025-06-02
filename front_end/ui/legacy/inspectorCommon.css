@@ -50,6 +50,7 @@ body {
   font-size: var(
     --source-code-font-size
   ) !important; /* stylelint-disable-line declaration-no-important */
+
   white-space: pre-wrap;
 
   &:not(input)::selection {
@@ -355,6 +356,7 @@ input[type="range"]:disabled::-webkit-slider-thumb {
   color: var(
     --sys-color-on-surface
   ) !important; /* stylelint-disable-line declaration-no-important */
+
   text-decoration: none !important; /* stylelint-disable-line declaration-no-important */
 }
 
@@ -657,6 +659,7 @@ input.custom-search-input::-webkit-search-cancel-button:hover {
   from {
     transform: rotate(0);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -1179,10 +1182,7 @@ devtools-toolbar {
 
 /* Syntax highlighting */
 .webkit-css-property {
-  color: var(
-    --webkit-css-property-color,
-    var(--sys-color-token-property-special)
-  ); /* stylelint-disable-line plugin/use_theme_colors */ /* See: crbug.com/1152736 for color variable migration. */
+  color: var(--webkit-css-property-color, var(--sys-color-token-property-special)); /* stylelint-disable-line plugin/use_theme_colors */ /* See: crbug.com/1152736 for color variable migration. */
 }
 
 .webkit-html-comment {
@@ -1217,12 +1217,11 @@ devtools-toolbar {
 
 .webkit-html-entity-value {
   /* This one is non-standard. */
-  background-color: rgb(
-    0 0 0 / 15%
-  ); /* stylelint-disable-line plugin/use_theme_colors */
+  background-color: rgb(0 0 0 / 15%); /* stylelint-disable-line plugin/use_theme_colors */
   /* See: crbug.com/1152736 for color variable migration. */
   unicode-bidi: -webkit-isolate;
 }
+
 
 .webkit-html-doctype {
   /* Keep this in sync with view-source.css (.webkit-html-doctype) */

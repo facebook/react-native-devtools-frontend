@@ -3,28 +3,27 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import type * as Common from '../../core/common/common.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as ReactNativeModels from '../../models/react_native/react_native.js';
 import * as ReactDevTools from '../../third_party/react-devtools/react-devtools.js';
-
 import type * as ReactDevToolsTypes from '../../third_party/react-devtools/react-devtools.js';
-import type * as Common from '../../core/common/common.js';
 
 export const enum Events {
-  InitializationCompleted = 'InitializationCompleted',
-  InitializationFailed = 'InitializationFailed',
-  Destroyed = 'Destroyed',
+  INITIALIZATION_COMPLETED = 'InitializationCompleted',
+  INITIALIZATION_FAILED = 'InitializationFailed',
+  DESTROYED = 'Destroyed',
 }
 
-export type EventTypes = {
-  [Events.InitializationCompleted]: void,
-  [Events.InitializationFailed]: string,
-  [Events.Destroyed]: void,
-};
+export interface EventTypes {
+  [Events.INITIALIZATION_COMPLETED]: void;
+  [Events.INITIALIZATION_FAILED]: string;
+  [Events.DESTROYED]: void;
+}
 
 type ReactDevToolsBindingsBackendExecutionContextUnavailableEvent = Common.EventTarget.EventTargetEvent<
   ReactNativeModels.ReactDevToolsBindingsModel.EventTypes[
-    ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextUnavailable
+    ReactNativeModels.ReactDevToolsBindingsModel.Events.BACKEND_EXECUTION_CONTEXT_UNAVAILABLE
   ]
 >;
 
@@ -33,9 +32,9 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
 
   readonly #wall: ReactDevToolsTypes.Wall;
   readonly #bindingsModel: ReactNativeModels.ReactDevToolsBindingsModel.ReactDevToolsBindingsModel;
-  readonly #listeners: Set<ReactDevToolsTypes.WallListener> = new Set();
-  #initializeCalled: boolean = false;
-  #initialized: boolean = false;
+  readonly #listeners = new Set<ReactDevToolsTypes.WallListener>();
+  #initializeCalled = false;
+  #initialized = false;
   #bridge: ReactDevToolsTypes.Bridge | null = null;
   #store: ReactDevToolsTypes.Store | null = null;
 
@@ -43,7 +42,7 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     super(target);
 
     this.#wall = {
-      listen: (listener): Function => {
+      listen: (listener): () => void => {
         this.#listeners.add(listener);
 
         return (): void => {
@@ -61,17 +60,17 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     this.#bindingsModel = bindingsModel;
 
     bindingsModel.addEventListener(
-      ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextCreated,
+      ReactNativeModels.ReactDevToolsBindingsModel.Events.BACKEND_EXECUTION_CONTEXT_CREATED,
       this.#handleBackendExecutionContextCreated,
       this,
     );
     bindingsModel.addEventListener(
-      ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextUnavailable,
+      ReactNativeModels.ReactDevToolsBindingsModel.Events.BACKEND_EXECUTION_CONTEXT_UNAVAILABLE,
       this.#handleBackendExecutionContextUnavailable,
       this,
     );
     bindingsModel.addEventListener(
-      ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextDestroyed,
+      ReactNativeModels.ReactDevToolsBindingsModel.Events.BACKEND_EXECUTION_CONTEXT_DESTROYED,
       this.#handleBackendExecutionContextDestroyed,
       this,
     );
@@ -85,17 +84,17 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     this.#bridge?.shutdown();
 
     this.#bindingsModel.removeEventListener(
-        ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextCreated,
+        ReactNativeModels.ReactDevToolsBindingsModel.Events.BACKEND_EXECUTION_CONTEXT_CREATED,
         this.#handleBackendExecutionContextCreated,
         this,
     );
     this.#bindingsModel.removeEventListener(
-        ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextUnavailable,
+        ReactNativeModels.ReactDevToolsBindingsModel.Events.BACKEND_EXECUTION_CONTEXT_UNAVAILABLE,
         this.#handleBackendExecutionContextUnavailable,
         this,
     );
     this.#bindingsModel.removeEventListener(
-        ReactNativeModels.ReactDevToolsBindingsModel.Events.BackendExecutionContextDestroyed,
+        ReactNativeModels.ReactDevToolsBindingsModel.Events.BACKEND_EXECUTION_CONTEXT_DESTROYED,
         this.#handleBackendExecutionContextDestroyed,
         this,
     );
@@ -131,7 +130,7 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
       this.#initialized = true;
       this.#finishInitializationAndNotify();
     } catch (e) {
-      this.dispatchEventToListeners(Events.InitializationFailed, e.message);
+      this.dispatchEventToListeners(Events.INITIALIZATION_FAILED, e.message);
     }
   }
 
@@ -171,7 +170,7 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
       throw new Error('Failed to send message from ReactDevToolsModel: ReactDevToolsBindingsModel was null');
     }
 
-    return rdtBindingsModel.sendMessage(ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE, message);
+    return await rdtBindingsModel.sendMessage(ReactDevToolsModel.FUSEBOX_BINDING_NAMESPACE, message);
   }
 
   #handleBeforeUnload = (): void => {
@@ -198,7 +197,7 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
       supportsReloadAndProfile: true,
     });
     this.#bridge.addListener('reloadAppForProfiling', this.#handleReloadAppForProfiling);
-    this.dispatchEventToListeners(Events.InitializationCompleted);
+    this.dispatchEventToListeners(Events.INITIALIZATION_COMPLETED);
   }
 
   #handleReloadAppForProfiling(): void {
@@ -207,7 +206,7 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
   }
 
   #handleBackendExecutionContextUnavailable({data: errorMessage}: ReactDevToolsBindingsBackendExecutionContextUnavailableEvent): void {
-    this.dispatchEventToListeners(Events.InitializationFailed, errorMessage);
+    this.dispatchEventToListeners(Events.INITIALIZATION_FAILED, errorMessage);
   }
 
   #handleBackendExecutionContextDestroyed(): void {
@@ -216,7 +215,7 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     this.#store = null;
     this.#listeners.clear();
 
-    this.dispatchEventToListeners(Events.Destroyed);
+    this.dispatchEventToListeners(Events.DESTROYED);
   }
 }
 

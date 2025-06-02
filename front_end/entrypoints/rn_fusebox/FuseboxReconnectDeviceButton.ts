@@ -18,21 +18,21 @@ const UIStrings = {
    *@description Button label of the connection status toolbar button while disconnected
    */
   connectionStatusDisconnectedLabel: 'Reconnect DevTools',
-};
-const str_ = i18n.i18n.registerUIStrings('entrypoints/rn_fusebox/ConnectionStatusToolbarItem.ts', UIStrings);
+} as const;
+const str_ = i18n.i18n.registerUIStrings('entrypoints/rn_fusebox/FuseboxReconnectDeviceButton.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
 let connectionStatusIndicatorInstance: FuseboxReconnectDeviceButton;
 
-export default class FuseboxReconnectDeviceButton extends SDK.TargetManager.Observer implements
+export class FuseboxReconnectDeviceButton extends SDK.TargetManager.Observer implements
     UI.Toolbar.Provider {
   #button = new UI.Toolbar.ToolbarButton('');
 
   private constructor() {
     super();
     this.#button.setVisible(false);
-    this.#button.element.classList.add('fusebox-connection-status');
-    this.#button.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, this.#handleClick.bind(this));
+    this.#button.setGlyph(UI.ActionRegistration.IconClass.REFRESH);
+    this.#button.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.#handleClick.bind(this));
 
     SDK.TargetManager.TargetManager.instance().observeTargets(this, {scoped: true});
   }

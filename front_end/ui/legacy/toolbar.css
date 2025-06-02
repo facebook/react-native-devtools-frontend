@@ -43,39 +43,6 @@ devtools-toolbar-input {
   display: flex;
 }
 
-/* [RN] Customise styling for internal "Send Feedback" button */
-
-[aria-label="[FB-only] Send feedback"] {
-  height: 20px;
-  padding: 0 4px;
-  border: 1px solid var(--color-details-hairline);
-  border-radius: 4px;
-  background: transparent;
-}
-
-[aria-label="[FB-only] Send feedback"]:hover {
-  background: color-mix(in srgb, var(--app-color-toolbar-background) 95%, black);
-}
-
-/* [RN] Customise styling for Fusebox's connection status button */
-
-.fusebox-connection-status {
-  margin: 4px;
-  height: 20px;
-  padding: 0 4px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--color-red) 80%, transparent);
-}
-
-.fusebox-connection-status:hover {
-  background: color-mix(in srgb, var(--color-red) 90%, transparent);
-}
-
-.fusebox-connection-status .toolbar-text,
-.fusebox-connection-status .toolbar-glyph {
-  color: white !important;
-}
-
 .toolbar-item.open-in-external-editor-button {
   background-color: transparent;
   border: none;

@@ -106,7 +106,7 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectWrapper<EventTypes> implements
     PerfUI.FlameChart.FlameChartDataProvider {
-  private isReactNative: boolean = false;
+  private isReactNative = false;
 
   private droppedFramePatternCanvas: HTMLCanvasElement;
   private partialFramePatternCanvas: HTMLCanvasElement;

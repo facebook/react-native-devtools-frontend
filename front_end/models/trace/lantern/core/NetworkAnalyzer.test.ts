@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
 import {TraceLoader} from '../../../../testing/TraceLoader.js';
 import * as Trace from '../../trace.js';
 import * as Lantern from '../lantern.js';
@@ -14,7 +15,7 @@ async function createRequests(trace: Lantern.Types.Trace) {
   return Trace.LanternComputationData.createNetworkRequests(trace, parsedTrace);
 }
 
-describe('NetworkAnalyzer', () => {
+describeWithEnvironment('NetworkAnalyzer', () => {
   let trace: Lantern.Types.Trace;
   let traceWithRedirect: Lantern.Types.Trace;
   before(async function() {

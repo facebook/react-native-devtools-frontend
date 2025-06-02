@@ -39,12 +39,6 @@ export let InspectorBackendAPI;
  */
 export function registerCommands(inspectorBackend) {
 
-
-// ReactNativeApplication.
-inspectorBackend.registerEvent("ReactNativeApplication.metadataUpdated", ["appDisplayName", "appIdentifier", "deviceName", "integrationName", "platform", "reactNativeVersion", "unstable_isProfilingBuild", "unstable_networkInspectionEnabled"]);
-inspectorBackend.registerCommand("ReactNativeApplication.disable", [], [], "Disables events from backend.");
-inspectorBackend.registerCommand("ReactNativeApplication.enable", [], [], "Enables events from backend.");
-
 // Accessibility.
 inspectorBackend.registerEnum("Accessibility.AXValueType", {Boolean: "boolean", Tristate: "tristate", BooleanOrUndefined: "booleanOrUndefined", Idref: "idref", IdrefList: "idrefList", Integer: "integer", Node: "node", NodeList: "nodeList", Number: "number", String: "string", ComputedString: "computedString", Token: "token", TokenList: "tokenList", DomRelation: "domRelation", Role: "role", InternalRole: "internalRole", ValueUndefined: "valueUndefined"});
 inspectorBackend.registerEnum("Accessibility.AXValueSourceType", {Attribute: "attribute", Implicit: "implicit", Style: "style", Contents: "contents", Placeholder: "placeholder", RelatedElement: "relatedElement"});
@@ -1041,6 +1035,11 @@ inspectorBackend.registerType("PerformanceTimeline.LargestContentfulPaint", [{"n
 inspectorBackend.registerType("PerformanceTimeline.LayoutShiftAttribution", [{"name": "previousRect", "type": "object", "optional": false, "description": "", "typeRef": "DOM.Rect"}, {"name": "currentRect", "type": "object", "optional": false, "description": "", "typeRef": "DOM.Rect"}, {"name": "nodeId", "type": "number", "optional": true, "description": "", "typeRef": "DOM.BackendNodeId"}]);
 inspectorBackend.registerType("PerformanceTimeline.LayoutShift", [{"name": "value", "type": "number", "optional": false, "description": "Score increment produced by this event.", "typeRef": null}, {"name": "hadRecentInput", "type": "boolean", "optional": false, "description": "", "typeRef": null}, {"name": "lastInputTime", "type": "number", "optional": false, "description": "", "typeRef": "Network.TimeSinceEpoch"}, {"name": "sources", "type": "array", "optional": false, "description": "", "typeRef": "PerformanceTimeline.LayoutShiftAttribution"}]);
 inspectorBackend.registerType("PerformanceTimeline.TimelineEvent", [{"name": "frameId", "type": "string", "optional": false, "description": "Identifies the frame that this event is related to. Empty for non-frame targets.", "typeRef": "Page.FrameId"}, {"name": "type", "type": "string", "optional": false, "description": "The event type, as specified in https://w3c.github.io/performance-timeline/#dom-performanceentry-entrytype This determines which of the optional \\\"details\\\" fields is present.", "typeRef": null}, {"name": "name", "type": "string", "optional": false, "description": "Name may be empty depending on the type.", "typeRef": null}, {"name": "time", "type": "number", "optional": false, "description": "Time in seconds since Epoch, monotonically increasing within document lifetime.", "typeRef": "Network.TimeSinceEpoch"}, {"name": "duration", "type": "number", "optional": true, "description": "Event duration, if applicable.", "typeRef": null}, {"name": "lcpDetails", "type": "object", "optional": true, "description": "", "typeRef": "PerformanceTimeline.LargestContentfulPaint"}, {"name": "layoutShiftDetails", "type": "object", "optional": true, "description": "", "typeRef": "PerformanceTimeline.LayoutShift"}]);
+
+// ReactNativeApplication.
+inspectorBackend.registerEvent("ReactNativeApplication.metadataUpdated", ["appDisplayName", "appIdentifier", "deviceName", "integrationName", "platform", "reactNativeVersion", "unstable_isProfilingBuild", "unstable_networkInspectionEnabled"]);
+inspectorBackend.registerCommand("ReactNativeApplication.disable", [], [], "Disables events from backend.");
+inspectorBackend.registerCommand("ReactNativeApplication.enable", [], [], "Enables events from backend.");
 
 // Security.
 inspectorBackend.registerEnum("Security.MixedContentType", {Blockable: "blockable", OptionallyBlockable: "optionally-blockable", None: "none"});

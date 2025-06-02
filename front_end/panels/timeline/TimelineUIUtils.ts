@@ -1216,13 +1216,28 @@ export class TimelineUIUtils {
           break;
         }
         const callFrame = profileCall.callFrame;
-        // Render the URL with its location content.
-        contentHelper.appendLocationRow(
+        // [RN] Used to scope down available features for React Native targets
+        // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+        const isReactNative = Root.Runtime.experiments.isEnabled(
+          Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+        );
+
+        if (isReactNative) {
+          contentHelper.reactNativeAppendLocationRow(
+            i18nString(UIStrings.source), resolvedURL, callFrame.scriptId, callFrame.lineNumber || 0, callFrame.columnNumber, undefined,
+            true);
+        } else {
+          // Render the URL with its location content.
+          contentHelper.appendLocationRow(
             i18nString(UIStrings.source), resolvedURL, callFrame.lineNumber || 0, callFrame.columnNumber, undefined,
             true);
-        const originWithEntity = this.getOriginWithEntity(entityMapper, parsedTrace, profileCall);
-        if (originWithEntity) {
-          contentHelper.appendElementRow(i18nString(UIStrings.origin), originWithEntity);
+        }
+
+        if (!isReactNative) {
+          const originWithEntity = this.getOriginWithEntity(entityMapper, parsedTrace, profileCall);
+          if (originWithEntity) {
+            contentHelper.appendElementRow(i18nString(UIStrings.origin), originWithEntity);
+          }
         }
         entityAppended = true;
         break;
@@ -1824,12 +1839,17 @@ export class TimelineUIUtils {
     let initiatorStackLabel = i18nString(UIStrings.initiatorStackTrace);
     let stackLabel = i18nString(UIStrings.stackTrace);
     const stackTraceForEvent = Trace.Extras.StackTraceForEvent.get(event, parsedTrace);
-    if (stackTraceForEvent) {
+    // [RN] Used to scope down available features for React Native targets
+    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+    const isReactNative = Root.Runtime.experiments.isEnabled(
+      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+    );
+    if (stackTraceForEvent && !isReactNative) {
       contentHelper.addSection(i18nString(UIStrings.stackTrace));
       contentHelper.createChildStackTraceElement(stackTraceForEvent);
       // TODO(andoli): also build stack trace component for other events
       // that have a stack trace using the StackTraceForEvent helper.
-    } else {
+    } else if (!isReactNative) {
       const stackTrace = Trace.Helpers.Trace.getZeroIndexedStackTraceForEvent(event);
       if (stackTrace?.length) {
         contentHelper.addSection(stackLabel);
@@ -2552,6 +2572,28 @@ export class TimelineDetailsContentHelper {
     };
     const link = this.linkifierInternal.maybeLinkifyScriptLocation(
         this.target, null, url as Platform.DevToolsPath.UrlString, startLine, options);
+    if (!link) {
+      return;
+    }
+    this.appendElementRow(title, link);
+  }
+
+  reactNativeAppendLocationRow(
+    title: string, url: string, scriptId: Protocol.Runtime.ScriptId|null, startLine: number, startColumn?: number, text?: string, omitOrigin?: boolean): void {
+    if (!this.linkifierInternal) {
+      return;
+    }
+
+    const options = {
+      tabStop: true,
+      columnNumber: startColumn,
+      showColumnNumber: true,
+      inlineFrameIndex: 0,
+      text,
+      omitOrigin,
+    };
+    const link = this.linkifierInternal.maybeLinkifyScriptLocation(
+      this.target, scriptId, url as Platform.DevToolsPath.UrlString, startLine, options);
     if (!link) {
       return;
     }

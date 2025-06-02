@@ -60,20 +60,14 @@ const BLOCK_LICENSE_HEADER = [
   'OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.',
 ];
 
-<<<<<<< HEAD:scripts/eslint_rules/lib/check_license_header.js
-const LINE_REGEXES =
-    LINE_LICENSE_HEADER.map(line => new RegExp('[ ]?' + line.replace(CURRENT_YEAR, '(\\(c\\) )?\\d{4}')));
-const META_LINE_REGEXES = [new RegExp('[ ]?' + META_LINE_LICENSE_HEADER[0]), ...LINE_REGEXES];
-const BLOCK_REGEX = new RegExp('[\\s\\\\n\\*]*' + BLOCK_LICENSE_HEADER.join('[\\s\\\\n\\*]*'), 'm');
-=======
 const LINE_REGEXES = LINE_LICENSE_HEADER.map(
     line => new RegExp('[ ]?' + line.replace(CURRENT_YEAR, '(\\(c\\) )?\\d{4}')),
 );
+const META_LINE_REGEXES = [new RegExp('[ ]?' + META_LINE_LICENSE_HEADER[0]), ...LINE_REGEXES];
 const BLOCK_REGEX = new RegExp(
     '[\\s\\\\n\\*]*' + BLOCK_LICENSE_HEADER.join('[\\s\\\\n\\*]*'),
     'm',
 );
->>>>>>> chromedevtools/chromium/7103:scripts/eslint_rules/lib/check-license-header.js
 
 const LICENSE_HEADER_ADDITION = LINE_LICENSE_HEADER.map(line => `// ${line}`).join('\n') + '\n\n';
 const META_LICENSE_HEADER_ADDITION = META_LINE_LICENSE_HEADER.map(line => `// ${line}`).join('\n') + '\n\n';
@@ -238,25 +232,9 @@ module.exports = {
               fix(fixer) {
                 return fixer.insertTextBefore(
                   firstCommentToCheck,
-<<<<<<< HEAD:scripts/eslint_rules/lib/check_license_header.js
                   licenseType === 'meta' ? META_LICENSE_HEADER_ADDITION : LICENSE_HEADER_ADDITION,
                 );
-              }
-            });
-          }
-        } else {
-          if (isMissingBlockLineCommentLicense(firstCommentToCheck.value)) {
-            context.report({
-              node,
-              message: 'Incorrect block license header',
-              fix(fixer) {
-                return fixer.insertTextBefore(firstCommentToCheck, LICENSE_HEADER_ADDITION);
-              }
-=======
-                  LICENSE_HEADER_ADDITION,
-                );
               },
->>>>>>> chromedevtools/chromium/7103:scripts/eslint_rules/lib/check-license-header.js
             });
           }
         } else if (

@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
 import {TraceLoader} from '../../../../testing/TraceLoader.js';
 import * as Lantern from '../lantern.js';
 import {getComputationDataFromFixture, toLanternTrace} from '../testing/testing.js';
@@ -10,7 +11,7 @@ const {SpeedIndex, FirstContentfulPaint} = Lantern.Metrics;
 
 const defaultThrottling = Lantern.Simulation.Constants.throttling.mobileSlow4G;
 
-describe('Metrics: Lantern Speed Index', () => {
+describeWithEnvironment('Metrics: Lantern Speed Index', () => {
   let trace: Lantern.Types.Trace;
   before(async function() {
     trace = toLanternTrace(await TraceLoader.rawEvents(this, 'lantern/progressive-app/trace.json.gz'));

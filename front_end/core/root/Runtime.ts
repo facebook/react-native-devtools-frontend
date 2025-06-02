@@ -302,7 +302,6 @@ export class Experiment {
 export const experiments = new ExperimentsSupport();
 
 // React Native-specific experiments, see rn_experiments.ts
-// eslint-disable-next-line rulesdir/const_enum
 export enum RNExperimentName {
   REACT_NATIVE_SPECIFIC_UI = 'react-native-specific-ui',
   JS_HEAP_PROFILER_ENABLE = 'js-heap-profiler-enable',
@@ -310,13 +309,11 @@ export enum RNExperimentName {
   ENABLE_NETWORK_PANEL = 'enable-network-panel',
 }
 
-// TODO(crbug.com/1167717): Make this a const enum again
-// eslint-disable-next-line rulesdir/const_enum
 export enum ConditionName {
-  CAN_DOCK = 'can_dock',
   NOT_SOURCES_HIDE_ADD_FOLDER = '!sources.hide_add_folder',
   REACT_NATIVE_UNSTABLE_NETWORK_PANEL = 'unstable_enableNetworkPanel',
 }
+
 export const enum ExperimentName {
   CAPTURE_NODE_CREATION_STACKS = 'capture-node-creation-stacks',
   CSS_OVERVIEW = 'css-overview',

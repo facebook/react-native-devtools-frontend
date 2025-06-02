@@ -2,13 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
 import {TraceLoader} from '../../../../testing/TraceLoader.js';
 import * as Lantern from '../lantern.js';
 import {getComputationDataFromFixture, toLanternTrace} from '../testing/testing.js';
 
 const {FirstContentfulPaint, LargestContentfulPaint} = Lantern.Metrics;
 
-describe('Metrics: Lantern LCP', function() {
+describeWithEnvironment('Metrics: Lantern LCP', function() {
   TraceLoader.setTestTimeout(this);
   let trace: Lantern.Types.Trace;
   before(async function() {

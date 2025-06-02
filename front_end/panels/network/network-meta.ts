@@ -149,8 +149,6 @@ const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 let loadedNetworkModule: (typeof Network|undefined);
 
-const isNode = Root.Runtime.Runtime.isNode();
-
 async function loadNetworkModule(): Promise<typeof Network> {
   if (!loadedNetworkModule) {
     loadedNetworkModule = await import('./network.js');

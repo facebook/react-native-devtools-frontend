@@ -4,6 +4,11 @@
  * found in the LICENSE file.
  */
 
+.widget {
+  padding: var(--sys-size-8);
+  user-select: text;
+}
+
 .header {
   padding-top: var(--sys-size-3);
   margin: var(--sys-size-5) var(--sys-size-5) var(--sys-size-5)
@@ -20,7 +25,7 @@
 .remote-debugging-terminated-message {
   font-size: 14px;
   margin: 5px 0;
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .remote-debugging-terminated-options {
@@ -28,8 +33,6 @@
   grid-template-columns: 1fr auto;
   grid-gap: 8px;
   align-items: center;
-  padding-top: 12px;
-  border-top: 1px solid var(--color-details-hairline-light);
 }
 
 .remote-debugging-terminated-label {
@@ -48,10 +51,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-top: 16px;
   padding: 12px 16px;
-  background-color: var(--color-background-elevation-1);
+  background-color: var(--color-background-elevation-2);
   border-radius: 6px;
+  margin-bottom: 12px;
 }
 
 .remote-debugging-terminated-feedback-label {
@@ -59,13 +62,16 @@
   margin-bottom: 8px;
 }
 
-.remote-debugging-terminated-reason {
-  --override-reason-color: #8b0000;
-
-  color: var(--override-reason-color);
+.remote-debugging-terminated-feedback-launch-id {
+  color: var(--color-red);
 }
 
-.theme-with-dark-background .reason,
-:host-context(.theme-with-dark-background) .reason {
-  --override-reason-color: rgb(255 116 116);
+.remote-debugging-terminated-reason {
+  color: var(--color-red);
+  margin: 8px;
+
+  textarea {
+    width: 100%;
+    resize: none;
+  }
 }

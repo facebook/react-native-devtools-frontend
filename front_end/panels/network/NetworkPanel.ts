@@ -273,7 +273,7 @@ export class NetworkPanel extends UI.Panel.Panel implements
             i18nString(UIStrings.groupRequestsByTopLevelRequest)),
         UI.SettingsUI.createSettingCheckbox(
             i18nString(UIStrings.showOverview), this.networkLogShowOverviewSetting,
-            i18nString(UIStrings.showOverviewOfNetworkRequests)),  
+            i18nString(UIStrings.showOverviewOfNetworkRequests)),
     );
     // [RN] Disable capture screenshots toggle
     if (!this.isReactNative) {

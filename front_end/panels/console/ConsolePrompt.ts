@@ -53,7 +53,8 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
   private readonly innerPreviewElement: HTMLElement;
   private readonly promptIcon: IconButton.Icon.Icon;
   private readonly iconThrottler: Common.Throttler.Throttler;
-  private readonly eagerEvalSetting: Common.Settings.Setting<boolean>;
+  // TODO(T225263604): Restore this setting
+  // private readonly eagerEvalSetting: Common.Settings.Setting<boolean>;
   private previewRequestForTest: Promise<void>|null;
   private highlightingNode: boolean;
   // The CodeMirror state field that controls whether the argument hints are showing.
@@ -113,9 +114,10 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
     this.element.appendChild(this.promptIcon);
     this.iconThrottler = new Common.Throttler.Throttler(0);
 
-    this.eagerEvalSetting = Common.Settings.Settings.instance().moduleSetting('console-eager-eval');
-    this.eagerEvalSetting.addChangeListener(this.eagerSettingChanged.bind(this));
-    this.eagerPreviewElement.classList.toggle('hidden', !this.eagerEvalSetting.get());
+    // TODO(T225263604): Restore this setting
+    // this.eagerEvalSetting = Common.Settings.Settings.instance().moduleSetting('console-eager-eval');
+    // this.eagerEvalSetting.addChangeListener(this.eagerSettingChanged.bind(this));
+    // this.eagerPreviewElement.classList.toggle('hidden', !this.eagerEvalSetting.get());
 
     this.element.tabIndex = 0;
     this.previewRequestForTest = null;
@@ -171,13 +173,14 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
                               })}`);
   }
 
-  private eagerSettingChanged(): void {
-    const enabled = this.eagerEvalSetting.get();
-    this.eagerPreviewElement.classList.toggle('hidden', !enabled);
-    if (enabled) {
-      void this.requestPreview();
-    }
-  }
+  // TODO(T225263604): Restore this setting
+  // private eagerSettingChanged(): void {
+  //   const enabled = this.eagerEvalSetting.get();
+  //   this.eagerPreviewElement.classList.toggle('hidden', !enabled);
+  //   if (enabled) {
+  //     void this.requestPreview();
+  //   }
+  // }
 
   belowEditorElement(): Element {
     return this.eagerPreviewElement;
@@ -186,12 +189,13 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
   private onTextChanged(): void {
     // ConsoleView and prompt both use a throttler, so we clear the preview
     // ASAP to avoid inconsistency between a fresh viewport and stale preview.
-    if (this.eagerEvalSetting.get()) {
-      const asSoonAsPossible = !TextEditor.Config.contentIncludingHint(this.editor.editor);
-      this.previewRequestForTest = this.textChangeThrottler.schedule(
-          this.requestPreviewBound,
-          asSoonAsPossible ? Common.Throttler.Scheduling.AS_SOON_AS_POSSIBLE : Common.Throttler.Scheduling.DEFAULT);
-    }
+    // TODO(T225263604): Restore eager evaluation support
+    // if (this.eagerEvalSetting.get()) {
+    //   const asSoonAsPossible = !TextEditor.Config.contentIncludingHint(this.editor.editor);
+    //   this.previewRequestForTest = this.textChangeThrottler.schedule(
+    //       this.requestPreviewBound,
+    //       asSoonAsPossible ? Common.Throttler.Scheduling.AS_SOON_AS_POSSIBLE : Common.Throttler.Scheduling.DEFAULT);
+    // }
     this.updatePromptIcon();
     this.dispatchEventToListeners(Events.TEXT_CHANGED);
   }

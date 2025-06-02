@@ -30,10 +30,6 @@ const UIStrings = {
    */
   clearConsoleHistory: 'Clear console history',
   /**
-   *@description Title of an action in the console tool to create pin. A live expression is code that the user can enter into the console and it will be pinned in the UI. Live expressions are constantly evaluated as the user interacts with the console (hence 'live').
-   */
-  createLiveExpression: 'Create live expression',
-  /**
    *@description Title of a setting under the Console category that can be invoked through the Command Menu
    */
   hideNetworkMessages: 'Hide network messages',
@@ -101,18 +97,6 @@ const UIStrings = {
    *@description Title of a setting under the Console category that can be invoked through the Command Menu
    */
   doNotShowCorsErrorsIn: 'Do not show `CORS` errors in console',
-  /**
-   *@description Title of a setting under the Console category in Settings
-   */
-  eagerEvaluation: 'Eager evaluation',
-  /**
-   *@description Title of a setting under the Console category that can be invoked through the Command Menu
-   */
-  eagerlyEvaluateConsolePromptText: 'Eagerly evaluate console prompt text',
-  /**
-   *@description Title of a setting under the Console category that can be invoked through the Command Menu
-   */
-  doNotEagerlyEvaluateConsole: 'Do not eagerly evaluate console prompt text',
   /**
    *@description Allows code that is executed in the console to do things that usually are only allowed if triggered by a user action
    */
@@ -229,16 +213,17 @@ UI.ActionRegistration.registerActionExtension({
   },
 });
 
-UI.ActionRegistration.registerActionExtension({
-  actionId: 'console.create-pin',
-  category: UI.ActionRegistration.ActionCategory.CONSOLE,
-  title: i18nLazyString(UIStrings.createLiveExpression),
-  iconClass: UI.ActionRegistration.IconClass.EYE,
-  async loadActionDelegate() {
-    const Console = await loadConsoleModule();
-    return new Console.ConsoleView.ActionDelegate();
-  },
-});
+// TODO(T225263604): Restore Live Expressions panel
+// UI.ActionRegistration.registerActionExtension({
+//   actionId: 'console.create-pin',
+//   category: UI.ActionRegistration.ActionCategory.CONSOLE,
+//   title: i18nLazyString(UIStrings.createLiveExpression),
+//   iconClass: UI.ActionRegistration.IconClass.EYE,
+//   async loadActionDelegate() {
+//     const Console = await loadConsoleModule();
+//     return new Console.ConsoleView.ActionDelegate();
+//   },
+// });
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.CONSOLE,
@@ -380,24 +365,25 @@ Common.Settings.registerSettingExtension({
   ],
 });
 
-Common.Settings.registerSettingExtension({
-  category: Common.Settings.SettingCategory.CONSOLE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
-  title: i18nLazyString(UIStrings.eagerEvaluation),
-  settingName: 'console-eager-eval',
-  settingType: Common.Settings.SettingType.BOOLEAN,
-  defaultValue: true,
-  options: [
-    {
-      value: true,
-      title: i18nLazyString(UIStrings.eagerlyEvaluateConsolePromptText),
-    },
-    {
-      value: false,
-      title: i18nLazyString(UIStrings.doNotEagerlyEvaluateConsole),
-    },
-  ],
-});
+// TODO(T225263604): Restore this setting
+// Common.Settings.registerSettingExtension({
+//   category: Common.Settings.SettingCategory.CONSOLE,
+//   storageType: Common.Settings.SettingStorageType.SYNCED,
+//   title: i18nLazyString(UIStrings.eagerEvaluation),
+//   settingName: 'console-eager-eval',
+//   settingType: Common.Settings.SettingType.BOOLEAN,
+//   defaultValue: true,
+//   options: [
+//     {
+//       value: true,
+//       title: i18nLazyString(UIStrings.eagerlyEvaluateConsolePromptText),
+//     },
+//     {
+//       value: false,
+//       title: i18nLazyString(UIStrings.doNotEagerlyEvaluateConsole),
+//     },
+//   ],
+// });
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.CONSOLE,
