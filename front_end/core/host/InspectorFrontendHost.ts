@@ -609,6 +609,12 @@ function initializeInspectorFrontendHost(): void {
 
   // Attach the events object.
   InspectorFrontendHostInstance.events = new Common.ObjectWrapper.ObjectWrapper();
+
+  // @ts-ignore Global injected by the React Native DevTools shell.
+  const {reactNativeDecorateInspectorFrontendHostInstance} = globalThis;
+  if (typeof reactNativeDecorateInspectorFrontendHostInstance === 'function') {
+    reactNativeDecorateInspectorFrontendHostInstance(InspectorFrontendHostInstance);
+  }
 }
 
 // FIXME: This file is included into both apps, since the devtools_app needs the InspectorFrontendHostAPI only,
