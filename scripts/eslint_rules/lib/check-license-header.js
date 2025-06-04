@@ -25,10 +25,7 @@ const LINE_LICENSE_HEADER = [
   'Use of this source code is governed by a BSD-style license that can be',
   'found in the LICENSE file.',
 ];
-const META_LINE_LICENSE_HEADER = [
-  'Copyright \\(c\\) Meta Platforms, Inc. and affiliates.',
-  ...LINE_LICENSE_HEADER
-];
+const META_LINE_LICENSE_HEADER = ['Copyright \\(c\\) Meta Platforms, Inc. and affiliates.', ...LINE_LICENSE_HEADER];
 
 const BLOCK_LICENSE_HEADER = [
   'Copyright \\(C\\) \\d{4} Google Inc. All rights reserved.',

@@ -90,9 +90,8 @@ export class DeveloperResourcesListView extends UI.Widget.VBox {
   #selectedItem: SDK.PageResourceLoader.PageResource|null = null;
   readonly #view: View;
   #filters: TextUtils.TextUtils.ParsedFilter[] = [];
-  constructor(
-      view: View = (input, _, target) => {
-        // clang-format off
+  constructor(view: View = (input, _, target) => {
+    // clang-format off
         render(html`
             <devtools-data-grid
               name=${i18nString(UIStrings.developerResources)}
@@ -157,21 +156,21 @@ export class DeveloperResourcesListView extends UI.Widget.VBox {
               </table>
             </devtools-data-grid>`,
             target, {host: input});
-        // clang-format on
-        function renderUrl(url: string): HTMLElement {
-          const outer = document.createElement('div');
-          UI.ARIAUtils.setHidden(outer, true);
-          outer.setAttribute('part', 'url-outer');
-          const domain = outer.createChild('div');
-          domain.setAttribute('part', 'url-prefix');
-          const path = outer.createChild('div');
-          path.setAttribute('part', 'url-suffix');
-          const splitURL = /^(.*)(\/[^/]*)$/.exec(url);
-          domain.textContent = splitURL ? splitURL[1] : url;
-          path.textContent = splitURL ? splitURL[2] : '';
-          return outer;
-        }
-      }) {
+    // clang-format on
+    function renderUrl(url: string): HTMLElement {
+      const outer = document.createElement('div');
+      UI.ARIAUtils.setHidden(outer, true);
+      outer.setAttribute('part', 'url-outer');
+      const domain = outer.createChild('div');
+      domain.setAttribute('part', 'url-prefix');
+      const path = outer.createChild('div');
+      path.setAttribute('part', 'url-suffix');
+      const splitURL = /^(.*)(\/[^/]*)$/.exec(url);
+      domain.textContent = splitURL ? splitURL[1] : url;
+      path.textContent = splitURL ? splitURL[2] : '';
+      return outer;
+    }
+  }) {
     super(true);
     this.#view = view;
     this.registerRequiredCSS(developerResourcesListViewStyles);

@@ -555,7 +555,7 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
     if (!isReactNative) {
       this.#dimThirdPartiesSetting = Common.Settings.Settings.instance().createSetting(
-        'timeline-dim-third-parties', false, Common.Settings.SettingStorageType.SESSION);
+          'timeline-dim-third-parties', false, Common.Settings.SettingStorageType.SESSION);
       this.#dimThirdPartiesSetting.setTitle(i18nString(UIStrings.dimThirdParties));
       this.#dimThirdPartiesSetting.addChangeListener(this.onDimThirdPartiesChanged, this);
     }
@@ -1543,7 +1543,10 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
       isCpuProfile,
       settings: {
         showScreenshots: this.showScreenshotsSetting.get(),
-        showMemory: isReactNative ? false : (this.showMemorySetting?.get() || false), // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+        showMemory: isReactNative ?
+            false :
+            (this.showMemorySetting?.get() ||
+             false),  // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
       },
     });
   }

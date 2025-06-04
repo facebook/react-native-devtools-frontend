@@ -606,8 +606,7 @@ export class UserAgentClientHintsForm extends HTMLElement {
           />
           <devtools-icon
             .data=${{
-      color:
-        'var(--icon-default)', iconName: 'bin', width: '16px', height: '16px',
+        color: 'var(--icon-default)', iconName: 'bin', width: '16px', height: '16px',
       }
       }
             title=${i18nString(UIStrings.brandUserAgentDelete)}
@@ -637,8 +636,7 @@ export class UserAgentClientHintsForm extends HTMLElement {
         <devtools-icon
           aria-hidden="true"
           .data=${{
-    color:
-      'var(--icon-default)', iconName: 'plus', width: '16px',
+      color: 'var(--icon-default)', iconName: 'plus', width: '16px',
     }
     }
         >
@@ -712,8 +710,7 @@ export class UserAgentClientHintsForm extends HTMLElement {
           />
           <devtools-icon
             .data=${{
-      color:
-        'var(--icon-default)', iconName: 'bin', width: '16px', height: '16px',
+        color: 'var(--icon-default)', iconName: 'bin', width: '16px', height: '16px',
       }
       }
             title=${i18nString(UIStrings.brandFullVersionListDelete)}
@@ -743,8 +740,7 @@ export class UserAgentClientHintsForm extends HTMLElement {
         <devtools-icon
           aria-hidden="true"
           .data=${{
-    color:
-      'var(--icon-default)', iconName: 'plus', width: '16px',
+      color: 'var(--icon-default)', iconName: 'plus', width: '16px',
     }
     }
         >
@@ -838,8 +834,8 @@ export class UserAgentClientHintsForm extends HTMLElement {
         <div aria-live="polite" aria-label=${this.#useragentModifiedAriaMessage}></div>
       </section>
     `;
-              // clang-format on
-            Lit.render(output, this.#shadow, {host: this});
+    // clang-format on
+    Lit.render(output, this.#shadow, {host: this});
   }
 
   validate = (): UI.ListWidget.ValidatorResult => {

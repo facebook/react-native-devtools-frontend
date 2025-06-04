@@ -247,11 +247,13 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
     }
 
     void this.waitForFuseboxDispatcherToBeInitialized()
-      .then(() => {
-        this.dispatchEventToListeners(Events.BACKEND_EXECUTION_CONTEXT_CREATED);
-        this.flushOutDomainMessagesQueues();
-      })
-      .catch((error: Error) => this.dispatchEventToListeners(Events.BACKEND_EXECUTION_CONTEXT_UNAVAILABLE, error.message));
+        .then(() => {
+          this.dispatchEventToListeners(Events.BACKEND_EXECUTION_CONTEXT_CREATED);
+          this.flushOutDomainMessagesQueues();
+        })
+        .catch(
+            (error: Error) =>
+                this.dispatchEventToListeners(Events.BACKEND_EXECUTION_CONTEXT_UNAVAILABLE, error.message));
   }
 
   private onExecutionContextDestroyed({data: executionContext}: ContextDestroyedEvent): void {

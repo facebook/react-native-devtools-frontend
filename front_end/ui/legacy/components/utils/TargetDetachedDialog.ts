@@ -16,14 +16,15 @@ const UIStrings = {
   /**
    *@description Text on the remote debugging window to indicate the connection cannot be made because the device is not connected
    */
-  websocketDisconnectedUnregisteredDevice: 'The corresponding app for this DevTools session cannot be found. Please relaunch DevTools from the terminal.',
+  websocketDisconnectedUnregisteredDevice:
+      'The corresponding app for this DevTools session cannot be found. Please relaunch DevTools from the terminal.',
   /**
    *@description Text on the remote debugging window to indicate the connection to corresponding device was lost
    */
   websocketDisconnectedConnectionLost: 'Connection lost to corresponding device.',
-    /**
-     *@description Text on the remote debugging window to indicate a disconnection happened because a second dev tools instance was opened
-     */
+  /**
+   *@description Text on the remote debugging window to indicate a disconnection happened because a second dev tools instance was opened
+   */
   websocketDisconnectedNewDebuggerOpened: 'Disconnected due to opening a second DevTools window for the same app.'
 } as const;
 

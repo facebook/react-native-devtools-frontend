@@ -95,7 +95,6 @@ export class WebSocketConnection implements ProtocolClient.InspectorBackend.Conn
   constructor(
       url: Platform.DevToolsPath.UrlString,
       onWebSocketDisconnect: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void) {
-
     this.#socket = new WebSocket(url);
     this.#socket.onerror = this.onError.bind(this);
     this.#socket.onopen = this.onOpen.bind(this);
@@ -123,7 +122,8 @@ export class WebSocketConnection implements ProtocolClient.InspectorBackend.Conn
 
   private onError(event: Event): void {
     if (this.#onWebSocketDisconnect) {
-      this.#onWebSocketDisconnect.call(null, {reason: i18nString(UIStrings.websocketDisconnected), errorType: event.type});
+      this.#onWebSocketDisconnect.call(
+          null, {reason: i18nString(UIStrings.websocketDisconnected), errorType: event.type});
     }
     if (this.#onDisconnect) {
       // This is called if error occurred while connecting.
@@ -279,14 +279,16 @@ export class ParallelConnection implements ParallelConnectionInterface {
 
 export async function initMainConnection(
     createRootTarget: () => Promise<void>,
-    onConnectionLost: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void): Promise<void> {
+    onConnectionLost: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) =>
+        void): Promise<void> {
   ProtocolClient.InspectorBackend.Connection.setFactory(createMainConnection.bind(null, onConnectionLost));
   await createRootTarget();
   Host.InspectorFrontendHost.InspectorFrontendHostInstance.connectionReady();
 }
 
-function createMainConnection(onConnectionLost: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void):
-    ProtocolClient.InspectorBackend.Connection {
+function createMainConnection(
+    onConnectionLost: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) =>
+        void): ProtocolClient.InspectorBackend.Connection {
   if (Root.Runtime.getPathName().includes('rehydrated_devtools_app')) {
     return new RehydratingConnection(onConnectionLost);
   }

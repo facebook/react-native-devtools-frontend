@@ -117,8 +117,8 @@ export class LayoutShiftDetails extends HTMLElement {
     this.#render();
   }
 
-  #renderTitle(event: Trace.Types.Events.SyntheticLayoutShift|
-               Trace.Types.Events.SyntheticLayoutShiftCluster): Lit.TemplateResult {
+  #renderTitle(event: Trace.Types.Events.SyntheticLayoutShift|Trace.Types.Events.SyntheticLayoutShiftCluster):
+      Lit.TemplateResult {
     const title = Utils.EntryName.nameForEntry(event);
     return html`
       <div class="layout-shift-details-title">

@@ -24,8 +24,7 @@ const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined
 
 let connectionStatusIndicatorInstance: FuseboxReconnectDeviceButton;
 
-export class FuseboxReconnectDeviceButton extends SDK.TargetManager.Observer implements
-    UI.Toolbar.Provider {
+export class FuseboxReconnectDeviceButton extends SDK.TargetManager.Observer implements UI.Toolbar.Provider {
   #button = new UI.Toolbar.ToolbarButton('');
 
   private constructor() {

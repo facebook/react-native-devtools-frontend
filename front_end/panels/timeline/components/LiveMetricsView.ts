@@ -12,6 +12,7 @@ import './MetricCard.js';
 import * as Common from '../../../core/common/common.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import type * as Platform from '../../../core/platform/platform.js';
+import * as Root from '../../../core/root/root.js';
 import * as CrUXManager from '../../../models/crux-manager/crux-manager.js';
 import * as EmulationModel from '../../../models/emulation/emulation.js';
 import * as LiveMetrics from '../../../models/live-metrics/live-metrics.js';
@@ -312,7 +313,11 @@ export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableCompon
   #cruxManager = CrUXManager.CrUXManager.instance();
 
   #toggleRecordAction: UI.ActionRegistration.Action;
-  // #recordReloadAction: UI.ActionRegistration.Action;
+  // [RN] Used to scope down available features for React Native targets
+  // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+  #recordReloadAction: UI.ActionRegistration.Action | null = null;
+
+  #isReactNative: boolean;
 
   #logsEl?: LiveMetricsLogs;
   #tooltipContainerEl?: Element;
@@ -324,9 +329,16 @@ export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableCompon
   constructor() {
     super();
 
+    this.#isReactNative = Root.Runtime.experiments.isEnabled(
+      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+    );
+
     this.#toggleRecordAction = UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.toggle-recording');
+    // [RN] Used to scope down available features for React Native targets
     // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
-    // this.#recordReloadAction = UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.record-reload');
+    if (!this.#isReactNative) {
+      this.#recordReloadAction = UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.record-reload');
+    }
   }
 
   set isNode(isNode: boolean) {
@@ -1140,6 +1152,9 @@ export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableCompon
             <div id="record" class="record-action-card">
               ${this.#renderRecordAction(this.#toggleRecordAction)}
             </div>
+            ${this.#recordReloadAction !== null ? html`<div id="record-page-load" class="record-action-card">
+              ${this.#renderRecordAction(this.#recordReloadAction)}
+            </div>` : nothing}
           </aside>
         </div>
       </div>

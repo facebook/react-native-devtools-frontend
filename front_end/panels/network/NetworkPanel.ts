@@ -278,9 +278,9 @@ export class NetworkPanel extends UI.Panel.Panel implements
     // [RN] Disable capture screenshots toggle
     if (!this.isReactNative) {
       settingsPane.append(
-        UI.SettingsUI.createSettingCheckbox(
-            i18nString(UIStrings.captureScreenshots), this.networkRecordFilmStripSetting,
-            i18nString(UIStrings.captureScreenshotsWhenLoadingA)),
+          UI.SettingsUI.createSettingCheckbox(
+              i18nString(UIStrings.captureScreenshots), this.networkRecordFilmStripSetting,
+              i18nString(UIStrings.captureScreenshotsWhenLoadingA)),
       );
     }
     this.showSettingsPaneSetting =

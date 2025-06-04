@@ -235,6 +235,7 @@ declare namespace ProtocolProxyApi {
 
   }
 
+
   export interface ReactNativeApplicationApi {
     /**
      * Disables events from backend.

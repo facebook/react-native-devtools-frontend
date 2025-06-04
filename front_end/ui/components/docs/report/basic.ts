@@ -30,8 +30,7 @@ Lit.render(
         </style>
 
         <devtools-report .data=${{
-reportTitle:
-  'Optional Title',
+      reportTitle: 'Optional Title',
     }}>
           <devtools-report-section-header>Section 1</devtools-report-section-header>
           <devtools-report-key>Basic plain text field</devtools-report-key>

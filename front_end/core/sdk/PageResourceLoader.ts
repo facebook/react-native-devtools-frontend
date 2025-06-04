@@ -304,8 +304,8 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
       try {
         if (initiator.target) {
           Host.userMetrics.developerResourceLoaded(
-            Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_VIA_TARGET);
-            Host.rnPerfMetrics.developerResourceLoadingStarted(
+              Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_VIA_TARGET);
+          Host.rnPerfMetrics.developerResourceLoadingStarted(
               parsedURL, Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_VIA_TARGET);
           const result = await this.loadFromTarget(initiator.target, initiator.frameId, url);
           Host.rnPerfMetrics.developerResourceLoadingFinished(
@@ -314,7 +314,8 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
         }
         const frame = FrameManager.instance().getFrame(initiator.frameId);
         if (frame) {
-          Host.userMetrics.developerResourceLoaded(Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_VIA_FRAME);
+          Host.userMetrics.developerResourceLoaded(
+              Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_VIA_FRAME);
           Host.rnPerfMetrics.developerResourceLoadingStarted(
               parsedURL, Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_VIA_FRAME);
           const result = await this.loadFromTarget(frame.resourceTreeModel().target(), initiator.frameId, url);

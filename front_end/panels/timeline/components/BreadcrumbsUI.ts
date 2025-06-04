@@ -134,7 +134,7 @@ export class BreadcrumbsUI extends HTMLElement {
             }}>`
             : ''}
       `;
-              // clang-format on
+    // clang-format on
   }
 
   #render(): void {

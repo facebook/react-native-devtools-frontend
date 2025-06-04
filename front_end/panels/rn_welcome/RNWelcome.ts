@@ -25,7 +25,7 @@ const UIStrings = {
   /** @description "Debugging docs" link */
   docsLabel: 'Debugging docs',
   /** @description "What's new" link */
-  whatsNewLabel: "What's new",
+  whatsNewLabel: 'What\'s new',
   /** @description Description for sharing the session ID of the current session with the user */
   sessionIdMessage: '[FB-only] The ID for this React Native DevTools session is:',
   /** @description "Debugging Basics" title (docs item 1) */
@@ -89,8 +89,7 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
 
   modelAdded(model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel): void {
     model.ensureEnabled();
-    model.addEventListener(
-        SDK.ReactNativeApplicationModel.Events.METADATA_UPDATED, this.#handleMetadataUpdated, this);
+    model.addEventListener(SDK.ReactNativeApplicationModel.Events.METADATA_UPDATED, this.#handleMetadataUpdated, this);
 
     this.#reactNativeVersion = model.metadataCached?.reactNativeVersion;
     this.#isProfilingBuild = model.metadataCached?.unstable_isProfilingBuild || false;

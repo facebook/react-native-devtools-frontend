@@ -295,7 +295,9 @@ function getPerfTimestamp(): DOMHighResTimeStamp {
 
 function maybeTruncateDeveloperResourceUrl(parsedURL: ParsedURL): string {
   const {url} = parsedURL;
-  return parsedURL.scheme === 'http' || parsedURL.scheme === 'https' ? url : `${url.slice(0, 100)} …(omitted ${url.length - 100} characters)`;
+  return parsedURL.scheme === 'http' || parsedURL.scheme === 'https' ?
+      url :
+      `${url.slice(0, 100)} …(omitted ${url.length - 100} characters)`;
 }
 
 function maybeWrapError(baseMessage: string, error: unknown): [string, Error] {

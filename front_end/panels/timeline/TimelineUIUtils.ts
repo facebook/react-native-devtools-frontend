@@ -1219,18 +1219,18 @@ export class TimelineUIUtils {
         // [RN] Used to scope down available features for React Native targets
         // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
         const isReactNative = Root.Runtime.experiments.isEnabled(
-          Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+            Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
         );
 
         if (isReactNative) {
           contentHelper.reactNativeAppendLocationRow(
-            i18nString(UIStrings.source), resolvedURL, callFrame.scriptId, callFrame.lineNumber || 0, callFrame.columnNumber, undefined,
-            true);
+              i18nString(UIStrings.source), resolvedURL, callFrame.scriptId, callFrame.lineNumber || 0,
+              callFrame.columnNumber, undefined, true);
         } else {
           // Render the URL with its location content.
           contentHelper.appendLocationRow(
-            i18nString(UIStrings.source), resolvedURL, callFrame.lineNumber || 0, callFrame.columnNumber, undefined,
-            true);
+              i18nString(UIStrings.source), resolvedURL, callFrame.lineNumber || 0, callFrame.columnNumber, undefined,
+              true);
         }
 
         if (!isReactNative) {
@@ -1842,7 +1842,7 @@ export class TimelineUIUtils {
     // [RN] Used to scope down available features for React Native targets
     // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
     const isReactNative = Root.Runtime.experiments.isEnabled(
-      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+        Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
     );
     if (stackTraceForEvent && !isReactNative) {
       contentHelper.addSection(i18nString(UIStrings.stackTrace));
@@ -2579,7 +2579,8 @@ export class TimelineDetailsContentHelper {
   }
 
   reactNativeAppendLocationRow(
-    title: string, url: string, scriptId: Protocol.Runtime.ScriptId|null, startLine: number, startColumn?: number, text?: string, omitOrigin?: boolean): void {
+      title: string, url: string, scriptId: Protocol.Runtime.ScriptId|null, startLine: number, startColumn?: number,
+      text?: string, omitOrigin?: boolean): void {
     if (!this.linkifierInternal) {
       return;
     }
@@ -2593,7 +2594,7 @@ export class TimelineDetailsContentHelper {
       omitOrigin,
     };
     const link = this.linkifierInternal.maybeLinkifyScriptLocation(
-      this.target, scriptId, url as Platform.DevToolsPath.UrlString, startLine, options);
+        this.target, scriptId, url as Platform.DevToolsPath.UrlString, startLine, options);
     if (!link) {
       return;
     }

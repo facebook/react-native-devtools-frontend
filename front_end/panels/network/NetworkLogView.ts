@@ -609,18 +609,16 @@ export class NetworkLogView extends Common.ObjectWrapper.eventMixin<EventTypes, 
     filterBar.addFilter(this.invertFilterUI);
     filterBar.addDivider();
 
-    const filterItems =
-        Object.entries(
-          this.isReactNative
-            ? Common.ResourceType.resourceCategoriesReactNative
-            : Common.ResourceType.resourceCategories
-        ).map(([key, category]) => ({
-                                      name: category.name,
-                                      label: () => category.shortTitle(),
-                                      title: category.title(),
-                                      jslogContext:
-                                          Platform.StringUtilities.toKebabCase(key),
-                                    }));
+    const filterItems = Object
+                            .entries(
+                                this.isReactNative ? Common.ResourceType.resourceCategoriesReactNative :
+                                                     Common.ResourceType.resourceCategories)
+                            .map(([key, category]) => ({
+                                   name: category.name,
+                                   label: () => category.shortTitle(),
+                                   title: category.title(),
+                                   jslogContext: Platform.StringUtilities.toKebabCase(key),
+                                 }));
 
     if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.NETWORK_PANEL_FILTER_BAR_REDESIGN)) {
       this.moreFiltersDropDownUI = new MoreFiltersDropDownUI();
@@ -2749,13 +2747,13 @@ export class MoreFiltersDropDownUI extends Common.ObjectWrapper.ObjectWrapper<UI
         });
     if (!this.isReactNative) {
       contextMenu.defaultSection().appendCheckboxItem(
-        i18nString(UIStrings.chromeExtensions),
-        () => this.networkHideChromeExtensionsSetting.set(!this.networkHideChromeExtensionsSetting.get()), {
-          checked: this.networkHideChromeExtensionsSetting.get(),
-          tooltip: i18nString(UIStrings.hideChromeExtension),
-          jslogContext: 'hide-extension-urls',
-        });
-        contextMenu.defaultSection().appendSeparator();
+          i18nString(UIStrings.chromeExtensions),
+          () => this.networkHideChromeExtensionsSetting.set(!this.networkHideChromeExtensionsSetting.get()), {
+            checked: this.networkHideChromeExtensionsSetting.get(),
+            tooltip: i18nString(UIStrings.hideChromeExtension),
+            jslogContext: 'hide-extension-urls',
+          });
+      contextMenu.defaultSection().appendSeparator();
     }
     if (!this.isReactNative) {
       contextMenu.defaultSection().appendCheckboxItem(

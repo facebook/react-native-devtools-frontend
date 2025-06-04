@@ -12,8 +12,8 @@ export const emitter = new EventTarget();
  * Synchronously returns an image, or return `null` while queuing up an async load of that image.
  * If the image load fails, we cache a null to avoid reattempts.
  */
-export function getOrQueue(screenshot: Trace.Types.Events.LegacySyntheticScreenshot|
-                           Trace.Types.Events.Screenshot): HTMLImageElement|null {
+export function getOrQueue(screenshot: Trace.Types.Events.LegacySyntheticScreenshot|Trace.Types.Events.Screenshot):
+    HTMLImageElement|null {
   if (imageCache.has(screenshot)) {
     return imageCache.get(screenshot) ?? null;
   }

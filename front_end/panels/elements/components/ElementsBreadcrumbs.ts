@@ -289,7 +289,7 @@ export class ElementsBreadcrumbs extends HTMLElement {
         </devtools-icon>
       </button>
       `;
-        // clang-format on
+    // clang-format on
   }
 
   #render(): void {

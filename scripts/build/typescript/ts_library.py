@@ -170,6 +170,7 @@ def runEsbuild(opts, tsconfig_output_location, tsconfig_output_directory):
 
 
 def rewriteTypeScriptErrorPaths(stderr: str):
+
     def rewriteLine(match: re.Match[str]) -> str:
         return f"{match[1]}({match[2]}): error {match[3]}: {match[4]}"
 

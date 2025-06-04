@@ -68,11 +68,14 @@ export class RehydratingConnection implements ProtocolClient.InspectorBackend.Co
   onMessage: ((arg0: Object) => void)|null = null;
   trace: TraceFile|null = null;
   sessions = new Map<number, RehydratingSessionBase>();
-  #onConnectionLost: (connectionLostDetails?: {reason?: Platform.UIString.LocalizedString, code?: string, errorType?: string}) => void;
+  #onConnectionLost:
+      (connectionLostDetails?: {reason?: Platform.UIString.LocalizedString, code?: string, errorType?: string}) => void;
   #rehydratingWindow: Window&typeof globalThis;
   #onReceiveHostWindowPayloadBound = this.#onReceiveHostWindowPayload.bind(this);
 
-  constructor(onConnectionLost: (connectionLostDetails?: {reason?: Platform.UIString.LocalizedString, code?: string, errorType?: string}) => void) {
+  constructor(
+      onConnectionLost: (connectionLostDetails?:
+                             {reason?: Platform.UIString.LocalizedString, code?: string, errorType?: string}) => void) {
     // If we're invoking this class, we're in the rehydrating pop-up window. Rename window for clarity.
     this.#onConnectionLost = onConnectionLost;
     this.#rehydratingWindow = window;

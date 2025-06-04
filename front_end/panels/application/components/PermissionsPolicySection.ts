@@ -202,7 +202,7 @@ export class PermissionsPolicySection extends HTMLElement {
           </div>
         </div>
       `;
-              // clang-format on
+      // clang-format on
     }));
 
     return html`

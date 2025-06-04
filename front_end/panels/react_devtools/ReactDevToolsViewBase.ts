@@ -11,11 +11,15 @@ import * as SDK from '../../core/sdk/sdk.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import * as Logs from '../../models/logs/logs.js';
 import * as Workspace from '../../models/workspace/workspace.js';
-import * as ReactDevTools from '../../third_party/react-devtools/react-devtools.js';
 import type * as ReactDevToolsTypes from '../../third_party/react-devtools/react-devtools.js';
+import * as ReactDevTools from '../../third_party/react-devtools/react-devtools.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
-import {Events as ReactDevToolsModelEvents, ReactDevToolsModel, type EventTypes as ReactDevToolsModelEventTypes} from './ReactDevToolsModel.js';
+import {
+  Events as ReactDevToolsModelEvents,
+  type EventTypes as ReactDevToolsModelEventTypes,
+  ReactDevToolsModel
+} from './ReactDevToolsModel.js';
 
 const UIStrings = {
   /**
@@ -26,7 +30,8 @@ const UIStrings = {
 const str_ = i18n.i18n.registerUIStrings('panels/react_devtools/ReactDevToolsViewBase.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-type ReactDevToolsInitializationFailedEvent = Common.EventTarget.EventTargetEvent<ReactDevToolsModelEventTypes[ReactDevToolsModelEvents.INITIALIZATION_FAILED]>;
+type ReactDevToolsInitializationFailedEvent =
+    Common.EventTarget.EventTargetEvent<ReactDevToolsModelEventTypes[ReactDevToolsModelEvents.INITIALIZATION_FAILED]>;
 
 // Based on ExtensionServer.onOpenResource
 async function openResource(
@@ -90,19 +95,19 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
     this.#model = model;
 
     model.addEventListener(
-      ReactDevToolsModelEvents.INITIALIZATION_COMPLETED,
-      this.#handleInitializationCompleted,
-      this,
+        ReactDevToolsModelEvents.INITIALIZATION_COMPLETED,
+        this.#handleInitializationCompleted,
+        this,
     );
     model.addEventListener(
-      ReactDevToolsModelEvents.INITIALIZATION_FAILED,
-      this.#handleInitializationFailed,
-      this,
+        ReactDevToolsModelEvents.INITIALIZATION_FAILED,
+        this.#handleInitializationFailed,
+        this,
     );
     model.addEventListener(
-      ReactDevToolsModelEvents.DESTROYED,
-      this.#handleBackendDestroyed,
-      this,
+        ReactDevToolsModelEvents.DESTROYED,
+        this.#handleBackendDestroyed,
+        this,
     );
 
     if (model.isInitialized()) {
@@ -117,19 +122,19 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
 
   modelRemoved(model: ReactDevToolsModel): void {
     model.removeEventListener(
-      ReactDevToolsModelEvents.INITIALIZATION_COMPLETED,
-      this.#handleInitializationCompleted,
-      this,
+        ReactDevToolsModelEvents.INITIALIZATION_COMPLETED,
+        this.#handleInitializationCompleted,
+        this,
     );
     model.removeEventListener(
-      ReactDevToolsModelEvents.INITIALIZATION_FAILED,
-      this.#handleInitializationFailed,
-      this,
+        ReactDevToolsModelEvents.INITIALIZATION_FAILED,
+        this.#handleInitializationFailed,
+        this,
     );
     model.removeEventListener(
-      ReactDevToolsModelEvents.DESTROYED,
-      this.#handleBackendDestroyed,
-      this,
+        ReactDevToolsModelEvents.DESTROYED,
+        this.#handleBackendDestroyed,
+        this,
     );
   }
 

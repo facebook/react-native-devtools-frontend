@@ -855,8 +855,8 @@ export class HeapSnapshotObjectNode extends HeapSnapshotGenericObjectNode {
     return null;
   }
 
-  override createChildNode(item: HeapSnapshotModel.HeapSnapshotModel.Node|
-                           HeapSnapshotModel.HeapSnapshotModel.Edge): HeapSnapshotObjectNode {
+  override createChildNode(item: HeapSnapshotModel.HeapSnapshotModel.Node|HeapSnapshotModel.HeapSnapshotModel.Edge):
+      HeapSnapshotObjectNode {
     return new HeapSnapshotObjectNode(
         this.dataGridInternal, this.snapshot, (item as HeapSnapshotModel.HeapSnapshotModel.Edge), this);
   }
@@ -933,8 +933,8 @@ export class HeapSnapshotRetainingObjectNode extends HeapSnapshotObjectNode {
     return this.snapshot.createRetainingEdgesProvider(this.snapshotNodeIndex);
   }
 
-  override createChildNode(item: HeapSnapshotModel.HeapSnapshotModel.Node|
-                           HeapSnapshotModel.HeapSnapshotModel.Edge): HeapSnapshotRetainingObjectNode {
+  override createChildNode(item: HeapSnapshotModel.HeapSnapshotModel.Node|HeapSnapshotModel.HeapSnapshotModel.Edge):
+      HeapSnapshotRetainingObjectNode {
     return new HeapSnapshotRetainingObjectNode(
         this.dataGridInternal, this.snapshot, (item as HeapSnapshotModel.HeapSnapshotModel.Edge), this);
   }
@@ -1059,8 +1059,8 @@ export class HeapSnapshotInstanceNode extends HeapSnapshotGenericObjectNode {
     return this.baseSnapshotOrSnapshot.createEdgesProvider(this.snapshotNodeIndex);
   }
 
-  override createChildNode(item: HeapSnapshotModel.HeapSnapshotModel.Node|
-                           HeapSnapshotModel.HeapSnapshotModel.Edge): HeapSnapshotObjectNode {
+  override createChildNode(item: HeapSnapshotModel.HeapSnapshotModel.Node|HeapSnapshotModel.HeapSnapshotModel.Edge):
+      HeapSnapshotObjectNode {
     return new HeapSnapshotObjectNode(
         this.dataGridInternal, this.baseSnapshotOrSnapshot, (item as HeapSnapshotModel.HeapSnapshotModel.Edge), null);
   }
@@ -1172,8 +1172,8 @@ export class HeapSnapshotConstructorNode extends HeapSnapshotGridNode {
     return cell;
   }
 
-  override createChildNode(item: HeapSnapshotModel.HeapSnapshotModel.Node|
-                           HeapSnapshotModel.HeapSnapshotModel.Edge): HeapSnapshotInstanceNode {
+  override createChildNode(item: HeapSnapshotModel.HeapSnapshotModel.Node|HeapSnapshotModel.HeapSnapshotModel.Edge):
+      HeapSnapshotInstanceNode {
     return new HeapSnapshotInstanceNode(
         this.dataGridInternal, (this.dataGridInternal.snapshot as HeapSnapshotProxy),
         (item as HeapSnapshotModel.HeapSnapshotModel.Node), false);
@@ -1329,8 +1329,8 @@ export class HeapSnapshotDiffNode extends HeapSnapshotGridNode {
     return cell;
   }
 
-  override createChildNode(item: HeapSnapshotModel.HeapSnapshotModel.Node|
-                           HeapSnapshotModel.HeapSnapshotModel.Edge): HeapSnapshotInstanceNode {
+  override createChildNode(item: HeapSnapshotModel.HeapSnapshotModel.Node|HeapSnapshotModel.HeapSnapshotModel.Edge):
+      HeapSnapshotInstanceNode {
     const dataGrid = (this.dataGridInternal as HeapSnapshotDiffDataGrid);
     if (item.isAddedNotRemoved) {
       if (dataGrid.snapshot === null) {

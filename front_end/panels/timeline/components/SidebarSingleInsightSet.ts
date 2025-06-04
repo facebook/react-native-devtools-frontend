@@ -89,8 +89,7 @@ export interface SidebarSingleInsightSetData {
  * "enable experimental performance insights" experiment. This is used to enable
  * us to ship incrementally without turning insights on by default for all
  * users. */
-const EXPERIMENTAL_INSIGHTS: ReadonlySet<string> = new Set([
-]);
+const EXPERIMENTAL_INSIGHTS: ReadonlySet<string> = new Set([]);
 
 type InsightNameToComponentMapping =
     Record<string, typeof Insights.BaseInsightComponent.BaseInsightComponent<Trace.Insights.Types.InsightModel>>;

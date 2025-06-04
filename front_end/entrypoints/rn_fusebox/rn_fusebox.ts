@@ -85,18 +85,18 @@ document.addEventListener('visibilitychange', () => {
 });
 
 SDK.SDKModel.SDKModel.register(
-  SDK.ReactNativeApplicationModel.ReactNativeApplicationModel,
-  {
-    capabilities: SDK.Target.Capability.NONE,
-    autostart: true,
-    // Ensure ReactNativeApplication.enable is sent before most other CDP domains
-    // are initialised. This allows the backend to confidently detect non-Fusebox
-    // clients by the fact that they send e.g. Runtime.enable without sending any
-    // Fusebox-specific messages first.
-    // TODO: Explicitly depend on this model in RuntimeModel and LogModel, and
-    // remove the `early` and `autostart` flags.
-    early: true,
-  },
+    SDK.ReactNativeApplicationModel.ReactNativeApplicationModel,
+    {
+      capabilities: SDK.Target.Capability.NONE,
+      autostart: true,
+      // Ensure ReactNativeApplication.enable is sent before most other CDP domains
+      // are initialised. This allows the backend to confidently detect non-Fusebox
+      // clients by the fact that they send e.g. Runtime.enable without sending any
+      // Fusebox-specific messages first.
+      // TODO: Explicitly depend on this model in RuntimeModel and LogModel, and
+      // remove the `early` and `autostart` flags.
+      early: true,
+    },
 );
 
 let loadedSourcesModule: (typeof Sources|undefined);

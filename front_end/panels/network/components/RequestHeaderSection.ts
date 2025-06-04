@@ -126,7 +126,7 @@ export class RequestHeaderSection extends HTMLElement {
         </div>
       </div>
     `;
-                // clang-format on
+    // clang-format on
   }
 }
 

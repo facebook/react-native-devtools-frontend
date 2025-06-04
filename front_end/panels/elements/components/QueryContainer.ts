@@ -135,7 +135,7 @@ export class QueryContainer extends HTMLElement {
         ${this.#queriedSizeDetails.height || Lit.nothing}
       </span>
     `;
-          // clang-format on
+    // clang-format on
   }
 }
 

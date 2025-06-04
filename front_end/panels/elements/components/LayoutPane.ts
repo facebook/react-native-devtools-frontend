@@ -488,7 +488,7 @@ export class LayoutPane extends LegacyWrapper.LegacyWrapper.WrappableComponent {
                                            .variant=${Buttons.Button.Variant.ICON}
                                            @click=${onElementClick}></devtools-button>
     </div>`;
-          // clang-format on
+    // clang-format on
   }
 
   #renderBooleanSetting(setting: BooleanSetting): Lit.TemplateResult {

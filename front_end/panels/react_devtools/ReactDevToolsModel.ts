@@ -6,8 +6,8 @@
 import type * as Common from '../../core/common/common.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as ReactNativeModels from '../../models/react_native/react_native.js';
-import * as ReactDevTools from '../../third_party/react-devtools/react-devtools.js';
 import type * as ReactDevToolsTypes from '../../third_party/react-devtools/react-devtools.js';
+import * as ReactDevTools from '../../third_party/react-devtools/react-devtools.js';
 
 export const enum Events {
   INITIALIZATION_COMPLETED = 'InitializationCompleted',
@@ -22,10 +22,8 @@ export interface EventTypes {
 }
 
 type ReactDevToolsBindingsBackendExecutionContextUnavailableEvent = Common.EventTarget.EventTargetEvent<
-  ReactNativeModels.ReactDevToolsBindingsModel.EventTypes[
-    ReactNativeModels.ReactDevToolsBindingsModel.Events.BACKEND_EXECUTION_CONTEXT_UNAVAILABLE
-  ]
->;
+    ReactNativeModels.ReactDevToolsBindingsModel
+        .EventTypes[ReactNativeModels.ReactDevToolsBindingsModel.Events.BACKEND_EXECUTION_CONTEXT_UNAVAILABLE]>;
 
 export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
   private static readonly FUSEBOX_BINDING_NAMESPACE = 'react-devtools';
@@ -60,19 +58,19 @@ export class ReactDevToolsModel extends SDK.SDKModel.SDKModel<EventTypes> {
     this.#bindingsModel = bindingsModel;
 
     bindingsModel.addEventListener(
-      ReactNativeModels.ReactDevToolsBindingsModel.Events.BACKEND_EXECUTION_CONTEXT_CREATED,
-      this.#handleBackendExecutionContextCreated,
-      this,
+        ReactNativeModels.ReactDevToolsBindingsModel.Events.BACKEND_EXECUTION_CONTEXT_CREATED,
+        this.#handleBackendExecutionContextCreated,
+        this,
     );
     bindingsModel.addEventListener(
-      ReactNativeModels.ReactDevToolsBindingsModel.Events.BACKEND_EXECUTION_CONTEXT_UNAVAILABLE,
-      this.#handleBackendExecutionContextUnavailable,
-      this,
+        ReactNativeModels.ReactDevToolsBindingsModel.Events.BACKEND_EXECUTION_CONTEXT_UNAVAILABLE,
+        this.#handleBackendExecutionContextUnavailable,
+        this,
     );
     bindingsModel.addEventListener(
-      ReactNativeModels.ReactDevToolsBindingsModel.Events.BACKEND_EXECUTION_CONTEXT_DESTROYED,
-      this.#handleBackendExecutionContextDestroyed,
-      this,
+        ReactNativeModels.ReactDevToolsBindingsModel.Events.BACKEND_EXECUTION_CONTEXT_DESTROYED,
+        this.#handleBackendExecutionContextDestroyed,
+        this,
     );
 
     // Notify backend if Chrome DevTools was closed, marking frontend as disconnected

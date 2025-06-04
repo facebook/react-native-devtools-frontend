@@ -25,7 +25,7 @@ export class EntityMapper {
     this.#parsedTrace = parsedTrace;
     this.#entityMappings = this.#parsedTrace.Renderer.entityMappings;
     this.#isReactNative = Root.Runtime.experiments.isEnabled(
-      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+        Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
     );
     this.#firstPartyEntity = this.#findFirstPartyEntity();
     this.#thirdPartyEvents = this.#getThirdPartyEvents();

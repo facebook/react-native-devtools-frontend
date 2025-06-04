@@ -348,8 +348,7 @@ function computeSwatchDeco(state: CodeMirror.EditorState, from: number, to: numb
 }
 
 const cssSwatchPlugin = CodeMirror.ViewPlugin.fromClass(class {
-decorations:
-  CodeMirror.DecorationSet;
+  decorations: CodeMirror.DecorationSet;
 
   constructor(view: CodeMirror.EditorView) {
     this.decorations = computeSwatchDeco(view.state, view.viewport.from, view.viewport.to);

@@ -252,12 +252,11 @@ describeWithEnvironment('ScriptDuplication', function() {
         scripts: [await loadScriptFixture('coursehero-bundle-1'), await loadScriptFixture('coursehero-bundle-2')],
       };
 
-      const results =
-          Object.fromEntries([...getDuplication(scriptsData).entries()].map(([key, data]) => {
-            return [
-              key, data.duplicates.map(v => ({scriptId: v.script.scriptId as string, resourceSize: v.attributedSize}))
-            ];
-          }));
+      const results = Object.fromEntries([...getDuplication(scriptsData).entries()].map(([key, data]) => {
+        return [
+          key, data.duplicates.map(v => ({scriptId: v.script.scriptId as string, resourceSize: v.attributedSize}))
+        ];
+      }));
       assert.deepEqual(results, {
         'coursehero:///Control/assets/js/vendor/ng/select/select.js': [
           {scriptId: '1.coursehero-bundle-1', resourceSize: 48513},

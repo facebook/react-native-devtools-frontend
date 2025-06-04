@@ -65,7 +65,7 @@ interface RNExperimentSpec {
   unstable: boolean;
   docLink?: string;
   feedbackLink?: string;
-  enabledByDefault?: boolean | RNExperimentPredicate;
+  enabledByDefault?: boolean|RNExperimentPredicate;
 }
 
 class RNExperiment {

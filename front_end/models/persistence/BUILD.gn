@@ -98,6 +98,7 @@ ts_library("unittests") {
   sources = [
     "AutomaticFileSystemManager.test.ts",
     "NetworkPersistenceManager.test.ts",
+
     # TODO(huntie): Restore this test
     # "PersistenceAction.test.ts",
     "PersistenceImpl.test.ts",

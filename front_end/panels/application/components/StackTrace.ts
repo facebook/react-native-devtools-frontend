@@ -179,8 +179,7 @@ export class StackTrace extends HTMLElement {
         if ('functionName' in item) {
           expandableRows.push(html`
           <devtools-stack-trace-row data-stack-trace-row .data=${{
-            stackTraceRowItem:
-              item,
+            stackTraceRowItem: item,
           }}></devtools-stack-trace-row>`);
         }
         if ('asyncDescription' in item) {

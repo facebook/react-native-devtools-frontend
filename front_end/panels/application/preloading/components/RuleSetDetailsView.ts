@@ -120,7 +120,7 @@ export class RuleSetDetailsView extends LegacyWrapper.LegacyWrapper.WrappableCom
         <span id="error-message-text">${this.#data.errorMessage}</span>
       </div>
     `;
-            // clang-format on
+    // clang-format on
   }
 
   #renderSource(sourceText: string): Lit.LitTemplate {

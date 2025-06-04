@@ -318,7 +318,7 @@ export class HeaderSectionRow extends HTMLElement {
           }}>
         </devtools-icon>
       `;
-            // clang-format on
+      // clang-format on
     }
     return Lit.nothing;
   }
@@ -364,7 +364,7 @@ export class HeaderSectionRow extends HTMLElement {
           >${i18nString(UIStrings.learnMoreInTheIssuesTab)}
         </div>
       `;
-            // clang-format on
+      // clang-format on
     }
     if (blockedDetails?.link) {
       // Disabled until https://crbug.com/1079231 is fixed.
@@ -381,7 +381,7 @@ export class HeaderSectionRow extends HTMLElement {
           >${i18nString(UIStrings.learnMore)}
         </x-link>
       `;
-            // clang-format on
+      // clang-format on
     }
     return Lit.nothing;
   }

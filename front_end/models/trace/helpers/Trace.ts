@@ -202,8 +202,8 @@ export function getNavigationForTraceEvent(
   return navigations[eventNavigationIndex];
 }
 
-export function extractId(event: Types.Events.PairableAsync|
-                          Types.Events.SyntheticEventPair<Types.Events.PairableAsync>): string|undefined {
+export function extractId(
+    event: Types.Events.PairableAsync|Types.Events.SyntheticEventPair<Types.Events.PairableAsync>): string|undefined {
   return event.id ?? event.id2?.global ?? event.id2?.local;
 }
 

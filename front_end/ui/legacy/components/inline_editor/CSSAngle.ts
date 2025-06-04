@@ -269,7 +269,7 @@ export class CSSAngle extends HTMLElement {
       }}
     ></devtools-css-angle-editor>
     `;
-        // clang-format on
+    // clang-format on
   }
 }
 

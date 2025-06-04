@@ -245,16 +245,14 @@ export class MarkdownLitRenderer {
         return html`<devtools-markdown-link
         class=${this.customClassMapForToken('link')}
         .data=${{
-        key:
-          token.href, title: token.text,
+          key: token.href, title: token.text,
         }
         }></devtools-markdown-link>`;
       case 'image':
         return html`<devtools-markdown-image
         class=${this.customClassMapForToken('image')}
         .data=${{
-        key:
-          token.href, title: token.text,
+          key: token.href, title: token.text,
         }
         }></devtools-markdown-image>`;
       case 'heading':
