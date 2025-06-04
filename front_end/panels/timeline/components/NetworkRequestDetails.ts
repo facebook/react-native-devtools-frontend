@@ -2,30 +2,44 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../../ui/components/request_link_icon/request_link_icon.js';
+
 import * as i18n from '../../../core/i18n/i18n.js';
-import * as Platform from '../../../core/platform/platform.js';
-import type * as SDK from '../../../core/sdk/sdk.js';
-import * as TraceEngine from '../../../models/trace/trace.js';
-import * as PerfUI from '../../../ui/legacy/components/perf_ui/perf_ui.js';
+import type * as Platform from '../../../core/platform/platform.js';
+import * as SDK from '../../../core/sdk/sdk.js';
+import * as Helpers from '../../../models/trace/helpers/helpers.js';
+import * as Trace from '../../../models/trace/trace.js';
 import * as LegacyComponents from '../../../ui/legacy/components/utils/utils.js';
 import * as UI from '../../../ui/legacy/legacy.js';
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
-import * as TimelineUtils from '../utils/utils.js';
+import * as Lit from '../../../ui/lit/lit.js';
+import type * as TimelineUtils from '../utils/utils.js';
 
-import NetworkRequestDetailsStyles from './networkRequestDetails.css.js';
+import NetworkRequestDetailsStylesRaw from './networkRequestDetails.css.js';
+import networkRequestTooltipStylesRaw from './networkRequestTooltip.css.js';
+import {NetworkRequestTooltip} from './NetworkRequestTooltip.js';
 import {colorForNetworkRequest} from './Utils.js';
 
-const MAX_URL_LENGTH = 80;
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const NetworkRequestDetailsStyles = new CSSStyleSheet();
+NetworkRequestDetailsStyles.replaceSync(NetworkRequestDetailsStylesRaw.cssText);
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const networkRequestTooltipStyles = new CSSStyleSheet();
+networkRequestTooltipStyles.replaceSync(networkRequestTooltipStylesRaw.cssText);
+
+const {html} = Lit;
+
+const MAX_URL_LENGTH = 100;
 
 const UIStrings = {
   /**
-   *@description Text that refers to updated priority of network request
-   */
-  initialPriority: 'Initial Priority',
-  /**
    *@description Text that refers to the network request method
    */
-  requestMethod: 'Request Method',
+  requestMethod: 'Request method',
+  /**
+   *@description Text that refers to the network request protocol
+   */
+  protocol: 'Protocol',
   /**
    *@description Text to show the priority of an item
    */
@@ -33,11 +47,11 @@ const UIStrings = {
   /**
    *@description Text used when referring to the data sent in a network request that is encoded as a particular file format.
    */
-  encodedData: 'Encoded Data',
+  encodedData: 'Encoded data',
   /**
    *@description Text used to refer to the data sent in a network request that has been decoded.
    */
-  decodedBody: 'Decoded Body',
+  decodedBody: 'Decoded body',
   /**
    *@description Text in Timeline indicating that input has happened recently
    */
@@ -47,17 +61,9 @@ const UIStrings = {
    */
   no: 'No',
   /**
-   *@description Text for previewing items
-   */
-  preview: 'Preview',
-  /**
    *@description Text to indicate to the user they are viewing an event representing a network request.
    */
   networkRequest: 'Network request',
-  /**
-   *@description Text for the duration of something
-   */
-  duration: 'Duration',
   /**
    *@description Text for the data source of a network request.
    */
@@ -65,7 +71,7 @@ const UIStrings = {
   /**
    *@description Text used to show the mime-type of the data transferred with a network request (e.g. "application/json").
    */
-  mimeType: 'Mime Type',
+  mimeType: 'MIME type',
   /**
    *@description Text used to show the user that a request was served from the browser's in-memory cache.
    */
@@ -87,78 +93,126 @@ const UIStrings = {
    */
   initiatedBy: 'Initiated by',
   /**
-   *@description Text that refers to the queueing and connecting time of a network request
+   *@description Text that refers to if the network request is blocking
    */
-  queuingAndConnecting: 'Queuing and connecting',
+  blocking: 'Blocking',
   /**
-   *@description Text that refers to the request sent and waiting time of a network request
+   *@description Text that refers to if the network request is in-body parser render blocking
    */
-  requestSentAndWaiting: 'Request sent and waiting',
+  inBodyParserBlocking: 'In-body parser blocking',
   /**
-   *@description Text that refers to the content downloading time of a network request
+   *@description Text that refers to if the network request is render blocking
    */
-  contentDownloading: 'Content downloading',
+  renderBlocking: 'Render blocking',
   /**
-   *@description Text that refers to the waiting on main thread time of a network request
+   * @description Text to refer to a 3rd Party entity.
    */
-  waitingOnMainThread: 'Waiting on main thread',
-};
+  entity: '3rd party',
+  /**
+   * @description Label for a column containing the names of timings (performance metric) taken in the server side application.
+   */
+  serverTiming: 'Server timing',
+  /**
+   * @description Label for a column containing the values of timings (performance metric) taken in the server side application.
+   */
+  time: 'Time',
+  /**
+   * @description Label for a column containing the description of timings (performance metric) taken in the server side application.
+   */
+  description: 'Description',
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/components/NetworkRequestDetails.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class NetworkRequestDetails extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-performance-network-request-details`;
   readonly #shadow = this.attachShadow({mode: 'open'});
 
-  #networkRequest: TraceEngine.Types.TraceEvents.SyntheticNetworkRequest|null = null;
+  #networkRequest: Trace.Types.Events.SyntheticNetworkRequest|null = null;
   #maybeTarget: SDK.Target.Target|null = null;
-  #requestPreviewElements = new WeakMap<TraceEngine.Types.TraceEvents.SyntheticNetworkRequest, HTMLImageElement>();
+  #requestPreviewElements = new WeakMap<Trace.Types.Events.SyntheticNetworkRequest, HTMLImageElement>();
   #linkifier: LegacyComponents.Linkifier.Linkifier;
+  #parsedTrace: Trace.Handlers.Types.ParsedTrace|null = null;
+  #entityMapper: TimelineUtils.EntityMapper.EntityMapper|null = null;
+  #serverTimings: SDK.ServerTiming.ServerTiming[]|null = null;
   constructor(linkifier: LegacyComponents.Linkifier.Linkifier) {
     super();
     this.#linkifier = linkifier;
   }
 
   connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [NetworkRequestDetailsStyles];
+    this.#shadow.adoptedStyleSheets = [NetworkRequestDetailsStyles, networkRequestTooltipStyles];
   }
 
   async setData(
-      networkRequest: TraceEngine.Types.TraceEvents.SyntheticNetworkRequest,
-      maybeTarget: SDK.Target.Target|null): Promise<void> {
-    if (this.#networkRequest === networkRequest) {
+      parsedTrace: Trace.Handlers.Types.ParsedTrace, networkRequest: Trace.Types.Events.SyntheticNetworkRequest,
+      maybeTarget: SDK.Target.Target|null, entityMapper: TimelineUtils.EntityMapper.EntityMapper|null): Promise<void> {
+    if (this.#networkRequest === networkRequest && parsedTrace === this.#parsedTrace) {
       return;
     }
+    this.#parsedTrace = parsedTrace;
     this.#networkRequest = networkRequest;
     this.#maybeTarget = maybeTarget;
+    this.#entityMapper = entityMapper;
+    this.#serverTimings = null;
+
+    for (const header of networkRequest.args.data.responseHeaders) {
+      const headerName = header.name.toLocaleLowerCase();
+      // Some popular hosting providers like vercel or render get rid of
+      // Server-Timing headers added by users, so as a workaround we
+      // also support server timing headers with the `-test` suffix
+      // while this feature is experimental, to enable easier trials.
+      if (headerName === 'server-timing' || headerName === 'server-timing-test') {
+        header.name = 'server-timing';
+        this.#serverTimings = SDK.ServerTiming.ServerTiming.parseHeaders([header]);
+        break;
+      }
+    }
     await this.#render();
   }
 
-  #renderTitle(): LitHtml.TemplateResult|null {
+  #renderTitle(): Lit.TemplateResult|null {
     if (!this.#networkRequest) {
       return null;
     }
     const style = {
       backgroundColor: `${colorForNetworkRequest(this.#networkRequest)}`,
     };
-    return LitHtml.html`
+    return html`
       <div class="network-request-details-title">
-        <div style=${LitHtml.Directives.styleMap(style)}"></div>
+        <div style=${Lit.Directives.styleMap(style)}></div>
         ${i18nString(UIStrings.networkRequest)}
       </div>
     `;
   }
 
-  #renderRow(title: string, value?: string|Node|LitHtml.TemplateResult): LitHtml.TemplateResult|null {
+  #renderRow(title: string, value?: string|Node|Lit.TemplateResult): Lit.TemplateResult|null {
     if (!value) {
       return null;
     }
-    return LitHtml.html`
+    return html`
       <div class="network-request-details-row"><div class="title">${title}</div><div class="value">${value}</div></div>
     `;
   }
 
-  #renderURL(): LitHtml.TemplateResult|null {
+  #renderServerTimings(): Lit.LitTemplate[]|Lit.LitTemplate {
+    if (!this.#serverTimings) {
+      return Lit.nothing;
+    }
+    return html`
+      <div class="column-divider"></div>
+      <div class="network-request-details-col server-timings">
+          <div class="server-timing-column-header">${i18nString(UIStrings.serverTiming)}</div>
+          <div class="server-timing-column-header">${i18nString(UIStrings.time)}</div>
+          <div class="server-timing-column-header">${i18nString(UIStrings.description)}</div>
+        ${this.#serverTimings.map(timing => html`
+              <div class="value">${timing.metric || '-'}</div>
+              <div class="value">${timing.value || '-'}</div>
+              <div class="value">${timing.description || '-'}</div>
+          `)}
+      </div>
+    `;
+  }
+  #renderURL(): Lit.TemplateResult|null {
     if (!this.#networkRequest) {
       return null;
     }
@@ -170,23 +224,33 @@ export class NetworkRequestDetails extends HTMLElement {
     };
     const linkifiedURL = LegacyComponents.Linkifier.Linkifier.linkifyURL(
         this.#networkRequest.args.data.url as Platform.DevToolsPath.UrlString, options);
-    linkifiedURL.addEventListener('contextmenu', (event: MouseEvent) => {
-      if (!this.#networkRequest) {
-        return;
-      }
-      // Add a wrapper class here. The reason is the `Reveal in Network panel` option is handled by the context menu
-      // provider, which will add this option for all supporting types. And there are a lot of context menu providers that
-      // support `SDK.NetworkRequest.NetworkRequest`, for example `Override content` by PersistenceActions, but we so far
-      // just want the one to reveal in network panel, so add a new class which will only be supported by Network panel.
-      const request = new TimelineUtils.NetworkRequest.TimelineNetworkRequest(this.#networkRequest);
-      const contextMenu = new UI.ContextMenu.ContextMenu(event, {useSoftMenu: true});
-      contextMenu.appendApplicableItems(request);
-      void contextMenu.show();
-    });
-    return this.#renderRow(i18n.i18n.lockedString('URL'), linkifiedURL);
+
+    // Potentially link to request within Network Panel
+    const networkRequest = SDK.TraceObject.RevealableNetworkRequest.create(this.#networkRequest);
+    if (networkRequest) {
+      linkifiedURL.addEventListener('contextmenu', (event: MouseEvent) => {
+        if (!this.#networkRequest) {
+          return;
+        }
+        const contextMenu = new UI.ContextMenu.ContextMenu(event);
+        contextMenu.appendApplicableItems(networkRequest);
+        void contextMenu.show();
+      });
+
+      // clang-format off
+      const urlElement = html`
+        ${linkifiedURL}
+        <devtools-request-link-icon .data=${{request: networkRequest.networkRequest}}>
+        </devtools-request-link-icon>
+      `;
+      // clang-format on
+      return html`<div class="network-request-details-item">${urlElement}</div>`;
+    }
+
+    return html`<div class="network-request-details-item">${linkifiedURL}</div>`;
   }
 
-  #renderFromCache(): LitHtml.TemplateResult|null {
+  #renderFromCache(): Lit.TemplateResult|null {
     if (!this.#networkRequest) {
       return null;
     }
@@ -196,26 +260,18 @@ export class NetworkRequestDetails extends HTMLElement {
         i18nString(UIStrings.fromCache), cached ? i18nString(UIStrings.yes) : i18nString(UIStrings.no));
   }
 
-  #renderDuration(): LitHtml.TemplateResult|null {
-    if (!this.#networkRequest) {
+  #renderThirdPartyEntity(): Lit.TemplateResult|null {
+    if (!this.#entityMapper || !this.#networkRequest) {
       return null;
     }
-    const fullDuration = this.#networkRequest.dur;
-    if (!isFinite(fullDuration)) {
+    const entity = this.#entityMapper.entityForEvent(this.#networkRequest);
+    if (!entity) {
       return null;
     }
-    const durationValue = i18n.TimeUtilities.formatMicroSecondsTime(fullDuration);
-    const durationElement = LitHtml.html`
-      <div>
-        ${durationValue}
-        ${this.#renderTimings()}
-      </div>
-    `;
-
-    return this.#renderRow(i18nString(UIStrings.duration), durationElement);
+    return this.#renderRow(i18nString(UIStrings.entity), entity.name);
   }
 
-  #renderEncodedDataLength(): LitHtml.TemplateResult|null {
+  #renderEncodedDataLength(): Lit.TemplateResult|null {
     if (!this.#networkRequest) {
       return null;
     }
@@ -231,29 +287,67 @@ export class NetworkRequestDetails extends HTMLElement {
       lengthText += i18nString(UIStrings.FromServiceWorker);
     }
     if (this.#networkRequest.args.data.encodedDataLength || !lengthText) {
-      lengthText =
-          `${Platform.NumberUtilities.bytesToString(this.#networkRequest.args.data.encodedDataLength)}${lengthText}`;
+      lengthText = `${i18n.ByteUtilities.bytesToString(this.#networkRequest.args.data.encodedDataLength)}${lengthText}`;
     }
     return this.#renderRow(i18nString(UIStrings.encodedData), lengthText);
   }
 
-  #renderInitiatedBy(): LitHtml.TemplateResult|null {
+  #renderInitiatedBy(): Lit.TemplateResult|null {
     if (!this.#networkRequest) {
       return null;
     }
 
-    const topFrame = TraceEngine.Helpers.Trace.getZeroIndexedStackTraceForEvent(this.#networkRequest)?.at(0) ?? null;
-    if (topFrame) {
-      const link = this.#linkifier.maybeLinkifyConsoleCallFrame(
-          this.#maybeTarget, topFrame, {tabStop: true, inlineFrameIndex: 0, showColumnNumber: true});
-      if (link) {
-        return this.#renderRow(i18nString(UIStrings.initiatedBy), link);
+    const hasStackTrace = Trace.Helpers.Trace.stackTraceInEvent(this.#networkRequest) !== null;
+    let link: HTMLElement|null = null;
+    // If we have a stack trace, that is the most reliable way to get the initiator data and display a link to the source.
+    if (hasStackTrace) {
+      const topFrame = Trace.Helpers.Trace.getZeroIndexedStackTraceForEvent(this.#networkRequest)?.at(0) ?? null;
+      if (topFrame) {
+        link = this.#linkifier.maybeLinkifyConsoleCallFrame(
+            this.#maybeTarget, topFrame, {tabStop: true, inlineFrameIndex: 0, showColumnNumber: true});
       }
     }
-    return null;
+    // If we do not, we can see if the network handler found an initiator and try to link by URL
+    const initiator = this.#parsedTrace?.NetworkRequests.eventToInitiator.get(this.#networkRequest);
+    if (initiator) {
+      link = this.#linkifier.maybeLinkifyScriptLocation(
+          this.#maybeTarget,
+          null,  // this would be the scriptId, but we don't have one. The linkifier will fallback to using the URL.
+          initiator.args.data.url as Platform.DevToolsPath.UrlString,
+          undefined,  // line number
+      );
+    }
+
+    if (!link) {
+      return null;
+    }
+    return html`
+      <div class="network-request-details-item"><div class="title">${
+        i18nString(UIStrings.initiatedBy)}</div><div class="value">${link}</div></div>
+    `;
   }
 
-  async #renderPreviewElement(): Promise<LitHtml.TemplateResult|null> {
+  #renderBlockingRow(): Lit.TemplateResult|null {
+    if (!this.#networkRequest || !Helpers.Network.isSyntheticNetworkRequestEventRenderBlocking(this.#networkRequest)) {
+      return null;
+    }
+
+    let renderBlockingText;
+    switch (this.#networkRequest.args.data.renderBlocking) {
+      case 'blocking':
+        renderBlockingText = UIStrings.renderBlocking;
+        break;
+      case 'in_body_parser_blocking':
+        renderBlockingText = UIStrings.inBodyParserBlocking;
+        break;
+      default:
+        // Shouldn't fall to this block, if so, this network request is not render blocking, so return null.
+        return null;
+    }
+    return this.#renderRow(i18nString(UIStrings.blocking), renderBlockingText);
+  }
+
+  async #renderPreviewElement(): Promise<Lit.TemplateResult|null> {
     if (!this.#networkRequest) {
       return null;
     }
@@ -265,6 +359,8 @@ export class NetworkRequestDetails extends HTMLElement {
                  imageAltText: LegacyComponents.ImagePreview.ImagePreview.defaultAltTextForImageURL(
                      this.#networkRequest.args.data.url as Platform.DevToolsPath.UrlString),
                  precomputedFeatures: undefined,
+                 align: LegacyComponents.ImagePreview.Align.START,
+                 hideFileData: true,
                }) as HTMLImageElement);
 
       this.#requestPreviewElements.set(this.#networkRequest, previewElement);
@@ -272,71 +368,9 @@ export class NetworkRequestDetails extends HTMLElement {
 
     const requestPreviewElement = this.#requestPreviewElements.get(this.#networkRequest);
     if (requestPreviewElement) {
-      return this.#renderRow(i18nString(UIStrings.preview), requestPreviewElement);
+      return html`<div class="network-request-details-item">${requestPreviewElement}</div>`;
     }
     return null;
-  }
-
-  #renderLeftWhisker(): LitHtml.TemplateResult {
-    // So the outside span will be a transparent rectangle with a left border.
-    // The inside span is just a rectangle with background color, and it is vertical centered.
-    // |
-    // |----
-    // |
-    return LitHtml.html`<span class="whisker-left"> <span class="horizontal"></span> </span>`;
-  }
-
-  #renderRightWhisker(): LitHtml.TemplateResult {
-    // So the outside span will be a transparent rectangle with a right border.
-    // The inside span is just a rectangle with background color, and it is vertical centered.
-    //      |
-    //  ----|
-    //      |
-    return LitHtml.html`<span class="whisker-right"> <span class="horizontal"></span> </span>`;
-  }
-
-  #renderTimings(): LitHtml.TemplateResult|null {
-    if (!this.#networkRequest) {
-      return null;
-    }
-    const syntheticData = this.#networkRequest.args.data.syntheticData;
-    const queueing = (syntheticData.sendStartTime - this.#networkRequest.ts) as TraceEngine.Types.Timing.MicroSeconds;
-    const requestPlusWaiting =
-        (syntheticData.downloadStart - syntheticData.sendStartTime) as TraceEngine.Types.Timing.MicroSeconds;
-    const download = (syntheticData.finishTime - syntheticData.downloadStart) as TraceEngine.Types.Timing.MicroSeconds;
-    const waitingOnMainThread = (this.#networkRequest.ts + this.#networkRequest.dur - syntheticData.finishTime) as
-        TraceEngine.Types.Timing.MicroSeconds;
-
-    const color = colorForNetworkRequest(this.#networkRequest);
-    const styleForWaiting = {
-      backgroundColor: `color-mix(in srgb, ${color}, hsla(0, 100%, 100%, 0.8))`,
-    };
-    const styleForDownloading = {
-      backgroundColor: color,
-    };
-
-    return LitHtml.html`
-      <div class="timings-row">
-        ${this.#renderLeftWhisker()}
-        ${i18nString(UIStrings.queuingAndConnecting)}
-        <span class="time">${i18n.TimeUtilities.formatMicroSecondsTime(queueing)}</span>
-      </div>
-      <div class="timings-row">
-        <span class="indicator" style=${LitHtml.Directives.styleMap(styleForWaiting)}></span>
-        ${i18nString(UIStrings.requestSentAndWaiting)}
-        <span class="time">${i18n.TimeUtilities.formatMicroSecondsTime(requestPlusWaiting)}</span>
-      </div>
-      <div class="timings-row">
-        <span class="indicator" style=${LitHtml.Directives.styleMap(styleForDownloading)}></span>
-        ${i18nString(UIStrings.contentDownloading)}
-        <span class="time">${i18n.TimeUtilities.formatMicroSecondsTime(download)}</span>
-      </div>
-      <div class="timings-row">
-        ${this.#renderRightWhisker()}
-        ${i18nString(UIStrings.waitingOnMainThread)}
-        <span class="time">${i18n.TimeUtilities.formatMicroSecondsTime(waitingOnMainThread)}</span>
-      </div>
-    `;
   }
 
   async #render(): Promise<void> {
@@ -344,29 +378,38 @@ export class NetworkRequestDetails extends HTMLElement {
       return;
     }
     const networkData = this.#networkRequest.args.data;
+
     // clang-format off
-    const output = LitHtml.html`
-      ${this.#renderTitle()}
-      <div class="network-request-details-body">
-        <div class="network-request-details-col">
-          ${this.#renderURL()}
-          ${this.#renderRow(i18nString(UIStrings.requestMethod), networkData.requestMethod)}
-          ${this.#renderRow(i18nString(UIStrings.initialPriority), PerfUI.NetworkPriorities.uiLabelForNetworkPriority(networkData.initialPriority))}
-          ${this.#renderRow(i18nString(UIStrings.priority), PerfUI.NetworkPriorities.uiLabelForNetworkPriority(networkData.priority))}
-          ${this.#renderRow(i18nString(UIStrings.mimeType), networkData.mimeType)}
-          ${this.#renderEncodedDataLength()}
-          ${this.#renderRow(i18nString(UIStrings.decodedBody), Platform.NumberUtilities.bytesToString(this.#networkRequest.args.data.decodedBodyLength))}
-          ${this.#renderInitiatedBy()}
-          ${await this.#renderPreviewElement()}
+    const output = html`
+      <div class="network-request-details-content">
+        ${this.#renderTitle()}
+        ${this.#renderURL()}
+        ${await this.#renderPreviewElement()}
+        <div class="network-request-details-cols">
+          <div class="network-request-details-col">
+            ${this.#renderRow(i18nString(UIStrings.requestMethod), networkData.requestMethod)}
+            ${this.#renderRow(i18nString(UIStrings.protocol), networkData.protocol)}
+            ${this.#renderRow(i18nString(UIStrings.priority), NetworkRequestTooltip.renderPriorityValue(this.#networkRequest))}
+            ${this.#renderRow(i18nString(UIStrings.mimeType), networkData.mimeType)}
+            ${this.#renderEncodedDataLength()}
+            ${this.#renderRow(i18nString(UIStrings.decodedBody), i18n.ByteUtilities.bytesToString(this.#networkRequest.args.data.decodedBodyLength))}
+            ${this.#renderBlockingRow()}
+            ${this.#renderFromCache()}
+            ${this.#renderThirdPartyEntity()}
+          </div>
+          <div class="column-divider"></div>
+          <div class="network-request-details-col">
+            <div class="timing-rows">
+              ${NetworkRequestTooltip.renderTimings(this.#networkRequest)}
+            </div>
+          </div>
+          ${this.#renderServerTimings()}
         </div>
-        <div class="network-request-details-col">
-          ${this.#renderFromCache()}
-          ${this.#renderDuration()}
-        </div>
+        ${this.#renderInitiatedBy()}
       </div>
-    `;
+    `; // The last items are outside the 2 column layout because InitiatedBy can be very wide
     // clang-format on
-    LitHtml.render(output, this.#shadow, {host: this});
+    Lit.render(output, this.#shadow, {host: this});
   }
 }
 

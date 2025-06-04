@@ -43,6 +43,11 @@ Generated from the [long-interaction story](https://github.com/ChromeDevTools/pe
 
 ## Example trace files
 
+### async-js-calls
+
+Contains `setTimeout`, `requestAnimationFrame` and `requestIdleCallback` calls and the JS async
+call stack tracking trace events ("v8::Debugger::AsyncTaskScheduled" and "v8::Debugger::AsyncTaskRun")
+
 ### basic
 
 A barebones trace file with the main details about processes and threads but
@@ -140,15 +145,11 @@ Generated from https://github.com/ChromeDevTools/performance-stories/tree/main/f
 
 ### two-workers
 
-Generated from https://github.com/ChromeDevTools/performance-stories/tree/main/two-workers. Runs two workers that both calculcate fibonnaci numbers.
+Generated from https://github.com/ChromeDevTools/performance-stories/tree/main/two-workers. Runs two workers that both calculate fibonnaci numbers.
 
 ### timer-initiators
 
 Contains a `setTimeout`, `requestAnimationFrame` and `requestIdleCallback` call.
-
-### nested-initiators
-
-Contains a `setTimeout` triggered by a prior `setTimeout`, so there is a larger initiator chain.
 
 ### multiple-navigations-same-id
 
@@ -205,3 +206,85 @@ Contains traces with metadata needed to power a rehydrated session for enhanced 
 ### initiators
 
 Contains a recording with network request's initiator information.
+
+### over-20-invalidations-per-event
+
+Contains a trace where one Layout event has 26 invalidations associated with it.
+
+### scheduler-post-task
+
+Generated from the [scheduler story](https://github.com/ChromeDevTools/performance-stories/tree/main/scheduler). Contains a series of `scheduler.postTask()` calls of different priority and delay, some nested and some ending up cancelled.
+
+### image-delivery
+
+Generate from a page load [this HTML file](https://gist.github.com/adamraine/397e2bd08665f9e45f6072e446715115). Contains a series of test cases for the image delivery insight.
+
+### dom-size
+
+Generate from a recording of [this HTML file](https://gist.github.com/adamraine/bfdb3cecca2322bf74f1e725d9a4699d) with the following steps:
+1. Set CPU throttling to 20x
+2. Start recording without reloading the page
+3. Click the button once
+4. Reload the page
+5. Click the button once
+6. End recording
+
+### dom-size-long
+Contains a trace from a site with a large DOM. It also happens to have many flows with duplicated flow bindings, so it's useful to test the FlowsHandler remains quick.
+
+### lcp-multiple-frames
+
+Generated from [lcp-iframes story](https://github.com/ChromeDevTools/performance-stories/tree/main/lcp-iframes).
+
+Contains a page load that has two frames (main frame + iframe). There are two images loaded in each:
+
+- the iframe loads placeholder.co/50.jpg and placeholder.co/2000.jpg
+- the main frame loads placeholder.co/100.jpg and placeholder.co/1000.jpg
+
+This trace is used to verify the fix for a bug [crbug.com/384000716] where we incorrectly associated image requests to the wrong navigation when calculating the LCP image.
+
+### lcp-lates-paint-event
+
+This is a trace where a `LargestImagePaint` event occurs after the last `largestContentfulPaint::Candidate` event.
+
+### web-dev-screenshot-source-ids
+
+A trace generated from crrev.com/c/6197645 (January 2025), which changed the format of screenshots from the legacy OBJECT_SNAPSHOT format to be instant events with more information attached to them.
+
+### dom-size-overlap
+
+Trace containing a cross-origin navigation where DOM size events from the pre-navigation page are emitted *after* the navigation event.
+
+### lcp-fetchpriority-high
+
+A page that loads an image as the LCP resource with fetchpriority=high set.
+
+### enhanced-traces
+
+(faked) script contents and source map urls, from the new "enhanced traces" feature. See http://crbug.com/337909145
+
+### lcp-discovery-delay
+
+A page that has an LCP image but is delayed by main thread blocking JS. Generated from https://github.com/ChromeDevTools/performance-stories/tree/main/lcp-discovery-delay.
+
+### byte-efficiency
+
+A recording of a page load of the Lighthouse byte-efficiency tester. https://github.com/GoogleChrome/lighthouse/blob/main/cli/test/fixtures/byte-efficiency/tester.html
+
+### render-blocking-requests
+
+A page that has a few render blocking requests:
+
+- jQuery from a CDN
+- a stylesheet
+- a script including some blocking `sleepFor` call that blocks the main thread
+
+All of which delays the LCP image from rendering.
+
+### http1.1
+
+Contains several image requests from the same 3P origin that use HTTP/1.1
+
+### dupe-js
+
+A bunch of bundles with the exact same content: https://dupe-modules-lh-2.surge.sh/

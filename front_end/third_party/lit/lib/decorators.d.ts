@@ -110,6 +110,11 @@ interface ReactiveController {
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
+/**
+ * Use this module if you want to create your own base class extending
+ * {@link ReactiveElement}.
+ * @packageDocumentation
+ */
 
 /**
  * Converts property values to and from attribute values.
@@ -658,8 +663,6 @@ declare abstract class ReactiveElement extends HTMLElement implements ReactiveCo
      * @param oldValue old value of requesting property
      * @param options property options to use instead of the previously
      *     configured options
-     * @param initial whether this call is for the initial value of the property.
-     *     Initial values do not reflect to an attribute.
      * @category updates
      */
     requestUpdate(name?: PropertyKey, oldValue?: unknown, options?: PropertyDeclaration): void;
@@ -938,4 +941,4 @@ type CustomElementDecorator = {
  */
 declare const customElement: (tagName: string) => CustomElementDecorator;
 
-export { CustomElementDecorator, InternalPropertyDeclaration, PropertyDecorator, StateDeclaration, customElement, property, standardProperty, state };
+export { type CustomElementDecorator, type InternalPropertyDeclaration, type PropertyDecorator, type StateDeclaration, customElement, property, standardProperty, state };

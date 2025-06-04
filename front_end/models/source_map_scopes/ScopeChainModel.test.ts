@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import * as Workspace from '../../models/workspace/workspace.js';
@@ -42,13 +41,13 @@ describeWithMockConnection('ScopeChainModel', () => {
     const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel)!;
     const fakeFrame = sinon.createStubInstance(SDK.DebuggerModel.CallFrame);
     fakeFrame.debuggerModel = debuggerModel;
-    // @ts-ignore readonly for test.
+    // @ts-expect-error readonly for test.
     fakeFrame.script = sinon.createStubInstance(SDK.Script.Script, {isWasm: false});
     fakeFrame.scopeChain.returns([]);
 
     const scopeChainModel = new SourceMapScopes.ScopeChainModel.ScopeChainModel(fakeFrame);
     const listenerStub = sinon.stub();
-    scopeChainModel.addEventListener(SourceMapScopes.ScopeChainModel.Events.ScopeChainUpdated, listenerStub);
+    scopeChainModel.addEventListener(SourceMapScopes.ScopeChainModel.Events.SCOPE_CHAIN_UPDATED, listenerStub);
 
     await clock.tickAsync(10);
 
@@ -57,21 +56,21 @@ describeWithMockConnection('ScopeChainModel', () => {
 
   it('does not emit an event after it was disposed even with an update still in-flight', async () => {
     // Stub out the pluginManagers `resolveScopeChain` with a promise that we control.
-    const {promise, resolve} = Platform.PromiseUtilities.promiseWithResolvers<null>();
+    const {promise, resolve} = Promise.withResolvers<null>();
     stubPluginManager.resolveScopeChain.returns(promise);
 
     const target = createTarget();
     const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel)!;
     const fakeFrame = sinon.createStubInstance(SDK.DebuggerModel.CallFrame);
     fakeFrame.debuggerModel = debuggerModel;
-    // @ts-ignore readonly for test.
+    // @ts-expect-error readonly for test.
     fakeFrame.script = sinon.createStubInstance(SDK.Script.Script, {isWasm: false});
 
     fakeFrame.scopeChain.returns([]);
 
     const scopeChainModel = new SourceMapScopes.ScopeChainModel.ScopeChainModel(fakeFrame);
     const listenerStub = sinon.stub();
-    scopeChainModel.addEventListener(SourceMapScopes.ScopeChainModel.Events.ScopeChainUpdated, listenerStub);
+    scopeChainModel.addEventListener(SourceMapScopes.ScopeChainModel.Events.SCOPE_CHAIN_UPDATED, listenerStub);
 
     await clock.tickAsync(10);
 

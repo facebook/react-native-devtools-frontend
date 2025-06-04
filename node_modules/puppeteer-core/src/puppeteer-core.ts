@@ -4,26 +4,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type {Protocol} from 'devtools-protocol';
+export * from './index.js';
 
-export * from './api/api.js';
-export * from './cdp/cdp.js';
-export * from './common/common.js';
-export * from './node/node.js';
-export * from './revisions.js';
-export * from './util/util.js';
+import fs from 'fs';
+import path from 'path';
 
-/**
- * @deprecated Use the query handler API defined on {@link Puppeteer}
- */
-export * from './common/CustomQueryHandler.js';
+import {environment} from './environment.js';
 
-import {PuppeteerNode} from './node/PuppeteerNode.js';
+import * as Puppeteer from './index.js';
 
+// Set up Node-specific environment dependencies.
+environment.value = {
+  fs,
+  path,
+  ScreenRecorder: Puppeteer.ScreenRecorder,
+};
 /**
  * @public
  */
-const puppeteer = new PuppeteerNode({
+const puppeteer = new Puppeteer.PuppeteerNode({
   isPuppeteerCore: true,
 });
 

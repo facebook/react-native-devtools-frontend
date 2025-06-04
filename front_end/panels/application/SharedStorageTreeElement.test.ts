@@ -3,16 +3,17 @@
 // found in the LICENSE file.
 
 import type * as Common from '../../core/common/common.js';
-import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
+import {renderElementIntoDOM} from '../../testing/DOMHelpers.js';
 import {
   createTarget,
   stubNoopSettings,
 } from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
 import {SECURITY_ORIGIN} from '../../testing/ResourceTreeHelpers.js';
-import * as Coordinator from '../../ui/components/render_coordinator/render_coordinator.js';
+import {createViewFunctionStub} from '../../testing/ViewFunctionHelpers.js';
+import * as RenderCoordinator from '../../ui/components/render_coordinator/render_coordinator.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import * as Application from './application.js';
@@ -20,19 +21,19 @@ import * as Application from './application.js';
 class SharedStorageItemsListener {
   #dispatcher:
       Common.ObjectWrapper.ObjectWrapper<Application.SharedStorageItemsView.SharedStorageItemsDispatcher.EventTypes>;
-  #refreshed: boolean = false;
+  #refreshed = false;
 
   constructor(dispatcher: Common.ObjectWrapper
                   .ObjectWrapper<Application.SharedStorageItemsView.SharedStorageItemsDispatcher.EventTypes>) {
     this.#dispatcher = dispatcher;
     this.#dispatcher.addEventListener(
-        Application.SharedStorageItemsView.SharedStorageItemsDispatcher.Events.ItemsRefreshed, this.#itemsRefreshed,
+        Application.SharedStorageItemsView.SharedStorageItemsDispatcher.Events.ITEMS_REFRESHED, this.#itemsRefreshed,
         this);
   }
 
   dispose(): void {
     this.#dispatcher.removeEventListener(
-        Application.SharedStorageItemsView.SharedStorageItemsDispatcher.Events.ItemsRefreshed, this.#itemsRefreshed,
+        Application.SharedStorageItemsView.SharedStorageItemsDispatcher.Events.ITEMS_REFRESHED, this.#itemsRefreshed,
         this);
   }
 
@@ -43,19 +44,16 @@ class SharedStorageItemsListener {
   async waitForItemsRefreshed(): Promise<void> {
     if (!this.#refreshed) {
       await this.#dispatcher.once(
-          Application.SharedStorageItemsView.SharedStorageItemsDispatcher.Events.ItemsRefreshed);
+          Application.SharedStorageItemsView.SharedStorageItemsDispatcher.Events.ITEMS_REFRESHED);
     }
     this.#refreshed = false;
   }
 }
 
-const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
-
 describeWithMockConnection('SharedStorageTreeElement', function() {
   let target: SDK.Target.Target;
   let sharedStorageModel: Application.SharedStorageModel.SharedStorageModel;
   let sharedStorage: Application.SharedStorageModel.SharedStorageForOrigin;
-  let treeElement: Application.SharedStorageTreeElement.SharedStorageTreeElement;
 
   const METADATA = {
     creationTime: 100 as Protocol.Network.TimeSinceEpoch,
@@ -82,10 +80,9 @@ describeWithMockConnection('SharedStorageTreeElement', function() {
   beforeEach(async () => {
     stubNoopSettings();
     SDK.ChildTargetManager.ChildTargetManager.install();
-    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
+    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
     createTarget({parentTarget: tabTarget, subtype: 'prerender'});
     target = createTarget({parentTarget: tabTarget});
-    Root.Runtime.experiments.register(Root.Runtime.ExperimentName.PRELOADING_STATUS_PANEL, '', false);
 
     sharedStorageModel = target.model(Application.SharedStorageModel.SharedStorageModel) as
         Application.SharedStorageModel.SharedStorageModel;
@@ -106,14 +103,18 @@ describeWithMockConnection('SharedStorageTreeElement', function() {
       getError: () => undefined,
     });
 
+    const container = document.createElement('div');
+    renderElementIntoDOM(container);
     const panel = Application.ResourcesPanel.ResourcesPanel.instance({forceNew: true});
     panel.markAsRoot();
-    panel.show(document.body);
+    panel.show(container);
 
-    treeElement =
-        await Application.SharedStorageTreeElement.SharedStorageTreeElement.createElement(panel, sharedStorage);
+    const viewFunction = createViewFunctionStub(Application.SharedStorageItemsView.SharedStorageItemsView);
+    const treeElement = new Application.SharedStorageTreeElement.SharedStorageTreeElement(panel, sharedStorage);
+    treeElement.view =
+        await Application.SharedStorageItemsView.SharedStorageItemsView.createView(sharedStorage, viewFunction);
 
-    await coordinator.done({waitForWork: true});
+    await RenderCoordinator.done({waitForWork: true});
     assert.isTrue(getMetadataSpy.calledOnceWithExactly({ownerOrigin: SECURITY_ORIGIN}));
 
     const {view} = treeElement;
@@ -121,7 +122,7 @@ describeWithMockConnection('SharedStorageTreeElement', function() {
     const itemsListener = new SharedStorageItemsListener(view.sharedStorageItemsDispatcher);
     const refreshedPromise = itemsListener.waitForItemsRefreshed();
 
-    document.body.appendChild(treeElement.listItemNode);
+    container.appendChild(treeElement.listItemNode);
     treeElement.treeOutline = new UI.TreeOutline.TreeOutlineInShadow();
     treeElement.selectable = true;
     treeElement.select();
@@ -129,9 +130,9 @@ describeWithMockConnection('SharedStorageTreeElement', function() {
 
     assert.isTrue(getMetadataSpy.calledTwice);
     assert.isTrue(getMetadataSpy.alwaysCalledWithExactly({ownerOrigin: SECURITY_ORIGIN}));
-    assert.isTrue(getEntriesSpy.calledOnceWithExactly({ownerOrigin: SECURITY_ORIGIN}));
+    assert.isTrue(getEntriesSpy.alwaysCalledWithExactly({ownerOrigin: SECURITY_ORIGIN}));
 
-    assert.deepEqual(view.getEntriesForTesting(), ENTRIES);
+    assert.deepEqual(viewFunction.input.items, ENTRIES);
 
     panel.detach();
   });

@@ -5,11 +5,9 @@
 import {assert} from 'chai';
 
 import {
-  getBrowserAndPages,
   getTestServerPort,
   goToResource,
 } from '../../shared/helper.js';
-import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   getCurrentConsoleMessages,
   Level,
@@ -33,10 +31,10 @@ describe('The Console Tab', () => {
       'Fetch failed loading: GET "http://localhost:8000/devtools/resources/xhr-exists.html".',
     ];
 
-    await typeIntoConsoleAndWaitForResult(getBrowserAndPages().frontend, 'await makeRequests();', 4, Level.Info);
+    await typeIntoConsoleAndWaitForResult('await makeRequests();', 4, Level.Info);
 
     const result = await getCurrentConsoleMessages(false, Level.Info);
-    assert.deepStrictEqual(result.slice(0, -1), expectedResults, 'Fetching was not logged correctly');
+    assert.deepEqual(result.slice(0, -1), expectedResults, 'Fetching was not logged correctly');
   });
 
   it('does not log fetching when XMLHttpRequest Logging is disabled', async () => {
@@ -52,7 +50,7 @@ describe('The Console Tab', () => {
       'Fetch failed loading: GET "http://localhost:8000/devtools/resources/xhr-exists.html".',
     ];
 
-    await typeIntoConsoleAndWaitForResult(getBrowserAndPages().frontend, 'await makeRequests();', 1, Level.Info);
+    await typeIntoConsoleAndWaitForResult('await makeRequests();', 1, Level.Info);
 
     const result = await getCurrentConsoleMessages(false, Level.Info);
     // Check that fetching is not logged

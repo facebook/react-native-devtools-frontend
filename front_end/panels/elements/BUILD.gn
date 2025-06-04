@@ -5,7 +5,7 @@
 import("../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../scripts/build/ninja/devtools_module.gni")
 import("../../../scripts/build/ninja/generate_css.gni")
-import("../../../third_party/typescript/typescript.gni")
+import("../../../scripts/build/typescript/typescript.gni")
 import("../visibility.gni")
 
 generate_css("css_files") {
@@ -13,6 +13,7 @@ generate_css("css_files") {
     "accessibilityTreeView.css",
     "classesPaneWidget.css",
     "computedStyleSidebarPane.css",
+    "cssValueTraceView.css",
     "domLinkifier.css",
     "elementStatePaneWidget.css",
     "elementsPanel.css",
@@ -33,12 +34,14 @@ devtools_module("elements") {
     "AccessibilityTreeView.ts",
     "CSSRuleValidator.ts",
     "CSSRuleValidatorHelper.ts",
+    "CSSValueTraceView.ts",
     "ClassesPaneWidget.ts",
     "ColorSwatchPopoverIcon.ts",
     "ComputedStyleModel.ts",
     "ComputedStyleWidget.ts",
     "DOMLinkifier.ts",
     "DOMPath.ts",
+    "ElementIssueUtils.ts",
     "ElementStatePaneWidget.ts",
     "ElementsPanel.ts",
     "ElementsSidebarPane.ts",
@@ -54,7 +57,6 @@ devtools_module("elements") {
     "NodeStackTraceWidget.ts",
     "PlatformFontsWidget.ts",
     "PropertiesWidget.ts",
-    "PropertyMatchers.ts",
     "PropertyNameCategories.ts",
     "PropertyRenderer.ts",
     "StyleEditorWidget.ts",
@@ -88,15 +90,17 @@ devtools_module("elements") {
     "../../panels/utils:bundle",
     "../../ui/components/adorners:bundle",
     "../../ui/components/code_highlighter:bundle",
+    "../../ui/components/floating_button:bundle",
     "../../ui/components/highlighting:bundle",
     "../../ui/components/text_editor:bundle",
+    "../../ui/components/tooltips:bundle",
     "../../ui/components/tree_outline:bundle",
     "../../ui/legacy:bundle",
     "../../ui/legacy/components/color_picker:bundle",
     "../../ui/legacy/components/inline_editor:bundle",
     "../../ui/legacy/components/object_ui:bundle",
     "../../ui/legacy/components/utils:bundle",
-    "../../ui/lit-html:bundle",
+    "../../ui/lit:bundle",
     "./components:bundle",
   ]
 
@@ -114,6 +118,9 @@ devtools_entrypoint("bundle") {
   visibility = [
     ":*",
     "../../entrypoints/*",
+    "../../models/ai_assistance/*",
+    "../../panels/ai_assistance/*",
+    "../../panels/profiler/*",
     "../../panels/recorder/*",
     "../../ui/components/docs/computed_style_property/*",
     "../../ui/components/docs/computed_style_trace/*",
@@ -151,14 +158,20 @@ ts_library("unittests") {
   sources = [
     "AccessibilityTreeView.test.ts",
     "CSSRuleValidator.test.ts",
+    "CSSValueTraceView.test.ts",
     "ClassesPaneWidget.test.ts",
+    "ColorSwatchPopoverIcon.test.ts",
+    "ComputedStyleModel.test.ts",
+    "ComputedStyleWidget.test.ts",
     "DOMLinkifier.test.ts",
+    "ElementStatePaneWidget.test.ts",
     "ElementsPanel.test.ts",
+    "ElementsTreeElement.test.ts",
     "ElementsTreeElementHighlighter.test.ts",
+    "ElementsTreeOutline.test.ts",
     "InspectElementModeController.test.ts",
     "PlatformFontsWidget.test.ts",
     "PropertiesWidget.test.ts",
-    "PropertyMatchers.test.ts",
     "PropertyRenderer.test.ts",
     "StylePropertiesSection.test.ts",
     "StylePropertyHighlighter.test.ts",
@@ -171,6 +184,7 @@ ts_library("unittests") {
 
   deps = [
     ":bundle",
+    "../../models/text_utils:bundle",
     "../../testing",
     "./components:unittests",
   ]

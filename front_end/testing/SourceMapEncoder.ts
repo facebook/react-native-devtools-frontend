@@ -38,7 +38,7 @@ export function encodeSourceMap(textMap: string[], sourceRoot?: string): SDK.Sou
   let mappings = '';
   const sources: string[] = [];
   const names: string[] = [];
-  let sourcesContent: (null|string)[]|undefined;
+  let sourcesContent: Array<null|string>|undefined;
 
   const state = {
     line: -1,
@@ -75,7 +75,7 @@ export function encodeSourceMap(textMap: string[], sourceRoot?: string): SDK.Sou
     }
 
     if (state.line < lastState.line) {
-      throw 'Line numbers must be increasing';
+      throw new Error('Line numbers must be increasing');
     }
 
     const isNewLine = state.line !== lastState.line;
@@ -141,22 +141,34 @@ export class OriginalScopeBuilder {
     this.#names = names;
   }
 
-  start(line: number, column: number, kind: string, name?: string, variables?: string[]): this {
+  start(
+      line: number, column: number,
+      options?: {name?: string, kind?: string, isStackFrame?: boolean, variables?: string[]}): this {
     if (this.#encodedScope !== '') {
       this.#encodedScope += ',';
     }
 
     const lineDiff = line - this.#lastLine;
     this.#lastLine = line;
-    const flags = (name !== undefined ? 0x1 : 0x0);
+    let flags = 0;
+    const nameIdxAndKindIdx: number[] = [];
 
-    this.#encodedScope += encodeVlqList([lineDiff, column, this.#encodeKind(kind), flags]);
-
-    if (name !== undefined) {
-      this.#encodedScope += encodeVlq(this.#nameIdx(name));
+    if (options?.name) {
+      flags |= SDK.SourceMapScopes.EncodedOriginalScopeFlag.HAS_NAME;
+      nameIdxAndKindIdx.push(this.#nameIdx(options.name));
     }
-    if (variables !== undefined) {
-      this.#encodedScope += encodeVlqList(variables.map(variable => this.#nameIdx(variable)));
+    if (options?.kind) {
+      flags |= SDK.SourceMapScopes.EncodedOriginalScopeFlag.HAS_KIND;
+      nameIdxAndKindIdx.push(this.#encodeKind(options?.kind));
+    }
+    if (options?.isStackFrame) {
+      flags |= SDK.SourceMapScopes.EncodedOriginalScopeFlag.IS_STACK_FRAME;
+    }
+
+    this.#encodedScope += encodeVlqList([lineDiff, column, flags, ...nameIdxAndKindIdx]);
+
+    if (options?.variables) {
+      this.#encodedScope += encodeVlqList(options.variables.map(variable => this.#nameIdx(variable)));
     }
 
     return this;
@@ -218,10 +230,11 @@ export class GeneratedRangeBuilder {
   }
 
   start(line: number, column: number, options?: {
-    isScope?: boolean,
+    isStackFrame?: boolean,
+    isHidden?: boolean,
     definition?: {sourceIdx: number, scopeIdx: number},
     callsite?: {sourceIdx: number, line: number, column: number},
-    bindings?: (string|undefined|{line: number, column: number, name: string|undefined}[])[],
+    bindings?: Array<string|undefined|Array<{line: number, column: number, name: string|undefined}>>,
   }): this {
     this.#emitLineSeparator(line);
     this.#emitItemSepratorIfRequired();
@@ -234,13 +247,16 @@ export class GeneratedRangeBuilder {
 
     let flags = 0;
     if (options?.definition) {
-      flags |= SDK.SourceMapScopes.EncodedGeneratedRangeFlag.HasDefinition;
+      flags |= SDK.SourceMapScopes.EncodedGeneratedRangeFlag.HAS_DEFINITION;
     }
     if (options?.callsite) {
-      flags |= SDK.SourceMapScopes.EncodedGeneratedRangeFlag.HasCallsite;
+      flags |= SDK.SourceMapScopes.EncodedGeneratedRangeFlag.HAS_CALLSITE;
     }
-    if (options?.isScope) {
-      flags |= SDK.SourceMapScopes.EncodedGeneratedRangeFlag.IsScope;
+    if (options?.isStackFrame) {
+      flags |= SDK.SourceMapScopes.EncodedGeneratedRangeFlag.IS_STACK_FRAME;
+    }
+    if (options?.isHidden) {
+      flags |= SDK.SourceMapScopes.EncodedGeneratedRangeFlag.IS_HIDDEN;
     }
     this.#encodedRange += encodeVlq(flags);
 

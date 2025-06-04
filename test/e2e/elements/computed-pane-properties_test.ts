@@ -5,7 +5,6 @@
 import {assert} from 'chai';
 
 import {click, getBrowserAndPages, goToResource, waitFor, waitForFunction} from '../../shared/helper.js';
-import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   filterComputedProperties,
   focusElementsTree,
@@ -41,7 +40,7 @@ describe('The Computed pane', function() {
     await waitForElementsComputedSection();
 
     const h1Properties = await getAllPropertiesFromComputedPane();
-    assert.strictEqual(h1Properties.length, 11, 'There should be 11 computed properties on the H1 element');
+    assert.lengthOf(h1Properties, 11, 'There should be 11 computed properties on the H1 element');
 
     const colorProperty = h1Properties.find(property => property && property.name === 'color');
     assert.exists(colorProperty, 'H1 element should have a color computed property');
@@ -57,7 +56,7 @@ describe('The Computed pane', function() {
     await waitForElementsComputedSection();
 
     const h2Properties = await getAllPropertiesFromComputedPane();
-    assert.strictEqual(h2Properties.length, 12, 'There should be 12 computed properties on the H2 element');
+    assert.lengthOf(h2Properties, 12, 'There should be 12 computed properties on the H2 element');
 
     const backgroundProperty = h2Properties.find(property => property && property.name === 'background-color');
     assert.exists(backgroundProperty, 'H2 element should have a background-color computed property');
@@ -127,21 +126,21 @@ describe('The Computed pane', function() {
         'pierce/.arrow-icon', elements => elements.map(element => (element as HTMLElement).click()));
     const expectedPropId1 = [
       {
-        'name': '--a',
-        'value': 'red',
-        'trace': [{
-          'value': 'red',
-          'selector': 'body',
-          'link': 'css-styles-variables.html:8',
+        name: '--a',
+        value: 'red',
+        trace: [{
+          value: 'red',
+          selector: 'body',
+          link: 'css-styles-variables.html:8',
         }],
       },
       {
-        'name': '--b',
-        'value': '44px',
-        'trace': [{
-          'value': '44px',
-          'selector': '#id1',
-          'link': 'css-styles-variables.html:12',
+        name: '--b',
+        value: '44px',
+        trace: [{
+          value: '44px',
+          selector: '#id1',
+          link: 'css-styles-variables.html:12',
         }],
       },
     ];
@@ -152,28 +151,28 @@ describe('The Computed pane', function() {
     await waitForPartialContentOfSelectedElementsNode('"id2"');
     const expectedPropId2 = [
       {
-        'name': '--a',
-        'value': 'green',
-        'trace': [
+        name: '--a',
+        value: 'green',
+        trace: [
           {
-            'value': 'green',
-            'selector': '#id2',
-            'link': 'css-styles-variables.html:16',
+            value: 'green',
+            selector: '#id2',
+            link: 'css-styles-variables.html:16',
           },
           {
-            'value': 'red',
-            'selector': 'body',
-            'link': 'css-styles-variables.html:8',
+            value: 'red',
+            selector: 'body',
+            link: 'css-styles-variables.html:8',
           },
         ],
       },
       {
-        'name': '--b',
-        'value': '44px',
-        'trace': [{
-          'value': '44px',
-          'selector': '#id1',
-          'link': 'css-styles-variables.html:12',
+        name: '--b',
+        value: '44px',
+        trace: [{
+          value: '44px',
+          selector: '#id1',
+          link: 'css-styles-variables.html:12',
         }],
       },
     ];
@@ -184,33 +183,33 @@ describe('The Computed pane', function() {
     await waitForPartialContentOfSelectedElementsNode('"id3"');
     const expectedPropId3 = [
       {
-        'name': '--a',
-        'value': 'green',
-        'trace': [
+        name: '--a',
+        value: 'green',
+        trace: [
           {
-            'value': 'inherit',
-            'selector': '#id3',
-            'link': 'css-styles-variables.html:20',
+            value: 'inherit',
+            selector: '#id3',
+            link: 'css-styles-variables.html:20',
           },
           {
-            'value': 'green',
-            'selector': '#id2',
-            'link': 'css-styles-variables.html:16',
+            value: 'green',
+            selector: '#id2',
+            link: 'css-styles-variables.html:16',
           },
           {
-            'value': 'red',
-            'selector': 'body',
-            'link': 'css-styles-variables.html:8',
+            value: 'red',
+            selector: 'body',
+            link: 'css-styles-variables.html:8',
           },
         ],
       },
       {
-        'name': '--b',
-        'value': '44px',
-        'trace': [{
-          'value': '44px',
-          'selector': '#id1',
-          'link': 'css-styles-variables.html:12',
+        name: '--b',
+        value: '44px',
+        trace: [{
+          value: '44px',
+          selector: '#id1',
+          link: 'css-styles-variables.html:12',
         }],
       },
     ];

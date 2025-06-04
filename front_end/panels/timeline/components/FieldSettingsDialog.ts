@@ -2,16 +2,24 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import './OriginMap.js';
+
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as CrUXManager from '../../../models/crux-manager/crux-manager.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as Dialogs from '../../../ui/components/dialogs/dialogs.js';
 import * as ComponentHelpers from '../../../ui/components/helpers/helpers.js';
 import * as Input from '../../../ui/components/input/input.js';
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
+import * as UI from '../../../ui/legacy/legacy.js';
+import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import fieldSettingsDialogStyles from './fieldSettingsDialog.css.js';
+import fieldSettingsDialogStylesRaw from './fieldSettingsDialog.css.js';
+import type {OriginMap} from './OriginMap.js';
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const fieldSettingsDialogStyles = new CSSStyleSheet();
+fieldSettingsDialogStyles.replaceSync(fieldSettingsDialogStylesRaw.cssText);
 
 const UIStrings = {
   /**
@@ -37,13 +45,13 @@ const UIStrings = {
   /**
    * @description Text label for a checkbox that controls if a manual URL override is enabled for field data.
    */
-  onlyFetchFieldData: 'Only fetch field data for the below URL',
+  onlyFetchFieldData: 'Always show field data for the below URL',
   /**
    * @description Text label for a text box that that contains the manual override URL for fetching field data.
    */
-  urlOverride: 'URL Override',
+  url: 'URL',
   /**
-   * @description Warning message explaining that the Chrome UX Report could not find enough real world speed data for the page.
+   * @description Warning message explaining that the Chrome UX Report could not find enough real world speed data for the page. "Chrome UX Report" is a product name and should not be translated.
    */
   doesNotHaveSufficientData: 'The Chrome UX Report does not have sufficient real-world speed data for this page.',
   /**
@@ -51,10 +59,11 @@ const UIStrings = {
    */
   configureFieldData: 'Configure field data fetching',
   /**
-   * @description Paragraph explaining where field data comes from and and how it can be used. "Chrome UX Report" is a product name and should not be translated.
+   * @description Paragraph explaining where field data comes from and and how it can be used. PH1 will be a link with text "Chrome UX Report" that is untranslated because it is a product name.
+   * @example {Chrome UX Report} PH1
    */
   fetchAggregated:
-      'Fetch aggregated field data from the Chrome UX Report to help you contextualize local measurements with what real users experience on the site.',
+      'Fetch aggregated field data from the {PH1} to help you contextualize local measurements with what real users experience on the site.',
   /**
    * @description Heading for a section that explains what user data needs to be collected to fetch field data.
    */
@@ -68,12 +77,25 @@ const UIStrings = {
    * @description Header for a section containing advanced settings
    */
   advanced: 'Advanced',
-};
+  /**
+   * @description Paragraph explaining that the user can associate a development origin with a production origin for the purposes of fetching real user data.
+   */
+  mapDevelopmentOrigins: 'Set a development origin to automatically get relevant field data for its production origin.',
+  /**
+   * @description Text label for a button that adds a new editable row to a data table
+   */
+  new: 'New',
+  /**
+   * @description Warning message explaining that an input origin is not a valid origin or URL.
+   * @example {http//malformed.com} PH1
+   */
+  invalidOrigin: '"{PH1}" is not a valid origin or URL.',
+} as const;
 
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/components/FieldSettingsDialog.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-const {html, nothing} = LitHtml;
+const {html, nothing, Directives: {ifDefined}} = Lit;
 
 export class ShowDialog extends Event {
   static readonly eventName = 'showdialog';
@@ -84,16 +106,16 @@ export class ShowDialog extends Event {
 }
 
 export class FieldSettingsDialog extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-field-settings-dialog`;
   readonly #shadow = this.attachShadow({mode: 'open'});
 
   #dialog?: Dialogs.Dialog.Dialog;
 
   #configSetting = CrUXManager.CrUXManager.instance().getConfigSetting();
 
-  #urlOverride: string = '';
-  #urlOverrideEnabled: boolean = false;
-  #showInvalidUrlWarning: boolean = false;
+  #urlOverride = '';
+  #urlOverrideEnabled = false;
+  #urlOverrideWarning = '';
+  #originMap?: OriginMap;
 
   constructor() {
     super();
@@ -102,20 +124,25 @@ export class FieldSettingsDialog extends HTMLElement {
 
     this.#configSetting = cruxManager.getConfigSetting();
 
-    this.#pullFromSettings();
+    this.#resetToSettingState();
 
     this.#render();
   }
 
-  #pullFromSettings(): void {
-    this.#urlOverride = this.#configSetting.get().override;
-    this.#urlOverrideEnabled = Boolean(this.#urlOverride);
+  #resetToSettingState(): void {
+    const configSetting = this.#configSetting.get();
+    this.#urlOverride = configSetting.override || '';
+    this.#urlOverrideEnabled = configSetting.overrideEnabled || false;
+    this.#urlOverrideWarning = '';
   }
 
   #flushToSetting(enabled: boolean): void {
+    const value = this.#configSetting.get();
     this.#configSetting.set({
+      ...value,
       enabled,
-      override: this.#urlOverrideEnabled ? this.#urlOverride : '',
+      override: this.#urlOverride,
+      overrideEnabled: this.#urlOverrideEnabled,
     });
   }
 
@@ -123,12 +150,29 @@ export class FieldSettingsDialog extends HTMLElement {
     void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
   }
 
+  async #urlHasFieldData(url: string): Promise<boolean> {
+    const cruxManager = CrUXManager.CrUXManager.instance();
+    const result = await cruxManager.getFieldDataForPage(url);
+    return Object.entries(result).some(([key, value]) => {
+      if (key === 'warnings') {
+        return false;
+      }
+      return Boolean(value);
+    });
+  }
+
   async #submit(enabled: boolean): Promise<void> {
     if (enabled && this.#urlOverrideEnabled) {
-      const cruxManager = CrUXManager.CrUXManager.instance();
-      const result = await cruxManager.getFieldDataForPage(this.#urlOverride);
-      if (Object.values(result).every(v => !v)) {
-        this.#showInvalidUrlWarning = true;
+      const origin = this.#getOrigin(this.#urlOverride);
+      if (!origin) {
+        this.#urlOverrideWarning = i18nString(UIStrings.invalidOrigin, {PH1: this.#urlOverride});
+        void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
+        return;
+      }
+
+      const hasFieldData = await this.#urlHasFieldData(this.#urlOverride);
+      if (!hasFieldData) {
+        this.#urlOverrideWarning = i18nString(UIStrings.doesNotHaveSufficientData);
         void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
         return;
       }
@@ -141,7 +185,7 @@ export class FieldSettingsDialog extends HTMLElement {
     if (!this.#dialog) {
       throw new Error('Dialog not found');
     }
-    this.#pullFromSettings();
+    this.#resetToSettingState();
     void this.#dialog.setDialogVisible(true);
     void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
     this.dispatchEvent(new ShowDialog());
@@ -170,39 +214,42 @@ export class FieldSettingsDialog extends HTMLElement {
     this.#configSetting.removeChangeListener(this.#onSettingsChanged, this);
   }
 
-  #renderOpenButton(): LitHtml.LitTemplate {
+  #renderOpenButton(): Lit.LitTemplate {
     if (this.#configSetting.get().enabled) {
       // clang-format off
       return html`
-        <${Buttons.Button.Button.litTagName}
+        <devtools-button
+          class="config-button"
           @click=${this.#showDialog}
           .data=${{
             variant: Buttons.Button.Variant.OUTLINED,
             title: i18nString(UIStrings.configure),
           } as Buttons.Button.ButtonData}
-          jslogContext=${'field-data-configure'}
-        >${i18nString(UIStrings.configure)}</${Buttons.Button.Button.litTagName}>
+        jslog=${VisualLogging.action('timeline.field-data.configure').track({click: true})}
+        >${i18nString(UIStrings.configure)}</devtools-button>
       `;
       // clang-format on
     }
     // clang-format off
     return html`
-      <${Buttons.Button.Button.litTagName}
+      <devtools-button
+        class="setup-button"
         @click=${this.#showDialog}
         .data=${{
           variant: Buttons.Button.Variant.PRIMARY,
           title: i18nString(UIStrings.setUp),
         } as Buttons.Button.ButtonData}
-        jslogContext=${'field-data-setup'}
-      >${i18nString(UIStrings.setUp)}</${Buttons.Button.Button.litTagName}>
+        jslog=${VisualLogging.action('timeline.field-data.setup').track({click: true})}
+        data-field-data-setup
+      >${i18nString(UIStrings.setUp)}</devtools-button>
     `;
     // clang-format on
   }
 
-  #renderEnableButton(): LitHtml.LitTemplate {
+  #renderEnableButton(): Lit.LitTemplate {
     // clang-format off
     return html`
-      <${Buttons.Button.Button.litTagName}
+      <devtools-button
         @click=${() => {
           void this.#submit(true);
         }}
@@ -210,17 +257,19 @@ export class FieldSettingsDialog extends HTMLElement {
           variant: Buttons.Button.Variant.PRIMARY,
           title: i18nString(UIStrings.ok),
         } as Buttons.Button.ButtonData}
-        jslogContext=${'field-data-enable'}
-      >${i18nString(UIStrings.ok)}</${Buttons.Button.Button.litTagName}>
+        class="enable"
+        jslog=${VisualLogging.action('timeline.field-data.enable').track({click: true})}
+        data-field-data-enable
+      >${i18nString(UIStrings.ok)}</devtools-button>
     `;
     // clang-format on
   }
 
-  #renderDisableButton(): LitHtml.LitTemplate {
+  #renderDisableButton(): Lit.LitTemplate {
     const label = this.#configSetting.get().enabled ? i18nString(UIStrings.optOut) : i18nString(UIStrings.cancel);
     // clang-format off
     return html`
-      <${Buttons.Button.Button.litTagName}
+      <devtools-button
         @click=${() => {
           void this.#submit(false);
         }}
@@ -228,81 +277,125 @@ export class FieldSettingsDialog extends HTMLElement {
           variant: Buttons.Button.Variant.OUTLINED,
           title: label,
         } as Buttons.Button.ButtonData}
-        jslogContext=${'field-data-disable'}
-      >${label}</${Buttons.Button.Button.litTagName}>
+        jslog=${VisualLogging.action('timeline.field-data.disable').track({click: true})}
+        data-field-data-disable
+      >${label}</devtools-button>
     `;
     // clang-format on
   }
 
   #onUrlOverrideChange(event: Event): void {
+    event.stopPropagation();
     const input = event.target as HTMLInputElement;
     this.#urlOverride = input.value;
-    this.#showInvalidUrlWarning = false;
+    this.#urlOverrideWarning = '';
     void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
   }
 
   #onUrlOverrideEnabledChange(event: Event): void {
+    event.stopPropagation();
     const input = event.target as HTMLInputElement;
     this.#urlOverrideEnabled = input.checked;
-    this.#showInvalidUrlWarning = false;
+    this.#urlOverrideWarning = '';
     void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
   }
 
+  #getOrigin(url: string): string|null {
+    try {
+      return new URL(url).origin;
+    } catch {
+      return null;
+    }
+  }
+
+  #renderOriginMapGrid(): Lit.LitTemplate {
+    // clang-format off
+    return html`
+      <div class="origin-mapping-description">${i18nString(UIStrings.mapDevelopmentOrigins)}</div>
+      <devtools-origin-map
+        on-render=${ComponentHelpers.Directives.nodeRenderedCallback(node => {
+          this.#originMap = node as OriginMap;
+        })}
+      ></devtools-origin-map>
+      <div class="origin-mapping-button-section">
+        <devtools-button
+          @click=${() => this.#originMap?.startCreation()}
+          .data=${{
+            variant: Buttons.Button.Variant.TEXT,
+            title: i18nString(UIStrings.new),
+            iconName: 'plus',
+          } as Buttons.Button.ButtonData}
+          jslogContext=${'new-origin-mapping'}
+        >${i18nString(UIStrings.new)}</devtools-button>
+      </div>
+    `;
+    // clang-format on
+  }
+
   #render = (): void => {
+    const linkEl =
+        UI.XLink.XLink.create('https://developer.chrome.com/docs/crux', i18n.i18n.lockedString('Chrome UX Report'));
+    const descriptionEl = i18n.i18n.getFormatLocalizedString(str_, UIStrings.fetchAggregated, {PH1: linkEl});
+
     // clang-format off
     const output = html`
-      ${this.#renderOpenButton()}
-      <${Dialogs.Dialog.Dialog.litTagName}
+      <div class="open-button-section">${this.#renderOpenButton()}</div>
+      <devtools-dialog
         @clickoutsidedialog=${this.#closeDialog}
-        .showConnector=${true}
         .position=${Dialogs.Dialog.DialogVerticalPosition.AUTO}
         .horizontalAlignment=${Dialogs.Dialog.DialogHorizontalAlignment.CENTER}
-        .jslogContext=${'field-data-settings'}
+        .jslogContext=${'timeline.field-data.settings'}
+        .dialogTitle=${i18nString(UIStrings.configureFieldData)}
         on-render=${ComponentHelpers.Directives.nodeRenderedCallback(node => {
           this.#dialog = node as Dialogs.Dialog.Dialog;
         })}
       >
         <div class="content">
-          <h2>${i18nString(UIStrings.configureFieldData)}</h2>
-          <p>${i18nString(UIStrings.fetchAggregated)}</p>
-          <h3>${i18nString(UIStrings.privacyDisclosure)}</h3>
-          <p>${i18nString(UIStrings.whenPerformanceIsShown)}</p>
-          <details>
+          <div>${descriptionEl}</div>
+          <div class="privacy-disclosure">
+            <h3 class="section-title">${i18nString(UIStrings.privacyDisclosure)}</h3>
+            <div>${i18nString(UIStrings.whenPerformanceIsShown)}</div>
+          </div>
+          <details aria-label=${i18nString(UIStrings.advanced)}>
             <summary>${i18nString(UIStrings.advanced)}</summary>
-            <p>
-              <label>
+            <div class="advanced-section-contents">
+              ${this.#renderOriginMapGrid()}
+              <hr class="divider">
+              <label class="url-override">
                 <input
                   type="checkbox"
                   .checked=${this.#urlOverrideEnabled}
                   @change=${this.#onUrlOverrideEnabledChange}
-                  jslog=${VisualLogging.toggle().track({click: true}).context('field-url-override-enabled')}
                   aria-label=${i18nString(UIStrings.onlyFetchFieldData)}
+                  jslog=${VisualLogging.toggle().track({click: true}).context('field-url-override-enabled')}
                 />
                 ${i18nString(UIStrings.onlyFetchFieldData)}
               </label>
-            </p>
-            <input
-              type="text"
-              @change=${this.#onUrlOverrideChange}
-              @keyup=${this.#onUrlOverrideChange}
-              class="devtools-text-input"
-              .disabled=${!this.#urlOverrideEnabled}
-              .value=${this.#urlOverride}
-              aria-label=${i18nString(UIStrings.urlOverride)}
+              <input
+                type="text"
+                @keyup=${this.#onUrlOverrideChange}
+                @change=${this.#onUrlOverrideChange}
+                class="devtools-text-input"
+                .disabled=${!this.#urlOverrideEnabled}
+                .value=${this.#urlOverride}
+                placeholder=${ifDefined(this.#urlOverrideEnabled ? i18nString(UIStrings.url) : undefined)}
               />
-            ${this.#showInvalidUrlWarning ? html`
-              <p class="warning">${i18nString(UIStrings.doesNotHaveSufficientData)}</p>
-            ` : nothing}
+              ${
+                this.#urlOverrideWarning
+                  ? html`<div class="warning" role="alert" aria-label=${this.#urlOverrideWarning}>${this.#urlOverrideWarning}</div>`
+                  : nothing
+              }
+            </div>
           </details>
           <div class="buttons-section">
             ${this.#renderDisableButton()}
             ${this.#renderEnableButton()}
           </div>
         </div>
-      </${Dialogs.Dialog.Dialog.litTagName}
+      </devtools-dialog>
     `;
     // clang-format on
-    LitHtml.render(output, this.#shadow, {host: this});
+    Lit.render(output, this.#shadow, {host: this});
   };
 }
 

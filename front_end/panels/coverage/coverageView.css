@@ -15,8 +15,7 @@
 }
 
 .coverage-toolbar {
-  display: inline-block;
-  width: 100%;
+  flex: auto;
 }
 
 .coverage-toolbar-summary {
@@ -42,7 +41,6 @@
   flex: auto;
 }
 
-.landing-page,
 .bfcache-page,
 .prerender-page {
   justify-content: center;
@@ -50,7 +48,6 @@
   padding: 20px;
 }
 
-.landing-page .message,
 .bfcache-page .message,
 .prerender-page .message {
   white-space: pre-line;

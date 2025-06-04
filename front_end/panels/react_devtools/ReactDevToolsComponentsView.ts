@@ -12,7 +12,7 @@ const UIStrings = {
    *@description Title of the React DevTools view
    */
   title: '⚛️ Components (React DevTools)',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/react_devtools/ReactDevToolsComponentsView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 

@@ -16,7 +16,8 @@ module.exports = {
         docs: {
             description: "Disallow the use of `undefined` as an identifier",
             recommended: false,
-            url: "https://eslint.org/docs/rules/no-undefined"
+            frozen: true,
+            url: "https://eslint.org/docs/latest/rules/no-undefined"
         },
 
         schema: [],
@@ -27,6 +28,8 @@ module.exports = {
     },
 
     create(context) {
+
+        const sourceCode = context.sourceCode;
 
         /**
          * Report an invalid "undefined" identifier node.
@@ -66,8 +69,8 @@ module.exports = {
         }
 
         return {
-            "Program:exit"() {
-                const globalScope = context.getScope();
+            "Program:exit"(node) {
+                const globalScope = sourceCode.getScope(node);
 
                 const stack = [globalScope];
 

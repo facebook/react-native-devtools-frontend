@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../ui/legacy/legacy.js';
+
 import type * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
@@ -27,10 +29,14 @@ const UIStrings = {
    */
   addNetworkRequestBlockingPattern: 'Add network request blocking pattern',
   /**
-   *@description Button to add a pattern to block netwrok requests in the Network request blocking tool
+   *@description Text that shows in the network request blocking panel if no pattern has yet been added.
+   */
+  noNetworkRequestsBlocked: 'No blocked network requests',
+  /**
+   *@description Text that shows  in the network request blocking panel if no pattern has yet been added.
    *@example {Add pattern} PH1
    */
-  networkRequestsAreNotBlockedS: 'Network requests are not blocked. {PH1}',
+  addPatternToBlock: 'Add a pattern to block network requests by clicking on the "{PH1}" button.',
   /**
    *@description Text in Blocked URLs Pane of the Network panel
    *@example {4} PH1
@@ -52,9 +58,16 @@ const UIStrings = {
    *@description Message to be announced for a when list item is removed from list widget
    */
   itemDeleted: 'Item successfully deleted',
-};
+  /**
+   *@description Message to be announced for a when list item is removed from list widget
+   */
+  learnMore: 'Learn more',
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/network/BlockedURLsPane.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
+
+const NETWORK_REQUEST_BLOCKING_EXPLANATION_URL =
+    'https://developer.chrome.com/docs/devtools/network-request-blocking' as Platform.DevToolsPath.UrlString;
 
 export class BlockedURLsPane extends UI.Widget.VBox implements
     UI.ListWidget.Delegate<SDK.NetworkManager.BlockedPattern> {
@@ -67,26 +80,28 @@ export class BlockedURLsPane extends UI.Widget.VBox implements
 
   constructor() {
     super(true);
+    this.registerRequiredCSS(blockedURLsPaneStyles);
 
     this.element.setAttribute('jslog', `${VisualLogging.panel('network.blocked-urls').track({resize: true})}`);
 
     this.manager = SDK.NetworkManager.MultitargetNetworkManager.instance();
     this.manager.addEventListener(
-        SDK.NetworkManager.MultitargetNetworkManager.Events.BlockedPatternsChanged, this.update, this);
+        SDK.NetworkManager.MultitargetNetworkManager.Events.BLOCKED_PATTERNS_CHANGED, this.update, this);
 
-    this.toolbar = new UI.Toolbar.Toolbar('', this.contentElement);
+    this.toolbar = this.contentElement.createChild('devtools-toolbar');
     this.enabledCheckbox = new UI.Toolbar.ToolbarCheckbox(
         i18nString(UIStrings.enableNetworkRequestBlocking), undefined, this.toggleEnabled.bind(this),
         'network.enable-request-blocking');
     this.toolbar.appendToolbarItem(this.enabledCheckbox);
     this.toolbar.appendSeparator();
     this.toolbar.appendToolbarItem(
-        UI.Toolbar.Toolbar.createActionButtonForId('network.add-network-request-blocking-pattern'));
+        UI.Toolbar.Toolbar.createActionButton('network.add-network-request-blocking-pattern'));
     this.toolbar.appendToolbarItem(
-        UI.Toolbar.Toolbar.createActionButtonForId('network.remove-all-network-request-blocking-patterns'));
-    this.toolbar.element.setAttribute('jslog', `${VisualLogging.toolbar()}`);
+        UI.Toolbar.Toolbar.createActionButton('network.remove-all-network-request-blocking-patterns'));
+    this.toolbar.setAttribute('jslog', `${VisualLogging.toolbar()}`);
 
     this.list = new UI.ListWidget.ListWidget(this);
+    this.list.registerRequiredCSS(blockedURLsPaneStyles);
     this.list.element.classList.add('blocked-urls');
 
     this.list.setEmptyPlaceholder(this.createEmptyPlaceholder());
@@ -104,16 +119,24 @@ export class BlockedURLsPane extends UI.Widget.VBox implements
   }
 
   private createEmptyPlaceholder(): Element {
-    const element = this.contentElement.createChild('div', 'no-blocked-urls');
+    const placeholder = this.contentElement.createChild('div', 'empty-state');
+    placeholder.createChild('span', 'empty-state-header').textContent = i18nString(UIStrings.noNetworkRequestsBlocked);
+
+    const description = placeholder.createChild('div', 'empty-state-description');
+    description.createChild('span').textContent =
+        i18nString(UIStrings.addPatternToBlock, {PH1: i18nString(UIStrings.addPattern)});
+    const link = UI.XLink.XLink.create(
+        NETWORK_REQUEST_BLOCKING_EXPLANATION_URL, i18nString(UIStrings.learnMore), undefined, undefined, 'learn-more');
+    description.appendChild(link);
+
     const addButton = UI.UIUtils.createTextButton(i18nString(UIStrings.addPattern), this.addPattern.bind(this), {
       className: 'add-button',
       jslogContext: 'network.add-network-request-blocking-pattern',
-      variant: Buttons.Button.Variant.PRIMARY,
+      variant: Buttons.Button.Variant.TONAL,
     });
     UI.ARIAUtils.setLabel(addButton, i18nString(UIStrings.addNetworkRequestBlockingPattern));
-    element.appendChild(
-        i18n.i18n.getFormatLocalizedString(str_, UIStrings.networkRequestsAreNotBlockedS, {PH1: addButton}));
-    return element;
+    placeholder.appendChild(addButton);
+    return placeholder;
   }
 
   addPattern(): void {
@@ -129,7 +152,7 @@ export class BlockedURLsPane extends UI.Widget.VBox implements
     const count = this.blockedRequestsCount(pattern.url);
     const element = document.createElement('div');
     element.classList.add('blocked-url');
-    const checkbox = (element.createChild('input', 'blocked-url-checkbox') as HTMLInputElement);
+    const checkbox = element.createChild('input', 'blocked-url-checkbox');
     checkbox.type = 'checkbox';
     checkbox.checked = pattern.enabled;
     checkbox.disabled = !editable;
@@ -174,9 +197,9 @@ export class BlockedURLsPane extends UI.Widget.VBox implements
     const url = editor.control('url').value as Platform.DevToolsPath.UrlString;
     const patterns = this.manager.blockedPatterns();
     if (isNew) {
-      patterns.push({enabled: true, url: url});
+      patterns.push({enabled: true, url});
     } else {
-      patterns.splice(patterns.indexOf(item), 1, {enabled: true, url: url});
+      patterns.splice(patterns.indexOf(item), 1, {enabled: true, url});
     }
 
     this.manager.setBlockedPatterns(patterns);
@@ -270,8 +293,6 @@ export class BlockedURLsPane extends UI.Widget.VBox implements
   override wasShown(): void {
     UI.Context.Context.instance().setFlavor(BlockedURLsPane, this);
     super.wasShown();
-    this.list.registerCSSFiles([blockedURLsPaneStyles]);
-    this.registerCSSFiles([blockedURLsPaneStyles]);
   }
 
   override willHide(): void {

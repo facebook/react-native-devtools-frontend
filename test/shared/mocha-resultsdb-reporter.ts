@@ -6,11 +6,10 @@ import * as fs from 'fs';
 import * as Mocha from 'mocha';
 import * as path from 'path';
 
-// eslint-disable-next-line  rulesdir/es_modules_import
 import * as ResultsDb from '../conductor/resultsdb.js';
 import {
   ScreenshotError,
-} from '../shared/screenshot-error.js';
+} from '../conductor/screenshot-error.js';
 
 const {
   EVENT_TEST_FAIL,
@@ -135,8 +134,8 @@ class ResultsDbReporter extends Mocha.reporters.Spec {
     const testRetry = ((test as unknown) as TestRetry);
     const result = {
       testId: ResultsDb.sanitizedTestId(testId),
-      duration: `${test.duration || 0}ms`,
-      tags: [{key: 'run', 'value': String(testRetry.currentRetry() + 1)}],
+      duration: `${((test.duration || 1) * .001).toFixed(3)}s`,
+      tags: [{key: 'run', value: String(testRetry.currentRetry() + 1)}],
     };
     const hookName = this.maybeHook(test);
     if (hookName) {

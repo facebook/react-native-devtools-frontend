@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
+import '../../../Images/Images.js';
 
-import iconStyles from './icon.css.legacy.js';
+import iconStyles from './icon.css.js';
 
 /**
  * @deprecated
@@ -37,15 +37,10 @@ export type IconData = IconWithName|{
  * const icon = IconButton.Icon.create('bin');
  * const iconWithClassName = IconButton.Icon.create('bin', 'delete-icon');
  *
- * // Instantiate programmatically via the constructor:
- * const icon = new IconButton.Icon.Icon();
- * icon.name = 'bin';
- * container.appendChild(icon);
- *
  * // Use within a template:
- * LitHtml.html`
- *   <${IconButton.Icon.Icon.litTagName} name="bin">
- *   </${IconButton.Icon.Icon.litTagName}>
+ * Lit.html`
+ *   <devtools-icon name="bin">
+ *   </devtools-icon>
  * `;
  * ```
  *
@@ -71,7 +66,6 @@ export type IconData = IconWithName|{
  * @prop {IconData} data - Deprecated way to set dimensions, color and name at once.
  */
 export class Icon extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-icon`;
   static readonly observedAttributes = ['name'];
 
   readonly #shadowRoot;
@@ -80,20 +74,11 @@ export class Icon extends HTMLElement {
   constructor() {
     super();
     this.role = 'presentation';
+    const style = document.createElement('style');
+    style.textContent = iconStyles.cssText;
     this.#icon = document.createElement('span');
     this.#shadowRoot = this.attachShadow({mode: 'open'});
-    this.#shadowRoot.appendChild(this.#icon);
-
-    // TODO(bmeurer): Ideally we'd have a `connectedCallback()` that would just
-    // install the CSS via `adoptedStyleSheets`, but that throws when using the
-    // same `CSSStyleSheet` across two different documents (which happens in the
-    // case of undocked DevTools windows and using the DeviceMode). So the work-
-    // around for now is to use legacy CSS injected as a <style> tag into the
-    // ShadowRoot (which has been working well for the legacy UI components for
-    // a long time).
-    const styleElement = document.createElement('style');
-    styleElement.textContent = iconStyles.cssContent;
-    this.#shadowRoot.appendChild(styleElement);
+    this.#shadowRoot.append(style, this.#icon);
   }
 
   /**

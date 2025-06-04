@@ -5,6 +5,8 @@
  */
 import type { Protocol } from 'devtools-protocol';
 import type { CDPSession } from '../api/CDPSession.js';
+import type { ElementHandle } from '../api/ElementHandle.js';
+import type { WaitForOptions } from '../api/Frame.js';
 import { Frame } from '../api/Frame.js';
 import type { HTTPResponse } from '../api/HTTPResponse.js';
 import type { WaitTimeoutOptions } from '../api/Page.js';
@@ -44,18 +46,13 @@ export declare class CdpFrame extends Frame {
     updateId(id: string): void;
     updateClient(client: CDPSession): void;
     page(): CdpPage;
-    isOOPFrame(): boolean;
     goto(url: string, options?: {
         referer?: string;
         referrerPolicy?: string;
         timeout?: number;
         waitUntil?: PuppeteerLifeCycleEvent | PuppeteerLifeCycleEvent[];
     }): Promise<HTTPResponse | null>;
-    waitForNavigation(options?: {
-        timeout?: number;
-        waitUntil?: PuppeteerLifeCycleEvent | PuppeteerLifeCycleEvent[];
-        ignoreSameDocumentNavigation?: boolean;
-    }): Promise<HTTPResponse | null>;
+    waitForNavigation(options?: WaitForOptions): Promise<HTTPResponse | null>;
     get client(): CDPSession;
     mainRealm(): IsolatedWorld;
     isolatedRealm(): IsolatedWorld;
@@ -78,5 +75,6 @@ export declare class CdpFrame extends Frame {
     get detached(): boolean;
     [disposeSymbol](): void;
     exposeFunction(): never;
+    frameElement(): Promise<ElementHandle<HTMLIFrameElement> | null>;
 }
 //# sourceMappingURL=Frame.d.ts.map

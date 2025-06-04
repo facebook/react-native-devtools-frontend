@@ -2,13 +2,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../../ui/legacy/components/data_grid/data_grid.js';
+
 import * as i18n from '../../../core/i18n/i18n.js';
 import type * as Protocol from '../../../generated/protocol.js';
-import * as DataGrid from '../../../ui/components/data_grid/data_grid.js';
-import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
+// inspectorCommonStyles is imported for the empty state styling that is used for the start view
+// eslint-disable-next-line rulesdir/es-modules-import
+import inspectorCommonStyles from '../../../ui/legacy/inspectorCommon.css.js';
+import * as UI from '../../../ui/legacy/legacy.js';
+import * as Lit from '../../../ui/lit/lit.js';
+import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
 import sharedStorageAccessGridStyles from './sharedStorageAccessGrid.css.js';
+
+const SHARED_STORAGE_EXPLANATION_URL =
+    'https://developers.google.com/privacy-sandbox/private-advertising/shared-storage';
+
+const {render, html} = Lit;
 
 const UIStrings = {
   /**
@@ -27,15 +37,16 @@ const UIStrings = {
   eventTime: 'Event Time',
   /**
    *@description Text in Shared Storage Events View of the Application panel
-   * Type of shared storage event such as 'documentAddModule', 'documentRun',
-   * 'documentSet', 'workletDelete', or 'workletGet'.
+   * Scope of shared storage event such as 'window', 'sharedStorageWorklet',
+   * 'protectedAudienceWorklet', or 'header'.
    */
-  eventType: 'Access Type',
+  eventScope: 'Access Scope',
   /**
    *@description Text in Shared Storage Events View of the Application panel
-   * Id of the page's main frame for this access event.
+   * Method of shared storage event such as 'addModule', 'run', 'set', 'delete',
+   * or 'get'.
    */
-  mainFrameId: 'Main Frame ID',
+  eventMethod: 'Access Method',
   /**
    *@description Text in Shared Storage Events View of the Application panel
    * Owner origin of the shared storage for this access event.
@@ -43,133 +54,132 @@ const UIStrings = {
   ownerOrigin: 'Owner Origin',
   /**
    *@description Text in Shared Storage Events View of the Application panel
+   * Owner site of the shared storage for this access event.
+   */
+  ownerSite: 'Owner Site',
+  /**
+   *@description Text in Shared Storage Events View of the Application panel
    * Event parameters whose presence/absence depend on the access type.
    */
   eventParams: 'Optional Event Params',
   /**
-   *@description Text shown instead of a table when the table would be empty.
+   *@description Text shown when no shared storage event is shown.
+   * Shared storage allows to store and access data that can be shared across different sites.
+   * A shared storage event is for example an access from a site to that storage.
    */
-  noEvents: 'No shared storage events recorded.',
-};
+  noEvents: 'No shared storage events detected',
+  /**
+   *@description Text shown when no shared storage event is shown. It explains the shared storage event page.
+   * Shared storage allows to store and access data that can be shared across different sites.
+   * A shared storage event is for example an access from a site to that storage.
+   */
+  sharedStorageDescription:
+      'On this page you can view, add, edit and delete shared storage key-value pairs and view shared storage events.',
+  /**
+   * @description Text used in a link to learn more about the topic.
+   */
+  learnMore: 'Learn more',
+
+} as const;
 
 const str_ = i18n.i18n.registerUIStrings('panels/application/components/SharedStorageAccessGrid.ts', UIStrings);
 export const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class SharedStorageAccessGrid extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-shared-storage-access-grid`;
   readonly #shadow = this.attachShadow({mode: 'open'});
-  #datastores: Array<Protocol.Storage.SharedStorageAccessedEvent> = [];
+  #datastores: Protocol.Storage.SharedStorageAccessedEvent[] = [];
 
   connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [sharedStorageAccessGridStyles];
     this.#render();
   }
 
-  set data(data: Array<Protocol.Storage.SharedStorageAccessedEvent>) {
-    this.#datastores = data;
+  // eslint-disable-next-line rulesdir/set-data-type-reference
+  set data(data: Protocol.Storage.SharedStorageAccessedEvent[]) {
+    this.#datastores = data.sort((a, b) => a.accessTime - b.accessTime);
     this.#render();
   }
 
   #render(): void {
     // clang-format off
-    LitHtml.render(LitHtml.html`
-      <div>
-        <span class="heading">${i18nString(UIStrings.sharedStorage)}</span>
-        <${IconButton.Icon.Icon.litTagName} class="info-icon" title=${
-            i18nString(UIStrings.allSharedStorageEvents)}
-          .data=${
-            {iconName: 'info',
-              color: 'var(--icon-default)', width: '16px'} as
-            IconButton.Icon.IconWithName}>
-        </${IconButton.Icon.Icon.litTagName}>
-        ${this.#renderGridOrNoDataMessage()}
-      </div>
-    `, this.#shadow, {host: this});
+    render(html`
+      <style>${sharedStorageAccessGridStyles.cssText}</style>
+      <style>${inspectorCommonStyles.cssText}</style>
+      ${this.#renderGridOrNoDataMessage()}`, this.#shadow, {host: this});
     // clang-format on
   }
 
-  #renderGridOrNoDataMessage(): LitHtml.TemplateResult {
+  #renderGridOrNoDataMessage(): Lit.TemplateResult {
     if (this.#datastores.length === 0) {
-      return LitHtml.html`<div
-        class="no-events-message">${i18nString(UIStrings.noEvents)}</div>`;
+      return html`
+        <div class="empty-state" jslog=${VisualLogging.section().context('empty-view')}>
+          <div class="empty-state-header">${i18nString(UIStrings.noEvents)}</div>
+          <div class="empty-state-description">
+            <span>${i18nString(UIStrings.sharedStorageDescription)}</span>
+            ${
+          UI.XLink.XLink.create(
+              SHARED_STORAGE_EXPLANATION_URL, i18nString(UIStrings.learnMore), 'x-link', undefined, 'learn-more')}
+          </div>
+        </div>
+      `;
     }
-
-    const gridData: DataGrid.DataGridController.DataGridControllerData = {
-      columns: [
-        {
-          id: 'event-main-frame-id',
-          title: i18nString(UIStrings.mainFrameId),
-          widthWeighting: 10,
-          hideable: false,
-          visible: false,
-          sortable: false,
-        },
-        {
-          id: 'event-time',
-          title: i18nString(UIStrings.eventTime),
-          widthWeighting: 10,
-          hideable: false,
-          visible: true,
-          sortable: true,
-        },
-        {
-          id: 'event-type',
-          title: i18nString(UIStrings.eventType),
-          widthWeighting: 10,
-          hideable: false,
-          visible: true,
-          sortable: true,
-        },
-        {
-          id: 'event-owner-origin',
-          title: i18nString(UIStrings.ownerOrigin),
-          widthWeighting: 10,
-          hideable: false,
-          visible: true,
-          sortable: true,
-        },
-        {
-          id: 'event-params',
-          title: i18nString(UIStrings.eventParams),
-          widthWeighting: 10,
-          hideable: false,
-          visible: true,
-          sortable: true,
-        },
-      ],
-      rows: this.#buildRows(),
-      initialSort: {
-        columnId: 'event-time',
-        direction: DataGrid.DataGridUtils.SortDirection.ASC,
-      },
-    };
-
-    return LitHtml.html`
-      <${DataGrid.DataGridController.DataGridController.litTagName} .data=${
-        gridData as DataGrid.DataGridController.DataGridControllerData}></${
-        DataGrid.DataGridController.DataGridController.litTagName}>
+    // clang-format off
+    return html`
+      <div>
+        <span class="heading">${i18nString(UIStrings.sharedStorage)}</span>
+        <devtools-icon class="info-icon"
+                        title=${i18nString(UIStrings.allSharedStorageEvents)}
+                        .data=${{iconName: 'info', color: 'var(--icon-default)', width: '16px'}}>
+        </devtools-icon>
+        <devtools-data-grid striped inline @select=${this.#onSelect}>
+          <table>
+            <tr>
+              <th id="event-time" weight="10" sortable>
+                ${i18nString(UIStrings.eventTime)}
+              </th>
+              <th id="event-scope" weight="10" sortable>
+                ${i18nString(UIStrings.eventScope)}
+              </th>
+              <th id="event-method" weight="10" sortable>
+                ${i18nString(UIStrings.eventMethod)}
+              </th>
+              <th id="event-owner-origin" weight="10" sortable>
+                ${i18nString(UIStrings.ownerOrigin)}
+              </th>
+              <th id="event-owner-site" weight="10" sortable>
+                ${i18nString(UIStrings.ownerSite)}
+              </th>
+              <th id="event-params" weight="10" sortable>
+                ${i18nString(UIStrings.eventParams)}
+              </th>
+            </tr>
+            ${
+        this.#datastores.map((event, index) => html`
+              <tr data-index=${index}>
+                <td data-value=${event.accessTime}>
+                  ${
+            new Date(1e3 * event.accessTime)
+                .toLocaleString()}
+                </td>
+                <td>${event.scope}</td>
+                <td>${event.method}</td>
+                <td>${event.ownerOrigin}</td>
+                <td>${event.ownerSite}</td>
+                <td>${JSON.stringify(event.params)}</td>
+              </tr>
+            `)}
+          </table>
+        </devtools-data-grid>
+      </div>
     `;
+    // clang-format on
   }
 
-  #buildRows(): DataGrid.DataGridUtils.Row[] {
-    return this.#datastores.map(event => ({
-                                  cells: [
-                                    {columnId: 'event-main-frame-id', value: event.mainFrameId},
-                                    {
-                                      columnId: 'event-time',
-                                      value: event.accessTime,
-                                      renderer: this.#renderDateForDataGridCell.bind(this),
-                                    },
-                                    {columnId: 'event-type', value: event.type},
-                                    {columnId: 'event-owner-origin', value: event.ownerOrigin},
-                                    {columnId: 'event-params', value: JSON.stringify(event.params)},
-                                  ],
-                                }));
-  }
-
-  #renderDateForDataGridCell(value: DataGrid.DataGridUtils.CellValue): LitHtml.TemplateResult {
-    const date = new Date(1e3 * (value as number));
-    return LitHtml.html`${date.toLocaleString()}`;
+  #onSelect(event: CustomEvent<HTMLElement>): void {
+    const index = parseInt(event.detail.dataset.index || '', 10);
+    const datastore = isNaN(index) ? undefined : this.#datastores[index];
+    if (datastore) {
+      this.dispatchEvent(new CustomEvent('select', {detail: datastore}));
+    }
   }
 }
 

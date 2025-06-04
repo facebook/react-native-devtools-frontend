@@ -2,14 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Common from '../../../core/common/common.js';
-import * as LitHtml from '../../lit-html/lit-html.js';
-import * as IconButton from '../icon_button/icon_button.js';
+import '../icon_button/icon_button.js';
 
-import settingDeprecationWarning from './settingDeprecationWarning.css.js';
+import * as Common from '../../../core/common/common.js';
+import * as Lit from '../../lit/lit.js';
+
+import settingDeprecationWarningRaw from './settingDeprecationWarning.css.js';
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const settingDeprecationWarning = new CSSStyleSheet();
+settingDeprecationWarning.replaceSync(settingDeprecationWarningRaw.cssText);
+
+const {html} = Lit;
 
 export class SettingDeprecationWarning extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-setting-deprecation-warning`;
   readonly #shadow = this.attachShadow({mode: 'open'});
 
   connectedCallback(): void {
@@ -32,10 +38,9 @@ export class SettingDeprecationWarning extends HTMLElement {
       };
     }
 
-    LitHtml.render(
-        LitHtml.html`<${IconButton.Icon.Icon.litTagName} class=${LitHtml.Directives.classMap(classes)} .data=${
-            iconData as
-            IconButton.Icon.IconData} title=${warning} @click=${onclick}></${IconButton.Icon.Icon.litTagName}>`,
+    Lit.render(
+        html`<devtools-icon class=${Lit.Directives.classMap(classes)} .data=${iconData} title=${warning} @click=${
+            onclick}></devtools-icon>`,
         this.#shadow, {host: this});
   }
 }

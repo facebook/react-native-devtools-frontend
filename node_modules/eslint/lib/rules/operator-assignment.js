@@ -62,10 +62,13 @@ module.exports = {
     meta: {
         type: "suggestion",
 
+        defaultOptions: ["always"],
+
         docs: {
             description: "Require or disallow assignment operator shorthand where possible",
             recommended: false,
-            url: "https://eslint.org/docs/rules/operator-assignment"
+            frozen: true,
+            url: "https://eslint.org/docs/latest/rules/operator-assignment"
         },
 
         schema: [
@@ -82,8 +85,8 @@ module.exports = {
     },
 
     create(context) {
-
-        const sourceCode = context.getSourceCode();
+        const never = context.options[0] === "never";
+        const sourceCode = context.sourceCode;
 
         /**
          * Returns the operator token of an AssignmentExpression or BinaryExpression
@@ -202,7 +205,7 @@ module.exports = {
         }
 
         return {
-            AssignmentExpression: context.options[0] !== "never" ? verify : prohibit
+            AssignmentExpression: !never ? verify : prohibit
         };
 
     }

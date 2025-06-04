@@ -2,13 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../../ui/components/icon_button/icon_button.js';
+
 import * as i18n from '../../../core/i18n/i18n.js';
-import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
+import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
 import {findFlexContainerIcon, findGridContainerIcon, type IconInfo} from './CSSPropertyIconResolver.js';
-import stylePropertyEditorStyles from './stylePropertyEditor.css.js';
+import stylePropertyEditorStylesRaw from './stylePropertyEditor.css.js';
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const stylePropertyEditorStyles = new CSSStyleSheet();
+stylePropertyEditorStyles.replaceSync(stylePropertyEditorStylesRaw.cssText);
 
 const UIStrings = {
   /**
@@ -23,16 +28,16 @@ const UIStrings = {
    * @example {row} propertyValue
    */
   deselectButton: 'Remove {propertyName}: {propertyValue}',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/elements/components/StylePropertyEditor.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-const {render, html, Directives} = LitHtml;
+const {render, html, Directives} = Lit;
 
 declare global {
   interface HTMLElementEventMap {
-    'propertyselected': PropertySelectedEvent;
-    'propertydeselected': PropertyDeselectedEvent;
+    propertyselected: PropertySelectedEvent;
+    propertydeselected: PropertyDeselectedEvent;
   }
 }
 
@@ -66,11 +71,10 @@ export class PropertyDeselectedEvent extends Event {
   }
 }
 
-// eslint-disable-next-line rulesdir/check_component_naming
 export class StylePropertyEditor extends HTMLElement {
   readonly #shadow = this.attachShadow({mode: 'open'});
-  #authoredProperties: Map<string, string> = new Map();
-  #computedProperties: Map<string, string> = new Map();
+  #authoredProperties = new Map<string, string>();
+  #computedProperties = new Map<string, string>();
   protected readonly editableProperties: EditableProperty[] = [];
 
   constructor() {
@@ -104,7 +108,7 @@ export class StylePropertyEditor extends HTMLElement {
     // clang-format on
   }
 
-  #renderProperty(prop: EditableProperty): LitHtml.TemplateResult {
+  #renderProperty(prop: EditableProperty): Lit.TemplateResult {
     const authoredValue = this.#authoredProperties.get(prop.propertyName);
     const notAuthored = !authoredValue;
     const shownValue = authoredValue || this.#computedProperties.get(prop.propertyName);
@@ -122,7 +126,7 @@ export class StylePropertyEditor extends HTMLElement {
     </div>`;
   }
 
-  #renderButton(propertyValue: string, propertyName: string, selected: boolean = false): LitHtml.TemplateResult {
+  #renderButton(propertyValue: string, propertyName: string, selected = false): Lit.TemplateResult {
     const query = `${propertyName}: ${propertyValue}`;
     const iconInfo = this.findIcon(query, this.#computedProperties);
     if (!iconInfo) {
@@ -130,8 +134,8 @@ export class StylePropertyEditor extends HTMLElement {
     }
     const transform = `transform: rotate(${iconInfo.rotate}deg) scale(${iconInfo.scaleX}, ${iconInfo.scaleY})`;
     const classes = Directives.classMap({
-      'button': true,
-      'selected': selected,
+      button: true,
+      selected,
     });
     const values = {propertyName, propertyValue};
     const title = selected ? i18nString(UIStrings.deselectButton, values) : i18nString(UIStrings.selectButton, values);
@@ -140,8 +144,8 @@ export class StylePropertyEditor extends HTMLElement {
               class=${classes}
               jslog=${VisualLogging.item().track({click: true}).context(`${propertyName}-${propertyValue}`)}
               @click=${() => this.#onButtonClick(propertyName, propertyValue, selected)}>
-        <${IconButton.Icon.Icon.litTagName} style=${transform} name=${iconInfo.iconName}>
-        </${IconButton.Icon.Icon.litTagName}>
+        <devtools-icon style=${transform} name=${iconInfo.iconName}>
+        </devtools-icon>
       </button>
     `;
   }

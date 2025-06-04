@@ -2,15 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {type Brand} from './Brand.js';
+import type {Brand} from './Brand.js';
 
 export type Seconds = Brand<number, 'Seconds'>;
 export type MilliSeconds = Brand<number, 'MilliSeconds'>;
 export type MicroSeconds = Brand<number, 'MicroSeconds'>;
-
-export function secondsToMilliSeconds(x: Seconds): MilliSeconds {
-  return (x * 1000) as MilliSeconds;
-}
 
 export function milliSecondsToSeconds(x: MilliSeconds): Seconds {
   return (x / 1000) as Seconds;

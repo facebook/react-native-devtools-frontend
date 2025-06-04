@@ -35,8 +35,7 @@ import * as TextUtils from '../text_utils/text_utils.js';
 import * as Workspace from '../workspace/workspace.js';
 
 import {ContentProviderBasedProject} from './ContentProviderBasedProject.js';
-
-import {type DebuggerSourceMapping, type DebuggerWorkspaceBinding} from './DebuggerWorkspaceBinding.js';
+import type {DebuggerSourceMapping, DebuggerWorkspaceBinding} from './DebuggerWorkspaceBinding.js';
 import {IgnoreListManager} from './IgnoreListManager.js';
 import {NetworkProject} from './NetworkProject.js';
 
@@ -90,6 +89,14 @@ export class CompilerScriptMapping implements DebuggerSourceMapping {
       this.#sourceMapManager.addEventListener(
           SDK.SourceMapManager.Events.SourceMapDetached, this.sourceMapDetached, this),
     ];
+  }
+
+  setFunctionRanges(
+      uiSourceCode: Workspace.UISourceCode.UISourceCode,
+      ranges: SDK.SourceMapFunctionRanges.NamedFunctionRange[]): void {
+    for (const sourceMap of this.#uiSourceCodeToSourceMaps.get(uiSourceCode)) {
+      sourceMap.augmentWithScopes(uiSourceCode.url(), ranges);
+    }
   }
 
   private addStubUISourceCode(script: SDK.Script.Script): void {

@@ -72,3 +72,15 @@ type IntersectionFromUnion<T> = (T extends any ? (arg: T) => void : never) exten
  * See: https://www.typescriptlang.org/docs/handbook/2/conditional-types.html
  */
 export type NoUnion<T> = [T] extends [IntersectionFromUnion<T>] ? T : never;
+
+export type RecursivePartial<T> = {
+  [P in keyof T]?: RecursivePartial<T[P]>;
+};
+
+/**
+ * Note this does not recursively
+ * make Array items readonly at the moment
+ */
+export type RecursiveReadonly<T> = {
+  [P in keyof T]: Readonly<RecursiveReadonly<T[P]>>;
+};

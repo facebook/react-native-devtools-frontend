@@ -2,21 +2,25 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as i18n from '../../../core/i18n/i18n.js';
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
+import '../../../ui/legacy/legacy.js';
 
-import cssHintDetailsViewStyles from './cssHintDetailsView.css.js';
+import * as i18n from '../../../core/i18n/i18n.js';
+import {Directives, html, render} from '../../../ui/lit/lit.js';
+
+import cssHintDetailsViewStylesRaw from './cssHintDetailsView.css.js';
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const cssHintDetailsViewStyles = new CSSStyleSheet();
+cssHintDetailsViewStyles.replaceSync(cssHintDetailsViewStylesRaw.cssText);
 
 const UIStrings = {
   /**
    *@description Text for button that redirects to CSS property documentation.
    */
-    learnMore: 'Learn More',
-};
+  learnMore: 'Learn More',
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/elements/components/CSSHintDetailsView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-
-const {render, html, Directives} = LitHtml;
 
 interface Hint {
   getMessage(): string;
@@ -25,7 +29,6 @@ interface Hint {
 }
 
 export class CSSHintDetailsView extends HTMLElement {
-    static readonly litTagName = LitHtml.literal`devtools-css-hint-details-view`;
     readonly #shadow = this.attachShadow({mode: 'open'});
     readonly #authoringHint: Hint;
 
@@ -47,13 +50,15 @@ export class CSSHintDetailsView extends HTMLElement {
           ${this.#authoringHint.getPossibleFixMessage() ? html`
               <div class="hint-popup-possible-fix">
                   ${Directives.unsafeHTML(this.#authoringHint.getPossibleFixMessage())}
-                  ${link ? html`
-                      <x-link id="learn-more" href=${link} class="clickable underlined unbreakable-text"}>
-                          ${i18nString(UIStrings.learnMore)}
-                      </x-link>
-                  `: ''}
               </div>
           ` : ''}
+          ${link ? html`
+                      <div class="footer">
+                        <x-link id="learn-more" href=${link} class="clickable underlined unbreakable-text">
+                            ${i18nString(UIStrings.learnMore)}
+                        </x-link>
+                      </div>
+                  `: ''}
         </div>
       `, this.#shadow, {
         host: this,
