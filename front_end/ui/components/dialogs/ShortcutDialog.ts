@@ -1,21 +1,20 @@
 // Copyright 2023 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+import './ButtonDialog.js';
 
 import * as i18n from '../../../core/i18n/i18n.js';
 import type * as Platform from '../../../core/platform/platform.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as ComponentHelpers from '../../../ui/components/helpers/helpers.js';
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
-import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
+import {html, nothing, render} from '../../../ui/lit/lit.js';
 
-import {
-  type ClickOutsideDialogEvent,
-  Dialog as DialogElement,
-  DialogHorizontalAlignment,
-  DialogVerticalPosition,
-} from './Dialog.js';
-import shortcutDialogStyles from './shortcutDialog.css.js';
+import type {ButtonDialogData} from './ButtonDialog.js';
+import shortcutDialogStylesRaw from './shortcutDialog.css.js';
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const shortcutDialogStyles = new CSSStyleSheet();
+shortcutDialogStyles.replaceSync(shortcutDialogStylesRaw.cssText);
 
 const UIStrings = {
 
@@ -27,11 +26,7 @@ const UIStrings = {
    * @description Title of the keyboard shortcuts help menu.
    */
   dialogTitle: 'Keyboard shortcuts',
-  /**
-   * @description Title of close button for the shortcuts dialog.
-   */
-  close: 'Close',
-};
+} as const;
 
 const str_ = i18n.i18n.registerUIStrings('ui/components/dialogs/ShortcutDialog.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -42,17 +37,9 @@ declare global {
   }
 }
 
-export class ShowDialog extends Event {
-  static readonly eventName = 'showdialog';
-
-  constructor() {
-    super(ShowDialog.eventName);
-  }
-}
-
 export interface Shortcut {
   title: string|Platform.UIString.LocalizedString;
-  bindings: string[];
+  bindings: string[][];
 }
 export interface ShortcutDialogData {
   shortcuts: Shortcut[];
@@ -60,14 +47,12 @@ export interface ShortcutDialogData {
 }
 
 export class ShortcutDialog extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-shortcut-dialog`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   readonly #renderBound = this.#render.bind(this);
 
-  #dialog: DialogElement|null = null;
-  #showButton: Buttons.Button.Button|null = null;
   #shortcuts: Shortcut[] = [];
   #openOnRender = false;
+  #prependedElement: HTMLElement|null = null;
 
   connectedCallback(): void {
     this.#shadow.adoptedStyleSheets = [shortcutDialogStyles];
@@ -82,24 +67,8 @@ export class ShortcutDialog extends HTMLElement {
     void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#renderBound);
   }
 
-  #showDialog(): void {
-    if (!this.#dialog) {
-      throw new Error('Dialog not found');
-    }
-    void this.#dialog.setDialogVisible(true);
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#renderBound);
-    this.dispatchEvent(new ShowDialog());
-  }
-
-  #closeDialog(evt?: ClickOutsideDialogEvent): void {
-    if (!this.#dialog) {
-      throw new Error('Dialog not found');
-    }
-    void this.#dialog.setDialogVisible(false);
-    if (evt) {
-      evt.stopImmediatePropagation();
-    }
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#renderBound);
+  prependElement(element: HTMLElement): void {
+    this.#prependedElement = element;
   }
 
   #render(): void {
@@ -108,75 +77,40 @@ export class ShortcutDialog extends HTMLElement {
     }
 
     // clang-format off
-    LitHtml.render(
-      LitHtml.html`
-      <${Buttons.Button.Button.litTagName}
-        @click=${this.#showDialog}
-        on-render=${ComponentHelpers.Directives.nodeRenderedCallback(node => {
-          this.#showButton = node as Buttons.Button.Button;
-        })}
-        .data=${{
+    render(
+      html`
+      <devtools-button-dialog .data=${{
+          openOnRender: this.#openOnRender,
+          closeButton: true,
+          dialogTitle: i18nString(UIStrings.dialogTitle),
           variant: Buttons.Button.Variant.TOOLBAR,
           iconName: 'help',
-          title: i18nString(UIStrings.showShortcutTitle),
-        } as Buttons.Button.ButtonData}
-      ></${Buttons.Button.Button.litTagName}>
-      <${DialogElement.litTagName}
-        @clickoutsidedialog=${this.#closeDialog}
-        .showConnector=${true}
-        .origin=${() => {
-          if (!this.#showButton) {
-            throw new Error('Button not found');
-          }
-          return this.#showButton;
-        }}
-        .position=${DialogVerticalPosition.BOTTOM}
-        .horizontalAlignment=${DialogHorizontalAlignment.RIGHT}
-        .jslogContext=${'shortcuts'}
-        on-render=${ComponentHelpers.Directives.nodeRenderedCallback(node => {
-          this.#dialog = node as DialogElement;
-        })}
-      >
-        <div class="keybinds-category-header">
-          <span class="keybinds-category-header-text">${i18nString(UIStrings.dialogTitle)}</span>
-          <${Buttons.Button.Button.litTagName}
-            @click=${this.#closeDialog}
-            class='close-icon'
-            .data=${{
-              variant: Buttons.Button.Variant.TOOLBAR,
-              iconName: 'cross',
-              title: i18nString(UIStrings.close),
-            } as Buttons.Button.ButtonData}
-            jslog=${VisualLogging.close().track({click: true})}
-          ></${Buttons.Button.Button.litTagName}>
-        </div>
+          iconTitle: i18nString(UIStrings.showShortcutTitle),
+        } as ButtonDialogData}>
         <ul class="keybinds-list">
+          ${(this.#prependedElement) ? html`${this.#prependedElement}` : nothing}
           ${this.#shortcuts.map(shortcut =>
-            LitHtml.html`
+            html`
               <li class="keybinds-list-item">
-                <div class="keybinds-action-name keybinds-list-text">${shortcut.title}</div>
-                ${shortcut.bindings.map((binding, index) =>
-                  LitHtml.html`
-                    <div class="keybinds-shortcut keybinds-list-text">
-                      <span class="keybinds-key">${binding}</span>
+                <div class="keybinds-list-title">${shortcut.title}</div>
+                <div class="shortcuts-for-actions">
+                  ${shortcut.bindings.map(binding => {
+                    return html`
+                    <div class="keys-container">
+                      ${binding.map(key => html`
+                          <span class="keybinds-key">${key}</span>
+                      `)}
                     </div>
-                    ${shortcut.bindings.at(index + 1) ?
-                      LitHtml.html`<span class="keybinds-shortcut-separator"> - </span>`
-                      : LitHtml.nothing
-                    }
-                `)}
+                  `;
+                    })}
+                  </div>
               </li>`,
           )}
         </ul>
-      </${DialogElement.litTagName}>
+      </devtools-button-dialog>
       `,
       this.#shadow, {host: this});
     // clang-format on
-
-    if (this.#openOnRender) {
-      this.#showDialog();
-      this.#openOnRender = false;
-    }
   }
 }
 

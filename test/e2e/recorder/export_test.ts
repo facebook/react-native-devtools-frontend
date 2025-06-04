@@ -9,10 +9,6 @@ import {
   waitForAria,
   waitForFunction,
 } from '../../../test/shared/helper.js';
-import {
-  describe,
-  it,
-} from '../../../test/shared/mocha-extensions.js';
 
 import {
   createAndStartRecording,

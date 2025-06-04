@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as TraceModel from '../../../models/trace/trace.js';
+import * as Trace from '../../../models/trace/trace.js';
 import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
 import * as PerfUI from '../../../ui/legacy/components/perf_ui/perf_ui.js';
@@ -11,25 +11,25 @@ import * as Timeline from '../timeline.js';
 
 function initTrackAppender(
     flameChartData: PerfUI.FlameChart.FlameChartTimelineData,
-    traceData: TraceModel.Handlers.Types.TraceParseData,
-    entryData: Timeline.TimelineFlameChartDataProvider.TimelineFlameChartEntry[],
+    parsedTrace: Trace.Handlers.Types.ParsedTrace,
+    entryData: Trace.Types.Events.Event[],
     entryTypeByLevel: Timeline.TimelineFlameChartDataProvider.EntryType[],
     ): Timeline.TimingsTrackAppender.TimingsTrackAppender {
-  Timeline.ExtensionDataGatherer.ExtensionDataGatherer.instance().modelChanged(traceData);
+  const entityMapper = new Timeline.Utils.EntityMapper.EntityMapper(parsedTrace);
   const compatibilityTracksAppender = new Timeline.CompatibilityTracksAppender.CompatibilityTracksAppender(
-      flameChartData, traceData, entryData, entryTypeByLevel);
+      flameChartData, parsedTrace, entryData, entryTypeByLevel, entityMapper);
   return compatibilityTracksAppender.timingsTrackAppender();
 }
 
 describeWithEnvironment('TimingTrackAppender', function() {
-  let traceData: TraceModel.Handlers.Types.TraceParseData;
+  let parsedTrace: Trace.Handlers.Types.ParsedTrace;
   let timingsTrackAppender: Timeline.TimingsTrackAppender.TimingsTrackAppender;
-  let entryData: Timeline.TimelineFlameChartDataProvider.TimelineFlameChartEntry[] = [];
+  let entryData: Trace.Types.Events.Event[] = [];
   let flameChartData = PerfUI.FlameChart.FlameChartTimelineData.createEmpty();
   let entryTypeByLevel: Timeline.TimelineFlameChartDataProvider.EntryType[] = [];
   beforeEach(async function() {
-    ({traceData} = await TraceLoader.traceEngine(this, 'timings-track.json.gz'));
-    timingsTrackAppender = initTrackAppender(flameChartData, traceData, entryData, entryTypeByLevel);
+    ({parsedTrace} = await TraceLoader.traceEngine(this, 'timings-track.json.gz'));
+    timingsTrackAppender = initTrackAppender(flameChartData, parsedTrace, entryData, entryTypeByLevel);
     timingsTrackAppender.appendTrackAtLevel(0);
   });
   afterEach(() => {
@@ -38,75 +38,55 @@ describeWithEnvironment('TimingTrackAppender', function() {
     entryTypeByLevel = [];
   });
 
+  function getMockInfo(event?: Trace.Types.Events.Event) {
+    const defaultInfo: Timeline.CompatibilityTracksAppender.PopoverInfo = {
+      title: event ? timingsTrackAppender.titleForEvent(event) : 'title',
+      formattedTime: event ? Timeline.AppenderUtils.getDurationString(event.dur) : 'time',
+      warningElements: [],
+      additionalElements: [],
+      url: null,
+    };
+    return defaultInfo;
+  }
+
   describe('appendTrackAtLevel', () => {
     it('marks all levels used by the track with the `TrackAppender` type', () => {
-      // 8 levels should be taken:
-      //   * 1 for page load marks.
+      // 7 levels should be taken:
       //   * 1 performance.marks.
       //   * 3 used by performance.measures.
       //   * 1 used by console timestamps.
       //   * 1 used by console.time calls.
-      const levelCount = 7;
+      const levelCount = 6;
       assert.strictEqual(entryTypeByLevel.length, levelCount);
       const allEntriesAreTrackAppender =
-          entryTypeByLevel.every(type => type === Timeline.TimelineFlameChartDataProvider.EntryType.TrackAppender);
+          entryTypeByLevel.every(type => type === Timeline.TimelineFlameChartDataProvider.EntryType.TRACK_APPENDER);
       assert.isTrue(allEntriesAreTrackAppender);
     });
-    it('creates a flamechart group for the timings track', () => {
-      assert.strictEqual(flameChartData.groups.length, 1);
-      assert.strictEqual(flameChartData.groups[0].name, 'Timings');
-    });
-    it('populates the markers array in ascendent order', () => {
-      const traceMarkers = traceData.PageLoadMetrics.allMarkerEvents;
-      assert.strictEqual(flameChartData.markers.length, traceMarkers.length);
-      for (let i = 1; i < flameChartData.markers.length; i++) {
-        assert.isAtLeast(flameChartData.markers[i].startTime(), flameChartData.markers[i - 1].startTime());
-      }
-    });
-    it('creates a TimelineFlameChartMarker for each page load marker event in a trace', () => {
-      const traceMarkers = traceData.PageLoadMetrics.allMarkerEvents;
-      assert.strictEqual(flameChartData.markers.length, traceMarkers.length);
-      for (const traceMarker of traceMarkers) {
-        const markerTimeMs = TraceModel.Helpers.Timing.microSecondsToMilliseconds(traceMarker.ts);
-        const flameChartMarker =
-            flameChartData.markers.find(flameChartMarker => flameChartMarker.startTime() === markerTimeMs);
-        assert.exists(flameChartMarker);
-      }
-      assert.strictEqual(flameChartData.markers.length, traceMarkers.length);
-    });
     it('adds start times correctly', () => {
-      const traceMarkers = traceData.PageLoadMetrics.allMarkerEvents;
-      const performanceMarks = traceData.UserTimings.performanceMarks;
-      const performanceMeasures = traceData.UserTimings.performanceMeasures;
-      const consoleTimings = traceData.UserTimings.consoleTimings;
-      const consoleTimestamps = traceData.UserTimings.timestampEvents;
-      for (const event
-               of [...traceMarkers, ...performanceMarks, ...performanceMeasures, ...consoleTimings,
-                   ...consoleTimestamps]) {
+      const performanceMarks = parsedTrace.UserTimings.performanceMarks;
+      const performanceMeasures = parsedTrace.UserTimings.performanceMeasures;
+      const consoleTimings = parsedTrace.UserTimings.consoleTimings;
+      const consoleTimestamps = parsedTrace.UserTimings.timestampEvents;
+      for (const event of [...performanceMarks, ...performanceMeasures, ...consoleTimings, ...consoleTimestamps]) {
         const markerIndex = entryData.indexOf(event);
         assert.exists(markerIndex);
-        assert.strictEqual(
-            flameChartData.entryStartTimes[markerIndex],
-            TraceModel.Helpers.Timing.microSecondsToMilliseconds(event.ts));
+        assert.strictEqual(flameChartData.entryStartTimes[markerIndex], Trace.Helpers.Timing.microToMilli(event.ts));
       }
     });
     it('adds total times correctly', () => {
-      const traceMarkers = traceData.PageLoadMetrics.allMarkerEvents;
-      const performanceMarks = traceData.UserTimings.performanceMarks;
-      const performanceMeasures = traceData.UserTimings.performanceMeasures;
-      const consoleTimings = traceData.UserTimings.consoleTimings;
-      const consoleTimestamps = traceData.UserTimings.timestampEvents;
-      for (const event
-               of [...traceMarkers, ...performanceMarks, ...performanceMeasures, ...consoleTimings,
-                   ...consoleTimestamps]) {
+      const performanceMarks = parsedTrace.UserTimings.performanceMarks;
+      const performanceMeasures = parsedTrace.UserTimings.performanceMeasures;
+      const consoleTimings = parsedTrace.UserTimings.consoleTimings;
+      const consoleTimestamps = parsedTrace.UserTimings.timestampEvents;
+      for (const event of [...performanceMarks, ...performanceMeasures, ...consoleTimings, ...consoleTimestamps]) {
         const markerIndex = entryData.indexOf(event);
         assert.exists(markerIndex);
-        if (TraceModel.Types.TraceEvents.isTraceEventMarkerEvent(event)) {
+        if (Trace.Types.Events.isMarkerEvent(event)) {
           assert.isNaN(flameChartData.entryTotalTimes[markerIndex]);
           continue;
         }
         const expectedTotalTimeForEvent = event.dur ?
-            TraceModel.Helpers.Timing.microSecondsToMilliseconds(event.dur) :
+            Trace.Helpers.Timing.microToMilli(event.dur) :
             Timeline.TimelineFlameChartDataProvider.InstantEventVisibleDurationMs;
         assert.strictEqual(flameChartData.entryTotalTimes[markerIndex], expectedTotalTimeForEvent);
       }
@@ -115,7 +95,7 @@ describeWithEnvironment('TimingTrackAppender', function() {
 
   describe('colorForEvent and titleForEvent', () => {
     it('returns the correct color and title for page load markers', () => {
-      const traceMarkers = traceData.PageLoadMetrics.allMarkerEvents;
+      const traceMarkers = parsedTrace.PageLoadMetrics.allMarkerEvents;
       const firstContentfulPaint = traceMarkers.find(marker => marker.name === 'firstContentfulPaint');
       const markLoad = traceMarkers.find(marker => marker.name === 'MarkLoad');
       const markDOMContent = traceMarkers.find(marker => marker.name === 'MarkDOMContent');
@@ -130,75 +110,73 @@ describeWithEnvironment('TimingTrackAppender', function() {
       assert.strictEqual(timingsTrackAppender.colorForEvent(firstContentfulPaint), '#1A6937');
       assert.strictEqual(
           timingsTrackAppender.titleForEvent(firstContentfulPaint),
-          TraceModel.Handlers.ModelHandlers.PageLoadMetrics.MetricName.FCP);
+          Trace.Handlers.ModelHandlers.PageLoadMetrics.MetricName.FCP);
 
       assert.strictEqual(timingsTrackAppender.colorForEvent(markLoad), '#B31412');
       assert.strictEqual(
-          timingsTrackAppender.titleForEvent(markLoad), TraceModel.Handlers.ModelHandlers.PageLoadMetrics.MetricName.L);
+          timingsTrackAppender.titleForEvent(markLoad), Trace.Handlers.ModelHandlers.PageLoadMetrics.MetricName.L);
 
       assert.strictEqual(timingsTrackAppender.colorForEvent(markDOMContent), '#0867CB');
       assert.strictEqual(
           timingsTrackAppender.titleForEvent(markDOMContent),
-          TraceModel.Handlers.ModelHandlers.PageLoadMetrics.MetricName.DCL);
+          Trace.Handlers.ModelHandlers.PageLoadMetrics.MetricName.DCL);
 
       assert.strictEqual(timingsTrackAppender.colorForEvent(firstPaint), '#228847');
       assert.strictEqual(
-          timingsTrackAppender.titleForEvent(firstPaint),
-          TraceModel.Handlers.ModelHandlers.PageLoadMetrics.MetricName.FP);
+          timingsTrackAppender.titleForEvent(firstPaint), Trace.Handlers.ModelHandlers.PageLoadMetrics.MetricName.FP);
 
       assert.strictEqual(timingsTrackAppender.colorForEvent(largestContentfulPaint), '#1A3422');
       assert.strictEqual(
           timingsTrackAppender.titleForEvent(largestContentfulPaint),
-          TraceModel.Handlers.ModelHandlers.PageLoadMetrics.MetricName.LCP);
+          Trace.Handlers.ModelHandlers.PageLoadMetrics.MetricName.LCP);
     });
 
     it('returns the correct title for performance measures', () => {
-      const performanceMeasures = traceData.UserTimings.performanceMeasures;
+      const performanceMeasures = parsedTrace.UserTimings.performanceMeasures;
       for (const measure of performanceMeasures) {
         assert.strictEqual(timingsTrackAppender.titleForEvent(measure), measure.name);
       }
     });
 
     it('returns the correct title for console timings', () => {
-      const traceMarkers = traceData.UserTimings.consoleTimings;
+      const traceMarkers = parsedTrace.UserTimings.consoleTimings;
       for (const mark of traceMarkers) {
         assert.strictEqual(timingsTrackAppender.titleForEvent(mark), mark.name);
       }
     });
 
     it('returns the correct title for performance marks', () => {
-      const traceMarkers = traceData.UserTimings.performanceMarks;
+      const traceMarkers = parsedTrace.UserTimings.performanceMarks;
       for (const mark of traceMarkers) {
         assert.strictEqual(timingsTrackAppender.titleForEvent(mark), `[mark]: ${mark.name}`);
       }
     });
 
     it('returns the correct title for console timestamps', () => {
-      const traceMarkers = traceData.UserTimings.timestampEvents;
+      const traceMarkers = parsedTrace.UserTimings.timestampEvents;
       for (const mark of traceMarkers) {
-        assert.strictEqual(timingsTrackAppender.titleForEvent(mark), `TimeStamp: ${mark.args.data.message}`);
+        assert.strictEqual(timingsTrackAppender.titleForEvent(mark), `TimeStamp: ${mark.args.data?.message}`);
       }
     });
   });
 
-  describe('highlightedEntryInfo', () => {
+  describe('popoverInfo', () => {
     it('shows the time of the mark, not the duration, if the event is a performance mark', () => {
-      const firstMark = traceData.UserTimings.performanceMarks[0];
-      const highlightedEntryInfo = timingsTrackAppender.highlightedEntryInfo(firstMark);
-      assert.deepEqual(highlightedEntryInfo, {
-        title: '[mark]: myMark',
+      const firstMark = parsedTrace.UserTimings.performanceMarks[0];
+      const popoverInfo = getMockInfo(firstMark);
+      timingsTrackAppender.setPopoverInfo(firstMark, popoverInfo);
+      assert.deepInclude(popoverInfo, {
         formattedTime: '1.12\u00A0s',
       });
     });
 
     it('shows the time of the mark for an LCP event', () => {
-      const largestContentfulPaint =
-          traceData.PageLoadMetrics.allMarkerEvents.find(marker => marker.name === 'largestContentfulPaint::Candidate');
-      if (!largestContentfulPaint) {
-        throw new Error('Could not find LCP event');
-      }
-      const highlightedEntryInfo = timingsTrackAppender.highlightedEntryInfo(largestContentfulPaint);
-      assert.deepEqual(highlightedEntryInfo, {
+      const largestContentfulPaint = parsedTrace.PageLoadMetrics.allMarkerEvents.find(
+          marker => marker.name === 'largestContentfulPaint::Candidate');
+      assert.exists(largestContentfulPaint);
+      const popoverInfo = getMockInfo(largestContentfulPaint);
+      timingsTrackAppender.setPopoverInfo(largestContentfulPaint, popoverInfo);
+      assert.deepInclude(popoverInfo, {
         title: 'LCP',
         formattedTime: '2.42\u00A0s',
       });
@@ -206,51 +184,52 @@ describeWithEnvironment('TimingTrackAppender', function() {
 
     it('shows the time of the mark for an FCP event', () => {
       const firstContentfulPaint =
-          traceData.PageLoadMetrics.allMarkerEvents.find(marker => marker.name === 'firstContentfulPaint');
-      if (!firstContentfulPaint) {
-        throw new Error('Could not find FCP event');
-      }
-      const highlightedEntryInfo = timingsTrackAppender.highlightedEntryInfo(firstContentfulPaint);
-      assert.deepEqual(highlightedEntryInfo, {
+          parsedTrace.PageLoadMetrics.allMarkerEvents.find(marker => marker.name === 'firstContentfulPaint');
+      assert.exists(firstContentfulPaint);
+      const popoverInfo = getMockInfo(firstContentfulPaint);
+      timingsTrackAppender.setPopoverInfo(firstContentfulPaint, popoverInfo);
+      assert.deepInclude(popoverInfo, {
         title: 'FCP',
         formattedTime: '2.42\u00A0s',
       });
     });
 
     it('shows the time of the mark for a DCL event', () => {
-      const dclEvent = traceData.PageLoadMetrics.allMarkerEvents.find(marker => marker.name === 'MarkDOMContent');
-      if (!dclEvent) {
-        throw new Error('Could not find DCL event');
-      }
-      const highlightedEntryInfo = timingsTrackAppender.highlightedEntryInfo(dclEvent);
-      assert.deepEqual(highlightedEntryInfo, {
+      const dclEvent = parsedTrace.PageLoadMetrics.allMarkerEvents.find(marker => marker.name === 'MarkDOMContent');
+      assert.exists(dclEvent);
+      const popoverInfo = getMockInfo(dclEvent);
+      timingsTrackAppender.setPopoverInfo(dclEvent, popoverInfo);
+      assert.deepInclude(popoverInfo, {
         title: 'DCL',
         formattedTime: '2.42\u00A0s',
       });
     });
 
     it('shows the time of a console.timestamp event in the hover info', () => {
-      const timestampEvent = traceData.UserTimings.timestampEvents[0];
-      const highlightedEntryInfo = timingsTrackAppender.highlightedEntryInfo(timestampEvent);
+      const timestampEvent = parsedTrace.UserTimings.timestampEvents[0];
+      const popoverInfo = getMockInfo(timestampEvent);
+      timingsTrackAppender.setPopoverInfo(timestampEvent, popoverInfo);
 
-      assert.deepEqual(highlightedEntryInfo, {
+      assert.deepInclude(popoverInfo, {
         title: 'TimeStamp: a timestamp',
         formattedTime: '615.25\u00A0ms',
       });
     });
 
     it('returns the info for a performance.measure calls correctly', () => {
-      const performanceMeasures = traceData.UserTimings.performanceMeasures;
-      const highlightedEntryInfo = timingsTrackAppender.highlightedEntryInfo(performanceMeasures[0]);
+      const performanceMeasure = parsedTrace.UserTimings.performanceMeasures[0];
+      const popoverInfo = getMockInfo(performanceMeasure);
+      timingsTrackAppender.setPopoverInfo(performanceMeasure, popoverInfo);
       // The i18n encodes spaces using the u00A0 unicode character.
-      assert.strictEqual(highlightedEntryInfo.formattedTime, ('500.07\u00A0ms'));
+      assert.strictEqual(popoverInfo.formattedTime, ('500.07\u00A0ms'));
     });
 
     it('returns the info for a console.time calls correctly', () => {
-      const consoleTimings = traceData.UserTimings.consoleTimings;
-      const highlightedEntryInfo = timingsTrackAppender.highlightedEntryInfo(consoleTimings[0]);
+      const consoleTiming = parsedTrace.UserTimings.consoleTimings[0];
+      const popoverInfo = getMockInfo(consoleTiming);
+      timingsTrackAppender.setPopoverInfo(consoleTiming, popoverInfo);
       // The i18n encodes spaces using the u00A0 unicode character.
-      assert.strictEqual(highlightedEntryInfo.formattedTime, ('1.60\u00A0s'));
+      assert.strictEqual(popoverInfo.formattedTime, ('1.60\u00A0s'));
     });
   });
 
@@ -259,8 +238,8 @@ describeWithEnvironment('TimingTrackAppender', function() {
       entryData = [];
       flameChartData = PerfUI.FlameChart.FlameChartTimelineData.createEmpty();
       entryTypeByLevel = [];
-      ({traceData} = await TraceLoader.traceEngine(this, 'extension-tracks-and-marks.json.gz'));
-      timingsTrackAppender = initTrackAppender(flameChartData, traceData, entryData, entryTypeByLevel);
+      ({parsedTrace} = await TraceLoader.traceEngine(this, 'extension-tracks-and-marks.json.gz'));
+      timingsTrackAppender = initTrackAppender(flameChartData, parsedTrace, entryData, entryTypeByLevel);
       timingsTrackAppender.appendTrackAtLevel(0);
       // Rather than use the real colours here and burden the test with having to
       // inject loads of CSS, we fake out the colours. this is fine for our tests as
@@ -271,8 +250,8 @@ describeWithEnvironment('TimingTrackAppender', function() {
       styleElement.id = 'fake-perf-panel-colors';
       styleElement.textContent = `
         :root {
-          --ref-palette-primary70: rgb(4 4 4);
-          --ref-palette-error50: rgb(10 10 10);
+          --ref-palette-blue70: rgb(4 4 4);
+          --ref-palette-error60: rgb(10 10 10);
         }
       `;
       document.documentElement.appendChild(styleElement);
@@ -290,9 +269,9 @@ describeWithEnvironment('TimingTrackAppender', function() {
     });
 
     it('creates a TimelineFlameChartMarker for each extension marker event in a trace', () => {
-      const extensionMarkers = traceData.ExtensionTraceData.extensionMarkers;
+      const extensionMarkers = parsedTrace.ExtensionTraceData.extensionMarkers;
       for (const traceMarker of extensionMarkers) {
-        const markerTimeMs = TraceModel.Helpers.Timing.microSecondsToMilliseconds(traceMarker.ts);
+        const markerTimeMs = Trace.Helpers.Timing.microToMilli(traceMarker.ts);
         const flameChartMarker =
             flameChartData.markers.find(flameChartMarker => flameChartMarker.startTime() === markerTimeMs);
         assert.exists(flameChartMarker);
@@ -300,16 +279,18 @@ describeWithEnvironment('TimingTrackAppender', function() {
     });
 
     it('returns the correct color and title for extension markers', function() {
-      const extensionMarkers = traceData.ExtensionTraceData.extensionMarkers;
+      const extensionMarkers = parsedTrace.ExtensionTraceData.extensionMarkers;
+      assert.lengthOf(extensionMarkers, 1);
       for (const event of extensionMarkers) {
-        assert.strictEqual(timingsTrackAppender.titleForEvent(event), event.name);
+        // tooltipText is supplied, so the title should be that.
+        assert.notStrictEqual(timingsTrackAppender.titleForEvent(event), event.name);
         if (event.args.color === 'error') {
           // "error" color category is mapped to --ref-palette-error50
           // which is faked out to 10, 10, 10
           assert.strictEqual(timingsTrackAppender.colorForEvent(event), 'rgb(10 10 10)');
         } else {
           // Unknown colors are mapped to "primary" by default, and
-          // "primary" color category is mapped to --ref-palette-primary70
+          // "primary" color category is mapped to --ref-palette-blue70
           // which is faked out to 4, 4, 4
           assert.strictEqual(timingsTrackAppender.colorForEvent(event), 'rgb(4 4 4)');
         }
@@ -321,7 +302,7 @@ describeWithEnvironment('TimingTrackAppender', function() {
           dataType: 'marker',
         },
         cat: 'devtools.extension',
-      } as unknown as TraceModel.Types.TraceEvents.TraceEventData;
+      } as unknown as Trace.Types.Events.Event;
 
       const mockExtensionEntryUnknownColor = {
         args: {
@@ -329,33 +310,33 @@ describeWithEnvironment('TimingTrackAppender', function() {
           dataType: 'marker',
         },
         cat: 'devtools.extension',
-      } as unknown as TraceModel.Types.TraceEvents.TraceEventData;
-      // "primary" color category is mapped to --ref-palette-primary70
+      } as unknown as Trace.Types.Events.Event;
+      // "primary" color category is mapped to --ref-palette-blue70
       // which is faked out to 4, 4, 4
       assert.strictEqual(timingsTrackAppender.colorForEvent(mockExtensionEntryNoColor), 'rgb(4 4 4)');
       assert.strictEqual(timingsTrackAppender.colorForEvent(mockExtensionEntryUnknownColor), 'rgb(4 4 4)');
     });
     it('returns the tool tip info for an entry correctly', function() {
-      const extensionMarker = traceData.ExtensionTraceData.extensionMarkers.at(0);
+      const extensionMarker = parsedTrace.ExtensionTraceData.extensionMarkers.at(0);
       assert.isOk(extensionMarker, 'did not find any extension markers');
 
-      const highlightedEntryInfo = timingsTrackAppender.highlightedEntryInfo(extensionMarker);
-      assert.strictEqual(highlightedEntryInfo.title, 'A mark');
+      const popoverInfo = getMockInfo(extensionMarker);
+      timingsTrackAppender.setPopoverInfo(extensionMarker, popoverInfo);
+      assert.strictEqual(popoverInfo.title, 'A mark');
     });
     describe('toggling', function() {
       it('Does not append extension data when the configuration is set to disabled', async function() {
-        Timeline.ExtensionDataGatherer.ExtensionDataGatherer.removeInstance();
         entryData = [];
         flameChartData = PerfUI.FlameChart.FlameChartTimelineData.createEmpty();
         entryTypeByLevel = [];
         Timeline.TimelinePanel.TimelinePanel.extensionDataVisibilitySetting().set(false);
-        traceData = (await TraceLoader.traceEngine(this, 'extension-tracks-and-marks.json.gz')).traceData;
-        timingsTrackAppender = initTrackAppender(flameChartData, traceData, entryData, entryTypeByLevel);
+        parsedTrace = (await TraceLoader.traceEngine(this, 'extension-tracks-and-marks.json.gz')).parsedTrace;
+        timingsTrackAppender = initTrackAppender(flameChartData, parsedTrace, entryData, entryTypeByLevel);
         timingsTrackAppender.appendTrackAtLevel(0);
 
-        const extensionMarkers = traceData.ExtensionTraceData.extensionMarkers;
+        const extensionMarkers = parsedTrace.ExtensionTraceData.extensionMarkers;
         for (const traceMarker of extensionMarkers) {
-          const markerTimeMs = TraceModel.Helpers.Timing.microSecondsToMilliseconds(traceMarker.ts);
+          const markerTimeMs = Trace.Helpers.Timing.microToMilli(traceMarker.ts);
           const flameChartMarker =
               flameChartData.markers.find(flameChartMarker => flameChartMarker.startTime() === markerTimeMs);
           assert.isUndefined(flameChartMarker);

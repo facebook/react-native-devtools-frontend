@@ -8,7 +8,7 @@ import {describeWithMockConnection} from '../../testing/MockConnection.js';
 
 import * as SDK from './sdk.js';
 
-function assertPropertValues<T>(object: T, expectedKeyValuePairs: [key: string, value: unknown][]): void {
+function assertPropertValues<T>(object: T, expectedKeyValuePairs: Array<[key: string, value: unknown]>): void {
   for (const [key, value] of expectedKeyValuePairs) {
     assert.propertyVal(object, key, value);
   }
@@ -58,7 +58,7 @@ describeWithMockConnection('CSSStyleDeclaration', () => {
       ['implicit', false],
       ['index', 0],
     ]);
-    assert.strictEqual(style.allProperties()[0].activeInStyle(), true);
+    assert.isTrue(style.allProperties()[0].activeInStyle());
 
     assertPropertValues(style.allProperties()[1], [
       ['name', 'margin-top'],
@@ -66,7 +66,7 @@ describeWithMockConnection('CSSStyleDeclaration', () => {
       ['implicit', false],
       ['index', 1],
     ]);
-    assert.strictEqual(style.allProperties()[1].activeInStyle(), true);
+    assert.isTrue(style.allProperties()[1].activeInStyle());
 
     assertPropertValues(style.allProperties()[2], [
       ['name', 'margin-top'],
@@ -74,7 +74,7 @@ describeWithMockConnection('CSSStyleDeclaration', () => {
       ['implicit', true],
       ['index', 2],
     ]);
-    assert.strictEqual(style.allProperties()[2].activeInStyle(), false);
+    assert.isFalse(style.allProperties()[2].activeInStyle());
 
     assertPropertValues(style.allProperties()[3], [
       ['name', 'margin-right'],
@@ -82,7 +82,7 @@ describeWithMockConnection('CSSStyleDeclaration', () => {
       ['implicit', true],
       ['index', 3],
     ]);
-    assert.strictEqual(style.allProperties()[3].activeInStyle(), true);
+    assert.isTrue(style.allProperties()[3].activeInStyle());
 
     assertPropertValues(style.allProperties()[4], [
       ['name', 'margin-bottom'],
@@ -90,7 +90,7 @@ describeWithMockConnection('CSSStyleDeclaration', () => {
       ['implicit', true],
       ['index', 4],
     ]);
-    assert.strictEqual(style.allProperties()[4].activeInStyle(), true);
+    assert.isTrue(style.allProperties()[4].activeInStyle());
 
     assertPropertValues(style.allProperties()[5], [
       ['name', 'margin-left'],
@@ -98,7 +98,7 @@ describeWithMockConnection('CSSStyleDeclaration', () => {
       ['implicit', true],
       ['index', 5],
     ]);
-    assert.strictEqual(style.allProperties()[5].activeInStyle(), true);
+    assert.isTrue(style.allProperties()[5].activeInStyle());
   });
 
   it('should correctly compute active and inactive declarations', () => {
@@ -202,6 +202,16 @@ describeWithMockConnection('CSSStyleDeclaration', () => {
           range: {startLine: 1, startColumn: 4, endLine: 1, endColumn: 20},
           text: '--a 10;',
         },
+        {
+          name: '--b',
+          value: '10',
+          disabled: true,
+          implicit: false,
+          parsedOk: true,
+          longhandProperties: [],
+          range: {startLine: 1, startColumn: 4, endLine: 1, endColumn: 20},
+          text: '--b: 10;',
+        },
       ],
       shorthandEntries: [],
       cssText: '\n    --a: 5px;\n    --a: 10\n',
@@ -239,7 +249,7 @@ describeWithMockConnection('CSSStyleDeclaration', () => {
 
     const style = new SDK.CSSStyleDeclaration.CSSStyleDeclaration(
         cssModel, null, stubCSSStyle, SDK.CSSStyleDeclaration.Type.Regular);
-    assert.strictEqual(style.allProperties().length, 1);
+    assert.lengthOf(style.allProperties(), 1);
     assertPropertValues(style.allProperties()[0], [
       ['name', '-webkit-background-clip'],
       ['value', 'border-box'],

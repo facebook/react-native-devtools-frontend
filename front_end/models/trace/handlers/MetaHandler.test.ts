@@ -4,12 +4,12 @@
 
 import {defaultTraceEvent} from '../../../testing/TraceHelpers.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
-import * as TraceModel from '../trace.js';
+import * as Trace from '../trace.js';
 
 describe('MetaHandler', function() {
-  let baseEvents: TraceModel.Types.TraceEvents.TraceEventData[];
+  let baseEvents: Trace.Types.Events.Event[];
   beforeEach(async function() {
-    let defaultTraceEvents: readonly TraceModel.Types.TraceEvents.TraceEventData[];
+    let defaultTraceEvents: readonly Trace.Types.Events.Event[];
     try {
       defaultTraceEvents = await TraceLoader.rawEvents(this, 'basic.json.gz');
     } catch (error) {
@@ -30,11 +30,11 @@ describe('MetaHandler', function() {
           },
           frame: '3E1717BE677B75D0536E292E00D6A34A',
         },
-        pid: TraceModel.Types.TraceEvents.ProcessID(23456),
-        tid: TraceModel.Types.TraceEvents.ThreadID(775),
-        ts: TraceModel.Types.Timing.MicroSeconds(100),
+        pid: Trace.Types.Events.ProcessID(23456),
+        tid: Trace.Types.Events.ThreadID(775),
+        ts: Trace.Types.Timing.Micro(100),
         name: 'navigationStart',
-      } as TraceModel.Types.TraceEvents.TraceEventNavigationStart,
+      } as Trace.Types.Events.NavigationStart,
       {
         ...defaultTraceEvent,
         // Should be ignored based on empty documentLoaderURL
@@ -46,11 +46,12 @@ describe('MetaHandler', function() {
             navigationId: 'navigation-2',
           },
         },
-        pid: TraceModel.Types.TraceEvents.ProcessID(23456),
-        tid: TraceModel.Types.TraceEvents.ThreadID(775),
-        ts: TraceModel.Types.Timing.MicroSeconds(800),
+        pid: Trace.Types.Events.ProcessID(23456),
+        tid: Trace.Types.Events.ThreadID(775),
+        ts: Trace.Types.Timing.Micro(800),
         name: 'navigationStart',
-      } as TraceModel.Types.TraceEvents.TraceEventNavigationStart,
+        // Casting as NavStart, but it is ignored due to the empty documentLoaderURL
+      } as Trace.Types.Events.NavigationStart,
       {
         ...defaultTraceEvent,
         args: {
@@ -61,82 +62,61 @@ describe('MetaHandler', function() {
             navigationId: 'navigation-3',
           },
         },
-        pid: TraceModel.Types.TraceEvents.ProcessID(23456),
-        tid: TraceModel.Types.TraceEvents.ThreadID(775),
-        ts: TraceModel.Types.Timing.MicroSeconds(1000),
+        pid: Trace.Types.Events.ProcessID(23456),
+        tid: Trace.Types.Events.ThreadID(775),
+        ts: Trace.Types.Timing.Micro(1000),
         name: 'navigationStart',
-      } as TraceModel.Types.TraceEvents.TraceEventNavigationStart,
+      } as Trace.Types.Events.NavigationStart,
     ];
 
-    TraceModel.Handlers.ModelHandlers.Meta.reset();
-    TraceModel.Handlers.ModelHandlers.Meta.initialize();
-  });
-
-  describe('error handling', function() {
-    it('throws if data is called before finalize', function() {
-      for (const event of baseEvents) {
-        TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
-      }
-
-      assert.throws(() => {
-        TraceModel.Handlers.ModelHandlers.Meta.data();
-      }, 'Handler is not finalized');
-    });
-
-    it('throws if initialize is called without a reset', function() {
-      // Due to the beforeEach the handler is already initialized, so calling
-      // it a second time should throw an error.
-      assert.throws(() => {
-        TraceModel.Handlers.ModelHandlers.Meta.initialize();
-      }, 'Handler was not reset');
-    });
+    Trace.Handlers.ModelHandlers.Meta.reset();
   });
 
   describe('browser process ID', function() {
     it('obtains the PID if present', async () => {
       for (const event of baseEvents) {
-        TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+        Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
       }
 
-      await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-      const data = TraceModel.Handlers.ModelHandlers.Meta.data();
-      assert.strictEqual(data.browserProcessId, TraceModel.Types.TraceEvents.ProcessID(8017));
+      await Trace.Handlers.ModelHandlers.Meta.finalize();
+      const data = Trace.Handlers.ModelHandlers.Meta.data();
+      assert.strictEqual(data.browserProcessId, Trace.Types.Events.ProcessID(8017));
     });
   });
 
   describe('browser thread ID', function() {
     it('obtains the TID if present', async () => {
       for (const event of baseEvents) {
-        TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+        Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
       }
 
-      await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-      const data = TraceModel.Handlers.ModelHandlers.Meta.data();
-      assert.strictEqual(data.browserThreadId, TraceModel.Types.TraceEvents.ThreadID(775));
+      await Trace.Handlers.ModelHandlers.Meta.finalize();
+      const data = Trace.Handlers.ModelHandlers.Meta.data();
+      assert.strictEqual(data.browserThreadId, Trace.Types.Events.ThreadID(775));
     });
   });
 
   describe('renderer process ID', function() {
     it('obtains the PID if present', async () => {
       for (const event of baseEvents) {
-        TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+        Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
       }
 
-      await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-      const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+      await Trace.Handlers.ModelHandlers.Meta.finalize();
+      const data = Trace.Handlers.ModelHandlers.Meta.data();
       assert.strictEqual(data.topLevelRendererIds.size, 1);
-      assert.deepStrictEqual([...data.topLevelRendererIds], [TraceModel.Types.TraceEvents.ProcessID(8051)]);
+      assert.deepEqual([...data.topLevelRendererIds], [Trace.Types.Events.ProcessID(8051)]);
     });
   });
 
   describe('navigations', function() {
     it('obtains them if present', async () => {
       for (const event of baseEvents) {
-        TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+        Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
       }
 
-      await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-      const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+      await Trace.Handlers.ModelHandlers.Meta.finalize();
+      const data = Trace.Handlers.ModelHandlers.Meta.data();
       // navigation-2 is discarded because it has no URL.
       // navigation-3 doesn't have a frame id so it is discarded as well.
       assert.strictEqual(data.navigationsByFrameId.size, 1);
@@ -153,14 +133,13 @@ describe('MetaHandler', function() {
 
     it('provides a list of main frame only navigations', async function() {
       const events = await TraceLoader.rawEvents(this, 'multiple-navigations-with-iframes.json.gz');
-      TraceModel.Handlers.ModelHandlers.Meta.reset();
-      TraceModel.Handlers.ModelHandlers.Meta.initialize();
+      Trace.Handlers.ModelHandlers.Meta.reset();
       for (const event of events) {
-        TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+        Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
       }
 
-      await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-      const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+      await Trace.Handlers.ModelHandlers.Meta.finalize();
+      const data = Trace.Handlers.ModelHandlers.Meta.data();
       const allNavigationsCount = data.navigationsByNavigationId.size;
       assert.isTrue(data.mainFrameNavigations.length < allNavigationsCount);
       assert.isTrue(data.mainFrameNavigations.every(event => {
@@ -172,36 +151,34 @@ describe('MetaHandler', function() {
   describe('frames', function() {
     it('finds the main frame ID', async () => {
       for (const event of baseEvents) {
-        TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+        Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
       }
 
-      await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-      const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+      await Trace.Handlers.ModelHandlers.Meta.finalize();
+      const data = Trace.Handlers.ModelHandlers.Meta.data();
       assert.strictEqual(data.mainFrameId, '3E1717BE677B75D0536E292E00D6A34A');
     });
 
     it('finds the main frame ID for a trace that started with a page reload', async function() {
       const events = await TraceLoader.rawEvents(this, 'reload-and-trace-page.json.gz');
-      TraceModel.Handlers.ModelHandlers.Meta.reset();
-      TraceModel.Handlers.ModelHandlers.Meta.initialize();
+      Trace.Handlers.ModelHandlers.Meta.reset();
       for (const event of events) {
-        TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+        Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
       }
 
-      await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-      const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+      await Trace.Handlers.ModelHandlers.Meta.finalize();
+      const data = Trace.Handlers.ModelHandlers.Meta.data();
       assert.strictEqual(data.mainFrameId, '1D148CB660D1F96ED70D78DC6A53267B');
     });
     it('tracks the frames for found processes', async function() {
       const events = await TraceLoader.rawEvents(this, 'reload-and-trace-page.json.gz');
-      TraceModel.Handlers.ModelHandlers.Meta.reset();
-      TraceModel.Handlers.ModelHandlers.Meta.initialize();
+      Trace.Handlers.ModelHandlers.Meta.reset();
       for (const event of events) {
-        TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+        Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
       }
 
-      await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-      const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+      await Trace.Handlers.ModelHandlers.Meta.finalize();
+      const data = Trace.Handlers.ModelHandlers.Meta.data();
       assert.strictEqual(data.frameByProcessId.size, 1);
       const [[processId, framesInProcess]] = data.frameByProcessId.entries();
       assert.strictEqual(processId, 3581385);
@@ -214,34 +191,33 @@ describe('MetaHandler', function() {
   describe('finding GPU thread and main frame', function() {
     it('finds the GPU process and GPU Thread', async function() {
       const events = await TraceLoader.rawEvents(this, 'threejs-gpu.json.gz');
-      TraceModel.Handlers.ModelHandlers.Meta.reset();
-      TraceModel.Handlers.ModelHandlers.Meta.initialize();
+      Trace.Handlers.ModelHandlers.Meta.reset();
       for (const event of events) {
-        TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+        Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
       }
-      await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-      const {gpuProcessId, gpuThreadId} = TraceModel.Handlers.ModelHandlers.Meta.data();
-      assert.strictEqual(gpuProcessId, TraceModel.Types.TraceEvents.ProcessID(3581327));
-      assert.strictEqual(gpuThreadId, TraceModel.Types.TraceEvents.ThreadID(3581327));
+      await Trace.Handlers.ModelHandlers.Meta.finalize();
+      const {gpuProcessId, gpuThreadId} = Trace.Handlers.ModelHandlers.Meta.data();
+      assert.strictEqual(gpuProcessId, Trace.Types.Events.ProcessID(3581327));
+      assert.strictEqual(gpuThreadId, Trace.Types.Events.ThreadID(3581327));
     });
 
     it('handles traces that do not have a GPU thread and returns undefined for the thread ID', async function() {
       const traceEventsWithNoGPUThread = await TraceLoader.rawEvents(this, 'forced-layouts-and-no-gpu.json.gz');
       for (const event of traceEventsWithNoGPUThread) {
-        TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+        Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
       }
 
       assert.doesNotThrow(async () => {
-        await TraceModel.Handlers.ModelHandlers.Meta.finalize();
+        await Trace.Handlers.ModelHandlers.Meta.finalize();
       });
 
-      const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+      const data = Trace.Handlers.ModelHandlers.Meta.data();
       assert.isUndefined(data.gpuThreadId);
     });
   });
 
   it('obtains renderer process IDs when there are no navigations', async function() {
-    let traceEvents: readonly TraceModel.Types.TraceEvents.TraceEventData[];
+    let traceEvents: readonly Trace.Types.Events.Event[];
     try {
       traceEvents = await TraceLoader.rawEvents(this, 'threejs-gpu.json.gz');
     } catch (error) {
@@ -249,37 +225,36 @@ describe('MetaHandler', function() {
       return;
     }
 
-    TraceModel.Handlers.ModelHandlers.Meta.reset();
-    TraceModel.Handlers.ModelHandlers.Meta.initialize();
+    Trace.Handlers.ModelHandlers.Meta.reset();
     for (const event of traceEvents) {
-      TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
     }
-    await TraceModel.Handlers.ModelHandlers.Meta.finalize();
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
 
-    const data = TraceModel.Handlers.ModelHandlers.Meta.data();
-    assert.deepStrictEqual([...data.topLevelRendererIds], [3601132]);
+    const data = Trace.Handlers.ModelHandlers.Meta.data();
+    assert.deepEqual([...data.topLevelRendererIds], [3601132]);
 
     const rendererProcesses = data.rendererProcessesByFrame.get(data.mainFrameId);
     if (!rendererProcesses) {
       assert.fail('No renderer processes found');
       return;
     }
-    assert.deepStrictEqual([...rendererProcesses?.keys()], [3601132]);
+    assert.deepEqual([...rendererProcesses?.keys()], [3601132]);
     const windowMinTime = 1143381875846;
-    assert.deepStrictEqual(
+    assert.deepEqual(
         [...rendererProcesses?.values()], [[{
-          'frame': {
-            'frame': '1D148CB660D1F96ED70D78DC6A53267B',
-            'name': '',
-            'processId': 3601132,
-            'url': 'https://threejs.org/examples/',
+          frame: {
+            frame: '1D148CB660D1F96ED70D78DC6A53267B',
+            name: '',
+            processId: 3601132,
+            url: 'https://threejs.org/examples/',
           },
-          'window': {'min': windowMinTime, 'max': data.traceBounds.max, 'range': data.traceBounds.max - windowMinTime},
+          window: {min: windowMinTime, max: data.traceBounds.max, range: data.traceBounds.max - windowMinTime},
         }]]);
   });
 
   it('handles multiple renderers from navigations', async function() {
-    let traceEvents: readonly TraceModel.Types.TraceEvents.TraceEventData[];
+    let traceEvents: readonly Trace.Types.Events.Event[];
     try {
       traceEvents = await TraceLoader.rawEvents(this, 'multiple-top-level-renderers.json.gz');
     } catch (error) {
@@ -287,15 +262,14 @@ describe('MetaHandler', function() {
       return;
     }
 
-    TraceModel.Handlers.ModelHandlers.Meta.reset();
-    TraceModel.Handlers.ModelHandlers.Meta.initialize();
+    Trace.Handlers.ModelHandlers.Meta.reset();
     for (const event of traceEvents) {
-      TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
     }
-    await TraceModel.Handlers.ModelHandlers.Meta.finalize();
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
 
-    const data = TraceModel.Handlers.ModelHandlers.Meta.data();
-    assert.deepStrictEqual([...data.topLevelRendererIds], [78450, 78473, 79194]);
+    const data = Trace.Handlers.ModelHandlers.Meta.data();
+    assert.deepEqual([...data.topLevelRendererIds], [78450, 78473, 79194]);
 
     const rendererProcesses = data.rendererProcessesByFrame.get(data.mainFrameId);
     if (!rendererProcesses) {
@@ -304,39 +278,39 @@ describe('MetaHandler', function() {
     }
 
     const windowMinTime = 3550807444741;
-    assert.deepStrictEqual([...rendererProcesses?.keys()], [78450, 78473, 79194]);
-    assert.deepStrictEqual([...rendererProcesses?.values()], [
+    assert.deepEqual([...rendererProcesses?.keys()], [78450, 78473, 79194]);
+    assert.deepEqual([...rendererProcesses?.values()], [
       [{
-        'frame': {
-          'frame': 'E70A9327100EBD78F1C03582BBBE8E5F',
-          'name': '',
-          'processId': 78450,
-          'url': 'http://127.0.0.1:8081/',
+        frame: {
+          frame: 'E70A9327100EBD78F1C03582BBBE8E5F',
+          name: '',
+          processId: 78450,
+          url: 'http://127.0.0.1:8081/',
         },
-        'window': {'min': 3550803491779, 'max': 3550805534872, 'range': 2043093},
+        window: {min: 3550803491779, max: 3550805534872, range: 2043093},
       }],
       [{
-        'frame': {
-          'frame': 'E70A9327100EBD78F1C03582BBBE8E5F',
-          'name': '',
-          'processId': 78473,
-          'url': 'http://localhost:8080/',
+        frame: {
+          frame: 'E70A9327100EBD78F1C03582BBBE8E5F',
+          name: '',
+          processId: 78473,
+          url: 'http://localhost:8080/',
         },
-        'window': {'min': 3550805534873, 'max': 3550807444740, 'range': 1909867},
+        window: {min: 3550805534873, max: 3550807444740, range: 1909867},
       }],
       [{
-        'frame': {
-          'frame': 'E70A9327100EBD78F1C03582BBBE8E5F',
-          'name': '',
-          'processId': 79194,
-          'url': 'https://www.google.com/',
+        frame: {
+          frame: 'E70A9327100EBD78F1C03582BBBE8E5F',
+          name: '',
+          processId: 79194,
+          url: 'https://www.google.com/',
         },
-        'window': {'min': windowMinTime, 'max': data.traceBounds.max, 'range': data.traceBounds.max - windowMinTime},
+        window: {min: windowMinTime, max: data.traceBounds.max, range: data.traceBounds.max - windowMinTime},
       }],
     ]);
   });
   it('handles multiple renderers from navigations where a process handled multiple URLs ', async function() {
-    let traceEvents: readonly TraceModel.Types.TraceEvents.TraceEventData[];
+    let traceEvents: readonly Trace.Types.Events.Event[];
     try {
       traceEvents = await TraceLoader.rawEvents(this, 'simple-js-program.json.gz');
     } catch (error) {
@@ -344,15 +318,14 @@ describe('MetaHandler', function() {
       return;
     }
 
-    TraceModel.Handlers.ModelHandlers.Meta.reset();
-    TraceModel.Handlers.ModelHandlers.Meta.initialize();
+    Trace.Handlers.ModelHandlers.Meta.reset();
     for (const event of traceEvents) {
-      TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
     }
-    await TraceModel.Handlers.ModelHandlers.Meta.finalize();
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
 
-    const data = TraceModel.Handlers.ModelHandlers.Meta.data();
-    assert.deepStrictEqual([...data.topLevelRendererIds], [2080]);
+    const data = Trace.Handlers.ModelHandlers.Meta.data();
+    assert.deepEqual([...data.topLevelRendererIds], [2080]);
 
     const rendererProcesses = data.rendererProcessesByFrame.get(data.mainFrameId);
     if (!rendererProcesses) {
@@ -360,33 +333,33 @@ describe('MetaHandler', function() {
       return;
     }
 
-    assert.deepStrictEqual([...rendererProcesses?.keys()], [2080]);
-    assert.deepStrictEqual([...rendererProcesses?.values()], [
+    assert.deepEqual([...rendererProcesses?.keys()], [2080]);
+    assert.deepEqual([...rendererProcesses?.values()], [
       [
         {
-          'frame': {
-            'frame': '1F729458403A23CF1D8D246095129AC4',
-            'name': '',
-            'processId': 2080,
-            'url': 'about:blank',
+          frame: {
+            frame: '1F729458403A23CF1D8D246095129AC4',
+            name: '',
+            processId: 2080,
+            url: 'about:blank',
           },
-          'window': {
-            'min': 251126654355,
-            'max': 251126663397,
-            'range': 9042,
+          window: {
+            min: 251126654355,
+            max: 251126663397,
+            range: 9042,
           },
         },
         {
-          'frame': {
-            'frame': '1F729458403A23CF1D8D246095129AC4',
-            'name': '',
-            'processId': 2080,
-            'url': 'https://www.google.com',
+          frame: {
+            frame: '1F729458403A23CF1D8D246095129AC4',
+            name: '',
+            processId: 2080,
+            url: 'https://www.google.com',
           },
-          'window': {
-            'min': 251126663398,
-            'max': 251128073034,
-            'range': 1409636,
+          window: {
+            min: 251126663398,
+            max: 251128073034,
+            range: 1409636,
           },
         },
       ],
@@ -394,7 +367,7 @@ describe('MetaHandler', function() {
   });
 
   it('calculates trace bounds correctly', async function() {
-    let traceEvents: readonly TraceModel.Types.TraceEvents.TraceEventData[];
+    let traceEvents: readonly Trace.Types.Events.Event[];
     try {
       traceEvents = await TraceLoader.rawEvents(this, 'basic.json.gz');
     } catch (error) {
@@ -402,14 +375,13 @@ describe('MetaHandler', function() {
       return;
     }
 
-    TraceModel.Handlers.ModelHandlers.Meta.reset();
-    TraceModel.Handlers.ModelHandlers.Meta.initialize();
+    Trace.Handlers.ModelHandlers.Meta.reset();
     for (const event of traceEvents) {
-      TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
     }
-    await TraceModel.Handlers.ModelHandlers.Meta.finalize();
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
 
-    const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+    const data = Trace.Handlers.ModelHandlers.Meta.data();
     const {
       max,
       min,
@@ -432,20 +404,19 @@ describe('MetaHandler', function() {
       return event.name !== 'TracingStartedInBrowser';
     });
 
-    TraceModel.Handlers.ModelHandlers.Meta.reset();
-    TraceModel.Handlers.ModelHandlers.Meta.initialize();
+    Trace.Handlers.ModelHandlers.Meta.reset();
     for (const event of traceEvents) {
-      TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
     }
-    await TraceModel.Handlers.ModelHandlers.Meta.finalize();
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
 
-    const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+    const data = Trace.Handlers.ModelHandlers.Meta.data();
     const expectedMin = 50_442_438_976;
     assert.strictEqual(data.traceBounds.min, expectedMin, 'Min calculated incorrectly');
   });
 
   it('ignores ::UMA Events', async function() {
-    let traceEvents: readonly TraceModel.Types.TraceEvents.TraceEventData[];
+    let traceEvents: readonly Trace.Types.Events.Event[];
     try {
       // This file contains UMA events which need to be ignored.
       traceEvents = await TraceLoader.rawEvents(this, 'web-dev.json.gz');
@@ -454,14 +425,13 @@ describe('MetaHandler', function() {
       return;
     }
 
-    TraceModel.Handlers.ModelHandlers.Meta.reset();
-    TraceModel.Handlers.ModelHandlers.Meta.initialize();
+    Trace.Handlers.ModelHandlers.Meta.reset();
     for (const event of traceEvents) {
-      TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
     }
-    await TraceModel.Handlers.ModelHandlers.Meta.finalize();
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
 
-    const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+    const data = Trace.Handlers.ModelHandlers.Meta.data();
     const {
       max,
       min,
@@ -476,11 +446,11 @@ describe('MetaHandler', function() {
 
   it('collects all thread metadata in all processes', async () => {
     for (const event of baseEvents) {
-      TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
     }
 
-    await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-    const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
+    const data = Trace.Handlers.ModelHandlers.Meta.data();
     const collected = [...data.threadsInProcess.values()].map(threadInProcess => [...threadInProcess.values()]);
 
     expect(collected.map(process => process.map(thread => thread.args.name))).to.deep.equal([
@@ -528,7 +498,7 @@ describe('MetaHandler', function() {
     const events = await TraceLoader.rawEvents(this, 'multiple-navigations-same-id.json.gz');
     assert.doesNotThrow(function() {
       for (const event of events) {
-        TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+        Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
       }
     });
   });
@@ -536,29 +506,29 @@ describe('MetaHandler', function() {
   it('marks a generic trace as generic', async function() {
     const events = await TraceLoader.rawEvents(this, 'generic-about-tracing.json.gz');
     for (const event of events) {
-      TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
     }
-    await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-    assert.isTrue(TraceModel.Handlers.ModelHandlers.Meta.data().traceIsGeneric);
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
+    assert.isTrue(Trace.Handlers.ModelHandlers.Meta.data().traceIsGeneric);
   });
 
   it('marks a web trace as being not generic', async function() {
     const events = await TraceLoader.rawEvents(this, 'web-dev-with-commit.json.gz');
     for (const event of events) {
-      TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
     }
-    await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-    assert.isFalse(TraceModel.Handlers.ModelHandlers.Meta.data().traceIsGeneric);
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
+    assert.isFalse(Trace.Handlers.ModelHandlers.Meta.data().traceIsGeneric);
   });
 
   it('sets the main frame URL from the TracingStartedInBrowser event', async function() {
     // This trace has the right URL in TracingStartedInBrowser
     const events = await TraceLoader.rawEvents(this, 'web-dev-with-commit.json.gz');
     for (const event of events) {
-      TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
     }
-    await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-    const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
+    const data = Trace.Handlers.ModelHandlers.Meta.data();
     assert.strictEqual(data.mainFrameURL, 'https://web.dev/');
   });
 
@@ -567,28 +537,28 @@ describe('MetaHandler', function() {
     // corrected by looking at the first main frame navigation.
     const events = await TraceLoader.rawEvents(this, 'web-dev-initial-url.json.gz');
     for (const event of events) {
-      TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
     }
-    await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-    const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
+    const data = Trace.Handlers.ModelHandlers.Meta.data();
     assert.strictEqual(data.mainFrameURL, 'https://web.dev/articles/inp');
   });
 
   it('returns a list of processes and process_name events', async function() {
     const events = await TraceLoader.rawEvents(this, 'web-dev-initial-url.json.gz');
     for (const event of events) {
-      TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
     }
-    await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-    const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
+    const data = Trace.Handlers.ModelHandlers.Meta.data();
     const pidsToNames = Array.from(data.processNames.entries(), ([pid, event]) => {
       return [pid, event.args.name];
     });
     assert.deepEqual(pidsToNames, [
-      [TraceModel.Types.TraceEvents.ProcessID(37605), 'Browser'],
-      [TraceModel.Types.TraceEvents.ProcessID(48544), 'Renderer'],
-      [TraceModel.Types.TraceEvents.ProcessID(37613), 'GPU Process'],
-      [TraceModel.Types.TraceEvents.ProcessID(48531), 'Renderer'],
+      [Trace.Types.Events.ProcessID(37605), 'Browser'],
+      [Trace.Types.Events.ProcessID(48544), 'Renderer'],
+      [Trace.Types.Events.ProcessID(37613), 'GPU Process'],
+      [Trace.Types.Events.ProcessID(48531), 'Renderer'],
     ]);
   });
 
@@ -599,10 +569,10 @@ describe('MetaHandler', function() {
     // mainFrameID to a frame that had no URL, which doesn't make sense.
     const events = await TraceLoader.rawEvents(this, 'wrong-main-frame-bug.json.gz');
     for (const event of events) {
-      TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
     }
-    await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-    const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
+    const data = Trace.Handlers.ModelHandlers.Meta.data();
     assert.strictEqual(data.mainFrameId, 'D1731088F5DE299149240DF9E6025291');
   });
 
@@ -610,10 +580,10 @@ describe('MetaHandler', function() {
      async function() {
        const events = await TraceLoader.rawEvents(this, 'web-dev-outermost-frames.json.gz');
        for (const event of events) {
-         TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+         Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
        }
-       await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-       const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+       await Trace.Handlers.ModelHandlers.Meta.finalize();
+       const data = Trace.Handlers.ModelHandlers.Meta.data();
        assert.strictEqual(data.mainFrameId, '881522AC20B813B0C0E99E27CEBAB951');
      });
 
@@ -622,10 +592,10 @@ describe('MetaHandler', function() {
        // See crbug.com/343873756 for context on this bug report and fix.
        const events = await TraceLoader.rawEvents(this, 'primary-page-frame.json.gz');
        for (const event of events) {
-         TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+         Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
        }
-       await TraceModel.Handlers.ModelHandlers.Meta.finalize();
-       const data = TraceModel.Handlers.ModelHandlers.Meta.data();
+       await Trace.Handlers.ModelHandlers.Meta.finalize();
+       const data = Trace.Handlers.ModelHandlers.Meta.data();
        // If you look at the trace, this is the frame that is both:
        // isInPrimaryPage === true
        // isOutermostMainFrame == true
@@ -634,4 +604,35 @@ describe('MetaHandler', function() {
        // But they are not in the primary page.
        assert.strictEqual(data.mainFrameId, '07B7D55F5BE0ADB8AAD6502F2D3859FF');
      });
+
+  it('will detect the final redirect URL for a main frame navigation', async function() {
+    // See crbug.com/402743677 for context.
+    const events = await TraceLoader.rawEvents(this, 'redirects-http-to-https.json.gz');
+    for (const event of events) {
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
+    }
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
+    const data = Trace.Handlers.ModelHandlers.Meta.data();
+
+    assert.strictEqual(data.mainFrameURL, 'https://example.com/');
+    assert.strictEqual(data.mainFrameNavigations[0].args.data?.documentLoaderURL, 'http://paulirish.com/');
+    assert.deepEqual([...data.finalDisplayUrlByNavigationId], [
+      ['832038B69FE671709DE9655B8161EB9A', 'https://www.paulirish.com/'],
+    ]);
+  });
+
+  it('will detect history API navigations for the start of the trace even w/o any navigation', async function() {
+    // See crbug.com/402743677 for context.
+    const events = await TraceLoader.rawEvents(this, 'history-api-no-nav.json.gz');
+    for (const event of events) {
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
+    }
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
+    const data = Trace.Handlers.ModelHandlers.Meta.data();
+
+    assert.strictEqual(data.mainFrameURL, 'http://localhost:10325/test.html');
+    assert.deepEqual([...data.finalDisplayUrlByNavigationId], [
+      ['', 'http://localhost:10325/testing/me?0.7574185139653986'],
+    ]);
+  });
 });

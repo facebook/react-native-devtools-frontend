@@ -24,8 +24,8 @@ export class SwatchPopoverHelper extends Common.ObjectWrapper.ObjectWrapper<Even
   constructor() {
     super();
     this.popover = new UI.GlassPane.GlassPane();
-    this.popover.setSizeBehavior(UI.GlassPane.SizeBehavior.MeasureContent);
-    this.popover.setMarginBehavior(UI.GlassPane.MarginBehavior.Arrow);
+    this.popover.setSizeBehavior(UI.GlassPane.SizeBehavior.MEASURE_CONTENT);
+    this.popover.setMarginBehavior(UI.GlassPane.MarginBehavior.DEFAULT_MARGIN);
     this.popover.element.addEventListener('mousedown', e => e.consume(), false);
 
     this.hideProxy = this.hide.bind(this, true);
@@ -62,8 +62,8 @@ export class SwatchPopoverHelper extends Common.ObjectWrapper.ObjectWrapper<Even
     }
 
     VisualLogging.setMappedParent(view.contentElement, anchorElement);
-    this.popover.registerCSSFiles([swatchPopoverStyles]);
-    this.dispatchEventToListeners(Events.WillShowPopover);
+    this.popover.registerRequiredCSS(swatchPopoverStyles);
+    this.dispatchEventToListeners(Events.WILL_SHOW_POPOVER);
 
     this.isHidden = false;
     this.anchorElement = anchorElement;
@@ -91,7 +91,7 @@ export class SwatchPopoverHelper extends Common.ObjectWrapper.ObjectWrapper<Even
     if (this.anchorElement) {
       let anchorBox = this.anchorElement.boxInWindow();
       if (ColorSwatch.isColorSwatch(this.anchorElement)) {
-        const swatch = (this.anchorElement as ColorSwatch);
+        const swatch = (this.anchorElement);
         if (!swatch.anchorBox) {
           return;
         }
@@ -99,7 +99,7 @@ export class SwatchPopoverHelper extends Common.ObjectWrapper.ObjectWrapper<Even
       }
 
       this.popover.setContentAnchorBox(anchorBox);
-      this.popover.show((this.anchorElement.ownerDocument as Document));
+      this.popover.show((this.anchorElement.ownerDocument));
     }
     this.view.contentElement.addEventListener('focusout', this.boundFocusOut, false);
     if (!this.focusRestorer) {
@@ -150,9 +150,9 @@ export class SwatchPopoverHelper extends Common.ObjectWrapper.ObjectWrapper<Even
 }
 
 export const enum Events {
-  WillShowPopover = 'WillShowPopover',
+  WILL_SHOW_POPOVER = 'WillShowPopover',
 }
 
-export type EventTypes = {
-  [Events.WillShowPopover]: void,
-};
+export interface EventTypes {
+  [Events.WILL_SHOW_POPOVER]: void;
+}

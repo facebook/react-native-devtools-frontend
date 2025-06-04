@@ -114,7 +114,7 @@ const UIStrings = {
    * element doesn't have any special accessibility considerations
    */
   elementNotInteresting: 'Element not interesting for accessibility.',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/accessibility/AccessibilityNodeView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class AXNodeSubPane extends AccessibilitySubPane {
@@ -125,6 +125,7 @@ export class AXNodeSubPane extends AccessibilitySubPane {
   private readonly ignoredReasonsTree: UI.TreeOutline.TreeOutline;
   constructor() {
     super(i18nString(UIStrings.computedProperties));
+    this.registerRequiredCSS(accessibilityNodeStyles);
 
     this.axNode = null;
 
@@ -204,7 +205,7 @@ export class AXNodeSubPane extends AccessibilitySubPane {
     const role = axNode.role();
     if (role) {
       const roleProperty: SDK.AccessibilityModel.CoreOrProtocolAxProperty = {
-        name: SDK.AccessibilityModel.CoreAxPropertyName.Role,
+        name: SDK.AccessibilityModel.CoreAxPropertyName.ROLE,
         value: role,
       };
       addProperty(roleProperty);
@@ -222,10 +223,6 @@ export class AXNodeSubPane extends AccessibilitySubPane {
   override setNode(node: SDK.DOMModel.DOMNode|null): void {
     super.setNode(node);
     this.axNode = null;
-  }
-  override wasShown(): void {
-    super.wasShown();
-    this.registerCSSFiles([accessibilityNodeStyles]);
   }
 }
 
@@ -275,7 +272,7 @@ export class AXNodePropertyTreeElement extends UI.TreeOutline.TreeElement {
   appendNameElement(name: string): void {
     const nameElement = document.createElement('span');
     if (name in AXAttributes) {
-      // @ts-ignore TS can't cast name here but we checked it's valid.
+      // @ts-expect-error TS can't cast name here but we checked it's valid.
       const attribute = AXAttributes[name];
       nameElement.textContent = attribute.name();
       UI.Tooltip.Tooltip.install(nameElement, attribute.description());
@@ -312,15 +309,14 @@ export class AXNodePropertyTreeElement extends UI.TreeOutline.TreeElement {
   appendRelatedNode(relatedNode: Protocol.Accessibility.AXRelatedNode, _index: number): void {
     const deferredNode =
         new SDK.DOMModel.DeferredDOMNode(this.axNode.accessibilityModel().target(), relatedNode.backendDOMNodeId);
-    const nodeTreeElement =
-        new AXRelatedNodeSourceTreeElement({deferredNode: deferredNode, idref: undefined}, relatedNode);
+    const nodeTreeElement = new AXRelatedNodeSourceTreeElement({deferredNode, idref: undefined}, relatedNode);
     this.appendChild(nodeTreeElement);
   }
 
   appendRelatedNodeInline(relatedNode: Protocol.Accessibility.AXRelatedNode): void {
     const deferredNode =
         new SDK.DOMModel.DeferredDOMNode(this.axNode.accessibilityModel().target(), relatedNode.backendDOMNodeId);
-    const linkedNode = new AXRelatedNodeElement({deferredNode: deferredNode, idref: undefined}, relatedNode);
+    const linkedNode = new AXRelatedNodeElement({deferredNode, idref: undefined}, relatedNode);
     this.listItemElement.appendChild(linkedNode.render());
   }
 
@@ -408,7 +404,7 @@ export class AXValueSourceTreeElement extends AXNodePropertyTreeElement {
   appendRelatedNodeWithIdref(relatedNode: Protocol.Accessibility.AXRelatedNode, idref: string): void {
     const deferredNode =
         new SDK.DOMModel.DeferredDOMNode(this.axNode.accessibilityModel().target(), relatedNode.backendDOMNodeId);
-    const nodeTreeElement = new AXRelatedNodeSourceTreeElement({deferredNode: deferredNode, idref: idref}, relatedNode);
+    const nodeTreeElement = new AXRelatedNodeSourceTreeElement({deferredNode, idref}, relatedNode);
     this.appendChild(nodeTreeElement);
   }
 
@@ -440,9 +436,9 @@ export class AXValueSourceTreeElement extends AXNodePropertyTreeElement {
       if (matchingNode) {
         this.appendRelatedNodeWithIdref(matchingNode, idref);
       } else if (idrefs.length === 1) {
-        this.listItemElement.appendChild(new AXRelatedNodeElement({deferredNode: undefined, idref: idref}).render());
+        this.listItemElement.appendChild(new AXRelatedNodeElement({deferredNode: undefined, idref}).render());
       } else {
-        this.appendChild(new AXRelatedNodeSourceTreeElement({deferredNode: undefined, idref: idref}));
+        this.appendChild(new AXRelatedNodeSourceTreeElement({deferredNode: undefined, idref}));
       }
     }
   }
@@ -680,7 +676,7 @@ export class AXNodeIgnoredReasonTreeElement extends AXNodePropertyTreeElement {
         reasonElement = i18n.i18n.getFormatLocalizedString(str_, UIStrings.elementIsNotVisible, {});
         break;
       case 'presentationalRole': {
-        const role = axNode && axNode.role()?.value || '';
+        const role = axNode?.role()?.value || '';
         const rolePresentationSpan = document.createElement('span', {is: 'source-code'}).textContent = 'role=' + role;
         reasonElement =
             i18n.i18n.getFormatLocalizedString(str_, UIStrings.elementHasPlaceholder, {PH1: rolePresentationSpan});

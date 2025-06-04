@@ -4,12 +4,11 @@
 
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as SDK from '../../core/sdk/sdk.js';
-import * as Protocol from '../../generated/protocol.js';
 import * as Deprecation from '../../generated/Deprecation.js';
+import * as Protocol from '../../generated/protocol.js';
 
 import {Issue, IssueCategory, IssueKind} from './Issue.js';
-
-import {resolveLazyDescription, type MarkdownIssueDescription} from './MarkdownIssueDescription.js';
+import {type MarkdownIssueDescription, resolveLazyDescription} from './MarkdownIssueDescription.js';
 
 const UIStrings = {
   /**
@@ -25,12 +24,12 @@ const UIStrings = {
    * @description Title of issue raised when a deprecated feature is used
    */
   title: 'Deprecated feature used',
-};
+} as const;
 
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/DeprecationIssue.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
-// eslint-disable-next-line rulesdir/l10n_filename_matches
+// eslint-disable-next-line rulesdir/l10n-filename-matches
 const strDeprecation = i18n.i18n.registerUIStrings('generated/Deprecation.ts', Deprecation.UIStrings);
 const i18nLazyDeprecationString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, strDeprecation);
 
@@ -47,7 +46,7 @@ export class DeprecationIssue extends Issue {
   }
 
   getCategory(): IssueCategory {
-    return IssueCategory.Other;
+    return IssueCategory.OTHER;
   }
 
   details(): Protocol.Audits.DeprecationIssueDetails {
@@ -99,7 +98,7 @@ export class DeprecationIssue extends Issue {
   }
 
   getKind(): IssueKind {
-    return IssueKind.BreakingChange;
+    return IssueKind.BREAKING_CHANGE;
   }
 
   static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):

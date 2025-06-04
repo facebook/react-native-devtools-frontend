@@ -25,7 +25,7 @@ describeWithMockConnection('LighthouseReportRenderer', () => {
       `<div class="lh-node" data-path="${path}" data-snippet="${snippet}"></div>`;
   beforeEach(async () => {
     Lighthouse = await import('./lighthouse.js');
-    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
+    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
     createTarget({parentTarget: tabTarget, subtype: 'prerender'});
     target = createTarget({parentTarget: tabTarget});
     linkElement = document.createElement('div');
@@ -70,7 +70,7 @@ describeWithMockConnection('LighthouseReportRenderer', () => {
     await Lighthouse.LighthouseReportRenderer.LighthouseReportRenderer.linkifyNodeDetails(sourceElement);
 
     assert.strictEqual(sourceElement.childNodes.length, NUM_NODES);
-    assert.deepStrictEqual([...sourceElement.childNodes].map(n => n.textContent), ['link1', 'link2', 'link3']);
+    assert.deepEqual([...sourceElement.childNodes].map(n => n.textContent), ['link1', 'link2', 'link3']);
   });
 
   it('resets tooltip', async () => {

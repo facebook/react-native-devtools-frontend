@@ -13,10 +13,15 @@ module.exports = {
     meta: {
         type: "suggestion",
 
+        defaultOptions: [{
+            allowAsStatement: false
+        }],
+
         docs: {
             description: "Disallow `void` operators",
             recommended: false,
-            url: "https://eslint.org/docs/rules/no-void"
+            frozen: true,
+            url: "https://eslint.org/docs/latest/rules/no-void"
         },
 
         messages: {
@@ -28,8 +33,7 @@ module.exports = {
                 type: "object",
                 properties: {
                     allowAsStatement: {
-                        type: "boolean",
-                        default: false
+                        type: "boolean"
                     }
                 },
                 additionalProperties: false
@@ -38,8 +42,7 @@ module.exports = {
     },
 
     create(context) {
-        const allowAsStatement =
-            context.options[0] && context.options[0].allowAsStatement;
+        const [{ allowAsStatement }] = context.options;
 
         //--------------------------------------------------------------------------
         // Public

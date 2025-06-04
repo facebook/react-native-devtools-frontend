@@ -2,13 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as LitHtml from '../../../lit-html/lit-html.js';
-import cssAngleSwatchStyles from './cssAngleSwatch.css.js';
+import * as Lit from '../../../lit/lit.js';
 
-import {AngleUnit, get2DTranslationsForAngle, type Angle} from './CSSAngleUtils.js';
+import cssAngleSwatchStylesRaw from './cssAngleSwatch.css.js';
+import {type Angle, AngleUnit, get2DTranslationsForAngle} from './CSSAngleUtils.js';
 
-const {render, html} = LitHtml;
-const styleMap = LitHtml.Directives.styleMap;
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const cssAngleSwatchStyles = new CSSStyleSheet();
+cssAngleSwatchStyles.replaceSync(cssAngleSwatchStylesRaw.cssText);
+
+const {render, html} = Lit;
+const styleMap = Lit.Directives.styleMap;
 
 const swatchWidth = 11;
 
@@ -17,12 +21,11 @@ export interface CSSAngleSwatchData {
 }
 
 export class CSSAngleSwatch extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-css-angle-swatch`;
 
   private readonly shadow = this.attachShadow({mode: 'open'});
   private angle: Angle = {
     value: 0,
-    unit: AngleUnit.Rad,
+    unit: AngleUnit.RAD,
   };
 
   connectedCallback(): void {

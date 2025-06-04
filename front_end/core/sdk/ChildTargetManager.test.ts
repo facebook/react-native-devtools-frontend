@@ -36,29 +36,29 @@ describeWithMockConnection('ChildTargetManager', () => {
   it('adds subtargets', async () => {
     const target = createTarget();
     const childTargetManager = new SDK.ChildTargetManager.ChildTargetManager(target);
-    assert.strictEqual(childTargetManager.childTargets().length, 0);
+    assert.lengthOf(childTargetManager.childTargets(), 0);
     await childTargetManager.attachedToTarget(
         {sessionId: createSessionId(), targetInfo: createTargetInfo(TARGET_ID), waitingForDebugger: false});
-    assert.strictEqual(childTargetManager.childTargets().length, 1);
+    assert.lengthOf(childTargetManager.childTargets(), 1);
     assert.strictEqual(childTargetManager.childTargets()[0].id(), TARGET_ID);
   });
 
   it('sets subtarget type', async () => {
     const target = createTarget();
     const childTargetManager = new SDK.ChildTargetManager.ChildTargetManager(target);
-    assert.strictEqual(childTargetManager.childTargets().length, 0);
+    assert.lengthOf(childTargetManager.childTargets(), 0);
     for (const [protocolType, sdkType] of [
-             ['iframe', SDK.Target.Type.Frame],
-             ['webview', SDK.Target.Type.Frame],
-             ['page', SDK.Target.Type.Frame],
-             ['background_page', SDK.Target.Type.Frame],
-             ['app', SDK.Target.Type.Frame],
-             ['popup_page', SDK.Target.Type.Frame],
+             ['iframe', SDK.Target.Type.FRAME],
+             ['webview', SDK.Target.Type.FRAME],
+             ['page', SDK.Target.Type.FRAME],
+             ['background_page', SDK.Target.Type.FRAME],
+             ['app', SDK.Target.Type.FRAME],
+             ['popup_page', SDK.Target.Type.FRAME],
              ['worker', SDK.Target.Type.Worker],
-             ['shared_worker', SDK.Target.Type.SharedWorker],
+             ['shared_worker', SDK.Target.Type.SHARED_WORKER],
              ['service_worker', SDK.Target.Type.ServiceWorker],
-             ['auction_worklet', SDK.Target.Type.AuctionWorklet],
-             ['browser', SDK.Target.Type.Browser],
+             ['auction_worklet', SDK.Target.Type.AUCTION_WORKLET],
+             ['browser', SDK.Target.Type.BROWSER],
     ]) {
       await childTargetManager.attachedToTarget({
         sessionId: createSessionId(),
@@ -73,14 +73,14 @@ describeWithMockConnection('ChildTargetManager', () => {
   it('sets subtarget to frame for devtools scheme if type is other', async () => {
     const target = createTarget();
     const childTargetManager = new SDK.ChildTargetManager.ChildTargetManager(target);
-    assert.strictEqual(childTargetManager.childTargets().length, 0);
+    assert.lengthOf(childTargetManager.childTargets(), 0);
     await childTargetManager.attachedToTarget({
       sessionId: createSessionId(),
       targetInfo: createTargetInfo(undefined, 'other', 'devtools://foo/bar'),
       waitingForDebugger: false,
     });
     let [subtarget] = childTargetManager.childTargets().slice(-1);
-    assert.strictEqual(subtarget.type(), SDK.Target.Type.Frame);
+    assert.strictEqual(subtarget.type(), SDK.Target.Type.FRAME);
 
     await childTargetManager.attachedToTarget({
       sessionId: createSessionId(),
@@ -94,40 +94,40 @@ describeWithMockConnection('ChildTargetManager', () => {
   it('sets subtarget to frame for chrome://print/ if type is other', async () => {
     const target = createTarget();
     const childTargetManager = new SDK.ChildTargetManager.ChildTargetManager(target);
-    assert.strictEqual(childTargetManager.childTargets().length, 0);
+    assert.lengthOf(childTargetManager.childTargets(), 0);
     await childTargetManager.attachedToTarget({
       sessionId: createSessionId(),
       targetInfo: createTargetInfo(undefined, 'other', 'chrome://print/'),
       waitingForDebugger: false,
     });
     const [subtarget] = childTargetManager.childTargets().slice(-1);
-    assert.strictEqual(subtarget.type(), SDK.Target.Type.Frame);
+    assert.strictEqual(subtarget.type(), SDK.Target.Type.FRAME);
   });
 
   it('sets subtarget to frame for chrome://file-manager/ if type is other', async () => {
     const target = createTarget();
     const childTargetManager = new SDK.ChildTargetManager.ChildTargetManager(target);
-    assert.strictEqual(childTargetManager.childTargets().length, 0);
+    assert.lengthOf(childTargetManager.childTargets(), 0);
     await childTargetManager.attachedToTarget({
       sessionId: createSessionId(),
       targetInfo: createTargetInfo(undefined, 'other', 'chrome://file-manager/?%7B%22allowedPaths%22:%22anyPathOrUrl'),
       waitingForDebugger: false,
     });
     const [subtarget] = childTargetManager.childTargets().slice(-1);
-    assert.strictEqual(subtarget.type(), SDK.Target.Type.Frame);
+    assert.strictEqual(subtarget.type(), SDK.Target.Type.FRAME);
   });
 
   it('sets subtarget to frame for sidebar URLs if type is other', async () => {
     const target = createTarget();
     const childTargetManager = new SDK.ChildTargetManager.ChildTargetManager(target);
-    assert.strictEqual(childTargetManager.childTargets().length, 0);
+    assert.lengthOf(childTargetManager.childTargets(), 0);
     await childTargetManager.attachedToTarget({
       sessionId: createSessionId(),
       targetInfo: createTargetInfo(undefined, 'other', 'chrome://read-later.top-chrome/'),
       waitingForDebugger: false,
     });
     let [subtarget] = childTargetManager.childTargets().slice(-1);
-    assert.strictEqual(subtarget.type(), SDK.Target.Type.Frame);
+    assert.strictEqual(subtarget.type(), SDK.Target.Type.FRAME);
 
     await childTargetManager.attachedToTarget({
       sessionId: createSessionId(),
@@ -135,13 +135,13 @@ describeWithMockConnection('ChildTargetManager', () => {
       waitingForDebugger: false,
     });
     [subtarget] = childTargetManager.childTargets().slice(-1);
-    assert.strictEqual(subtarget.type(), SDK.Target.Type.Frame);
+    assert.strictEqual(subtarget.type(), SDK.Target.Type.FRAME);
   });
 
   it('sets worker target name to the target title', async () => {
     const target = createTarget();
     const childTargetManager = new SDK.ChildTargetManager.ChildTargetManager(target);
-    assert.strictEqual(childTargetManager.childTargets().length, 0);
+    assert.lengthOf(childTargetManager.childTargets(), 0);
     await childTargetManager.attachedToTarget({
       sessionId: createSessionId(),
       targetInfo: createTargetInfo(undefined, 'worker', 'http://example.com/worker.js', TITLE),
@@ -153,7 +153,7 @@ describeWithMockConnection('ChildTargetManager', () => {
   it('sets non-frame target name to the last path component if present', async () => {
     const target = createTarget();
     const childTargetManager = new SDK.ChildTargetManager.ChildTargetManager(target);
-    assert.strictEqual(childTargetManager.childTargets().length, 0);
+    assert.lengthOf(childTargetManager.childTargets(), 0);
     await childTargetManager.attachedToTarget({
       sessionId: createSessionId(),
       targetInfo: createTargetInfo(undefined, 'service_worker', 'http://example.org/service_worker.html', TITLE),
@@ -171,7 +171,7 @@ describeWithMockConnection('ChildTargetManager', () => {
   it('sets non-frame target a numbered name if it cannot use URL path', async () => {
     const target = createTarget();
     const childTargetManager = new SDK.ChildTargetManager.ChildTargetManager(target);
-    assert.strictEqual(childTargetManager.childTargets().length, 0);
+    assert.lengthOf(childTargetManager.childTargets(), 0);
     await childTargetManager.attachedToTarget({
       sessionId: createSessionId(),
       targetInfo: createTargetInfo(undefined, 'page', 'data:text/html,<!doctype html>'),
@@ -222,7 +222,7 @@ describeWithMockConnection('ChildTargetManager', () => {
     assert.isTrue(attachCallback.secondCall.firstArg.waitingForDebugger);
   });
 
-  it('disposes of the target if it crashes', async () => {
+  it('marks the target as crashed when it crashes', async () => {
     const parentTarget = createTarget();
     const childTargetManager = new SDK.ChildTargetManager.ChildTargetManager(parentTarget);
     await childTargetManager.attachedToTarget({
@@ -233,11 +233,27 @@ describeWithMockConnection('ChildTargetManager', () => {
     const target = childTargetManager.childTargets().at(0);
     assert.isDefined(target);
     assert.strictEqual(target.id(), 'child-target-id');
-    const disposeSpy = sinon.spy(target, 'dispose');
     childTargetManager.targetCrashed(
         {targetId: target.id() as Protocol.Target.TargetID, status: 'crashed', errorCode: 1});
 
-    // Ensure that the target has been disposed after it crashed.
-    assert.isTrue(disposeSpy.calledOnce);
+    assert.isTrue(target.hasCrashed());
+  });
+
+  it('"un-crashes" a target when the target info message is received', async () => {
+    const parentTarget = createTarget();
+    const childTargetManager = new SDK.ChildTargetManager.ChildTargetManager(parentTarget);
+    await childTargetManager.attachedToTarget({
+      sessionId: createSessionId(),
+      targetInfo: createTargetInfo('child-target-id'),
+      waitingForDebugger: false,
+    });
+    const target = childTargetManager.childTargets().at(0);
+    assert.isDefined(target);
+    assert.strictEqual(target.id(), 'child-target-id');
+    childTargetManager.targetCrashed(
+        {targetId: target.id() as Protocol.Target.TargetID, status: 'crashed', errorCode: 1});
+    assert.isTrue(target.hasCrashed());
+    childTargetManager.targetInfoChanged({targetInfo: createTargetInfo(target.id())});
+    assert.isFalse(target.hasCrashed());
   });
 });

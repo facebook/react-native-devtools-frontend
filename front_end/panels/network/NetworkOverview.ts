@@ -4,16 +4,14 @@
 
 import type * as Common from '../../core/common/common.js';
 import * as SDK from '../../core/sdk/sdk.js';
-import * as TraceEngine from '../../models/trace/trace.js';
-import * as Coordinator from '../../ui/components/render_coordinator/render_coordinator.js';
+import * as Trace from '../../models/trace/trace.js';
+import * as RenderCoordinator from '../../ui/components/render_coordinator/render_coordinator.js';
 import * as PerfUI from '../../ui/legacy/components/perf_ui/perf_ui.js';
 import * as ThemeSupport from '../../ui/legacy/theme_support/theme_support.js';
 
 import {NetworkLogView} from './NetworkLogView.js';
 import {NetworkTimeBoundary} from './NetworkTimeCalculator.js';
 import {RequestTimeRangeNames, RequestTimingView} from './RequestTimingView.js';
-
-const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 export class NetworkOverview extends PerfUI.TimelineOverviewPane.TimelineOverviewBase {
   private selectedFilmStripTime: number;
@@ -135,7 +133,7 @@ export class NetworkOverview extends PerfUI.TimelineOverviewPane.TimelineOvervie
     if (!this.isShowing()) {
       return;
     }
-    void coordinator.write('NetworkOverview.render', this.update.bind(this));
+    void RenderCoordinator.write('NetworkOverview.render', this.update.bind(this));
   }
 
   override update(): void {
@@ -149,8 +147,7 @@ export class NetworkOverview extends PerfUI.TimelineOverviewPane.TimelineOvervie
       }
 
       calculator.setBounds(
-          calculator.minimumBoundary(),
-          TraceEngine.Types.Timing.MilliSeconds(calculator.minimumBoundary() + this.span));
+          calculator.minimumBoundary(), Trace.Types.Timing.Milli(calculator.minimumBoundary() + this.span));
 
       this.lastBoundary = new NetworkTimeBoundary(calculator.minimumBoundary(), calculator.maximumBoundary());
     }
@@ -176,8 +173,8 @@ export class NetworkOverview extends PerfUI.TimelineOverviewPane.TimelineOvervie
         if (endTime === Number.MAX_VALUE) {
           endTime = calculator.maximumBoundary();
         }
-        const startX = calculator.computePosition(TraceEngine.Types.Timing.MilliSeconds(startTime));
-        const endX = calculator.computePosition(TraceEngine.Types.Timing.MilliSeconds(endTime)) + 1;
+        const startX = calculator.computePosition(Trace.Types.Timing.Milli(startTime));
+        const endX = calculator.computePosition(Trace.Types.Timing.Milli(endTime)) + 1;
         context.fillRect(startX, y, Math.max(endX - startX, MIN_BAND_WIDTH), BAND_HEIGHT);
         context.strokeRect(startX, y, Math.max(endX - startX, MIN_BAND_WIDTH), BAND_HEIGHT);
       }
@@ -201,7 +198,7 @@ export class NetworkOverview extends PerfUI.TimelineOverviewPane.TimelineOvervie
       const timeRanges = RequestTimingView.calculateRequestTimeRanges(request, this.calculator().minimumBoundary());
       for (let j = 0; j < timeRanges.length; ++j) {
         const type = timeRanges[j].name;
-        if (band !== -1 || type === RequestTimeRangeNames.Total) {
+        if (band !== -1 || type === RequestTimeRangeNames.TOTAL) {
           addLine(type, y, timeRanges[j].start * 1000, timeRanges[j].end * 1000);
         }
       }
@@ -211,19 +208,19 @@ export class NetworkOverview extends PerfUI.TimelineOverviewPane.TimelineOvervie
     context.save();
     context.scale(window.devicePixelRatio, window.devicePixelRatio);
     context.lineWidth = 2;
-    drawLines(RequestTimeRangeNames.Total);
-    drawLines(RequestTimeRangeNames.Blocking);
-    drawLines(RequestTimeRangeNames.Connecting);
-    drawLines(RequestTimeRangeNames.ServiceWorker);
-    drawLines(RequestTimeRangeNames.ServiceWorkerPreparation);
-    drawLines(RequestTimeRangeNames.ServiceWorkerRespondWith);
-    drawLines(RequestTimeRangeNames.Push);
-    drawLines(RequestTimeRangeNames.Proxy);
+    drawLines(RequestTimeRangeNames.TOTAL);
+    drawLines(RequestTimeRangeNames.BLOCKING);
+    drawLines(RequestTimeRangeNames.CONNECTING);
+    drawLines(RequestTimeRangeNames.SERVICE_WORKER);
+    drawLines(RequestTimeRangeNames.SERVICE_WORKER_PREPARATION);
+    drawLines(RequestTimeRangeNames.SERVICE_WORKER_RESPOND_WITH);
+    drawLines(RequestTimeRangeNames.PUSH);
+    drawLines(RequestTimeRangeNames.PROXY);
     drawLines(RequestTimeRangeNames.DNS);
     drawLines(RequestTimeRangeNames.SSL);
-    drawLines(RequestTimeRangeNames.Sending);
-    drawLines(RequestTimeRangeNames.Waiting);
-    drawLines(RequestTimeRangeNames.Receiving);
+    drawLines(RequestTimeRangeNames.SENDING);
+    drawLines(RequestTimeRangeNames.WAITING);
+    drawLines(RequestTimeRangeNames.RECEIVING);
 
     if (this.highlightedRequest) {
       const size = 5;
@@ -238,24 +235,24 @@ export class NetworkOverview extends PerfUI.TimelineOverviewPane.TimelineOvervie
 
       // The network overview works in seconds, but the calcululator deals in
       // milliseconds, hence the multiplication by 1000.
-      const start = TraceEngine.Types.Timing.MilliSeconds(timeRanges[0].start * 1000);
-      const end = TraceEngine.Types.Timing.MilliSeconds(timeRanges[0].end * 1000);
+      const start = Trace.Types.Timing.Milli(timeRanges[0].start * 1000);
+      const end = Trace.Types.Timing.Milli(timeRanges[0].end * 1000);
       context.fillRect(
           calculator.computePosition(start) - borderSize, y - size / 2 - borderSize,
           calculator.computePosition(end) - calculator.computePosition(start) + 1 + 2 * borderSize, size * borderSize);
 
       for (let j = 0; j < timeRanges.length; ++j) {
         const type = timeRanges[j].name;
-        if (band !== -1 || type === RequestTimeRangeNames.Total) {
+        if (band !== -1 || type === RequestTimeRangeNames.TOTAL) {
           context.beginPath();
           context.strokeStyle =
               ThemeSupport.ThemeSupport.instance().getComputedValue(RequestTimeRangeNameToColor[type]);
           context.lineWidth = size;
 
-          const start = TraceEngine.Types.Timing.MilliSeconds(timeRanges[j].start * 1000);
-          const end = TraceEngine.Types.Timing.MilliSeconds(timeRanges[j].end * 1000);
-          context.moveTo(calculator.computePosition(start) - 0, y);
-          context.lineTo(calculator.computePosition(end) + 1, y);
+          const start = Trace.Types.Timing.Milli(timeRanges[j].start * 1000);
+          const end = Trace.Types.Timing.Milli(timeRanges[j].end * 1000);
+          context.moveTo(Number(calculator.computePosition(start)) - 0, y);
+          context.lineTo(Number(calculator.computePosition(end)) + 1, y);
           context.stroke();
         }
       }
@@ -266,8 +263,7 @@ export class NetworkOverview extends PerfUI.TimelineOverviewPane.TimelineOvervie
     context.beginPath();
     context.strokeStyle = ThemeSupport.ThemeSupport.instance().getComputedValue(NetworkLogView.getDCLEventColor());
     for (let i = this.domContentLoadedEvents.length - 1; i >= 0; --i) {
-      const position =
-          calculator.computePosition(TraceEngine.Types.Timing.MilliSeconds(this.domContentLoadedEvents[i]));
+      const position = calculator.computePosition(Trace.Types.Timing.Milli(this.domContentLoadedEvents[i]));
       const x = Math.round(position) + 0.5;
       context.moveTo(x, 0);
       context.lineTo(x, height);
@@ -277,7 +273,7 @@ export class NetworkOverview extends PerfUI.TimelineOverviewPane.TimelineOvervie
     context.beginPath();
     context.strokeStyle = ThemeSupport.ThemeSupport.instance().getComputedValue(NetworkLogView.getLoadEventColor());
     for (let i = this.loadEvents.length - 1; i >= 0; --i) {
-      const position = calculator.computePosition(TraceEngine.Types.Timing.MilliSeconds(this.loadEvents[i]));
+      const position = calculator.computePosition(Trace.Types.Timing.Milli(this.loadEvents[i]));
       const x = Math.round(position) + 0.5;
       context.moveTo(x, 0);
       context.lineTo(x, height);
@@ -288,7 +284,7 @@ export class NetworkOverview extends PerfUI.TimelineOverviewPane.TimelineOvervie
       context.lineWidth = 2;
       context.beginPath();
       context.strokeStyle = ThemeSupport.ThemeSupport.instance().getComputedValue('--network-frame-divider-color');
-      const timeInMilliseconds = TraceEngine.Types.Timing.MilliSeconds(this.selectedFilmStripTime);
+      const timeInMilliseconds = Trace.Types.Timing.Milli(this.selectedFilmStripTime);
       const x = Math.round(calculator.computePosition(timeInMilliseconds));
       context.moveTo(x, 0);
       context.lineTo(x, height);
@@ -299,20 +295,20 @@ export class NetworkOverview extends PerfUI.TimelineOverviewPane.TimelineOvervie
 }
 
 export const RequestTimeRangeNameToColor = {
-  [RequestTimeRangeNames.Total]: '--network-overview-total',
-  [RequestTimeRangeNames.Blocking]: '--network-overview-blocking',
-  [RequestTimeRangeNames.Connecting]: '--network-overview-connecting',
-  [RequestTimeRangeNames.ServiceWorker]: '--network-overview-service-worker',
-  [RequestTimeRangeNames.ServiceWorkerPreparation]: '--network-overview-service-worker',
-  [RequestTimeRangeNames.ServiceWorkerRespondWith]: '--network-overview-service-worker-respond-with',
-  [RequestTimeRangeNames.Push]: '--network-overview-push',
-  [RequestTimeRangeNames.Proxy]: '--override-network-overview-proxy',
+  [RequestTimeRangeNames.TOTAL]: '--network-overview-total',
+  [RequestTimeRangeNames.BLOCKING]: '--network-overview-blocking',
+  [RequestTimeRangeNames.CONNECTING]: '--network-overview-connecting',
+  [RequestTimeRangeNames.SERVICE_WORKER]: '--network-overview-service-worker',
+  [RequestTimeRangeNames.SERVICE_WORKER_PREPARATION]: '--network-overview-service-worker',
+  [RequestTimeRangeNames.SERVICE_WORKER_RESPOND_WITH]: '--network-overview-service-worker-respond-with',
+  [RequestTimeRangeNames.PUSH]: '--network-overview-push',
+  [RequestTimeRangeNames.PROXY]: '--override-network-overview-proxy',
   [RequestTimeRangeNames.DNS]: '--network-overview-dns',
   [RequestTimeRangeNames.SSL]: '--network-overview-ssl',
-  [RequestTimeRangeNames.Sending]: '--override-network-overview-sending',
-  [RequestTimeRangeNames.Waiting]: '--network-overview-waiting',
-  [RequestTimeRangeNames.Receiving]: '--network-overview-receiving',
-  [RequestTimeRangeNames.Queueing]: '--network-overview-queueing',
+  [RequestTimeRangeNames.SENDING]: '--override-network-overview-sending',
+  [RequestTimeRangeNames.WAITING]: '--network-overview-waiting',
+  [RequestTimeRangeNames.RECEIVING]: '--network-overview-receiving',
+  [RequestTimeRangeNames.QUEUEING]: '--network-overview-queueing',
 } as {[key: string]: string};
 
 const BAND_HEIGHT = 3;

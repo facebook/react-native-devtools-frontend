@@ -3,20 +3,22 @@
 // found in the LICENSE file.
 
 import * as FrontendHelpers from '../../../../testing/EnvironmentHelpers.js';
-import * as LitHtml from '../../../lit-html/lit-html.js';
+import * as Lit from '../../../lit/lit.js';
 import * as ExpandableList from '../../expandable_list/expandable_list.js';
+
+const {html} = Lit;
 
 await FrontendHelpers.initializeGlobalVars();
 
 const component = new ExpandableList.ExpandableList.ExpandableList();
 
 const rows = [];
-rows.push(LitHtml.html`
+rows.push(html`
   <div>This is row 1. Click on the triangle icon to expand.</div>
 `);
 
 for (let rowNumber = 2; rowNumber < 11; rowNumber++) {
-  rows.push(LitHtml.html`
+  rows.push(html`
     <div>This is row ${rowNumber}.</div>
   `);
 }

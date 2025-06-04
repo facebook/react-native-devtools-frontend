@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Platform from '../../../../core/platform/platform.js';
+import * as Platform from '../../../../core/platform/platform.js';
 import * as SDK from '../../../../core/sdk/sdk.js';
 import * as Protocol from '../../../../generated/protocol.js';
 import {
@@ -10,18 +10,15 @@ import {
   getCellByIndexes,
 } from '../../../../testing/DataGridHelpers.js';
 import {
-  getElementWithinComponent,
   renderElementIntoDOM,
 } from '../../../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
-import * as DataGrid from '../../../../ui/components/data_grid/data_grid.js';
-import * as Coordinator from '../../../../ui/components/render_coordinator/render_coordinator.js';
+import * as RenderCoordinator from '../../../../ui/components/render_coordinator/render_coordinator.js';
 
 import * as PreloadingComponents from './components.js';
 
-const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
-
-const zip2 = <T, S>(xs: T[], ys: S[]): [T, S][] => {
+const {urlString} = Platform.DevToolsPath;
+const zip2 = <T, S>(xs: T[], ys: S[]): Array<[T, S]> => {
   assert.strictEqual(xs.length, ys.length);
 
   return Array.from(xs.map((_, i) => [xs[i], ys[i]]));
@@ -33,29 +30,27 @@ async function renderMismatchedPreloadingGrid(
   component.data = data;
   renderElementIntoDOM(component);
   assert.isNotNull(component.shadowRoot);
-  await coordinator.done();
+  await RenderCoordinator.done();
 
   return component;
 }
 
 function assertDiff(
     gridComponent: HTMLElement, cellIndex: {row: number, column: number},
-    spansExpected: {textContent: string, partOfStyle: string}[]) {
-  const controller = getElementWithinComponent(
-      gridComponent, 'devtools-data-grid-controller', DataGrid.DataGridController.DataGridController);
-  const grid = getElementWithinComponent(controller, 'devtools-data-grid', DataGrid.DataGrid.DataGrid);
+    spansExpected: Array<{textContent: string, partOfStyle: string}>) {
+  const grid = gridComponent.shadowRoot!.querySelector('devtools-data-grid')!;
   assert.isNotNull(grid.shadowRoot);
   const cell = getCellByIndexes(grid.shadowRoot, cellIndex);
   const spans = cell.querySelectorAll('div span');
 
   for (const [got, expected] of zip2(Array.from(spans), spansExpected)) {
     assert.strictEqual(got.textContent, expected.textContent);
-    assert.include(got.getAttribute('style'), expected.partOfStyle);
+    assert.include(got.getAttribute('style') || '', expected.partOfStyle);
   }
 }
 
-const FG_GREEN = 'color: var(--sys-color-green); text-decoration: line-through';
-const FG_RED = 'color: var(--sys-color-error);';
+const FG_GREEN = 'color:var(--sys-color-green);text-decoration:line-through';
+const FG_RED = 'color:var(--sys-color-error);';
 
 describeWithEnvironment('MismatchedPreloadingGrid', () => {
   // Disabled due to flakiness
@@ -65,11 +60,11 @@ describeWithEnvironment('MismatchedPreloadingGrid', () => {
     }
 
     const data: PreloadingComponents.MismatchedPreloadingGrid.MismatchedPreloadingGridData = {
-      pageURL: 'https://example.com/prefetched.html' as Platform.DevToolsPath.UrlString,
+      pageURL: urlString`https://example.com/prefetched.html`,
       rows: [{
         url: 'https://example.com/prefetched.html',
         action: Protocol.Preload.SpeculationAction.Prefetch,
-        status: SDK.PreloadingModel.PreloadingStatus.Failure,
+        status: SDK.PreloadingModel.PreloadingStatus.FAILURE,
       }],
     };
 
@@ -87,11 +82,11 @@ describeWithEnvironment('MismatchedPreloadingGrid', () => {
 
   it('renderes edit diff', async () => {
     const data: PreloadingComponents.MismatchedPreloadingGrid.MismatchedPreloadingGridData = {
-      pageURL: 'https://example.com/prefetched.html?q=1' as Platform.DevToolsPath.UrlString,
+      pageURL: urlString`https://example.com/prefetched.html?q=1`,
       rows: [{
         url: 'https://example.com/prefetched.html?q=2',
         action: Protocol.Preload.SpeculationAction.Prefetch,
-        status: SDK.PreloadingModel.PreloadingStatus.Ready,
+        status: SDK.PreloadingModel.PreloadingStatus.READY,
       }],
     };
 
@@ -115,11 +110,11 @@ describeWithEnvironment('MismatchedPreloadingGrid', () => {
 
   it('renderes add diff', async () => {
     const data: PreloadingComponents.MismatchedPreloadingGrid.MismatchedPreloadingGridData = {
-      pageURL: 'https://example.com/prefetched.html?q=1' as Platform.DevToolsPath.UrlString,
+      pageURL: urlString`https://example.com/prefetched.html?q=1`,
       rows: [{
         url: 'https://example.com/prefetched.html',
         action: Protocol.Preload.SpeculationAction.Prefetch,
-        status: SDK.PreloadingModel.PreloadingStatus.Ready,
+        status: SDK.PreloadingModel.PreloadingStatus.READY,
       }],
     };
 
@@ -142,11 +137,11 @@ describeWithEnvironment('MismatchedPreloadingGrid', () => {
 
   it('renderes delete diff', async () => {
     const data: PreloadingComponents.MismatchedPreloadingGrid.MismatchedPreloadingGridData = {
-      pageURL: 'https://example.com/prefetched.html' as Platform.DevToolsPath.UrlString,
+      pageURL: urlString`https://example.com/prefetched.html`,
       rows: [{
         url: 'https://example.com/prefetched.html?q=1',
         action: Protocol.Preload.SpeculationAction.Prefetch,
-        status: SDK.PreloadingModel.PreloadingStatus.Ready,
+        status: SDK.PreloadingModel.PreloadingStatus.READY,
       }],
     };
 
@@ -169,11 +164,11 @@ describeWithEnvironment('MismatchedPreloadingGrid', () => {
 
   it('renderes complex diff', async () => {
     const data: PreloadingComponents.MismatchedPreloadingGrid.MismatchedPreloadingGridData = {
-      pageURL: 'https://example.com/prefetched.html?q=1' as Platform.DevToolsPath.UrlString,
+      pageURL: urlString`https://example.com/prefetched.html?q=1`,
       rows: [{
         url: 'https://example.com/prerendered.html?x=1',
         action: Protocol.Preload.SpeculationAction.Prerender,
-        status: SDK.PreloadingModel.PreloadingStatus.Ready,
+        status: SDK.PreloadingModel.PreloadingStatus.READY,
       }],
     };
 

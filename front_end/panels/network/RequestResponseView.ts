@@ -37,16 +37,22 @@ import * as SourceFrame from '../../ui/legacy/components/source_frame/source_fra
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
+import {BinaryResourceView} from './BinaryResourceView.js';
+
 const UIStrings = {
+  /**
+   *@description Text in Request Response View of the Network panel if no preview can be shown
+   */
+  noPreview: 'Nothing to preview',
   /**
    *@description Text in Request Response View of the Network panel
    */
-  thisRequestHasNoResponseData: 'This request has no response data available.',
+  thisRequestHasNoResponseData: 'This request has no response data available',
   /**
    *@description Text in Request Preview View of the Network panel
    */
   failedToLoadResponseData: 'Failed to load response data',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/network/RequestResponseView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class RequestResponseView extends UI.Widget.VBox {
@@ -61,18 +67,12 @@ export class RequestResponseView extends UI.Widget.VBox {
     this.contentViewPromise = null;
   }
 
-  static async sourceViewForRequest(request: SDK.NetworkRequest.NetworkRequest): Promise<UI.Widget.Widget|null> {
+  static #sourceViewForRequest(
+      request: SDK.NetworkRequest.NetworkRequest,
+      contentData: TextUtils.StreamingContentData.StreamingContentData): UI.Widget.Widget|null {
     let sourceView = requestToSourceView.get(request);
     if (sourceView !== undefined) {
       return sourceView;
-    }
-
-    const contentData = await request.requestStreamingContent();
-    // Note: Even though WASM is binary data, the source view will disassemble it and show a text representation.
-    if (TextUtils.StreamingContentData.isError(contentData) ||
-        !(contentData.isTextContent || contentData.mimeType === 'application/wasm')) {
-      requestToSourceView.delete(request);
-      return null;
     }
 
     let mimeType;
@@ -84,14 +84,21 @@ export class RequestResponseView extends UI.Widget.VBox {
       mimeType = request.resourceType().canonicalMimeType() || request.mimeType;
     }
 
-    const isMinified = contentData.mimeType === 'application/wasm' ?
-        false :
-        TextUtils.TextUtils.isMinified(contentData.content().text);
+    const isWasm = contentData.mimeType === 'application/wasm';
+    const isMinified =
+        isWasm || !contentData.isTextContent ? false : TextUtils.TextUtils.isMinified(contentData.content().text);
     const mediaType = Common.ResourceType.ResourceType.mediaTypeForMetrics(
-        mimeType, request.resourceType().isFromSourceMap(), isMinified);
+        mimeType, request.resourceType().isFromSourceMap(), isMinified, false, false);
 
     Host.userMetrics.networkPanelResponsePreviewOpened(mediaType);
-    sourceView = SourceFrame.ResourceSourceFrame.ResourceSourceFrame.createSearchableView(request, mimeType);
+
+    if (contentData.isTextContent || isWasm) {
+      // Note: Even though WASM is binary data, the source view will disassemble it and show a text representation.
+      sourceView = SourceFrame.ResourceSourceFrame.ResourceSourceFrame.createSearchableView(request, mimeType);
+    } else {
+      sourceView = new BinaryResourceView(contentData, request.url(), request.resourceType());
+    }
+
     requestToSourceView.set(request, sourceView);
     return sourceView;
   }
@@ -116,12 +123,13 @@ export class RequestResponseView extends UI.Widget.VBox {
   async createPreview(): Promise<UI.Widget.Widget> {
     const contentData = await this.request.requestStreamingContent();
     if (TextUtils.StreamingContentData.isError(contentData)) {
-      return new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.failedToLoadResponseData) + ': ' + contentData.error);
+      return new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.failedToLoadResponseData), contentData.error);
     }
 
-    const sourceView = await RequestResponseView.sourceViewForRequest(this.request);
+    const sourceView = RequestResponseView.#sourceViewForRequest(this.request, contentData);
     if (!sourceView || this.request.statusCode === 204) {
-      return new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.thisRequestHasNoResponseData));
+      return new UI.EmptyWidget.EmptyWidget(
+          i18nString(UIStrings.noPreview), i18nString(UIStrings.thisRequestHasNoResponseData));
     }
 
     return sourceView;

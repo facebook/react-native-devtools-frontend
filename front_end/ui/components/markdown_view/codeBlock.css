@@ -10,75 +10,84 @@
   box-sizing: border-box;
 }
 
-code {
-  color: var(--sys-color-on-surface);
-  font-size: 11px;
-  user-select: text;
-  cursor: text;
-  background: var(--sys-color-surface1);
+:host {
+  display: block;
+  /**
+    Adjusts the max height of the code area.
+    This can be changed from outside by targeting `devtools-code-block` element.
+  */
+  --code-block-max-code-height: none;
+  /**
+    Adjusts the background color of the code block element.
+    This can be changed from outside by targeting `devtools-code-block` element.
+  */
+  --code-block-background-color: var(--sys-color-surface2);
 }
 
 .codeblock {
-  margin-bottom: 8px;
   box-sizing: border-box;
-  border-radius: 4px;
-  background-color: var(--sys-color-surface5);
   color: var(--sys-color-on-surface);
-}
-
-.codeblock .toolbar {
-  box-sizing: border-box;
-  display: flex;
-  height: 28px;
-  flex-direction: row;
-  padding: 0 11px;
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 400;
-  line-height: 16px;
 }
 
 .codeblock .editor-wrapper {
   color: var(--sys-color-on-surface);
-  background: var(--sys-color-surface1);
-  padding: 10px 5px;
+  background: var(--code-block-background-color); /* stylelint-disable-line plugin/use_theme_colors */
+  padding: 10px 5px 0;
+  border-bottom-left-radius: var(--sys-shape-corner-extra-small);
+  border-bottom-right-radius: var(--sys-shape-corner-extra-small);
+}
+
+.codeblock .editor-wrapper:has(.heading) {
+  padding: var(--sys-size-3) var(--sys-size-4) 0 5px;
+}
+
+.codeblock:not(:has(.toolbar)) .editor-wrapper {
+  border-radius: var(--sys-shape-corner-extra-small);
+}
+
+.codeblock .editor-wrapper .code {
+  max-height: var(--code-block-max-code-height);
+  overflow: auto;
+  padding-bottom: 10px;
+}
+
+.heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: var(--sys-size-11);
+}
+
+.heading-text {
+  font: var(--sys-typescale-body5-bold);
+  padding-left: var(--sys-size-4);
+  padding-right: var(--sys-size-2);
 }
 
 .codeblock .lang {
-  padding: 6px 0;
+  padding: var(--sys-size-4) 0;
   flex: 1;
 }
 
-.codeblock .copy {
-  padding: 4px 0;
-  align-items: center;
+.codeblock .copy-button-container {
   display: flex;
-}
-
-.codeblock .copy-button {
-  margin: 0;
-  padding: 0;
-  background: transparent;
-  border: none;
-  font-size: 11px;
-  line-height: 16px;
-  display: flex;
-  flex-direction: row;
+  justify-content: center;
   align-items: center;
-  gap: 4px;
-}
+  font-size: var(--sys-typescale-body5-size);
 
-.codeblock .copy-button.copied {
-  color: var(--sys-color-primary);
-
-  --copy-icon-color: var(--sys-color-primary);
+  span {
+    padding-right: var(--sys-size-4);
+  }
 }
 
 .notice {
-  margin-top: 3px;
-  margin-left: 3px;
+  margin-top: var(--sys-size-2);
+  padding: var(--sys-size-4) var(--sys-size-5);
+  background-color: var(--code-block-background-color); /* stylelint-disable-line plugin/use_theme_colors */
+  border-radius: var(--sys-shape-corner-extra-small);
 
   .link {
+    font: var(--sys-typescale-body4-regular);
     color: var(--sys-color-primary);
     text-decoration-line: underline;
   }

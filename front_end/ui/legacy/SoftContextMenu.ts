@@ -36,7 +36,7 @@ import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 import * as ARIAUtils from './ARIAUtils.js';
 import {AnchorBehavior, GlassPane, MarginBehavior, PointerEventsBehavior, SizeBehavior} from './GlassPane.js';
 import {InspectorView} from './InspectorView.js';
-import softContextMenuStyles from './softContextMenu.css.legacy.js';
+import softContextMenuStyles from './softContextMenu.css.js';
 import {Tooltip} from './Tooltip.js';
 import {createTextChild, ElementFocusRestorer} from './UIUtils.js';
 
@@ -62,7 +62,7 @@ const UIStrings = {
    *@example {44 %} PH2
    */
   sS: '{PH1}, {PH2}',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/SoftContextMenu.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -111,12 +111,12 @@ export class SoftContextMenu {
 
     this.glassPane = new GlassPane();
     this.glassPane.setPointerEventsBehavior(
-        this.parentMenu ? PointerEventsBehavior.PierceGlassPane : PointerEventsBehavior.BlockedByGlassPane);
+        this.parentMenu ? PointerEventsBehavior.PIERCE_GLASS_PANE : PointerEventsBehavior.BLOCKED_BY_GLASS_PANE);
     this.glassPane.registerRequiredCSS(softContextMenuStyles);
     this.glassPane.setContentAnchorBox(anchorBox);
-    this.glassPane.setSizeBehavior(SizeBehavior.MeasureContent);
-    this.glassPane.setMarginBehavior(MarginBehavior.NoMargin);
-    this.glassPane.setAnchorBehavior(this.parentMenu ? AnchorBehavior.PreferRight : AnchorBehavior.PreferBottom);
+    this.glassPane.setSizeBehavior(SizeBehavior.MEASURE_CONTENT);
+    this.glassPane.setMarginBehavior(MarginBehavior.NO_MARGIN);
+    this.glassPane.setAnchorBehavior(this.parentMenu ? AnchorBehavior.PREFER_RIGHT : AnchorBehavior.PREFER_BOTTOM);
 
     this.contextMenuElement = this.glassPane.contentElement.createChild('div', 'soft-context-menu');
     this.contextMenuElement.setAttribute('jslog', `${VisualLogging.menu().track({resize: true}).parent('mapped').track({
@@ -481,7 +481,7 @@ export class SoftContextMenu {
       const detailsForElement = this.detailsForElementMap.get(this.highlightedMenuItemElement);
       this.highlightedMenuItemElement.classList.remove('force-white-icons');
       this.highlightedMenuItemElement.classList.remove('soft-context-menu-item-mouse-over');
-      if (detailsForElement && detailsForElement.subItems && detailsForElement.subMenuTimer) {
+      if (detailsForElement?.subItems && detailsForElement.subMenuTimer) {
         window.clearTimeout(detailsForElement.subMenuTimer);
         delete detailsForElement.subMenuTimer;
       }
@@ -492,13 +492,12 @@ export class SoftContextMenu {
       this.highlightedMenuItemElement.classList.add('force-white-icons');
       this.highlightedMenuItemElement.classList.add('soft-context-menu-item-mouse-over');
       const detailsForElement = this.detailsForElementMap.get(this.highlightedMenuItemElement);
-      if (detailsForElement && detailsForElement.customElement &&
-          !detailsForElement.customElement.classList.contains('location-menu')) {
+      if (detailsForElement?.customElement && !detailsForElement.customElement.classList.contains('location-menu')) {
         detailsForElement.customElement.focus();
       } else {
         this.highlightedMenuItemElement.focus();
       }
-      if (scheduleSubMenu && detailsForElement && detailsForElement.subItems && !detailsForElement.subMenuTimer) {
+      if (scheduleSubMenu && detailsForElement?.subItems && !detailsForElement.subMenuTimer) {
         detailsForElement.subMenuTimer =
             window.setTimeout(this.showSubMenu.bind(this, this.highlightedMenuItemElement), 150);
       }
@@ -535,7 +534,7 @@ export class SoftContextMenu {
     let menuItemDetails: (ElementMenuDetails|undefined) =
         menuItemElement ? this.detailsForElementMap.get((menuItemElement as HTMLElement)) : undefined;
     while (menuItemElement &&
-           (menuItemDetails && menuItemDetails.isSeparator ||
+           (menuItemDetails?.isSeparator ||
             (menuItemElement as HTMLElement).classList.contains('soft-context-menu-disabled'))) {
       menuItemElement = menuItemElement.nextSibling;
       menuItemDetails = menuItemElement ? this.detailsForElementMap.get((menuItemElement as HTMLElement)) : undefined;
@@ -585,7 +584,7 @@ export class SoftContextMenu {
           break;
         }
         const detailsForElement = this.detailsForElementMap.get(this.highlightedMenuItemElement);
-        if (detailsForElement && detailsForElement.subItems) {
+        if (detailsForElement?.subItems) {
           this.showSubMenu(this.highlightedMenuItemElement);
           if (this.subMenu) {
             this.subMenu.highlightNext();
@@ -640,8 +639,11 @@ export interface SoftContextMenuDescriptor {
   type: 'checkbox'|'item'|'separator'|'subMenu';
   id?: number;
   label?: string;
+  accelerator?: {keyCode: number, modifiers: number};
+  isExperimentalFeature?: boolean;
   enabled?: boolean;
   checked?: boolean;
+  isDevToolsPerformanceMenuItem?: boolean;
   subItems?: SoftContextMenuDescriptor[];
   element?: Element;
   shortcut?: string;

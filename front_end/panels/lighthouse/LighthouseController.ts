@@ -11,8 +11,8 @@ import * as Protocol from '../../generated/protocol.js';
 import * as EmulationModel from '../../models/emulation/emulation.js';
 import * as Emulation from '../emulation/emulation.js';
 
-import {type LighthouseRun, type ProtocolService} from './LighthouseProtocolService.js';
-import {type RunnerResult} from './LighthouseReporterTypes.js';
+import type {LighthouseRun, ProtocolService} from './LighthouseProtocolService.js';
+import type {RunnerResult} from './LighthouseReporterTypes.js';
 
 const UIStrings = {
   /**
@@ -174,7 +174,7 @@ const UIStrings = {
    */
   javaScriptDisabled:
       'JavaScript is disabled. You need to enable JavaScript to audit this page. Open the Command Menu and run the Enable JavaScript command to enable JavaScript.',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/lighthouse/LighthouseController.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
@@ -219,7 +219,7 @@ export class LighthouseController extends Common.ObjectWrapper.ObjectWrapper<Eve
 
     SDK.TargetManager.TargetManager.instance().observeModels(SDK.ServiceWorkerManager.ServiceWorkerManager, this);
     SDK.TargetManager.TargetManager.instance().addEventListener(
-        SDK.TargetManager.Events.InspectedURLChanged, this.recomputePageAuditability, this);
+        SDK.TargetManager.Events.INSPECTED_URL_CHANGED, this.recomputePageAuditability, this);
   }
 
   modelAdded(serviceWorkerManager: SDK.ServiceWorkerManager.ServiceWorkerManager): void {
@@ -230,9 +230,9 @@ export class LighthouseController extends Common.ObjectWrapper.ObjectWrapper<Eve
     this.manager = serviceWorkerManager;
     this.serviceWorkerListeners = [
       this.manager.addEventListener(
-          SDK.ServiceWorkerManager.Events.RegistrationUpdated, this.recomputePageAuditability, this),
+          SDK.ServiceWorkerManager.Events.REGISTRATION_UPDATED, this.recomputePageAuditability, this),
       this.manager.addEventListener(
-          SDK.ServiceWorkerManager.Events.RegistrationDeleted, this.recomputePageAuditability, this),
+          SDK.ServiceWorkerManager.Events.REGISTRATION_DELETED, this.recomputePageAuditability, this),
     ];
 
     this.recomputePageAuditability();
@@ -281,7 +281,7 @@ export class LighthouseController extends Common.ObjectWrapper.ObjectWrapper<Eve
   }
 
   private unauditablePageMessage(): string|null {
-    if (!this.manager) {
+    if (!this.manager || this.getFlags().mode !== 'navigation') {
       return null;
     }
 
@@ -315,7 +315,7 @@ export class LighthouseController extends Common.ObjectWrapper.ObjectWrapper<Eve
       if (isPdf) {
         return i18nString(UIStrings.canOnlyAuditHttphttpsPages);
       }
-    } catch (e) {
+    } catch {
       return i18nString(UIStrings.canOnlyAuditHttphttpsPages);
     }
 
@@ -407,7 +407,7 @@ export class LighthouseController extends Common.ObjectWrapper.ObjectWrapper<Eve
   }
 
   async getInspectedURL(options?: {force: boolean}): Promise<Platform.DevToolsPath.UrlString> {
-    if (options && options.force || !this.inspectedURL) {
+    if (options?.force || !this.inspectedURL) {
       this.inspectedURL = await this.evaluateInspectedURL();
     }
     return this.inspectedURL;
@@ -452,13 +452,13 @@ export class LighthouseController extends Common.ObjectWrapper.ObjectWrapper<Eve
 
     switch (flags.mode) {
       case 'navigation':
-        Host.userMetrics.lighthouseModeRun(Host.UserMetrics.LighthouseModeRun.Navigation);
+        Host.userMetrics.lighthouseModeRun(Host.UserMetrics.LighthouseModeRun.NAVIGATION);
         break;
       case 'timespan':
-        Host.userMetrics.lighthouseModeRun(Host.UserMetrics.LighthouseModeRun.Timespan);
+        Host.userMetrics.lighthouseModeRun(Host.UserMetrics.LighthouseModeRun.TIMESPAN);
         break;
       case 'snapshot':
-        Host.userMetrics.lighthouseModeRun(Host.UserMetrics.LighthouseModeRun.Snapshot);
+        Host.userMetrics.lighthouseModeRun(Host.UserMetrics.LighthouseModeRun.SNAPSHOT);
         break;
     }
   }
@@ -623,34 +623,34 @@ export const Presets: Preset[] = [
   // configID maps to Lighthouse's Object.keys(config.categories)[0] value
   {
     setting: Common.Settings.Settings.instance().createSetting(
-        'lighthouse.cat-perf', true, Common.Settings.SettingStorageType.Synced),
+        'lighthouse.cat-perf', true, Common.Settings.SettingStorageType.SYNCED),
     configID: 'performance',
     title: i18nLazyString(UIStrings.performance),
     description: i18nLazyString(UIStrings.howLongDoesThisAppTakeToShow),
     supportedModes: ['navigation', 'timespan', 'snapshot'],
-    userMetric: Host.UserMetrics.LighthouseCategoryUsed.Performance,
+    userMetric: Host.UserMetrics.LighthouseCategoryUsed.PERFORMANCE,
   },
   {
     setting: Common.Settings.Settings.instance().createSetting(
-        'lighthouse.cat-a11y', true, Common.Settings.SettingStorageType.Synced),
+        'lighthouse.cat-a11y', true, Common.Settings.SettingStorageType.SYNCED),
     configID: 'accessibility',
     title: i18nLazyString(UIStrings.accessibility),
     description: i18nLazyString(UIStrings.isThisPageUsableByPeopleWith),
     supportedModes: ['navigation', 'snapshot'],
-    userMetric: Host.UserMetrics.LighthouseCategoryUsed.Accessibility,
+    userMetric: Host.UserMetrics.LighthouseCategoryUsed.ACCESSIBILITY,
   },
   {
     setting: Common.Settings.Settings.instance().createSetting(
-        'lighthouse.cat-best-practices', true, Common.Settings.SettingStorageType.Synced),
+        'lighthouse.cat-best-practices', true, Common.Settings.SettingStorageType.SYNCED),
     configID: 'best-practices',
     title: i18nLazyString(UIStrings.bestPractices),
     description: i18nLazyString(UIStrings.doesThisPageFollowBestPractices),
     supportedModes: ['navigation', 'timespan', 'snapshot'],
-    userMetric: Host.UserMetrics.LighthouseCategoryUsed.BestPractices,
+    userMetric: Host.UserMetrics.LighthouseCategoryUsed.BEST_PRACTICES,
   },
   {
     setting: Common.Settings.Settings.instance().createSetting(
-        'lighthouse.cat-seo', true, Common.Settings.SettingStorageType.Synced),
+        'lighthouse.cat-seo', true, Common.Settings.SettingStorageType.SYNCED),
     configID: 'seo',
     title: i18nLazyString(UIStrings.seo),
     description: i18nLazyString(UIStrings.isThisPageOptimizedForSearch),
@@ -659,14 +659,14 @@ export const Presets: Preset[] = [
   },
 ];
 
-export type Flags = {
-  [flag: string]: string|boolean,
-};
+export interface Flags {
+  [flag: string]: string|boolean;
+}
 
 export const RuntimeSettings: RuntimeSetting[] = [
   {
     setting: Common.Settings.Settings.instance().createSetting(
-        'lighthouse.device-type', 'mobile', Common.Settings.SettingStorageType.Synced),
+        'lighthouse.device-type', 'mobile', Common.Settings.SettingStorageType.SYNCED),
     title: i18nLazyString(UIStrings.applyMobileEmulation),
     description: i18nLazyString(UIStrings.applyMobileEmulationDuring),
     setFlags: (flags: Flags, value: string|boolean) => {
@@ -681,7 +681,7 @@ export const RuntimeSettings: RuntimeSetting[] = [
   },
   {
     setting: Common.Settings.Settings.instance().createSetting(
-        'lighthouse.mode', 'navigation', Common.Settings.SettingStorageType.Synced),
+        'lighthouse.mode', 'navigation', Common.Settings.SettingStorageType.SYNCED),
     title: i18nLazyString(UIStrings.lighthouseMode),
     description: i18nLazyString(UIStrings.runLighthouseInMode),
     setFlags: (flags: Flags, value: string|boolean) => {
@@ -710,7 +710,7 @@ export const RuntimeSettings: RuntimeSetting[] = [
   {
     // This setting is disabled, but we keep it around to show in the UI.
     setting: Common.Settings.Settings.instance().createSetting(
-        'lighthouse.throttling', 'simulate', Common.Settings.SettingStorageType.Synced),
+        'lighthouse.throttling', 'simulate', Common.Settings.SettingStorageType.SYNCED),
     title: i18nLazyString(UIStrings.throttlingMethod),
     // We will disable this when we have a Lantern trace viewer within DevTools.
     learnMore:
@@ -731,7 +731,7 @@ export const RuntimeSettings: RuntimeSetting[] = [
   },
   {
     setting: Common.Settings.Settings.instance().createSetting(
-        'lighthouse.clear-storage', true, Common.Settings.SettingStorageType.Synced),
+        'lighthouse.clear-storage', true, Common.Settings.SettingStorageType.SYNCED),
     title: i18nLazyString(UIStrings.clearStorage),
     description: i18nLazyString(UIStrings.resetStorageLocalstorage),
     setFlags: (flags: Flags, value: string|boolean) => {
@@ -742,7 +742,7 @@ export const RuntimeSettings: RuntimeSetting[] = [
   },
   {
     setting: Common.Settings.Settings.instance().createSetting(
-        'lighthouse.enable-sampling', false, Common.Settings.SettingStorageType.Synced),
+        'lighthouse.enable-sampling', false, Common.Settings.SettingStorageType.SYNCED),
     title: i18nLazyString(UIStrings.enableSampling),
     description: i18nLazyString(UIStrings.enableJavaScriptSampling),
     setFlags: (flags: Flags, value: string|boolean) => {
@@ -758,9 +758,11 @@ export const RuntimeSettings: RuntimeSetting[] = [
 ];
 
 export enum Events {
+  /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   PageAuditabilityChanged = 'PageAuditabilityChanged',
   PageWarningsChanged = 'PageWarningsChanged',
   AuditProgressChanged = 'AuditProgressChanged',
+  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
 export interface PageAuditabilityChangedEvent {
@@ -775,11 +777,11 @@ export interface AuditProgressChangedEvent {
   message: string;
 }
 
-export type EventTypes = {
-  [Events.PageAuditabilityChanged]: PageAuditabilityChangedEvent,
-  [Events.PageWarningsChanged]: PageWarningsChangedEvent,
-  [Events.AuditProgressChanged]: AuditProgressChangedEvent,
-};
+export interface EventTypes {
+  [Events.PageAuditabilityChanged]: PageAuditabilityChangedEvent;
+  [Events.PageWarningsChanged]: PageWarningsChangedEvent;
+  [Events.AuditProgressChanged]: AuditProgressChangedEvent;
+}
 
 export interface Preset {
   setting: Common.Settings.Setting<boolean>;
@@ -793,11 +795,11 @@ export interface RuntimeSetting {
   setting: Common.Settings.Setting<string|boolean>;
   description: () => Common.UIString.LocalizedString;
   setFlags: (flags: Flags, value: string|boolean) => void;
-  options?: {
+  options?: Array<{
     label: () => Common.UIString.LocalizedString,
     value: string,
     tooltip?: () => Common.UIString.LocalizedString,
-  }[];
+  }>;
   title?: () => Common.UIString.LocalizedString;
   learnMore?: Platform.DevToolsPath.UrlString;
 }

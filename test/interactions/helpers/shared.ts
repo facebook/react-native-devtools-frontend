@@ -2,40 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {TestConfig} from '../../conductor/test_config.js';
-import {getBrowserAndPages, getTestServerPort, platform} from '../../shared/helper.js';
-
-const fontsByPlatform = {
-  'mac': 'Helvetica Neue',
-  'win32': 'Tahoma',
-  'linux': '"Liberation Sans"',
-};
+import {getBrowserAndPages, getTestServerPort} from '../../shared/helper.js';
 
 export const loadComponentDocExample = async (urlComponent: string) => {
   const {frontend} = getBrowserAndPages();
   const url = new URL(`http://localhost:${getTestServerPort()}/front_end/ui/components/docs/${urlComponent}`);
-  url.searchParams.set('fontFamily', fontsByPlatform[platform]);
   await frontend.goto(url.toString(), {
     waitUntil: 'networkidle0',
   });
   // Hide the outer UI to prevent interaction tests from accidentally clicking on it.
   await frontend.evaluate(() => window.dispatchEvent(new Event('hidecomponentdocsui')));
-};
-
-export const preloadForCodeCoverage = (name: string) => {
-  if (!TestConfig.coverage) {
-    return;
-  }
-
-  before(async function() {
-    this.timeout(0);
-    const {frontend} = getBrowserAndPages();
-    // Double Puppeteer's Default
-    frontend.setDefaultNavigationTimeout(60_000);
-    await frontend.setExtraHTTPHeaders({
-      'devtools-compute-coverage': '1',
-    });
-    await loadComponentDocExample(name);
-    await frontend.setExtraHTTPHeaders({});
-  });
 };

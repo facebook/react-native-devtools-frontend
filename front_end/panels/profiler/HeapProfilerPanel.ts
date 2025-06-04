@@ -7,8 +7,8 @@ import * as i18n from '../../core/i18n/i18n.js';
 import type * as SDK from '../../core/sdk/sdk.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
-import {type HeapSnapshotView} from './HeapSnapshotView.js';
-import {type ProfileType} from './ProfileHeader.js';
+import type {HeapSnapshotView} from './HeapSnapshotView.js';
+import type {ProfileType} from './ProfileHeader.js';
 import {ProfilesPanel} from './ProfilesPanel.js';
 import {instance} from './ProfileTypeRegistry.js';
 
@@ -17,7 +17,7 @@ const UIStrings = {
    *@description A context menu item in the Heap Profiler Panel of a profiler tool
    */
   revealInSummaryView: 'Reveal in Summary view',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/profiler/HeapProfilerPanel.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 let heapProfilerPanelInstance: HeapProfilerPanel;
@@ -25,8 +25,12 @@ export class HeapProfilerPanel extends ProfilesPanel implements UI.ContextMenu.P
                                                                 UI.ActionRegistration.ActionDelegate {
   constructor() {
     const registry = instance;
-    const profileTypes =
-        [registry.heapSnapshotProfileType, registry.trackingHeapSnapshotProfileType, registry.samplingHeapProfileType];
+    const profileTypes = [
+      registry.heapSnapshotProfileType,
+      registry.trackingHeapSnapshotProfileType,
+      registry.samplingHeapProfileType,
+      registry.detachedElementProfileType,
+    ];
     super('heap-profiler', profileTypes as ProfileType[], 'profiler.heap-toggle-recording');
   }
 

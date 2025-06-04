@@ -142,7 +142,7 @@ const UIStrings = {
    * Storage quota refers to the amount of disk available for the website or app.
    */
   simulateCustomStorage: 'Simulate custom storage quota',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/application/StorageView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -169,11 +169,11 @@ export class StorageView extends UI.ThrottledWidget.ThrottledWidget {
 
   constructor() {
     super(true, 1000);
+    this.registerRequiredCSS(storageViewStyles);
 
     this.contentElement.classList.add('clear-storage-container');
     this.contentElement.setAttribute('jslog', `${VisualLogging.pane('clear-storage')}`);
     this.pieColors = new Map([
-      [Protocol.Storage.StorageType.Appcache, 'rgb(110, 161, 226)'],        // blue
       [Protocol.Storage.StorageType.Cache_storage, 'rgb(229, 113, 113)'],   // red
       [Protocol.Storage.StorageType.Cookies, 'rgb(239, 196, 87)'],          // yellow
       [Protocol.Storage.StorageType.Indexeddb, 'rgb(155, 127, 230)'],       // purple
@@ -184,6 +184,7 @@ export class StorageView extends UI.ThrottledWidget.ThrottledWidget {
 
     // TODO(crbug.com/1156978): Replace UI.ReportView.ReportView with ReportView.ts web component.
     this.reportView = new UI.ReportView.ReportView(i18nString(UIStrings.storageTitle));
+    this.reportView.registerRequiredCSS(storageViewStyles);
 
     this.reportView.element.classList.add('clear-storage-header');
     this.reportView.show(this.contentElement);
@@ -221,15 +222,13 @@ export class StorageView extends UI.ThrottledWidget.ThrottledWidget {
     this.previousOverrideFieldValue = '';
     const quotaOverrideCheckboxRow = quota.appendRow();
     quotaOverrideCheckboxRow.classList.add('quota-override-row');
-    this.quotaOverrideCheckbox =
-        UI.UIUtils.CheckboxLabel.create(i18nString(UIStrings.simulateCustomStorage), false, '');
+    this.quotaOverrideCheckbox = UI.UIUtils.CheckboxLabel.create(i18nString(UIStrings.simulateCustomStorage), false);
     this.quotaOverrideCheckbox.setAttribute(
         'jslog', `${VisualLogging.toggle('simulate-custom-quota').track({change: true})}`);
     quotaOverrideCheckboxRow.appendChild(this.quotaOverrideCheckbox);
     this.quotaOverrideCheckbox.checkboxElement.addEventListener('click', this.onClickCheckbox.bind(this), false);
     this.quotaOverrideControlRow = quota.appendRow();
-    this.quotaOverrideEditor =
-        this.quotaOverrideControlRow.createChild('input', 'quota-override-notification-editor') as HTMLInputElement;
+    this.quotaOverrideEditor = this.quotaOverrideControlRow.createChild('input', 'quota-override-notification-editor');
     this.quotaOverrideEditor.setAttribute(
         'jslog', `${VisualLogging.textField('quota-override').track({change: true})}`);
     this.quotaOverrideControlRow.appendChild(UI.UIUtils.createLabel(i18nString(UIStrings.mb)));
@@ -255,7 +254,7 @@ export class StorageView extends UI.ThrottledWidget.ThrottledWidget {
     clearButtonSection.appendChild(this.clearButton);
 
     const includeThirdPartyCookiesCheckbox = UI.SettingsUI.createSettingCheckbox(
-        i18nString(UIStrings.includingThirdPartyCookies), this.includeThirdPartyCookiesSetting, true);
+        i18nString(UIStrings.includingThirdPartyCookies), this.includeThirdPartyCookiesSetting);
     includeThirdPartyCookiesCheckbox.classList.add('include-third-party-cookies');
     clearButtonSection.appendChild(includeThirdPartyCookiesCheckbox);
 
@@ -277,11 +276,13 @@ export class StorageView extends UI.ThrottledWidget.ThrottledWidget {
     SDK.TargetManager.TargetManager.instance().observeTargets(this);
   }
 
-  private appendItem(section: UI.ReportView.Section, title: string, settingName: Protocol.Storage.StorageType): void {
+  private appendItem(
+      section: UI.ReportView.Section, title: Platform.UIString.LocalizedString,
+      settingName: Protocol.Storage.StorageType): void {
     const row = section.appendRow();
     const setting = this.settings.get(settingName);
     if (setting) {
-      row.appendChild(UI.SettingsUI.createSettingCheckbox(title, setting, true));
+      row.appendChild(UI.SettingsUI.createSettingCheckbox(title, setting));
     }
   }
 
@@ -300,7 +301,7 @@ export class StorageView extends UI.ThrottledWidget.ThrottledWidget {
         target.model(SDK.StorageKeyManager.StorageKeyManager) as SDK.StorageKeyManager.StorageKeyManager;
     this.updateStorageKey(storageKeyManager.mainStorageKey());
     storageKeyManager.addEventListener(
-        SDK.StorageKeyManager.Events.MainStorageKeyChanged, this.storageKeyChanged, this);
+        SDK.StorageKeyManager.Events.MAIN_STORAGE_KEY_CHANGED, this.storageKeyChanged, this);
   }
 
   targetRemoved(target: SDK.Target.Target): void {
@@ -314,7 +315,7 @@ export class StorageView extends UI.ThrottledWidget.ThrottledWidget {
     const storageKeyManager =
         target.model(SDK.StorageKeyManager.StorageKeyManager) as SDK.StorageKeyManager.StorageKeyManager;
     storageKeyManager.removeEventListener(
-        SDK.StorageKeyManager.Events.MainStorageKeyChanged, this.storageKeyChanged, this);
+        SDK.StorageKeyManager.Events.MAIN_STORAGE_KEY_CHANGED, this.storageKeyChanged, this);
   }
 
   private originChanged(
@@ -422,7 +423,7 @@ export class StorageView extends UI.ThrottledWidget.ThrottledWidget {
     const selectedStorageTypes = [];
     for (const type of this.settings.keys()) {
       const setting = this.settings.get(type);
-      if (setting && setting.get()) {
+      if (setting?.get()) {
         selectedStorageTypes.push(type);
       }
     }
@@ -485,7 +486,7 @@ export class StorageView extends UI.ThrottledWidget.ThrottledWidget {
 
     if (set.has(Protocol.Storage.StorageType.Cache_storage) || hasAll) {
       const target = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
-      const model = target && target.model(SDK.ServiceWorkerCacheModel.ServiceWorkerCacheModel);
+      const model = target?.model(SDK.ServiceWorkerCacheModel.ServiceWorkerCacheModel);
       if (model) {
         model.clearForStorageKey(storageKey);
       }
@@ -507,8 +508,8 @@ export class StorageView extends UI.ThrottledWidget.ThrottledWidget {
       return;
     }
     const quotaOverridden = response.overrideActive;
-    const quotaAsString = Platform.NumberUtilities.bytesToString(response.quota);
-    const usageAsString = Platform.NumberUtilities.bytesToString(response.usage);
+    const quotaAsString = i18n.ByteUtilities.bytesToString(response.quota);
+    const usageAsString = i18n.ByteUtilities.bytesToString(response.usage);
     const formattedQuotaAsString = i18nString(UIStrings.storageWithCustomMarker, {PH1: quotaAsString});
     const quota =
         quotaOverridden ? UI.Fragment.Fragment.build`<b>${formattedQuotaAsString}</b>`.element() : quotaAsString;
@@ -550,7 +551,7 @@ export class StorageView extends UI.ThrottledWidget.ThrottledWidget {
     this.pieChart.data = {
       chartName: i18nString(UIStrings.storageUsage),
       size: 110,
-      formatter: Platform.NumberUtilities.bytesToString,
+      formatter: i18n.ByteUtilities.bytesToString,
       showLegend: true,
       total,
       slices,
@@ -563,8 +564,6 @@ export class StorageView extends UI.ThrottledWidget.ThrottledWidget {
         return i18nString(UIStrings.fileSystem);
       case Protocol.Storage.StorageType.Websql:
         return i18nString(UIStrings.webSql);
-      case Protocol.Storage.StorageType.Appcache:
-        return i18nString(UIStrings.application);
       case Protocol.Storage.StorageType.Indexeddb:
         return i18nString(UIStrings.indexDB);
       case Protocol.Storage.StorageType.Cache_storage:
@@ -575,15 +574,9 @@ export class StorageView extends UI.ThrottledWidget.ThrottledWidget {
         return i18nString(UIStrings.other);
     }
   }
-  override wasShown(): void {
-    super.wasShown();
-    this.reportView.registerCSSFiles([storageViewStyles]);
-    this.registerCSSFiles([storageViewStyles]);
-  }
 }
 
 export const AllStorageTypes = [
-  Protocol.Storage.StorageType.Appcache,
   Protocol.Storage.StorageType.Cache_storage,
   Protocol.Storage.StorageType.Cookies,
   Protocol.Storage.StorageType.Indexeddb,

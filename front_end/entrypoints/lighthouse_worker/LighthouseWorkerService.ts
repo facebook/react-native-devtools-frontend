@@ -5,6 +5,7 @@
 import * as Root from '../../core/root/root.js';
 import type * as SDK from '../../core/sdk/sdk.js';
 import * as PuppeteerService from '../../services/puppeteer/puppeteer.js';
+import * as ThirdPartyWeb from '../../third_party/third-party-web/third-party-web.js';
 
 function disableLoggingForTest(): void {
   console.log = (): void => undefined;  // eslint-disable-line no-console
@@ -93,6 +94,9 @@ async function invokeLH(action: string, args: any): Promise<unknown> {
     const config = args.config || self.createConfig(args.categoryIDs, flags.formFactor);
     const url = args.url;
 
+    // @ts-expect-error https://github.com/GoogleChrome/lighthouse/issues/11628
+    self.thirdPartyWeb.provideThirdPartyWeb(ThirdPartyWeb.ThirdPartyWeb);
+
     const {rootTargetId, mainSessionId} = args;
     cdpConnection = new ConnectionProxy(mainSessionId);
     puppeteerHandle =
@@ -154,7 +158,7 @@ async function fetchLocaleData(locales: string[]): Promise<string|void> {
   try {
     const remoteBase = Root.Runtime.getRemoteBase();
     let localeUrl: string;
-    if (remoteBase && remoteBase.base) {
+    if (remoteBase?.base) {
       localeUrl = `${remoteBase.base}third_party/lighthouse/locales/${locale}.json`;
     } else {
       localeUrl = new URL(`../../third_party/lighthouse/locales/${locale}.json`, import.meta.url).toString();
@@ -220,7 +224,6 @@ async function onFrontendMessage(event: MessageEvent): Promise<void> {
 self.onmessage = onFrontendMessage;
 
 // Make lighthouse and traceviewer happy.
-// @ts-ignore https://github.com/GoogleChrome/lighthouse/issues/11628
 globalThis.global = self;
 // @ts-expect-error https://github.com/GoogleChrome/lighthouse/issues/11628
 globalThis.global.isVinn = true;

@@ -2,21 +2,22 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
 import {TraceLoader} from '../../testing/TraceLoader.js';
 
 import * as Timeline from './timeline.js';
 
-describe('FreshRecordingTracker', () => {
+describeWithEnvironment('FreshRecordingTracker', () => {
   it('knows that a recording has been registered as fresh', async function() {
     const instance = Timeline.FreshRecording.Tracker.instance({forceNew: true});
-    const {traceData} = await TraceLoader.traceEngine(this, 'web-dev.json.gz');
-    instance.registerFreshRecording(traceData);
-    assert.isTrue(instance.recordingIsFresh(traceData));
+    const {parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev.json.gz');
+    instance.registerFreshRecording(parsedTrace);
+    assert.isTrue(instance.recordingIsFresh(parsedTrace));
   });
 
   it('knows that un-registered recordings are not fresh', async function() {
     const instance = Timeline.FreshRecording.Tracker.instance({forceNew: true});
-    const {traceData} = await TraceLoader.traceEngine(this, 'web-dev.json.gz');
-    assert.isFalse(instance.recordingIsFresh(traceData));
+    const {parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev.json.gz');
+    assert.isFalse(instance.recordingIsFresh(parsedTrace));
   });
 });

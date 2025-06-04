@@ -2,38 +2,40 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as TraceModel from '../../../models/trace/trace.js';
-import * as TraceEngine from '../../../models/trace/trace.js';
+import { // eslint-disable-line rulesdir/es-modules-import
+  createTraceExtensionDataFromPerformanceAPITestInput,
+  type PerformanceAPIExtensionTestData,
+} from '../../../models/trace/handlers/ExtensionTraceDataHandler.test.js';
+import * as Trace from '../../../models/trace/trace.js';
 import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
+import {getBaseTraceParseModelData} from '../../../testing/TraceHelpers.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
 import * as PerfUI from '../../../ui/legacy/components/perf_ui/perf_ui.js';
 import * as ThemeSupport from '../../../ui/legacy/theme_support/theme_support.js';
 import * as Timeline from '../timeline.js';
 
 function initTrackAppender(
-    flameChartData: PerfUI.FlameChart.FlameChartTimelineData, traceParsedData: TraceModel.Handlers.Types.TraceParseData,
-    entryData: Timeline.TimelineFlameChartDataProvider.TimelineFlameChartEntry[],
-    entryTypeByLevel: Timeline.TimelineFlameChartDataProvider.EntryType[]):
+    flameChartData: PerfUI.FlameChart.FlameChartTimelineData, parsedTrace: Trace.Handlers.Types.ParsedTrace,
+    entryData: Trace.Types.Events.Event[], entryTypeByLevel: Timeline.TimelineFlameChartDataProvider.EntryType[]):
     Timeline.ExtensionTrackAppender.ExtensionTrackAppender[] {
-  Timeline.ExtensionDataGatherer.ExtensionDataGatherer.instance().modelChanged(traceParsedData);
+  const entityMapper = new Timeline.Utils.EntityMapper.EntityMapper(parsedTrace);
   const compatibilityTracksAppender = new Timeline.CompatibilityTracksAppender.CompatibilityTracksAppender(
-      flameChartData, traceParsedData, entryData, entryTypeByLevel);
+      flameChartData, parsedTrace, entryData, entryTypeByLevel, entityMapper);
 
   return compatibilityTracksAppender.allVisibleTrackAppenders().filter(track => track.appenderName === 'Extension') as
       Timeline.ExtensionTrackAppender.ExtensionTrackAppender[];
 }
 
 describeWithEnvironment('ExtensionTrackAppender', function() {
-  let traceData: TraceModel.Handlers.Types.TraceParseData;
+  let parsedTrace: Trace.Handlers.Types.ParsedTrace;
   let extensionTrackAppenders: Timeline.ExtensionTrackAppender.ExtensionTrackAppender[];
-  let entryData: Timeline.TimelineFlameChartDataProvider.TimelineFlameChartEntry[] = [];
+  let entryData: Trace.Types.Events.Event[] = [];
   let flameChartData = PerfUI.FlameChart.FlameChartTimelineData.createEmpty();
   let entryTypeByLevel: Timeline.TimelineFlameChartDataProvider.EntryType[] = [];
 
   beforeEach(async function() {
-    Timeline.ExtensionDataGatherer.ExtensionDataGatherer.removeInstance();
-    ({traceData} = await TraceLoader.traceEngine(this, 'extension-tracks-and-marks.json.gz'));
-    extensionTrackAppenders = initTrackAppender(flameChartData, traceData, entryData, entryTypeByLevel);
+    ({parsedTrace} = await TraceLoader.traceEngine(this, 'extension-tracks-and-marks.json.gz'));
+    extensionTrackAppenders = initTrackAppender(flameChartData, parsedTrace, entryData, entryTypeByLevel);
     let level = 0;
     extensionTrackAppenders.forEach(appender => {
       level = appender.appendTrackAtLevel(level);
@@ -48,43 +50,86 @@ describeWithEnvironment('ExtensionTrackAppender', function() {
 
   describe('appendTrackAtLevel', function() {
     it('creates flamechart groups for the Extension tracks properly', function() {
-      assert.strictEqual(flameChartData.groups.length, 3);
-      assert.strictEqual(flameChartData.groups[0].name, 'A track group — Custom Track');
+      assert.lengthOf(flameChartData.groups, 3);
+      assert.strictEqual(flameChartData.groups[0].name, 'A track group — Custom track');
       assert.strictEqual(flameChartData.groups[0].startLevel, 0);
       assert.strictEqual(flameChartData.groups[0].style.nestingLevel, 0);
       assert.strictEqual(flameChartData.groups[1].name, 'Another Extension Track');
       assert.strictEqual(flameChartData.groups[1].startLevel, 0);
       assert.strictEqual(flameChartData.groups[1].style.nestingLevel, 1);
-      assert.strictEqual(flameChartData.groups[2].name, 'An Extension Track — Custom Track');
+      assert.strictEqual(flameChartData.groups[2].name, 'An Extension Track — Custom track');
       assert.strictEqual(flameChartData.groups[2].startLevel, 1);
       assert.strictEqual(flameChartData.groups[2].style.nestingLevel, 0);
     });
 
     it('adds start times correctly', function() {
       const allExtensionTrackEntries =
-          traceData.ExtensionTraceData.extensionTrackData.map(track => Object.values(track.entriesByTrack)).flat(2);
+          parsedTrace.ExtensionTraceData.extensionTrackData.map(track => Object.values(track.entriesByTrack)).flat(2);
       for (let i = 0; i < allExtensionTrackEntries.length; ++i) {
         const event = allExtensionTrackEntries[i];
-        assert.strictEqual(
-            flameChartData.entryStartTimes[i], TraceEngine.Helpers.Timing.microSecondsToMilliseconds(event.ts));
+        assert.strictEqual(flameChartData.entryStartTimes[i], Trace.Helpers.Timing.microToMilli(event.ts));
       }
     });
 
     it('adds total times correctly', function() {
       const allExtensionTrackEntries =
-          traceData.ExtensionTraceData.extensionTrackData.map(track => Object.values(track.entriesByTrack)).flat(2);
+          parsedTrace.ExtensionTraceData.extensionTrackData.map(track => Object.values(track.entriesByTrack)).flat(2);
       for (let i = 0; i < allExtensionTrackEntries.length; i++) {
         const event = allExtensionTrackEntries[i];
-        if (TraceEngine.Types.TraceEvents.isTraceEventMarkerEvent(event)) {
+        if (Trace.Types.Events.isMarkerEvent(event)) {
           assert.isNaN(flameChartData.entryTotalTimes[i]);
           continue;
         }
         const expectedTotalTimeForEvent = event.dur ?
-            TraceEngine.Helpers.Timing.microSecondsToMilliseconds(event.dur) :
+            Trace.Helpers.Timing.microToMilli(event.dur) :
             Timeline.TimelineFlameChartDataProvider.InstantEventVisibleDurationMs;
         assert.strictEqual(flameChartData.entryTotalTimes[i], expectedTotalTimeForEvent);
       }
     });
+
+    it('Assigns a lower level (closer to the top) to an event buffered later when start and end times are equal',
+       async function() {
+         // Three extension entries with same start and end time.
+         // Test they are appended in inverse order.
+         const extensionData = [
+           {
+             detail: {
+               devtools: {dataType: 'track-entry', track: 'track'},
+             },
+             name: 'First measurement',
+             ts: 100,
+             dur: 100,
+           },
+           {
+             detail: {devtools: {track: 'track'}},
+             name: 'Second measurement',
+             ts: 100,
+             dur: 100,
+           },
+           {
+             detail: {devtools: {track: 'track'}},
+             name: 'Third measurement',
+             ts: 100,
+             dur: 100,
+           },
+         ] as PerformanceAPIExtensionTestData[];
+         const traceExtensionData = await createTraceExtensionDataFromPerformanceAPITestInput(extensionData);
+         const testParsedTrace = getBaseTraceParseModelData({ExtensionTraceData: traceExtensionData});
+         entryData = [];
+         flameChartData = PerfUI.FlameChart.FlameChartTimelineData.createEmpty();
+         entryTypeByLevel = [];
+         extensionTrackAppenders = initTrackAppender(flameChartData, testParsedTrace, entryData, entryTypeByLevel);
+         let level = 0;
+         extensionTrackAppenders.forEach(appender => {
+           level = appender.appendTrackAtLevel(level);
+         });
+         const indexForFirst = entryData.findIndex(e => e.name === 'First measurement');
+         const indexForSecond = entryData.findIndex(e => e.name === 'Second measurement');
+         const indexForThird = entryData.findIndex(e => e.name === 'Third measurement');
+         assert.strictEqual(flameChartData.entryLevels[indexForThird], 0);
+         assert.strictEqual(flameChartData.entryLevels[indexForSecond], 1);
+         assert.strictEqual(flameChartData.entryLevels[indexForFirst], 2);
+       });
   });
 
   describe('colorForEvent and titleForEvent', function() {
@@ -98,8 +143,8 @@ describeWithEnvironment('ExtensionTrackAppender', function() {
       styleElement.id = 'fake-perf-panel-colors';
       styleElement.textContent = `
         :root {
-          --ref-palette-primary70: rgb(4 4 4);
-          --ref-palette-tertiary70: rgb(10 10 10);
+          --ref-palette-blue70: rgb(4 4 4);
+          --ref-palette-green70: rgb(10 10 10);
         }
       `;
       document.documentElement.appendChild(styleElement);
@@ -115,16 +160,16 @@ describeWithEnvironment('ExtensionTrackAppender', function() {
     });
     it('returns the correct color and title for extension entries', function() {
       const allExtensionTrackEntries =
-          traceData.ExtensionTraceData.extensionTrackData.map(track => Object.values(track.entriesByTrack)).flat(2);
+          parsedTrace.ExtensionTraceData.extensionTrackData.map(track => Object.values(track.entriesByTrack)).flat(2);
       for (const event of allExtensionTrackEntries) {
         assert.strictEqual(extensionTrackAppenders[0].titleForEvent(event), event.name);
         if (event.args.color === 'tertiary') {
-          // "tertiary" color category is mapped to --ref-palette-tertiary70
+          // "tertiary" color category is mapped to --ref-palette-green70
           // which is faked out to 10, 10, 10
           assert.strictEqual(extensionTrackAppenders[0].colorForEvent(event), 'rgb(10 10 10)');
         } else {
           // Unknown colors are mapped to "primary" by default, and
-          // "primary" color category is mapped to --ref-palette-primary70
+          // "primary" color category is mapped to --ref-palette-blue70
           // which is faked out to 4, 4, 4
           assert.strictEqual(extensionTrackAppenders[0].colorForEvent(event), 'rgb(4 4 4)');
         }
@@ -138,7 +183,7 @@ describeWithEnvironment('ExtensionTrackAppender', function() {
           track: 'A track',
         },
         cat: 'devtools.extension',
-      } as unknown as TraceEngine.Types.TraceEvents.TraceEventData;
+      } as unknown as Trace.Types.Events.Event;
 
       const mockExtensionEntryUnknownColor = {
         args: {
@@ -147,8 +192,8 @@ describeWithEnvironment('ExtensionTrackAppender', function() {
           color: 'anUnknownColor',
         },
         cat: 'devtools.extension',
-      } as unknown as TraceEngine.Types.TraceEvents.TraceEventData;
-      // "primary" color category is mapped to --ref-palette-primary70
+      } as unknown as Trace.Types.Events.Event;
+      // "primary" color category is mapped to --ref-palette-blue70
       // which is faked out to 4, 4, 4
       assert.strictEqual(extensionTrackAppenders[0].colorForEvent(mockExtensionEntryNoColor), 'rgb(4 4 4)');
       assert.strictEqual(extensionTrackAppenders[0].colorForEvent(mockExtensionEntryUnknownColor), 'rgb(4 4 4)');
@@ -157,30 +202,46 @@ describeWithEnvironment('ExtensionTrackAppender', function() {
 
   describe('toggling', function() {
     it('Does not append extension data when the configuration is set to disabled', async function() {
-      Timeline.ExtensionDataGatherer.ExtensionDataGatherer.removeInstance();
       entryData = [];
       flameChartData = PerfUI.FlameChart.FlameChartTimelineData.createEmpty();
       entryTypeByLevel = [];
       Timeline.TimelinePanel.TimelinePanel.extensionDataVisibilitySetting().set(false);
-      traceData = (await TraceLoader.traceEngine(this, 'extension-tracks-and-marks.json.gz')).traceData;
-      extensionTrackAppenders = initTrackAppender(flameChartData, traceData, entryData, entryTypeByLevel);
+      parsedTrace = (await TraceLoader.traceEngine(this, 'extension-tracks-and-marks.json.gz')).parsedTrace;
+      extensionTrackAppenders = initTrackAppender(flameChartData, parsedTrace, entryData, entryTypeByLevel);
       let level = 0;
       extensionTrackAppenders.forEach(appender => {
         level = appender.appendTrackAtLevel(level);
       });
-      assert.strictEqual(flameChartData.groups.length, 0);
+      assert.lengthOf(flameChartData.groups, 0);
       Timeline.TimelinePanel.TimelinePanel.extensionDataVisibilitySetting().set(true);
     });
   });
 
-  describe('highlightedEntryInfo', function() {
-    it('returns the info for an entry correctly', function() {
+  describe('titleForEvent', function() {
+    it('returns the title for an entry correctly', function() {
       const allExtensionTrackEntries =
-          traceData.ExtensionTraceData.extensionTrackData.map(track => Object.values(track.entriesByTrack)).flat(2);
-      const highlightedEntryInfo = extensionTrackAppenders[0].highlightedEntryInfo(allExtensionTrackEntries[0]);
+          parsedTrace.ExtensionTraceData.extensionTrackData.map(track => Object.values(track.entriesByTrack)).flat(2);
+      const title = extensionTrackAppenders[0].titleForEvent(allExtensionTrackEntries[0]);
+      assert.strictEqual(title, 'An extension measurement');
+    });
+  });
+
+  describe('setPopoverInfo', function() {
+    it('build the tooltip content for an entry correctly', function() {
+      const info: Timeline.CompatibilityTracksAppender.PopoverInfo = {
+        title: 'title',
+        formattedTime: 'time',
+        warningElements: [],
+        additionalElements: [],
+        url: null,
+      };
+      const allExtensionTrackEntries =
+          parsedTrace.ExtensionTraceData.extensionTrackData.map(track => Object.values(track.entriesByTrack)).flat(2);
+      extensionTrackAppenders[0].setPopoverInfo(allExtensionTrackEntries[0], info);
+      assert.strictEqual(info.title, 'A hint if needed');
       // The i18n encodes spaces using the u00A0 unicode character.
-      assert.strictEqual(highlightedEntryInfo.formattedTime, '1.00\u00A0s');
-      assert.strictEqual(highlightedEntryInfo.title, 'A hint if needed');
+      assert.strictEqual(info.formattedTime, '1.00\u00A0s');
+      assert.isUndefined(info.additionalElements?.at(0)?.nodeName);
     });
   });
 });

@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../ui/legacy/legacy.js';
+
 import * as Common from '../../core/common/common.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
@@ -12,7 +14,9 @@ import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 import {ApplicationPanelSidebar, StorageCategoryView} from './ApplicationPanelSidebar.js';
 import {CookieItemsView} from './CookieItemsView.js';
 import {DOMStorageItemsView} from './DOMStorageItemsView.js';
-import {type DOMStorage} from './DOMStorageModel.js';
+import type {DOMStorage} from './DOMStorageModel.js';
+import {ExtensionStorageItemsView} from './ExtensionStorageItemsView.js';
+import type {ExtensionStorage} from './ExtensionStorageModel.js';
 import type * as PreloadingHelper from './preloading/helper/helper.js';
 import resourcesPanelStyles from './resourcesPanel.css.js';
 import {StorageItemsView} from './StorageItemsView.js';
@@ -27,12 +31,13 @@ export class ResourcesPanel extends UI.Panel.PanelWithSidebar {
   storageViews: HTMLElement;
   private readonly storageViewToolbar: UI.Toolbar.Toolbar;
   private domStorageView: DOMStorageItemsView|null;
+  private extensionStorageView: ExtensionStorageItemsView|null;
   private cookieView: CookieItemsView|null;
-  private readonly emptyWidget: UI.EmptyWidget.EmptyWidget|null;
   private readonly sidebar: ApplicationPanelSidebar;
 
   private constructor() {
     super('resources');
+    this.registerRequiredCSS(resourcesPanelStyles);
 
     this.resourcesLastSelectedItemSetting =
         Common.Settings.Settings.instance().createSetting('resources-last-selected-element-path', []);
@@ -46,14 +51,13 @@ export class ResourcesPanel extends UI.Panel.PanelWithSidebar {
     const mainContainer = new UI.Widget.VBox();
     mainContainer.setMinimumSize(100, 0);
     this.storageViews = mainContainer.element.createChild('div', 'vbox flex-auto');
-    this.storageViewToolbar = new UI.Toolbar.Toolbar('resources-toolbar', mainContainer.element);
+    this.storageViewToolbar = mainContainer.element.createChild('devtools-toolbar', 'resources-toolbar');
     this.splitWidget().setMainWidget(mainContainer);
 
     this.domStorageView = null;
+    this.extensionStorageView = null;
 
     this.cookieView = null;
-
-    this.emptyWidget = null;
 
     this.sidebar = new ApplicationPanelSidebar(this);
     this.sidebar.show(this.panelSidebarElement());
@@ -119,11 +123,11 @@ export class ResourcesPanel extends UI.Panel.PanelWithSidebar {
     this.visibleView = view;
 
     this.storageViewToolbar.removeToolbarItems();
-    this.storageViewToolbar.element.classList.toggle('hidden', true);
+    this.storageViewToolbar.classList.toggle('hidden', true);
     if (view instanceof UI.View.SimpleView) {
       void view.toolbarItems().then(items => {
         items.map(item => this.storageViewToolbar.appendToolbarItem(item));
-        this.storageViewToolbar.element.classList.toggle('hidden', !items.length);
+        this.storageViewToolbar.classList.toggle('hidden', !items.length);
       });
     }
   }
@@ -138,13 +142,16 @@ export class ResourcesPanel extends UI.Panel.PanelWithSidebar {
     return view;
   }
 
-  showCategoryView(categoryName: string, categoryLink: Platform.DevToolsPath.UrlString|null): void {
+  showCategoryView(
+      categoryName: string, categoryHeadline: string, categoryDescription: string,
+      categoryLink: Platform.DevToolsPath.UrlString|null): void {
     if (!this.categoryView) {
       this.categoryView = new StorageCategoryView();
     }
     this.categoryView.element.setAttribute(
         'jslog', `${VisualLogging.pane().context(Platform.StringUtilities.toKebabCase(categoryName))}`);
-    this.categoryView.setText(categoryName);
+    this.categoryView.setHeadline(categoryHeadline);
+    this.categoryView.setText(categoryDescription);
     this.categoryView.setLink(categoryLink);
     this.showView(this.categoryView);
   }
@@ -162,6 +169,19 @@ export class ResourcesPanel extends UI.Panel.PanelWithSidebar {
     this.showView(this.domStorageView);
   }
 
+  showExtensionStorage(extensionStorage: ExtensionStorage): void {
+    if (!extensionStorage) {
+      return;
+    }
+
+    if (!this.extensionStorageView) {
+      this.extensionStorageView = new ExtensionStorageItemsView(extensionStorage);
+    } else {
+      this.extensionStorageView.setStorage(extensionStorage);
+    }
+    this.showView(this.extensionStorageView);
+  }
+
   showCookies(cookieFrameTarget: SDK.Target.Target, cookieDomain: string): void {
     const model = cookieFrameTarget.model(SDK.CookieModel.CookieModel);
     if (!model) {
@@ -176,7 +196,7 @@ export class ResourcesPanel extends UI.Panel.PanelWithSidebar {
   }
 
   clearCookies(target: SDK.Target.Target, cookieDomain: string): void {
-    const model = (target.model(SDK.CookieModel.CookieModel) as SDK.CookieModel.CookieModel | null);
+    const model = (target.model(SDK.CookieModel.CookieModel));
     if (!model) {
       return;
     }
@@ -185,10 +205,6 @@ export class ResourcesPanel extends UI.Panel.PanelWithSidebar {
         this.cookieView.refreshItems();
       }
     });
-  }
-  override wasShown(): void {
-    super.wasShown();
-    this.registerCSSFiles([resourcesPanelStyles]);
   }
 }
 

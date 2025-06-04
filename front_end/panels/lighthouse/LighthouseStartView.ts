@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../ui/legacy/legacy.js';
+
 import type * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
@@ -9,7 +11,7 @@ import * as Buttons from '../../ui/components/buttons/buttons.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import {type LighthouseController, type Preset, Presets, RuntimeSettings} from './LighthouseController.js';
-import {type LighthousePanel} from './LighthousePanel.js';
+import type {LighthousePanel} from './LighthousePanel.js';
 import lighthouseStartViewStyles from './lighthouseStartView.css.js';
 import {RadioSetting} from './RadioSetting.js';
 
@@ -46,7 +48,7 @@ const UIStrings = {
    * @description Text that refers to device such as a phone
    */
   device: 'Device',
-};
+} as const;
 
 const str_ = i18n.i18n.registerUIStrings('panels/lighthouse/LighthouseStartView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -63,17 +65,19 @@ export class StartView extends UI.Widget.Widget {
   changeFormMode?: (mode: string) => void;
 
   constructor(controller: LighthouseController, panel: LighthousePanel) {
-    super();
+    super(true /* useShadowDom */);
+    this.registerRequiredCSS(lighthouseStartViewStyles);
 
     this.controller = controller;
     this.panel = panel;
-    this.settingsToolbarInternal = new UI.Toolbar.Toolbar('');
+    this.settingsToolbarInternal = document.createElement('devtools-toolbar');
+    this.settingsToolbarInternal.classList.add('lighthouse-settings-toolbar');
     this.render();
   }
 
   private populateRuntimeSettingAsRadio(settingName: string, label: string, parentElement: Element): void {
     const runtimeSetting = RuntimeSettings.find(item => item.setting.name === settingName);
-    if (!runtimeSetting || !runtimeSetting.options) {
+    if (!runtimeSetting?.options) {
       throw new Error(`${settingName} is not a setting with options`);
     }
 
@@ -97,7 +101,7 @@ export class StartView extends UI.Widget.Widget {
 
   private populateRuntimeSettingAsToolbarCheckbox(settingName: string, toolbar: UI.Toolbar.Toolbar): void {
     const runtimeSetting = RuntimeSettings.find(item => item.setting.name === settingName);
-    if (!runtimeSetting || !runtimeSetting.title) {
+    if (!runtimeSetting?.title) {
       throw new Error(`${settingName} is not a setting with a title`);
     }
 
@@ -115,7 +119,7 @@ export class StartView extends UI.Widget.Widget {
 
   private populateRuntimeSettingAsToolbarDropdown(settingName: string, toolbar: UI.Toolbar.Toolbar): void {
     const runtimeSetting = RuntimeSettings.find(item => item.setting.name === settingName);
-    if (!runtimeSetting || !runtimeSetting.title) {
+    if (!runtimeSetting?.title) {
       throw new Error(`${settingName} is not a setting with a title`);
     }
 
@@ -303,7 +307,6 @@ export class StartView extends UI.Widget.Widget {
   override wasShown(): void {
     super.wasShown();
     this.controller.recomputePageAuditability();
-    this.registerCSSFiles([lighthouseStartViewStyles]);
   }
 
   settingsToolbar(): UI.Toolbar.Toolbar {

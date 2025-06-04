@@ -34,10 +34,9 @@ import * as Platform from '../../core/platform/platform.js';
 import * as TextUtils from '../text_utils/text_utils.js';
 import * as Workspace from '../workspace/workspace.js';
 
-import {type IsolatedFileSystem} from './IsolatedFileSystem.js';
-
+import type {IsolatedFileSystem} from './IsolatedFileSystem.js';
 import {Events, type IsolatedFileSystemManager} from './IsolatedFileSystemManager.js';
-import {type PlatformFileSystem} from './PlatformFileSystem.js';
+import type {PlatformFileSystem, PlatformFileSystemType} from './PlatformFileSystem.js';
 
 export class FileSystemWorkspaceBinding {
   readonly isolatedFileSystemManager: IsolatedFileSystemManager;
@@ -71,9 +70,11 @@ export class FileSystemWorkspaceBinding {
     return fileSystem.tooltipForURL(uiSourceCode.url());
   }
 
-  static fileSystemType(project: Workspace.Workspace.Project): string {
-    const fileSystem = (project as FileSystem).fileSystemInternal;
-    return fileSystem.type();
+  static fileSystemType(project: Workspace.Workspace.Project): PlatformFileSystemType {
+    if (project instanceof FileSystem) {
+      return project.fileSystemInternal.type();
+    }
+    throw new TypeError('project is not a FileSystem');
   }
 
   static fileSystemSupportsAutomapping(project: Workspace.Workspace.Project): boolean {
@@ -88,10 +89,6 @@ export class FileSystemWorkspaceBinding {
 
   static fileSystemPath(projectId: Platform.DevToolsPath.UrlString): Platform.DevToolsPath.UrlString {
     return projectId;
-  }
-
-  fileSystemManager(): IsolatedFileSystemManager {
-    return this.isolatedFileSystemManager;
   }
 
   private onFileSystemsLoaded(fileSystems: IsolatedFileSystem[]): void {
@@ -222,8 +219,8 @@ export class FileSystem extends Workspace.Workspace.ProjectStore {
     sourceCodeToMetadataMap.set(uiSourceCode, promise);
     return promise;
 
-    function onMetadata(metadata: {modificationTime: Date, size: number}|
-                        null): Workspace.UISourceCode.UISourceCodeMetadata|null {
+    function onMetadata(metadata: {modificationTime: Date, size: number}|null):
+        Workspace.UISourceCode.UISourceCodeMetadata|null {
       if (!metadata) {
         return null;
       }
@@ -295,10 +292,7 @@ export class FileSystem extends Workspace.Workspace.ProjectStore {
       isRegex: boolean): Promise<TextUtils.ContentProvider.SearchMatch[]> {
     const filePath = this.filePathForUISourceCode(uiSourceCode);
     const content = await this.fileSystemInternal.requestFileContent(filePath);
-    if (!TextUtils.ContentData.ContentData.isError(content) && content.isTextContent) {
-      return TextUtils.TextUtils.performSearchInContent(content.text, query, caseSensitive, isRegex);
-    }
-    return [];
+    return TextUtils.TextUtils.performSearchInContentData(content, query, caseSensitive, isRegex);
   }
 
   async findFilesMatchingSearchRequest(

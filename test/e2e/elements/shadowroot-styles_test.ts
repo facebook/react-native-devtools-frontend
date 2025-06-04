@@ -5,7 +5,6 @@
 import {assert} from 'chai';
 
 import {$$, getBrowserAndPages, goToResource, timeout, waitFor, waitForFunction} from '../../shared/helper.js';
-import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   waitForChildrenOfSelectedElementNode,
   waitForContentOfSelectedElementsNode,
@@ -55,12 +54,13 @@ describe('The Elements Tab', () => {
     });
 
     const styleSections = await $$('.styles-section');
-    const selectorTexts = await Promise.all(styleSections.map(n => n.evaluate(node => node.textContent)));
+    const selectorTexts =
+        await Promise.all(styleSections.map(n => n.evaluate(node => (node as HTMLElement).innerText)));
 
     assert.deepEqual(selectorTexts, [
-      'element.style {}',
-      '<style>.red {}',
-      'user agent stylesheetdiv {}',
+      'element.style {\n}',
+      '<style>\n.red {\n}',
+      'user agent stylesheet\ndiv {\n}',
     ]);
   });
 });

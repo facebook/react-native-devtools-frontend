@@ -6,7 +6,7 @@ import * as Common from '../common/common.js';
 import * as i18n from '../i18n/i18n.js';
 import * as Platform from '../platform/platform.js';
 
-import {type NameValue} from './NetworkRequest.js';
+import type {NameValue} from './NetworkRequest.js';
 
 const UIStrings = {
   /**
@@ -38,7 +38,7 @@ const UIStrings = {
    *@example {2.0} PH2
    */
   unableToParseSValueS: 'Unable to parse "{PH1}" value "{PH2}".',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('core/sdk/ServerTiming.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -75,11 +75,11 @@ export class ServerTiming {
    * TODO(crbug.com/1011811): Instead of using !Object<string, *> we should have a proper type
    *                          with #name, desc and dur properties.
    */
-  static createFromHeaderValue(valueString: string): {
+  static createFromHeaderValue(valueString: string): Array<{
     // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [x: string]: any,
-  }[] {
+  }> {
     function trimLeadingWhiteSpace(): void {
       valueString = valueString.replace(/^\s*/, '');
     }

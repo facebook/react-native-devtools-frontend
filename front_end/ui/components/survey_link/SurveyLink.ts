@@ -2,11 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../icon_button/icon_button.js';
+
 import * as Common from '../../../core/common/common.js';
 import type * as Host from '../../../core/host/host.js';
 import * as i18n from '../../../core/i18n/i18n.js';
-import * as LitHtml from '../../lit-html/lit-html.js';
-import * as IconButton from '../icon_button/icon_button.js';
+import {html, render} from '../../lit/lit.js';
 
 import surveyLinkStyles from './surveyLink.css.js';
 
@@ -23,7 +24,7 @@ const UIStrings = {
    *@description Text displayed instead of the survey link after the survey link is clicked, if the survey was not shown successfully
    */
   anErrorOccurredWithTheSurvey: 'An error occurred with the survey',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('ui/components/survey_link/SurveyLink.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -38,29 +39,23 @@ export interface SurveyLinkData {
 }
 
 const enum State {
-  Checking = 'Checking',  // (begin state) -> ShowLink | DontShowLink
-  ShowLink = 'ShowLink',  // -> Sending
-  Sending = 'Sending',    // -> SurveyShown | Failed
-  SurveyShown = 'SurveyShown',
-  Failed = 'Failed',
-  DontShowLink = 'DontShowLink',
+  CHECKING = 'Checking',   // (begin state) -> SHOW_LINK | DONT_SHOW_LINK
+  SHOW_LINK = 'ShowLink',  // -> SENDING
+  SENDING = 'Sending',     // -> SURVEY_SHOWN | FAILED
+  SURVEY_SHOWN = 'SurveyShown',
+  FAILED = 'Failed',
+  DONT_SHOW_LINK = 'DontShowLink',
 }
 
 // A link to a survey. The link is rendered aysnchronously because we need to first check if
 // canShowSurvey succeeds.
 export class SurveyLink extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-survey-link`;
-
   readonly #shadow = this.attachShadow({mode: 'open'});
   #trigger = '';
   #promptText = Common.UIString.LocalizedEmptyString;
   #canShowSurvey: (trigger: string, callback: CanShowSurveyCallback) => void = () => {};
   #showSurvey: (trigger: string, callback: ShowSurveyCallback) => void = () => {};
-  #state: State = State.Checking;
-
-  connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [surveyLinkStyles];
-  }
+  #state: State = State.CHECKING;
 
   // Re-setting data will cause the state to go back to 'Checking' which hides the link.
   set data(data: SurveyLinkData) {
@@ -73,63 +68,64 @@ export class SurveyLink extends HTMLElement {
   }
 
   #checkSurvey(): void {
-    this.#state = State.Checking;
+    this.#state = State.CHECKING;
     this.#canShowSurvey(this.#trigger, ({canShowSurvey}) => {
       if (!canShowSurvey) {
-        this.#state = State.DontShowLink;
+        this.#state = State.DONT_SHOW_LINK;
       } else {
-        this.#state = State.ShowLink;
+        this.#state = State.SHOW_LINK;
       }
       this.#render();
     });
   }
 
   #sendSurvey(): void {
-    this.#state = State.Sending;
+    this.#state = State.SENDING;
     this.#render();
     this.#showSurvey(this.#trigger, ({surveyShown}) => {
       if (!surveyShown) {
-        this.#state = State.Failed;
+        this.#state = State.FAILED;
       } else {
-        this.#state = State.SurveyShown;
+        this.#state = State.SURVEY_SHOWN;
       }
       this.#render();
     });
   }
 
   #render(): void {
-    if (this.#state === State.Checking || this.#state === State.DontShowLink) {
+    if (this.#state === State.CHECKING || this.#state === State.DONT_SHOW_LINK) {
       return;
     }
 
     let linkText = this.#promptText;
-    if (this.#state === State.Sending) {
+    if (this.#state === State.SENDING) {
       linkText = i18nString(UIStrings.openingSurvey);
-    } else if (this.#state === State.SurveyShown) {
+    } else if (this.#state === State.SURVEY_SHOWN) {
       linkText = i18nString(UIStrings.thankYouForYourFeedback);
-    } else if (this.#state === State.Failed) {
+    } else if (this.#state === State.FAILED) {
       linkText = i18nString(UIStrings.anErrorOccurredWithTheSurvey);
     }
 
     let linkState = '';
-    if (this.#state === State.Sending) {
+    if (this.#state === State.SENDING) {
       linkState = 'pending-link';
-    } else if (this.#state === State.Failed || this.#state === State.SurveyShown) {
+    } else if (this.#state === State.FAILED || this.#state === State.SURVEY_SHOWN) {
       linkState = 'disabled-link';
     }
 
-    const ariaDisabled = this.#state !== State.ShowLink;
+    const ariaDisabled = this.#state !== State.SHOW_LINK;
 
     // clang-format off
-    // eslint-disable-next-line rulesdir/ban_style_tags_in_lit_html
-    const output = LitHtml.html`
+
+    const output = html`
+      <style>${surveyLinkStyles.cssText}</style>
       <button class="link ${linkState}" tabindex=${ariaDisabled ? '-1' : '0'} .disabled=${ariaDisabled} aria-disabled=${ariaDisabled} @click=${this.#sendSurvey}>
-        <${IconButton.Icon.Icon.litTagName} class="link-icon" .data=${{iconName: 'review', color: 'var(--sys-color-primary)', width: 'var(--issue-link-icon-size, 16px)', height: 'var(--issue-link-icon-size, 16px)'} as IconButton.Icon.IconData}></${IconButton.Icon.Icon.litTagName}><!--
+        <devtools-icon class="link-icon" .data=${{iconName: 'review', color: 'var(--sys-color-primary)', width: 'var(--issue-link-icon-size, 16px)', height: 'var(--issue-link-icon-size, 16px)'}}></devtools-icon><!--
       -->${linkText}
       </button>
     `;
     // clang-format on
-    LitHtml.render(output, this.#shadow, {host: this});
+    render(output, this.#shadow, {host: this});
   }
 }
 

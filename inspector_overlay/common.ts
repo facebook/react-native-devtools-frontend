@@ -61,8 +61,8 @@ export class Overlay {
   protected scrollY = 0;
   protected style: CSSStyleSheet[];
   protected canvas?: HTMLCanvasElement;
-  protected canvasWidth: number = 0;
-  protected canvasHeight: number = 0;
+  protected canvasWidth = 0;
+  protected canvasHeight = 0;
   protected platform?: string;
   // eslint-disable-next-line @typescript-eslint/naming-convention
   private _window?: Window;
@@ -224,7 +224,6 @@ export function constrainNumber(num: number, min: number, max: number): number {
 }
 
 declare global {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface Document {
     adoptedStyleSheets: CSSStyleSheet[];
   }

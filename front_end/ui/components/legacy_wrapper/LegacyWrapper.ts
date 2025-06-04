@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import type * as Platform from '../../../core/platform/platform.js';
 import type * as UI from '../../legacy/legacy.js';
 import * as VisualLogging from '../../visual_logging/visual_logging.js';
 
-// eslint-disable-next-line rulesdir/check_component_naming
 export abstract class WrappableComponent<T extends UI.Widget.Widget = UI.Widget.Widget> extends HTMLElement {
   wrapper: T|null = null;
   async render(): Promise<void> {
@@ -16,20 +16,18 @@ export abstract class WrappableComponent<T extends UI.Widget.Widget = UI.Widget.
   }
 }
 
-type Constructor<T extends UI.Widget.Widget> = new (...args: any[]) => T;
-
 export type LegacyWrapper<T extends UI.Widget.Widget, Component extends WrappableComponent<T>> = {
   getComponent(): Component,
 }&T;
 
-export function
-legacyWrapper<T extends Constructor<UI.Widget.Widget>, Component extends WrappableComponent<InstanceType<T>>>(
+export function legacyWrapper<T extends Platform.Constructor.Constructor<UI.Widget.Widget>,
+                                        Component extends WrappableComponent<InstanceType<T>>>(
     base: T, component: Component, jsLogContext?: string): LegacyWrapper<InstanceType<T>, Component> {
   return new class extends base {
     #component: Component;
 
     constructor(..._args: any[]) {
-      super(/* isWebComponent=*/ true);
+      super(/* useShadowDom=*/ true);
       this.#component = component;
       this.#component.wrapper = this as InstanceType<T>;
       void this.#component.render();
@@ -48,7 +46,7 @@ legacyWrapper<T extends Constructor<UI.Widget.Widget>, Component extends Wrappab
       this.#component.willHide();
     }
 
-    async doUpdate(): Promise<void> {
+    override async performUpdate(): Promise<void> {
       await this.#component.render();
     }
 

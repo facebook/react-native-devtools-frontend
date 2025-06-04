@@ -24,7 +24,7 @@ const UIStrings = {
    * @description The name of the debugging product.
    */
   debuggerBrandName: 'React Native DevTools',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/rn_welcome/rn_welcome-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 

@@ -2,16 +2,24 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../../ui/components/report_view/report_view.js';
+import '../../../ui/components/icon_button/icon_button.js';
+
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as SDK from '../../../core/sdk/sdk.js';
 import * as Protocol from '../../../generated/protocol.js';
-import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
+import type * as IconButton from '../../../ui/components/icon_button/icon_button.js';
 import * as LegacyWrapper from '../../../ui/components/legacy_wrapper/legacy_wrapper.js';
-import * as ReportView from '../../../ui/components/report_view/report_view.js';
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
+import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import requestTrustTokensViewStyles from './RequestTrustTokensView.css.js';
+import requestTrustTokensViewStylesRaw from './RequestTrustTokensView.css.js';
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const requestTrustTokensViewStyles = new CSSStyleSheet();
+requestTrustTokensViewStyles.replaceSync(requestTrustTokensViewStylesRaw.cssText);
+
+const {html} = Lit;
 
 const UIStrings = {
   /**
@@ -89,12 +97,15 @@ const UIStrings = {
    *@description Text for an error status in the Network panel
    */
   theOperationFailedForAnUnknown: 'The operation failed for an unknown reason.',
-};
+  /**
+   *@description Text for an error status in the Network panel
+   */
+  perSiteLimit: 'Per-site issuer limit reached.',
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/network/components/RequestTrustTokensView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class RequestTrustTokensView extends LegacyWrapper.LegacyWrapper.WrappableComponent {
-  static readonly litTagName = LitHtml.literal`devtools-trust-token-report`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   readonly #request: SDK.NetworkRequest.NetworkRequest;
 
@@ -104,12 +115,12 @@ export class RequestTrustTokensView extends LegacyWrapper.LegacyWrapper.Wrappabl
   }
 
   override wasShown(): void {
-    this.#request.addEventListener(SDK.NetworkRequest.Events.TrustTokenResultAdded, this.render, this);
+    this.#request.addEventListener(SDK.NetworkRequest.Events.TRUST_TOKEN_RESULT_ADDED, this.render, this);
     void this.render();
   }
 
   override willHide(): void {
-    this.#request.removeEventListener(SDK.NetworkRequest.Events.TrustTokenResultAdded, this.render, this);
+    this.#request.removeEventListener(SDK.NetworkRequest.Events.TRUST_TOKEN_RESULT_ADDED, this.render, this);
   }
 
   connectedCallback(): void {
@@ -123,98 +134,93 @@ export class RequestTrustTokensView extends LegacyWrapper.LegacyWrapper.Wrappabl
 
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    LitHtml.render(LitHtml.html`<${ReportView.ReportView.Report.litTagName}>
+    Lit.render(html`<devtools-report>
         ${this.#renderParameterSection()}
         ${this.#renderResultSection()}
-      </${ReportView.ReportView.Report.litTagName}>
+      </devtools-report>
     `, this.#shadow, {host: this});
     // clang-format on
   }
 
-  #renderParameterSection(): LitHtml.LitTemplate {
+  #renderParameterSection(): Lit.LitTemplate {
     const trustTokenParams = this.#request.trustTokenParams();
     if (!trustTokenParams) {
-      return LitHtml.nothing;
+      return Lit.nothing;
     }
 
-    return LitHtml.html`
-      <${ReportView.ReportView.ReportSectionHeader.litTagName} jslog=${VisualLogging.pane('trust-tokens').track({
+    return html`
+      <devtools-report-section-header jslog=${VisualLogging.pane('trust-tokens').track({
       resize: true,
-    })}>${i18nString(UIStrings.parameters)}</${ReportView.ReportView.ReportSectionHeader.litTagName}>
+    })}>${i18nString(UIStrings.parameters)}</devtools-report-section-header>
       ${renderRowWithCodeValue(i18nString(UIStrings.type), trustTokenParams.operation.toString())}
       ${this.#renderRefreshPolicy(trustTokenParams)}
       ${this.#renderIssuers(trustTokenParams)}
       ${this.#renderIssuerAndTopLevelOriginFromResult()}
-      <${ReportView.ReportView.ReportSectionDivider.litTagName}></${
-        ReportView.ReportView.ReportSectionDivider.litTagName}>
+      <devtools-report-divider></devtools-report-divider>
     `;
   }
 
-  #renderRefreshPolicy(params: Protocol.Network.TrustTokenParams): LitHtml.LitTemplate {
+  #renderRefreshPolicy(params: Protocol.Network.TrustTokenParams): Lit.LitTemplate {
     if (params.operation !== Protocol.Network.TrustTokenOperationType.Redemption) {
-      return LitHtml.nothing;
+      return Lit.nothing;
     }
     return renderRowWithCodeValue(i18nString(UIStrings.refreshPolicy), params.refreshPolicy.toString());
   }
 
-  #renderIssuers(params: Protocol.Network.TrustTokenParams): LitHtml.LitTemplate {
+  #renderIssuers(params: Protocol.Network.TrustTokenParams): Lit.LitTemplate {
     if (!params.issuers || params.issuers.length === 0) {
-      return LitHtml.nothing;
+      return Lit.nothing;
     }
 
-    return LitHtml.html`
-      <${ReportView.ReportView.ReportKey.litTagName}>${i18nString(UIStrings.issuers)}</${
-        ReportView.ReportView.ReportKey.litTagName}>
-      <${ReportView.ReportView.ReportValue.litTagName}>
+    return html`
+      <devtools-report-key>${i18nString(UIStrings.issuers)}</devtools-report-key>
+      <devtools-report-value>
         <ul class="issuers-list">
-          ${params.issuers.map(issuer => LitHtml.html`<li>${issuer}</li>`)}
+          ${params.issuers.map(issuer => html`<li>${issuer}</li>`)}
         </ul>
-      </${ReportView.ReportView.ReportValue.litTagName}>
+      </devtools-report-value>
     `;
   }
 
   // The issuer and top level origin are technically parameters but reported in the
   // result structure due to the timing when they are calculated in the backend.
   // Nonetheless, we show them as part of the parameter section.
-  #renderIssuerAndTopLevelOriginFromResult(): LitHtml.LitTemplate {
+  #renderIssuerAndTopLevelOriginFromResult(): Lit.LitTemplate {
     const trustTokenResult = this.#request.trustTokenOperationDoneEvent();
     if (!trustTokenResult) {
-      return LitHtml.nothing;
+      return Lit.nothing;
     }
 
-    return LitHtml.html`
+    return html`
       ${renderSimpleRowIfValuePresent(i18nString(UIStrings.topLevelOrigin), trustTokenResult.topLevelOrigin)}
       ${renderSimpleRowIfValuePresent(i18nString(UIStrings.issuer), trustTokenResult.issuerOrigin)}`;
   }
 
-  #renderResultSection(): LitHtml.LitTemplate {
+  #renderResultSection(): Lit.LitTemplate {
     const trustTokenResult = this.#request.trustTokenOperationDoneEvent();
     if (!trustTokenResult) {
-      return LitHtml.nothing;
+      return Lit.nothing;
     }
-    return LitHtml.html`
-      <${ReportView.ReportView.ReportSectionHeader.litTagName}>${i18nString(UIStrings.result)}</${
-        ReportView.ReportView.ReportSectionHeader.litTagName}>
-      <${ReportView.ReportView.ReportKey.litTagName}>${i18nString(UIStrings.status)}</${
-        ReportView.ReportView.ReportKey.litTagName}>
-      <${ReportView.ReportView.ReportValue.litTagName}>
+    return html`
+      <devtools-report-section-header>${i18nString(UIStrings.result)}</devtools-report-section-header>
+      <devtools-report-key>${i18nString(UIStrings.status)}</devtools-report-key>
+      <devtools-report-value>
         <span>
-          <${IconButton.Icon.Icon.litTagName} class="status-icon"
-            .data=${getIconForStatusCode(trustTokenResult.status) as IconButton.Icon.IconData}>
-          </${IconButton.Icon.Icon.litTagName}>
+          <devtools-icon class="status-icon"
+            .data=${getIconForStatusCode(trustTokenResult.status)}>
+          </devtools-icon>
           <strong>${getSimplifiedStatusTextForStatusCode(trustTokenResult.status)}</strong>
           ${getDetailedTextForStatusCode(trustTokenResult.status)}
         </span>
-      </${ReportView.ReportView.ReportValue.litTagName}>
+      </devtools-report-value>
       ${this.#renderIssuedTokenCount(trustTokenResult)}
-      <${ReportView.ReportView.ReportSectionDivider.litTagName}></${
-        ReportView.ReportView.ReportSectionDivider.litTagName}>
+      <devtools-report-divider></devtools-report-divider>
       `;
   }
 
-  #renderIssuedTokenCount(result: Protocol.Network.TrustTokenOperationDoneEvent): LitHtml.LitTemplate {
+  #renderIssuedTokenCount(result: Protocol.Network.TrustTokenOperationDoneEvent): Lit.LitTemplate {
     if (result.type !== Protocol.Network.TrustTokenOperationType.Issuance) {
-      return LitHtml.nothing;
+      return Lit.nothing;
     }
     return renderSimpleRowIfValuePresent(i18nString(UIStrings.numberOfIssuedTokens), result.issuedTokenCount);
   }
@@ -271,25 +277,26 @@ function getDetailedTextForStatusCode(status: Protocol.Network.TrustTokenOperati
     case Protocol.Network.TrustTokenOperationDoneEventStatus.Unauthorized:
     case Protocol.Network.TrustTokenOperationDoneEventStatus.UnknownError:
       return i18nString(UIStrings.theOperationFailedForAnUnknown);
+    case Protocol.Network.TrustTokenOperationDoneEventStatus.SiteIssuerLimit:
+      return i18nString(UIStrings.perSiteLimit);
   }
 }
 
-function renderSimpleRowIfValuePresent<T>(key: string, value: T|undefined): LitHtml.LitTemplate {
+function renderSimpleRowIfValuePresent<T>(key: string, value: T|undefined): Lit.LitTemplate {
   if (value === undefined) {
-    return LitHtml.nothing;
+    return Lit.nothing;
   }
 
-  return LitHtml.html`
-    <${ReportView.ReportView.ReportKey.litTagName}>${key}</${ReportView.ReportView.ReportKey.litTagName}>
-    <${ReportView.ReportView.ReportValue.litTagName}>${value}</${ReportView.ReportView.ReportValue.litTagName}>
+  return html`
+    <devtools-report-key>${key}</devtools-report-key>
+    <devtools-report-value>${value}</devtools-report-value>
   `;
 }
 
-function renderRowWithCodeValue(key: string, value: string): LitHtml.TemplateResult {
-  return LitHtml.html`
-    <${ReportView.ReportView.ReportKey.litTagName}>${key}</${ReportView.ReportView.ReportKey.litTagName}>
-    <${ReportView.ReportView.ReportValue.litTagName} class="code">${value}</${
-      ReportView.ReportView.ReportValue.litTagName}>
+function renderRowWithCodeValue(key: string, value: string): Lit.TemplateResult {
+  return html`
+    <devtools-report-key>${key}</devtools-report-key>
+    <devtools-report-value class="code">${value}</devtools-report-value>
   `;
 }
 

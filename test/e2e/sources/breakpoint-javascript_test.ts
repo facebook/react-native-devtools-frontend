@@ -7,6 +7,7 @@ import {assert} from 'chai';
 import {
   click,
   clickElement,
+  drainFrontendTaskQueue,
   enableExperiment,
   getBrowserAndPages,
   goToResource,
@@ -16,7 +17,7 @@ import {
   waitForFunction,
   withControlOrMetaKey,
 } from '../../shared/helper.js';
-import {describe, it} from '../../shared/mocha-extensions.js';
+import {reloadDevTools} from '../helpers/cross-tool-helper.js';
 import {getMenuItemAtPosition, getMenuItemTitleAtPosition, openFileQuickOpen} from '../helpers/quick_open-helpers.js';
 import {
   addBreakpointForLine,
@@ -26,7 +27,6 @@ import {
   isEqualOrAbbreviation,
   openSourceCodeEditorForFile,
   PAUSE_INDICATOR_SELECTOR,
-  refreshDevToolsAndRemoveBackendState,
   RESUME_BUTTON,
   retrieveTopCallFrameWithoutResuming,
 } from '../helpers/sources-helpers.js';
@@ -170,7 +170,7 @@ describe('The Sources Tab', function() {
 
   it('can hit a breakpoint on the main thread on a fresh DevTools', async () => {
     await enableExperiment('instrumentation-breakpoints');
-    const {frontend, target} = getBrowserAndPages();
+    const {frontend} = getBrowserAndPages();
 
     await step('navigate to a page and open the Sources tab', async () => {
       await openSourceCodeEditorForFile('breakpoint-hit-on-first-load.js', 'breakpoint-hit-on-first-load.html');
@@ -181,7 +181,7 @@ describe('The Sources Tab', function() {
     });
 
     await step('Navigate to a different site to refresh devtools and remove back-end state', async () => {
-      await refreshDevToolsAndRemoveBackendState(target);
+      await reloadDevTools({removeBackendState: true, selectedPanel: {name: 'sources'}});
     });
 
     await step('Navigate back to test page', () => {
@@ -204,7 +204,7 @@ describe('The Sources Tab', function() {
       '[crbug.com/1229541] can hit a breakpoint in an inline script on the main thread on a fresh DevTools',
       async () => {
         await enableExperiment('instrumentation-breakpoints');
-        const {frontend, target} = getBrowserAndPages();
+        const {frontend} = getBrowserAndPages();
 
         await step('navigate to a page and open the Sources tab', async () => {
           await openSourceCodeEditorForFile('breakpoint-hit-on-first-load.html', 'breakpoint-hit-on-first-load.html');
@@ -215,7 +215,7 @@ describe('The Sources Tab', function() {
         });
 
         await step('Navigate to a different site to refresh devtools and remove back-end state', async () => {
-          await refreshDevToolsAndRemoveBackendState(target);
+          await reloadDevTools({removeBackendState: true, selectedPanel: {name: 'sources'}});
         });
 
         await step('Navigate back to test page', () => {
@@ -235,7 +235,7 @@ describe('The Sources Tab', function() {
   it('can hit a breakpoint in an inline script with sourceURL comment on the main thread on a fresh DevTools',
      async () => {
        await enableExperiment('instrumentation-breakpoints');
-       const {frontend, target} = getBrowserAndPages();
+       const {frontend} = getBrowserAndPages();
 
        await step('navigate to a page and open the Sources tab', async () => {
          await openSourceCodeEditorForFile('breakpoint-hit-on-first-load.html', 'breakpoint-hit-on-first-load.html');
@@ -244,6 +244,8 @@ describe('The Sources Tab', function() {
        await step('open the hello.js file (inline script)', async () => {
          await openFileQuickOpen();
          await frontend.keyboard.type('hello.js');
+         // TODO: it should actually wait for rendering to finish.
+         await drainFrontendTaskQueue();
 
          const firstItemTitle = await getMenuItemTitleAtPosition(0);
          const firstItem = await getMenuItemAtPosition(0);
@@ -256,7 +258,7 @@ describe('The Sources Tab', function() {
        });
 
        await step('Navigate to a different site to refresh devtools and remove back-end state', async () => {
-         await refreshDevToolsAndRemoveBackendState(target);
+         await reloadDevTools({removeBackendState: true, selectedPanel: {name: 'sources'}});
        });
 
        await step('Navigate back to test page', () => {

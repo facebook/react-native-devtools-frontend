@@ -2,20 +2,77 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
-import {createTarget} from '../../testing/EnvironmentHelpers.js';
+import {createTarget, updateHostConfig} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
 import {getMainFrame, navigate} from '../../testing/ResourceTreeHelpers.js';
 
 import * as Security from './security.js';
+
+const {urlString} = Platform.DevToolsPath;
+
+describeWithMockConnection('SecurityAndPrivacyPanel', () => {
+  describe('viewMemory', () => {
+    it('initially shows control view if privacy UI is enabled', () => {
+      updateHostConfig({devToolsPrivacyUI: {enabled: true}});
+      const securityPanel = Security.SecurityPanel.SecurityPanel.instance({forceNew: true});
+
+      assert.instanceOf(securityPanel.visibleView, Security.CookieControlsView.CookieControlsView);
+    });
+
+    it('initially shows security main view if privacy UI is not enabled', () => {
+      updateHostConfig({devToolsPrivacyUI: {enabled: false}});
+      const securityPanel = Security.SecurityPanel.SecurityPanel.instance({forceNew: true});
+
+      assert.instanceOf(securityPanel.visibleView, Security.SecurityPanel.SecurityMainView);
+    });
+
+    it('remembers last selected view when new panel is made', () => {
+      updateHostConfig({devToolsPrivacyUI: {enabled: true}});
+      let securityPanel = Security.SecurityPanel.SecurityPanel.instance({forceNew: true});
+
+      // Should initially be the controls view
+      assert.instanceOf(securityPanel.visibleView, Security.CookieControlsView.CookieControlsView);
+
+      // Select and switch to the security main view
+      securityPanel.sidebar.securityOverviewElement.select(/* omitFocus=*/ false, /* selectedByUser=*/ true);
+      assert.instanceOf(securityPanel.visibleView, Security.SecurityPanel.SecurityMainView);
+
+      // Create a new security panel. The last selected view memory should make the main view visible
+      securityPanel = Security.SecurityPanel.SecurityPanel.instance({forceNew: true});
+      assert.instanceOf(securityPanel.visibleView, Security.SecurityPanel.SecurityMainView);
+    });
+  });
+
+  describe('updateOrigin', () => {
+    it('correctly updates the URL scheme highlighting', () => {
+      const origin = urlString`https://foo.bar`;
+      const securityPanel = Security.SecurityPanel.SecurityPanel.instance({forceNew: true});
+
+      securityPanel.sidebar.addOrigin(origin, Protocol.Security.SecurityState.Unknown);
+      assert.notExists(
+          securityPanel.sidebar.sidebarTree.contentElement.querySelector('.highlighted-url > .url-scheme-secure'));
+      assert.exists(
+          securityPanel.sidebar.sidebarTree.contentElement.querySelector('.highlighted-url > .url-scheme-unknown'));
+
+      securityPanel.sidebar.updateOrigin(origin, Protocol.Security.SecurityState.Secure);
+
+      assert.exists(
+          securityPanel.sidebar.sidebarTree.contentElement.querySelector('.highlighted-url > .url-scheme-secure'));
+      assert.notExists(
+          securityPanel.sidebar.sidebarTree.contentElement.querySelector('.highlighted-url > .url-scheme-unknown'));
+    });
+  });
+});
 
 describeWithMockConnection('SecurityPanel', () => {
   let target: SDK.Target.Target;
   let prerenderTarget: SDK.Target.Target;
 
   beforeEach(() => {
-    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
+    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
     prerenderTarget = createTarget({parentTarget: tabTarget, subtype: 'prerender'});
     target = createTarget({parentTarget: tabTarget});
   });
@@ -82,7 +139,7 @@ describeWithMockConnection('SecurityPanel', () => {
                       ?.classList.contains('security-summary-secure'));
 
     // Check that the SecurityPanel listens to any PrimaryPageChanged event
-    const sidebarTreeClearSpy = sinon.spy(securityPanel.sidebarTree, 'clearOrigins');
+    const sidebarTreeClearSpy = sinon.spy(securityPanel.sidebar, 'clearOrigins');
     navigate(getMainFrame(target));
     assert.isTrue(sidebarTreeClearSpy.calledOnce);
   });
@@ -93,7 +150,8 @@ describeWithMockConnection('SecurityPanel', () => {
     const securityPanel = Security.SecurityPanel.SecurityPanel.instance({forceNew: true});
 
     // Check that reload message is visible initially.
-    const reloadMessage = securityPanel.sidebarTree.shadowRoot.querySelector('.security-main-view-reload-message');
+    const reloadMessage =
+        securityPanel.sidebar.sidebarTree.shadowRoot.querySelector('.security-main-view-reload-message');
     assert.instanceOf(reloadMessage, HTMLLIElement);
     assert.isFalse(reloadMessage.classList.contains('hidden'));
 

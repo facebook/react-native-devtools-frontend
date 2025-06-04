@@ -265,7 +265,7 @@ export function showPanel(panel) {
  */
 export function createKeyEvent(key, ctrlKey, altKey, shiftKey, metaKey) {
   return new KeyboardEvent('keydown', {
-    key: key,
+    key,
     bubbles: true,
     cancelable: true,
     ctrlKey: Boolean(ctrlKey),
@@ -396,6 +396,11 @@ export function textContentWithoutStyles(node) {
     }
     if (currentNode.nodeType === Node.TEXT_NODE) {
       buffer += currentNode.nodeValue;
+    } else if (currentNode.tagName === 'DEVTOOLS-TOOLTIP') {
+      // <devtools-tooltip> holds popover contents in-line in a slot, so its contents appear in textContent. This is
+      // not what the tests expect, so step over its contents entirely.
+      currentNode =
+          currentNode.lastChild?.traverseNextNode(node)?.traverseNextNode(node) ?? currentNode.traverseNextNode(node);
     } else if (currentNode.nodeName === 'STYLE') {
       currentNode = currentNode.traverseNextNode(node);
     }
@@ -537,7 +542,7 @@ export function evaluateFunctionInOverlay(func, callback) {
   mainContext
       .evaluate(
           {
-            expression: expression,
+            expression,
             objectGroup: '',
             includeCommandLineAPI: false,
             silent: false,

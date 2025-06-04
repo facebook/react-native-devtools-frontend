@@ -5,10 +5,15 @@
 import * as Protocol from '../../generated/protocol.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
+import * as Common from '../common/common.js';
 
 import * as SDK from './sdk.js';
 
 describeWithMockConnection('AutofillModel', () => {
+  beforeEach(() => {
+    Common.Settings.Settings.instance().createLocalSetting('show-test-addresses-in-autofill-menu-on-event', true);
+  });
+
   it('can enable and disable the Autofill CDP domain', () => {
     const target = createTarget();
     const autofillModel = target.model(SDK.AutofillModel.AutofillModel);
@@ -44,8 +49,8 @@ describeWithMockConnection('AutofillModel', () => {
     const target = createTarget();
     const autofillModel = target.model(SDK.AutofillModel.AutofillModel);
 
-    const dispatchedEvents: Array<SDK.AutofillModel.AddressFormFilledEvent> = [];
-    autofillModel!.addEventListener(SDK.AutofillModel.Events.AddressFormFilled, e => dispatchedEvents.push(e.data));
+    const dispatchedEvents: SDK.AutofillModel.AddressFormFilledEvent[] = [];
+    autofillModel!.addEventListener(SDK.AutofillModel.Events.ADDRESS_FORM_FILLED, e => dispatchedEvents.push(e.data));
 
     const addressFormFilledEvent: Protocol.Autofill.AddressFormFilledEvent = {
       addressUi: {
@@ -72,6 +77,6 @@ describeWithMockConnection('AutofillModel', () => {
     };
     autofillModel!.addressFormFilled(addressFormFilledEvent);
     assert.lengthOf(dispatchedEvents, 1);
-    assert.deepStrictEqual(dispatchedEvents[0].event, addressFormFilledEvent);
+    assert.deepEqual(dispatchedEvents[0].event, addressFormFilledEvent);
   });
 });

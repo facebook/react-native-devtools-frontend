@@ -5,17 +5,23 @@
 import * as PuppeteerReplay from '../../../third_party/puppeteer-replay/puppeteer-replay.js';
 import * as Models from '../models/models.js';
 
-import {type Converter} from './Converter.js';
+import type {Converter} from './Converter.js';
 
 export class PuppeteerConverter implements Converter {
   #indent: string;
+  #extension: PuppeteerReplay.PuppeteerStringifyExtension;
 
   constructor(indent: string) {
     this.#indent = indent;
+    this.#extension = this.createExtension();
   }
 
   getId(): string {
-    return Models.ConverterIds.ConverterIds.Puppeteer;
+    return Models.ConverterIds.ConverterIds.PUPPETEER;
+  }
+
+  createExtension(): PuppeteerReplay.PuppeteerStringifyExtension {
+    return new PuppeteerReplay.PuppeteerStringifyExtension();
   }
 
   getFormatName(): string {
@@ -31,6 +37,7 @@ export class PuppeteerConverter implements Converter {
       ): Promise<[string, PuppeteerReplay.SourceMap|undefined]> {
     const text = await PuppeteerReplay.stringify(flow, {
       indentation: this.#indent,
+      extension: this.#extension,
     });
     const sourceMap = PuppeteerReplay.parseSourceMap(text);
     return [PuppeteerReplay.stripSourceMap(text), sourceMap];
@@ -39,6 +46,7 @@ export class PuppeteerConverter implements Converter {
   async stringifyStep(step: Models.Schema.Step): Promise<string> {
     return await PuppeteerReplay.stringifyStep(step, {
       indentation: this.#indent,
+      extension: this.#extension,
     });
   }
 

@@ -9,7 +9,7 @@ import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import eventDisplayTableStyles from './eventDisplayTable.css.js';
-import {type PlayerEvent} from './MediaModel.js';
+import type {PlayerEvent} from './MediaModel.js';
 
 const UIStrings = {
   /**
@@ -29,7 +29,7 @@ const UIStrings = {
    * while a video/media player was present on the page.
    */
   eventDisplay: 'Event display',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/media/EventDisplayTable.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export interface EventDisplayColumnConfig {
@@ -40,9 +40,9 @@ export interface EventDisplayColumnConfig {
 }
 
 export const enum MediaEventColumnKeys {
-  Timestamp = 'display-timestamp',
-  Event = 'event',
-  Value = 'value',
+  TIMESTAMP = 'display-timestamp',
+  EVENT = 'event',
+  VALUE = 'value',
 }
 
 export class EventNode extends DataGrid.DataGrid.DataGridNode<EventNode> {
@@ -56,7 +56,7 @@ export class EventNode extends DataGrid.DataGrid.DataGridNode<EventNode> {
   override createCell(columnId: string): HTMLElement {
     const cell = this.createTD(columnId);
     const cellData = this.data[columnId] as string;
-    if (columnId === MediaEventColumnKeys.Value) {
+    if (columnId === MediaEventColumnKeys.VALUE) {
       const enclosed = cell.createChild('div', 'event-display-table-contents-json-wrapper');
       this.expandableElement =
           new SourceFrame.JSONView.JSONView(new SourceFrame.JSONView.ParsedJSON(cellData, '', ''), true);
@@ -76,6 +76,7 @@ export class PlayerEventsView extends UI.Widget.VBox {
 
   constructor() {
     super();
+    this.registerRequiredCSS(eventDisplayTableStyles);
 
     this.element.setAttribute('jslog', `${VisualLogging.pane('events')}`);
 
@@ -85,14 +86,14 @@ export class PlayerEventsView extends UI.Widget.VBox {
 
     this.dataGrid = this.createDataGrid([
       {
-        id: MediaEventColumnKeys.Timestamp,
+        id: MediaEventColumnKeys.TIMESTAMP,
         title: i18nString(UIStrings.timestamp),
         weight: 1,
         sortable: false,
       },
-      {id: MediaEventColumnKeys.Event, title: i18nString(UIStrings.eventName), weight: 2, sortable: false},
+      {id: MediaEventColumnKeys.EVENT, title: i18nString(UIStrings.eventName), weight: 2, sortable: false},
       {
-        id: MediaEventColumnKeys.Value,
+        id: MediaEventColumnKeys.VALUE,
         title: i18nString(UIStrings.value),
         weight: 7,
         sortable: false,
@@ -117,7 +118,6 @@ export class PlayerEventsView extends UI.Widget.VBox {
       displayName: i18nString(UIStrings.eventDisplay),
       columns: gridColumnDescs,
       deleteCallback: undefined,
-      editCallback: undefined,
       refreshCallback: undefined,
     });
     datagrid.asWidget().contentElement.classList.add('no-border-top-datagrid');
@@ -130,20 +130,20 @@ export class PlayerEventsView extends UI.Widget.VBox {
     }
 
     event = this.subtractFirstEventTime(event);
-    const stringified = event.value as string;
+    const stringified = event.value;
     try {
       const json = JSON.parse(stringified);
       event.event = json.event;
       delete json['event'];
       event.value = json;
       const node = new EventNode(event);
-      const scroll = this.dataGrid.scrollContainer as HTMLElement;
+      const scroll = this.dataGrid.scrollContainer;
       const isAtBottom = scroll.scrollTop === (scroll.scrollHeight - scroll.offsetHeight);
       this.dataGrid.rootNode().appendChild(node as DataGrid.DataGrid.DataGridNode<EventNode>);
       if (isAtBottom) {
         scroll.scrollTop = scroll.scrollHeight;
       }
-    } catch (e) {
+    } catch {
       // If this is a legacy message event, ignore it for now until they
       // are handled.
     }
@@ -164,9 +164,5 @@ export class PlayerEventsView extends UI.Widget.VBox {
       weight: columnConfig.weight || 0,
       sort: DataGrid.DataGrid.Order.Ascending,
     } as DataGrid.DataGrid.ColumnDescriptor;
-  }
-  override wasShown(): void {
-    super.wasShown();
-    this.registerCSSFiles([eventDisplayTableStyles]);
   }
 }

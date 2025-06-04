@@ -101,7 +101,7 @@ const UIStrings = {
    * from file, as opposed to a profile that has been captured locally.
    */
   loaded: 'Loaded',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/profiler/ProfileView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class ProfileView extends UI.View.SimpleView implements UI.SearchableView.Searchable {
@@ -193,13 +193,12 @@ export class ProfileView extends UI.View.SimpleView implements UI.SearchableView
     this.dataGrid = new DataGrid.DataGrid.DataGridImpl({
       displayName: i18nString(UIStrings.profiler),
       columns,
-      editCallback: undefined,
       deleteCallback: undefined,
       refreshCallback: undefined,
     });
-    this.dataGrid.addEventListener(DataGrid.DataGrid.Events.SortingChanged, this.sortProfile, this);
-    this.dataGrid.addEventListener(DataGrid.DataGrid.Events.SelectedNode, this.nodeSelected.bind(this, true));
-    this.dataGrid.addEventListener(DataGrid.DataGrid.Events.DeselectedNode, this.nodeSelected.bind(this, false));
+    this.dataGrid.addEventListener(DataGrid.DataGrid.Events.SORTING_CHANGED, this.sortProfile, this);
+    this.dataGrid.addEventListener(DataGrid.DataGrid.Events.SELECTED_NODE, this.nodeSelected.bind(this, true));
+    this.dataGrid.addEventListener(DataGrid.DataGrid.Events.DESELECTED_NODE, this.nodeSelected.bind(this, false));
     this.dataGrid.setRowContextMenuCallback(this.populateContextMenu.bind(this));
 
     this.viewSelectComboBox = new UI.Toolbar.ToolbarComboBox(
@@ -208,27 +207,27 @@ export class ProfileView extends UI.View.SimpleView implements UI.SearchableView
     this.focusButton = new UI.Toolbar.ToolbarButton(
         i18nString(UIStrings.focusSelectedFunction), 'eye', undefined, 'profile-view.focus-selected-function');
     this.focusButton.setEnabled(false);
-    this.focusButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, this.focusClicked, this);
+    this.focusButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.focusClicked, this);
 
     this.excludeButton = new UI.Toolbar.ToolbarButton(
         i18nString(UIStrings.excludeSelectedFunction), 'cross', undefined, 'profile-view.exclude-selected-function');
     this.excludeButton.setEnabled(false);
-    this.excludeButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, this.excludeClicked, this);
+    this.excludeButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.excludeClicked, this);
 
     this.resetButton = new UI.Toolbar.ToolbarButton(
         i18nString(UIStrings.restoreAllFunctions), 'refresh', undefined, 'profile-view.restore-all-functions');
     this.resetButton.setEnabled(false);
-    this.resetButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, this.resetClicked, this);
+    this.resetButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.resetClicked, this);
 
     this.linkifierInternal = new Components.Linkifier.Linkifier(maxLinkLength);
   }
 
-  static buildPopoverTable(entryInfo: {
+  static buildPopoverTable(popoverInfo: Array<{
     title: string,
     value: string,
-  }[]): Element {
+  }>): Element {
     const table = document.createElement('table');
-    for (const entry of entryInfo) {
+    for (const entry of popoverInfo) {
       const row = table.createChild('tr');
       row.createChild('td').textContent = entry.title;
       row.createChild('td').textContent = entry.value;
@@ -251,13 +250,13 @@ export class ProfileView extends UI.View.SimpleView implements UI.SearchableView
   initialize(nodeFormatter: Formatter): void {
     this.nodeFormatter = nodeFormatter;
 
-    this.viewType = Common.Settings.Settings.instance().createSetting('profile-view', ViewTypes.Heavy);
-    const viewTypes = [ViewTypes.Flame, ViewTypes.Heavy, ViewTypes.Tree];
+    this.viewType = Common.Settings.Settings.instance().createSetting('profile-view', ViewTypes.HEAVY);
+    const viewTypes = [ViewTypes.FLAME, ViewTypes.HEAVY, ViewTypes.TREE];
 
     const optionNames = new Map([
-      [ViewTypes.Flame, i18nString(UIStrings.chart)],
-      [ViewTypes.Heavy, i18nString(UIStrings.heavyBottomUp)],
-      [ViewTypes.Tree, i18nString(UIStrings.treeTopDown)],
+      [ViewTypes.FLAME, i18nString(UIStrings.chart)],
+      [ViewTypes.HEAVY, i18nString(UIStrings.heavyBottomUp)],
+      [ViewTypes.TREE, i18nString(UIStrings.treeTopDown)],
     ]);
 
     const options = new Map(
@@ -281,7 +280,7 @@ export class ProfileView extends UI.View.SimpleView implements UI.SearchableView
   }
 
   columnHeader(_columnId: string): Common.UIString.LocalizedString {
-    throw 'Not implemented';
+    throw new Error('Not implemented');
   }
 
   selectRange(timeLeft: number, timeRight: number): void {
@@ -343,7 +342,7 @@ export class ProfileView extends UI.View.SimpleView implements UI.SearchableView
 
     if (selectedProfileNode) {
       // TODO(crbug.com/1011811): Cleanup the added `selected` property to this SDK class.
-      // @ts-ignore
+      // @ts-expect-error
       selectedProfileNode.selected = true;
     }
   }
@@ -397,7 +396,7 @@ export class ProfileView extends UI.View.SimpleView implements UI.SearchableView
   }
 
   createFlameChartDataProvider(): ProfileFlameChartDataProvider {
-    throw 'Not implemented';
+    throw new Error('Not implemented');
   }
 
   ensureFlameChartCreated(): void {
@@ -406,7 +405,7 @@ export class ProfileView extends UI.View.SimpleView implements UI.SearchableView
     }
     this.dataProvider = this.createFlameChartDataProvider();
     this.flameChart = new ProfileFlameChart(this.searchableViewInternal, this.dataProvider);
-    this.flameChart.addEventListener(PerfUI.FlameChart.Events.EntryInvoked, event => {
+    this.flameChart.addEventListener(PerfUI.FlameChart.Events.ENTRY_INVOKED, event => {
       void this.onEntryInvoked(event);
     });
   }
@@ -425,8 +424,7 @@ export class ProfileView extends UI.View.SimpleView implements UI.SearchableView
     if (!script) {
       return;
     }
-    const location =
-        (debuggerModel.createRawLocation(script, node.lineNumber, node.columnNumber) as SDK.DebuggerModel.Location);
+    const location = (debuggerModel.createRawLocation(script, node.lineNumber, node.columnNumber));
     const uiLocation =
         await Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance().rawLocationToUILocation(location);
     void Common.Revealer.reveal(uiLocation);
@@ -444,18 +442,18 @@ export class ProfileView extends UI.View.SimpleView implements UI.SearchableView
     }
     this.viewType.set((this.viewSelectComboBox.selectedOption() as HTMLOptionElement).value as ViewTypes);
     switch (this.viewType.get()) {
-      case ViewTypes.Flame:
+      case ViewTypes.FLAME:
         this.ensureFlameChartCreated();
         this.visibleView = this.flameChart;
         this.searchableElement = this.flameChart;
         break;
-      case ViewTypes.Tree:
+      case ViewTypes.TREE:
         this.profileDataGridTree = this.getTopDownProfileDataGridTree();
         this.sortProfile();
         this.visibleView = this.dataGrid.asWidget();
         this.searchableElement = this.profileDataGridTree;
         break;
-      case ViewTypes.Heavy:
+      case ViewTypes.HEAVY:
         this.profileDataGridTree = this.getBottomUpProfileDataGridTree();
         this.sortProfile();
         this.visibleView = this.dataGrid.asWidget();
@@ -463,7 +461,7 @@ export class ProfileView extends UI.View.SimpleView implements UI.SearchableView
         break;
     }
 
-    const isFlame = this.viewType.get() === ViewTypes.Flame;
+    const isFlame = this.viewType.get() === ViewTypes.FLAME;
     this.focusButton.setVisible(!isFlame);
     this.excludeButton.setVisible(!isFlame);
     this.resetButton.setVisible(!isFlame);
@@ -514,7 +512,7 @@ export class ProfileView extends UI.View.SimpleView implements UI.SearchableView
   }
 
   resetClicked(): void {
-    this.viewSelectComboBox.selectElement().focus();
+    this.viewSelectComboBox.element.focus();
     this.resetButton.setEnabled(false);
     if (this.profileDataGridTree) {
       this.profileDataGridTree.restore();
@@ -540,9 +538,9 @@ export class ProfileView extends UI.View.SimpleView implements UI.SearchableView
 export const maxLinkLength = 30;
 
 export const enum ViewTypes {
-  Flame = 'Flame',
-  Tree = 'Tree',
-  Heavy = 'Heavy',
+  FLAME = 'Flame',
+  TREE = 'Tree',
+  HEAVY = 'Heavy',
 }
 
 export class WritableProfileHeader extends ProfileHeader implements Common.StringOutputStream.OutputStream {
@@ -551,22 +549,18 @@ export class WritableProfileHeader extends ProfileHeader implements Common.Strin
   jsonifiedProfile?: string|null;
   profile?: Protocol.Profiler.Profile;
   protocolProfileInternal?: Protocol.Profiler.Profile;
-  #profileReceivedPromise: Promise<void>;
-  #profileReceivedFulfill = (): void => {};
+  #profileReceivedPromise = Promise.withResolvers<void>();
 
   constructor(debuggerModel: SDK.DebuggerModel.DebuggerModel|null, type: ProfileType, title?: string) {
     super(type, title || i18nString(UIStrings.profileD, {PH1: type.nextProfileUid()}));
     this.debuggerModel = debuggerModel;
-    this.#profileReceivedPromise = new Promise(resolve => {
-      this.#profileReceivedFulfill = resolve;
-    });
   }
 
   onChunkTransferred(_reader: Bindings.FileUtils.ChunkedReader): void {
     if (this.jsonifiedProfile) {
       // TODO(l10n): Is the '%' at the end of this string correct? 4MB% looks wrong
       this.updateStatus(
-          i18nString(UIStrings.loadingD, {PH1: Platform.NumberUtilities.bytesToString(this.jsonifiedProfile.length)}));
+          i18nString(UIStrings.loadingD, {PH1: i18n.ByteUtilities.bytesToString(this.jsonifiedProfile.length)}));
     }
   }
 
@@ -597,7 +591,7 @@ export class WritableProfileHeader extends ProfileHeader implements Common.Strin
   }
 
   override async saveToFile(): Promise<void> {
-    await this.#profileReceivedPromise;
+    await this.#profileReceivedPromise.promise;
     const fileOutputStream = new Bindings.FileUtils.FileOutputStream();
     if (!this.fileName) {
       const now = Platform.DateUtilities.toISO8601Compact(new Date());
@@ -629,10 +623,10 @@ export class WritableProfileHeader extends ProfileHeader implements Common.Strin
     }
 
     this.updateStatus(i18nString(UIStrings.parsing), true);
-    let error: null = null;
+    let error = null;
     try {
       this.profile = (JSON.parse(this.jsonifiedProfile) as Protocol.Profiler.Profile);
-      this.setProfile((this.profile as Protocol.Profiler.Profile));
+      this.setProfile((this.profile));
       this.updateStatus(i18nString(UIStrings.loaded), false);
     } catch (e) {
       error = e;
@@ -651,6 +645,6 @@ export class WritableProfileHeader extends ProfileHeader implements Common.Strin
     this.protocolProfileInternal = profile;
     this.tempFile = new Bindings.TempFile.TempFile();
     this.tempFile.write([JSON.stringify(profile)]);
-    this.#profileReceivedFulfill();
+    this.#profileReceivedPromise.resolve();
   }
 }

@@ -8,7 +8,7 @@ import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Workspace from '../workspace/workspace.js';
 
-import {type DebuggerWorkspaceBinding} from './DebuggerWorkspaceBinding.js';
+import type {DebuggerWorkspaceBinding} from './DebuggerWorkspaceBinding.js';
 
 const UIStrings = {
   /**
@@ -31,23 +31,28 @@ const UIStrings = {
    *@description A context menu item in the Call Stack Sidebar Pane of the Sources panel
    */
   addAllThirdPartyScriptsToIgnoreList: 'Add all third-party scripts to ignore list',
-};
+  /**
+   *@description A context menu item in the Call Stack Sidebar Pane of the Sources panel
+   */
+  addAllAnonymousScriptsToIgnoreList: 'Add all anonymous scripts to ignore list',
+} as const;
 
 const str_ = i18n.i18n.registerUIStrings('models/bindings/IgnoreListManager.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 let ignoreListManagerInstance: IgnoreListManager|undefined;
 
-export type IgnoreListGeneralRules = {
-  isContentScript?: boolean,
-  isKnownThirdParty?: boolean,
-  isCurrentlyIgnoreListed?: boolean,
-};
+export interface IgnoreListGeneralRules {
+  isContentScript?: boolean;
+  isKnownThirdParty?: boolean;
+  isCurrentlyIgnoreListed?: boolean;
+}
 
 export class IgnoreListManager implements SDK.TargetManager.SDKModelObserver<SDK.DebuggerModel.DebuggerModel> {
   readonly #debuggerWorkspaceBinding: DebuggerWorkspaceBinding;
   readonly #listeners: Set<() => void>;
   readonly #isIgnoreListedURLCache: Map<string, boolean>;
+  readonly #contentScriptExecutionContexts: Set<string>;
 
   private constructor(debuggerWorkspaceBinding: DebuggerWorkspaceBinding) {
     this.#debuggerWorkspaceBinding = debuggerWorkspaceBinding;
@@ -55,6 +60,12 @@ export class IgnoreListManager implements SDK.TargetManager.SDKModelObserver<SDK
     SDK.TargetManager.TargetManager.instance().addModelListener(
         SDK.DebuggerModel.DebuggerModel, SDK.DebuggerModel.Events.GlobalObjectCleared,
         this.clearCacheIfNeeded.bind(this), this);
+    SDK.TargetManager.TargetManager.instance().addModelListener(
+        SDK.RuntimeModel.RuntimeModel, SDK.RuntimeModel.Events.ExecutionContextCreated, this.onExecutionContextCreated,
+        this, {scoped: true});
+    SDK.TargetManager.TargetManager.instance().addModelListener(
+        SDK.RuntimeModel.RuntimeModel, SDK.RuntimeModel.Events.ExecutionContextDestroyed,
+        this.onExecutionContextDestroyed, this, {scoped: true});
     Common.Settings.Settings.instance()
         .moduleSetting('skip-stack-frames-pattern')
         .addChangeListener(this.patternChanged.bind(this));
@@ -67,10 +78,13 @@ export class IgnoreListManager implements SDK.TargetManager.SDKModelObserver<SDK
     Common.Settings.Settings.instance()
         .moduleSetting('enable-ignore-listing')
         .addChangeListener(this.patternChanged.bind(this));
+    Common.Settings.Settings.instance()
+        .moduleSetting('skip-anonymous-scripts')
+        .addChangeListener(this.patternChanged.bind(this));
 
     this.#listeners = new Set();
-
     this.#isIgnoreListedURLCache = new Map();
+    this.#contentScriptExecutionContexts = new Set();
 
     SDK.TargetManager.TargetManager.instance().observeModels(SDK.DebuggerModel.DebuggerModel, this);
   }
@@ -117,6 +131,36 @@ export class IgnoreListManager implements SDK.TargetManager.SDKModelObserver<SDK
     sourceMapManager.removeEventListener(SDK.SourceMapManager.Events.SourceMapDetached, this.sourceMapDetached, this);
   }
 
+  private isContentScript(executionContext: SDK.RuntimeModel.ExecutionContext): boolean {
+    return !executionContext.isDefault;
+  }
+
+  private onExecutionContextCreated(event: Common.EventTarget.EventTargetEvent<SDK.RuntimeModel.ExecutionContext>):
+      void {
+    if (this.isContentScript(event.data)) {
+      this.#contentScriptExecutionContexts.add(event.data.uniqueId);
+      if (this.skipContentScripts) {
+        for (const debuggerModel of SDK.TargetManager.TargetManager.instance().models(
+                 SDK.DebuggerModel.DebuggerModel)) {
+          void this.updateIgnoredExecutionContexts(debuggerModel);
+        }
+      }
+    }
+  }
+
+  private onExecutionContextDestroyed(event: Common.EventTarget.EventTargetEvent<SDK.RuntimeModel.ExecutionContext>):
+      void {
+    if (this.isContentScript(event.data)) {
+      this.#contentScriptExecutionContexts.delete(event.data.uniqueId);
+      if (this.skipContentScripts) {
+        for (const debuggerModel of SDK.TargetManager.TargetManager.instance().models(
+                 SDK.DebuggerModel.DebuggerModel)) {
+          void this.updateIgnoredExecutionContexts(debuggerModel);
+        }
+      }
+    }
+  }
+
   private clearCacheIfNeeded(): void {
     if (this.#isIgnoreListedURLCache.size > 1024) {
       this.#isIgnoreListedURLCache.clear();
@@ -136,7 +180,12 @@ export class IgnoreListManager implements SDK.TargetManager.SDKModelObserver<SDK
         patterns.push(item.pattern);
       }
     }
-    return debuggerModel.setBlackboxPatterns(patterns);
+    return debuggerModel.setBlackboxPatterns(patterns, this.skipAnonymousScripts);
+  }
+
+  private updateIgnoredExecutionContexts(debuggerModel: SDK.DebuggerModel.DebuggerModel): Promise<boolean> {
+    return debuggerModel.setBlackboxExecutionContexts(
+        this.skipContentScripts ? Array.from(this.#contentScriptExecutionContexts) : []);
   }
 
   private getGeneralRulesForUISourceCode(uiSourceCode: Workspace.UISourceCode.UISourceCode): IgnoreListGeneralRules {
@@ -165,15 +214,38 @@ export class IgnoreListManager implements SDK.TargetManager.SDKModelObserver<SDK
       return true;
     }
     if (!url) {
-      return false;
+      return this.skipAnonymousScripts;
     }
     if (this.#isIgnoreListedURLCache.has(url)) {
       return Boolean(this.#isIgnoreListedURLCache.get(url));
     }
-    const regex = this.getSkipStackFramesPatternSetting().asRegExp();
-    const isIgnoreListed = (regex && regex.test(url)) || false;
+
+    const isIgnoreListed = this.getFirstMatchedRegex(url) !== null;
     this.#isIgnoreListedURLCache.set(url, isIgnoreListed);
     return isIgnoreListed;
+  }
+
+  getFirstMatchedRegex(url: Platform.DevToolsPath.UrlString): RegExp|null {
+    if (!url) {
+      return null;
+    }
+    const regexPatterns = this.getSkipStackFramesPatternSetting().getAsArray();
+    const regexValue = this.urlToRegExpString(url);
+    if (!regexValue) {
+      return null;
+    }
+
+    for (let i = 0; i < regexPatterns.length; ++i) {
+      const item = regexPatterns[i];
+      if (item.disabled || item.disabledForUrl === url) {
+        continue;
+      }
+      const regex = new RegExp(item.pattern);
+      if (regex.test(url)) {
+        return regex;
+      }
+    }
+    return null;
   }
 
   private sourceMapAttached(
@@ -271,6 +343,11 @@ export class IgnoreListManager implements SDK.TargetManager.SDKModelObserver<SDK
     return this.enableIgnoreListing && Common.Settings.Settings.instance().moduleSetting('skip-content-scripts').get();
   }
 
+  get skipAnonymousScripts(): boolean {
+    return this.enableIgnoreListing &&
+        Common.Settings.Settings.instance().moduleSetting('skip-anonymous-scripts').get();
+  }
+
   get automaticallyIgnoreListKnownThirdPartyScripts(): boolean {
     return this.enableIgnoreListing &&
         Common.Settings.Settings.instance().moduleSetting('automatically-ignore-list-known-third-party-scripts').get();
@@ -285,6 +362,17 @@ export class IgnoreListManager implements SDK.TargetManager.SDKModelObserver<SDK
 
   unIgnoreListContentScripts(): void {
     Common.Settings.Settings.instance().moduleSetting('skip-content-scripts').set(false);
+  }
+
+  ignoreListAnonymousScripts(): void {
+    if (!this.enableIgnoreListing) {
+      this.enableIgnoreListing = true;
+    }
+    Common.Settings.Settings.instance().moduleSetting('skip-anonymous-scripts').set(true);
+  }
+
+  unIgnoreListAnonymousScripts(): void {
+    Common.Settings.Settings.instance().moduleSetting('skip-anonymous-scripts').set(false);
   }
 
   ignoreListThirdParty(): void {
@@ -303,10 +391,10 @@ export class IgnoreListManager implements SDK.TargetManager.SDKModelObserver<SDK
     if (!regexValue) {
       return;
     }
-    this.ignoreListRegex(regexValue, url);
+    this.addRegexToIgnoreList(regexValue, url);
   }
 
-  private ignoreListRegex(regexValue: string, disabledForUrl?: Platform.DevToolsPath.UrlString): void {
+  addRegexToIgnoreList(regexValue: string, disabledForUrl?: Platform.DevToolsPath.UrlString): void {
     const regexPatterns = this.getSkipStackFramesPatternSetting().getAsArray();
 
     let found = false;
@@ -337,6 +425,7 @@ export class IgnoreListManager implements SDK.TargetManager.SDKModelObserver<SDK
     }
 
     if (!url) {
+      this.unIgnoreListAnonymousScripts();
       return;
     }
 
@@ -360,7 +449,7 @@ export class IgnoreListManager implements SDK.TargetManager.SDKModelObserver<SDK
           item.disabled = true;
           item.disabledForUrl = url;
         }
-      } catch (e) {
+      } catch {
       }
     }
     this.getSkipStackFramesPatternSetting().setAsArray(regexPatterns);
@@ -382,13 +471,14 @@ export class IgnoreListManager implements SDK.TargetManager.SDKModelObserver<SDK
   private async patternChanged(): Promise<void> {
     this.#isIgnoreListedURLCache.clear();
 
-    const promises: Promise<unknown>[] = [];
+    const promises: Array<Promise<unknown>> = [];
     for (const debuggerModel of SDK.TargetManager.TargetManager.instance().models(SDK.DebuggerModel.DebuggerModel)) {
       promises.push(this.setIgnoreListPatterns(debuggerModel));
       const sourceMapManager = debuggerModel.sourceMapManager();
       for (const script of debuggerModel.scripts()) {
         promises.push(this.updateScriptRanges(script, sourceMapManager.sourceMapForClient(script)));
       }
+      promises.push(this.updateIgnoredExecutionContexts(debuggerModel));
     }
     await Promise.all(promises);
     const listeners = Array.from(this.#listeners);
@@ -443,10 +533,11 @@ export class IgnoreListManager implements SDK.TargetManager.SDKModelObserver<SDK
     const menuItems: Array<{text: string, callback: () => void, jslogContext: string}> = [];
     const canIgnoreList = this.canIgnoreListUISourceCode(uiSourceCode);
     const isIgnoreListed = this.isUserOrSourceMapIgnoreListedUISourceCode(uiSourceCode);
+    const isAnonymous = !this.uiSourceCodeURL(uiSourceCode);
     const {isContentScript, isKnownThirdParty} = this.getGeneralRulesForUISourceCode(uiSourceCode);
 
     if (isIgnoreListed) {
-      if (canIgnoreList || isContentScript || isKnownThirdParty) {
+      if (canIgnoreList || isContentScript || isKnownThirdParty || isAnonymous) {
         menuItems.push({
           text: i18nString(UIStrings.removeFromIgnoreList),
           callback: this.unIgnoreListUISourceCode.bind(this, uiSourceCode),
@@ -459,6 +550,12 @@ export class IgnoreListManager implements SDK.TargetManager.SDKModelObserver<SDK
           text: i18nString(UIStrings.addScriptToIgnoreList),
           callback: this.ignoreListUISourceCode.bind(this, uiSourceCode),
           jslogContext: 'add-script-to-ignorelist',
+        });
+      } else if (isAnonymous) {
+        menuItems.push({
+          text: i18nString(UIStrings.addAllAnonymousScriptsToIgnoreList),
+          callback: this.ignoreListAnonymousScripts.bind(this),
+          jslogContext: 'add-anonymous-scripts-to-ignorelist',
         });
       }
       menuItems.push(...this.getIgnoreListGeneralContextMenuItems({isContentScript, isKnownThirdParty}));
@@ -510,7 +607,7 @@ export class IgnoreListManager implements SDK.TargetManager.SDKModelObserver<SDK
       // as entirely ignored.
       menuItems.push({
         text: i18nString(UIStrings.addDirectoryToIgnoreList),
-        callback: this.ignoreListRegex.bind(this, regexValue),
+        callback: this.addRegexToIgnoreList.bind(this, regexValue),
         jslogContext: 'add-directory-to-ignore-list',
       });
       menuItems.push(...this.getIgnoreListGeneralContextMenuItems(options));

@@ -2,22 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-/* eslint-disable rulesdir/ban_literal_devtools_component_tag_names */
-/* eslint-disable rulesdir/check_component_naming */
-/* eslint-disable rulesdir/custom_element_definitions_location */
-/* eslint-disable rulesdir/inject_checkbox_styles */
-/* eslint-disable rulesdir/lit_html_data_as_type */
-/* eslint-disable rulesdir/lit_html_host_this */
+import './CreditsItem.js';
+import './ModuleConfigurationList.js';
 
 import {html, render} from 'lit-html';
-import {until} from 'lit-html/directives/until.js';  // eslint-disable-line rulesdir/es_modules_import
+import {until} from 'lit-html/directives/until.js';
 
-import {type CreditsItemData} from './CreditsItem.js';
-import './CreditsItem.js';
-import {type ModuleConfigurationsChangedEvent} from './ModuleConfigurationList.js';
-import './ModuleConfigurationList.js';
+import type {CreditsItemData} from './CreditsItem.js';
+import type {Storage} from './DevToolsPluginHost.js';
 import {DEFAULT_MODULE_CONFIGURATIONS} from './ModuleConfiguration.js';
-import {type Storage} from './DevToolsPluginHost.js';
+import type {ModuleConfigurationsChangedEvent} from './ModuleConfigurationList.js';
 
 const CREDITS_ITEMS: CreditsItemData[] = [
   {
@@ -669,7 +663,7 @@ export class ExtensionOptions extends HTMLElement {
   private render(): void {
     const configurations = new Promise<{[key: string]: unknown}>(
         resolve => chrome.storage.local.get(
-            {'moduleConfigurations': DEFAULT_MODULE_CONFIGURATIONS, 'logPluginApiCalls': false}, resolve));
+            {moduleConfigurations: DEFAULT_MODULE_CONFIGURATIONS, logPluginApiCalls: false}, resolve));
     const moduleConfigurationListPromise = configurations.then(
         data => html`
             <devtools-cxx-debugging-module-configuration-list .data=${data} @module-configurations-changed=${
@@ -684,7 +678,7 @@ export class ExtensionOptions extends HTMLElement {
               <input data-input="true" type="checkbox" .checked=${data.logPluginApiCalls} @change=${
             (event: Event): void => {
               const checkbox = event.target as HTMLInputElement;
-              this.updateConfigurations({'logPluginApiCalls': checkbox.checked});
+              this.updateConfigurations({logPluginApiCalls: checkbox.checked});
             }}>
               <span>Log calls to plugin API</span>
             </label>`);
@@ -700,8 +694,7 @@ export class ExtensionOptions extends HTMLElement {
 
     <h2>Credits</h2>
     <div>${CREDITS_ITEMS.map(data => {
-      return html`<devtools-cxx-debugging-credits-item .data=${
-          data as CreditsItemData}></devtools-cxx-debugging-credits-item>`;
+      return html`<devtools-cxx-debugging-credits-item .data=${data}></devtools-cxx-debugging-credits-item>`;
     })}</div>`;
     render(output, this.shadow, {
       eventContext: this,

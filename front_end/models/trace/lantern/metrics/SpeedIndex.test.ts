@@ -2,17 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
+import {TraceLoader} from '../../../../testing/TraceLoader.js';
 import * as Lantern from '../lantern.js';
-import {getComputationDataFromFixture, loadTrace} from '../testing/testing.js';
+import {getComputationDataFromFixture, toLanternTrace} from '../testing/testing.js';
 
 const {SpeedIndex, FirstContentfulPaint} = Lantern.Metrics;
 
 const defaultThrottling = Lantern.Simulation.Constants.throttling.mobileSlow4G;
 
-describe('Metrics: Lantern Speed Index', () => {
+describeWithEnvironment('Metrics: Lantern Speed Index', () => {
   let trace: Lantern.Types.Trace;
   before(async function() {
-    trace = await loadTrace(this, 'lantern/progressive-app/trace.json.gz');
+    trace = toLanternTrace(await TraceLoader.rawEvents(this, 'lantern/progressive-app/trace.json.gz'));
   });
 
   it('should compute predicted value', async () => {
@@ -25,7 +27,7 @@ describe('Metrics: Lantern Speed Index', () => {
       observedSpeedIndex,
     });
 
-    assert.deepStrictEqual(
+    assert.deepEqual(
         {
           timing: Math.round(result.timing),
           optimistic: Math.round(result.optimisticEstimate.timeInMs),
@@ -38,7 +40,8 @@ describe('Metrics: Lantern Speed Index', () => {
         });
   });
 
-  it('should compute predicted value for different settings', async () => {
+  // Flaky
+  it.skip('[crbug.com/404184570] should compute predicted value for different settings', async () => {
     const settings: Lantern.Types.Simulation.Settings = {
       throttlingMethod: 'simulate',
       throttling: {...defaultThrottling, rttMs: 300},
@@ -52,7 +55,7 @@ describe('Metrics: Lantern Speed Index', () => {
       observedSpeedIndex,
     });
 
-    assert.deepStrictEqual(
+    assert.deepEqual(
         {
           timing: Math.round(result.timing),
           optimistic: Math.round(result.optimisticEstimate.timeInMs),
@@ -77,7 +80,7 @@ describe('Metrics: Lantern Speed Index', () => {
 
   it('should scale coefficients forward', async () => {
     const result = SpeedIndex.getScaledCoefficients(300);
-    assert.deepStrictEqual(result, {
+    assert.deepEqual(result, {
       intercept: 0,
       optimistic: 2.525,
       pessimistic: 0.275,

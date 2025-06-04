@@ -2,12 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as LitHtml from '../../lit-html/lit-html.js';
-import * as Coordinator from '../render_coordinator/render_coordinator.js';
+import {html, render} from '../../lit/lit.js';
+import * as RenderCoordinator from '../render_coordinator/render_coordinator.js';
 
 import * as ComponentHelpers from './helpers.js';
-
-const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 const TestElement = class extends HTMLElement {
   renderCount = 0;
@@ -43,13 +41,14 @@ describe('ComponentHelpers', () => {
         const targetDiv = document.createElement('div');
         const callback = sinon.spy();
         function fakeComponentRender(this: HTMLDivElement) {
-          // clang-format off
-          const html = LitHtml.html`
-          <span on-render=${ComponentHelpers.Directives.nodeRenderedCallback(callback)}>
-           hello world
-          </span>`;
-          // clang-format on
-          LitHtml.render(html, targetDiv, {host: this});
+          render(
+              // clang-format off
+              html`
+              <span on-render=${ComponentHelpers.Directives.nodeRenderedCallback(callback)}>
+               hello world
+              </span>`,
+              // clang-format on
+              targetDiv, {host: this});
         }
         fakeComponentRender.call(targetDiv);
         assert.isNotEmpty(targetDiv.innerHTML);
@@ -60,13 +59,14 @@ describe('ComponentHelpers', () => {
         const targetDiv = document.createElement('div');
         const callback = sinon.spy();
         function fakeComponentRender(this: HTMLDivElement, output: string) {
-          // clang-format off
-          const html = LitHtml.html`
-          <span on-render=${ComponentHelpers.Directives.nodeRenderedCallback(callback)}>
-           ${output}
-          </span>`;
-          // clang-format on
-          LitHtml.render(html, targetDiv, {host: this});
+          render(
+              // clang-format off
+              html`
+              <span on-render=${ComponentHelpers.Directives.nodeRenderedCallback(callback)}>
+               ${output}
+              </span>`,
+              // clang-format on
+              targetDiv, {host: this});
         }
         fakeComponentRender.call(targetDiv, 'render one');
         assert.strictEqual(callback.callCount, 1);
@@ -89,7 +89,7 @@ describe('ComponentHelpers', () => {
       void ComponentHelpers.ScheduledRender.scheduleRender(element, element.renderBound);
       void ComponentHelpers.ScheduledRender.scheduleRender(element, element.renderBound);
 
-      await coordinator.done();
+      await RenderCoordinator.done();
       assert.strictEqual(element.renderCount, 1);
     });
 
@@ -101,7 +101,7 @@ describe('ComponentHelpers', () => {
         await element.renderAsyncBound();
       });
 
-      await coordinator.done();
+      await RenderCoordinator.done();
       assert.strictEqual(element.renderAsyncCount, 2);
     });
 
@@ -113,7 +113,7 @@ describe('ComponentHelpers', () => {
         element.renderBound();
       });
 
-      await coordinator.done();
+      await RenderCoordinator.done();
       assert.strictEqual(element.renderCount, 2);
     });
   });

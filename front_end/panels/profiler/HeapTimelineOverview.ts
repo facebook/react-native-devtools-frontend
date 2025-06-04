@@ -7,6 +7,7 @@ import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as PerfUI from '../../ui/legacy/components/perf_ui/perf_ui.js';
 import * as UI from '../../ui/legacy/legacy.js';
+import * as ThemeSupport from '../../ui/legacy/theme_support/theme_support.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 export class HeapTimelineOverview extends Common.ObjectWrapper.eventMixin<EventTypes, typeof UI.Widget.VBox>(
@@ -15,8 +16,8 @@ export class HeapTimelineOverview extends Common.ObjectWrapper.eventMixin<EventT
   overviewContainer: HTMLElement;
   overviewGrid: PerfUI.OverviewGrid.OverviewGrid;
   overviewCanvas: HTMLCanvasElement;
-  windowLeft: number;
-  windowRight: number;
+  windowLeftRatio: number;
+  windowRightRatio: number;
   readonly yScale: SmoothScale;
   readonly xScale: SmoothScale;
   profileSamples: Samples;
@@ -24,7 +25,7 @@ export class HeapTimelineOverview extends Common.ObjectWrapper.eventMixin<EventT
   updateOverviewCanvas?: boolean;
   updateGridTimerId?: number;
   updateTimerId?: number|null;
-  windowWidth?: number;
+  windowWidthRatio?: number;
   constructor() {
     super();
     this.element.id = 'heap-recording-view';
@@ -35,18 +36,19 @@ export class HeapTimelineOverview extends Common.ObjectWrapper.eventMixin<EventT
     this.overviewContainer = this.element.createChild('div', 'heap-overview-container');
     this.overviewGrid = new PerfUI.OverviewGrid.OverviewGrid('heap-recording', this.overviewCalculator);
     this.overviewGrid.element.classList.add('fill');
-    this.overviewCanvas =
-        (this.overviewContainer.createChild('canvas', 'heap-recording-overview-canvas') as HTMLCanvasElement);
+    this.overviewCanvas = this.overviewContainer.createChild('canvas', 'heap-recording-overview-canvas');
     this.overviewContainer.appendChild(this.overviewGrid.element);
-    this.overviewGrid.addEventListener(PerfUI.OverviewGrid.Events.WindowChanged, this.onWindowChanged, this);
+    this.overviewGrid.addEventListener(PerfUI.OverviewGrid.Events.WINDOW_CHANGED, this.onWindowChanged, this);
 
-    this.windowLeft = 0.0;
-    this.windowRight = 1.0;
-    this.overviewGrid.setWindow(this.windowLeft, this.windowRight);
+    this.windowLeftRatio = 0.0;
+    this.windowRightRatio = 1.0;
+    this.overviewGrid.setWindowRatio(this.windowLeftRatio, this.windowRightRatio);
     this.yScale = new SmoothScale();
     this.xScale = new SmoothScale();
 
     this.profileSamples = new Samples();
+
+    ThemeSupport.ThemeSupport.instance().addEventListener(ThemeSupport.ThemeChangeEvent.eventName, () => this.update());
   }
 
   start(): void {
@@ -123,7 +125,7 @@ export class HeapTimelineOverview extends Common.ObjectWrapper.eventMixin<EventT
     if (this.running) {
       context.beginPath();
       context.lineWidth = 2;
-      context.strokeStyle = 'rgba(192, 192, 192, 0.6)';
+      context.strokeStyle = ThemeSupport.ThemeSupport.instance().getComputedValue('--sys-color-neutral-outline');
       const currentX = (Date.now() - startTime) * scaleFactor;
       context.moveTo(currentX, height - 1);
       context.lineTo(currentX, 0);
@@ -147,7 +149,7 @@ export class HeapTimelineOverview extends Common.ObjectWrapper.eventMixin<EventT
       gridY = Math.round(height - gridValue * yScaleFactor - 0.5) + 0.5;
       context.beginPath();
       context.lineWidth = 1;
-      context.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+      context.strokeStyle = ThemeSupport.ThemeSupport.instance().getComputedValue('--sys-color-on-surface-subtle');
       context.moveTo(0, gridY);
       context.lineTo(width, gridY);
       context.stroke();
@@ -161,20 +163,20 @@ export class HeapTimelineOverview extends Common.ObjectWrapper.eventMixin<EventT
 
     context.beginPath();
     context.lineWidth = 2;
-    context.strokeStyle = 'rgba(192, 192, 192, 0.6)';
+    context.strokeStyle = ThemeSupport.ThemeSupport.instance().getComputedValue('--sys-color-neutral-outline');
     aggregateAndCall(topSizes, drawBarCallback);
     context.stroke();
     context.closePath();
 
     context.beginPath();
     context.lineWidth = 2;
-    context.strokeStyle = 'rgba(0, 0, 192, 0.8)';
+    context.strokeStyle = ThemeSupport.ThemeSupport.instance().getComputedValue('--sys-color-primary-bright');
     aggregateAndCall(sizes, drawBarCallback);
     context.stroke();
     context.closePath();
 
     if (gridValue) {
-      const label = Platform.NumberUtilities.bytesToString(gridValue);
+      const label = i18n.ByteUtilities.bytesToString(gridValue);
       const labelPadding = 4;
       const labelX = 0;
       const labelY = gridY - 0.5;
@@ -182,9 +184,10 @@ export class HeapTimelineOverview extends Common.ObjectWrapper.eventMixin<EventT
       context.beginPath();
       context.textBaseline = 'bottom';
       context.font = '10px ' + window.getComputedStyle(this.element, null).getPropertyValue('font-family');
-      context.fillStyle = 'rgba(255, 255, 255, 0.75)';
+      // Background behind text for better contrast. Some opacity so canvas can still bleed through
+      context.fillStyle = ThemeSupport.ThemeSupport.instance().getComputedValue('--color-background-opacity-80');
       context.fillRect(labelX, labelY - gridLabelHeight, labelWidth, gridLabelHeight);
-      context.fillStyle = 'rgb(64, 64, 64)';
+      context.fillStyle = ThemeSupport.ThemeSupport.instance().getComputedValue('--sys-color-on-surface-subtle');
       context.fillText(label, labelX + labelPadding, labelY);
       context.fill();
       context.closePath();
@@ -210,9 +213,9 @@ export class HeapTimelineOverview extends Common.ObjectWrapper.eventMixin<EventT
   }
 
   updateBoundaries(): void {
-    this.windowLeft = this.overviewGrid.windowLeft();
-    this.windowRight = this.overviewGrid.windowRight();
-    this.windowWidth = this.windowRight - this.windowLeft;
+    this.windowLeftRatio = this.overviewGrid.windowLeftRatio();
+    this.windowRightRatio = this.overviewGrid.windowRightRatio();
+    this.windowWidthRatio = this.windowRightRatio - this.windowLeftRatio;
   }
 
   update(): void {
@@ -237,8 +240,8 @@ export class HeapTimelineOverview extends Common.ObjectWrapper.eventMixin<EventT
     const sizes = this.profileSamples.sizes;
     const startTime = timestamps[0];
     const totalTime = this.profileSamples.totalTime;
-    const timeLeft = startTime + totalTime * this.windowLeft;
-    const timeRight = startTime + totalTime * this.windowRight;
+    const timeLeft = startTime + totalTime * this.windowLeftRatio;
+    const timeRight = startTime + totalTime * this.windowRightRatio;
     const minIndex =
         Platform.ArrayUtilities.lowerBound(timestamps, timeLeft, Platform.ArrayUtilities.DEFAULT_COMPARATOR);
     const maxIndex =
@@ -250,12 +253,12 @@ export class HeapTimelineOverview extends Common.ObjectWrapper.eventMixin<EventT
     const minId = minIndex > 0 ? ids[minIndex - 1] : 0;
     const maxId = maxIndex < ids.length ? ids[maxIndex] : Infinity;
 
-    this.dispatchEventToListeners(Events.IdsRangeChanged, {minId, maxId, size});
+    this.dispatchEventToListeners(Events.IDS_RANGE_CHANGED, {minId, maxId, size});
   }
 }
 
 export const enum Events {
-  IdsRangeChanged = 'IdsRangeChanged',
+  IDS_RANGE_CHANGED = 'IdsRangeChanged',
 }
 
 export interface IdsRangeChangedEvent {
@@ -264,9 +267,9 @@ export interface IdsRangeChangedEvent {
   size: number;
 }
 
-export type EventTypes = {
-  [Events.IdsRangeChanged]: IdsRangeChangedEvent,
-};
+export interface EventTypes {
+  [Events.IDS_RANGE_CHANGED]: IdsRangeChangedEvent;
+}
 
 export class SmoothScale {
   lastUpdate: number;
