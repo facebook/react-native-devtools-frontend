@@ -41,6 +41,10 @@ export interface WaitForOptions {
      * @internal
      */
     ignoreSameDocumentNavigation?: boolean;
+    /**
+     * A signal object that allows you to cancel the call.
+     */
+    signal?: AbortSignal;
 }
 /**
  * @public
@@ -249,15 +253,6 @@ export declare abstract class Frame extends EventEmitter<FrameEvents> {
      */
     abstract page(): Page;
     /**
-     * Is `true` if the frame is an out-of-process (OOP) frame. Otherwise,
-     * `false`.
-     *
-     * @deprecated Generally, there should be no difference between local and
-     * out-of-process frames from the Puppeteer API perspective. This is an
-     * implementation detail that should not have been exposed.
-     */
-    abstract isOOPFrame(): boolean;
-    /**
      * Navigates the frame or page to the given `url`.
      *
      * @remarks
@@ -364,11 +359,11 @@ export declare abstract class Frame extends EventEmitter<FrameEvents> {
      *
      * @param selector -
      * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query page for.
+     * to query the page for.
      * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
      * can be passed as-is and a
      * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows quering by
+     * allows querying by
      * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
      * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
      * and
@@ -389,11 +384,11 @@ export declare abstract class Frame extends EventEmitter<FrameEvents> {
      *
      * @param selector -
      * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query page for.
+     * to query the page for.
      * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
      * can be passed as-is and a
      * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows quering by
+     * allows querying by
      * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
      * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
      * and
@@ -412,11 +407,11 @@ export declare abstract class Frame extends EventEmitter<FrameEvents> {
      *
      * @param selector -
      * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query page for.
+     * to query the page for.
      * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
      * can be passed as-is and a
      * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows quering by
+     * allows querying by
      * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
      * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
      * and
@@ -445,11 +440,11 @@ export declare abstract class Frame extends EventEmitter<FrameEvents> {
      *
      * @param selector -
      * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query page for.
+     * to query the page for.
      * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
      * can be passed as-is and a
      * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows quering by
+     * allows querying by
      * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
      * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
      * and
@@ -480,11 +475,11 @@ export declare abstract class Frame extends EventEmitter<FrameEvents> {
      *
      * @param selector -
      * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query page for.
+     * to query the page for.
      * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
      * can be passed as-is and a
      * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows quering by
+     * allows querying by
      * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
      * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
      * and
@@ -560,7 +555,7 @@ export declare abstract class Frame extends EventEmitter<FrameEvents> {
      * await frame.waitForFunction(
      *   selector => !!document.querySelector(selector),
      *   {}, // empty options object
-     *   selector
+     *   selector,
      * );
      * ```
      *
@@ -757,7 +752,7 @@ export declare abstract class Frame extends EventEmitter<FrameEvents> {
      *   frame.click('#connect-bluetooth'),
      * ]);
      * await devicePrompt.select(
-     *   await devicePrompt.waitForDevice(({name}) => name.includes('My Device'))
+     *   await devicePrompt.waitForDevice(({name}) => name.includes('My Device')),
      * );
      * ```
      *

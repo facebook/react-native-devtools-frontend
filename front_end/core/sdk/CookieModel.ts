@@ -9,24 +9,20 @@ import * as Root from '../root/root.js';
 
 import {type Attribute, Cookie} from './Cookie.js';
 import {Events as NetworkManagerEvents, NetworkManager} from './NetworkManager.js';
-import {type Resource} from './Resource.js';
+import type {Resource} from './Resource.js';
 import {Events as ResourceTreeModelEvents, ResourceTreeModel} from './ResourceTreeModel.js';
 import {SDKModel} from './SDKModel.js';
 import {Capability, type Target} from './Target.js';
 
 export class CookieModel extends SDKModel<EventTypes> {
-  readonly #blockedCookies: Map<string, Cookie>;
-  readonly #cookieToBlockedReasons: Map<Cookie, BlockedReason[]>;
-  readonly #refreshThrottler: Common.Throttler.Throttler;
-  #cookies: Map<string, Cookie[]>;
+  readonly #blockedCookies = new Map<string, Cookie>();
+  readonly #cookieToBlockedReasons = new Map<Cookie, BlockedReason[]>();
+  readonly #refreshThrottler = new Common.Throttler.Throttler(300);
+  #cookies = new Map<string, Cookie[]>();
 
   constructor(target: Target) {
     super(target);
 
-    this.#refreshThrottler = new Common.Throttler.Throttler(300);
-    this.#blockedCookies = new Map();
-    this.#cookieToBlockedReasons = new Map();
-    this.#cookies = new Map();
     target.model(ResourceTreeModel)
         ?.addEventListener(ResourceTreeModelEvents.PrimaryPageChanged, this.#onPrimaryPageChanged, this);
     target.model(NetworkManager)
@@ -70,7 +66,7 @@ export class CookieModel extends SDKModel<EventTypes> {
     const updated = this.#isUpdated(newCookies);
     this.#cookies = newCookies;
     if (updated) {
-      this.dispatchEventToListeners(Events.CookieListUpdated);
+      this.dispatchEventToListeners(Events.COOKIE_LIST_UPDATED);
     }
   }
 
@@ -225,7 +221,7 @@ export class CookieModel extends SDKModel<EventTypes> {
   }
 }
 
-SDKModel.register(CookieModel, {capabilities: Capability.Network, autostart: false});
+SDKModel.register(CookieModel, {capabilities: Capability.NETWORK, autostart: false});
 export interface BlockedReason {
   uiString: string;
   attribute: Attribute|null;
@@ -235,9 +231,9 @@ export interface ExemptionReason {
 }
 
 export const enum Events {
-  CookieListUpdated = 'CookieListUpdated',
+  COOKIE_LIST_UPDATED = 'CookieListUpdated',
 }
 
-export type EventTypes = {
-  [Events.CookieListUpdated]: void,
-};
+export interface EventTypes {
+  [Events.COOKIE_LIST_UPDATED]: void;
+}

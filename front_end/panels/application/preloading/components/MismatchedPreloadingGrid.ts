@@ -2,18 +2,21 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../../../ui/legacy/components/data_grid/data_grid.js';
+
 import * as i18n from '../../../../core/i18n/i18n.js';
 import type * as Platform from '../../../../core/platform/platform.js';
-import {assertNotNullOrUndefined} from '../../../../core/platform/platform.js';
 import * as SDK from '../../../../core/sdk/sdk.js';
 import type * as Protocol from '../../../../generated/protocol.js';
 import * as Diff from '../../../../third_party/diff/diff.js';
-import * as DataGrid from '../../../../ui/components/data_grid/data_grid.js';
 import * as LegacyWrapper from '../../../../ui/components/legacy_wrapper/legacy_wrapper.js';
 import type * as UI from '../../../../ui/legacy/legacy.js';
-import * as LitHtml from '../../../../ui/lit-html/lit-html.js';
+import * as Lit from '../../../../ui/lit/lit.js';
 
-import * as PreloadingString from './PreloadingString.js';
+import {capitalizedAction} from './PreloadingString.js';
+
+const {charDiff} = Diff.Diff.DiffWrapper;
+const {render, html, Directives: {styleMap}} = Lit;
 
 const UIStrings = {
   /**
@@ -52,7 +55,7 @@ const UIStrings = {
    *@description Text in grid and details: Preloading failed.
    */
   statusFailure: 'Failure',
-};
+} as const;
 const str_ =
     i18n.i18n.registerUIStrings('panels/application/preloading/components/MismatchedPreloadingGrid.ts', UIStrings);
 export const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -61,30 +64,28 @@ class PreloadingUIUtils {
   static status(status: SDK.PreloadingModel.PreloadingStatus): string {
     // See content/public/browser/preloading.h PreloadingAttemptOutcome.
     switch (status) {
-      case SDK.PreloadingModel.PreloadingStatus.NotTriggered:
+      case SDK.PreloadingModel.PreloadingStatus.NOT_TRIGGERED:
         return i18nString(UIStrings.statusNotTriggered);
-      case SDK.PreloadingModel.PreloadingStatus.Pending:
+      case SDK.PreloadingModel.PreloadingStatus.PENDING:
         return i18nString(UIStrings.statusPending);
-      case SDK.PreloadingModel.PreloadingStatus.Running:
+      case SDK.PreloadingModel.PreloadingStatus.RUNNING:
         return i18nString(UIStrings.statusRunning);
-      case SDK.PreloadingModel.PreloadingStatus.Ready:
+      case SDK.PreloadingModel.PreloadingStatus.READY:
         return i18nString(UIStrings.statusReady);
-      case SDK.PreloadingModel.PreloadingStatus.Success:
+      case SDK.PreloadingModel.PreloadingStatus.SUCCESS:
         return i18nString(UIStrings.statusSuccess);
-      case SDK.PreloadingModel.PreloadingStatus.Failure:
+      case SDK.PreloadingModel.PreloadingStatus.FAILURE:
         return i18nString(UIStrings.statusFailure);
       // NotSupported is used to handle unreachable case. For example,
       // there is no code path for
       // PreloadingTriggeringOutcome::kTriggeredButPending in prefetch,
       // which is mapped to NotSupported. So, we regard it as an
       // internal error.
-      case SDK.PreloadingModel.PreloadingStatus.NotSupported:
+      case SDK.PreloadingModel.PreloadingStatus.NOT_SUPPORTED:
         return i18n.i18n.lockedString('Internal error');
     }
   }
 }
-
-const {render, html} = LitHtml;
 
 export interface MismatchedPreloadingGridRow {
   action: Protocol.Preload.SpeculationAction;
@@ -99,8 +100,6 @@ export interface MismatchedPreloadingGridData {
 
 // Grid component to show prerendering attempts.
 export class MismatchedPreloadingGrid extends LegacyWrapper.LegacyWrapper.WrappableComponent<UI.Widget.VBox> {
-  static readonly litTagName = LitHtml.literal`devtools-resources-mismatched-preloading-grid`;
-
   readonly #shadow = this.attachShadow({mode: 'open'});
   #data: MismatchedPreloadingGridData|null = null;
 
@@ -115,102 +114,68 @@ export class MismatchedPreloadingGrid extends LegacyWrapper.LegacyWrapper.Wrappa
   }
 
   #render(): void {
-    if (this.#data === null) {
+    if (!this.#data) {
       return;
     }
 
-    const reportsGridData: DataGrid.DataGridController.DataGridControllerData = {
-      columns: [
-        {
-          id: 'url',
-          title: i18nString(UIStrings.url),
-          widthWeighting: 40,
-          hideable: false,
-          visible: true,
-          sortable: true,
-        },
-        {
-          id: 'action',
-          title: i18nString(UIStrings.action),
-          widthWeighting: 15,
-          hideable: false,
-          visible: true,
-          sortable: true,
-        },
-        {
-          id: 'status',
-          title: i18nString(UIStrings.status),
-          widthWeighting: 15,
-          hideable: false,
-          visible: true,
-          sortable: true,
-        },
-      ],
-      rows: this.#buildReportRows(),
-      striped: true,
-    };
+    const {pageURL} = this.#data;
 
-    // Disabled until https://crbug.com/1079231 is fixed.
-    // clang-format off
-    render(html`
-      <${DataGrid.DataGridController.DataGridController.litTagName} .data=${
-        reportsGridData as DataGrid.DataGridController.DataGridControllerData}>
-      </${DataGrid.DataGridController.DataGridController.litTagName}>
-    `, this.#shadow, {host: this});
-    // clang-format on
-  }
-
-  #buildReportRows(): DataGrid.DataGridUtils.Row[] {
-    function urlRenderer(url: string, pageURL: string): LitHtml.TemplateResult {
-      function span(
-          additionalProps: {'color'?: string, 'text-decoration'?: string}, s: string): LitHtml.TemplateResult {
-        // Don't insert spaces to prevent spaces for inline blocks.
-        // clang-format off
-        return LitHtml.html`<span style=${LitHtml.Directives.styleMap(additionalProps)}>${s}</span>`;
-        // clang-format on
-      }
-
-      const diffs = Diff.Diff.DiffWrapper.charDiff(url, pageURL);
-      const contents = diffs.map(diffOp => {
-        const s = diffOp[1];
-        switch (diffOp[0]) {
-          case Diff.Diff.Operation.Equal:
-            return span({}, s);
-          case Diff.Diff.Operation.Insert:
-            return span({'color': 'var(--sys-color-green)', 'text-decoration': 'line-through'}, s);
-          case Diff.Diff.Operation.Delete:
-            return span({'color': 'var(--sys-color-error)'}, s);
-          case Diff.Diff.Operation.Edit:
-            return span({'color': 'var(--sys-color-green)', 'text-decoration': 'line-through'}, s);
-          default:
-            throw new Error('unreachable');
-        }
-      }, LitHtml.nothing as unknown as LitHtml.TemplateResult);
-
-      return LitHtml.html`<div>${contents}</div>`;
-    }
-
-    assertNotNullOrUndefined(this.#data);
-    const pageURL = this.#data.pageURL;
-
-    // Sort in descending order by diffScore, i.e. most similar one first.
-    return this.#data.rows
-        .map(row => ({
-               row,
-               diffScore: Diff.Diff.DiffWrapper.characterScore(row.url, pageURL),
-             }))
-        .sort((a, b) => b.diffScore - a.diffScore)
-        .map(({row}) => ({
-               cells: [
-                 {
-                   columnId: 'url',
-                   value: row.url,
-                   renderer: () => urlRenderer(row.url, pageURL),
-                 },
-                 {columnId: 'action', value: PreloadingString.capitalizedAction(row.action)},
-                 {columnId: 'status', value: PreloadingUIUtils.status(row.status)},
-               ],
-             }));
+    render(
+        html`<devtools-data-grid striped inline>
+          <table>
+            <tr>
+              <th id="url" weight="40" sortable>
+                ${i18nString(UIStrings.url)}
+              </th>
+              <th id="action" weight="15" sortable>
+                ${i18nString(UIStrings.action)}
+              </th>
+              <th id="status" weight="15" sortable>
+                ${i18nString(UIStrings.status)}
+              </th>
+            </tr>
+            ${
+            this.#data.rows
+                .map(row => ({
+                       row,
+                       diffScore: Diff.Diff.DiffWrapper.characterScore(row.url, pageURL),
+                     }))
+                .sort((a, b) => b.diffScore - a.diffScore)
+                .map(({row}) => html`
+                <tr>
+                  <td>
+                    <div>${charDiff(row.url, pageURL).map(diffOp => {
+                       const s = diffOp[1];
+                       switch (diffOp[0]) {
+                         case Diff.Diff.Operation.Equal:
+                           return html`<span>${s}</span>`;
+                         case Diff.Diff.Operation.Insert:
+                           return html`<span style=${styleMap({
+                             color: 'var(--sys-color-green)',
+                             'text-decoration': 'line-through'
+                           })}
+                               >${s}</span>`;
+                         case Diff.Diff.Operation.Delete:
+                           return html`<span style=${styleMap({color: 'var(--sys-color-error)'})}>${s}</span>`;
+                         case Diff.Diff.Operation.Edit:
+                           return html`<span style=${styleMap({
+                             color: 'var(--sys-color-green',
+                             'text-decoration': 'line-through'
+                           })}
+                            >${s}</span>`;
+                         default:
+                           throw new Error('unreachable');
+                       }
+                     })}
+                    </div>
+                  </td>
+                  <td>${capitalizedAction(row.action)}</td>
+                  <td>${PreloadingUIUtils.status(row.status)}</td>
+                </tr>
+              `)}
+          </table>
+        </devtools-data-grid>`,
+        this.#shadow, {host: this});
   }
 }
 

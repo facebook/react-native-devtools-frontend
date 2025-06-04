@@ -40,7 +40,7 @@ import * as i18n from '../i18n/i18n.js';
 import * as Platform from '../platform/platform.js';
 import * as Root from '../root/root.js';
 
-import {type PageResourceLoadInitiator} from './PageResourceLoader.js';
+import type {PageResourceLoadInitiator} from './PageResourceLoader.js';
 import {type GetPropertiesResult, type RemoteObject, RemoteObjectProperty, ScopeRef} from './RemoteObject.js';
 import {Events as ResourceTreeModelEvents, ResourceTreeModel} from './ResourceTreeModel.js';
 import {type EvaluationOptions, type EvaluationResult, type ExecutionContext, RuntimeModel} from './RuntimeModel.js';
@@ -98,7 +98,7 @@ const UIStrings = {
    *@description Text in Scope Chain Sidebar Pane of the Sources panel
    */
   returnValue: 'Return value',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('core/sdk/DebuggerModel.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -151,40 +151,47 @@ export function sortAndMergeRanges(locationRanges: Protocol.Debugger.LocationRan
 }
 
 export const enum StepMode {
-  StepInto = 'StepInto',
-  StepOut = 'StepOut',
-  StepOver = 'StepOver',
+  STEP_INTO = 'StepInto',
+  STEP_OUT = 'StepOut',
+  STEP_OVER = 'StepOver',
 }
+
+export const WASM_SYMBOLS_PRIORITY = [
+  Protocol.Debugger.DebugSymbolsType.ExternalDWARF,
+  Protocol.Debugger.DebugSymbolsType.EmbeddedDWARF,
+  Protocol.Debugger.DebugSymbolsType.SourceMap,
+];
 
 export class DebuggerModel extends SDKModel<EventTypes> {
   readonly agent: ProtocolProxyApi.DebuggerApi;
   runtimeModelInternal: RuntimeModel;
   readonly #sourceMapManagerInternal: SourceMapManager<Script>;
-  #debuggerPausedDetailsInternal: DebuggerPausedDetails|null;
-  readonly #scriptsInternal: Map<string, Script>;
-  readonly #scriptsBySourceURL: Map<string, Script[]>;
-  #discardableScripts: Script[];
-  continueToLocationCallback: ((arg0: DebuggerPausedDetails) => boolean)|null;
-  #selectedCallFrameInternal: CallFrame|null;
-  #debuggerEnabledInternal: boolean;
-  #debuggerId: string|null;
-  #skipAllPausesTimeout: number;
-  #beforePausedCallback: ((arg0: DebuggerPausedDetails, stepOver: Location|null) => Promise<boolean>)|null;
+  #debuggerPausedDetailsInternal: DebuggerPausedDetails|null = null;
+  readonly #scriptsInternal = new Map<string, Script>();
+  readonly #scriptsBySourceURL = new Map<string, Script[]>();
+  #discardableScripts: Script[] = [];
+  continueToLocationCallback: ((arg0: DebuggerPausedDetails) => boolean)|null = null;
+  #selectedCallFrameInternal: CallFrame|null = null;
+  #debuggerEnabledInternal = false;
+  #debuggerId: string|null = null;
+  #skipAllPausesTimeout = 0;
+  #beforePausedCallback: ((arg0: DebuggerPausedDetails, stepOver: Location|null) => Promise<boolean>)|null = null;
   #computeAutoStepRangesCallback: ((arg0: StepMode, arg1: CallFrame) => Promise<Array<{
                                      start: Location,
                                      end: Location,
-                                   }>>)|null;
-  #expandCallFramesCallback: ((arg0: Array<CallFrame>) => Promise<Array<CallFrame>>)|null;
-  evaluateOnCallFrameCallback: ((arg0: CallFrame, arg1: EvaluationOptions) => Promise<EvaluationResult|null>)|null;
-  #synchronizeBreakpointsCallback: ((script: Script) => Promise<void>)|null;
+                                   }>>)|null = null;
+  #expandCallFramesCallback: ((arg0: CallFrame[]) => Promise<CallFrame[]>)|null = null;
+  evaluateOnCallFrameCallback:
+      ((arg0: CallFrame, arg1: EvaluationOptions) => Promise<EvaluationResult|null>)|null = null;
+  #synchronizeBreakpointsCallback: ((script: Script) => Promise<void>)|null = null;
   // We need to be able to register listeners for individual breakpoints. As such, we dispatch
   // on breakpoint ids, which are not statically known. The event #payload will always be a `Location`.
   readonly #breakpointResolvedEventTarget =
       new Common.ObjectWrapper.ObjectWrapper<{[breakpointId: string]: Location}>();
   // When stepping over with autostepping enabled, the context denotes the function to which autostepping is restricted
   // to by way of its functionLocation (as per Debugger.CallFrame).
-  #autoSteppingContext: Location|null;
-  #isPausingInternal: boolean;
+  #autoSteppingContext: Location|null = null;
+  #isPausingInternal = false;
 
   constructor(target: Target) {
     super(target);
@@ -195,24 +202,6 @@ export class DebuggerModel extends SDKModel<EventTypes> {
 
     this.#sourceMapManagerInternal = new SourceMapManager(target);
 
-    this.#debuggerPausedDetailsInternal = null;
-    this.#scriptsInternal = new Map();
-    this.#scriptsBySourceURL = new Map();
-    this.#discardableScripts = [];
-    this.continueToLocationCallback = null;
-    this.#selectedCallFrameInternal = null;
-    this.#debuggerEnabledInternal = false;
-    this.#debuggerId = null;
-    this.#skipAllPausesTimeout = 0;
-    this.#beforePausedCallback = null;
-    this.#computeAutoStepRangesCallback = null;
-    this.#expandCallFramesCallback = null;
-    this.evaluateOnCallFrameCallback = null;
-    this.#synchronizeBreakpointsCallback = null;
-
-    this.#autoSteppingContext = null;
-
-    this.#isPausingInternal = false;
     Common.Settings.Settings.instance()
         .moduleSetting('pause-on-exception-enabled')
         .addChangeListener(this.pauseOnExceptionStateChanged, this);
@@ -243,6 +232,39 @@ export class DebuggerModel extends SDKModel<EventTypes> {
     if (resourceTreeModel) {
       resourceTreeModel.addEventListener(ResourceTreeModelEvents.FrameNavigated, this.onFrameNavigated, this);
     }
+  }
+
+  static selectSymbolSource(debugSymbols: Protocol.Debugger.DebugSymbols[]|null): Protocol.Debugger.DebugSymbols|null {
+    if (!debugSymbols || debugSymbols.length === 0) {
+      return null;
+    }
+
+    // Provides backwards compatibility to previous CDP version on Protocol.Debugger.DebugSymbols.
+    // TODO(crbug.com/369515221): Remove extra code as soon as old v8 versions used in Node are no longer supported.
+    if ('type' in debugSymbols) {
+      if (debugSymbols.type === 'None') {
+        return null;
+      }
+      return debugSymbols as Protocol.Debugger.DebugSymbols;
+    }
+
+    let debugSymbolsSource = null;
+    const symbolTypes = new Map(debugSymbols.map(symbol => [symbol.type, symbol]));
+    for (const symbol of WASM_SYMBOLS_PRIORITY) {
+      if (symbolTypes.has(symbol)) {
+        debugSymbolsSource = symbolTypes.get(symbol) || null;
+        break;
+      }
+    }
+
+    console.assert(
+        debugSymbolsSource !== null,
+        'Unknown symbol types. Front-end and back-end should be kept in sync regarding Protocol.Debugger.DebugSymbolTypes');
+    if (debugSymbolsSource && debugSymbols.length > 1) {
+      Common.Console.Console.instance().warn(
+          `Multiple debug symbols for script were found. Using ${debugSymbolsSource.type}`);
+    }
+    return debugSymbolsSource;
   }
 
   sourceMapManager(): SourceMapManager<Script> {
@@ -293,7 +315,7 @@ export class DebuggerModel extends SDKModel<EventTypes> {
     const maxScriptsCacheSize = isRemoteFrontend ? 10e6 : 100e6;
     const enablePromise = this.agent.invoke_enable({maxScriptsCacheSize});
     void enablePromise.then(this.registerDebugger.bind(this));
-    return enablePromise;
+    return await enablePromise;
   }
 
   private onFrameNavigated(): void {
@@ -401,8 +423,8 @@ export class DebuggerModel extends SDKModel<EventTypes> {
         {active: Common.Settings.Settings.instance().moduleSetting('breakpoints-active').get()});
   }
 
-  setComputeAutoStepRangesCallback(callback: ((arg0: StepMode, arg1: CallFrame) => Promise<LocationRange[]>)|
-                                   null): void {
+  setComputeAutoStepRangesCallback(callback: ((arg0: StepMode, arg1: CallFrame) => Promise<LocationRange[]>)|null):
+      void {
     this.#computeAutoStepRangesCallback = callback;
   }
 
@@ -422,18 +444,18 @@ export class DebuggerModel extends SDKModel<EventTypes> {
   }
 
   async stepInto(): Promise<void> {
-    const skipList = await this.computeAutoStepSkipList(StepMode.StepInto);
+    const skipList = await this.computeAutoStepSkipList(StepMode.STEP_INTO);
     void this.agent.invoke_stepInto({breakOnAsyncCall: false, skipList});
   }
 
   async stepOver(): Promise<void> {
     this.#autoSteppingContext = this.#debuggerPausedDetailsInternal?.callFrames[0]?.functionLocation() ?? null;
-    const skipList = await this.computeAutoStepSkipList(StepMode.StepOver);
+    const skipList = await this.computeAutoStepSkipList(StepMode.STEP_OVER);
     void this.agent.invoke_stepOver({skipList});
   }
 
   async stepOut(): Promise<void> {
-    const skipList = await this.computeAutoStepSkipList(StepMode.StepOut);
+    const skipList = await this.computeAutoStepSkipList(StepMode.STEP_OUT);
     if (skipList.length !== 0) {
       void this.agent.invoke_stepOver({skipList});
     } else {
@@ -442,7 +464,7 @@ export class DebuggerModel extends SDKModel<EventTypes> {
   }
 
   scheduleStepIntoAsync(): void {
-    void this.computeAutoStepSkipList(StepMode.StepInto).then(skipList => {
+    void this.computeAutoStepSkipList(StepMode.STEP_INTO).then(skipList => {
       void this.agent.invoke_stepInto({breakOnAsyncCall: true, skipList});
     });
   }
@@ -463,7 +485,7 @@ export class DebuggerModel extends SDKModel<EventTypes> {
       condition?: BackendCondition): Promise<SetBreakpointResult> {
     // Convert file url to node-js path.
     let urlRegex;
-    if (this.target().type() === Type.Node && Common.ParsedURL.schemeIs(url, 'file:')) {
+    if (this.target().type() === Type.NODE && Common.ParsedURL.schemeIs(url, 'file:')) {
       const platformPath = Common.ParsedURL.ParsedURL.urlToRawPathString(url, Host.Platform.isWin());
       urlRegex =
           `${Platform.StringUtilities.escapeForRegExp(platformPath)}|${Platform.StringUtilities.escapeForRegExp(url)}`;
@@ -483,11 +505,11 @@ export class DebuggerModel extends SDKModel<EventTypes> {
     }
     columnNumber = Math.max(columnNumber || 0, minColumnNumber);
     const response = await this.agent.invoke_setBreakpointByUrl({
-      lineNumber: lineNumber,
+      lineNumber,
       url: urlRegex ? undefined : url,
-      urlRegex: urlRegex,
-      columnNumber: columnNumber,
-      condition: condition,
+      urlRegex,
+      columnNumber,
+      condition,
     });
     if (response.getError()) {
       return {locations: [], breakpointId: null};
@@ -502,8 +524,7 @@ export class DebuggerModel extends SDKModel<EventTypes> {
   async setBreakpointInAnonymousScript(
       scriptHash: string, lineNumber: number, columnNumber?: number,
       condition?: BackendCondition): Promise<SetBreakpointResult> {
-    const response = await this.agent.invoke_setBreakpointByUrl(
-        {lineNumber: lineNumber, scriptHash: scriptHash, columnNumber: columnNumber, condition: condition});
+    const response = await this.agent.invoke_setBreakpointByUrl({lineNumber, scriptHash, columnNumber, condition});
     if (response.getError()) {
       return {locations: [], breakpointId: null};
     }
@@ -523,7 +544,7 @@ export class DebuggerModel extends SDKModel<EventTypes> {
     const response = await this.agent.invoke_getPossibleBreakpoints({
       start: startLocation.payload(),
       end: endLocation ? endLocation.payload() : undefined,
-      restrictToFunction: restrictToFunction,
+      restrictToFunction,
     });
     if (response.getError() || !response.locations) {
       return [];
@@ -613,19 +634,17 @@ export class DebuggerModel extends SDKModel<EventTypes> {
     this.setSelectedCallFrame(null);
   }
 
-  setBeforePausedCallback(callback:
-                              ((arg0: DebuggerPausedDetails, autoSteppingContext: Location|null) => Promise<boolean>)|
-                          null): void {
+  setBeforePausedCallback(
+      callback: ((arg0: DebuggerPausedDetails, autoSteppingContext: Location|null) => Promise<boolean>)|null): void {
     this.#beforePausedCallback = callback;
   }
 
-  setExpandCallFramesCallback(callback: ((arg0: Array<CallFrame>) => Promise<Array<CallFrame>>)|null): void {
+  setExpandCallFramesCallback(callback: ((arg0: CallFrame[]) => Promise<CallFrame[]>)|null): void {
     this.#expandCallFramesCallback = callback;
   }
 
-  setEvaluateOnCallFrameCallback(callback:
-                                     ((arg0: CallFrame, arg1: EvaluationOptions) => Promise<EvaluationResult|null>)|
-                                 null): void {
+  setEvaluateOnCallFrameCallback(
+      callback: ((arg0: CallFrame, arg1: EvaluationOptions) => Promise<EvaluationResult|null>)|null): void {
     this.evaluateOnCallFrameCallback = callback;
   }
 
@@ -709,7 +728,7 @@ export class DebuggerModel extends SDKModel<EventTypes> {
       executionContextId: number, hash: string, executionContextAuxData: any, isLiveEdit: boolean,
       sourceMapURL: string|undefined, hasSourceURLComment: boolean, hasSyntaxError: boolean, length: number,
       isModule: boolean|null, originStackTrace: Protocol.Runtime.StackTrace|null, codeOffset: number|null,
-      scriptLanguage: string|null, debugSymbols: Protocol.Debugger.DebugSymbols|null,
+      scriptLanguage: string|null, debugSymbols: Protocol.Debugger.DebugSymbols[]|null,
       embedderName: Platform.DevToolsPath.UrlString|null): Script {
     const knownScript = this.#scriptsInternal.get(scriptId);
     if (knownScript) {
@@ -719,10 +738,12 @@ export class DebuggerModel extends SDKModel<EventTypes> {
     if (executionContextAuxData && ('isDefault' in executionContextAuxData)) {
       isContentScript = !executionContextAuxData['isDefault'];
     }
+
+    const selectedDebugSymbol = DebuggerModel.selectSymbolSource(debugSymbols);
     const script = new Script(
         this, scriptId, sourceURL, startLine, startColumn, endLine, endColumn, executionContextId, hash,
         isContentScript, isLiveEdit, sourceMapURL, hasSourceURLComment, length, isModule, originStackTrace, codeOffset,
-        scriptLanguage, debugSymbols, embedderName);
+        scriptLanguage, selectedDebugSymbol, embedderName);
     this.registerScript(script);
     this.dispatchEventToListeners(Events.ParsedScriptSource, script);
 
@@ -858,7 +879,7 @@ export class DebuggerModel extends SDKModel<EventTypes> {
     if (!callFrame) {
       throw new Error('No call frame selected');
     }
-    return callFrame.evaluate(options);
+    return await callFrame.evaluate(options);
   }
 
   functionDetailsPromise(remoteObject: RemoteObject): Promise<FunctionDetails|null> {
@@ -914,14 +935,19 @@ export class DebuggerModel extends SDKModel<EventTypes> {
     this.#breakpointResolvedEventTarget.removeEventListener(breakpointId, listener, thisObject);
   }
 
-  async setBlackboxPatterns(patterns: string[]): Promise<boolean> {
-    const response = await this.agent.invoke_setBlackboxPatterns({patterns});
+  async setBlackboxPatterns(patterns: string[], skipAnonymous: boolean): Promise<boolean> {
+    const response = await this.agent.invoke_setBlackboxPatterns({patterns, skipAnonymous});
+    const error = response.getError();
+    return !error;
+  }
+
+  async setBlackboxExecutionContexts(uniqueIds: string[]): Promise<boolean> {
+    const response = await this.agent.invoke_setBlackboxExecutionContexts({uniqueIds});
     const error = response.getError();
     return !error;
   }
 
   override dispose(): void {
-    this.#sourceMapManagerInternal.dispose();
     if (this.#debuggerId) {
       debuggerIdToModel.delete(this.#debuggerId);
     }
@@ -946,10 +972,6 @@ export class DebuggerModel extends SDKModel<EventTypes> {
 
   private static shouldResyncDebuggerId = false;
 
-  getContinueToLocationCallback(): ((arg0: DebuggerPausedDetails) => boolean)|null {
-    return this.continueToLocationCallback;
-  }
-
   getEvaluateOnCallFrameCallback():
       ((arg0: CallFrame, arg1: EvaluationOptions) => Promise<EvaluationResult|null>)|null {
     return this.evaluateOnCallFrameCallback;
@@ -962,13 +984,16 @@ const debuggerIdToModel = new Map<string, DebuggerModel>();
  * Keep these in sync with WebCore::V8Debugger
  */
 export enum PauseOnExceptionsState {
+  /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   DontPauseOnExceptions = 'none',
   PauseOnAllExceptions = 'all',
   PauseOnCaughtExceptions = 'caught',
   PauseOnUncaughtExceptions = 'uncaught',
+  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
 export enum Events {
+  /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   DebuggerWasEnabled = 'DebuggerWasEnabled',
   DebuggerWasDisabled = 'DebuggerWasDisabled',
   DebuggerPaused = 'DebuggerPaused',
@@ -980,24 +1005,25 @@ export enum Events {
   CallFrameSelected = 'CallFrameSelected',
   DebuggerIsReadyToPause = 'DebuggerIsReadyToPause',
   ScriptSourceWasEdited = 'ScriptSourceWasEdited',
+  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
-export type EventTypes = {
-  [Events.DebuggerWasEnabled]: DebuggerModel,
-  [Events.DebuggerWasDisabled]: DebuggerModel,
-  [Events.DebuggerPaused]: DebuggerModel,
-  [Events.DebuggerResumed]: DebuggerModel,
-  [Events.ParsedScriptSource]: Script,
-  [Events.DiscardedAnonymousScriptSource]: Script,
-  [Events.GlobalObjectCleared]: DebuggerModel,
-  [Events.CallFrameSelected]: DebuggerModel,
-  [Events.DebuggerIsReadyToPause]: DebuggerModel,
-  [Events.DebugInfoAttached]: Script,
+export interface EventTypes {
+  [Events.DebuggerWasEnabled]: DebuggerModel;
+  [Events.DebuggerWasDisabled]: DebuggerModel;
+  [Events.DebuggerPaused]: DebuggerModel;
+  [Events.DebuggerResumed]: DebuggerModel;
+  [Events.ParsedScriptSource]: Script;
+  [Events.DiscardedAnonymousScriptSource]: Script;
+  [Events.GlobalObjectCleared]: DebuggerModel;
+  [Events.CallFrameSelected]: DebuggerModel;
+  [Events.DebuggerIsReadyToPause]: DebuggerModel;
+  [Events.DebugInfoAttached]: Script;
   [Events.ScriptSourceWasEdited]: {
     script: Script,
     status: Protocol.Debugger.SetScriptSourceResponseStatus,
-  },
-};
+  };
+}
 
 class DebuggerDispatcher implements ProtocolProxyApi.DebuggerDispatcher {
   #debuggerModel: DebuggerModel;
@@ -1202,7 +1228,7 @@ export class CallFrame {
     this.#scopeChainInternal = [];
     this.#localScopeInternal = null;
     this.inlineFrameIndex = inlineFrameIndex || 0;
-    this.functionName = functionName || payload.functionName;
+    this.functionName = functionName ?? payload.functionName;
     this.missingDebugInfoDetails = null;
     this.canBeRestarted = Boolean(payload.canBeRestarted);
     this.exception = exception;
@@ -1236,7 +1262,7 @@ export class CallFrame {
   }
 
   createVirtualCallFrame(inlineFrameIndex: number, name: string): CallFrame {
-    return new CallFrame(this.debuggerModel, this.script, this.payload, inlineFrameIndex, name);
+    return new CallFrame(this.debuggerModel, this.script, this.payload, inlineFrameIndex, name, this.exception);
   }
 
   get id(): Protocol.Debugger.CallFrameId {
@@ -1265,7 +1291,7 @@ export class CallFrame {
     }
 
     const evaluateResponse = await this.debuggerModel.agent.invoke_evaluateOnCallFrame(
-        {callFrameId: this.id, expression: expression, silent: true, objectGroup: 'backtrace'});
+        {callFrameId: this.id, expression, silent: true, objectGroup: 'backtrace'});
     if (evaluateResponse.getError() || evaluateResponse.exceptionDetails) {
       return null;
     }
@@ -1310,7 +1336,7 @@ export class CallFrame {
     });
     const error = response.getError();
     if (error) {
-      return {error: error};
+      return {error};
     }
     return {object: runtimeModel.createRemoteObject(response.result), exceptionDetails: response.exceptionDetails};
   }

@@ -94,7 +94,7 @@ const UIStrings = {
    *@description Title of the keybind category 'Changes' in Settings' Shortcuts pannel.
    */
   changes: 'Changes',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/ActionRegistration.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -142,7 +142,7 @@ export class Action extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
     }
 
     this.enabledInternal = enabled;
-    this.dispatchEventToListeners(Events.Enabled, enabled);
+    this.dispatchEventToListeners(Events.ENABLED, enabled);
   }
 
   enabled(): boolean {
@@ -193,14 +193,14 @@ export class Action extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
     }
 
     this.toggledInternal = toggled;
-    this.dispatchEventToListeners(Events.Toggled, toggled);
+    this.dispatchEventToListeners(Events.TOGGLED, toggled);
   }
 
-  options(): undefined|Array<ExtensionOption> {
+  options(): undefined|ExtensionOption[] {
     return this.actionRegistration.options;
   }
 
-  contextTypes(): undefined|Array<Function> {
+  contextTypes(): undefined|Array<Platform.Constructor.Constructor<unknown>> {
     if (this.actionRegistration.contextTypes) {
       return this.actionRegistration.contextTypes();
     }
@@ -211,7 +211,7 @@ export class Action extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
     return Boolean(this.actionRegistration.loadActionDelegate);
   }
 
-  bindings(): Array<Binding>|undefined {
+  bindings(): Binding[]|undefined {
     return this.actionRegistration.bindings;
   }
 
@@ -249,7 +249,7 @@ export function reset(): void {
   registeredActions.clear();
 }
 
-export function getRegisteredActionExtensions(): Array<Action> {
+export function getRegisteredActionExtensions(): Action[] {
   return Array.from(registeredActions.values())
       .filter(action => {
         const settingName = action.setting();
@@ -263,13 +263,10 @@ export function getRegisteredActionExtensions(): Array<Action> {
           }
         }
 
-        return Root.Runtime.Runtime.isDescriptorEnabled(
-            {
-              experiment: action.experiment(),
-              condition: action.condition(),
-            },
-            Common.Settings.Settings.instance().getHostConfig(),
-        );
+        return Root.Runtime.Runtime.isDescriptorEnabled({
+          experiment: action.experiment(),
+          condition: action.condition(),
+        });
       })
       .sort((firstAction, secondAction) => {
         const order1 = firstAction.order() || 0;
@@ -283,22 +280,22 @@ export function maybeRemoveActionExtension(actionId: string): boolean {
 }
 
 export const enum Platforms {
-  All = 'All platforms',
-  Mac = 'mac',
-  WindowsLinux = 'windows,linux',
-  Android = 'Android',
-  Windows = 'windows',
+  ALL = 'All platforms',
+  MAC = 'mac',
+  WINDOWS_LINUX = 'windows,linux',
+  ANDROID = 'Android',
+  WINDOWS = 'windows',
 }
 
 export const enum Events {
-  Enabled = 'Enabled',
-  Toggled = 'Toggled',
+  ENABLED = 'Enabled',
+  TOGGLED = 'Toggled',
 }
 
-export type EventTypes = {
-  [Events.Enabled]: boolean,
-  [Events.Toggled]: boolean,
-};
+export interface EventTypes {
+  [Events.ENABLED]: boolean;
+  [Events.TOGGLED]: boolean;
+}
 
 export const enum ActionCategory {
   NONE = '',  // `NONE` must be a falsy value. Legacy code uses if-checks for the category.
@@ -419,7 +416,7 @@ export interface ExtensionOption {
 export interface Binding {
   platform?: Platforms;
   shortcut: string;
-  keybindSets?: Array<KeybindSet>;
+  keybindSets?: KeybindSet[];
 }
 
 /**
@@ -523,11 +520,11 @@ export interface ActionRegistration {
    * });
    * ```
    */
-  contextTypes?: () => Array<Function>;
+  contextTypes?: () => Array<Platform.Constructor.Constructor<unknown>>;
   /**
    * The descriptions for each of the two states in which a toggleable action can be.
    */
-  options?: Array<ExtensionOption>;
+  options?: ExtensionOption[];
   /**
    * The description of the variables (e.g. platform, keys and keybind sets) under which a keyboard shortcut triggers the action.
    * If a keybind must be available on all platforms, its 'platform' property must be undefined. The same applies to keybind sets
@@ -536,7 +533,7 @@ export interface ActionRegistration {
    * Keybinds also depend on the context types of their corresponding action, and so they will only be available when such context types
    * are flavors of the current appliaction context.
    */
-  bindings?: Array<Binding>;
+  bindings?: Binding[];
   /**
    * The name of the experiment an action is associated with. Enabling and disabling the declared
    * experiment will enable and disable the action respectively.

@@ -4,25 +4,40 @@
 import {assert} from 'chai';
 import type * as puppeteer from 'puppeteer-core';
 
-import {AsyncScope} from '../../shared/async-scope.js';
+import {AsyncScope} from '../../conductor/async-scope.js';
+import type {DevToolsPage} from '../../e2e_non_hosted/shared/frontend-helper.js';
+import type {InspectedPage} from '../../e2e_non_hosted/shared/target-helper.js';
 import {
   $,
   $$,
   click,
   clickElement,
   clickMoreTabsButton,
+  drainFrontendTaskQueue,
   getBrowserAndPages,
   getTextContent,
-  goToResource,
   pressKey,
   step,
   summonSearchBox,
-  timeout,
   typeText,
   waitFor,
   waitForAria,
   waitForFunction,
+  waitForNone,
+  waitForVisible,
 } from '../../shared/helper.js';
+import {getBrowserAndPagesWrappers} from '../../shared/non_hosted_wrappers.js';
+
+import {openSubMenu} from './context-menu-helpers.js';
+import {
+  expectVeEvents,
+  veChange,
+  veClick,
+  veImpression,
+  veImpressionForElementsPanel,
+  veImpressionsUnder,
+  veKeyDown,
+} from './visual-logging-helpers.js';
 
 const SELECTED_TREE_ELEMENT_SELECTOR = '.selected[role="treeitem"]';
 const CSS_PROPERTY_NAME_SELECTOR = '.webkit-css-property';
@@ -34,7 +49,6 @@ const CSS_STYLE_RULE_SELECTOR = '[aria-label*="css selector"]';
 const COMPUTED_PROPERTY_SELECTOR = 'devtools-computed-style-property';
 const COMPUTED_STYLES_PANEL_SELECTOR = '[aria-label="Computed panel"]';
 const COMPUTED_STYLES_SHOW_ALL_SELECTOR = '[title="Show all"]';
-const COMPUTED_STYLES_GROUP_SELECTOR = '[title="Group"]';
 export const ELEMENTS_PANEL_SELECTOR = '.panel[aria-label="elements"]';
 const FONT_EDITOR_SELECTOR = '[aria-label="Font Editor"]';
 const HIDDEN_FONT_EDITOR_SELECTOR = '.font-toolbar-hidden';
@@ -54,6 +68,7 @@ export const STYLE_PROPERTIES_SELECTOR = '.tree-outline-disclosure [role="treeit
 const CSS_AUTHORING_HINTS_ICON_SELECTOR = '.hint';
 export const SEARCH_BOX_SELECTOR = '.search-bar';
 const SEARCH_RESULTS_MATCHES = '.search-results-matches';
+export const EMULATE_FOCUSED_PAGE = 'Emulate a focused page';
 
 export const openLayoutPane = async () => {
   await step('Open Layout pane', async () => {
@@ -62,9 +77,28 @@ export const openLayoutPane = async () => {
     const panel = await waitFor(LAYOUT_PANE_TABPANEL_SELECTOR);
     await waitFor('.elements', panel);
   });
+  await expectVeEvents([
+    veClick('Panel: elements > Toolbar: sidebar > PanelTabHeader: elements.layout'),
+    veImpressionsUnder('Panel: elements', [veImpression(
+                                              'Pane', 'layout',
+                                              [
+                                                veImpression('SectionHeader', 'grid-settings'),
+                                                veImpression(
+                                                    'Section', 'grid-settings',
+                                                    [
+                                                      veImpression('DropDown', 'show-grid-line-labels'),
+                                                      veImpression('Toggle', 'extend-grid-lines'),
+                                                      veImpression('Toggle', 'show-grid-areas'),
+                                                      veImpression('Toggle', 'show-grid-track-sizes'),
+                                                    ]),
+                                                veImpression('Section', 'grid-overlays'),
+                                                veImpression('SectionHeader', 'flexbox-overlays'),
+                                                veImpression('Section', 'flexbox-overlays'),
+                                              ])]),
+  ]);
 };
 
-export const waitForAdorners = async (expectedAdorners: {textContent: string, isActive: boolean}[]) => {
+export const waitForAdorners = async (expectedAdorners: Array<{textContent: string, isActive: boolean}>) => {
   await waitForFunction(async () => {
     const actualAdorners = await $$(ADORNER_SELECTOR);
     const actualAdornersStates = await Promise.all(actualAdorners.map(n => {
@@ -91,6 +125,20 @@ export const waitForAdorners = async (expectedAdorners: {textContent: string, is
 
     return expectedAdorners.length === 0;
   });
+
+  if (expectedAdorners.length) {
+    await expectVeEvents(
+        [veImpressionsUnder('Panel: elements >  Tree: elements > TreeItem', [veImpression('Adorner', 'grid')])]);
+  }
+};
+
+export const toggleAdornerSetting = async (type: string) => {
+  await openSubMenu(SELECTED_TREE_ELEMENT_SELECTOR, 'Badge settings');
+
+  const adornerToggle =
+      await Promise.any([waitFor(`[aria-label="${type}, unchecked"]`), waitFor(`[aria-label="${type}, checked"]`)]);
+  await adornerToggle.click();
+  await expectVeEvents([veClick(`Menu > Toggle: ${type}`)]);
 };
 
 export const waitForSelectedNodeToBeExpanded = async () => {
@@ -103,12 +151,20 @@ export const waitForAdornerOnSelectedNode = async (expectedAdornerText: string) 
     const adorner = await waitFor(ADORNER_SELECTOR, selectedNode);
     return expectedAdornerText === await adorner.evaluate(node => node.textContent);
   });
+  await expectVeEvents([veImpressionsUnder(
+      'Panel: elements > Tree: elements > TreeItem', [veImpression('Adorner', expectedAdornerText)])]);
+};
+
+export const waitForNoAdornersOnSelectedNode = async () => {
+  const selectedNode = await waitFor(SELECTED_TREE_ELEMENT_SELECTOR);
+  await waitForNone(ADORNER_SELECTOR, selectedNode);
 };
 
 export const toggleElementCheckboxInLayoutPane = async () => {
   await step('Click element checkbox in Layout pane', async () => {
     await click(ELEMENT_CHECKBOX_IN_LAYOUT_PANE_SELECTOR);
   });
+  await expectVeEvents([veClick('Panel: elements > Pane: layout > Section: grid-overlays > Item > Toggle')]);
 };
 
 export const getGridsInLayoutPane = async () => {
@@ -121,6 +177,12 @@ export const waitForSomeGridsInLayoutPane = async (minimumGridCount: number) => 
     const grids = await getGridsInLayoutPane();
     return grids.length >= minimumGridCount;
   });
+  await expectVeEvents(
+      [veImpressionsUnder('Panel: elements > Pane: layout > Section: grid-overlays', [veImpression('Item', undefined, [
+                            veImpression('Action', 'elements.select-element'),
+                            veImpression('ShowStyleEditor', 'color'),
+                            veImpression('Toggle'),
+                          ])])]);
 };
 
 export const waitForContentOfSelectedElementsNode = async (expectedTextContent: string) => {
@@ -130,9 +192,11 @@ export const waitForContentOfSelectedElementsNode = async (expectedTextContent: 
   });
 };
 
-export const waitForPartialContentOfSelectedElementsNode = async (expectedPartialTextContent: string) => {
-  await waitForFunction(async () => {
-    const selectedTextContent = await getContentOfSelectedNode();
+export const waitForPartialContentOfSelectedElementsNode =
+    async (expectedPartialTextContent: string, devToolsPage?: DevToolsPage) => {
+  devToolsPage = devToolsPage || getBrowserAndPagesWrappers().devToolsPage;
+  await devToolsPage.waitForFunction(async () => {
+    const selectedTextContent = await getContentOfSelectedNode(devToolsPage);
     return selectedTextContent.includes(expectedPartialTextContent);
   });
 };
@@ -140,8 +204,9 @@ export const waitForPartialContentOfSelectedElementsNode = async (expectedPartia
 /**
  * Gets the text content of the currently selected element.
  */
-export const getContentOfSelectedNode = async () => {
-  const selectedNode = await waitFor(SELECTED_TREE_ELEMENT_SELECTOR);
+export const getContentOfSelectedNode = async (devToolsPage?: DevToolsPage) => {
+  devToolsPage = devToolsPage || getBrowserAndPagesWrappers().devToolsPage;
+  const selectedNode = await devToolsPage.waitFor(SELECTED_TREE_ELEMENT_SELECTOR);
   return await selectedNode.evaluate(node => node.textContent as string);
 };
 
@@ -170,7 +235,7 @@ export const waitForSelectedTreeElementSelectorWhichIncludesText = async (expect
   await waitForFunction(async () => {
     const selectedNode = await waitFor(SELECTED_TREE_ELEMENT_SELECTOR);
     const selectedTextContent = await selectedNode.evaluate(node => node.textContent);
-    return selectedTextContent && selectedTextContent.includes(expectedTextContent);
+    return selectedTextContent?.includes(expectedTextContent);
   });
 };
 
@@ -178,16 +243,19 @@ export const waitForChildrenOfSelectedElementNode = async () => {
   await waitFor(`${SELECTED_TREE_ELEMENT_SELECTOR} + ol > li`);
 };
 
-export const waitForAndClickTreeElementWithPartialText = async (text: string) =>
-    waitForFunction(async () => clickTreeElementWithPartialText(text));
-
-export const waitForElementWithPartialText = async (text: string) => {
-  return waitForFunction(async () => elementWithPartialText(text));
+export const waitForAndClickTreeElementWithPartialText = async (text: string, devToolsPage?: DevToolsPage) => {
+  devToolsPage = devToolsPage || getBrowserAndPagesWrappers().devToolsPage;
+  await devToolsPage.waitForFunction(async () => await clickTreeElementWithPartialText(text, devToolsPage));
 };
 
-const elementWithPartialText = async (text: string) => {
-  const tree = await waitFor('Page DOM[role="tree"]', undefined, undefined, 'aria');
-  const elements = await $$('[role="treeitem"]', tree, 'aria');
+export const waitForElementWithPartialText = async (text: string) => {
+  return await waitForFunction(async () => await elementWithPartialText(text));
+};
+
+const elementWithPartialText = async (text: string, devToolsPage?: DevToolsPage) => {
+  devToolsPage = devToolsPage || getBrowserAndPagesWrappers().devToolsPage;
+  const tree = await devToolsPage.waitFor('Page DOM[role="tree"]', undefined, undefined, 'aria');
+  const elements = await devToolsPage.$$('[role="treeitem"]', tree, 'aria');
   for (const handle of elements) {
     const match = await handle.evaluate((element, text) => element.textContent?.includes(text), text);
     if (match) {
@@ -197,37 +265,59 @@ const elementWithPartialText = async (text: string) => {
   return null;
 };
 
-export const clickTreeElementWithPartialText = async (text: string) => {
-  const handle = await elementWithPartialText(text);
+export const clickTreeElementWithPartialText = async (text: string, devToolsPage?: DevToolsPage) => {
+  devToolsPage = devToolsPage || getBrowserAndPagesWrappers().devToolsPage;
+  const handle = await elementWithPartialText(text, devToolsPage);
   if (handle) {
-    await clickElement(handle);
+    await devToolsPage.clickElement(handle);
+    await expectVeEvents([veClick('Panel: elements > Tree: elements > TreeItem')], undefined, devToolsPage);
     return true;
   }
 
-  throw false;
+  return false;
 };
 
 export const clickNthChildOfSelectedElementNode = async (childIndex: number) => {
   assert(childIndex > 0, 'CSS :nth-child() selector indices are 1-based.');
   await click(`${SELECTED_TREE_ELEMENT_SELECTOR} + ol > li:nth-child(${childIndex})`);
+  await expectVeEvents([veClick('Panel: elements > Tree: elements > TreeItem')]);
 };
 
 export const focusElementsTree = async () => {
   await click(SELECTED_TREE_ELEMENT_SELECTOR);
+  await expectVeEvents([veClick('Panel: elements > Tree: elements > TreeItem')]);
 };
 
 export const navigateToSidePane = async (paneName: string) => {
+  if ((await $$(`[aria-label="${paneName} panel"]`)).length) {
+    return;
+  }
   await click(`[aria-label="${paneName}"]`);
   await waitFor(`[aria-label="${paneName} panel"]`);
+  const jslogContext = paneName.toLowerCase();
+  await expectVeEvents([
+    veClick(`Panel: elements > Toolbar: sidebar > PanelTabHeader: ${jslogContext}`),
+    veImpressionsUnder('Panel: elements', [veImpression('Pane', jslogContext)]),
+  ]);
 };
 
-export const waitForElementsStyleSection = async () => {
+export const waitForElementsStyleSection =
+    async (expectedNodeText: string|null = '<body', devToolsPage?: DevToolsPage) => {
+  devToolsPage = devToolsPage || getBrowserAndPagesWrappers().devToolsPage;
   // Wait for the file to be loaded and selectors to be shown
-  await waitFor('.styles-selector');
+  await devToolsPage.waitFor('.styles-selector');
+  await expectVeEvents(
+      [veImpressionsUnder('Panel: elements', [veImpression('Pane', 'styles')])], undefined, devToolsPage);
+
+  // Check to make sure we have the correct node selected after opening a file.
+  if (expectedNodeText) {
+    await waitForPartialContentOfSelectedElementsNode(expectedNodeText, devToolsPage);
+  }
 };
 
 export const waitForElementsComputedSection = async () => {
   await waitFor(COMPUTED_PROPERTY_SELECTOR);
+  await expectVeEvents([veImpressionsUnder('Panel: elements', [veImpression('Pane', 'computed')])]);
 };
 
 export const getContentOfComputedPane = async () => {
@@ -256,7 +346,7 @@ export const getAllPropertiesFromComputedPane = async () => {
              value: value.textContent ? value.textContent.trim().replace(/;$/, '') : '',
            };
          }))))
-      .filter(prop => Boolean(prop));
+      .filter(prop => !!prop);
 };
 
 export const getPropertyFromComputedPane = async (name: string) => {
@@ -276,36 +366,121 @@ export const getPropertyFromComputedPane = async (name: string) => {
   return undefined;
 };
 
-export const expandSelectedNodeRecursively = async () => {
+export const expandSelectedNodeRecursively = async (devToolsPage?: DevToolsPage) => {
+  devToolsPage = devToolsPage || getBrowserAndPagesWrappers().devToolsPage;
   const EXPAND_RECURSIVELY = '[aria-label="Expand recursively"]';
 
   // Find the selected node, right click.
-  await click(SELECTED_TREE_ELEMENT_SELECTOR, {clickOptions: {button: 'right'}});
+  await devToolsPage.click(SELECTED_TREE_ELEMENT_SELECTOR, {clickOptions: {button: 'right'}});
 
   // Wait for the 'expand recursively' option, and click it.
-  await click(EXPAND_RECURSIVELY);
+  await devToolsPage.click(EXPAND_RECURSIVELY);
+  await expectVeEvents(
+      [
+        veClick('Panel: elements > Tree: elements > TreeItem'),
+        veImpressionForSelectedNodeMenu(await getContentOfSelectedNode(devToolsPage)),
+        veClick('Panel: elements > Tree: elements > TreeItem > Menu > Action: expand-recursively'),
+      ],
+      undefined, devToolsPage);
 };
 
-export const forcePseudoState = async (pseudoState: string) => {
+export const findElementById = async (id: string) => {
+  await pressKey('f', {control: true});
+  await waitFor('.search-bar:not(.hidden)');
+  await typeText('#' + id);
+  await pressKey('Enter');
+  await waitFor(`.highlight > .webkit-html-tag[aria-label*="\\"${id}\\"`);
+  await pressKey('Escape');
+  await waitFor('.search-bar.hidden');
+};
+
+function veImpressionForSelectedNodeMenu(content: string) {
+  const isPeudoElement = content.startsWith('::');
+  if (isPeudoElement) {
+    return veImpressionsUnder('Panel: elements > Tree: elements > TreeItem', [veImpression('Menu', undefined, [
+                                veImpression('Action', 'expand-recursively'),
+                                veImpression('Action', 'scroll-into-view'),
+                                veImpression('Item', 'show-adorner-settings'),
+                                veImpression('Action', 'store-as-global-variable'),
+                              ])]);
+  }
+  return veImpressionsUnder('Panel: elements > Tree: elements > TreeItem', [veImpression('Menu', undefined, [
+                              veImpression('Action', 'add-attribute'),
+                              veImpression('Action', 'collapse-children'),
+                              veImpression('Action', 'cut'),
+                              veImpression('Action', 'delete-element'),
+                              veImpression('Action', 'elements.duplicate-element'),
+                              veImpression('Action', 'elements.edit-as-html'),
+                              veImpression('Action', 'emulation.capture-node-screenshot'),
+                              veImpression('Action', 'expand-recursively'),
+                              veImpression('Action', 'focus'),
+                              veImpression('Action', 'paste'),
+                              veImpression('Action', 'scroll-into-view'),
+                              veImpression('Item', 'show-adorner-settings'),
+                              veImpression('Action', 'store-as-global-variable'),
+                              veImpression('Item', 'break-on'),
+                              veImpression('Item', 'copy'),
+                              veImpression('Item', 'force-state'),
+                              veImpression('Toggle', 'elements.hide-element'),
+                            ])]);
+}
+
+export const showForceState = async (specificStates?: boolean) => {
+  // Check if it is already visible
+  if (!(await $(EMULATE_FOCUSED_PAGE, undefined, 'aria'))) {
+    await click('[aria-label="Toggle Element State"]');
+    await waitForAria(EMULATE_FOCUSED_PAGE);
+  }
+
+  if (specificStates) {
+    const specificStatesPane = await waitFor('.specific-pseudo-states');
+    if (!(await specificStatesPane.evaluate(node => node.checkVisibility()))) {
+      await click('.force-specific-element-header');
+      await waitForVisible('.specific-pseudo-states');
+    }
+  }
+};
+
+export const forcePseudoState = async (pseudoState: string, specificStates?: boolean) => {
   // Open element & page state pane and wait for it to be loaded asynchronously
-  await click('[aria-label="Toggle Element State"]');
+  await showForceState(specificStates);
 
   const stateEl = await waitForAria(pseudoState);
   // FIXME(crbug/1112692): Refactor test to remove the timeout.
-  await timeout(100);
+  // await timeout(100);
   await stateEl.click();
+  await expectVeEvents([
+    veClick('Panel: elements > Pane: styles > ToggleSubpane: element-states'),
+    veImpressionsUnder('Panel: elements > Pane: styles', [veImpression(
+                                                             'Pane', 'element-states',
+                                                             [
+                                                               veImpression('Action: learn-more'),
+                                                               veImpression('Toggle: active'),
+                                                               veImpression('Toggle: focus'),
+                                                               veImpression('Toggle: focus-visible'),
+                                                               veImpression('Toggle: focus-within'),
+                                                               veImpression('Toggle: hover'),
+                                                               veImpression('Toggle: target'),
+                                                             ])]),
+    veChange(`Panel: elements > Pane: styles > Pane: element-states > Toggle: ${
+        pseudoState === EMULATE_FOCUSED_PAGE ? 'emulate-page-focus' : pseudoState.substr(1)}`),
+  ]);
 };
 
 export const removePseudoState = async (pseudoState: string) => {
   const stateEl = await waitForAria(pseudoState);
   await stateEl.click();
+  await expectVeEvents([
+    veChange(`Panel: elements > Pane: styles > Pane: element-states > Toggle: ${
+        pseudoState === EMULATE_FOCUSED_PAGE ? 'emulate-page-focus' : pseudoState.substr(1)}`),
+  ]);
 };
 
 export const getComputedStylesForDomNode =
     async (elementSelector: string, styleAttribute: keyof CSSStyleDeclaration) => {
   const {target} = getBrowserAndPages();
 
-  return target.evaluate((elementSelector, styleAttribute) => {
+  return await target.evaluate((elementSelector, styleAttribute) => {
     const element = document.querySelector(elementSelector);
     if (!element) {
       throw new Error(`${elementSelector} could not be found`);
@@ -316,22 +491,23 @@ export const getComputedStylesForDomNode =
 
 export const waitForNumberOfComputedProperties = async (numberToWaitFor: number) => {
   const computedPane = await getComputedPanel();
-  return waitForFunction(
+  return await waitForFunction(
       async () => numberToWaitFor ===
           await computedPane.$$eval('pierce/' + COMPUTED_PROPERTY_SELECTOR, properties => properties.length));
 };
 
-export const getComputedPanel = async () => waitFor(COMPUTED_STYLES_PANEL_SELECTOR);
+export const getComputedPanel = async () => await waitFor(COMPUTED_STYLES_PANEL_SELECTOR);
 
 export const filterComputedProperties = async (filterString: string) => {
   const initialContent = await getContentOfComputedPane();
 
   const computedPanel = await waitFor(COMPUTED_STYLES_PANEL_SELECTOR);
-  await click('[aria-label="Filter Computed Styles"]', {
+  await click('[aria-label="Filter"]', {
     root: computedPanel,
   });
   await typeText(filterString);
   await waitForComputedPaneChange(initialContent);
+  await expectVeEvents([veChange('Panel: elements > Pane: computed > TextField: filter')]);
 };
 
 export const toggleShowAllComputedProperties = async () => {
@@ -340,23 +516,8 @@ export const toggleShowAllComputedProperties = async () => {
   const computedPanel = await waitFor(COMPUTED_STYLES_PANEL_SELECTOR);
   await click(COMPUTED_STYLES_SHOW_ALL_SELECTOR, {root: computedPanel});
   await waitForComputedPaneChange(initialContent);
-};
-
-export const toggleGroupComputedProperties = async () => {
-  const computedPanel = await waitFor(COMPUTED_STYLES_PANEL_SELECTOR);
-  const groupCheckbox = await waitFor(COMPUTED_STYLES_GROUP_SELECTOR, computedPanel);
-
-  const wasChecked = await groupCheckbox.evaluate(checkbox => (checkbox as HTMLInputElement).checked);
-
-  await click(COMPUTED_STYLES_GROUP_SELECTOR, {
-    root: computedPanel,
-  });
-
-  if (wasChecked) {
-    await waitFor('[role="tree"].alphabetical-list', computedPanel);
-  } else {
-    await waitFor('[role="tree"].grouped-list', computedPanel);
-  }
+  await expectVeEvents(
+      [veChange('Panel: elements > Pane: computed > Toggle: show-inherited-computed-style-properties')]);
 };
 
 export const waitForDomNodeToBeVisible = async (elementSelector: string) => {
@@ -385,9 +546,10 @@ export const waitForExactStyleRule = async (expectedSelector: string) => {
   });
 };
 
-export const waitForStyleRule = async (expectedSelector: string) => {
-  await waitForFunction(async () => {
-    const rules = await getDisplayedStyleRules();
+export const waitForStyleRule = async (expectedSelector: string, devToolsPage?: DevToolsPage) => {
+  devToolsPage = devToolsPage || getBrowserAndPagesWrappers().devToolsPage;
+  await devToolsPage.waitForFunction(async () => {
+    const rules = await getDisplayedStyleRules(devToolsPage);
     return rules.map(rule => rule.selectorText).includes(expectedSelector);
   });
 };
@@ -413,7 +575,7 @@ export const getComputedStyleProperties = async () => {
 
 export const getDisplayedCSSDeclarations = async () => {
   const cssDeclarations = await $$(CSS_DECLARATION_SELECTOR);
-  return Promise.all(cssDeclarations.map(async node => await node.evaluate(n => n.textContent?.trim())));
+  return await Promise.all(cssDeclarations.map(async node => await node.evaluate(n => n.textContent?.trim())));
 };
 
 export const getDisplayedStyleRulesCompact = async () => {
@@ -425,11 +587,12 @@ export const getDisplayedStyleRulesCompact = async () => {
   return compactRules;
 };
 
-export const getDisplayedStyleRules = async () => {
-  const allRuleSelectors = await $$(CSS_STYLE_RULE_SELECTOR);
+export const getDisplayedStyleRules = async (devToolsPage?: DevToolsPage) => {
+  devToolsPage = devToolsPage || getBrowserAndPagesWrappers().devToolsPage;
+  const allRuleSelectors = await devToolsPage.$$(CSS_STYLE_RULE_SELECTOR);
   const rules = [];
   for (const ruleSelector of allRuleSelectors) {
-    const propertyData = await getDisplayedCSSPropertyData(ruleSelector);
+    const propertyData = await getDisplayedCSSPropertyData(ruleSelector, devToolsPage);
     const selectorText = await ruleSelector.evaluate(node => {
       const attribute = node.getAttribute('aria-label') || '';
       return attribute.substring(0, attribute.lastIndexOf(', css selector'));
@@ -449,19 +612,20 @@ export const getDisplayedStyleRules = async () => {
  * - isInherited: True if this is an inherited properties section, and this property is a non-inherited CSS property.
  *                The property will be shown as grayed-out in the style pane.
  */
-export const getDisplayedCSSPropertyData = async (propertiesSection: puppeteer.ElementHandle<Element>) => {
-  const cssPropertyNames = await $$(CSS_PROPERTY_NAME_SELECTOR, propertiesSection);
-  const propertyNamesData =
-      (await Promise.all(cssPropertyNames.map(
-           async node => {
-             return {
-               propertyName: await node.evaluate(n => n.textContent),
-               isOverLoaded: await node.evaluate(n => n.parentElement && n.parentElement.matches('.overloaded')),
-               isInherited: await node.evaluate(n => n.parentElement && n.parentElement.matches('.inherited')),
-             };
-           },
-           )))
-          .filter(c => Boolean(c.propertyName));
+export const getDisplayedCSSPropertyData =
+    async (propertiesSection: puppeteer.ElementHandle<Element>, devtoolsPage?: DevToolsPage) => {
+  devtoolsPage = devtoolsPage || getBrowserAndPagesWrappers().devToolsPage;
+  const cssPropertyNames = await devtoolsPage.$$(CSS_PROPERTY_NAME_SELECTOR, propertiesSection);
+  const propertyNamesData = (await Promise.all(cssPropertyNames.map(
+                                 async node => {
+                                   return {
+                                     propertyName: await node.evaluate(n => n.textContent),
+                                     isOverLoaded: await node.evaluate(n => n.parentElement?.matches('.overloaded')),
+                                     isInherited: await node.evaluate(n => n.parentElement?.matches('.inherited')),
+                                   };
+                                 },
+                                 )))
+                                .filter(c => !!c.propertyName);
   return propertyNamesData;
 };
 
@@ -470,7 +634,7 @@ export const getDisplayedCSSPropertyNames = async (propertiesSection: puppeteer.
   const propertyNamesText = (await Promise.all(cssPropertyNames.map(
                                  node => node.evaluate(n => n.textContent),
                                  )))
-                                .filter(c => Boolean(c));
+                                .filter(c => !!c);
   return propertyNamesText;
 };
 
@@ -506,17 +670,27 @@ export const getColorSwatchColor = async (parent: puppeteer.ElementHandle<Elemen
   return await swatch.evaluate(node => (node as HTMLElement).style.backgroundColor);
 };
 
-export const shiftClickColorSwatch = async (ruleSection: puppeteer.ElementHandle<Element>, index: number) => {
-  const swatch = await getColorSwatch(ruleSection, index);
+export const shiftClickColorSwatch =
+    async (parent: puppeteer.ElementHandle<Element>, index: number, parentVe: string) => {
+  const swatch = await getColorSwatch(parent, index);
   const {frontend} = getBrowserAndPages();
   await frontend.keyboard.down('Shift');
   await clickElement(swatch);
   await frontend.keyboard.up('Shift');
+  await expectVeEvents([
+    veClick(`${parentVe} > ShowStyleEditor: color`),
+    veImpressionsUnder(
+        `${parentVe} > ShowStyleEditor: color`,
+        [veImpression('Menu', undefined, [veImpression('Action', 'clipped-color'), veImpression('Item', 'color')])]),
+  ]);
 };
 
 export const getElementStyleFontEditorButton = async () => {
   const section = await waitFor(ELEMENT_STYLE_SECTION_SELECTOR);
-  return await $(FONT_EDITOR_SELECTOR, section);
+  const result = await $(FONT_EDITOR_SELECTOR, section);
+  await expectVeEvents([veImpressionsUnder(
+      'Panel: elements > Pane: styles > Section: style-properties', [veImpression('Action', 'font-editor')])]);
+  return result;
 };
 
 export const getFontEditorButtons = async () => {
@@ -531,7 +705,7 @@ export const getHiddenFontEditorButtons = async () => {
 
 export const getStyleSectionSubtitles = async () => {
   const subtitles = await $$(SECTION_SUBTITLE_SELECTOR);
-  return Promise.all(subtitles.map(node => node.evaluate(n => n.textContent)));
+  return await Promise.all(subtitles.map(node => node.evaluate(n => n.textContent)));
 };
 
 export const getCSSPropertyInRule =
@@ -560,7 +734,7 @@ export const focusCSSPropertyValue = async (selector: string, propertyName: stri
   await click(CSS_PROPERTY_VALUE_SELECTOR + ' + .styles-semicolon', {root: property});
   await waitForFunction(async () => {
     property = await getCSSPropertyInRule(selector, propertyName);
-    const value = await $(CSS_PROPERTY_VALUE_SELECTOR, property);
+    const value = property ? await $(CSS_PROPERTY_VALUE_SELECTOR, property) : null;
     if (!value) {
       assert.fail(`Could not find property ${propertyName} in rule ${selector}`);
     }
@@ -568,6 +742,8 @@ export const focusCSSPropertyValue = async (selector: string, propertyName: stri
       return node.classList.contains('text-prompt') && node.hasAttribute('contenteditable');
     });
   });
+  await expectVeEvents([veClick(`Panel: elements > Pane: styles > Section: style-properties > Tree > TreeItem: ${
+      propertyName.startsWith('--') ? 'custom-property' : propertyName}`)]);
 };
 
 /**
@@ -588,7 +764,7 @@ export async function editCSSProperty(selector: string, propertyName: string, ne
   await waitForFunction(async () => {
     // Wait until the value element is not a text-prompt anymore.
     const property = await getCSSPropertyInRule(selector, propertyName);
-    const value = await $(CSS_PROPERTY_VALUE_SELECTOR, property);
+    const value = property ? await $(CSS_PROPERTY_VALUE_SELECTOR, property) : null;
     if (!value) {
       assert.fail(`Could not find property ${propertyName} in rule ${selector}`);
     }
@@ -596,11 +772,15 @@ export async function editCSSProperty(selector: string, propertyName: string, ne
       return !node.classList.contains('text-prompt') && !node.hasAttribute('contenteditable');
     });
   });
+  await expectVeEvents([veChange(`Panel: elements > Pane: styles > Section: style-properties > Tree > TreeItem: ${
+      propertyName.startsWith('--') ? 'custom-property' : propertyName} > Value`)]);
 }
 
 // Edit a media or container query rule text for the given styles section
 export async function editQueryRuleText(queryStylesSections: puppeteer.ElementHandle<Element>, newQueryText: string) {
   await click(STYLE_QUERY_RULE_TEXT_SELECTOR, {root: queryStylesSections});
+  // TODO: it should actually wait for rendering to finish.
+  await drainFrontendTaskQueue();
   await waitForFunction(async () => {
     // Wait until the value element has been marked as a text-prompt.
     const queryText = await $(STYLE_QUERY_RULE_TEXT_SELECTOR, queryStylesSections);
@@ -615,6 +795,9 @@ export async function editQueryRuleText(queryStylesSections: puppeteer.ElementHa
   await typeText(newQueryText);
   await pressKey('Enter');
 
+  // TODO: it should actually wait for rendering to finish.
+  await drainFrontendTaskQueue();
+
   await waitForFunction(async () => {
     // Wait until the value element is not a text-prompt anymore.
     const queryText = await $(STYLE_QUERY_RULE_TEXT_SELECTOR, queryStylesSections);
@@ -626,6 +809,10 @@ export async function editQueryRuleText(queryStylesSections: puppeteer.ElementHa
     });
     return check;
   });
+  await expectVeEvents([
+    veClick('Panel: elements > Pane: styles > Section: style-properties > CSSRuleHeader: container-query'),
+    veChange('Panel: elements > Pane: styles > Section: style-properties > CSSRuleHeader: container-query'),
+  ]);
 }
 
 export async function waitForCSSPropertyValue(selector: string, name: string, value: string, sourcePosition?: string) {
@@ -640,7 +827,8 @@ export async function waitForCSSPropertyValue(selector: string, name: string, va
       return undefined;
     }
 
-    const matches = await valueHandle.evaluate((node, value) => node.textContent === value, value);
+    const matches = await valueHandle.evaluate(
+        (node, value) => ((node instanceof HTMLElement ? node.innerText : '') || node.textContent) === value, value);
     if (matches) {
       return valueHandle;
     }
@@ -686,26 +874,36 @@ export const getSelectedBreadcrumbTextContent = async () => {
     }
     return Array.from(node.shadowRoot.querySelectorAll('span') || []).map(span => span.textContent).join('');
   });
-  return text;
+  return await text;
 };
 
 export const navigateToElementsTab = async () => {
+  if ((await $$(ELEMENTS_PANEL_SELECTOR)).length) {
+    return;
+  }
   // Open Elements panel
   await click('#tab-elements');
   await waitFor(ELEMENTS_PANEL_SELECTOR);
+  await expectVeEvents([veImpressionForElementsPanel()]);
 };
 
 export const clickOnFirstLinkInStylesPanel = async () => {
   const stylesPane = await waitFor('div.styles-pane');
   await click('div.styles-section-subtitle button.devtools-link', {root: stylesPane});
+  await expectVeEvents([veClick('Panel: elements > Pane: styles > Section: style-properties > Link: css-location')]);
 };
 
 export const toggleClassesPane = async () => {
   await click(CLS_BUTTON_SELECTOR);
+  await expectVeEvents([
+    veClick('Panel: elements > Pane: styles > ToggleSubpane: elements-classes'),
+    veImpressionsUnder(
+        'Panel: elements > Pane: styles', [veImpression('Pane', 'elements-classes', [veImpression('TextField')])]),
+  ]);
 };
 
 export const typeInClassesPaneInput =
-    async (text: string, commitWith: puppeteer.KeyInput = 'Enter', waitForNodeChange: Boolean = true) => {
+    async (text: string, commitWith: puppeteer.KeyInput = 'Enter', waitForNodeChange = true) => {
   await step(`Typing in new class names ${text}`, async () => {
     const clsInput = await waitFor(CLS_INPUT_SELECTOR);
     await clsInput.type(text, {delay: 50});
@@ -728,6 +926,7 @@ export const typeInClassesPaneInput =
       });
     });
   }
+  await expectVeEvents([veChange('Panel: elements > Pane: styles > Pane: elements-classes > TextField')]);
 };
 
 export const toggleClassesPaneCheckbox = async (checkboxLabel: string) => {
@@ -737,12 +936,16 @@ export const toggleClassesPaneCheckbox = async (checkboxLabel: string) => {
   await click(`[title="${checkboxLabel}"]`, {root: classesPane});
 
   await waitForSelectedNodeChange(initialValue);
+  await expectVeEvents([veChange('Panel: elements > Pane: styles > Pane: elements-classes > Toggle: element-class')]);
 };
 
 export const uncheckStylesPaneCheckbox = async (checkboxLabel: string) => {
+  console.error('uncheckStylesPaneCheckbox', checkboxLabel);
   const initialValue = await getContentOfSelectedNode();
   await click(`.enabled-button[aria-label="${checkboxLabel}"]`);
   await waitForSelectedNodeChange(initialValue);
+  await expectVeEvents([veClick(`Panel: elements > Pane: styles > Section: style-properties > Tree > TreeItem: ${
+      checkboxLabel.split(' ')[0]} > Toggle`)]);
 };
 
 export const assertSelectedNodeClasses = async (expectedClasses: string[]) => {
@@ -765,12 +968,43 @@ export const toggleAccessibilityPane = async () => {
     const elementsPanel = await waitForAria('Elements panel');
     await clickMoreTabsButton(elementsPanel);
     a11yPane = await waitForAria('Accessibility');
+    await expectVeEvents([
+      veClick('Panel: elements > Toolbar: sidebar > DropDown: more-tabs'),
+      veImpressionsUnder(
+          'Panel: elements > Toolbar: sidebar > DropDown: more-tabs',
+          [veImpression('Menu', undefined, [veImpression('Action', 'accessibility.view')])]),
+    ]);
   }
   await clickElement(a11yPane);
+  await waitFor('.source-order-checkbox');
+  await expectVeEvents([
+    veClick('Panel: elements > Toolbar: sidebar > DropDown: more-tabs > Menu > Action: accessibility.view'),
+    veImpressionsUnder('Panel: elements > Toolbar: sidebar', [veImpression('PanelTabHeader', 'accessibility.view')]),
+    veImpressionForAccessibilityPane(),
+  ]);
 };
+
+function veImpressionForAccessibilityPane() {
+  return veImpressionsUnder(
+      'Panel: elements', [veImpression('Pane', 'sidebar', [
+        veImpression('SectionHeader', 'accessibility-tree'),
+        veImpression(
+            'Section', 'accessibility-tree',
+            [
+              veImpression('Toggle', 'full-accessibility-tree'),
+            ]),
+        veImpression('SectionHeader', 'aria-attributes'),
+        veImpression('Section', 'aria-attributes'),
+        veImpression('SectionHeader', 'computed-properties'),
+        veImpression('Section', 'computed-properties', [veImpression('Tree', undefined, [veImpression('TreeItem')])]),
+        veImpression('SectionHeader', 'source-order-viewer'),
+        veImpression('Section', 'source-order-viewer', [veImpression('Toggle')]),
+      ])]);
+}
 
 export const toggleAccessibilityTree = async () => {
   await click('aria/Switch to Accessibility Tree view');
+  await expectVeEvents([veClick('Panel: elements > Action: toggle-accessibility-tree')]);
 };
 
 export const getPropertiesWithHints = async () => {
@@ -800,6 +1034,17 @@ export const getPropertiesWithHints = async () => {
 export const summonAndWaitForSearchBox = async () => {
   await summonSearchBox();
   await waitFor(SEARCH_BOX_SELECTOR);
+  await expectVeEvents([
+    veKeyDown(''),
+    veImpressionsUnder('Panel: elements', [veImpression(
+                                              'Toolbar', 'search',
+                                              [
+                                                veImpression('Action: close-search'),
+                                                veImpression('Action: select-next'),
+                                                veImpression('Action: select-previous'),
+                                                veImpression('TextField: search'),
+                                              ])]),
+  ]);
 };
 
 export const assertSearchResultMatchesText = async (text: string) => {
@@ -808,12 +1053,12 @@ export const assertSearchResultMatchesText = async (text: string) => {
   });
 };
 
-export const goToResourceAndWaitForStyleSection = async (path: string) => {
-  await goToResource(path);
-  await waitForElementsStyleSection();
-
-  // Check to make sure we have the correct node selected after opening a file.
-  await waitForPartialContentOfSelectedElementsNode('<body>\u200B');
+export const goToResourceAndWaitForStyleSection =
+    async (path: string, devToolsPage?: DevToolsPage, inspectedPage?: InspectedPage) => {
+  devToolsPage = devToolsPage || getBrowserAndPagesWrappers().devToolsPage;
+  inspectedPage = inspectedPage || getBrowserAndPagesWrappers().inspectedPage;
+  await inspectedPage.goToResource(path);
+  await waitForElementsStyleSection(null, devToolsPage);
 };
 
 export const checkStyleAttributes = async (expectedStyles: string[]) => {

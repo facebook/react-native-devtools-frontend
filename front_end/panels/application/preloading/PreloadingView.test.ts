@@ -15,13 +15,10 @@ import {
   describeWithMockConnection,
   dispatchEvent,
 } from '../../../testing/MockConnection.js';
-import * as DataGrid from '../../../ui/components/data_grid/data_grid.js';
-import * as Coordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
+import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 import * as ReportView from '../../../ui/components/report_view/report_view.js';
 import * as UI from '../../../ui/legacy/legacy.js';
 import * as Resources from '../application.js';
-
-const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 const zip2 = <T, S>(xs: T[], ys: S[]) => {
   assert.strictEqual(xs.length, ys.length);
@@ -31,7 +28,7 @@ const zip2 = <T, S>(xs: T[], ys: S[]) => {
 
 // Holds targets and ids, and emits events.
 class NavigationEmulator {
-  private seq: number = 0;
+  private seq = 0;
   private tabTarget: SDK.Target.Target;
   primaryTarget: SDK.Target.Target;
   private frameId: Protocol.Page.FrameId;
@@ -40,7 +37,7 @@ class NavigationEmulator {
   private prerenderStatusUpdatedEvent: Protocol.Preload.PrerenderStatusUpdatedEvent|null = null;
 
   constructor() {
-    this.tabTarget = createTarget({type: SDK.Target.Type.Tab});
+    this.tabTarget = createTarget({type: SDK.Target.Type.TAB});
     // Fill fake ones here and fill real ones in async part.
     this.primaryTarget = createTarget();
     this.frameId = 'fakeFrameId' as Protocol.Page.FrameId;
@@ -136,7 +133,7 @@ class NavigationEmulator {
     // It's not so important and omitted.
     dispatchEvent(this.primaryTarget, 'Preload.prerenderStatusUpdated', {
       ...this.prerenderStatusUpdatedEvent,
-      status: SDK.PreloadingModel.PreloadingStatus.Success,
+      status: SDK.PreloadingModel.PreloadingStatus.SUCCESS,
     });
   }
 
@@ -147,7 +144,7 @@ class NavigationEmulator {
     let json;
     try {
       json = JSON.parse(specrules);
-    } catch (_) {
+    } catch {
       dispatchEvent(this.primaryTarget, 'Preload.ruleSetUpdated', {
         ruleSet: {
           id: `ruleSetId:0.${this.seq}`,
@@ -173,7 +170,7 @@ class NavigationEmulator {
     for (const prefetchAttempt of json['prefetch'] || []) {
       // For simplicity
       assert.strictEqual(prefetchAttempt['source'], 'list');
-      assert.strictEqual(prefetchAttempt['urls'].length, 1);
+      assert.lengthOf(prefetchAttempt['urls'], 1);
 
       const url = 'https://example.com' + prefetchAttempt['urls'][0];
 
@@ -185,7 +182,7 @@ class NavigationEmulator {
         },
         initiatingFrameId: this.frameId,
         prefetchUrl: url,
-        status: SDK.PreloadingModel.PreloadingStatus.Running,
+        status: SDK.PreloadingModel.PreloadingStatus.RUNNING,
       });
     }
 
@@ -194,9 +191,9 @@ class NavigationEmulator {
     }
 
     // For simplicity
-    assert.strictEqual(json['prerender'].length, 1);
+    assert.lengthOf(json['prerender'], 1);
     assert.strictEqual(json['prerender'][0]['source'], 'list');
-    assert.strictEqual(json['prerender'][0]['urls'].length, 1);
+    assert.lengthOf(json['prerender'][0]['urls'], 1);
 
     const prerenderUrl = 'https://example.com' + json['prerender'][0]['urls'][0];
 
@@ -206,6 +203,7 @@ class NavigationEmulator {
         action: Protocol.Preload.SpeculationAction.Prerender,
         url: prerenderUrl,
       },
+      pipelineId: `pipelineId:0.${this.seq}` as Protocol.Preload.PreloadPipelineId,
       status: Protocol.Preload.PreloadingStatus.Running,
     };
     dispatchEvent(this.primaryTarget, 'Preload.prerenderStatusUpdated', this.prerenderStatusUpdatedEvent);
@@ -246,6 +244,9 @@ function createRuleSetView(target: SDK.Target.Target): Resources.PreloadingView.
   const view = new Resources.PreloadingView.PreloadingRuleSetView(model);
   const container = new UI.Widget.VBox();
   const div = document.createElement('div');
+  view.contentElement.style.width = '640px';
+  view.contentElement.style.height = '480px';
+
   renderElementIntoDOM(div);
   container.markAsRoot();
   container.show(div);
@@ -262,6 +263,8 @@ function createAttemptView(target: SDK.Target.Target): Resources.PreloadingView.
   const view = new Resources.PreloadingView.PreloadingAttemptView(model);
   const container = new UI.Widget.VBox();
   const div = document.createElement('div');
+  view.contentElement.style.width = '640px';
+  view.contentElement.style.height = '480px';
   renderElementIntoDOM(div);
   container.markAsRoot();
   container.show(div);
@@ -289,7 +292,34 @@ function createSummaryView(target: SDK.Target.Target): Resources.PreloadingView.
 }
 
 describeWithMockConnection('PreloadingRuleSetView', () => {
-  it('renders grid and details', async () => {
+  beforeEach(() => {
+    SDK.ChildTargetManager.ChildTargetManager.install();
+  });
+
+  it('renders placeholder', async () => {
+    const emulator = new NavigationEmulator();
+    await emulator.openDevTools();
+    const view = createRuleSetView(emulator.primaryTarget);
+    await RenderCoordinator.done();
+
+    const placeholder = view.contentElement.querySelector('.empty-state');
+    assert.exists(placeholder);
+    assert.deepEqual(window.getComputedStyle(placeholder).display, 'flex');
+
+    const header = placeholder.querySelector('.empty-state-header')?.textContent;
+    const description = placeholder.querySelector('.empty-state-description > span')?.textContent;
+
+    assert.deepEqual(header, 'No rules detected');
+    assert.deepEqual(
+        description,
+        'On this page you will see the speculation rules used to prefetch and prerender page navigations.');
+
+    const rules = view.contentElement.querySelector('devtools-split-view');
+    assert.exists(rules);
+    assert.deepEqual(window.getComputedStyle(rules).display, 'none');
+  });
+
+  it('renders grid and details and hides placeholder', async () => {
     const emulator = new NavigationEmulator();
     await emulator.openDevTools();
     const view = createRuleSetView(emulator.primaryTarget);
@@ -320,7 +350,7 @@ describeWithMockConnection('PreloadingRuleSetView', () => {
       ],
     });
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     const ruleSetGridComponent = view.getRuleSetGridForTest();
     assert.isNotNull(ruleSetGridComponent.shadowRoot);
@@ -332,6 +362,10 @@ describeWithMockConnection('PreloadingRuleSetView', () => {
           ['example.com/', '1 running'],
         ],
     );
+
+    const placeholder = view.contentElement.querySelector('.empty-state');
+    assert.exists(placeholder);
+    assert.deepEqual(window.getComputedStyle(placeholder).display, 'none');
   });
 
   it('shows error of rule set', async () => {
@@ -347,7 +381,7 @@ describeWithMockConnection('PreloadingRuleSetView', () => {
       "source": "list",
 `);
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     const ruleSetGridComponent = view.getRuleSetGridForTest();
     assert.isNotNull(ruleSetGridComponent.shadowRoot);
@@ -363,14 +397,9 @@ describeWithMockConnection('PreloadingRuleSetView', () => {
 
     );
 
-    const cells = [
-      {columnId: 'id', value: 'ruleSetId:0.2'},
-      {columnId: 'Validity', value: 'Invalid'},
-    ];
-    ruleSetGridComponent.dispatchEvent(
-        new DataGrid.DataGridEvents.BodyCellFocusedEvent({columnId: 'Validity', value: 'Invalid'}, {cells}));
+    ruleSetGridComponent.dispatchEvent(new CustomEvent('select', {detail: 'ruleSetId:0.2'}));
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     assert.deepEqual(
         ruleSetDetailsComponent.shadowRoot?.getElementById('ruleset-url')?.textContent, 'https://example.com/');
@@ -399,7 +428,7 @@ describeWithMockConnection('PreloadingRuleSetView', () => {
 `);
     await emulator.navigateAndDispatchEvents('notprerendered.html');
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     const ruleSetGridComponent = view.getRuleSetGridForTest();
     assert.isNotNull(ruleSetGridComponent.shadowRoot);
@@ -429,7 +458,7 @@ describeWithMockConnection('PreloadingRuleSetView', () => {
 `);
     await emulator.activateAndDispatchEvents('prerendered.html');
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     const ruleSetGridComponent = view.getRuleSetGridForTest();
     assert.isNotNull(ruleSetGridComponent.shadowRoot);
@@ -478,7 +507,7 @@ describeWithMockConnection('PreloadingRuleSetView', () => {
       waitingForDebugger: false,
     });
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     const ruleSetGridComponent = view.getRuleSetGridForTest();
     assert.isNotNull(ruleSetGridComponent.shadowRoot);
@@ -494,7 +523,32 @@ describeWithMockConnection('PreloadingRuleSetView', () => {
 });
 
 describeWithMockConnection('PreloadingAttemptView', () => {
-  it('renders grid and details', async () => {
+  beforeEach(() => {
+    SDK.ChildTargetManager.ChildTargetManager.install();
+  });
+
+  it('renders placeholder', async () => {
+    const emulator = new NavigationEmulator();
+    await emulator.openDevTools();
+    const view = createAttemptView(emulator.primaryTarget);
+    await RenderCoordinator.done();
+
+    const placeholder = view.contentElement.querySelector('.empty-state');
+    assert.exists(placeholder);
+    assert.deepEqual(window.getComputedStyle(placeholder).display, 'flex');
+
+    const header = placeholder.querySelector('.empty-state-header')?.textContent;
+    const description = placeholder.querySelector('.empty-state-description > span')?.textContent;
+
+    assert.deepEqual(header, 'No speculation detected');
+    assert.deepEqual(description, 'On this page you will see details on speculative loads.');
+
+    const rules = view.contentElement.querySelector('devtools-split-view');
+    assert.exists(rules);
+    assert.deepEqual(window.getComputedStyle(rules).display, 'none');
+  });
+
+  it('renders grid and details and hides placeholder', async () => {
     const emulator = new NavigationEmulator();
     await emulator.openDevTools();
     const view = createAttemptView(emulator.primaryTarget);
@@ -511,7 +565,7 @@ describeWithMockConnection('PreloadingAttemptView', () => {
 }
 `);
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     const preloadingGridComponent = view.getPreloadingGridForTest();
     assert.isNotNull(preloadingGridComponent.shadowRoot);
@@ -531,9 +585,9 @@ describeWithMockConnection('PreloadingAttemptView', () => {
         ],
     );
 
-    const placeholder = preloadingDetailsComponent.shadowRoot.querySelector('div.preloading-noselected div p');
-
-    assert.strictEqual(placeholder?.textContent, 'Select an element for more details');
+    const placeholder = view.contentElement.querySelector('.empty-state');
+    assert.exists(placeholder);
+    assert.deepEqual(window.getComputedStyle(placeholder).display, 'none');
   });
 
   // See https://crbug.com/1432880
@@ -573,7 +627,7 @@ describeWithMockConnection('PreloadingAttemptView', () => {
       waitingForDebugger: false,
     });
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     const preloadingGridComponent = view.getPreloadingGridForTest();
     assert.isNotNull(preloadingGridComponent.shadowRoot);
@@ -593,9 +647,11 @@ describeWithMockConnection('PreloadingAttemptView', () => {
         ],
     );
 
-    const placeholder = preloadingDetailsComponent.shadowRoot.querySelector('div.preloading-noselected div p');
+    const placeholderHeader = preloadingDetailsComponent.shadowRoot.querySelector('.empty-state-header');
+    assert.strictEqual(placeholderHeader?.textContent?.trim(), 'No element selected');
 
-    assert.strictEqual(placeholder?.textContent, 'Select an element for more details');
+    const placeholderDescription = preloadingDetailsComponent.shadowRoot.querySelector('.empty-state-description');
+    assert.strictEqual(placeholderDescription?.textContent, 'Select an element for more details');
   });
 
   it('filters preloading attempts by selected rule set', async () => {
@@ -649,7 +705,7 @@ describeWithMockConnection('PreloadingAttemptView', () => {
       ],
     });
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     const ruleSetSelectorToolbarItem = view.getRuleSetSelectorToolbarItemForTest();
     const preloadingGridComponent = view.getPreloadingGridForTest();
@@ -679,7 +735,7 @@ describeWithMockConnection('PreloadingAttemptView', () => {
     // Turn on filtering.
     view.selectRuleSetOnFilterForTest('ruleSetId:0.2' as Protocol.Preload.RuleSetId);
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     assert.strictEqual(ruleSetSelectorToolbarItem.element.querySelector('span')?.textContent, 'example.com/');
 
@@ -699,7 +755,7 @@ describeWithMockConnection('PreloadingAttemptView', () => {
     // Turn off filtering.
     view.selectRuleSetOnFilterForTest(null);
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     assert.strictEqual(ruleSetSelectorToolbarItem.element.querySelector('span')?.textContent, 'All speculative loads');
 
@@ -740,7 +796,7 @@ describeWithMockConnection('PreloadingAttemptView', () => {
 }
 `);
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     const preloadingGridComponent = view.getPreloadingGridForTest();
     assert.isNotNull(preloadingGridComponent.shadowRoot);
@@ -760,14 +816,10 @@ describeWithMockConnection('PreloadingAttemptView', () => {
         ],
     );
 
-    const cells = [
-      {columnId: 'id', value: 'loaderId:1:Prerender:https://example.com/prerendered.html:undefined'},
-      // Omit other columns.
-    ];
     preloadingGridComponent.dispatchEvent(
-        new DataGrid.DataGridEvents.BodyCellFocusedEvent({columnId: 'URL', value: '/prerendered.html'}, {cells}));
+        new CustomEvent('select', {detail: 'loaderId:1:Prerender:https://example.com/prerendered.html:undefined'}));
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     const report =
         getElementWithinComponent(preloadingDetailsComponent, 'devtools-report', ReportView.ReportView.Report);
@@ -776,13 +828,13 @@ describeWithMockConnection('PreloadingAttemptView', () => {
     const values = getCleanTextContentFromElements(report, 'devtools-report-value');
     assert.deepEqual(zip2(keys, values), [
       ['URL', 'https://example.com/prerendered.html'],
-      ['Action', 'PrerenderInspect'],
+      ['Action', 'Prerender Inspect'],
       ['Status', 'Speculative load is running.'],
     ]);
 
     const buttons = report.querySelectorAll('devtools-report-value:nth-of-type(2) devtools-button');
     assert.strictEqual(buttons[0].textContent?.trim(), 'Inspect');
-    assert.strictEqual(buttons[0].getAttribute('disabled'), null);
+    assert.isNull(buttons[0].getAttribute('disabled'));
   });
 
   it('shows prerender details with Investigate button for Ready', async () => {
@@ -816,7 +868,7 @@ describeWithMockConnection('PreloadingAttemptView', () => {
     const preloadingDetailsComponent = view.getPreloadingDetailsForTest();
     assert.isNotNull(preloadingDetailsComponent.shadowRoot);
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     assertGridContents(
         preloadingGridComponent,
@@ -831,14 +883,10 @@ describeWithMockConnection('PreloadingAttemptView', () => {
         ],
     );
 
-    const cells = [
-      {columnId: 'id', value: 'loaderId:1:Prerender:https://example.com/prerendered.html:undefined'},
-      // Omit other columns.
-    ];
     preloadingGridComponent.dispatchEvent(
-        new DataGrid.DataGridEvents.BodyCellFocusedEvent({columnId: 'URL', value: '/prerendered.html'}, {cells}));
+        new CustomEvent('select', {detail: 'loaderId:1:Prerender:https://example.com/prerendered.html:undefined'}));
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     const report =
         getElementWithinComponent(preloadingDetailsComponent, 'devtools-report', ReportView.ReportView.Report);
@@ -847,13 +895,13 @@ describeWithMockConnection('PreloadingAttemptView', () => {
     const values = getCleanTextContentFromElements(report, 'devtools-report-value');
     assert.deepEqual(zip2(keys, values), [
       ['URL', 'https://example.com/prerendered.html'],
-      ['Action', 'PrerenderInspect'],
+      ['Action', 'Prerender Inspect'],
       ['Status', 'Speculative load finished and the result is ready for the next navigation.'],
     ]);
 
     const buttons = report.querySelectorAll('devtools-report-value:nth-of-type(2) devtools-button');
     assert.strictEqual(buttons[0].textContent?.trim(), 'Inspect');
-    assert.strictEqual(buttons[0].getAttribute('disabled'), null);
+    assert.isNull(buttons[0].getAttribute('disabled'));
   });
 
   it('shows prerender details with Investigate (disabled) button for Failure', async () => {
@@ -895,7 +943,7 @@ describeWithMockConnection('PreloadingAttemptView', () => {
     const preloadingDetailsComponent = view.getPreloadingDetailsForTest();
     assert.isNotNull(preloadingDetailsComponent.shadowRoot);
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     assertGridContents(
         preloadingGridComponent,
@@ -910,14 +958,10 @@ describeWithMockConnection('PreloadingAttemptView', () => {
         ],
     );
 
-    const cells = [
-      {columnId: 'id', value: 'loaderId:1:Prerender:https://example.com/prerendered.html:undefined'},
-      // Omit other columns.
-    ];
     preloadingGridComponent.dispatchEvent(
-        new DataGrid.DataGridEvents.BodyCellFocusedEvent({columnId: 'URL', value: '/prerendered.html'}, {cells}));
+        new CustomEvent('select', {detail: 'loaderId:1:Prerender:https://example.com/prerendered.html:undefined'}));
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     const report =
         getElementWithinComponent(preloadingDetailsComponent, 'devtools-report', ReportView.ReportView.Report);
@@ -926,7 +970,7 @@ describeWithMockConnection('PreloadingAttemptView', () => {
     const values = getCleanTextContentFromElements(report, 'devtools-report-value');
     assert.deepEqual(zip2(keys, values), [
       ['URL', 'https://example.com/prerendered.html'],
-      ['Action', 'PrerenderInspect'],
+      ['Action', 'Prerender Inspect'],
       ['Status', 'Speculative load failed.'],
       [
         'Failure reason',
@@ -936,11 +980,15 @@ describeWithMockConnection('PreloadingAttemptView', () => {
 
     const buttons = report.querySelectorAll('devtools-report-value:nth-of-type(2) devtools-button');
     assert.strictEqual(buttons[0].textContent?.trim(), 'Inspect');
-    assert.strictEqual(buttons[0].getAttribute('disabled'), '');
+    assert.strictEqual(buttons[0].shadowRoot?.querySelector('button')?.getAttribute('disabled'), '');
   });
 });
 
 describeWithMockConnection('PreloadingSummaryView', () => {
+  beforeEach(() => {
+    SDK.ChildTargetManager.ChildTargetManager.install();
+  });
+
   it('shows information of preloading of the last page', async () => {
     const emulator = new NavigationEmulator();
     await emulator.openDevTools();
@@ -959,7 +1007,7 @@ describeWithMockConnection('PreloadingSummaryView', () => {
 `);
     await emulator.activateAndDispatchEvents('prerendered.html');
 
-    await coordinator.done();
+    await RenderCoordinator.done();
 
     const usedPreloadingComponent = view.getUsedPreloadingForTest();
     assert.isNotNull(usedPreloadingComponent.shadowRoot);
@@ -970,13 +1018,13 @@ describeWithMockConnection('PreloadingSummaryView', () => {
 
 async function testWarnings(
     event: Protocol.Preload.PreloadEnabledStateUpdatedEvent, headerExpected: string|null,
-    sectionsExpected: [string, string][]): Promise<void> {
+    sectionsExpected: Array<[string, string]>): Promise<void> {
   const target = createTarget();
 
-  const warningsUpdatedPromise: Promise<void> = new Promise(resolve => {
+  const warningsUpdatedPromise = new Promise<void>(resolve => {
     const model = target.model(SDK.PreloadingModel.PreloadingModel);
     assert.exists(model);
-    model.addEventListener(SDK.PreloadingModel.Events.WarningsUpdated, _ => resolve());
+    model.addEventListener(SDK.PreloadingModel.Events.WARNINGS_UPDATED, _ => resolve());
   });
 
   const view = createRuleSetView(target);
@@ -985,7 +1033,7 @@ async function testWarnings(
   dispatchEvent(target, 'Preload.preloadEnabledStateUpdated', event);
 
   await warningsUpdatedPromise;
-  await coordinator.done();
+  await RenderCoordinator.done();
 
   const infobarContainer = view.getInfobarContainerForTest();
   const infobar = infobarContainer.querySelector('devtools-resources-preloading-disabled-infobar');
@@ -1006,6 +1054,10 @@ async function testWarnings(
 }
 
 describeWithMockConnection('PreloadingWarningsView', () => {
+  beforeEach(() => {
+    SDK.ChildTargetManager.ChildTargetManager.install();
+  });
+
   it('shows no warnings if holdback flags are disabled', async () => {
     await testWarnings(
         {

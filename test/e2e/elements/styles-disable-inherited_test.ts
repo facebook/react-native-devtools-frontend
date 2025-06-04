@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import {click, goToResource, waitFor} from '../../shared/helper.js';
-import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   checkStyleAttributes,
   expandSelectedNodeRecursively,
@@ -19,7 +18,7 @@ describe('The Elements tab', function() {
     await click('text/nested', {
       root: elementsContentPanel,
     });
-    await waitForElementsStyleSection();
+    await waitForElementsStyleSection(null);
     await checkStyleAttributes(['display: block;', 'font-weight: bold;']);
     await click('text/container', {
       root: elementsContentPanel,

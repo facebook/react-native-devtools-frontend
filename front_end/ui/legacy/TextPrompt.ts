@@ -38,7 +38,7 @@ import * as VisualLogging from '../visual_logging/visual_logging.js';
 
 import * as ARIAUtils from './ARIAUtils.js';
 import {SuggestBox, type SuggestBoxDelegate, type Suggestion} from './SuggestBox.js';
-import textPromptStyles from './textPrompt.css.legacy.js';
+import textPromptStyles from './textPrompt.css.js';
 import * as ThemeSupport from './theme_support/theme_support.js';
 import {Tooltip} from './Tooltip.js';
 import {ElementFocusRestorer} from './UIUtils.js';
@@ -88,7 +88,7 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
     this.ghostTextElement.setAttribute('contenteditable', 'false');
     this.leftParenthesesIndices = [];
     this.changed = false;
-    ARIAUtils.markAsHidden(this.ghostTextElement);
+    ARIAUtils.setHidden(this.ghostTextElement, true);
   }
 
   initialize(
@@ -129,7 +129,7 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
 
   private attachInternal(element: Element): Element {
     if (this.proxyElement) {
-      throw 'Cannot attach an attached TextPrompt';
+      throw new Error('Cannot attach an attached TextPrompt');
     }
     this.elementInternal = element;
 
@@ -159,8 +159,8 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
     }
     this.elementInternal.classList.add('text-prompt');
     ARIAUtils.markAsTextBox(this.elementInternal);
-    ARIAUtils.setAutocomplete(this.elementInternal, ARIAUtils.AutocompleteInteractionModel.Both);
-    ARIAUtils.setHasPopup(this.elementInternal, ARIAUtils.PopupRole.ListBox);
+    ARIAUtils.setAutocomplete(this.elementInternal, ARIAUtils.AutocompleteInteractionModel.BOTH);
+    ARIAUtils.setHasPopup(this.elementInternal, ARIAUtils.PopupRole.LIST_BOX);
     this.elementInternal.setAttribute('contenteditable', 'plaintext-only');
     this.element().addEventListener('keydown', this.boundOnKeyDown, false);
     this.elementInternal.addEventListener('input', this.boundOnInput, false);
@@ -189,7 +189,7 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
     if (this.focusRestorer) {
       this.focusRestorer.restore();
     }
-    if (this.proxyElement && this.proxyElement.parentElement) {
+    if (this.proxyElement?.parentElement) {
       this.proxyElement.parentElement.insertBefore(this.element(), this.proxyElement);
       this.proxyElement.remove();
     }
@@ -198,7 +198,7 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
     this.element().removeAttribute('contenteditable');
     this.element().removeAttribute('role');
     ARIAUtils.clearAutocomplete(this.element());
-    ARIAUtils.setHasPopup(this.element(), ARIAUtils.PopupRole.False);
+    ARIAUtils.setHasPopup(this.element(), ARIAUtils.PopupRole.FALSE);
   }
 
   textWithCurrentSuggestion(): string {
@@ -342,7 +342,7 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
   onKeyDown(ev: Event): void {
     let handled = false;
     const event = (ev as KeyboardEvent);
-    if (this.isSuggestBoxVisible() && this.suggestBox && this.suggestBox.keyPressed(event)) {
+    if (this.isSuggestBoxVisible() && this.suggestBox?.keyPressed(event)) {
       void VisualLogging.logKeyDown(this.suggestBox.element, event);
       event.consume(true);
       return;
@@ -392,8 +392,8 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
   }
 
   private acceptSuggestionOnStopCharacters(key: string): boolean {
-    if (!this.currentSuggestion || !this.queryRange || key.length !== 1 || !this.completionStopCharacters ||
-        !this.completionStopCharacters.includes(key)) {
+    if (!this.currentSuggestion || !this.queryRange || key.length !== 1 ||
+        !this.completionStopCharacters?.includes(key)) {
       return false;
     }
 
@@ -440,7 +440,7 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
     }
     this.refreshGhostText();
     this.previousText = text;
-    this.dispatchEventToListeners(Events.TextChanged);
+    this.dispatchEventToListeners(Events.TEXT_CHANGED);
     this.changed = true;
 
     this.autoCompleteSoon();
@@ -472,7 +472,7 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
     this.refreshGhostText();
 
     if (beforeText !== this.textWithCurrentSuggestion()) {
-      this.dispatchEventToListeners(Events.TextChanged);
+      this.dispatchEventToListeners(Events.TEXT_CHANGED);
       this.changed = true;
     }
   }
@@ -482,7 +482,7 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
   }
 
   private refreshGhostText(): void {
-    if (this.currentSuggestion && this.currentSuggestion.hideGhostText) {
+    if (this.currentSuggestion?.hideGhostText) {
       this.ghostTextElement.remove();
       return;
     }
@@ -543,7 +543,7 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
     const completionRequestId = ++this.completionRequestId;
     const completions =
         await this.loadCompletions.call(null, expressionRange.toString(), wordQueryRange.toString(), Boolean(force));
-    this.completionsReady(completionRequestId, (selection as Selection), wordQueryRange, Boolean(force), completions);
+    this.completionsReady(completionRequestId, (selection), wordQueryRange, Boolean(force), completions);
   }
 
   disableDefaultSuggestionForEmptyInput(): void {
@@ -620,7 +620,7 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
     this.currentSuggestion = suggestion;
     this.refreshGhostText();
     if (isIntermediateSuggestion) {
-      this.dispatchEventToListeners(Events.TextChanged);
+      this.dispatchEventToListeners(Events.TEXT_CHANGED);
       this.changed = true;
     }
   }
@@ -643,7 +643,7 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
     this.updateLeftParenthesesIndices();
 
     this.clearAutocomplete();
-    this.dispatchEventToListeners(Events.TextChanged);
+    this.dispatchEventToListeners(Events.TEXT_CHANGED);
     this.changed = true;
 
     return true;
@@ -670,17 +670,7 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
   }
 
   isSuggestBoxVisible(): boolean {
-    return this.suggestBox !== undefined && this.suggestBox.visible();
-  }
-
-  isCaretInsidePrompt(): boolean {
-    const selection = this.element().getComponentSelection();
-    if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) {
-      return false;
-    }
-    // @see crbug.com/602541
-    const selectionRange = selection.getRangeAt(0);
-    return selectionRange.startContainer.isSelfOrDescendant(this.element());
+    return this.suggestBox?.visible() ?? false;
   }
 
   private isCaretAtEndOfPrompt(): boolean {
@@ -705,7 +695,7 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
 
     let foundNextText = false;
     while (node) {
-      if (node.nodeType === Node.TEXT_NODE && node.nodeValue && node.nodeValue.length) {
+      if (node.nodeType === Node.TEXT_NODE && node.nodeValue?.length) {
         if (foundNextText && !this.ghostTextElement.isAncestor(node)) {
           return false;
         }
@@ -762,10 +752,6 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
     return this.acceptAutoComplete();
   }
 
-  proxyElementForTests(): Element|null {
-    return this.proxyElement || null;
-  }
-
   /**
    * Try matching the most recent open parenthesis with the given right
    * parenthesis, and closes the matched left parenthesis if found.
@@ -805,9 +791,9 @@ export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> i
 const DefaultAutocompletionTimeout = 250;
 
 export const enum Events {
-  TextChanged = 'TextChanged',
+  TEXT_CHANGED = 'TextChanged',
 }
 
-export type EventTypes = {
-  [Events.TextChanged]: void,
-};
+export interface EventTypes {
+  [Events.TEXT_CHANGED]: void;
+}

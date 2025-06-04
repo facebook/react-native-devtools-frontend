@@ -5,8 +5,10 @@
   "chromium",
   "csp_evaluator",
   "diff",
+  "json5",
   "i18n",
   "intl-messageformat",
+  "legacy-javascript",
   "lighthouse",
   "lit",
   "marked",
@@ -16,6 +18,7 @@
   "puppeteer/third_party/rxjs",
   "puppeteer-replay",
   "react-devtools",
+  "third-party-web",
   "wasmparser",
   "web-vitals"
 ]

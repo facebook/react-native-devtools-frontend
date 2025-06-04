@@ -36,7 +36,7 @@ import * as TextUtils from '../../../../models/text_utils/text_utils.js';
 import * as VisualLogging from '../../../visual_logging/visual_logging.js';
 import * as UI from '../../legacy.js';
 
-import fontViewStyles from './fontView.css.legacy.js';
+import fontViewStyles from './fontView.css.js';
 
 const UIStrings = {
   /**
@@ -48,12 +48,11 @@ const UIStrings = {
    *@example {https://example.com} PH1
    */
   previewOfFontFromS: 'Preview of font from {PH1}',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/components/source_frame/FontView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class FontView extends UI.View.SimpleView {
   private readonly url: Platform.DevToolsPath.UrlString;
-  private readonly mimeType: string;
   private readonly contentProvider: TextUtils.ContentProvider.ContentProvider;
   private readonly mimeTypeLabel: UI.Toolbar.ToolbarText;
   fontPreviewElement!: HTMLElement|null;
@@ -67,7 +66,6 @@ export class FontView extends UI.View.SimpleView {
     this.element.setAttribute('jslog', `${VisualLogging.pane('font-view')}`);
     this.url = contentProvider.contentURL();
     UI.ARIAUtils.setLabel(this.element, i18nString(UIStrings.previewOfFontFromS, {PH1: this.url}));
-    this.mimeType = mimeType;
     this.contentProvider = contentProvider;
     this.mimeTypeLabel = new UI.Toolbar.ToolbarText(mimeType);
   }
@@ -76,10 +74,8 @@ export class FontView extends UI.View.SimpleView {
     return [this.mimeTypeLabel];
   }
 
-  private onFontContentLoaded(uniqueFontName: string, deferredContent: TextUtils.ContentProvider.DeferredContent):
-      void {
-    const {content} = deferredContent;
-    const url = content ? TextUtils.ContentProvider.contentAsDataURL(content, this.mimeType, true) : this.url;
+  private onFontContentLoaded(uniqueFontName: string, contentData: TextUtils.ContentData.ContentDataOrError): void {
+    const url = TextUtils.ContentData.ContentData.isError(contentData) ? this.url : contentData.asDataUrl();
     if (!this.fontStyleElement) {
       return;
     }
@@ -95,8 +91,8 @@ export class FontView extends UI.View.SimpleView {
 
     const uniqueFontName = `WebInspectorFontPreview${++fontId}`;
     this.fontStyleElement = document.createElement('style');
-    void this.contentProvider.requestContent().then(deferredContent => {
-      this.onFontContentLoaded(uniqueFontName, deferredContent);
+    void this.contentProvider.requestContentData().then(contentData => {
+      this.onFontContentLoaded(uniqueFontName, contentData);
     });
     this.element.appendChild(this.fontStyleElement);
 
@@ -111,7 +107,7 @@ export class FontView extends UI.View.SimpleView {
     if (!this.fontPreviewElement) {
       return;
     }
-    UI.ARIAUtils.markAsHidden(this.fontPreviewElement);
+    UI.ARIAUtils.setHidden(this.fontPreviewElement, true);
     this.fontPreviewElement.style.overflow = 'hidden';
     this.fontPreviewElement.style.setProperty('font-family', uniqueFontName);
     this.fontPreviewElement.style.setProperty('visibility', 'hidden');

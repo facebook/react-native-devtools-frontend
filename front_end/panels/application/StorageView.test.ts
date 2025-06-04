@@ -8,11 +8,9 @@ import {dispatchFocusOutEvent} from '../../testing/DOMHelpers.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
 import {SECURITY_ORIGIN} from '../../testing/ResourceTreeHelpers.js';
-import * as Coordinator from '../../ui/components/render_coordinator/render_coordinator.js';
+import * as RenderCoordinator from '../../ui/components/render_coordinator/render_coordinator.js';
 
 import * as Resources from './application.js';
-
-const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 describeWithMockConnection('StorageView', () => {
   const testKey = 'test-storage-key';
@@ -21,7 +19,7 @@ describeWithMockConnection('StorageView', () => {
   let storageKeyManager: SDK.StorageKeyManager.StorageKeyManager|null;
 
   beforeEach(() => {
-    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
+    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
     createTarget({parentTarget: tabTarget, subtype: 'prerender'});
     target = createTarget({parentTarget: tabTarget});
     domStorageModel = target.model(Resources.DOMStorageModel.DOMStorageModel);
@@ -35,7 +33,7 @@ describeWithMockConnection('StorageView', () => {
     assert.exists(domStorageModel);
     assert.isEmpty(domStorageModel.storages());
     assert.exists(storageKeyManager);
-    storageKeyManager.dispatchEventToListeners(SDK.StorageKeyManager.Events.StorageKeyAdded, testKey);
+    storageKeyManager.dispatchEventToListeners(SDK.StorageKeyManager.Events.STORAGE_KEY_ADDED, testKey);
     assert.exists(domStorageModel.storageForId(testId));
 
     const dispatcherSpy = sinon.spy(domStorageModel, 'dispatchEventToListeners');
@@ -45,9 +43,9 @@ describeWithMockConnection('StorageView', () => {
     assert.isTrue(spyClearDataForStorageKey.calledOnce);
     assert.strictEqual(dispatcherSpy.callCount, 4);
     sinon.assert.calledWith(
-        dispatcherSpy, Resources.DOMStorageModel.Events.DOMStorageRemoved as unknown as sinon.SinonMatcher);
+        dispatcherSpy, Resources.DOMStorageModel.Events.DOM_STORAGE_REMOVED as unknown as sinon.SinonMatcher);
     sinon.assert.calledWith(
-        dispatcherSpy, Resources.DOMStorageModel.Events.DOMStorageAdded as unknown as sinon.SinonMatcher);
+        dispatcherSpy, Resources.DOMStorageModel.Events.DOM_STORAGE_ADDED as unknown as sinon.SinonMatcher);
   });
 
   it('changes subtitle on MainStorageKeyChanged event', () => {
@@ -56,7 +54,7 @@ describeWithMockConnection('StorageView', () => {
     const view = new Resources.StorageView.StorageView();
 
     storageKeyManager.dispatchEventToListeners(
-        SDK.StorageKeyManager.Events.MainStorageKeyChanged, {mainStorageKey: testKey});
+        SDK.StorageKeyManager.Events.MAIN_STORAGE_KEY_CHANGED, {mainStorageKey: testKey});
     const subtitle =
         view.element.shadowRoot?.querySelector('div.flex-auto')?.shadowRoot?.querySelector('div.report-subtitle');
     assert.strictEqual(subtitle?.textContent, testKey);
@@ -73,7 +71,7 @@ describeWithMockConnection('StorageView', () => {
     const container = view.element.shadowRoot?.querySelector('.clear-storage-header') || null;
     assert.instanceOf(container, HTMLDivElement);
     const customQuotaCheckbox =
-        container.shadowRoot!.querySelector('.quota-override-row span')!.shadowRoot!.querySelector(
+        container.shadowRoot!.querySelector('.quota-override-row dt-checkbox')!.shadowRoot!.querySelector(
             '[title="Simulate custom storage quota"]');
     assert.instanceOf(customQuotaCheckbox, HTMLInputElement);
     customQuotaCheckbox.checked = true;
@@ -85,7 +83,7 @@ describeWithMockConnection('StorageView', () => {
     assert.instanceOf(editor, HTMLInputElement);
     editor.value = '9999999999999';
     dispatchFocusOutEvent(editor);
-    await coordinator.done();
+    await RenderCoordinator.done();
     assert.strictEqual(errorDiv.textContent, 'Number must be smaller than 9,000,000,000,000');
   });
 
@@ -139,7 +137,7 @@ describeWithMockConnection('StorageView', () => {
     sinon.stub(target.cacheStorageAgent(), 'invoke_requestCacheNames').resolves({caches, getError: () => undefined});
     cacheStorageModel.enable();
     const cacheAddedPromise = new Promise<void>(resolve => {
-      cacheStorageModel.addEventListener(SDK.ServiceWorkerCacheModel.Events.CacheAdded, () => {
+      cacheStorageModel.addEventListener(SDK.ServiceWorkerCacheModel.Events.CACHE_ADDED, () => {
         resolve();
       });
     });

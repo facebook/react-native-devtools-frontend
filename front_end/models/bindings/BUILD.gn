@@ -4,7 +4,7 @@
 
 import("../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../scripts/build/ninja/devtools_module.gni")
-import("../../../third_party/typescript/typescript.gni")
+import("../../../scripts/build/typescript/typescript.gni")
 import("../visibility.gni")
 
 devtools_module("bindings") {
@@ -59,6 +59,7 @@ devtools_entrypoint("bundle") {
     "../../panels/emulation/*",
     "../../panels/network/*",
     "../../panels/profiler/*",
+    "../../panels/protocol_monitor/*",
     "../../panels/recorder/*",
     "../../panels/sources/*",
     "../../panels/timeline/*",
@@ -68,6 +69,7 @@ devtools_entrypoint("bundle") {
     "../../ui/legacy/components/inline_editor/*",
     "../../ui/legacy/components/perf_ui/*",
     "../../ui/legacy/components/utils/*",
+    "../ai_assistance/*",
     "../breakpoints/*",
     "../extensions/*",
     "../formatter/*",

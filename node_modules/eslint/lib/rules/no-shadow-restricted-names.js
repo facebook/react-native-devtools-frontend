@@ -29,7 +29,7 @@ module.exports = {
         docs: {
             description: "Disallow identifiers from shadowing restricted names",
             recommended: true,
-            url: "https://eslint.org/docs/rules/no-shadow-restricted-names"
+            url: "https://eslint.org/docs/latest/rules/no-shadow-restricted-names"
         },
 
         schema: [],
@@ -43,18 +43,29 @@ module.exports = {
 
 
         const RESTRICTED = new Set(["undefined", "NaN", "Infinity", "arguments", "eval"]);
+        const sourceCode = context.sourceCode;
+
+        // Track reported nodes to avoid duplicate reports. For example, on class declarations.
+        const reportedNodes = new Set();
 
         return {
-            "VariableDeclaration, :function, CatchClause"(node) {
-                for (const variable of context.getDeclaredVariables(node)) {
+            "VariableDeclaration, :function, CatchClause, ImportDeclaration, ClassDeclaration, ClassExpression"(node) {
+                for (const variable of sourceCode.getDeclaredVariables(node)) {
                     if (variable.defs.length > 0 && RESTRICTED.has(variable.name) && !safelyShadowsUndefined(variable)) {
-                        context.report({
-                            node: variable.defs[0].name,
-                            messageId: "shadowingRestrictedName",
-                            data: {
-                                name: variable.name
+                        for (const def of variable.defs) {
+                            const nodeToReport = def.name;
+
+                            if (!reportedNodes.has(nodeToReport)) {
+                                reportedNodes.add(nodeToReport);
+                                context.report({
+                                    node: nodeToReport,
+                                    messageId: "shadowingRestrictedName",
+                                    data: {
+                                        name: variable.name
+                                    }
+                                });
                             }
-                        });
+                        }
                     }
                 }
             }

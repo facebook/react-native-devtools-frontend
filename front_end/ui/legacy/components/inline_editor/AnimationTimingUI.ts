@@ -6,17 +6,17 @@ import * as Platform from '../../../../core/platform/platform.js';
 import * as VisualLogging from '../../../visual_logging/visual_logging.js';
 import * as UI from '../../legacy.js';
 
-import {type AnimationTimingModel} from './AnimationTimingModel.js';
+import type {AnimationTimingModel} from './AnimationTimingModel.js';
 import {BezierUI} from './BezierUI.js';
 import {CSSLinearEasingModel, type Point} from './CSSLinearEasingModel.js';
 
 const DOUBLE_CLICK_DELAY = 500;
 
-type Params = {
-  container: Element,
-  bezier: UI.Geometry.CubicBezier,
-  onBezierChange: (bezier: UI.Geometry.CubicBezier) => void,
-};
+interface Params {
+  container: Element;
+  bezier: UI.Geometry.CubicBezier;
+  onBezierChange: (bezier: UI.Geometry.CubicBezier) => void;
+}
 
 class BezierCurveUI {
   #curveUI: BezierUI;
@@ -94,16 +94,16 @@ class BezierCurveUI {
   }
 }
 
-type LinearEasingPresentationParams = {
-  width: number,
-  height: number,
-  marginTop: number,
-  pointRadius: number,
-};
-type Position = {
-  x: number,
-  y: number,
-};
+interface LinearEasingPresentationParams {
+  width: number;
+  height: number;
+  marginTop: number;
+  pointRadius: number;
+}
+interface Position {
+  x: number;
+  y: number;
+}
 class LinearEasingPresentation {
   params: LinearEasingPresentationParams;
   renderedPositions?: Position[];

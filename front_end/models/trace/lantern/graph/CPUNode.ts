@@ -2,13 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {BaseNode} from './BaseNode.js';
 import type * as Lantern from '../types/types.js';
+
+import {BaseNode} from './BaseNode.js';
 
 class CPUNode<T = Lantern.AnyNetworkObject> extends BaseNode<T> {
   _event: Lantern.TraceEvent;
   _childEvents: Lantern.TraceEvent[];
-  _correctedEndTs: number|undefined;
+  correctedEndTs: number|undefined;
 
   constructor(parentEvent: Lantern.TraceEvent, childEvents: Lantern.TraceEvent[] = [], correctedEndTs?: number) {
     const nodeId = `${parentEvent.tid}.${parentEvent.ts}`;
@@ -16,7 +17,7 @@ class CPUNode<T = Lantern.AnyNetworkObject> extends BaseNode<T> {
 
     this._event = parentEvent;
     this._childEvents = childEvents;
-    this._correctedEndTs = correctedEndTs;
+    this.correctedEndTs = correctedEndTs;
   }
 
   override get type(): 'cpu' {
@@ -28,8 +29,8 @@ class CPUNode<T = Lantern.AnyNetworkObject> extends BaseNode<T> {
   }
 
   override get endTime(): number {
-    if (this._correctedEndTs) {
-      return this._correctedEndTs;
+    if (this.correctedEndTs) {
+      return this.correctedEndTs;
     }
     return this._event.ts + this._event.dur;
   }
@@ -62,7 +63,7 @@ class CPUNode<T = Lantern.AnyNetworkObject> extends BaseNode<T> {
       if (event.name !== 'EvaluateScript') {
         continue;
       }
-      if (!event.args.data || !event.args.data.url) {
+      if (!event.args.data?.url) {
         continue;
       }
       urls.add(event.args.data.url);
@@ -72,7 +73,7 @@ class CPUNode<T = Lantern.AnyNetworkObject> extends BaseNode<T> {
   }
 
   override cloneWithoutRelationships(): CPUNode {
-    return new CPUNode(this._event, this._childEvents, this._correctedEndTs);
+    return new CPUNode(this._event, this._childEvents, this.correctedEndTs);
   }
 }
 

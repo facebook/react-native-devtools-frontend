@@ -13,10 +13,11 @@ import {
 } from '../../testing/MockConnection.js';
 import {MockProtocolBackend} from '../../testing/MockScopeChain.js';
 import * as Common from '../common/common.js';
-import type * as Platform from '../platform/platform.js';
+import * as Platform from '../platform/platform.js';
 
 import * as SDK from './sdk.js';
 
+const {urlString} = Platform.DevToolsPath;
 const SCRIPT_ID_ONE = '1' as Protocol.Runtime.ScriptId;
 const SCRIPT_ID_TWO = '2' as Protocol.Runtime.ScriptId;
 
@@ -29,6 +30,7 @@ describeWithMockConnection('DebuggerModel', () => {
       setMockConnectionResponseHandler('DOM.disable', () => ({}));
       setMockConnectionResponseHandler('CSS.disable', () => ({}));
       setMockConnectionResponseHandler('Overlay.disable', () => ({}));
+      setMockConnectionResponseHandler('Animation.disable', () => ({}));
       setMockConnectionResponseHandler('Overlay.setShowGridOverlays', () => ({}));
       setMockConnectionResponseHandler('Overlay.setShowFlexOverlays', () => ({}));
       setMockConnectionResponseHandler('Overlay.setShowScrollSnapOverlays', () => ({}));
@@ -43,6 +45,7 @@ describeWithMockConnection('DebuggerModel', () => {
       setMockConnectionResponseHandler('DOM.enable', () => ({}));
       setMockConnectionResponseHandler('Overlay.enable', () => ({}));
       setMockConnectionResponseHandler('CSS.enable', () => ({}));
+      setMockConnectionResponseHandler('Animation.enable', () => ({}));
     });
 
     it('deactivates breakpoints on construction with inactive breakpoints', async () => {
@@ -146,7 +149,7 @@ describeWithMockConnection('DebuggerModel', () => {
       });
       assert.strictEqual(debuggerModel?.createRawLocationByURL(url, 0)?.scriptId, SCRIPT_ID_ONE);
       assert.strictEqual(debuggerModel?.createRawLocationByURL(url, 20, 1)?.scriptId, SCRIPT_ID_TWO);
-      assert.strictEqual(debuggerModel?.createRawLocationByURL(url, 5, 5), null);
+      assert.isNull(debuggerModel?.createRawLocationByURL(url, 5, 5));
     });
   });
 
@@ -177,7 +180,7 @@ describeWithMockConnection('DebuggerModel', () => {
       const target = createTarget();
       target.markAsNodeJSForTest();
       const model = new SDK.DebuggerModel.DebuggerModel(target);
-      const {breakpointId} = await model.setBreakpointByURL('fs.js' as Platform.DevToolsPath.UrlString, 1);
+      const {breakpointId} = await model.setBreakpointByURL(urlString`fs.js`, 1);
       assert.strictEqual(breakpointId, breakpointId1);
     });
   });
@@ -227,7 +230,7 @@ describeWithMockConnection('DebuggerModel', () => {
     it('Scope.typeName covers every enum value', async () => {
       const target = createTarget();
       const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel) as SDK.DebuggerModel.DebuggerModel;
-      const scriptUrl = 'https://script-host/script.js' as Platform.DevToolsPath.UrlString;
+      const scriptUrl = urlString`https://script-host/script.js`;
       const script = new SDK.Script.Script(
           debuggerModel, SCRIPT_ID_ONE, scriptUrl, 0, 0, 0, 0, 0, '', false, false, undefined, false, 0, null, null,
           null, null, null, null);
@@ -275,7 +278,7 @@ describeWithMockConnection('DebuggerModel', () => {
     let debuggerWorkspaceBinding: Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding;
 
     beforeEach(() => {
-      target = createTarget({id: 'main' as Protocol.Target.TargetID, name: 'main', type: SDK.Target.Type.Frame});
+      target = createTarget({id: 'main' as Protocol.Target.TargetID, name: 'main', type: SDK.Target.Type.FRAME});
       const targetManager = target.targetManager();
       const workspace = Workspace.Workspace.WorkspaceImpl.instance();
       const resourceMapping = new Bindings.ResourceMapping.ResourceMapping(targetManager, workspace);
@@ -299,6 +302,64 @@ describeWithMockConnection('DebuggerModel', () => {
 });
 
 describe('DebuggerModel', () => {
+  describe('selectSymbolSource', () => {
+    const embeddedDwarfSymbols:
+        Protocol.Debugger.DebugSymbols = {type: Protocol.Debugger.DebugSymbolsType.EmbeddedDWARF, externalURL: ''};
+    const externalDwarfSymbols:
+        Protocol.Debugger.DebugSymbols = {type: Protocol.Debugger.DebugSymbolsType.ExternalDWARF, externalURL: 'abc'};
+    const sourceMapSymbols:
+        Protocol.Debugger.DebugSymbols = {type: Protocol.Debugger.DebugSymbolsType.SourceMap, externalURL: 'abc'};
+
+    beforeEach(() => {
+      Common.Console.Console.instance({forceNew: true});
+    });
+
+    function testSelectSymbolSource(
+        debugSymbols: Protocol.Debugger.DebugSymbols[]|null, expectedSymbolType: Protocol.Debugger.DebugSymbolsType,
+        expectedWarning?: string) {
+      const selectedSymbol = SDK.DebuggerModel.DebuggerModel.selectSymbolSource(debugSymbols);
+      assert.isNotNull(selectedSymbol);
+      assert.strictEqual(selectedSymbol.type, expectedSymbolType);
+
+      const consoleMessages = Common.Console.Console.instance().messages();
+      if (!expectedWarning) {
+        assert.lengthOf(consoleMessages, 0);
+        return;
+      }
+
+      assert.lengthOf(consoleMessages, 1);
+      assert.deepEqual(consoleMessages[0].text, expectedWarning);
+    }
+
+    it('prioritizes external DWARF over all types', () => {
+      const debugSymbols = [embeddedDwarfSymbols, externalDwarfSymbols, sourceMapSymbols];
+      const expectedSelectedSymbol = Protocol.Debugger.DebugSymbolsType.ExternalDWARF;
+      const expectedWarning = 'Multiple debug symbols for script were found. Using ExternalDWARF';
+      testSelectSymbolSource(debugSymbols, expectedSelectedSymbol, expectedWarning);
+    });
+
+    it('prioritizes embedded DWARF if source maps and embedded DWARF exist', () => {
+      const debugSymbols = [embeddedDwarfSymbols, sourceMapSymbols];
+      const expectedSymbolType = Protocol.Debugger.DebugSymbolsType.EmbeddedDWARF;
+      const expectedWarning = 'Multiple debug symbols for script were found. Using EmbeddedDWARF';
+      testSelectSymbolSource(debugSymbols, expectedSymbolType, expectedWarning);
+    });
+
+    it('picks source maps if no DWARF is available', () => {
+      const debugSymbols = [sourceMapSymbols];
+      const expectedSymbolType = Protocol.Debugger.DebugSymbolsType.SourceMap;
+      testSelectSymbolSource(debugSymbols, expectedSymbolType);
+    });
+
+    it('returns null if nothing is available', () => {
+      const selectedSymbol = SDK.DebuggerModel.DebuggerModel.selectSymbolSource([]);
+      assert.isNull(selectedSymbol);
+
+      const consoleMessages = Common.Console.Console.instance().messages();
+      assert.lengthOf(consoleMessages, 0);
+    });
+  });
+
   describe('sortAndMergeRanges', () => {
     function createRange(
         scriptId: Protocol.Runtime.ScriptId, startLine: number, startColumn: number, endLine: number,

@@ -28,11 +28,6 @@ const debugProtocolReceive = debug('puppeteer:protocol:RECV ◀');
 /**
  * @public
  */
-export type {ConnectionTransport, ProtocolMapping};
-
-/**
- * @public
- */
 export class Connection extends EventEmitter<CDPSessionEvents> {
   #url: string;
   #transport: ConnectionTransport;
@@ -41,15 +36,19 @@ export class Connection extends EventEmitter<CDPSessionEvents> {
   #sessions = new Map<string, CdpCDPSession>();
   #closed = false;
   #manuallyAttached = new Set<string>();
-  #callbacks = new CallbackRegistry();
+  #callbacks: CallbackRegistry;
+  #rawErrors = false;
 
   constructor(
     url: string,
     transport: ConnectionTransport,
     delay = 0,
-    timeout?: number
+    timeout?: number,
+    rawErrors = false,
   ) {
     super();
+    this.#rawErrors = rawErrors;
+    this.#callbacks = new CallbackRegistry();
     this.#url = url;
     this.#delay = delay;
     this.#timeout = timeout ?? 180_000;
@@ -61,6 +60,13 @@ export class Connection extends EventEmitter<CDPSessionEvents> {
 
   static fromSession(session: CDPSession): Connection | undefined {
     return session.connection();
+  }
+
+  /**
+   * @internal
+   */
+  get delay(): number {
+    return this.#delay;
   }
 
   get timeout(): number {
@@ -96,7 +102,7 @@ export class Connection extends EventEmitter<CDPSessionEvents> {
   send<T extends keyof ProtocolMapping.Commands>(
     method: T,
     params?: ProtocolMapping.Commands[T]['paramsType'][0],
-    options?: CommandOptions
+    options?: CommandOptions,
   ): Promise<ProtocolMapping.Commands[T]['returnType']> {
     // There is only ever 1 param arg passed, but the Protocol defines it as an
     // array of 0 or 1 items See this comment:
@@ -115,8 +121,11 @@ export class Connection extends EventEmitter<CDPSessionEvents> {
     method: T,
     params: ProtocolMapping.Commands[T]['paramsType'][0],
     sessionId?: string,
-    options?: CommandOptions
+    options?: CommandOptions,
   ): Promise<ProtocolMapping.Commands[T]['returnType']> {
+    if (this.#closed) {
+      return Promise.reject(new Error('Protocol error: Connection closed.'));
+    }
     return callbacks.create(method, options?.timeout ?? this.#timeout, id => {
       const stringifiedMessage = JSON.stringify({
         method,
@@ -153,7 +162,8 @@ export class Connection extends EventEmitter<CDPSessionEvents> {
         this,
         object.params.targetInfo.type,
         sessionId,
-        object.sessionId
+        object.sessionId,
+        this.#rawErrors,
       );
       this.#sessions.set(sessionId, session);
       this.emit(CDPSessionEvent.SessionAttached, session);
@@ -180,11 +190,15 @@ export class Connection extends EventEmitter<CDPSessionEvents> {
       }
     } else if (object.id) {
       if (object.error) {
-        this.#callbacks.reject(
-          object.id,
-          createProtocolErrorMessage(object),
-          object.error.message
-        );
+        if (this.#rawErrors) {
+          this.#callbacks.rejectRaw(object.id, object.error);
+        } else {
+          this.#callbacks.reject(
+            object.id,
+            createProtocolErrorMessage(object),
+            object.error.message,
+          );
+        }
       } else {
         this.#callbacks.resolve(object.id, object.result);
       }
@@ -224,8 +238,8 @@ export class Connection extends EventEmitter<CDPSessionEvents> {
    * @internal
    */
   async _createSession(
-    targetInfo: Protocol.Target.TargetInfo,
-    isAutoAttachEmulated = true
+    targetInfo: {targetId: string},
+    isAutoAttachEmulated = true,
   ): Promise<CDPSession> {
     if (!isAutoAttachEmulated) {
       this.#manuallyAttached.add(targetInfo.targetId);
@@ -247,7 +261,7 @@ export class Connection extends EventEmitter<CDPSessionEvents> {
    * @returns The CDP session that is created
    */
   async createSession(
-    targetInfo: Protocol.Target.TargetInfo
+    targetInfo: Protocol.Target.TargetInfo,
   ): Promise<CDPSession> {
     return await this._createSession(targetInfo, false);
   }

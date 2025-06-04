@@ -5,19 +5,22 @@
 
 import * as Common from '../../../core/common/common.js';
 import * as i18n from '../../../core/i18n/i18n.js';
-import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
+import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as UI from '../../../ui/legacy/legacy.js';
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
-import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
+import {html, render} from '../../../ui/lit/lit.js';
 
-import hideIssuesMenuStyles from './hideIssuesMenu.css.js';
+import hideIssuesMenuStylesRaw from './hideIssuesMenu.css.js';
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const hideIssuesMenuStyles = new CSSStyleSheet();
+hideIssuesMenuStyles.replaceSync(hideIssuesMenuStylesRaw.cssText);
 
 const UIStrings = {
   /**
    *@description Title for the tooltip of the (3 dots) Hide Issues menu icon.
    */
   tooltipTitle: 'Hide issues',
-};
+} as const;
 
 const str_ = i18n.i18n.registerUIStrings('panels/issues/components/HideIssuesMenu.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -28,7 +31,6 @@ export interface HiddenIssuesMenuData {
 }
 
 export class HideIssuesMenu extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-hide-issues-menu`;
   readonly #shadow: ShadowRoot = this.attachShadow({mode: 'open'});
   #menuItemLabel: Common.UIString.LocalizedString = Common.UIString.LocalizedEmptyString;
   #menuItemAction: () => void = () => {};
@@ -45,7 +47,7 @@ export class HideIssuesMenu extends HTMLElement {
 
   onMenuOpen(event: Event): void {
     event.stopPropagation();
-    const buttonElement = this.#shadow.querySelector('button');
+    const buttonElement = this.#shadow.querySelector('devtools-button');
     const contextMenu = new UI.ContextMenu.ContextMenu(event, {
       x: buttonElement?.getBoundingClientRect().left,
       y: buttonElement?.getBoundingClientRect().bottom,
@@ -58,10 +60,12 @@ export class HideIssuesMenu extends HTMLElement {
   #render(): void {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    LitHtml.render(LitHtml.html`
-      <button class="hide-issues-menu-btn" @click=${this.onMenuOpen.bind(this)} title=${i18nString(UIStrings.tooltipTitle)}>
-        <${IconButton.Icon.Icon.litTagName} name="dots-vertical" jslog=${VisualLogging.dropDown('hide-issues').track({click: true})}></${IconButton.Icon.Icon.litTagName}>
-      </button>
+    render(html`
+    <devtools-button
+      .data=${{variant: Buttons.Button.Variant.ICON,iconName: 'dots-vertical', title: i18nString(UIStrings.tooltipTitle)} as Buttons.Button.ButtonData}
+      .jslogContext=${'hide-issues'}
+      class="hide-issues-menu-btn"
+      @click=${this.onMenuOpen}></devtools-button>
     `, this.#shadow, {host: this});
   }
 }

@@ -5,7 +5,7 @@
 import {assert} from 'chai';
 
 import type * as Menus from '../../../../front_end/ui/components/menus/menus.js';
-import {loadComponentDocExample, preloadForCodeCoverage} from '../../../../test/interactions/helpers/shared.js';
+import {loadComponentDocExample} from '../../../../test/interactions/helpers/shared.js';
 import {
   $,
   activeElement,
@@ -16,15 +16,14 @@ import {
   waitForFunction,
   waitForNone,
 } from '../../../../test/shared/helper.js';
-import {describe, it, itScreenshot} from '../../../../test/shared/mocha-extensions.js';
 import {
   assertElementScreenshotUnchanged,
   waitForDialogAnimationEnd,
 } from '../../../shared/screenshots.js';
 
-type GetSelectMenuOptions = {
-  placeholderSelector?: string,
-};
+interface GetSelectMenuOptions {
+  placeholderSelector?: string;
+}
 async function getFocusedItemValue() {
   const focusedItem = await waitFor('devtools-menu-item:focus');
   return await focusedItem.evaluate((item: Element) => (item as Menus.Menu.MenuItem).value);
@@ -62,8 +61,6 @@ async function testScreenshotOnPlaceholder(placeholderSelector: string, screensh
 }
 
 describe('SelectMenu', () => {
-  preloadForCodeCoverage('select_menu/basic.html');
-
   it('shows the button to open the menu', async () => {
     const selectMenu = await getSelectMenu();
     const button = await $('button', selectMenu);
@@ -311,7 +308,7 @@ describe('SelectMenu', () => {
 
   itScreenshot('renders a menu with a connector', async () => {
     await loadComponentDocExample('select_menu/basic.html');
-    await testScreenshotOnPlaceholder('#place-holder-3', 'select_menu/select_menu_with_connector.png');
+    await testScreenshotOnPlaceholder('#place-holder-3', 'select_menu/select_menu.png');
   });
 
   itScreenshot('renders a menu with groups', async () => {

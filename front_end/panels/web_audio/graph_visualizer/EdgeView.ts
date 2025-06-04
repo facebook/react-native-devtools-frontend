@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {type NodeParamConnectionData, type NodesConnectionData} from './GraphStyle.js';
+import type {NodeParamConnectionData, NodesConnectionData} from './GraphStyle.js';
 import {generateInputPortId, generateOutputPortId, generateParamPortId} from './NodeView.js';
 
 // A class that represents an edge of a graph, including node-to-node connection,
@@ -50,19 +50,19 @@ export const generateEdgePortIdsByData = (data: NodesConnectionData|NodeParamCon
 
   return {
     edgeId: `${sourcePortId}->${destinationPortId}`,
-    sourcePortId: sourcePortId,
-    destinationPortId: destinationPortId,
+    sourcePortId,
+    destinationPortId,
   };
 
   /**
    * Get the destination portId based on connection type.
    */
   function getDestinationPortId(data: NodesConnectionData|NodeParamConnectionData, type: EdgeTypes): string {
-    if (type === EdgeTypes.NodeToNode) {
+    if (type === EdgeTypes.NODE_TO_NODE) {
       const portData = (data as NodesConnectionData);
       return generateInputPortId(data.destinationId, portData.destinationInputIndex);
     }
-    if (type === EdgeTypes.NodeToParam) {
+    if (type === EdgeTypes.NODE_TO_PARAM) {
       const portData = (data as NodeParamConnectionData);
       return generateParamPortId(data.destinationId, portData.destinationParamId);
     }
@@ -75,6 +75,6 @@ export const generateEdgePortIdsByData = (data: NodesConnectionData|NodeParamCon
  * Supported edge types.
  */
 export const enum EdgeTypes {
-  NodeToNode = 'NodeToNode',
-  NodeToParam = 'NodeToParam',
+  NODE_TO_NODE = 'NodeToNode',
+  NODE_TO_PARAM = 'NodeToParam',
 }

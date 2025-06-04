@@ -7,7 +7,7 @@
 var __addDisposableResource = (this && this.__addDisposableResource) || function (env, value, async) {
     if (value !== null && value !== void 0) {
         if (typeof value !== "object" && typeof value !== "function") throw new TypeError("Object expected.");
-        var dispose;
+        var dispose, inner;
         if (async) {
             if (!Symbol.asyncDispose) throw new TypeError("Symbol.asyncDispose is not defined.");
             dispose = value[Symbol.asyncDispose];
@@ -15,8 +15,10 @@ var __addDisposableResource = (this && this.__addDisposableResource) || function
         if (dispose === void 0) {
             if (!Symbol.dispose) throw new TypeError("Symbol.dispose is not defined.");
             dispose = value[Symbol.dispose];
+            if (async) inner = dispose;
         }
         if (typeof dispose !== "function") throw new TypeError("Object not disposable.");
+        if (inner) dispose = function() { try { inner.call(this); } catch (e) { return Promise.reject(e); } };
         env.stack.push({ value: value, dispose: dispose, async: async });
     }
     else if (async) {
@@ -30,17 +32,22 @@ var __disposeResources = (this && this.__disposeResources) || (function (Suppres
             env.error = env.hasError ? new SuppressedError(e, env.error, "An error was suppressed during disposal.") : e;
             env.hasError = true;
         }
+        var r, s = 0;
         function next() {
-            while (env.stack.length) {
-                var rec = env.stack.pop();
+            while (r = env.stack.pop()) {
                 try {
-                    var result = rec.dispose && rec.dispose.call(rec.value);
-                    if (rec.async) return Promise.resolve(result).then(next, function(e) { fail(e); return next(); });
+                    if (!r.async && s === 1) return s = 0, env.stack.push(r), Promise.resolve().then(next);
+                    if (r.dispose) {
+                        var result = r.dispose.call(r.value);
+                        if (r.async) return s |= 2, Promise.resolve(result).then(next, function(e) { fail(e); return next(); });
+                    }
+                    else s |= 1;
                 }
                 catch (e) {
                     fail(e);
                 }
             }
+            if (s === 1) return env.hasError ? Promise.reject(env.error) : Promise.resolve();
             if (env.hasError) throw env.error;
         }
         return next();
@@ -51,11 +58,13 @@ var __disposeResources = (this && this.__disposeResources) || (function (Suppres
 });
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CdpPage = void 0;
+exports.convertCookiesPartitionKeyFromPuppeteerToCdp = convertCookiesPartitionKeyFromPuppeteerToCdp;
 const rxjs_js_1 = require("../../third_party/rxjs/rxjs.js");
 const CDPSession_js_1 = require("../api/CDPSession.js");
 const Page_js_1 = require("../api/Page.js");
 const ConsoleMessage_js_1 = require("../common/ConsoleMessage.js");
 const Errors_js_1 = require("../common/Errors.js");
+const EventEmitter_js_1 = require("../common/EventEmitter.js");
 const FileChooser_js_1 = require("../common/FileChooser.js");
 const NetworkManagerEvents_js_1 = require("../common/NetworkManagerEvents.js");
 const util_js_1 = require("../common/util.js");
@@ -64,12 +73,11 @@ const Deferred_js_1 = require("../util/Deferred.js");
 const disposable_js_1 = require("../util/disposable.js");
 const ErrorLike_js_1 = require("../util/ErrorLike.js");
 const Binding_js_1 = require("./Binding.js");
-const CDPSession_js_2 = require("./CDPSession.js");
+const CdpSession_js_1 = require("./CdpSession.js");
 const Connection_js_1 = require("./Connection.js");
 const Coverage_js_1 = require("./Coverage.js");
 const Dialog_js_1 = require("./Dialog.js");
 const EmulationManager_js_1 = require("./EmulationManager.js");
-const FirefoxTargetManager_js_1 = require("./FirefoxTargetManager.js");
 const FrameManager_js_1 = require("./FrameManager.js");
 const FrameManagerEvents_js_1 = require("./FrameManagerEvents.js");
 const Input_js_1 = require("./Input.js");
@@ -129,90 +137,12 @@ class CdpPage extends Page_js_1.Page {
     #sessionCloseDeferred = Deferred_js_1.Deferred.create();
     #serviceWorkerBypassed = false;
     #userDragInterceptionEnabled = false;
-    #frameManagerHandlers = [
-        [
-            FrameManagerEvents_js_1.FrameManagerEvent.FrameAttached,
-            (frame) => {
-                this.emit("frameattached" /* PageEvent.FrameAttached */, frame);
-            },
-        ],
-        [
-            FrameManagerEvents_js_1.FrameManagerEvent.FrameDetached,
-            (frame) => {
-                this.emit("framedetached" /* PageEvent.FrameDetached */, frame);
-            },
-        ],
-        [
-            FrameManagerEvents_js_1.FrameManagerEvent.FrameNavigated,
-            (frame) => {
-                this.emit("framenavigated" /* PageEvent.FrameNavigated */, frame);
-            },
-        ],
-    ];
-    #networkManagerHandlers = [
-        [
-            NetworkManagerEvents_js_1.NetworkManagerEvent.Request,
-            (request) => {
-                this.emit("request" /* PageEvent.Request */, request);
-            },
-        ],
-        [
-            NetworkManagerEvents_js_1.NetworkManagerEvent.RequestServedFromCache,
-            (request) => {
-                this.emit("requestservedfromcache" /* PageEvent.RequestServedFromCache */, request);
-            },
-        ],
-        [
-            NetworkManagerEvents_js_1.NetworkManagerEvent.Response,
-            (response) => {
-                this.emit("response" /* PageEvent.Response */, response);
-            },
-        ],
-        [
-            NetworkManagerEvents_js_1.NetworkManagerEvent.RequestFailed,
-            (request) => {
-                this.emit("requestfailed" /* PageEvent.RequestFailed */, request);
-            },
-        ],
-        [
-            NetworkManagerEvents_js_1.NetworkManagerEvent.RequestFinished,
-            (request) => {
-                this.emit("requestfinished" /* PageEvent.RequestFinished */, request);
-            },
-        ],
-    ];
-    #sessionHandlers = [
-        [
-            CDPSession_js_1.CDPSessionEvent.Disconnected,
-            () => {
-                this.#sessionCloseDeferred.reject(new Errors_js_1.TargetCloseError('Target closed'));
-            },
-        ],
-        [
-            'Page.domContentEventFired',
-            () => {
-                return this.emit("domcontentloaded" /* PageEvent.DOMContentLoaded */, undefined);
-            },
-        ],
-        [
-            'Page.loadEventFired',
-            () => {
-                return this.emit("load" /* PageEvent.Load */, undefined);
-            },
-        ],
-        ['Page.javascriptDialogOpening', this.#onDialog.bind(this)],
-        ['Runtime.exceptionThrown', this.#handleException.bind(this)],
-        ['Inspector.targetCrashed', this.#onTargetCrashed.bind(this)],
-        ['Performance.metrics', this.#emitMetrics.bind(this)],
-        ['Log.entryAdded', this.#onLogEntryAdded.bind(this)],
-        ['Page.fileChooserOpened', this.#onFileChooser.bind(this)],
-    ];
     constructor(client, target) {
         super();
         this.#primaryTargetClient = client;
         this.#tabTargetClient = client.parentSession();
         (0, assert_js_1.assert)(this.#tabTargetClient, 'Tab target session is not defined.');
-        this.#tabTarget = this.#tabTargetClient._target();
+        this.#tabTarget = this.#tabTargetClient.target();
         (0, assert_js_1.assert)(this.#tabTarget, 'Tab target is not defined.');
         this.#primaryTarget = target;
         this.#targetManager = target._targetManager();
@@ -224,19 +154,38 @@ class CdpPage extends Page_js_1.Page {
         this.#tracing = new Tracing_js_1.Tracing(client);
         this.#coverage = new Coverage_js_1.Coverage(client);
         this.#viewport = null;
-        for (const [eventName, handler] of this.#frameManagerHandlers) {
-            this.#frameManager.on(eventName, handler);
-        }
-        this.#frameManager.on(FrameManagerEvents_js_1.FrameManagerEvent.ConsoleApiCalled, ([world, event]) => {
+        const frameManagerEmitter = new EventEmitter_js_1.EventEmitter(this.#frameManager);
+        frameManagerEmitter.on(FrameManagerEvents_js_1.FrameManagerEvent.FrameAttached, frame => {
+            this.emit("frameattached" /* PageEvent.FrameAttached */, frame);
+        });
+        frameManagerEmitter.on(FrameManagerEvents_js_1.FrameManagerEvent.FrameDetached, frame => {
+            this.emit("framedetached" /* PageEvent.FrameDetached */, frame);
+        });
+        frameManagerEmitter.on(FrameManagerEvents_js_1.FrameManagerEvent.FrameNavigated, frame => {
+            this.emit("framenavigated" /* PageEvent.FrameNavigated */, frame);
+        });
+        frameManagerEmitter.on(FrameManagerEvents_js_1.FrameManagerEvent.ConsoleApiCalled, ([world, event]) => {
             this.#onConsoleAPI(world, event);
         });
-        this.#frameManager.on(FrameManagerEvents_js_1.FrameManagerEvent.BindingCalled, ([world, event]) => {
+        frameManagerEmitter.on(FrameManagerEvents_js_1.FrameManagerEvent.BindingCalled, ([world, event]) => {
             void this.#onBindingCalled(world, event);
         });
-        for (const [eventName, handler] of this.#networkManagerHandlers) {
-            // TODO: Remove any.
-            this.#frameManager.networkManager.on(eventName, handler);
-        }
+        const networkManagerEmitter = new EventEmitter_js_1.EventEmitter(this.#frameManager.networkManager);
+        networkManagerEmitter.on(NetworkManagerEvents_js_1.NetworkManagerEvent.Request, request => {
+            this.emit("request" /* PageEvent.Request */, request);
+        });
+        networkManagerEmitter.on(NetworkManagerEvents_js_1.NetworkManagerEvent.RequestServedFromCache, request => {
+            this.emit("requestservedfromcache" /* PageEvent.RequestServedFromCache */, request);
+        });
+        networkManagerEmitter.on(NetworkManagerEvents_js_1.NetworkManagerEvent.Response, response => {
+            this.emit("response" /* PageEvent.Response */, response);
+        });
+        networkManagerEmitter.on(NetworkManagerEvents_js_1.NetworkManagerEvent.RequestFailed, request => {
+            this.emit("requestfailed" /* PageEvent.RequestFailed */, request);
+        });
+        networkManagerEmitter.on(NetworkManagerEvents_js_1.NetworkManagerEvent.RequestFinished, request => {
+            this.emit("requestfinished" /* PageEvent.RequestFinished */, request);
+        });
         this.#tabTargetClient.on(CDPSession_js_1.CDPSessionEvent.Swapped, this.#onActivation.bind(this));
         this.#tabTargetClient.on(CDPSession_js_1.CDPSessionEvent.Ready, this.#onSecondaryTarget.bind(this));
         this.#targetManager.on("targetGone" /* TargetManagerEvent.TargetGone */, this.#onDetachedFromTarget);
@@ -270,9 +219,10 @@ class CdpPage extends Page_js_1.Page {
         }
     }
     async #onActivation(newSession) {
+        // TODO: Remove assert once we have separate Event type for CdpCDPSession.
+        (0, assert_js_1.assert)(newSession instanceof CdpSession_js_1.CdpCDPSession, 'CDPSession is not instance of CdpCDPSession');
         this.#primaryTargetClient = newSession;
-        (0, assert_js_1.assert)(this.#primaryTargetClient instanceof CDPSession_js_2.CdpCDPSession, 'CDPSession is not instance of CDPSessionImpl');
-        this.#primaryTarget = this.#primaryTargetClient._target();
+        this.#primaryTarget = newSession.target();
         (0, assert_js_1.assert)(this.#primaryTarget, 'Missing target on swap');
         this.#keyboard.updateClient(newSession);
         this.#mouse.updateClient(newSession);
@@ -284,8 +234,8 @@ class CdpPage extends Page_js_1.Page {
         this.#setupPrimaryTargetListeners();
     }
     async #onSecondaryTarget(session) {
-        (0, assert_js_1.assert)(session instanceof CDPSession_js_2.CdpCDPSession);
-        if (session._target()._subtype() !== 'prerender') {
+        (0, assert_js_1.assert)(session instanceof CdpSession_js_1.CdpCDPSession);
+        if (session.target()._subtype() !== 'prerender') {
             return;
         }
         this.#frameManager.registerSpeculativeSession(session).catch(util_js_1.debugError);
@@ -298,11 +248,23 @@ class CdpPage extends Page_js_1.Page {
      * during a navigation to a prerended page.
      */
     #setupPrimaryTargetListeners() {
-        this.#primaryTargetClient.on(CDPSession_js_1.CDPSessionEvent.Ready, this.#onAttachedToTarget);
-        for (const [eventName, handler] of this.#sessionHandlers) {
-            // TODO: Remove any.
-            this.#primaryTargetClient.on(eventName, handler);
-        }
+        const clientEmitter = new EventEmitter_js_1.EventEmitter(this.#primaryTargetClient);
+        clientEmitter.on(CDPSession_js_1.CDPSessionEvent.Ready, this.#onAttachedToTarget);
+        clientEmitter.on(CDPSession_js_1.CDPSessionEvent.Disconnected, () => {
+            this.#sessionCloseDeferred.reject(new Errors_js_1.TargetCloseError('Target closed'));
+        });
+        clientEmitter.on('Page.domContentEventFired', () => {
+            this.emit("domcontentloaded" /* PageEvent.DOMContentLoaded */, undefined);
+        });
+        clientEmitter.on('Page.loadEventFired', () => {
+            this.emit("load" /* PageEvent.Load */, undefined);
+        });
+        clientEmitter.on('Page.javascriptDialogOpening', this.#onDialog.bind(this));
+        clientEmitter.on('Runtime.exceptionThrown', this.#handleException.bind(this));
+        clientEmitter.on('Inspector.targetCrashed', this.#onTargetCrashed.bind(this));
+        clientEmitter.on('Performance.metrics', this.#emitMetrics.bind(this));
+        clientEmitter.on('Log.entryAdded', this.#onLogEntryAdded.bind(this));
+        clientEmitter.on('Page.fileChooserOpened', this.#onFileChooser.bind(this));
     }
     #onDetachedFromTarget = (target) => {
         const sessionId = target._session()?.id();
@@ -314,10 +276,10 @@ class CdpPage extends Page_js_1.Page {
         this.emit("workerdestroyed" /* PageEvent.WorkerDestroyed */, worker);
     };
     #onAttachedToTarget = (session) => {
-        (0, assert_js_1.assert)(session instanceof CDPSession_js_2.CdpCDPSession);
-        this.#frameManager.onAttachedToTarget(session._target());
-        if (session._target()._getTargetInfo().type === 'worker') {
-            const worker = new WebWorker_js_1.CdpWebWorker(session, session._target().url(), session._target()._targetId, session._target().type(), this.#addConsoleMessage.bind(this), this.#handleException.bind(this));
+        (0, assert_js_1.assert)(session instanceof CdpSession_js_1.CdpCDPSession);
+        this.#frameManager.onAttachedToTarget(session.target());
+        if (session.target()._getTargetInfo().type === 'worker') {
+            const worker = new WebWorker_js_1.CdpWebWorker(session, session.target().url(), session.target()._targetId, session.target().type(), this.#addConsoleMessage.bind(this), this.#handleException.bind(this));
             this.#workers.set(session.id(), worker);
             this.emit("workercreated" /* PageEvent.WorkerCreated */, worker);
         }
@@ -383,6 +345,11 @@ class CdpPage extends Page_js_1.Page {
             message: `Waiting for \`FileChooser\` failed: ${timeout}ms exceeded`,
             timeout,
         });
+        if (options.signal) {
+            options.signal.addEventListener('abort', () => {
+                deferred.reject(options.signal?.reason);
+            }, { once: true });
+        }
         this.#fileChooserDeferreds.add(deferred);
         let enablePromise;
         if (needsEnable) {
@@ -477,6 +444,9 @@ class CdpPage extends Page_js_1.Page {
     getDefaultTimeout() {
         return this._timeoutSettings.timeout();
     }
+    getDefaultNavigationTimeout() {
+        return this._timeoutSettings.navigationTimeout();
+    }
     async queryObjects(prototypeHandle) {
         (0, assert_js_1.assert)(!prototypeHandle.disposed, 'Prototype JSHandle is disposed!');
         (0, assert_js_1.assert)(prototypeHandle.id, 'Prototype JSHandle must not be referencing primitive value');
@@ -498,16 +468,39 @@ class CdpPage extends Page_js_1.Page {
             }
             return cookie;
         };
-        return originalCookies.map(filterUnsupportedAttributes);
+        return originalCookies.map(filterUnsupportedAttributes).map(cookie => {
+            return {
+                ...cookie,
+                // TODO: a breaking change is needed in Puppeteer types to support other
+                // partition keys.
+                partitionKey: cookie.partitionKey
+                    ? cookie.partitionKey.topLevelSite
+                    : undefined,
+            };
+        });
     }
     async deleteCookie(...cookies) {
         const pageURL = this.url();
         for (const cookie of cookies) {
-            const item = Object.assign({}, cookie);
+            const item = {
+                ...cookie,
+                partitionKey: convertCookiesPartitionKeyFromPuppeteerToCdp(cookie.partitionKey),
+            };
             if (!cookie.url && pageURL.startsWith('http')) {
                 item.url = pageURL;
             }
             await this.#primaryTargetClient.send('Network.deleteCookies', item);
+            if (pageURL.startsWith('http') && !item.partitionKey) {
+                const url = new URL(pageURL);
+                // Delete also cookies from the page's partition.
+                await this.#primaryTargetClient.send('Network.deleteCookies', {
+                    ...item,
+                    partitionKey: {
+                        topLevelSite: url.origin.replace(`:${url.port}`, ''),
+                        hasCrossSiteAncestor: false,
+                    },
+                });
+            }
         }
     }
     async setCookie(...cookies) {
@@ -525,11 +518,18 @@ class CdpPage extends Page_js_1.Page {
         await this.deleteCookie(...items);
         if (items.length) {
             await this.#primaryTargetClient.send('Network.setCookies', {
-                cookies: items,
+                cookies: items.map(cookieParam => {
+                    return {
+                        ...cookieParam,
+                        partitionKey: convertCookiesPartitionKeyFromPuppeteerToCdp(cookieParam.partitionKey),
+                    };
+                }),
             });
         }
     }
-    async exposeFunction(name, pptrFunction) {
+    async exposeFunction(name, 
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+    pptrFunction) {
         if (this.#bindings.has(name)) {
             throw new Error(`Failed to add page binding with name ${name}: window['${name}'] already exists!`);
         }
@@ -743,10 +743,8 @@ class CdpPage extends Page_js_1.Page {
         const env_2 = { stack: [], error: void 0, hasError: false };
         try {
             const { fromSurface, omitBackground, optimizeForSpeed, quality, clip: userClip, type, captureBeyondViewport, } = options;
-            const isFirefox = this.target()._targetManager() instanceof FirefoxTargetManager_js_1.FirefoxTargetManager;
             const stack = __addDisposableResource(env_2, new disposable_js_1.AsyncDisposableStack(), true);
-            // Firefox omits background by default; it's not configurable.
-            if (!isFirefox && omitBackground && (type === 'png' || type === 'webp')) {
+            if (omitBackground && (type === 'png' || type === 'webp')) {
                 await this.#emulationManager.setTransparentBackgroundColor();
                 stack.defer(async () => {
                     await this.#emulationManager
@@ -764,13 +762,12 @@ class CdpPage extends Page_js_1.Page {
                 });
                 clip = getIntersectionRect(clip, viewport);
             }
-            // We need to do these spreads because Firefox doesn't allow unknown options.
             const { data } = await this.#primaryTargetClient.send('Page.captureScreenshot', {
                 format: type,
-                ...(optimizeForSpeed ? { optimizeForSpeed } : {}),
+                optimizeForSpeed,
+                fromSurface,
                 ...(quality !== undefined ? { quality: Math.round(quality) } : {}),
                 ...(clip ? { clip: { ...clip, scale: clip.scale ?? 1 } } : {}),
-                ...(!fromSurface ? { fromSurface } : {}),
                 captureBeyondViewport,
             });
             return data;
@@ -827,9 +824,9 @@ class CdpPage extends Page_js_1.Page {
     async pdf(options = {}) {
         const { path = undefined } = options;
         const readable = await this.createPDFStream(options);
-        const buffer = await (0, util_js_1.getReadableAsBuffer)(readable, path);
-        (0, assert_js_1.assert)(buffer, 'Could not create buffer');
-        return buffer;
+        const typedArray = await (0, util_js_1.getReadableAsTypedArray)(readable, path);
+        (0, assert_js_1.assert)(typedArray, 'Could not create typed array');
+        return typedArray;
     }
     async close(options = { runBeforeUnload: undefined }) {
         const env_3 = { stack: [], error: void 0, hasError: false };
@@ -881,7 +878,7 @@ class CdpPage extends Page_js_1.Page {
      *   page.click('#connect-bluetooth'),
      * ]);
      * await devicePrompt.select(
-     *   await devicePrompt.waitForDevice(({name}) => name.includes('My Device'))
+     *   await devicePrompt.waitForDevice(({name}) => name.includes('My Device')),
      * );
      * ```
      */
@@ -915,6 +912,21 @@ function getIntersectionRect(clip, viewport) {
         y,
         width: Math.max(Math.min(clip.x + clip.width, viewport.x + viewport.width) - x, 0),
         height: Math.max(Math.min(clip.y + clip.height, viewport.y + viewport.height) - y, 0),
+    };
+}
+function convertCookiesPartitionKeyFromPuppeteerToCdp(partitionKey) {
+    if (partitionKey === undefined) {
+        return undefined;
+    }
+    if (typeof partitionKey === 'string') {
+        return {
+            topLevelSite: partitionKey,
+            hasCrossSiteAncestor: false,
+        };
+    }
+    return {
+        topLevelSite: partitionKey.sourceOrigin,
+        hasCrossSiteAncestor: partitionKey.hasCrossSiteAncestor ?? false,
     };
 }
 //# sourceMappingURL=Page.js.map

@@ -17,7 +17,7 @@ describeWithMockConnection('MediaQueryInspector', () => {
   let inspector: Emulation.MediaQueryInspector.MediaQueryInspector;
 
   beforeEach(() => {
-    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
+    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
     createTarget({parentTarget: tabTarget, subtype: 'prerender'});
     target = createTarget({parentTarget: tabTarget});
     throttler = new Common.Throttler.Throttler(0);
@@ -35,7 +35,7 @@ describeWithMockConnection('MediaQueryInspector', () => {
     );
     inspector.markAsRoot();
     inspector.show(document.body);
-    assert.strictEqual(inspector.contentElement.querySelectorAll('.media-inspector-marker').length, 0);
+    assert.lengthOf(inspector.contentElement.querySelectorAll('.media-inspector-marker'), 0);
 
     const cssModel = target.model(SDK.CSSModel.CSSModel);
     assert.exists(cssModel);
@@ -50,6 +50,6 @@ describeWithMockConnection('MediaQueryInspector', () => {
         SDK.CSSModel.Events.StyleSheetAdded, {} as SDK.CSSStyleSheetHeader.CSSStyleSheetHeader);
     const [work] = await workScheduled;
     await work();
-    assert.strictEqual(inspector.contentElement.querySelectorAll('.media-inspector-marker').length, 1);
+    assert.lengthOf(inspector.contentElement.querySelectorAll('.media-inspector-marker'), 1);
   });
 });

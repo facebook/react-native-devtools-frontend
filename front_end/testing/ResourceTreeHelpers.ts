@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import * as Common from '../core/common/common.js';
-import type * as Platform from '../core/platform/platform.js';
+import * as Platform from '../core/platform/platform.js';
 import * as SDK from '../core/sdk/sdk.js';
 import * as Protocol from '../generated/protocol.js';
 
@@ -12,11 +12,13 @@ import {
   setMockConnectionResponseHandler,
 } from './MockConnection.js';
 
+const {urlString} = Platform.DevToolsPath;
+
 export const LOADER_ID = 'LOADER_ID' as Protocol.Network.LoaderId;
 export const MAIN_FRAME_ID = 'main' as Protocol.Page.FrameId;
 export const DOMAIN = 'example.com';
 export const SECURITY_ORIGIN = `https://${DOMAIN}`;
-export const FRAME_URL = `${SECURITY_ORIGIN}/` as Platform.DevToolsPath.UrlString;
+export const FRAME_URL = urlString`${`${SECURITY_ORIGIN}/`}`;
 let childFrameId = 0;
 
 const FRAME = {
@@ -53,7 +55,7 @@ export async function getInitializedResourceTreeModel(target: SDK.Target.Target)
   const resourceTreeModel = target.model(SDK.ResourceTreeModel.ResourceTreeModel)!;
   return resourceTreeModel.cachedResourcesLoaded() ?
       resourceTreeModel :
-      resourceTreeModel.once(SDK.ResourceTreeModel.Events.CachedResourcesLoaded);
+      await resourceTreeModel.once(SDK.ResourceTreeModel.Events.CachedResourcesLoaded);
 }
 
 function getEffectivePayload(
@@ -120,5 +122,5 @@ export function activate(target: SDK.Target.Target): void {
   sinon.stub(frame, 'isPrimaryFrame').returns(true);
   resourceTreeModel.dispatchEventToListeners(
       SDK.ResourceTreeModel.Events.PrimaryPageChanged,
-      {frame, type: SDK.ResourceTreeModel.PrimaryPageChangeType.Activation});
+      {frame, type: SDK.ResourceTreeModel.PrimaryPageChangeType.ACTIVATION});
 }

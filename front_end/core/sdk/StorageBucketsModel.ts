@@ -28,20 +28,20 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import type * as Common from '../common/common.js';
-import type * as Protocol from '../../generated/protocol.js';
 import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
+import type * as Protocol from '../../generated/protocol.js';
+import type * as Common from '../common/common.js';
 
-import {Capability, type Target} from './Target.js';
 import {SDKModel} from './SDKModel.js';
 import {Events as StorageKeyManagerEvents, StorageKeyManager} from './StorageKeyManager.js';
+import {Capability, type Target} from './Target.js';
 
 export class StorageBucketsModel extends SDKModel<EventTypes> implements ProtocolProxyApi.StorageDispatcher {
-  private enabled: boolean = false;
+  private enabled = false;
   readonly storageAgent: ProtocolProxyApi.StorageApi;
   private readonly storageKeyManager: StorageKeyManager|null;
-  private bucketsById: Map<string, Protocol.Storage.StorageBucketInfo> = new Map();
-  private trackedStorageKeys: Set<string> = new Set();
+  private bucketsById = new Map<string, Protocol.Storage.StorageBucketInfo>();
+  private trackedStorageKeys = new Set<string>();
 
   constructor(target: Target) {
     super(target);
@@ -86,8 +86,9 @@ export class StorageBucketsModel extends SDKModel<EventTypes> implements Protoco
     }
 
     if (this.storageKeyManager) {
-      this.storageKeyManager.addEventListener(StorageKeyManagerEvents.StorageKeyAdded, this.storageKeyAdded, this);
-      this.storageKeyManager.addEventListener(StorageKeyManagerEvents.StorageKeyRemoved, this.storageKeyRemoved, this);
+      this.storageKeyManager.addEventListener(StorageKeyManagerEvents.STORAGE_KEY_ADDED, this.storageKeyAdded, this);
+      this.storageKeyManager.addEventListener(
+          StorageKeyManagerEvents.STORAGE_KEY_REMOVED, this.storageKeyRemoved, this);
       for (const storageKey of this.storageKeyManager.storageKeys()) {
         this.addStorageKey(storageKey);
       }
@@ -126,16 +127,16 @@ export class StorageBucketsModel extends SDKModel<EventTypes> implements Protoco
 
   private bucketAdded(bucketInfo: Protocol.Storage.StorageBucketInfo): void {
     this.bucketsById.set(bucketInfo.id, bucketInfo);
-    this.dispatchEventToListeners(Events.BucketAdded, {model: this, bucketInfo});
+    this.dispatchEventToListeners(Events.BUCKET_ADDED, {model: this, bucketInfo});
   }
 
   private bucketRemoved(bucketInfo: Protocol.Storage.StorageBucketInfo): void {
     this.bucketsById.delete(bucketInfo.id);
-    this.dispatchEventToListeners(Events.BucketRemoved, {model: this, bucketInfo});
+    this.dispatchEventToListeners(Events.BUCKET_REMOVED, {model: this, bucketInfo});
   }
 
   private bucketChanged(bucketInfo: Protocol.Storage.StorageBucketInfo): void {
-    this.dispatchEventToListeners(Events.BucketChanged, {model: this, bucketInfo});
+    this.dispatchEventToListeners(Events.BUCKET_CHANGED, {model: this, bucketInfo});
   }
 
   private bucketInfosAreEqual(
@@ -199,12 +200,12 @@ export class StorageBucketsModel extends SDKModel<EventTypes> implements Protoco
   }
 }
 
-SDKModel.register(StorageBucketsModel, {capabilities: Capability.Storage, autostart: false});
+SDKModel.register(StorageBucketsModel, {capabilities: Capability.STORAGE, autostart: false});
 
 export const enum Events {
-  BucketAdded = 'BucketAdded',
-  BucketRemoved = 'BucketRemoved',
-  BucketChanged = 'BucketChanged',
+  BUCKET_ADDED = 'BucketAdded',
+  BUCKET_REMOVED = 'BucketRemoved',
+  BUCKET_CHANGED = 'BucketChanged',
 }
 
 export interface BucketEvent {
@@ -212,8 +213,8 @@ export interface BucketEvent {
   bucketInfo: Protocol.Storage.StorageBucketInfo;
 }
 
-export type EventTypes = {
-  [Events.BucketAdded]: BucketEvent,
-  [Events.BucketRemoved]: BucketEvent,
-  [Events.BucketChanged]: BucketEvent,
-};
+export interface EventTypes {
+  [Events.BUCKET_ADDED]: BucketEvent;
+  [Events.BUCKET_REMOVED]: BucketEvent;
+  [Events.BUCKET_CHANGED]: BucketEvent;
+}

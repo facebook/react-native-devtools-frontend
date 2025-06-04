@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as SDK from '../../core/sdk/sdk.js';
 import * as Application from '../../panels/application/application.js';
 import * as Sources from '../../panels/sources/sources.js';
 import * as UI from '../../ui/legacy/legacy.js';
@@ -16,9 +17,9 @@ export const dumpResources = function(formatter) {
 
   function formatterWrapper(resource) {
     if (formatter) {
-      results.push({resource: resource, text: formatter(resource)});
+      results.push({resource, text: formatter(resource)});
     } else {
-      results.push({resource: resource, text: resource.url});
+      results.push({resource, text: resource.url});
     }
   }
 
@@ -40,7 +41,7 @@ export const dumpResourcesURLMap = function() {
   TestRunner.resourceTreeModel.forAllResources(collect);
 
   function collect(resource) {
-    results.push({url: resource.url, resource: TestRunner.resourceTreeModel.resourceForURL(resource.url)});
+    results.push({url: resource.url, resource: SDK.ResourceTreeModel.ResourceTreeModel.resourceForURL(resource.url)});
   }
 
   function comparator(result1, result2) {
