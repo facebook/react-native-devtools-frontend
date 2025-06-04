@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import * as Protocol from '../generated/protocol.js';
-// eslint-disable-next-line rulesdir/es_modules_import
+// eslint-disable-next-line rulesdir/es-modules-import
 import {
   Issue,
   IssueCategory,
@@ -18,7 +18,7 @@ export class StubIssue extends Issue {
   private mockIssueId?: Protocol.Audits.IssueId;
   private mockIssueCategory?: IssueCategory;
 
-  constructor(code: string, requestIds: string[], cookieNames: string[], issueKind = IssueKind.Improvement) {
+  constructor(code: string, requestIds: string[], cookieNames: string[], issueKind = IssueKind.IMPROVEMENT) {
     super(code);
     this.requestIds = requestIds;
     this.cookieNames = cookieNames;
@@ -43,7 +43,7 @@ export class StubIssue extends Issue {
   }
 
   getCategory(): IssueCategory {
-    return this.mockIssueCategory ? this.mockIssueCategory as unknown as IssueCategory : IssueCategory.Other;
+    return this.mockIssueCategory ? this.mockIssueCategory as unknown as IssueCategory : IssueCategory.OTHER;
   }
 
   override sources() {
@@ -90,7 +90,7 @@ export class StubIssue extends Issue {
 
   static createCookieIssue(code: string) {
     const issue = new StubIssue(code, [], []);
-    issue.mockIssueCategory = IssueCategory.Cookie;
+    issue.mockIssueCategory = IssueCategory.COOKIE;
     return issue;
   }
 }

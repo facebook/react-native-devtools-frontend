@@ -54,7 +54,7 @@
   .try-rule-selector-element,
   .ancestor-rule-list,
   .ancestor-closing-braces {
-    color: var(--sys-color-token-meta);
+    color: var(--app-color-element-sidebar-subtitle);
   }
 
   .ancestor-rule-list,
@@ -191,7 +191,7 @@
   background-color: var(--sys-color-surface2);
   padding: 0 5px;
   border-bottom: 1px solid var(--sys-color-divider);
-  color: var(--sys-color-token-subtle);
+  color: var(--sys-color-on-surface-subtle);
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -233,11 +233,14 @@
   }
 }
 
-.styles-pane:not(.is-editing-style) .styles-section.matched-styles:not(.read-only):hover .sidebar-pane-section-toolbar.new-rule-toolbar {
+.styles-pane:not(.is-editing-style)
+  .styles-section.matched-styles:not(.read-only):hover
+  .sidebar-pane-section-toolbar.new-rule-toolbar {
   visibility: visible;
 }
 
 .styles-show-all {
+  padding: 4px;
   margin-left: 16px;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -247,7 +250,7 @@
 @media (forced-colors: active) {
   .sidebar-pane-section-toolbar {
     forced-color-adjust: none;
-    border-color: 1px solid ButtonText;
+    border: 1px solid ButtonText;
     background-color: ButtonFace;
   }
 

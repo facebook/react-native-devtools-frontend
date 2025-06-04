@@ -4,41 +4,27 @@
 
 import type * as Types from '../types/types.js';
 
-const syntheticEventsManagerByTraceIndex: SyntheticEventsManager[] = [];
-
-const managerByRawEvents = new Map<readonly Types.TraceEvents.TraceEventData[], SyntheticEventsManager>();
-
 let activeManager: SyntheticEventsManager|null = null;
 
 export class SyntheticEventsManager {
   /**
    * All synthetic entries created in a trace from a corresponding trace events.
-   * (ProfileCalls are excluded because)
+   * (ProfileCalls are excluded because they are not based on a real trace event)
    */
-  #syntheticTraceEvents: Types.TraceEvents.SyntheticBasedEvent[] = [];
+  #syntheticTraces: Types.Events.SyntheticBased[] = [];
   /**
    * All raw entries from a trace.
    */
-  #rawTraceEvents: readonly Types.TraceEvents.TraceEventData[] = [];
+  #rawTraceEvents: readonly Types.Events.Event[] = [];
 
-  /**
-   * Initializes a SyntheticEventsManager for a trace. This needs to be
-   * called before running the trace engine handlers, since the instance
-   * created here will be used by the handlers to register their
-   * synthetic trace events.
-   *
-   * Can be called multiple times for the same set of raw events, in which case it will re-use the existing manager rather than recreate it again.
-   */
-  static initAndActivate(rawEvents: readonly Types.TraceEvents.TraceEventData[]): SyntheticEventsManager {
-    const existingManager = managerByRawEvents.get(rawEvents);
-    if (existingManager) {
-      activeManager = existingManager;
-    } else {
-      const manager = new SyntheticEventsManager(rawEvents);
-      managerByRawEvents.set(rawEvents, manager);
-      activeManager = manager;
-    }
-    return activeManager;
+  static activate(manager: SyntheticEventsManager): void {
+    activeManager = manager;
+  }
+
+  static createAndActivate(rawEvents: readonly Types.Events.Event[]): SyntheticEventsManager {
+    const manager = new SyntheticEventsManager(rawEvents);
+    SyntheticEventsManager.activate(manager);
+    return manager;
   }
 
   static getActiveManager(): SyntheticEventsManager {
@@ -49,15 +35,13 @@ export class SyntheticEventsManager {
   }
 
   static reset(): void {
-    syntheticEventsManagerByTraceIndex.length = 0;
     activeManager = null;
   }
 
-  static registerSyntheticBasedEvent<T extends Types.TraceEvents.SyntheticBasedEvent>(syntheticEvent: Omit<T, '_tag'>):
-      T {
+  static registerSyntheticEvent<T extends Types.Events.SyntheticBased>(syntheticEvent: Omit<T, '_tag'>): T {
     try {
-      return SyntheticEventsManager.getActiveManager().registerSyntheticBasedEvent(syntheticEvent);
-    } catch (e) {
+      return SyntheticEventsManager.getActiveManager().registerSyntheticEvent(syntheticEvent);
+    } catch {
       // If no active manager has been initialized, we assume the trace engine is
       // not running as part of the Performance panel. In this case we don't
       // register synthetic events because we don't need to support timeline
@@ -66,7 +50,7 @@ export class SyntheticEventsManager {
     }
   }
 
-  private constructor(rawEvents: readonly Types.TraceEvents.TraceEventData[]) {
+  private constructor(rawEvents: readonly Types.Events.Event[]) {
     this.#rawTraceEvents = rawEvents;
   }
 
@@ -75,29 +59,29 @@ export class SyntheticEventsManager {
    * be created with this method to ensure they are registered and made
    * available to load events using serialized keys.
    */
-  registerSyntheticBasedEvent<T extends Types.TraceEvents.SyntheticBasedEvent>(syntheticEvent: Omit<T, '_tag'>): T {
+  registerSyntheticEvent<T extends Types.Events.SyntheticBased>(syntheticEvent: Omit<T, '_tag'>): T {
     const rawIndex = this.#rawTraceEvents.indexOf(syntheticEvent.rawSourceEvent);
     if (rawIndex < 0) {
       throw new Error('Attempted to register a synthetic event paired to an unknown raw event.');
     }
     const eventAsSynthetic = syntheticEvent as T;
-    this.#syntheticTraceEvents[rawIndex] = eventAsSynthetic;
+    this.#syntheticTraces[rawIndex] = eventAsSynthetic;
     return eventAsSynthetic;
   }
 
-  syntheticEventForRawEventIndex(rawEventIndex: number): Types.TraceEvents.SyntheticBasedEvent {
-    const syntheticEvent = this.#syntheticTraceEvents.at(rawEventIndex);
+  syntheticEventForRawEventIndex(rawEventIndex: number): Types.Events.SyntheticBased {
+    const syntheticEvent = this.#syntheticTraces.at(rawEventIndex);
     if (!syntheticEvent) {
       throw new Error(`Attempted to get a synthetic event from an unknown raw event index: ${rawEventIndex}`);
     }
     return syntheticEvent;
   }
 
-  getSyntheticTraceEvents(): Types.TraceEvents.SyntheticBasedEvent[] {
-    return this.#syntheticTraceEvents;
+  getSyntheticTraces(): Types.Events.SyntheticBased[] {
+    return this.#syntheticTraces;
   }
 
-  getRawTraceEvents(): readonly Types.TraceEvents.TraceEventData[] {
+  getRawTraceEvents(): readonly Types.Events.Event[] {
     return this.#rawTraceEvents;
   }
 }

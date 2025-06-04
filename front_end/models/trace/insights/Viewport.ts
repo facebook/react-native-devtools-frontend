@@ -2,48 +2,95 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as i18n from '../../../core/i18n/i18n.js';
+import type * as Handlers from '../handlers/handlers.js';
 import * as Helpers from '../helpers/helpers.js';
+import type * as Types from '../types/types.js';
 
-import {type InsightResult, InsightWarning, type NavigationInsightContext, type RequiredData} from './types.js';
+import {
+  InsightCategory,
+  InsightKeys,
+  type InsightModel,
+  type InsightSetContext,
+  InsightWarning,
+  type PartialInsightModel,
+} from './types.js';
 
-export function deps(): ['Meta', 'UserInteractions'] {
-  return ['Meta', 'UserInteractions'];
+export const UIStrings = {
+  /** Title of an insight that provides details about if the page's viewport is optimized for mobile viewing. */
+  title: 'Optimize viewport for mobile',
+  /**
+   * @description Text to tell the user how a viewport meta element can improve performance. \xa0 is a non-breaking space
+   */
+  description:
+      'Tap interactions may be [delayed by up to 300\xA0ms](https://developer.chrome.com/blog/300ms-tap-delay-gone-away/) if the viewport is not optimized for mobile.',
+} as const;
+
+const str_ = i18n.i18n.registerUIStrings('models/trace/insights/Viewport.ts', UIStrings);
+export const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
+
+export type ViewportInsightModel = InsightModel<typeof UIStrings, {
+  mobileOptimized: boolean | null,
+  viewportEvent?: Types.Events.ParseMetaViewport,
+}>;
+
+function finalize(partialModel: PartialInsightModel<ViewportInsightModel>): ViewportInsightModel {
+  return {
+    insightKey: InsightKeys.VIEWPORT,
+    strings: UIStrings,
+    title: i18nString(UIStrings.title),
+    description: i18nString(UIStrings.description),
+    category: InsightCategory.INP,
+    state: partialModel.mobileOptimized === false ? 'fail' : 'pass',
+    ...partialModel,
+  };
 }
 
-export function generateInsight(traceParsedData: RequiredData<typeof deps>, context: NavigationInsightContext):
-    InsightResult<{mobileOptimized: boolean | null}> {
-  const events = traceParsedData.UserInteractions.beginCommitCompositorFrameEvents.filter(event => {
+export function generateInsight(
+    parsedTrace: Handlers.Types.ParsedTrace, context: InsightSetContext): ViewportInsightModel {
+  const viewportEvent = parsedTrace.UserInteractions.parseMetaViewportEvents.find(event => {
+    if (event.args.data.frame !== context.frameId) {
+      return false;
+    }
+
+    return Helpers.Timing.eventIsInBounds(event, context.bounds);
+  });
+
+  const compositorEvents = parsedTrace.UserInteractions.beginCommitCompositorFrameEvents.filter(event => {
     if (event.args.frame !== context.frameId) {
       return false;
     }
 
-    const navigation =
-        Helpers.Trace.getNavigationForTraceEvent(event, context.frameId, traceParsedData.Meta.navigationsByFrameId);
-    if (navigation?.args.data?.navigationId !== context.navigationId) {
+    // Commit compositor frame events can be emitted before the viewport tag is parsed.
+    // We shouldn't count these since the browser hasn't had time to make the viewport mobile optimized.
+    if (viewportEvent && event.ts < viewportEvent.ts) {
       return false;
     }
 
-    return true;
+    return Helpers.Timing.eventIsInBounds(event, context.bounds);
   });
 
-  if (!events.length) {
+  if (!compositorEvents.length) {
     // Trace doesn't have the data we need.
-    return {
+    return finalize({
       mobileOptimized: null,
       warnings: [InsightWarning.NO_LAYOUT],
-    };
+    });
   }
 
   // Returns true only if all events are mobile optimized.
-  for (const event of events) {
+  for (const event of compositorEvents) {
     if (!event.args.is_mobile_optimized) {
-      return {
+      return finalize({
         mobileOptimized: false,
-      };
+        viewportEvent,
+        metricSavings: {INP: 300 as Types.Timing.Milli},
+      });
     }
   }
 
-  return {
+  return finalize({
     mobileOptimized: true,
-  };
+    viewportEvent,
+  });
 }

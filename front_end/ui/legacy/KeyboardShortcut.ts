@@ -53,8 +53,8 @@ export class KeyboardShortcut {
   }
 
   isDefault(): boolean {
-    return this.type === Type.DefaultShortcut || this.type === Type.DisabledDefault ||
-        (this.type === Type.KeybindSetShortcut && this.keybindSets.has(DefaultShortcutSetting));
+    return this.type === Type.DEFAULT_SHORTCUT || this.type === Type.DISABLED_DEFAULT ||
+        (this.type === Type.KEYBIND_SET_SHORTCUT && this.keybindSets.has(DefaultShortcutSetting));
   }
 
   changeType(type: Type): KeyboardShortcut {
@@ -84,7 +84,7 @@ export class KeyboardShortcut {
 
   static createShortcutFromSettingObject(settingObject: {
     action: string,
-    descriptors: Array<Descriptor>,
+    descriptors: Descriptor[],
     type: Type,
   }): KeyboardShortcut {
     return new KeyboardShortcut(settingObject.descriptors, settingObject.action, settingObject.type);
@@ -98,35 +98,29 @@ export class KeyboardShortcut {
     if (typeof keyCode === 'string') {
       keyCode = keyCode.charCodeAt(0) - (/^[a-z]/.test(keyCode) ? 32 : 0);
     }
-    modifiers = modifiers || Modifiers.None;
+    modifiers = modifiers || Modifiers.None.value;
     return KeyboardShortcut.makeKeyFromCodeAndModifiers(keyCode, modifiers);
   }
 
   static makeKeyFromEvent(keyboardEvent: KeyboardEvent): number {
-    let modifiers = Modifiers.None;
+    let modifiers = Modifiers.None.value;
     if (keyboardEvent.shiftKey) {
-      modifiers |= Modifiers.Shift;
+      modifiers |= Modifiers.Shift.value;
     }
     if (keyboardEvent.ctrlKey) {
-      modifiers |= Modifiers.Ctrl;
+      modifiers |= Modifiers.Ctrl.value;
     }
     if (keyboardEvent.altKey) {
-      modifiers |= Modifiers.Alt;
+      modifiers |= Modifiers.Alt.value;
     }
     if (keyboardEvent.metaKey) {
-      modifiers |= Modifiers.Meta;
+      modifiers |= Modifiers.Meta.value;
     }
 
     // Use either a real or a synthetic keyCode (for events originating from extensions).
-    // @ts-ignore ExtensionServer.js installs '__keyCode' on some events.
+    // @ts-expect-error ExtensionServer.js installs '__keyCode' on some events.
     const keyCode = keyboardEvent.keyCode || keyboardEvent['__keyCode'];
     return KeyboardShortcut.makeKeyFromCodeAndModifiers(keyCode, modifiers);
-  }
-
-  static makeKeyFromEventIgnoringModifiers(keyboardEvent: KeyboardEvent): number {
-    // @ts-ignore ExtensionServer.js installs '__keyCode' on some events.
-    const keyCode = keyboardEvent.keyCode || keyboardEvent['__keyCode'];
-    return KeyboardShortcut.makeKeyFromCodeAndModifiers(keyCode, Modifiers.None);
   }
 
   // This checks if a "control equivalent" key is pressed. For non-mac platforms this means checking
@@ -144,6 +138,10 @@ export class KeyboardShortcut {
     return !keyboardEvent.ctrlKey && !keyboardEvent.shiftKey && !keyboardEvent.altKey && !keyboardEvent.metaKey;
   }
 
+  static hasAtLeastOneModifier(event: Event): boolean {
+    return KeyboardShortcut.hasNoModifiers(event) === false;
+  }
+
   static makeDescriptor(key: string|Key, modifiers?: number): Descriptor {
     return {
       key: KeyboardShortcut.makeKey(typeof key === 'string' ? key : key.code, modifiers),
@@ -155,7 +153,7 @@ export class KeyboardShortcut {
     const [keyString, ...modifierStrings] = shortcut.split(/\+(?!$)/).reverse();
     let modifiers = 0;
     for (const modifierString of modifierStrings) {
-      const modifier = Modifiers[modifierString];
+      const modifier = Modifiers[modifierString].value;
       console.assert(
           typeof modifier !== 'undefined', `Only one key other than modifier is allowed in shortcut <${shortcut}>`);
       modifiers |= modifier;
@@ -164,7 +162,7 @@ export class KeyboardShortcut {
 
     const key = Keys[keyString] || KeyBindings[keyString];
     if (key && 'shiftKey' in key && key.shiftKey) {
-      modifiers |= Modifiers.Shift;
+      modifiers |= Modifiers.Shift.value;
     }
     return KeyboardShortcut.makeDescriptor(key ? key : keyString, modifiers);
   }
@@ -214,10 +212,15 @@ export class KeyboardShortcut {
     ]);
     return [m.Meta, m.Ctrl, m.Alt, m.Shift].map(mapModifiers).join('');
 
-    function mapModifiers(m: number): string {
-      return (modifiers || 0) & m ? /** @type {string} */ modifierNames.get(m) as string : '';
+    function mapModifiers(m: Modifier): string {
+      return (modifiers || 0) & m.value ? /** @type {string} */ modifierNames.get(m) as string : '';
     }
   }
+}
+
+export interface Modifier {
+  value: number;
+  name: string;
 }
 
 /**
@@ -225,17 +228,21 @@ export class KeyboardShortcut {
  * see #makeKeyFromCodeAndModifiers
  */
 export const Modifiers: {
-  [x: string]: number,
+  [x: string]: Modifier,
 } = {
-  None: 0,
-  Shift: 1,
-  Ctrl: 2,
-  Alt: 4,
-  Meta: 8,
-  // "default" command/ctrl key for platform, Command on Mac, Ctrl on other platforms
-  CtrlOrMeta: Host.Platform.isMac() ? 8 /* Meta */ : 2 /* Ctrl */,
-  // Option on Mac, Shift on other platforms
-  ShiftOrOption: Host.Platform.isMac() ? 4 /* Alt */ : 1 /* Shift */,
+  None: {value: 0, name: 'None'},
+  Shift: {value: 1, name: 'Shift'},
+  Ctrl: {value: 2, name: 'Ctrl'},
+  Alt: {value: 4, name: 'Alt'},
+  Meta: {value: 8, name: 'Meta'},
+  CtrlOrMeta: {
+    value: Host.Platform.isMac() ? 8 /* Meta */ : 2 /* Ctrl */,
+    name: Host.Platform.isMac() ? 'Meta' : 'Ctrl',
+  },
+  ShiftOrOption: {
+    value: Host.Platform.isMac() ? 4 /* Alt */ : 1 /* Shift */,
+    name: Host.Platform.isMac() ? 'Alt' : 'Shift',
+  },
 };
 
 const leftKey = {
@@ -311,9 +318,14 @@ export const Keys: {
   ArrowDown: downKey,
   Delete: {code: 46, name: 'Del'},
   Zero: {code: 48, name: '0'},
+  C: {code: 67, name: 'C'},
   H: {code: 72, name: 'H'},
   N: {code: 78, name: 'N'},
   P: {code: 80, name: 'P'},
+  R: {code: 82, name: 'R'},
+  U: {code: 85, name: 'U'},
+  V: {code: 86, name: 'V'},
+  X: {code: 88, name: 'X'},
   Meta: metaKey,
   F1: {code: 112, name: 'F1'},
   F2: {code: 113, name: 'F2'},
@@ -352,11 +364,11 @@ export const Keys: {
 };
 
 export const enum Type {
-  UserShortcut = 'UserShortcut',
-  DefaultShortcut = 'DefaultShortcut',
-  DisabledDefault = 'DisabledDefault',
-  UnsetShortcut = 'UnsetShortcut',
-  KeybindSetShortcut = 'KeybindSetShortcut',
+  USER_SHORTCUT = 'UserShortcut',
+  DEFAULT_SHORTCUT = 'DefaultShortcut',
+  DISABLED_DEFAULT = 'DisabledDefault',
+  UNSET_SHORTCUT = 'UnsetShortcut',
+  KEYBIND_SET_SHORTCUT = 'KeybindSetShortcut',
 }
 
 export const KeyBindings: {

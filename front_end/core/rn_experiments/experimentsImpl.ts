@@ -59,14 +59,14 @@ type RNExperimentPredicate = ({
 }: {
   isReactNativeEntryPoint: boolean,
 }) => boolean;
-type RNExperimentSpec = {
-  name: RNExperimentName,
-  title: string,
-  unstable: boolean,
-  docLink?: string,
-  feedbackLink?: string,
-  enabledByDefault?: boolean | RNExperimentPredicate,
-};
+interface RNExperimentSpec {
+  name: RNExperimentName;
+  title: string;
+  unstable: boolean;
+  docLink?: string;
+  feedbackLink?: string;
+  enabledByDefault?: boolean|RNExperimentPredicate;
+}
 
 class RNExperiment {
   readonly name: RNExperimentName;
@@ -100,7 +100,7 @@ function normalizePredicate(
 }
 
 class RNExperimentsSupport {
-  #experiments: Map<Root.Runtime.RNExperimentName, RNExperiment> = new Map();
+  #experiments = new Map<Root.Runtime.RNExperimentName, RNExperiment>();
   #defaultEnabledCoreExperiments = new Set<Root.Runtime.ExperimentName>();
 
   register(spec: RNExperimentSpec): void {
@@ -142,7 +142,7 @@ class RNExperimentsSupport {
     }
   }
 
-  copyInto(other: Root.Runtime.ExperimentsSupport, titlePrefix: string = ''): void {
+  copyInto(other: Root.Runtime.ExperimentsSupport, titlePrefix = ''): void {
     for (const [name, spec] of this.#experiments) {
       other.register(
         name,

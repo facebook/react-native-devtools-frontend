@@ -11,10 +11,11 @@ import * as UI from '../../ui/legacy/legacy.js';
 import * as HAR from '../har/har.js';
 import * as TextUtils from '../text_utils/text_utils.js';
 
+const {urlString} = Platform.DevToolsPath;
 const simulateRequestWithStartTime = (startTime: number) => {
   const requestId = 'r0' as Protocol.Network.RequestId;
   const request = SDK.NetworkRequest.NetworkRequest.create(
-      requestId, 'p0.com' as Platform.DevToolsPath.UrlString, Platform.DevToolsPath.EmptyUrlString, null, null, null);
+      requestId, urlString`p0.com`, Platform.DevToolsPath.EmptyUrlString, null, null, null);
   request.setIssueTime(startTime, startTime);
   request.setContentDataProvider(
       () => Promise.resolve(new TextUtils.ContentData.ContentData('', false, request.mimeType)));
@@ -38,7 +39,7 @@ describeWithLocale('HARWriter', () => {
           req2,
           req1,
         ],
-        compositeProgress);
+        {sanitize: false}, compositeProgress);
     const resultEntries = JSON.parse(result).log.entries;
     assert.strictEqual(resultEntries[0].startedDateTime, req1Time.toJSON(), 'earlier request should come first');
     assert.strictEqual(resultEntries[1].startedDateTime, req2Time.toJSON(), 'earlier request should come first');

@@ -5,6 +5,7 @@
 import * as i18n from '../../core/i18n/i18n.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
+import * as Buttons from '../../ui/components/buttons/buttons.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
@@ -56,7 +57,7 @@ const UIStrings = {
    *@description Text to remove a breakpoint
    */
   removeBreakpoint: 'Remove breakpoint',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/browser_debugger/XHRBreakpointsSidebarPane.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 const containerToBreakpointEntry = new WeakMap<Element, HTMLElement>();
@@ -79,6 +80,7 @@ export class XHRBreakpointsSidebarPane extends UI.Widget.VBox implements UI.Cont
 
   private constructor() {
     super(true);
+    this.registerRequiredCSS(xhrBreakpointsSidebarPaneStyles);
 
     this.#breakpoints = new UI.ListModel.ListModel();
     this.#list = new UI.ListControl.ListControl(this.#breakpoints, this, UI.ListControl.ListMode.NonViewport);
@@ -94,7 +96,8 @@ export class XHRBreakpointsSidebarPane extends UI.Widget.VBox implements UI.Cont
 
     this.#addButton = new UI.Toolbar.ToolbarButton(
         i18nString(UIStrings.addXhrfetchBreakpoint), 'plus', undefined, 'sources.add-xhr-fetch-breakpoint');
-    this.#addButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, () => {
+    this.#addButton.setSize(Buttons.Button.Size.SMALL);
+    this.#addButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, () => {
       void this.addButtonClicked();
     });
 
@@ -135,19 +138,20 @@ export class XHRBreakpointsSidebarPane extends UI.Widget.VBox implements UI.Cont
     UI.ARIAUtils.setLabel(inputElement, i18nString(UIStrings.urlBreakpoint));
     this.addListElement(inputElementContainer, this.#list.element.firstChild as Element | null);
 
-    function finishEditing(this: XHRBreakpointsSidebarPane, accept: boolean, e: Element, text: string): void {
+    const commit = (_element: Element, newText: string): void => {
       this.removeListElement(inputElementContainer);
-      if (accept) {
-        SDK.DOMDebuggerModel.DOMDebuggerManager.instance().addXHRBreakpoint(text, true);
-        this.setBreakpoint(text);
-      }
+      SDK.DOMDebuggerModel.DOMDebuggerManager.instance().addXHRBreakpoint(newText, true);
+      this.setBreakpoint(newText);
       this.update();
-    }
+    };
 
-    const config = new UI.InplaceEditor.Config(finishEditing.bind(this, true), finishEditing.bind(this, false));
-    // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    UI.InplaceEditor.InplaceEditor.startEditing(inputElement, config as UI.InplaceEditor.Config<any>);
+    const cancel = (): void => {
+      this.removeListElement(inputElementContainer);
+      this.update();
+    };
+
+    const config = new UI.InplaceEditor.Config(commit, cancel, undefined);
+    UI.InplaceEditor.InplaceEditor.startEditing(inputElement, config);
   }
 
   heightForItem(_item: string): number {
@@ -180,7 +184,7 @@ export class XHRBreakpointsSidebarPane extends UI.Widget.VBox implements UI.Cont
   createElementForItem(item: string): Element {
     const listItemElement = document.createElement('div');
     UI.ARIAUtils.markAsListitem(listItemElement);
-    const element = listItemElement.createChild('div', 'breakpoint-entry') as HTMLElement;
+    const element = listItemElement.createChild('div', 'breakpoint-entry');
     containerToBreakpointEntry.set(listItemElement, element);
     const enabled = SDK.DOMDebuggerModel.DOMDebuggerManager.instance().xhrBreakpoints().get(item) || false;
     UI.ARIAUtils.markAsCheckbox(element);
@@ -189,7 +193,7 @@ export class XHRBreakpointsSidebarPane extends UI.Widget.VBox implements UI.Cont
 
     const title = item ? i18nString(UIStrings.urlContainsS, {PH1: item}) : i18nString(UIStrings.anyXhrOrFetch);
     const label = UI.UIUtils.CheckboxLabel.create(title, enabled, undefined, undefined, /* small */ true);
-    UI.ARIAUtils.markAsHidden(label);
+    UI.ARIAUtils.setHidden(label, true);
     UI.ARIAUtils.setLabel(element, title);
     element.appendChild(label);
     label.checkboxElement.addEventListener('click', this.checkboxClicked.bind(this, item, enabled), false);
@@ -334,40 +338,42 @@ export class XHRBreakpointsSidebarPane extends UI.Widget.VBox implements UI.Cont
       element.classList.add('hidden');
     }
 
-    function finishEditing(this: XHRBreakpointsSidebarPane, accept: boolean, e: Element, text: string): void {
+    const commit = (inputElement: Element, newText: string, _oldText: string|null, element?: Element): void => {
       this.removeListElement(inputElement);
-      if (accept) {
-        SDK.DOMDebuggerModel.DOMDebuggerManager.instance().removeXHRBreakpoint(breakKeyword);
-        this.removeBreakpoint(breakKeyword);
-        let enabled = true;
-        if (element) {
-          const breakpointEntryElement = containerToBreakpointEntry.get(element);
-          const checkboxElement =
-              breakpointEntryElement ? breakpointEntryToCheckbox.get(breakpointEntryElement) : undefined;
-          if (checkboxElement) {
-            enabled = checkboxElement.checked;
-          }
+      SDK.DOMDebuggerModel.DOMDebuggerManager.instance().removeXHRBreakpoint(breakKeyword);
+      this.removeBreakpoint(breakKeyword);
+      let enabled = true;
+      if (element) {
+        const breakpointEntryElement = containerToBreakpointEntry.get(element);
+        const checkboxElement =
+            breakpointEntryElement ? breakpointEntryToCheckbox.get(breakpointEntryElement) : undefined;
+        if (checkboxElement) {
+          enabled = checkboxElement.checked;
         }
-        SDK.DOMDebuggerModel.DOMDebuggerManager.instance().addXHRBreakpoint(text, enabled);
-        this.setBreakpoint(text);
-        this.#list.selectItem(text);
-      } else if (element) {
+      }
+      SDK.DOMDebuggerModel.DOMDebuggerManager.instance().addXHRBreakpoint(newText, enabled);
+      this.setBreakpoint(newText);
+      this.#list.selectItem(newText);
+      this.focus();
+    };
+
+    const cancel = (inputElement: Element, element?: Element): void => {
+      this.removeListElement(inputElement);
+      if (element) {
         element.classList.remove('hidden');
       }
       this.focus();
-    }
+    };
 
-    const config = new UI.InplaceEditor.Config(finishEditing.bind(this, true), finishEditing.bind(this, false));
-    // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    UI.InplaceEditor.InplaceEditor.startEditing(inputElement, config as UI.InplaceEditor.Config<any>);
+    const config = new UI.InplaceEditor.Config(commit, cancel, element);
+    UI.InplaceEditor.InplaceEditor.startEditing(inputElement, config);
   }
 
   flavorChanged(_object: Object|null): void {
     this.update();
   }
 
-  private update(): void {
+  update(): void {
     const isEmpty = this.#breakpoints.length === 0;
     this.#list.element.classList.toggle('hidden', isEmpty);
     this.#emptyElement.classList.toggle('hidden', !isEmpty);
@@ -383,7 +389,7 @@ export class XHRBreakpointsSidebarPane extends UI.Widget.VBox implements UI.Cont
       }
       return;
     }
-    const url = details.auxData && details.auxData['breakpointURL'];
+    const url = details.auxData?.['breakpointURL'];
     this.#hitBreakpoint = url;
     if (this.#breakpoints.indexOf(url) < 0) {
       return;
@@ -397,9 +403,5 @@ export class XHRBreakpointsSidebarPane extends UI.Widget.VBox implements UI.Cont
     for (const url of breakpoints.keys()) {
       this.setBreakpoint(url);
     }
-  }
-  override wasShown(): void {
-    super.wasShown();
-    this.registerCSSFiles([xhrBreakpointsSidebarPaneStyles]);
   }
 }

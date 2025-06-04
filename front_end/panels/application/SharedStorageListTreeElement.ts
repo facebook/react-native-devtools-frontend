@@ -9,7 +9,7 @@ import type * as Protocol from '../../generated/protocol.js';
 import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 
 import {ApplicationPanelTreeElement} from './ApplicationPanelTreeElement.js';
-import {type ResourcesPanel} from './ResourcesPanel.js';
+import type {ResourcesPanel} from './ResourcesPanel.js';
 import {SharedStorageEventsView} from './SharedStorageEventsView.js';
 
 const UIStrings = {
@@ -17,7 +17,7 @@ const UIStrings = {
    *@description Text in SharedStorage Category View of the Application panel
    */
   sharedStorage: 'Shared storage',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/application/SharedStorageListTreeElement.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 

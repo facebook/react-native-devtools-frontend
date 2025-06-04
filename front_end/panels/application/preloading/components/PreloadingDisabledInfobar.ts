@@ -2,20 +2,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../../../ui/components/report_view/report_view.js';
+
 import * as i18n from '../../../../core/i18n/i18n.js';
 import type * as Platform from '../../../../core/platform/platform.js';
 import type * as Protocol from '../../../../generated/protocol.js';
+import * as Buttons from '../../../../ui/components/buttons/buttons.js';
 import * as ChromeLink from '../../../../ui/components/chrome_link/chrome_link.js';
 import * as Dialogs from '../../../../ui/components/dialogs/dialogs.js';
-import * as IconButton from '../../../../ui/components/icon_button/icon_button.js';
 import * as LegacyWrapper from '../../../../ui/components/legacy_wrapper/legacy_wrapper.js';
-import * as Coordinator from '../../../../ui/components/render_coordinator/render_coordinator.js';
-import * as ReportView from '../../../../ui/components/report_view/report_view.js';
+import * as RenderCoordinator from '../../../../ui/components/render_coordinator/render_coordinator.js';
 import * as UI from '../../../../ui/legacy/legacy.js';
-import * as LitHtml from '../../../../ui/lit-html/lit-html.js';
+import * as Lit from '../../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../../ui/visual_logging/visual_logging.js';
 
 import preloadingDisabledInfobarStyles from './preloadingDisabledInfobar.css.js';
+
+const {html} = Lit;
 
 const UIStrings = {
   /**
@@ -88,15 +91,12 @@ const UIStrings = {
    *@description Footer link for more details
    */
   footerLearnMore: 'Learn more',
-};
+} as const;
 const str_ =
     i18n.i18n.registerUIStrings('panels/application/preloading/components/PreloadingDisabledInfobar.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
-
 export class PreloadingDisabledInfobar extends LegacyWrapper.LegacyWrapper.WrappableComponent<UI.Widget.VBox> {
-  static readonly litTagName = LitHtml.literal`devtools-resources-preloading-disabled-infobar`;
 
   readonly #shadow = this.attachShadow({mode: 'open'});
   #data: Protocol.Preload.PreloadEnabledStateUpdatedEvent = {
@@ -108,7 +108,6 @@ export class PreloadingDisabledInfobar extends LegacyWrapper.LegacyWrapper.Wrapp
   };
 
   connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [preloadingDisabledInfobarStyles];
     void this.#render();
   }
 
@@ -118,12 +117,12 @@ export class PreloadingDisabledInfobar extends LegacyWrapper.LegacyWrapper.Wrapp
   }
 
   async #render(): Promise<void> {
-    await coordinator.write('PreloadingDisabledInfobar render', () => {
-      LitHtml.render(this.#renderInternal(), this.#shadow, {host: this});
+    await RenderCoordinator.write('PreloadingDisabledInfobar render', () => {
+      Lit.render(this.#renderInternal(), this.#shadow, {host: this});
     });
   }
 
-  #renderInternal(): LitHtml.LitTemplate {
+  #renderInternal(): Lit.LitTemplate {
     const forceEnabled =
         this.#data.disabledByHoldbackPrefetchSpeculationRules || this.#data.disabledByHoldbackPrerenderSpeculationRules;
     const disabled =
@@ -135,41 +134,39 @@ export class PreloadingDisabledInfobar extends LegacyWrapper.LegacyWrapper.Wrapp
     } else if (forceEnabled) {
       header = i18nString(UIStrings.infobarPreloadingIsForceEnabled);
     } else {
-      return LitHtml.nothing;
+      return Lit.nothing;
     }
 
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    return LitHtml.html`
+    return html`
+      <style>${preloadingDisabledInfobarStyles.cssText}</style>
       <div id='container'>
         <span id='header'>
           ${header}
         </span>
 
-        <${Dialogs.IconDialog.IconDialog.litTagName}
+        <devtools-button-dialog
           .data=${{
-            iconData: {
-              iconName: 'info',
-              color: 'var(--icon-default-hover)',
-              width: '16px',
-              height: '16px',
-            },
+            iconName: 'info',
+            variant: Buttons.Button.Variant.ICON,
             closeButton: true,
             position: Dialogs.Dialog.DialogVerticalPosition.AUTO,
             horizontalAlignment: Dialogs.Dialog.DialogHorizontalAlignment.AUTO,
             closeOnESC: true,
             closeOnScroll: false,
-          } as Dialogs.IconDialog.IconDialogData}
+            dialogTitle: i18nString(UIStrings.titleReasonsPreventingPreloading),
+          } as Dialogs.ButtonDialog.ButtonDialogData}
           jslog=${VisualLogging.dialog('preloading-disabled').track({resize: true, keydown: 'Escape'})}
         >
           ${this.#dialogContents()}
-        </${Dialogs.IconDialog.IconDialog.litTagName}>
+        </devtools-button-dialog>
       </div>
     `;
     // clang-format on
   }
 
-  #dialogContents(): LitHtml.LitTemplate {
+  #dialogContents(): Lit.LitTemplate {
     const LINK = 'https://developer.chrome.com/blog/prerender-pages/';
 
     const learnMoreLink =
@@ -177,26 +174,16 @@ export class PreloadingDisabledInfobar extends LegacyWrapper.LegacyWrapper.Wrapp
     const iconLink = UI.Fragment.html`
       <x-link class="icon-link devtools-link" tabindex="0" href="${LINK}"></x-link>
     ` as UI.XLink.XLink;
-    const iconLinkIcon = new IconButton.Icon.Icon();
-    iconLinkIcon
-        .data = {iconName: 'open-externally', color: 'var(--icon-default-hover)', width: '16px', height: '16px'};
-    iconLink.append(iconLinkIcon);
 
-    return LitHtml.html`
+    return html`
       <div id='contents'>
-        <div id='title'>${i18nString(UIStrings.titleReasonsPreventingPreloading)}</div>
-
-        <${ReportView.ReportView.Report.litTagName}>
+        <devtools-report>
           ${this.#maybeDisalebByPreference()}
           ${this.#maybeDisalebByDataSaver()}
           ${this.#maybeDisalebByBatterySaver()}
           ${this.#maybeDisalebByHoldbackPrefetchSpeculationRules()}
           ${this.#maybeDisalebByHoldbackPrerenderSpeculationRules()}
-
-          <${ReportView.ReportView.ReportSectionDivider.litTagName}>
-          </${ReportView.ReportView.ReportSectionDivider.litTagName}>
-        </${ReportView.ReportView.Report.litTagName}>
-
+        </devtools-report>
         <div id='footer'>
           ${learnMoreLink}
           ${iconLink}
@@ -205,12 +192,12 @@ export class PreloadingDisabledInfobar extends LegacyWrapper.LegacyWrapper.Wrapp
     `;
   }
 
-  #maybeKeyValue(shouldShow: boolean, header: string, description: string|Element): LitHtml.LitTemplate {
+  #maybeKeyValue(shouldShow: boolean, header: string, description: string|Element): Lit.LitTemplate {
     if (!shouldShow) {
-      return LitHtml.nothing;
+      return Lit.nothing;
     }
 
-    return LitHtml.html`
+    return html`
       <div class='key'>
         ${header}
       </div>
@@ -220,7 +207,7 @@ export class PreloadingDisabledInfobar extends LegacyWrapper.LegacyWrapper.Wrapp
     `;
   }
 
-  #maybeDisalebByPreference(): LitHtml.LitTemplate {
+  #maybeDisalebByPreference(): Lit.LitTemplate {
     const preloadingSettingLink = new ChromeLink.ChromeLink.ChromeLink();
     preloadingSettingLink.href = 'chrome://settings/performance' as Platform.DevToolsPath.UrlString;
     preloadingSettingLink.textContent = i18nString(UIStrings.preloadingPagesSettings);
@@ -233,26 +220,26 @@ export class PreloadingDisabledInfobar extends LegacyWrapper.LegacyWrapper.Wrapp
         this.#data.disabledByPreference, i18nString(UIStrings.headerDisabledByPreference), description);
   }
 
-  #maybeDisalebByDataSaver(): LitHtml.LitTemplate {
+  #maybeDisalebByDataSaver(): Lit.LitTemplate {
     return this.#maybeKeyValue(
         this.#data.disabledByDataSaver, i18nString(UIStrings.headerDisabledByDataSaver),
         i18nString(UIStrings.descriptionDisabledByDataSaver));
   }
 
-  #maybeDisalebByBatterySaver(): LitHtml.LitTemplate {
+  #maybeDisalebByBatterySaver(): Lit.LitTemplate {
     return this.#maybeKeyValue(
         this.#data.disabledByBatterySaver, i18nString(UIStrings.headerDisabledByBatterySaver),
         i18nString(UIStrings.descriptionDisabledByBatterySaver));
   }
 
-  #maybeDisalebByHoldbackPrefetchSpeculationRules(): LitHtml.LitTemplate {
+  #maybeDisalebByHoldbackPrefetchSpeculationRules(): Lit.LitTemplate {
     return this.#maybeKeyValue(
         this.#data.disabledByHoldbackPrefetchSpeculationRules,
         i18nString(UIStrings.headerDisabledByHoldbackPrefetchSpeculationRules),
         i18nString(UIStrings.descriptionDisabledByHoldbackPrefetchSpeculationRules));
   }
 
-  #maybeDisalebByHoldbackPrerenderSpeculationRules(): LitHtml.LitTemplate {
+  #maybeDisalebByHoldbackPrerenderSpeculationRules(): Lit.LitTemplate {
     return this.#maybeKeyValue(
         this.#data.disabledByHoldbackPrerenderSpeculationRules,
         i18nString(UIStrings.headerDisabledByHoldbackPrerenderSpeculationRules),

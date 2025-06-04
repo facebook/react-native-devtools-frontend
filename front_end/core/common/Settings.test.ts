@@ -129,13 +129,13 @@ describe('Settings instance', () => {
       settingName: 'static-synced-setting',
       settingType: Common.Settings.SettingType.BOOLEAN,
       defaultValue: false,
-      storageType: Common.Settings.SettingStorageType.Synced,
+      storageType: Common.Settings.SettingStorageType.SYNCED,
     });
     const settings = Common.Settings.Settings.instance(
         {forceNew: true, syncedStorage, globalStorage: dummyStorage, localStorage: dummyStorage});
 
     const dynamicSetting: Common.Settings.Setting<string> =
-        settings.createSetting('dynamic-synced-setting', 'default val', Common.Settings.SettingStorageType.Synced);
+        settings.createSetting('dynamic-synced-setting', 'default val', Common.Settings.SettingStorageType.SYNCED);
     dynamicSetting.set('foo value');
     const staticSetting: Common.Settings.Setting<boolean> = settings.moduleSetting('static-synced-setting');
     staticSetting.set(true);
@@ -157,13 +157,13 @@ describe('Settings instance', () => {
       settingName: 'static-global-setting',
       settingType: Common.Settings.SettingType.BOOLEAN,
       defaultValue: false,
-      storageType: Common.Settings.SettingStorageType.Global,
+      storageType: Common.Settings.SettingStorageType.GLOBAL,
     });
 
     const settings = Common.Settings.Settings.instance(
         {forceNew: true, syncedStorage: storage, globalStorage: storage, localStorage: storage});
-    settings.createSetting('dynamic-local-setting', 42, Common.Settings.SettingStorageType.Local);
-    settings.createSetting('dynamic-synced-setting', 'foo', Common.Settings.SettingStorageType.Synced);
+    settings.createSetting('dynamic-local-setting', 42, Common.Settings.SettingStorageType.LOCAL);
+    settings.createSetting('dynamic-synced-setting', 'foo', Common.Settings.SettingStorageType.SYNCED);
 
     assert.isTrue(registeredSettings.has('__prefix__.static-global-setting'));
     assert.isTrue(registeredSettings.has('__prefix__.dynamic-local-setting'));
@@ -183,7 +183,7 @@ describe('Settings instance', () => {
            localStorage: settingsStorage,
          });
          const testSetting: Common.Settings.Setting<string> =
-             settings.createSetting('test', 'default val', Common.Settings.SettingStorageType.Global);
+             settings.createSetting('test', 'default val', Common.Settings.SettingStorageType.GLOBAL);
          const changes: string[] = [];
          testSetting.addChangeListener((event: Common.EventTarget.EventTargetEvent<string>) => {
            changes.push(event.data);
@@ -195,6 +195,25 @@ describe('Settings instance', () => {
          assert.strictEqual(await settingsStorage.forceGet('test'), '"new"');
          assert.strictEqual(await testSetting.forceGet(), 'new');
        });
+  });
+
+  it('getIfNotDisabled returns the setting\'s value only if the setting is not disabled', async () => {
+    const registeredSettings = new Set<string>();
+    const mockBackingStore: Common.Settings.SettingsBackingStore = {
+      ...Common.Settings.NOOP_STORAGE,
+      register: (name: string) => registeredSettings.add(name),
+    };
+    const storage = new SettingsStorage({}, mockBackingStore, '__prefix__.');
+    const settings = Common.Settings.Settings.instance(
+        {forceNew: true, syncedStorage: storage, globalStorage: storage, localStorage: storage});
+    const testSetting = settings.createSetting('test-setting', 'some value');
+    assert.strictEqual(testSetting.getIfNotDisabled(), 'some value');
+
+    testSetting.setDisabled(true);
+    assert.isUndefined(testSetting.getIfNotDisabled());
+
+    testSetting.setDisabled(false);
+    assert.strictEqual(testSetting.getIfNotDisabled(), 'some value');
   });
 });
 
@@ -525,5 +544,120 @@ describe('VersionController', () => {
       assert.deepEqual(settings.createSetting('main-tab-order', {}).get(), {'some-panel': 2, 'other-panel': 1});
       assert.deepEqual(settings.createSetting('main-selected-tab', '').get(), 'some-panel');
     });
+  });
+});
+
+describe('updateVersionFrom37To38', () => {
+  let settings: Common.Settings.Settings;
+
+  beforeEach(() => {
+    const mockStore = new MockStore();
+    const syncedStorage = new Common.Settings.SettingsStorage({}, mockStore);
+    const globalStorage = new Common.Settings.SettingsStorage({}, mockStore);
+    const localStorage = new Common.Settings.SettingsStorage({}, mockStore);
+
+    Common.Settings.registerSettingExtension({
+      settingName: 'console-insights-enabled',
+      settingType: Common.Settings.SettingType.BOOLEAN,
+      defaultValue: true,
+    });
+
+    settings = Common.Settings.Settings.instance({
+      forceNew: true,
+      syncedStorage,
+      globalStorage,
+      localStorage,
+    });
+  });
+
+  afterEach(() => {
+    Common.Settings.Settings.removeInstance();
+    Common.Settings.resetSettings();  // Clear SettingsRegistrations.
+  });
+
+  it('disables console insights setting if onboarding not done', () => {
+    const versionController = new VersionController();
+    const consoleInsightsEnabled: Common.Settings.Setting<boolean> = settings.moduleSetting('console-insights-enabled');
+    consoleInsightsEnabled.set(true);
+    const onboardingFinished = settings.createLocalSetting('console-insights-onboarding-finished', false);
+
+    versionController.updateVersionFrom37To38();
+    assert.isFalse(consoleInsightsEnabled.get());
+    assert.isFalse(onboardingFinished.get());
+  });
+
+  it('preserves state if console insights disabled and not onboarded ', () => {
+    const versionController = new VersionController();
+    const consoleInsightsEnabled: Common.Settings.Setting<boolean> = settings.moduleSetting('console-insights-enabled');
+    consoleInsightsEnabled.set(false);
+    const onboardingFinished = settings.createLocalSetting('console-insights-onboarding-finished', false);
+
+    versionController.updateVersionFrom37To38();
+    assert.isFalse(consoleInsightsEnabled.get());
+    assert.isFalse(onboardingFinished.get());
+  });
+
+  it('preserves state if console insights enabled and onboarded', () => {
+    const versionController = new VersionController();
+    const consoleInsightsEnabled: Common.Settings.Setting<boolean> = settings.moduleSetting('console-insights-enabled');
+    consoleInsightsEnabled.set(true);
+    const onboardingFinished = settings.createLocalSetting('console-insights-onboarding-finished', true);
+
+    versionController.updateVersionFrom37To38();
+    assert.isTrue(consoleInsightsEnabled.get());
+    assert.isTrue(onboardingFinished.get());
+  });
+
+  it('resets onboarding if console insights setting is disabled', () => {
+    const versionController = new VersionController();
+    const consoleInsightsEnabled: Common.Settings.Setting<boolean> = settings.moduleSetting('console-insights-enabled');
+    consoleInsightsEnabled.set(false);
+    const onboardingFinished = settings.createLocalSetting('console-insights-onboarding-finished', true);
+
+    versionController.updateVersionFrom37To38();
+    assert.isFalse(consoleInsightsEnabled.get());
+    assert.isFalse(onboardingFinished.get());
+  });
+});
+
+describe('access logging', () => {
+  let settings: Common.Settings.Settings;
+  let logSettingAccess!: sinon.SinonSpy;
+
+  beforeEach(() => {
+    const mockStore = new MockStore();
+    const syncedStorage = new Common.Settings.SettingsStorage({}, mockStore);
+    const globalStorage = new Common.Settings.SettingsStorage({}, mockStore);
+    const localStorage = new Common.Settings.SettingsStorage({}, mockStore);
+    logSettingAccess = sinon.spy();
+    settings = Common.Settings.Settings.instance({
+      forceNew: true,
+      syncedStorage,
+      globalStorage,
+      localStorage,
+      logSettingAccess,
+    });
+  });
+
+  it('logs access on the first read', async () => {
+    const setting = settings.createSetting('test-setting', false);
+    assert.isFalse(logSettingAccess.called);
+
+    setting.get();
+    assert.isTrue(logSettingAccess.calledOnceWith('test-setting', false));
+
+    setting.get();
+    assert.isTrue(logSettingAccess.calledOnce);
+  });
+
+  it('logs access on the every write', async () => {
+    const setting = settings.createSetting('test-setting', false);
+
+    setting.set(true);
+    assert.isTrue(logSettingAccess.calledOnceWith('test-setting', true));
+
+    setting.set(false);
+    assert.isTrue(logSettingAccess.calledTwice);
+    assert.deepEqual(logSettingAccess.secondCall.args, ['test-setting', false]);
   });
 });

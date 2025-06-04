@@ -14,7 +14,7 @@ import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import {ConsoleFilter, FilterType, type LevelsMask} from './ConsoleFilter.js';
 import consoleSidebarStyles from './consoleSidebar.css.js';
-import {type ConsoleViewMessage} from './ConsoleViewMessage.js';
+import type {ConsoleViewMessage} from './ConsoleViewMessage.js';
 
 const UIStrings = {
   /**
@@ -48,7 +48,7 @@ const UIStrings = {
    *@description Text in Console Sidebar of the Console panel to show how many verbose messages exist.
    */
   dVerbose: '{n, plural, =0 {No verbose} =1 {# verbose} other {# verbose}}',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/console/ConsoleSidebar.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -61,8 +61,10 @@ export class ConsoleSidebar extends Common.ObjectWrapper.eventMixin<EventTypes, 
     super(true);
     this.setMinimumSize(125, 0);
 
-    this.tree = new UI.TreeOutline.TreeOutlineInShadow();
+    this.tree = new UI.TreeOutline.TreeOutlineInShadow(UI.TreeOutline.TreeVariant.NAVIGATION_TREE);
     this.tree.addEventListener(UI.TreeOutline.Events.ElementSelected, this.selectionChanged.bind(this));
+    this.tree.registerRequiredCSS(consoleSidebarStyles);
+    this.tree.hideOverflow();
 
     this.contentElement.setAttribute('jslog', `${VisualLogging.pane('sidebar').track({resize: true})}`);
     this.contentElement.appendChild(this.tree.element);
@@ -78,21 +80,21 @@ export class ConsoleSidebar extends Common.ObjectWrapper.eventMixin<EventTypes, 
       regex: undefined,
     }];
     this.appendGroup(
-        GroupName.All, [], ConsoleFilter.allLevelsFilterValue(), IconButton.Icon.create('list'), selectedFilterSetting);
+        GroupName.ALL, [], ConsoleFilter.allLevelsFilterValue(), IconButton.Icon.create('list'), selectedFilterSetting);
     this.appendGroup(
-        GroupName.ConsoleAPI, consoleAPIParsedFilters, ConsoleFilter.allLevelsFilterValue(),
+        GroupName.CONSOLE_API, consoleAPIParsedFilters, ConsoleFilter.allLevelsFilterValue(),
         IconButton.Icon.create('profile'), selectedFilterSetting);
     this.appendGroup(
-        GroupName.Error, [], ConsoleFilter.singleLevelMask(Protocol.Log.LogEntryLevel.Error),
+        GroupName.ERROR, [], ConsoleFilter.singleLevelMask(Protocol.Log.LogEntryLevel.Error),
         IconButton.Icon.create('cross-circle'), selectedFilterSetting);
     this.appendGroup(
-        GroupName.Warning, [], ConsoleFilter.singleLevelMask(Protocol.Log.LogEntryLevel.Warning),
+        GroupName.WARNING, [], ConsoleFilter.singleLevelMask(Protocol.Log.LogEntryLevel.Warning),
         IconButton.Icon.create('warning'), selectedFilterSetting);
     this.appendGroup(
-        GroupName.Info, [], ConsoleFilter.singleLevelMask(Protocol.Log.LogEntryLevel.Info),
+        GroupName.INFO, [], ConsoleFilter.singleLevelMask(Protocol.Log.LogEntryLevel.Info),
         IconButton.Icon.create('info'), selectedFilterSetting);
     this.appendGroup(
-        GroupName.Verbose, [], ConsoleFilter.singleLevelMask(Protocol.Log.LogEntryLevel.Verbose),
+        GroupName.VERBOSE, [], ConsoleFilter.singleLevelMask(Protocol.Log.LogEntryLevel.Verbose),
         IconButton.Icon.create('bug'), selectedFilterSetting);
     const selectedTreeElementName = selectedFilterSetting.get();
     const defaultTreeElement =
@@ -130,22 +132,17 @@ export class ConsoleSidebar extends Common.ObjectWrapper.eventMixin<EventTypes, 
 
   private selectionChanged(event: Common.EventTarget.EventTargetEvent<UI.TreeOutline.TreeElement>): void {
     this.selectedTreeElement = event.data;
-    this.dispatchEventToListeners(Events.FilterSelected);
-  }
-
-  override wasShown(): void {
-    super.wasShown();
-    this.tree.registerCSSFiles([consoleSidebarStyles]);
+    this.dispatchEventToListeners(Events.FILTER_SELECTED);
   }
 }
 
 export const enum Events {
-  FilterSelected = 'FilterSelected',
+  FILTER_SELECTED = 'FilterSelected',
 }
 
-export type EventTypes = {
-  [Events.FilterSelected]: void,
-};
+export interface EventTypes {
+  [Events.FILTER_SELECTED]: void;
+}
 
 class ConsoleSidebarTreeElement extends UI.TreeOutline.TreeElement {
   protected filterInternal: ConsoleFilter;
@@ -179,12 +176,12 @@ export class URLGroupTreeElement extends ConsoleSidebarTreeElement {
 }
 
 const enum GroupName {
-  ConsoleAPI = 'user message',
-  All = 'message',
-  Error = 'error',
-  Warning = 'warning',
-  Info = 'info',
-  Verbose = 'verbose',
+  CONSOLE_API = 'user message',
+  ALL = 'message',
+  ERROR = 'error',
+  WARNING = 'warning',
+  INFO = 'info',
+  VERBOSE = 'verbose',
 }
 
 /**
@@ -193,12 +190,12 @@ const enum GroupName {
  * construct a filter or get a new message.
  */
 const stringForFilterSidebarItemMap = new Map<GroupName, string>([
-  [GroupName.ConsoleAPI, UIStrings.dUserMessages],
-  [GroupName.All, UIStrings.dMessages],
-  [GroupName.Error, UIStrings.dErrors],
-  [GroupName.Warning, UIStrings.dWarnings],
-  [GroupName.Info, UIStrings.dInfo],
-  [GroupName.Verbose, UIStrings.dVerbose],
+  [GroupName.CONSOLE_API, UIStrings.dUserMessages],
+  [GroupName.ALL, UIStrings.dMessages],
+  [GroupName.ERROR, UIStrings.dErrors],
+  [GroupName.WARNING, UIStrings.dWarnings],
+  [GroupName.INFO, UIStrings.dInfo],
+  [GroupName.VERBOSE, UIStrings.dVerbose],
 ]);
 
 export class FilterTreeElement extends ConsoleSidebarTreeElement {
@@ -241,7 +238,7 @@ export class FilterTreeElement extends ConsoleSidebarTreeElement {
 
   private updateGroupTitle(messageCount: number): string {
     if (this.uiStringForFilterCount) {
-      // eslint-disable-next-line rulesdir/l10n_i18nString_call_only_with_uistrings
+      // eslint-disable-next-line rulesdir/l10n-i18nString-call-only-with-uistrings
       return i18nString(this.uiStringForFilterCount, {n: messageCount});
     }
     return '';

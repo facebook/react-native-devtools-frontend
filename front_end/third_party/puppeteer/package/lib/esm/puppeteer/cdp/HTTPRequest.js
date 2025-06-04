@@ -1,5 +1,6 @@
 import { headersArray, HTTPRequest, STATUS_TEXTS, handleError, } from '../api/HTTPRequest.js';
 import { debugError } from '../common/util.js';
+import { stringToBase64 } from '../util/encoding.js';
 /**
  * @internal
  */
@@ -18,6 +19,9 @@ export class CdpHTTPRequest extends HTTPRequest {
     get client() {
         return this.#client;
     }
+    set client(newClient) {
+        this.#client = newClient;
+    }
     constructor(client, frame, interceptionId, allowInterception, data, redirectChain) {
         super();
         this.#client = client;
@@ -25,7 +29,7 @@ export class CdpHTTPRequest extends HTTPRequest {
         this.#isNavigationRequest =
             data.requestId === data.loaderId && data.type === 'Document';
         this._interceptionId = interceptionId;
-        this.#url = data.request.url;
+        this.#url = data.request.url + (data.request.urlFragment ?? '');
         this.#resourceType = (data.type || 'other').toLowerCase();
         this.#method = data.request.method;
         this.#postData = data.request.postData;
@@ -97,7 +101,9 @@ export class CdpHTTPRequest extends HTTPRequest {
     async _continue(overrides = {}) {
         const { url, method, postData, headers } = overrides;
         this.interception.handled = true;
-        const postDataBinaryBase64 = postData ? btoa(postData) : undefined;
+        const postDataBinaryBase64 = postData
+            ? stringToBase64(postData)
+            : undefined;
         if (this._interceptionId === undefined) {
             throw new Error('HTTPRequest is missing _interceptionId needed for Fetch.continueRequest');
         }

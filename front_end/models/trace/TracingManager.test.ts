@@ -8,10 +8,10 @@ import {
   setMockConnectionResponseHandler,
 } from '../../testing/MockConnection.js';
 import {makeInstantEvent} from '../../testing/TraceHelpers.js';
-import * as TraceEngine from '../trace/trace.js';
+import * as Trace from '../trace/trace.js';
 
-class FakeClient implements TraceEngine.TracingManager.TracingManagerClient {
-  traceEventsCollected(_events: TraceEngine.Types.TraceEvents.TraceEventData[]): void {
+class FakeClient implements Trace.TracingManager.TracingManagerClient {
+  traceEventsCollected(_events: Trace.Types.Events.Event[]): void {
   }
   tracingComplete(): void {
   }
@@ -38,7 +38,7 @@ describeWithMockConnection('TracingManager', () => {
 
   it('sends bufferUsage to the client', async () => {
     const target = createTarget();
-    const manager = new TraceEngine.TracingManager.TracingManager(target);
+    const manager = new Trace.TracingManager.TracingManager(target);
     const client = new FakeClient();
     const bufferUsageSpy = sinon.spy(client, 'tracingBufferUsage');
 
@@ -49,43 +49,26 @@ describeWithMockConnection('TracingManager', () => {
 
   it('sends events to the client when they are collected and updates the client with progress', async () => {
     const target = createTarget();
-    const manager = new TraceEngine.TracingManager.TracingManager(target);
+    const manager = new Trace.TracingManager.TracingManager(target);
     const client = new FakeClient();
     const eventsRetrievalProgressSpy = sinon.spy(client, 'eventsRetrievalProgress');
     const eventsCollectedSpy = sinon.spy(client, 'traceEventsCollected');
 
     await manager.start(client, 'devtools-timeline', 'options');
-    // Set the event buffer size to 20
-    manager.bufferUsage(0, 20);
+    manager.bufferUsage(0, 0);
 
     manager.eventsCollected(fakeEvents);
     assert.isTrue(eventsCollectedSpy.calledWith(fakeEvents));
-    assert.isTrue(eventsRetrievalProgressSpy.calledWith(2 / 20 /* 2 events, and the buffer size is 20 */));
-  });
-
-  it('updates the buffer size if we saw more events than the last buffer size', async () => {
-    const target = createTarget();
-    const manager = new TraceEngine.TracingManager.TracingManager(target);
-    const client = new FakeClient();
-    const eventsRetrievalProgressSpy = sinon.spy(client, 'eventsRetrievalProgress');
-    const eventsCollectedSpy = sinon.spy(client, 'traceEventsCollected');
-
-    await manager.start(client, 'devtools-timeline', 'options');
-    // Set the event buffer size to 1
-    manager.bufferUsage(0, 1);
-
-    manager.eventsCollected(fakeEvents);
-    assert.isTrue(eventsCollectedSpy.calledWith(fakeEvents));
-    assert.isTrue(eventsRetrievalProgressSpy.calledWith(2 / 2 /* 2 events, and the buffer size is now updated to 2 */));
+    assert.approximately(0.15, eventsRetrievalProgressSpy.args[0][0], 0.01);
   });
 
   it('notifies the client when tracing is complete', async () => {
     const target = createTarget();
-    const manager = new TraceEngine.TracingManager.TracingManager(target);
+    const manager = new Trace.TracingManager.TracingManager(target);
     const client = new FakeClient();
     const tracingCompleteSpy = sinon.spy(client, 'tracingComplete');
     await manager.start(client, 'devtools-timeline', 'options');
-    manager.bufferUsage(0, 10);
+    manager.bufferUsage(0, 0);
     manager.eventsCollected(fakeEvents);
     manager.tracingComplete();
     assert.isTrue(tracingCompleteSpy.calledOnce);
@@ -93,7 +76,7 @@ describeWithMockConnection('TracingManager', () => {
 
   it('errors if tracing is started twice', async () => {
     const target = createTarget();
-    const manager = new TraceEngine.TracingManager.TracingManager(target);
+    const manager = new Trace.TracingManager.TracingManager(target);
     const client = new FakeClient();
     await manager.start(client, 'devtools-timeline', 'options');
     // The assert.throws() helper does not work with async/await, hence the manual try catch
@@ -109,7 +92,7 @@ describeWithMockConnection('TracingManager', () => {
 
   it('errors if you try to stop when tracing is not active', async () => {
     const target = createTarget();
-    const manager = new TraceEngine.TracingManager.TracingManager(target);
+    const manager = new Trace.TracingManager.TracingManager(target);
     assert.throws(() => {
       manager.stop();
     }, /Tracing is not started/);

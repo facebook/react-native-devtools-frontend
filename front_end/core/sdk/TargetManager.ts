@@ -69,11 +69,11 @@ export class TargetManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
     }
     Host.InspectorFrontendHost.InspectorFrontendHostInstance.inspectedURLChanged(
         target.inspectedURL() || Platform.DevToolsPath.EmptyUrlString);
-    this.dispatchEventToListeners(Events.InspectedURLChanged, target);
+    this.dispatchEventToListeners(Events.INSPECTED_URL_CHANGED, target);
   }
 
   onNameChange(target: Target): void {
-    this.dispatchEventToListeners(Events.NameChanged, target);
+    this.dispatchEventToListeners(Events.NAME_CHANGED, target);
   }
 
   async suspendAllTargets(reason?: string): Promise<void> {
@@ -81,7 +81,7 @@ export class TargetManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
       return;
     }
     this.#isSuspended = true;
-    this.dispatchEventToListeners(Events.SuspendStateChanged);
+    this.dispatchEventToListeners(Events.SUSPEND_STATE_CHANGED);
     const suspendPromises = Array.from(this.#targetsInternal.values(), target => target.suspend(reason));
     await Promise.all(suspendPromises);
   }
@@ -91,7 +91,7 @@ export class TargetManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
       return;
     }
     this.#isSuspended = false;
-    this.dispatchEventToListeners(Events.SuspendStateChanged);
+    this.dispatchEventToListeners(Events.SUSPEND_STATE_CHANGED);
     const resumePromises = Array.from(this.#targetsInternal.values(), target => target.resume());
     await Promise.all(resumePromises);
   }
@@ -241,7 +241,7 @@ export class TargetManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
     }
 
     if ((target === target.outermostTarget() &&
-         (target.type() !== TargetType.Frame || target === this.primaryPageTarget())) &&
+         (target.type() !== TargetType.FRAME || target === this.primaryPageTarget())) &&
         !this.#defaultScopeSet) {
       this.setScopeTarget(target);
     }
@@ -289,15 +289,18 @@ export class TargetManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
   }
 
   rootTarget(): Target|null {
-    return this.#targetsInternal.size ? this.#targetsInternal.values().next().value : null;
+    if (this.#targetsInternal.size === 0) {
+      return null;
+    }
+    return this.#targetsInternal.values().next().value ?? null;
   }
 
   primaryPageTarget(): Target|null {
     let target = this.rootTarget();
-    if (target?.type() === TargetType.Tab) {
+    if (target?.type() === TargetType.TAB) {
       target =
           this.targets().find(
-              t => t.parentTarget() === target && t.type() === TargetType.Frame && !t.targetInfo()?.subtype?.length) ||
+              t => t.parentTarget() === target && t.type() === TargetType.FRAME && !t.targetInfo()?.subtype?.length) ||
           null;
     }
     return target;
@@ -313,7 +316,7 @@ export class TargetManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
     }
     if (!this.#browserTargetInternal) {
       this.#browserTargetInternal = new Target(
-          this, /* #id*/ 'main', /* #name*/ 'browser', TargetType.Browser, /* #parentTarget*/ null,
+          this, /* #id*/ 'main', /* #name*/ 'browser', TargetType.BROWSER, /* #parentTarget*/ null,
           /* #sessionId */ '', /* suspended*/ false, /* #connection*/ null, /* targetInfo*/ undefined);
       this.#browserTargetInternal.createModels(new Set(this.#modelObservers.keysArray()));
     }
@@ -410,28 +413,24 @@ export class TargetManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
     this.#scopeChangeListeners.add(listener);
   }
 
-  removeScopeChangeListener(listener: () => void): void {
-    this.#scopeChangeListeners.delete(listener);
-  }
-
   scopeTarget(): Target|null {
     return this.#scopeTarget;
   }
 }
 
 export const enum Events {
-  AvailableTargetsChanged = 'AvailableTargetsChanged',
-  InspectedURLChanged = 'InspectedURLChanged',
-  NameChanged = 'NameChanged',
-  SuspendStateChanged = 'SuspendStateChanged',
+  AVAILABLE_TARGETS_CHANGED = 'AvailableTargetsChanged',
+  INSPECTED_URL_CHANGED = 'InspectedURLChanged',
+  NAME_CHANGED = 'NameChanged',
+  SUSPEND_STATE_CHANGED = 'SuspendStateChanged',
 }
 
-export type EventTypes = {
-  [Events.AvailableTargetsChanged]: Protocol.Target.TargetInfo[],
-  [Events.InspectedURLChanged]: Target,
-  [Events.NameChanged]: Target,
-  [Events.SuspendStateChanged]: void,
-};
+export interface EventTypes {
+  [Events.AVAILABLE_TARGETS_CHANGED]: Protocol.Target.TargetInfo[];
+  [Events.INSPECTED_URL_CHANGED]: Target;
+  [Events.NAME_CHANGED]: Target;
+  [Events.SUSPEND_STATE_CHANGED]: void;
+}
 
 export class Observer {
   targetAdded(_target: Target): void {

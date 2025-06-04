@@ -15,12 +15,10 @@ import {
 import {createTarget} from '../../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../../testing/MockConnection.js';
 import * as ExpandableList from '../../../ui/components/expandable_list/expandable_list.js';
-import * as Coordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
+import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 import * as ReportView from '../../../ui/components/report_view/report_view.js';
 
 import * as ApplicationComponents from './components.js';
-
-const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 const makeFrame = (target: SDK.Target.Target) => {
   const newFrame: SDK.ResourceTreeModel.ResourceTreeFrame = {
@@ -87,7 +85,7 @@ describeWithMockConnection('FrameDetailsView', () => {
 
     assert.isNotNull(component.shadowRoot);
     void component.render();
-    await coordinator.done({waitForWork: true});
+    await RenderCoordinator.done({waitForWork: true});
     const report = getElementWithinComponent(component, 'devtools-report', ReportView.ReportView.Report);
 
     const titleElement = report.shadowRoot!.querySelector('.report-title');
@@ -140,7 +138,7 @@ describeWithMockConnection('FrameDetailsView', () => {
 
     assert.isNotNull(component.shadowRoot);
     await component.render();
-    await coordinator.done({waitForWork: true});
+    await RenderCoordinator.done({waitForWork: true});
 
     const keys = getCleanTextContentFromElements(component.shadowRoot, 'devtools-report-key');
     assert.deepEqual(keys, [
@@ -171,7 +169,7 @@ describeWithMockConnection('FrameDetailsView', () => {
       'Yes',
       'None',
       'SameOrigin',
-      'HTTP headerbase-uri: \'self\'object-src: \'none\'script-src: \'strict-dynamic\', \'unsafe-inline\', https:, http:, \'nonce-GsVjHiIoejpPhMPOHDQZ90yc9eJn1s\', \'unsafe-eval\'report-uri: https://www.example.com/csp',
+      'HTTP header base-uri: \'self\'object-src: \'none\'script-src: \'strict-dynamic\', \'unsafe-inline\', https:, http:, \'nonce-GsVjHiIoejpPhMPOHDQZ90yc9eJn1s\', \'unsafe-eval\'report-uri: https://www.example.com/csp',
       'available, transferable',
       'available\xA0Learn more',
     ]);
@@ -192,7 +190,7 @@ describeWithMockConnection('FrameDetailsView', () => {
       stackTraceText = stackTraceText.concat(getCleanTextContentFromElements(row.shadowRoot, '.stack-trace-row'));
     });
 
-    assert.deepEqual(stackTraceText[0], 'function1\xA0@\xA0www.example.com/script.js:16');
+    assert.deepEqual(stackTraceText[0], 'function1 \xA0@\xA0www.example.com/script.js:16');
 
     const adScriptLink = component.shadowRoot.querySelector('devtools-report-value.ad-script-link');
     assert.exists(adScriptLink);

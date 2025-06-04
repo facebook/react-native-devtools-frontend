@@ -2,9 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Platform from '../../../core/platform/platform.js';
+import * as Common from '../../../core/common/common.js';
+import * as Platform from '../../../core/platform/platform.js';
 import type * as SDK from '../../../core/sdk/sdk.js';
 import type * as Protocol from '../../../generated/protocol.js';
+import * as Workspace from '../../../models/workspace/workspace.js';
 import {
   dispatchClickEvent,
   getCleanTextContentFromElements,
@@ -12,12 +14,14 @@ import {
   getElementWithinComponent,
   renderElementIntoDOM,
 } from '../../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
+import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
+import {setupIgnoreListManagerEnvironment} from '../../../testing/TraceHelpers.js';
 import * as ExpandableList from '../../../ui/components/expandable_list/expandable_list.js';
 import * as Components from '../../../ui/legacy/components/utils/utils.js';
 
 import * as ApplicationComponents from './components.js';
 
+const {urlString} = Platform.DevToolsPath;
 const makeFrame = (overrides: Partial<SDK.ResourceTreeModel.ResourceTreeFrame> = {}) => {
   const newFrame: SDK.ResourceTreeModel.ResourceTreeFrame = {
     resourceTreeModel: () => ({
@@ -33,21 +37,29 @@ function mockBuildStackTraceRows(
     _target: SDK.Target.Target|null,
     _linkifier: Components.Linkifier.Linkifier,
     _tabStops: boolean|undefined,
-    _updateCallback?: (arg0: (Components.JSPresentationUtils.StackTraceRegularRow|
-                              Components.JSPresentationUtils.StackTraceAsyncRow)[]) => void,
-    ): (Components.JSPresentationUtils.StackTraceRegularRow|Components.JSPresentationUtils.StackTraceAsyncRow)[] {
-  return stackTrace.callFrames.map(
-      callFrame => ({
-        functionName: callFrame.functionName,
-        ignoreListHide: callFrame.url.includes('hidden'),
-        link: Components.Linkifier.Linkifier.linkifyURL(callFrame.url as Platform.DevToolsPath.UrlString),
-        rowCountHide: false,
-      }));
+    _updateCallback?: (arg0: Array<Components.JSPresentationUtils.StackTraceRegularRow|
+                                   Components.JSPresentationUtils.StackTraceAsyncRow>) => void,
+    ): Array<Components.JSPresentationUtils.StackTraceRegularRow|Components.JSPresentationUtils.StackTraceAsyncRow> {
+  const fakeProject = {id: () => 'http://www.example.com', type: () => Workspace.Workspace.projectTypes.Network} as
+      Workspace.Workspace.Project;
+  return stackTrace.callFrames.map(callFrame => {
+    const url = urlString`${callFrame.url}`;
+    const link = Components.Linkifier.Linkifier.linkifyURL(url);
+    Components.Linkifier.Linkifier.bindUILocationForTest(
+        link,
+        new Workspace.UISourceCode.UILocation(
+            new Workspace.UISourceCode.UISourceCode(fakeProject, url, Common.ResourceType.resourceTypes.Script), 1));
+    return {
+      functionName: callFrame.functionName,
+      link,
+      rowCountHide: false,
+    };
+  });
 }
 
 const fakeScriptId = '1' as Protocol.Runtime.ScriptId;
 
-describeWithLocale('StackTrace', () => {
+describeWithEnvironment('StackTrace', () => {
   it('does not generate rows when there is no data', () => {
     const component = new ApplicationComponents.StackTrace.StackTrace();
     const rows = component.createRowTemplates();
@@ -55,6 +67,7 @@ describeWithLocale('StackTrace', () => {
   });
 
   it('generates rows from stack trace data', () => {
+    setupIgnoreListManagerEnvironment();
     const frame = makeFrame({
       getCreationStackTraceData: () => ({
         creationStackTrace: {
@@ -81,7 +94,7 @@ describeWithLocale('StackTrace', () => {
     const component = new ApplicationComponents.StackTrace.StackTrace();
     renderElementIntoDOM(component);
     component.data = {
-      frame: frame,
+      frame,
       buildStackTraceRows: mockBuildStackTraceRows,
     };
 
@@ -102,12 +115,15 @@ describeWithLocale('StackTrace', () => {
     });
 
     assert.deepEqual(stackTraceText, [
-      'function1\xA0@\xA0www.example.com/script1.js',
-      'function2\xA0@\xA0www.example.com/script2.js',
+      'function1 \xA0@\xA0www.example.com/script1.js',
+      'function2 \xA0@\xA0www.example.com/script2.js',
     ]);
   });
 
   it('hides hidden rows behind "show all" button', async () => {
+    // Initialize ignore listing
+    const {ignoreListManager} = setupIgnoreListManagerEnvironment();
+    ignoreListManager.ignoreListURL(urlString`http://www.example.com/hidden.js`);
     const frame = makeFrame({
       getCreationStackTraceData: () => ({
         creationStackTrace: {
@@ -134,7 +150,7 @@ describeWithLocale('StackTrace', () => {
     const component = new ApplicationComponents.StackTrace.StackTrace();
     renderElementIntoDOM(component);
     component.data = {
-      frame: frame,
+      frame,
       buildStackTraceRows: mockBuildStackTraceRows,
     };
 
@@ -159,7 +175,7 @@ describeWithLocale('StackTrace', () => {
     });
 
     assert.deepEqual(stackTraceText, [
-      'function1\xA0@\xA0www.example.com/script.js',
+      'function1 \xA0@\xA0www.example.com/script.js',
       'Show 1 more frame',
     ]);
 
@@ -179,8 +195,8 @@ describeWithLocale('StackTrace', () => {
     });
 
     assert.deepEqual(openedStackTraceText, [
-      'function1\xA0@\xA0www.example.com/script.js',
-      'function2\xA0@\xA0www.example.com/hidden.js',
+      'function1 \xA0@\xA0www.example.com/script.js',
+      'function2 \xA0@\xA0www.example.com/hidden.js',
       'Show less',
     ]);
 
@@ -199,7 +215,7 @@ describeWithLocale('StackTrace', () => {
     });
 
     assert.deepEqual(stackTraceText, [
-      'function1\xA0@\xA0www.example.com/script.js',
+      'function1 \xA0@\xA0www.example.com/script.js',
       'Show 1 more frame',
     ]);
   });

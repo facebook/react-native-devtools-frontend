@@ -2,69 +2,53 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 import * as i18n from '../../../../core/i18n/i18n.js';
-import * as TraceEngine from '../../../../models/trace/trace.js';
-import * as ComponentHelpers from '../../../../ui/components/helpers/helpers.js';
-import * as LitHtml from '../../../../ui/lit-html/lit-html.js';
+import type * as Trace from '../../../../models/trace/trace.js';
+import * as Lit from '../../../../ui/lit/lit.js';
 
-import styles from './timespanBreakdownOverlay.css.js';
+import stylesRaw from './timespanBreakdownOverlay.css.js';
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const styles = new CSSStyleSheet();
+styles.replaceSync(stylesRaw.cssText);
+
+const {html} = Lit;
 
 /**
  * An EntryBreakdown, or section, that makes up a TimespanBreakdown.
  */
-export type EntryBreakdown = {
-  bounds: TraceEngine.Types.Timing.TraceWindowMicroSeconds,
-  label: string,
-};
+export interface EntryBreakdown {
+  bounds: Trace.Types.Timing.TraceWindowMicro;
+  label: string|Lit.LitTemplate;
+  showDuration: boolean;
+}
 
 export class TimespanBreakdownOverlay extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-timespan-breakdown-overlay`;
-  /**
-   * Size to stagger sections of a TimespanBreakdownOverlay.
-   */
-  static readonly TIMESPAN_BREAKDOWN_OVERLAY_STAGGER_PX = 5;
-
   readonly #shadow = this.attachShadow({mode: 'open'});
-  readonly #boundRender = this.#render.bind(this);
   #canvasRect: DOMRect|null = null;
-  #sections: Array<EntryBreakdown>|null = null;
+  #sections: EntryBreakdown[]|null = null;
 
   connectedCallback(): void {
     this.#shadow.adoptedStyleSheets = [styles];
-    this.#render();
+  }
+
+  set isBelowEntry(isBelow: boolean) {
+    this.classList.toggle('is-below', isBelow);
   }
 
   set canvasRect(rect: DOMRect|null) {
+    if (this.#canvasRect && rect && this.#canvasRect.width === rect.width && this.#canvasRect.height === rect.height) {
+      return;
+    }
     this.#canvasRect = rect;
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
+    this.#render();
   }
 
-  set sections(sections: Array<EntryBreakdown>|null) {
+  set sections(sections: EntryBreakdown[]|null) {
     if (sections === this.#sections) {
       return;
     }
     this.#sections = sections;
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
-  }
-
-  /**
-   * This calculates how much of the time range is in the user's view. This is
-   * used to determine how much of the label can fit into the view, and if we
-   * should even show the label.
-   */
-  #visibleOverlayWidth(overlayRect: DOMRect): number {
-    if (!this.#canvasRect) {
-      return 0;
-    }
-
-    const {x: overlayStartX, width} = overlayRect;
-    const overlayEndX = overlayStartX + width;
-
-    const canvasStartX = this.#canvasRect.x;
-    const canvasEndX = this.#canvasRect.x + this.#canvasRect.width;
-
-    const leftVisible = Math.max(canvasStartX, overlayStartX);
-    const rightVisible = Math.min(canvasEndX, overlayEndX);
-    return rightVisible - leftVisible;
+    this.#render();
   }
 
   /**
@@ -73,7 +57,7 @@ export class TimespanBreakdownOverlay extends HTMLElement {
    * If the label is off to the left or right, we fix it to that corner and
    * align the text so the label is visible as long as possible.
    */
-  afterOverlayUpdate(): void {
+  checkSectionLabelPositioning(): void {
     const sections = this.#shadow.querySelectorAll<HTMLElement>('.timespan-breakdown-overlay-section');
     if (!sections) {
       return;
@@ -89,24 +73,42 @@ export class TimespanBreakdownOverlay extends HTMLElement {
     // consistent on both edges of the UI.
     const paddingForScrollbar = 9;
 
-    // Align the labels for all the breakdown sections.
+    // Fetch the rects for each section and label now, rather than in the loop,
+    // to avoid causing a bunch of recalcStyles
+    const sectionLayoutData = new Map<HTMLElement, {sectionRect: DOMRect, labelRect: DOMRect, label: HTMLElement}>();
     for (const section of sections) {
       const label = section.querySelector<HTMLElement>('.timespan-breakdown-overlay-label');
       if (!label) {
-        break;
+        continue;
       }
-      const overlayRect = this.getBoundingClientRect();
-
       const sectionRect = section.getBoundingClientRect();
       const labelRect = label.getBoundingClientRect();
+      sectionLayoutData.set(section, {sectionRect, labelRect, label});
+    }
 
-      const visibleOverlayWidth = this.#visibleOverlayWidth(overlayRect) - paddingForScrollbar;
-      const overlayTooNarrow = visibleOverlayWidth <= labelRect.width - paddingForScrollbar;
-      label.classList.toggle('labelHidden', overlayTooNarrow);
+    const minSectionWidthToShowAnyLabel = 30;
 
-      if (overlayTooNarrow) {
-        // Label is invisible, no need to do all the layout.
+    // Align the labels for all the breakdown sections.
+    for (const section of sections) {
+      const layoutData = sectionLayoutData.get(section);
+      if (!layoutData) {
         break;
+      }
+      const {labelRect, sectionRect, label} = layoutData;
+
+      const labelHidden = sectionRect.width < minSectionWidthToShowAnyLabel;
+      // Subtract 5 from the section width to allow a tiny bit of padding.
+      const labelTruncated = sectionRect.width - 5 <= labelRect.width;
+      // We differentiate between hidden + truncated; if it is truncated we
+      // will show the text with ellipsis for overflow, but if the section is
+      // really small we just hide the label entirely.
+      label.classList.toggle('labelHidden', labelHidden);
+      label.classList.toggle('labelTruncated', labelTruncated);
+
+      if (labelHidden || labelTruncated) {
+        // Label is hidden or doesn't fully fit, so we don't need to do the
+        // logic to left/right align if it needs it.
+        continue;
       }
 
       // Check if label is off the LHS of the screen.
@@ -152,18 +154,34 @@ export class TimespanBreakdownOverlay extends HTMLElement {
     }
   }
 
-  renderSection(section: EntryBreakdown): LitHtml.TemplateResult {
-    const sectionRange = TraceEngine.Helpers.Timing.microSecondsToMilliseconds(section.bounds.range);
-    return LitHtml.html`
+  renderedSections(): HTMLElement[] {
+    return Array.from(this.#shadow.querySelectorAll('.timespan-breakdown-overlay-section'));
+  }
+
+  #renderSection(section: EntryBreakdown): Lit.TemplateResult {
+    // clang-format off
+    return html`
       <div class="timespan-breakdown-overlay-section">
-        <div class="timespan-breakdown-overlay-label">${section.label}
-          <div>${i18n.TimeUtilities.preciseMillisToString(sectionRange, 2)}</div>
+        <div class="timespan-breakdown-overlay-label">
+        ${section.showDuration ?
+          html`
+            <span class="duration-text">${i18n.TimeUtilities.formatMicroSecondsAsMillisFixed(section.bounds.range)}</span>
+          ` : Lit.nothing}
+          <span class="section-label-text">
+            ${section.label}
+          </span>
         </div>
       </div>`;
+    // clang-format on
   }
 
   #render(): void {
-    LitHtml.render(LitHtml.html`${this.#sections?.map(this.renderSection)}`, this.#shadow, {host: this});
+    if (this.#sections) {
+      this.classList.toggle('odd-number-of-sections', this.#sections.length % 2 === 1);
+      this.classList.toggle('even-number-of-sections', this.#sections.length % 2 === 0);
+    }
+    Lit.render(html`${this.#sections?.map(this.#renderSection)}`, this.#shadow, {host: this});
+    this.checkSectionLabelPositioning();
   }
 }
 

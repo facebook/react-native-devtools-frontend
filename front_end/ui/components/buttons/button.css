@@ -30,9 +30,6 @@
   align-items: center;
 }
 
-/* This specific nesting is incompatible with what stylelint requires as ordering of the rules. */
-/* stylelint-disable no-descending-specificity */
-
 button {
   --hover-layer-color: var(--sys-color-state-hover-on-subtle);
   --active-layer-color: var(--sys-color-state-ripple-neutral-on-subtle);
@@ -43,8 +40,10 @@ button {
   align-items: center;
   background: transparent;
   border-radius: var(--sys-shape-corner-full);
+  cursor: inherit;
   display: inline-flex;
   position: relative;
+  font-family: var(--default-font-family);
   font-size: var(--sys-typescale-body4-size);
   font-weight: var(--ref-typeface-weight-medium);
   line-height: var(--sys-typescale-body4-line-height);
@@ -84,8 +83,41 @@ button {
       --icon-size: var(--sys-size-8);
     }
 
+    &.micro {
+      --button-height: var(--sys-size-8);
+      --button-width: var(--sys-size-8);
+      --icon-size: var(--sys-size-8);
+
+      border-radius: var(--sys-shape-corner-extra-small);
+    }
+
     &.toggled devtools-icon {
       color: var(--toggle-color); /* stylelint-disable-line plugin/use_theme_colors */
+
+      &.long-click {
+        color: var(--icon-default);
+      }
+    }
+
+    &.checked devtools-icon {
+      color: var(--toggle-color); /* stylelint-disable-line plugin/use_theme_colors */
+
+      &::after {
+        content: "";
+        width: var(--sys-size-3);
+        height: var(--sys-size-3);
+        border-radius: var(--sys-shape-corner-full);
+        background-color: var(--sys-color-primary-bright);
+        position: absolute;
+        top: var(--dot-toggle-top);
+        left: var(--dot-toggle-left);
+      }
+    }
+
+    devtools-icon.long-click {
+      position: absolute;
+      top: 2px;
+      left: 3px;
     }
   }
 
@@ -145,24 +177,6 @@ button {
     devtools-icon {
       color: var(--icon-primary);
     }
-
-    &.micro {
-      --button-height: var(--sys-size-7);
-
-      padding: 0 var(--sys-size-5);
-      font-size: var(--sys-typescale-body4-size);
-      font-weight: var(--ref-typeface-weight-medium);
-      line-height: var(--sys-typescale-body4-line-height);
-
-      &:not(.icon):has(devtools-icon) {
-        padding-left: var(--sys-size-3);
-      }
-
-      &:not(.icon) devtools-icon {
-        height: var(--sys-size-6);
-        width: var(--sys-size-6);
-      }
-    }
   }
 
   &:disabled {
@@ -193,7 +207,7 @@ button {
     }
   }
 
-  &:not(.icon):not(.toolbar).only-icon {
+  &:not(.icon, .toolbar).only-icon {
     width: 100%;
     padding: 0;
 
@@ -205,15 +219,12 @@ button {
   &:focus-visible {
     outline: 2px solid var(--sys-color-state-focus-ring);
     outline-offset: 2px;
-    z-index: 999;
+    z-index: 1;
 
     &.toolbar,
-    &.icon {
-      outline-offset: -1px;
-
-      &.small {
-        outline-offset: -2px;
-      }
+    &.icon,
+    &.reduced-focus-ring {
+      outline-offset: -2px;
     }
   }
 
@@ -232,11 +243,11 @@ button {
     background-color: var(--hover-layer-color); /* stylelint-disable-line plugin/use_theme_colors */
 
     &.primary {
-      border: var(--button-border-size) solid color-mix(in sRGB, var(--sys-color-primary), var(--sys-color-state-hover-on-prominent) 6%);
+      border: var(--button-border-size) solid color-mix(in srgb, var(--sys-color-primary), var(--sys-color-state-hover-on-prominent) 6%);
     }
 
     &.tonal {
-      background: color-mix(in sRGB, var(--sys-color-tonal-container), var(--sys-color-state-hover-on-subtle));
+      background: color-mix(in srgb, var(--sys-color-tonal-container), var(--sys-color-state-hover-on-subtle));
     }
 
     &.toobar {
@@ -258,11 +269,11 @@ button {
     background-color: var(--active-layer-color); /* stylelint-disable-line plugin/use_theme_colors */
 
     &.primary {
-      border: var(--button-border-size) solid color-mix(in sRGB, var(--sys-color-primary), var(--sys-color-state-ripple-primary) 32%);
+      border: var(--button-border-size) solid color-mix(in srgb, var(--sys-color-primary), var(--sys-color-state-ripple-primary) 32%);
     }
 
     &.tonal {
-      background: color-mix(in sRGB, var(--sys-color-tonal-container), var(--sys-color-state-ripple-primary) 50%);
+      background: color-mix(in srgb, var(--sys-color-tonal-container), var(--sys-color-state-ripple-primary) 50%);
     }
 
     &.toolbar {
@@ -272,7 +283,6 @@ button {
     }
   }
 }
-/* stylelint-enable no-descending-specificity */
 
 .spinner {
   display: block;

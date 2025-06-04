@@ -55,7 +55,7 @@
 }
 
 .text-prompt.disabled {
-  opacity: 50%;
+  color: var(--sys-color-state-disabled);
   cursor: default;
 }
 
@@ -65,6 +65,7 @@
 
 .text-prompt-root:not(:focus-within) ::selection {
   background: transparent;
+  color: currentcolor;
 }
 
 @media (forced-colors: active) {

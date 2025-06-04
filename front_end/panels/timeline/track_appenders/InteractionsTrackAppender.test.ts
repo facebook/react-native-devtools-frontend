@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as TraceEngine from '../../../models/trace/trace.js';
+import * as Trace from '../../../models/trace/trace.js';
 import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
 import * as PerfUI from '../../../ui/legacy/components/perf_ui/perf_ui.js';
@@ -10,12 +10,13 @@ import * as Timeline from '../timeline.js';
 
 function initTrackAppender(
     flameChartData: PerfUI.FlameChart.FlameChartTimelineData,
-    traceParsedData: TraceEngine.Handlers.Types.TraceParseData,
-    entryData: Timeline.TimelineFlameChartDataProvider.TimelineFlameChartEntry[],
+    parsedTrace: Trace.Handlers.Types.ParsedTrace,
+    entryData: Trace.Types.Events.Event[],
     entryTypeByLevel: Timeline.TimelineFlameChartDataProvider.EntryType[],
     ): Timeline.InteractionsTrackAppender.InteractionsTrackAppender {
+  const entityMapper = new Timeline.Utils.EntityMapper.EntityMapper(parsedTrace);
   const compatibilityTracksAppender = new Timeline.CompatibilityTracksAppender.CompatibilityTracksAppender(
-      flameChartData, traceParsedData, entryData, entryTypeByLevel);
+      flameChartData, parsedTrace, entryData, entryTypeByLevel, entityMapper);
   return compatibilityTracksAppender.interactionsTrackAppender();
 }
 
@@ -24,19 +25,19 @@ describeWithEnvironment('InteractionsTrackAppender', function() {
     entryTypeByLevel: Timeline.TimelineFlameChartDataProvider.EntryType[],
     flameChartData: PerfUI.FlameChart.FlameChartTimelineData,
     interactionsTrackAppender: Timeline.InteractionsTrackAppender.InteractionsTrackAppender,
-    entryData: Timeline.TimelineFlameChartDataProvider.TimelineFlameChartEntry[],
-    traceParsedData: Readonly<TraceEngine.Handlers.Types.TraceParseData>,
+    entryData: Trace.Types.Events.Event[],
+    parsedTrace: Readonly<Trace.Handlers.Types.ParsedTrace>,
   }> {
     const entryTypeByLevel: Timeline.TimelineFlameChartDataProvider.EntryType[] = [];
-    const entryData: Timeline.TimelineFlameChartDataProvider.TimelineFlameChartEntry[] = [];
+    const entryData: Trace.Types.Events.Event[] = [];
     const flameChartData = PerfUI.FlameChart.FlameChartTimelineData.createEmpty();
-    const {traceData} = await TraceLoader.traceEngine(context, trace);
-    const interactionsTrackAppender = initTrackAppender(flameChartData, traceData, entryData, entryTypeByLevel);
+    const {parsedTrace} = await TraceLoader.traceEngine(context, trace);
+    const interactionsTrackAppender = initTrackAppender(flameChartData, parsedTrace, entryData, entryTypeByLevel);
     interactionsTrackAppender.appendTrackAtLevel(0);
 
     return {
       entryTypeByLevel,
-      traceParsedData: traceData,
+      parsedTrace,
       flameChartData,
       interactionsTrackAppender,
       entryData,
@@ -47,60 +48,57 @@ describeWithEnvironment('InteractionsTrackAppender', function() {
     it('marks all levels used by the track with the `TrackAppender` type', async function() {
       const {entryTypeByLevel} = await renderTrackAppender(this, 'slow-interaction-button-click.json.gz');
       // All events fit on the top level
-      assert.strictEqual(entryTypeByLevel.length, 1);
+      assert.lengthOf(entryTypeByLevel, 1);
       assert.deepEqual(entryTypeByLevel, [
-        Timeline.TimelineFlameChartDataProvider.EntryType.TrackAppender,
+        Timeline.TimelineFlameChartDataProvider.EntryType.TRACK_APPENDER,
       ]);
     });
 
     it('takes over no levels if there are no interactions', async function() {
       // animation trace has no interactions in it.
       const {entryTypeByLevel} = await renderTrackAppender(this, 'animation.json.gz');
-      assert.strictEqual(entryTypeByLevel.length, 0);
+      assert.lengthOf(entryTypeByLevel, 0);
     });
 
     it('only shows the top level interactions', async function() {
-      const {entryData, traceParsedData} = await renderTrackAppender(this, 'nested-interactions.json.gz');
-      assert.strictEqual(entryData.length, traceParsedData.UserInteractions.interactionEventsWithNoNesting.length);
+      const {entryData, parsedTrace} = await renderTrackAppender(this, 'nested-interactions.json.gz');
+      assert.strictEqual(entryData.length, parsedTrace.UserInteractions.interactionEventsWithNoNesting.length);
     });
 
     it('creates a flamechart group', async function() {
       const {flameChartData} = await renderTrackAppender(this, 'slow-interaction-button-click.json.gz');
-      assert.strictEqual(flameChartData.groups.length, 1);
+      assert.lengthOf(flameChartData.groups, 1);
       assert.strictEqual(flameChartData.groups[0].name, 'Interactions');
     });
 
     it('adds all interactions with the correct start times', async function() {
-      const {flameChartData, traceParsedData, entryData} =
+      const {flameChartData, parsedTrace, entryData} =
           await renderTrackAppender(this, 'slow-interaction-button-click.json.gz');
-      const events = traceParsedData.UserInteractions.interactionEventsWithNoNesting;
+      const events = parsedTrace.UserInteractions.interactionEventsWithNoNesting;
       for (const event of events) {
         const markerIndex = entryData.indexOf(event);
         assert.exists(markerIndex);
-        assert.strictEqual(
-            flameChartData.entryStartTimes[markerIndex],
-            TraceEngine.Helpers.Timing.microSecondsToMilliseconds(event.ts));
+        assert.strictEqual(flameChartData.entryStartTimes[markerIndex], Trace.Helpers.Timing.microToMilli(event.ts));
       }
     });
 
     it('adds total times correctly', async function() {
-      const {flameChartData, traceParsedData, entryData} =
+      const {flameChartData, parsedTrace, entryData} =
           await renderTrackAppender(this, 'slow-interaction-button-click.json.gz');
-      const events = traceParsedData.UserInteractions.interactionEventsWithNoNesting;
+      const events = parsedTrace.UserInteractions.interactionEventsWithNoNesting;
       for (const event of events) {
         const markerIndex = entryData.indexOf(event);
         assert.exists(markerIndex);
-        const expectedTotalTimeForEvent = TraceEngine.Helpers.Timing.microSecondsToMilliseconds(
-            (event.dur || 0) as TraceEngine.Types.Timing.MicroSeconds);
+        const expectedTotalTimeForEvent =
+            Trace.Helpers.Timing.microToMilli((event.dur || 0) as Trace.Types.Timing.Micro);
         assert.strictEqual(flameChartData.entryTotalTimes[markerIndex], expectedTotalTimeForEvent);
       }
     });
   });
 
   it('candy-stripes and adds warning triangles to long interactions', async function() {
-    const {traceParsedData, flameChartData, entryData} =
-        await renderTrackAppender(this, 'one-second-interaction.json.gz');
-    const longInteraction = traceParsedData.UserInteractions.longestInteractionEvent;
+    const {parsedTrace, flameChartData, entryData} = await renderTrackAppender(this, 'one-second-interaction.json.gz');
+    const longInteraction = parsedTrace.UserInteractions.longestInteractionEvent;
     if (!longInteraction) {
       throw new Error('Could not find longest interaction');
     }
@@ -109,7 +107,7 @@ describeWithEnvironment('InteractionsTrackAppender', function() {
     assert.deepEqual(decorationsForEntry, [
       {
         type: PerfUI.FlameChart.FlameChartDecorationType.CANDY,
-        startAtTime: TraceEngine.Types.Timing.MicroSeconds(200_000),
+        startAtTime: Trace.Types.Timing.Micro(200_000),
         endAtTime: longInteraction.processingEnd,
       },
       {
@@ -123,46 +121,5 @@ describeWithEnvironment('InteractionsTrackAppender', function() {
     const {flameChartData} = await renderTrackAppender(this, 'slow-interaction-button-click.json.gz');
     // None of the interactions are over 200ms, so we do not expect to see any decorations
     assert.lengthOf(flameChartData.entryDecorations, 0);
-  });
-
-  it('returns the correct title for a pointer interaction, using its category', async function() {
-    const {interactionsTrackAppender, traceParsedData} =
-        await renderTrackAppender(this, 'slow-interaction-button-click.json.gz');
-    const firstInteraction = traceParsedData.UserInteractions.interactionEvents[0];
-    const title = interactionsTrackAppender.titleForEvent(firstInteraction);
-    assert.strictEqual(title, 'Pointer');
-  });
-
-  it('returns the correct title for a keyboard interaction, using its category', async function() {
-    const {interactionsTrackAppender, traceParsedData} =
-        await renderTrackAppender(this, 'slow-interaction-keydown.json.gz');
-    const keydownInteraction = traceParsedData.UserInteractions.interactionEvents.find(e => e.type === 'keydown');
-    if (!keydownInteraction) {
-      throw new Error('Could not find keydown interaction');
-    }
-    const title = interactionsTrackAppender.titleForEvent(keydownInteraction);
-    assert.strictEqual(title, 'Keyboard');
-  });
-
-  it('returns "Other" as the title for unknown event types', async function() {
-    const {interactionsTrackAppender, traceParsedData} =
-        await renderTrackAppender(this, 'slow-interaction-button-click.json.gz');
-
-    // Copy the event so we do not modify the actual trace data, and fake its
-    // interaction type to be unexpected.
-    const firstInteraction = {...traceParsedData.UserInteractions.interactionEvents[0]};
-    firstInteraction.type = 'unknown';
-
-    const title = interactionsTrackAppender.titleForEvent(firstInteraction);
-    assert.strictEqual(title, 'Other');
-  });
-
-  it('highlightedEntryInfo returns the correct information', async function() {
-    const {interactionsTrackAppender, traceParsedData} =
-        await renderTrackAppender(this, 'slow-interaction-button-click.json.gz');
-    const firstInteraction = traceParsedData.UserInteractions.interactionEvents[0];
-    const highlightedEntryInfo = interactionsTrackAppender.highlightedEntryInfo(firstInteraction);
-    // The i18n encodes spaces using the u00A0 unicode character.
-    assert.strictEqual(highlightedEntryInfo.formattedTime, ('31.72\u00A0ms'));
   });
 });

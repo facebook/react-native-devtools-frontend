@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
+import {renderElementIntoDOM} from '../../testing/DOMHelpers.js';
 import {
   createTarget,
   stubNoopSettings,
@@ -92,10 +92,9 @@ describeWithMockConnection('StorageBucketsTreeElement', function() {
   beforeEach(async () => {
     stubNoopSettings();
     SDK.ChildTargetManager.ChildTargetManager.install();
-    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
+    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
     createTarget({parentTarget: tabTarget, subtype: 'prerender'});
     target = createTarget({parentTarget: tabTarget});
-    Root.Runtime.experiments.register(Root.Runtime.ExperimentName.PRELOADING_STATUS_PANEL, '', false);
 
     storageKeyManager =
         target.model(SDK.StorageKeyManager.StorageKeyManager) as SDK.StorageKeyManager.StorageKeyManager;
@@ -126,16 +125,18 @@ describeWithMockConnection('StorageBucketsTreeElement', function() {
   it('shows view on select', async () => {
     assert.exists(storageBucketsModel);
 
+    const container = document.createElement('div');
+    renderElementIntoDOM(container);
     const panel = Application.ResourcesPanel.ResourcesPanel.instance({forceNew: true});
     panel.markAsRoot();
-    panel.show(document.body);
+    panel.show(container);
 
     const treeElement = new Application.StorageBucketsTreeElement.StorageBucketsTreeElement(
         panel, storageBucketsModel, STORAGE_BUCKET_INFOS[0]);
 
     const showViewSpy = sinon.spy(treeElement, 'showView');
 
-    document.body.appendChild(treeElement.listItemNode);
+    container.appendChild(treeElement.listItemNode);
     treeElement.treeOutline = new UI.TreeOutline.TreeOutlineInShadow();
     treeElement.selectable = true;
     treeElement.select();

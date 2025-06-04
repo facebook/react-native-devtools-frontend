@@ -10,7 +10,7 @@ import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import {ApplicationPanelTreeElement, ExpandableApplicationPanelTreeElement} from './ApplicationPanelTreeElement.js';
 import type * as PreloadingHelper from './preloading/helper/helper.js';
 import {PreloadingAttemptView, PreloadingRuleSetView, PreloadingSummaryView} from './preloading/PreloadingView.js';
-import {type ResourcesPanel} from './ResourcesPanel.js';
+import type {ResourcesPanel} from './ResourcesPanel.js';
 
 const UIStrings = {
   /**
@@ -25,7 +25,7 @@ const UIStrings = {
    *@description Text in Application Panel Sidebar of the Application panel
    */
   speculations: 'Speculations',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/application/PreloadingTreeElement.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -92,7 +92,7 @@ export class PreloadingSummaryTreeElement extends ExpandableApplicationPanelTree
   #attempt: PreloadingAttemptTreeElement|null = null;
 
   constructor(panel: ResourcesPanel) {
-    super(panel, i18nString(UIStrings.speculativeLoads), 'preloading');
+    super(panel, i18nString(UIStrings.speculativeLoads), '', '', 'preloading');
 
     const icon = IconButton.Icon.create('arrow-up-down');
     this.setLeadingIcons([icon]);
@@ -103,7 +103,7 @@ export class PreloadingSummaryTreeElement extends ExpandableApplicationPanelTree
 
   // Note that
   //
-  // - TreeElement.ensureSelection assumes TreeElement.treeOutline initalized.
+  // - TreeElement.ensureSelection assumes TreeElement.treeOutline initialized.
   // - TreeElement.treeOutline is propagated in TreeElement.appendChild.
   //
   // So, `this.constructChildren` should be called just after `parent.appendChild(this)`

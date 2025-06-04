@@ -10,8 +10,6 @@ import * as ColorMixSwatch from './ColorMixSwatch.js';
 import * as ColorSwatch from './ColorSwatch.js';
 import * as CSSAngle from './CSSAngle.js';
 import * as CSSAngleUtils from './CSSAngleUtils.js';
-import * as CSSLength from './CSSLength.js';
-import * as CSSLengthUtils from './CSSLengthUtils.js';
 import * as CSSLinearEasingModel from './CSSLinearEasingModel.js';
 import * as CSSShadowEditor from './CSSShadowEditor.js';
 import * as FontEditor from './FontEditor.js';
@@ -31,8 +29,6 @@ export {
   ColorSwatch,
   CSSAngle,
   CSSAngleUtils,
-  CSSLength,
-  CSSLengthUtils,
   CSSLinearEasingModel,
   CSSShadowEditor,
   FontEditor,

@@ -2,19 +2,24 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../../ui/components/icon_button/icon_button.js';
+
 import * as i18n from '../../../core/i18n/i18n.js';
-import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
+import {html, render} from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import elementsTreeExpandButtonStyles from './elementsTreeExpandButton.css.js';
+import elementsTreeExpandButtonStylesRaw from './elementsTreeExpandButton.css.js';
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const elementsTreeExpandButtonStyles = new CSSStyleSheet();
+elementsTreeExpandButtonStyles.replaceSync(elementsTreeExpandButtonStylesRaw.cssText);
 
 const UIStrings = {
   /**
    *@description Aria label for a button expanding collapsed subtree
    */
   expand: 'Expand',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/elements/components/ElementsTreeExpandButton.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -22,7 +27,6 @@ export interface ElementsTreeExpandButtonData {
   clickHandler: (event?: Event) => void;
 }
 export class ElementsTreeExpandButton extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-elements-tree-expand-button`;
   readonly #shadow = this.attachShadow({mode: 'open'});
 
   #clickHandler: ((event?: Event) => void) = () => {};
@@ -44,12 +48,12 @@ export class ElementsTreeExpandButton extends HTMLElement {
     // clang-format off
     // This button's innerText will be tested by e2e test and blink layout tests.
     // It can't have any other characters like '\n' or space, otherwise it will break tests.
-    LitHtml.render(LitHtml.html`<button
+    render(html`<button
         class="expand-button"
         tabindex="-1"
         aria-label=${i18nString(UIStrings.expand)}
         jslog=${VisualLogging.action('expand').track({click: true})}
-        @click=${this.#clickHandler}><${IconButton.Icon.Icon.litTagName} name="dots-horizontal"></${IconButton.Icon.Icon.litTagName}></button>`,
+        @click=${this.#clickHandler}><devtools-icon name="dots-horizontal"></devtools-icon></button>`,
       this.#shadow, {host: this});
     // clang-format on
   }

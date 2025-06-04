@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
-import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
 import {assertNotNullOrUndefined} from '../../core/platform/platform.js';
@@ -36,7 +35,7 @@ const UIStrings = {
    *@description Text for a context menu item for attaching a sourcemap to the currently open css file
    */
   addSourceMap: 'Add source map…',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/sources/CSSPlugin.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -174,7 +173,7 @@ class ColorSwatchWidget extends CodeMirror.WidgetType {
       event.consume(true);
       view.dispatch({
         effects: setTooltip.of({
-          type: TooltipType.Color,
+          type: TooltipType.COLOR,
           pos: view.posAtDOM(swatch),
           text: this.#text,
           swatch,
@@ -207,7 +206,7 @@ class CurveSwatchWidget extends CodeMirror.WidgetType {
       event.consume(true);
       view.dispatch({
         effects: setTooltip.of({
-          type: TooltipType.Curve,
+          type: TooltipType.CURVE,
           pos: view.posAtDOM(swatch),
           text: this.text,
           swatch,
@@ -225,18 +224,18 @@ class CurveSwatchWidget extends CodeMirror.WidgetType {
 }
 
 const enum TooltipType {
-  Color = 0,
-  Curve = 1,
+  COLOR = 0,
+  CURVE = 1,
 }
 
 type ActiveTooltip = {
-  type: TooltipType.Color,
+  type: TooltipType.COLOR,
   pos: number,
   text: string,
   color: Common.Color.Color,
   swatch: InlineEditor.ColorSwatch.ColorSwatch,
 }|{
-  type: TooltipType.Curve,
+  type: TooltipType.CURVE,
   pos: number,
   text: string,
   curve: UI.Geometry.CubicBezier,
@@ -246,24 +245,23 @@ type ActiveTooltip = {
 function createCSSTooltip(active: ActiveTooltip): CodeMirror.Tooltip {
   return {
     pos: active.pos,
-    arrow: true,
+    arrow: false,
     create(view): CodeMirror.TooltipView {
       let text = active.text;
       let widget: UI.Widget.VBox, addListener: (handler: (event: {data: string}) => void) => void;
-      if (active.type === TooltipType.Color) {
+      if (active.type === TooltipType.COLOR) {
         const spectrum = new ColorPicker.Spectrum.Spectrum();
         addListener = handler => {
-          spectrum.addEventListener(ColorPicker.Spectrum.Events.ColorChanged, handler);
+          spectrum.addEventListener(ColorPicker.Spectrum.Events.COLOR_CHANGED, handler);
         };
-        spectrum.addEventListener(ColorPicker.Spectrum.Events.SizeChanged, () => view.requestMeasure());
+        spectrum.addEventListener(ColorPicker.Spectrum.Events.SIZE_CHANGED, () => view.requestMeasure());
         spectrum.setColor(active.color);
         widget = spectrum;
-        Host.userMetrics.colorPickerOpenedFrom(Host.UserMetrics.ColorPickerOpenedFrom.SourcesPanel);
       } else {
         const spectrum = new InlineEditor.BezierEditor.BezierEditor(active.curve);
         widget = spectrum;
         addListener = handler => {
-          spectrum.addEventListener(InlineEditor.BezierEditor.Events.BezierChanged, handler);
+          spectrum.addEventListener(InlineEditor.BezierEditor.Events.BEZIER_CHANGED, handler);
         };
       }
       const dom = document.createElement('div');
@@ -366,7 +364,7 @@ const cssSwatchPlugin = CodeMirror.ViewPlugin.fromClass(class {
 });
 
 function cssSwatches(): CodeMirror.Extension {
-  return [cssSwatchPlugin, cssTooltipState];
+  return [cssSwatchPlugin, cssTooltipState, theme];
 }
 
 function getNumberAt(node: CodeMirror.SyntaxNode): {from: number, to: number}|null {
@@ -464,7 +462,7 @@ export class CSSPlugin extends Plugin implements SDK.TargetManager.SDKModelObser
       override:
           [async(cx: CodeMirror.CompletionContext):
                Promise<CodeMirror.CompletionResult|null> => {
-                 return (await specificCssCompletion(cx, uiSourceCode, cssModel)) || cssCompletionSource(cx);
+                 return await ((await specificCssCompletion(cx, uiSourceCode, cssModel)) || cssCompletionSource(cx));
                }],
     });
   }
@@ -488,3 +486,11 @@ export class CSSPlugin extends Plugin implements SDK.TargetManager.SDKModelObser
     }
   }
 }
+
+const theme = CodeMirror.EditorView.baseTheme({
+  '.cm-tooltip.cm-tooltip-swatchEdit': {
+    'box-shadow': 'var(--sys-elevation-level2)',
+    'background-color': 'var(--sys-color-base-container-elevated)',
+    'border-radius': 'var(--sys-shape-corner-extra-small)',
+  },
+});

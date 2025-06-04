@@ -36,21 +36,27 @@ import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as SDK from '../../core/sdk/sdk.js';
+import * as Buttons from '../../ui/components/buttons/buttons.js';
 import * as ObjectUI from '../../ui/legacy/components/object_ui/object_ui.js';
-// eslint-disable-next-line rulesdir/es_modules_import
+// eslint-disable-next-line rulesdir/es-modules-import
 import objectPropertiesSectionStyles from '../../ui/legacy/components/object_ui/objectPropertiesSection.css.js';
-// eslint-disable-next-line rulesdir/es_modules_import
+// eslint-disable-next-line rulesdir/es-modules-import
 import objectValueStyles from '../../ui/legacy/components/object_ui/objectValue.css.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import requestPayloadTreeStyles from './requestPayloadTree.css.js';
 import requestPayloadViewStyles from './requestPayloadView.css.js';
+
 const UIStrings = {
   /**
-   *@description A context menu item in the Watch Expressions Sidebar Pane of the Sources panel and Network pane request.
+   *@description A context menu item Payload View of the Network panel to copy a parsed value.
    */
   copyValue: 'Copy value',
+  /**
+   *@description A context menu item Payload View of the Network panel to copy the payload.
+   */
+  copyPayload: 'Copy',
   /**
    * @description Text in Request Payload View of the Network panel. This is a noun-phrase meaning the
    * payload of a network request.
@@ -94,25 +100,7 @@ const UIStrings = {
    *@description Text for toggling payload data (e.g. query string parameters) from encoded to decoded in the payload tab or in the cookies preview
    */
   viewDecoded: 'View decoded',
-  /**
-   *@description Text for toggling payload data (e.g. query string parameters) from decoded to
-   * encoded in the payload tab or in the cookies preview. URL-encoded is a different data format for
-   * the same data, which the user sees when they click this command.
-   */
-  viewUrlEncodedL: 'view URL-encoded',
-  /**
-   *@description Text in Request Payload View of the Network panel
-   */
-  viewDecodedL: 'view decoded',
-  /**
-   *@description Text in Request Payload View of the Network panel
-   */
-  viewParsedL: 'view parsed',
-  /**
-   *@description Text in Request Payload View of the Network panel
-   */
-  viewSourceL: 'view source',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/network/RequestPayloadView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class RequestPayloadView extends UI.Widget.VBox {
@@ -124,6 +112,7 @@ export class RequestPayloadView extends UI.Widget.VBox {
 
   constructor(request: SDK.NetworkRequest.NetworkRequest) {
     super();
+    this.registerRequiredCSS(requestPayloadViewStyles);
     this.element.classList.add('request-payload-view');
     this.element.setAttribute('jslog', `${VisualLogging.pane('payload').track({resize: true})}`);
 
@@ -136,7 +125,7 @@ export class RequestPayloadView extends UI.Widget.VBox {
     }
 
     const root = new UI.TreeOutline.TreeOutlineInShadow();
-    root.registerCSSFiles([objectValueStyles, objectPropertiesSectionStyles, requestPayloadTreeStyles]);
+    root.registerRequiredCSS(objectValueStyles, objectPropertiesSectionStyles, requestPayloadTreeStyles);
     root.element.classList.add('request-payload-tree');
     root.makeDense();
     this.element.appendChild(root.element);
@@ -147,8 +136,8 @@ export class RequestPayloadView extends UI.Widget.VBox {
   }
 
   override wasShown(): void {
-    this.registerCSSFiles([requestPayloadViewStyles]);
-    this.request.addEventListener(SDK.NetworkRequest.Events.RequestHeadersChanged, this.refreshFormData, this);
+    super.wasShown();
+    this.request.addEventListener(SDK.NetworkRequest.Events.REQUEST_HEADERS_CHANGED, this.refreshFormData, this);
 
     this.refreshQueryString();
     void this.refreshFormData();
@@ -156,20 +145,19 @@ export class RequestPayloadView extends UI.Widget.VBox {
   }
 
   override willHide(): void {
-    this.request.removeEventListener(SDK.NetworkRequest.Events.RequestHeadersChanged, this.refreshFormData, this);
+    this.request.removeEventListener(SDK.NetworkRequest.Events.REQUEST_HEADERS_CHANGED, this.refreshFormData, this);
   }
 
-  private addEntryContextMenuHandler(treeElement: UI.TreeOutline.TreeElement, value: string): void {
+  private addEntryContextMenuHandler(
+      treeElement: UI.TreeOutline.TreeElement, menuItem: string, jslogContext: string, getValue: () => string): void {
     treeElement.listItemElement.addEventListener('contextmenu', event => {
       event.consume(true);
       const contextMenu = new UI.ContextMenu.ContextMenu(event);
-      const decodedValue = decodeURIComponent(value);
-      const copyDecodedValueHandler = (): void => {
+      const copyValueHandler = (): void => {
         Host.userMetrics.actionTaken(Host.UserMetrics.Action.NetworkPanelCopyValue);
-        Host.InspectorFrontendHost.InspectorFrontendHostInstance.copyText(decodedValue);
+        Host.InspectorFrontendHost.InspectorFrontendHostInstance.copyText(getValue());
       };
-      contextMenu.clipboardSection().appendItem(
-          i18nString(UIStrings.copyValue), copyDecodedValueHandler, {jslogContext: 'copy-value'});
+      contextMenu.clipboardSection().appendItem(menuItem, copyValueHandler, {jslogContext});
       void contextMenu.show();
     });
   }
@@ -182,7 +170,7 @@ export class RequestPayloadView extends UI.Widget.VBox {
       if (value.indexOf('%') >= 0) {
         try {
           value = decodeURIComponent(value);
-        } catch (e) {
+        } catch {
           errorDecoding = true;
         }
       }
@@ -231,7 +219,7 @@ export class RequestPayloadView extends UI.Widget.VBox {
       try {
         const json = JSON.parse(formData);
         this.refreshRequestJSONPayload(json, formData);
-      } catch (e) {
+      } catch {
         this.populateTreeElementWithSourceText(this.requestPayloadCategory, formData);
       }
     }
@@ -248,16 +236,18 @@ export class RequestPayloadView extends UI.Widget.VBox {
     sourceTextElement.textContent = trim ? text.substr(0, MAX_LENGTH) : text;
 
     const sourceTreeElement = new UI.TreeOutline.TreeElement(sourceTextElement);
+
     treeElement.removeChildren();
     treeElement.appendChild(sourceTreeElement);
+    this.addEntryContextMenuHandler(sourceTreeElement, i18nString(UIStrings.copyPayload), 'copy-payload', () => text);
     if (!trim) {
       return;
     }
 
-    const showMoreButton = document.createElement('button');
+    const showMoreButton = new Buttons.Button.Button();
+    showMoreButton.data = {variant: Buttons.Button.Variant.OUTLINED, jslogContext: 'show-more'};
+    showMoreButton.innerText = i18nString(UIStrings.showMore);
     showMoreButton.classList.add('request-payload-show-more-button');
-    showMoreButton.textContent = i18nString(UIStrings.showMore);
-    showMoreButton.setAttribute('jslog', `${VisualLogging.action('show-more').track({click: true})}`);
 
     function showMore(): void {
       showMoreButton.remove();
@@ -336,12 +326,10 @@ export class RequestPayloadView extends UI.Widget.VBox {
     for (const param of params || []) {
       const paramNameValue = document.createDocumentFragment();
       if (param.name !== '') {
-        const name =
-            RequestPayloadView.formatParameter(param.name + ': ', 'payload-name', this.decodeRequestParameters);
+        const name = RequestPayloadView.formatParameter(param.name, 'payload-name', this.decodeRequestParameters);
         const value =
             RequestPayloadView.formatParameter(param.value, 'payload-value source-code', this.decodeRequestParameters);
         paramNameValue.appendChild(name);
-        paramNameValue.createChild('span', 'payload-separator');
         paramNameValue.appendChild(value);
       } else {
         paramNameValue.appendChild(RequestPayloadView.formatParameter(
@@ -349,7 +337,8 @@ export class RequestPayloadView extends UI.Widget.VBox {
       }
 
       const paramTreeElement = new UI.TreeOutline.TreeElement(paramNameValue);
-      this.addEntryContextMenuHandler(paramTreeElement, param.value);
+      this.addEntryContextMenuHandler(
+          paramTreeElement, i18nString(UIStrings.copyValue), 'copy-value', () => decodeURIComponent(param.value));
       paramsTreeElement.appendChild(paramTreeElement);
     }
 
@@ -386,10 +375,9 @@ export class RequestPayloadView extends UI.Widget.VBox {
     listItemElement.appendChild(viewSourceButton);
 
     const toggleTitle =
-        this.decodeRequestParameters ? i18nString(UIStrings.viewUrlEncodedL) : i18nString(UIStrings.viewDecodedL);
-    const toggleButton = this.createToggleButton(toggleTitle);
-    toggleButton.setAttribute('jslog', `${VisualLogging.toggle('decode-encode').track({click: true})}`);
-    toggleButton.addEventListener('click', toggleURLDecoding.bind(this), false);
+        this.decodeRequestParameters ? i18nString(UIStrings.viewUrlEncoded) : i18nString(UIStrings.viewDecoded);
+    const toggleButton = UI.UIUtils.createTextButton(
+        toggleTitle, toggleURLDecoding.bind(this), {jslogContext: 'decode-encode', className: 'payload-toggle'});
     listItemElement.appendChild(toggleButton);
 
     listItemElement.addEventListener('contextmenu', viewSourceContextMenu);
@@ -447,12 +435,12 @@ export class RequestPayloadView extends UI.Widget.VBox {
   private appendJSONPayloadParsed(rootListItem: Category, parsedObject: any, sourceText: string): void {
     const object = (SDK.RemoteObject.RemoteObject.fromLocalObject(parsedObject) as SDK.RemoteObject.LocalJSONObject);
     const section = new ObjectUI.ObjectPropertiesSection.RootElement(object);
-    section.title = (object.description as string);
+    section.title = (object.description);
     section.expand();
     // `editable` is not a valid property for `ObjectUI.ObjectPropertiesSection.RootElement`. Only for
     // `ObjectUI.ObjectPropertiesSection.ObjectPropertiesSection`. We do not know if this assignment is
     // safe to delete.
-    // @ts-ignore
+    // @ts-expect-error
     section.editable = false;
     rootListItem.childrenListElement.classList.add('source-code', 'object-properties-section');
 
@@ -484,11 +472,9 @@ export class RequestPayloadView extends UI.Widget.VBox {
   }
 
   private createViewSourceToggle(viewSource: boolean, handler: (arg0: Event) => void): Element {
-    const viewSourceToggleTitle = viewSource ? i18nString(UIStrings.viewParsedL) : i18nString(UIStrings.viewSourceL);
-    const viewSourceToggleButton = this.createToggleButton(viewSourceToggleTitle);
-    viewSourceToggleButton.setAttribute('jslog', `${VisualLogging.toggle('source-parse').track({click: true})}`);
-    viewSourceToggleButton.addEventListener('click', handler, false);
-    return viewSourceToggleButton;
+    const viewSourceToggleTitle = viewSource ? i18nString(UIStrings.viewParsed) : i18nString(UIStrings.viewSource);
+    return UI.UIUtils.createTextButton(
+        viewSourceToggleTitle, handler, {jslogContext: 'source-parse', className: 'payload-toggle'});
   }
 
   private toggleURLDecoding(event: Event): void {
@@ -498,13 +484,6 @@ export class RequestPayloadView extends UI.Widget.VBox {
     event.consume();
   }
 
-  private createToggleButton(title: string): Element {
-    const button = document.createElement('button');
-    button.classList.add('payload-toggle');
-    button.tabIndex = 0;
-    button.textContent = title;
-    return button;
-  }
 }
 
 const viewSourceForItems = new WeakSet<Category|UI.TreeOutline.TreeElement>();

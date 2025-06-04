@@ -2,12 +2,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as i18n from '../../core/i18n/i18n.js';
 import * as Common from '../common/common.js';
 import * as Host from '../host/host.js';
 import type * as Platform from '../platform/platform.js';
 import * as ProtocolClient from '../protocol_client/protocol_client.js';
 import * as Root from '../root/root.js';
 
+import {RehydratingConnection} from './RehydratingConnection.js';
+
+const UIStrings = {
+  /**
+   *@description Text on the remote debugging window to indicate the connection is lost
+   */
+  websocketDisconnected: 'WebSocket disconnected',
+} as const;
+const str_ = i18n.i18n.registerUIStrings('core/sdk/Connections.ts', UIStrings);
+const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class MainConnection implements ProtocolClient.InspectorBackend.Connection {
   onMessage: ((arg0: (Object|string)) => void)|null;
   #onDisconnect: ((arg0: string) => void)|null;
@@ -81,7 +92,9 @@ export class WebSocketConnection implements ProtocolClient.InspectorBackend.Conn
   #onWebSocketDisconnect: ((connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void)|null;
   #connected: boolean;
   #messages: string[];
-  constructor(url: Platform.DevToolsPath.UrlString, onWebSocketDisconnect: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void) {
+  constructor(
+      url: Platform.DevToolsPath.UrlString,
+      onWebSocketDisconnect: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void) {
     this.#socket = new WebSocket(url);
     this.#socket.onerror = this.onError.bind(this);
     this.#socket.onopen = this.onOpen.bind(this);
@@ -107,9 +120,10 @@ export class WebSocketConnection implements ProtocolClient.InspectorBackend.Conn
     this.#onDisconnect = onDisconnect;
   }
 
-  private onError(ev: Event): void {
+  private onError(event: Event): void {
     if (this.#onWebSocketDisconnect) {
-      this.#onWebSocketDisconnect.call(null, {errorType: ev.type});
+      this.#onWebSocketDisconnect.call(
+          null, {reason: i18nString(UIStrings.websocketDisconnected), errorType: event.type});
     }
     if (this.#onDisconnect) {
       // This is called if error occurred while connecting.
@@ -129,9 +143,9 @@ export class WebSocketConnection implements ProtocolClient.InspectorBackend.Conn
     this.#messages = [];
   }
 
-  private onClose(ev: CloseEvent): void {
+  private onClose(event: CloseEvent): void {
     if (this.#onWebSocketDisconnect) {
-      this.#onWebSocketDisconnect.call(null, {reason: ev.reason, code: String(ev.code || 0)});
+      this.#onWebSocketDisconnect.call(null, {reason: event.reason, code: String(event.code || 0)});
     }
     if (this.#onDisconnect) {
       this.#onDisconnect.call(null, 'websocket closed');
@@ -199,7 +213,7 @@ export class StubConnection implements ProtocolClient.InspectorBackend.Connectio
       data: messageObject,
     };
     if (this.onMessage) {
-      this.onMessage.call(null, {id: messageObject.id, error: error});
+      this.onMessage.call(null, {id: messageObject.id, error});
     }
   }
 
@@ -264,13 +278,20 @@ export class ParallelConnection implements ParallelConnectionInterface {
 }
 
 export async function initMainConnection(
-    createRootTarget: () => Promise<void>, websocketConnectionLost: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void): Promise<void> {
-  ProtocolClient.InspectorBackend.Connection.setFactory(createMainConnection.bind(null, websocketConnectionLost));
+    createRootTarget: () => Promise<void>,
+    onConnectionLost: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) =>
+        void): Promise<void> {
+  ProtocolClient.InspectorBackend.Connection.setFactory(createMainConnection.bind(null, onConnectionLost));
   await createRootTarget();
   Host.InspectorFrontendHost.InspectorFrontendHostInstance.connectionReady();
 }
 
-function createMainConnection(websocketConnectionLost: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void): ProtocolClient.InspectorBackend.Connection {
+function createMainConnection(
+    onConnectionLost: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) =>
+        void): ProtocolClient.InspectorBackend.Connection {
+  if (Root.Runtime.getPathName().includes('rehydrated_devtools_app')) {
+    return new RehydratingConnection(onConnectionLost);
+  }
   const wsParam = Root.Runtime.Runtime.queryParam('ws');
   const wssParam = Root.Runtime.Runtime.queryParam('wss');
   if (wsParam || wssParam) {
@@ -283,7 +304,7 @@ function createMainConnection(websocketConnectionLost: (connectionLostDetails?: 
       schemelessUrl = `${window.location.host}${schemelessUrl}`;
     }
     const ws = `${scheme}://${schemelessUrl}` as Platform.DevToolsPath.UrlString;
-    return new WebSocketConnection(ws, websocketConnectionLost);
+    return new WebSocketConnection(ws, onConnectionLost);
   }
   if (Host.InspectorFrontendHost.InspectorFrontendHostInstance.isHostedMode()) {
     return new StubConnection();

@@ -30,7 +30,7 @@
 
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
-import * as FormatterActions from '../../entrypoints/formatter_worker/FormatterActions.js';  // eslint-disable-line rulesdir/es_modules_import
+import * as FormatterActions from '../../entrypoints/formatter_worker/FormatterActions.js';  // eslint-disable-line rulesdir/es-modules-import
 import * as IssuesManager from '../../models/issues_manager/issues_manager.js';
 import * as Persistence from '../../models/persistence/persistence.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
@@ -42,28 +42,15 @@ import * as IssueCounter from '../../ui/components/issue_counter/issue_counter.j
 import * as SourceFrame from '../../ui/legacy/components/source_frame/source_frame.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
+import {AiWarningInfobarPlugin} from './AiWarningInfobarPlugin.js';
 import {CoveragePlugin} from './CoveragePlugin.js';
 import {CSSPlugin} from './CSSPlugin.js';
 import {DebuggerPlugin} from './DebuggerPlugin.js';
-import {type Plugin} from './Plugin.js';
+import type {Plugin} from './Plugin.js';
 import {MemoryProfilePlugin, PerformanceProfilePlugin} from './ProfilePlugin.js';
 import {ResourceOriginPlugin} from './ResourceOriginPlugin.js';
 import {SnippetsPlugin} from './SnippetsPlugin.js';
 import {SourcesPanel} from './SourcesPanel.js';
-
-function sourceFramePlugins(): (typeof Plugin)[] {
-  // The order of these plugins matters for toolbar items and editor
-  // extension precedence
-  return [
-    CSSPlugin,
-    DebuggerPlugin,
-    SnippetsPlugin,
-    ResourceOriginPlugin,
-    CoveragePlugin,
-    MemoryProfilePlugin,
-    PerformanceProfilePlugin,
-  ];
-}
 
 export class UISourceCodeFrame extends
     Common.ObjectWrapper.eventMixin<EventTypes, typeof SourceFrame.SourceFrame.SourceFrameImpl>(
@@ -103,11 +90,11 @@ export class UISourceCodeFrame extends
         adorner.style.setProperty('background-image', maybeBackgroundImage);
         this.openInExternalEditorToolbarButton.element.classList.add(
             'toolbar-has-glyph', 'open-in-external-editor-button');
-        this.openInExternalEditorToolbarButton.setGlyphOrAdorner(adorner);
+        this.openInExternalEditorToolbarButton.setAdorner(adorner);
       } else {
         this.openInExternalEditorToolbarButton.setGlyph('open-externally');
       }
-      this.openInExternalEditorToolbarButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, () => {
+      this.openInExternalEditorToolbarButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, () => {
         const body: {url: string, lineNumber?: number} = {
           url: this.uiSourceCode().url(),
         };
@@ -132,10 +119,8 @@ export class UISourceCodeFrame extends
 
     this.errorPopoverHelper = new UI.PopoverHelper.PopoverHelper(
         this.textEditor.editor.contentDOM, this.getErrorPopoverContent.bind(this), 'sources.error');
-    this.errorPopoverHelper.setHasPadding(true);
 
     this.errorPopoverHelper.setTimeout(100, 100);
-
     this.initializeUISourceCode();
   }
 
@@ -147,11 +132,11 @@ export class UISourceCodeFrame extends
     return this.uiSourceCode().url().startsWith('http') ?? false;
   }
 
-  private async workingCopy(): Promise<TextUtils.ContentProvider.DeferredContent> {
+  private async workingCopy(): Promise<TextUtils.ContentData.ContentDataOrError> {
     if (this.uiSourceCodeInternal.isDirty()) {
-      return {content: this.uiSourceCodeInternal.workingCopy(), isEncoded: false};
+      return this.uiSourceCodeInternal.workingCopyContentData();
     }
-    return this.uiSourceCodeInternal.requestContent();
+    return await this.uiSourceCodeInternal.requestContentData();
   }
 
   protected override editorConfiguration(doc: string): CodeMirror.Extension {
@@ -213,7 +198,7 @@ export class UISourceCodeFrame extends
       this.unloadUISourceCode();
       this.uiSourceCodeInternal = uiSourceCode;
       if (uiSourceCode.workingCopy() !== this.textEditor.state.doc.toString()) {
-        await this.setDeferredContent(Promise.resolve(uiSourceCode.workingCopyContent()));
+        await this.setContentDataOrError(Promise.resolve(uiSourceCode.workingCopyContentData()));
       } else {
         this.reloadPlugins();
       }
@@ -342,11 +327,11 @@ export class UISourceCodeFrame extends
     this.errorPopoverHelper.hidePopover();
     SourcesPanel.instance().updateLastModificationTime();
     this.muteSourceCodeEvents = true;
-    if (this.isClean()) {
-      this.uiSourceCodeInternal.resetWorkingCopy();
-    } else {
-      this.uiSourceCodeInternal.setWorkingCopyGetter(() => this.textEditor.state.sliceDoc());
-    }
+    // TODO: Bring back `isClean()` check and
+    // resetting working copy after making sure that
+    // `isClean()` correctly reports true only when
+    // the original code and the working copy is the same.
+    this.uiSourceCodeInternal.setWorkingCopyGetter(() => this.textEditor.state.sliceDoc());
     this.muteSourceCodeEvents = false;
     if (wasPretty !== this.pretty) {
       this.updateStyle();
@@ -358,12 +343,12 @@ export class UISourceCodeFrame extends
     if (this.muteSourceCodeEvents) {
       return;
     }
-    this.maybeSetContent(this.uiSourceCodeInternal.workingCopyContent());
+    this.maybeSetContent(this.uiSourceCodeInternal.workingCopyContentData());
   }
 
   private onWorkingCopyCommitted(): void {
     if (!this.muteSourceCodeEvents) {
-      this.maybeSetContent(this.uiSourceCode().workingCopyContent());
+      this.maybeSetContent(this.uiSourceCode().workingCopyContentData());
     }
     this.contentCommitted();
     this.updateStyle();
@@ -383,17 +368,32 @@ export class UISourceCodeFrame extends
     this.updateLanguageMode('').then(() => this.reloadPlugins(), console.error);
   }
 
+  static sourceFramePlugins(): Array<typeof Plugin> {
+    // The order of these plugins matters for toolbar items and editor
+    // extension precedence
+    return [
+      CSSPlugin,
+      DebuggerPlugin,
+      SnippetsPlugin,
+      ResourceOriginPlugin,
+      CoveragePlugin,
+      MemoryProfilePlugin,
+      PerformanceProfilePlugin,
+      AiWarningInfobarPlugin,
+    ];
+  }
+
   private loadPlugins(): void {
     const binding = Persistence.Persistence.PersistenceImpl.instance().binding(this.uiSourceCodeInternal);
     const pluginUISourceCode = binding ? binding.network : this.uiSourceCodeInternal;
 
-    for (const pluginType of sourceFramePlugins()) {
+    for (const pluginType of UISourceCodeFrame.sourceFramePlugins()) {
       if (pluginType.accepts(pluginUISourceCode)) {
         this.plugins.push(new pluginType(pluginUISourceCode, this));
       }
     }
 
-    this.dispatchEventToListeners(Events.ToolbarItemsChanged);
+    this.dispatchEventToListeners(Events.TOOLBAR_ITEMS_CHANGED);
   }
 
   private disposePlugins(): void {
@@ -425,9 +425,9 @@ export class UISourceCodeFrame extends
     this.setEditable(this.canEditSourceInternal());
   }
 
-  private maybeSetContent(content: TextUtils.ContentProvider.DeferredContent): void {
-    if (this.textEditor.state.doc.toString() !== content.content) {
-      void this.setDeferredContent(Promise.resolve(content));
+  private maybeSetContent(content: TextUtils.ContentData.ContentData): void {
+    if (this.textEditor.state.doc.toString() !== content.text) {
+      void this.setContentDataOrError(Promise.resolve(content));
     }
   }
 
@@ -529,7 +529,7 @@ export class UISourceCodeFrame extends
       return null;
     }
     const issues = anchorElement.classList.contains('cm-messageIcon-issue');
-    const messages = row.filter(msg => (msg.level() === Workspace.UISourceCode.Message.Level.Issue) === issues);
+    const messages = row.filter(msg => (msg.level() === Workspace.UISourceCode.Message.Level.ISSUE) === issues);
     if (!messages.length) {
       return null;
     }
@@ -567,19 +567,21 @@ export class UISourceCodeFrame extends
     const mimeType = Common.ResourceType.ResourceType.mimeFromURL(this.uiSourceCodeInternal.url());
     const mediaType = Common.ResourceType.ResourceType.mediaTypeForMetrics(
         mimeType ?? '', this.uiSourceCodeInternal.contentType().isFromSourceMap(),
-        TextUtils.TextUtils.isMinified(this.uiSourceCodeInternal.content()));
+        TextUtils.TextUtils.isMinified(this.uiSourceCodeInternal.content()),
+        this.uiSourceCodeInternal.url().startsWith('snippet://'),
+        this.uiSourceCodeInternal.url().startsWith('debugger://'));
     Host.userMetrics.sourcesPanelFileOpened(mediaType);
   }
 }
 
 function getIconDataForLevel(level: Workspace.UISourceCode.Message.Level): IconButton.Icon.IconData {
-  if (level === Workspace.UISourceCode.Message.Level.Error) {
+  if (level === Workspace.UISourceCode.Message.Level.ERROR) {
     return {color: 'var(--icon-error)', width: '16px', height: '14px', iconName: 'cross-circle-filled'};
   }
-  if (level === Workspace.UISourceCode.Message.Level.Warning) {
+  if (level === Workspace.UISourceCode.Message.Level.WARNING) {
     return {color: 'var(--icon-warning)', width: '18px', height: '14px', iconName: 'warning-filled'};
   }
-  if (level === Workspace.UISourceCode.Message.Level.Issue) {
+  if (level === Workspace.UISourceCode.Message.Level.ISSUE) {
     return {color: 'var(--icon-warning)', width: '17px', height: '14px', iconName: 'issue-exclamation-filled'};
   }
   return {color: 'var(--icon-error)', width: '16px', height: '14px', iconName: 'cross-circle-filled'};
@@ -587,20 +589,20 @@ function getIconDataForLevel(level: Workspace.UISourceCode.Message.Level): IconB
 
 function getBubbleTypePerLevel(level: Workspace.UISourceCode.Message.Level): string {
   switch (level) {
-    case Workspace.UISourceCode.Message.Level.Error:
+    case Workspace.UISourceCode.Message.Level.ERROR:
       return 'error';
-    case Workspace.UISourceCode.Message.Level.Warning:
+    case Workspace.UISourceCode.Message.Level.WARNING:
       return 'warning';
-    case Workspace.UISourceCode.Message.Level.Issue:
+    case Workspace.UISourceCode.Message.Level.ISSUE:
       return 'warning';
   }
 }
 
 function messageLevelComparator(a: RowMessage, b: RowMessage): number {
   const messageLevelPriority = {
-    [Workspace.UISourceCode.Message.Level.Issue]: 2,
-    [Workspace.UISourceCode.Message.Level.Warning]: 3,
-    [Workspace.UISourceCode.Message.Level.Error]: 4,
+    [Workspace.UISourceCode.Message.Level.ISSUE]: 2,
+    [Workspace.UISourceCode.Message.Level.WARNING]: 3,
+    [Workspace.UISourceCode.Message.Level.ERROR]: 4,
   };
   return messageLevelPriority[a.level()] - messageLevelPriority[b.level()];
 }
@@ -617,12 +619,12 @@ function getIconDataForMessage(message: RowMessage): IconButton.Icon.IconData {
 }
 
 export const enum Events {
-  ToolbarItemsChanged = 'ToolbarItemsChanged',
+  TOOLBAR_ITEMS_CHANGED = 'ToolbarItemsChanged',
 }
 
-export type EventTypes = {
-  [Events.ToolbarItemsChanged]: void,
-};
+export interface EventTypes {
+  [Events.TOOLBAR_ITEMS_CHANGED]: void;
+}
 
 const pluginCompartment = new CodeMirror.Compartment();
 
@@ -739,25 +741,21 @@ class MessageWidget extends CodeMirror.WidgetType {
   toDOM(): HTMLElement {
     const wrap = document.createElement('span');
     wrap.classList.add('cm-messageIcon');
-    const nonIssues = this.messages.filter(msg => msg.level() !== Workspace.UISourceCode.Message.Level.Issue);
+    const nonIssues = this.messages.filter(msg => msg.level() !== Workspace.UISourceCode.Message.Level.ISSUE);
     if (nonIssues.length) {
       const maxIssue = nonIssues.sort(messageLevelComparator)[nonIssues.length - 1];
       const errorIcon = wrap.appendChild(new IconButton.Icon.Icon());
       errorIcon.data = getIconDataForLevel(maxIssue.level());
       errorIcon.classList.add('cm-messageIcon-error');
     }
-    const issue = this.messages.find(m => m.level() === Workspace.UISourceCode.Message.Level.Issue);
+    const issue = this.messages.find(m => m.level() === Workspace.UISourceCode.Message.Level.ISSUE);
     if (issue) {
       const issueIcon = wrap.appendChild(new IconButton.Icon.Icon());
-      issueIcon.data = getIconDataForLevel(Workspace.UISourceCode.Message.Level.Issue);
+      issueIcon.data = getIconDataForLevel(Workspace.UISourceCode.Message.Level.ISSUE);
       issueIcon.classList.add('cm-messageIcon-issue');
       issueIcon.addEventListener('click', () => (issue.clickHandler() || Math.min)());
     }
     return wrap;
-  }
-
-  ignoreEvents(): boolean {
-    return true;
   }
 }
 
@@ -829,12 +827,9 @@ function renderMessage(message: RowMessage, count: number): HTMLElement {
     icon.classList.add('text-editor-row-message-icon');
     icon.addEventListener('click', () => (message.clickHandler() || Math.min)());
   } else {
-    const repeatCountElement =
-        document.createElement('span', {is: 'dt-small-bubble'}) as UI.UIUtils.DevToolsSmallBubble;
+    const repeatCountElement = element.createChild('dt-small-bubble', 'text-editor-row-message-repeat-count');
     repeatCountElement.textContent = String(count);
-    repeatCountElement.classList.add('text-editor-row-message-repeat-count');
     repeatCountElement.style.flexShrink = '0';
-    element.appendChild(repeatCountElement);
     repeatCountElement.type = getBubbleTypePerLevel(message.level());
   }
   const linesContainer = element.createChild('div');
@@ -846,6 +841,10 @@ function renderMessage(message: RowMessage, count: number): HTMLElement {
 }
 
 const rowMessageTheme = CodeMirror.EditorView.baseTheme({
+  '.cm-line::selection': {
+    backgroundColor: 'transparent',
+    color: 'currentColor',
+  },
   '.cm-tooltip-message': {
     padding: '4px',
   },

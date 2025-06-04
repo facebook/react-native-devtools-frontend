@@ -28,13 +28,15 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import * as _ProtocolClient from '../../core/protocol_client/protocol_client.js';  // eslint-disable-line @typescript-eslint/no-unused-vars
+import '../../ui/legacy/legacy.js';
+
 import type * as Platform from '../../core/platform/platform.js';
+import * as _ProtocolClient from '../../core/protocol_client/protocol_client.js';  // eslint-disable-line @typescript-eslint/no-unused-vars
 import * as SDK from '../../core/sdk/sdk.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import * as ExtensionAPI from './ExtensionAPI.js';
-import {type ExtensionServer} from './ExtensionServer.js';
+import type {ExtensionServer} from './ExtensionServer.js';
 import {ExtensionNotifierView, ExtensionView} from './ExtensionView.js';
 
 export class ExtensionPanel extends UI.Panel.Panel implements UI.SearchableView.Searchable {
@@ -48,7 +50,7 @@ export class ExtensionPanel extends UI.Panel.Panel implements UI.SearchableView.
     this.server = server;
     this.id = id;
     this.setHideOnDetach();
-    this.panelToolbar = new UI.Toolbar.Toolbar('hidden', this.element);
+    this.panelToolbar = this.element.createChild('devtools-toolbar', 'hidden');
 
     this.searchableViewInternal = new UI.SearchableView.SearchableView(this, null);
     this.searchableViewInternal.show(this.element);
@@ -58,7 +60,7 @@ export class ExtensionPanel extends UI.Panel.Panel implements UI.SearchableView.
   }
 
   addToolbarItem(item: UI.Toolbar.ToolbarItem): void {
-    this.panelToolbar.element.classList.remove('hidden');
+    this.panelToolbar.classList.remove('hidden');
     this.panelToolbar.appendToolbarItem(item);
   }
 
@@ -101,7 +103,7 @@ export class ExtensionButton {
 
     this.toolbarButtonInternal = new UI.Toolbar.ToolbarButton('', '');
     this.toolbarButtonInternal.addEventListener(
-        UI.Toolbar.ToolbarButton.Events.Click, server.notifyButtonClicked.bind(server, this.id));
+        UI.Toolbar.ToolbarButton.Events.CLICK, server.notifyButtonClicked.bind(server, this.id));
     this.update(iconURL, tooltip, disabled);
   }
 
@@ -217,7 +219,7 @@ export class ExtensionSidebarPane extends UI.View.SimpleView {
         callback();
         return;
       }
-      const firstChild = result.tree && result.tree.firstChild();
+      const firstChild = result.tree?.firstChild();
       if (firstChild) {
         firstChild.expand();
       }

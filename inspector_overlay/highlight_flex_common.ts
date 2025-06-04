@@ -2,16 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {type PathCommands, type Position, type Quad} from './common.js';
-
+import type {PathCommands, Position, Quad} from './common.js';
 import {
+  type BoxStyle,
   buildPath,
   createPathForQuad,
   drawPathWithLineStyle,
   emptyBounds,
   fillPathWithBoxStyle,
   hatchFillPath,
-  type BoxStyle,
   type LineStyle,
 } from './highlight_common.js';
 
@@ -185,7 +184,7 @@ export function drawLayoutFlexContainerHighlight(
   drawPathWithLineStyle(context, borderPath, config.containerBorder);
 
   // If there are no lines, bail out now.
-  if (!lines || !lines.length) {
+  if (!lines?.length) {
     return;
   }
 
@@ -209,7 +208,7 @@ function drawFlexLinesAndItems(
   const config = highlight.flexContainerHighlightConfig;
 
   const paths = lineQuads.map((line, lineIndex) => {
-    const nextLineQuad = lineQuads[lineIndex + 1] && lineQuads[lineIndex + 1].quad;
+    const nextLineQuad = lineQuads[lineIndex + 1]?.quad;
     return {
       path: isHorizontalFlow ? quadToHorizontalLinesPath(line.quad, nextLineQuad) :
                                quadToVerticalLinesPath(line.quad, nextLineQuad),
@@ -335,7 +334,7 @@ function drawFlexAlignmentForLine(
     itemQuads: Quad[], itemBaselines: number[]) {
   const {alignItemsStyle, isHorizontalFlow} = highlight;
   const {crossAlignment} = highlight.flexContainerHighlightConfig;
-  if (!crossAlignment || !crossAlignment.color) {
+  if (!crossAlignment?.color) {
     return;
   }
 
@@ -353,7 +352,7 @@ function drawFlexAlignmentForLine(
   // second      |        first
   // point       V        point
   //   o--------------------o
-  const linesToDraw: [Position, Position][] = [];
+  const linesToDraw: Array<[Position, Position]> = [];
 
   switch (alignItemsStyle) {
     case 'flex-start':
@@ -481,7 +480,7 @@ function drawAlignmentArrow(
     highlight: FlexContainerHighlight, context: CanvasRenderingContext2D, emulationScaleFactor: number,
     startPoint: Position, endPoint: Position) {
   const {crossAlignment} = highlight.flexContainerHighlightConfig;
-  if (!crossAlignment || !crossAlignment.color) {
+  if (!crossAlignment?.color) {
     return;
   }
 

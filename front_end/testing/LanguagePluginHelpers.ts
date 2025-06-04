@@ -2,10 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {type Chrome} from '../../extension-api/ExtensionAPI.js';
-import type * as Platform from '../core/platform/platform.js';
+import type {Chrome} from '../../extension-api/ExtensionAPI.js';
+import * as Platform from '../core/platform/platform.js';
 import type * as SDK from '../core/sdk/sdk.js';
 import type * as Bindings from '../models/bindings/bindings.js';
+
+const {urlString} = Platform.DevToolsPath;
 
 export class TestPlugin implements Bindings.DebuggerLanguagePlugins.DebuggerLanguagePlugin {
   constructor(name: string) {
@@ -23,7 +25,7 @@ export class TestPlugin implements Bindings.DebuggerLanguagePlugins.DebuggerLang
       target: null,
       frameId: null,
       extensionId,
-      initiatorUrl: extensionId as Platform.DevToolsPath.UrlString,
+      initiatorUrl: urlString`${extensionId}`,
     };
   }
 
@@ -67,9 +69,9 @@ export class TestPlugin implements Bindings.DebuggerLanguagePlugins.DebuggerLang
   }
 
   async getFunctionInfo(_rawLocation: Chrome.DevTools.RawLocation): Promise<{
-    frames: Array<Chrome.DevTools.FunctionInfo>,
-    missingSymbolFiles: Array<string>,
-  }|{frames: Array<Chrome.DevTools.FunctionInfo>}|{missingSymbolFiles: Array<string>}> {
+    frames: Chrome.DevTools.FunctionInfo[],
+    missingSymbolFiles: string[],
+  }|{frames: Chrome.DevTools.FunctionInfo[]}|{missingSymbolFiles: string[]}> {
     return {frames: []};
   }
 

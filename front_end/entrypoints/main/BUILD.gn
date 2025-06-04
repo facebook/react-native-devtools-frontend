@@ -4,14 +4,13 @@
 
 import("../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../scripts/build/ninja/devtools_module.gni")
-import("../../../third_party/typescript/typescript.gni")
+import("../../../scripts/build/typescript/typescript.gni")
 import("../visibility.gni")
 
 devtools_module("main") {
   sources = [
     "ExecutionContextSelector.ts",
     "MainImpl.ts",
-    "SettingTracker.ts",
     "SimpleApp.ts",
   ]
 
@@ -30,13 +29,16 @@ devtools_module("main") {
     "../../models/issues_manager:bundle",
     "../../models/logs:bundle",
     "../../models/persistence:bundle",
+    "../../models/project_settings:bundle",
     "../../models/workspace:bundle",
     "../../panels/snippets:bundle",
     "../../panels/timeline:bundle",
+    "../../ui/components/buttons:bundle",
     "../../ui/components/icon_button:bundle",
     "../../ui/legacy:bundle",
     "../../ui/legacy/components/utils:bundle",
     "../../ui/legacy/theme_support:bundle",
+    "../../ui/lit:bundle",
     "../../ui/visual_logging:bundle",
   ]
 }
@@ -53,6 +55,7 @@ devtools_entrypoint("bundle") {
     "../js_app:*",
     "../ndb_app:*",
     "../node_app:*",
+    "../rehydrated_devtools_app:*",
     "../rn_fusebox:*",
     "../rn_inspector:*",
     "../worker_app:*",
@@ -75,7 +78,10 @@ devtools_entrypoint("meta") {
     "../../ui/legacy/components/utils:bundle",
   ]
 
-  visibility = [ "../shell/*" ]
+  visibility = [
+    "../rehydrated_devtools_app:*",
+    "../shell/*",
+  ]
 }
 
 ts_library("unittests") {
@@ -84,7 +90,6 @@ ts_library("unittests") {
   sources = [
     "ExecutionContextSelector.test.ts",
     "MainImpl.test.ts",
-    "SettingTracker.test.ts",
   ]
 
   deps = [

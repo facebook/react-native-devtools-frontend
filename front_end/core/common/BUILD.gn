@@ -4,7 +4,7 @@
 
 import("../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../scripts/build/ninja/devtools_module.gni")
-import("../../../third_party/typescript/typescript.gni")
+import("../../../scripts/build/typescript/typescript.gni")
 
 ts_library("ColorUtils") {
   sources = [ "ColorUtils.ts" ]
@@ -24,6 +24,7 @@ devtools_module("common") {
     "JavaScriptMetaData.ts",
     "Lazy.ts",
     "Linkifier.ts",
+    "MapWithDefault.ts",
     "Mutex.ts",
     "Object.ts",
     "ParsedURL.ts",
@@ -83,6 +84,7 @@ ts_library("unittests") {
     "Debouncer.test.ts",
     "EventTarget.test.ts",
     "Lazy.test.ts",
+    "MapWithDefault.test.ts",
     "Mutex.test.ts",
     "Object.test.ts",
     "ParsedURL.test.ts",

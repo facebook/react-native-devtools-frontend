@@ -2,9 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
+import * as Lit from '../../../ui/lit/lit.js';
 
-import timelineSectionStyles from './timelineSection.css.js';
+import timelineSectionStylesRaw from './timelineSection.css.js';
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const timelineSectionStyles = new CSSStyleSheet();
+timelineSectionStyles.replaceSync(timelineSectionStylesRaw.cssText);
+
+const {html} = Lit;
 
 declare global {
   interface HTMLElementTagNameMap {
@@ -21,7 +27,6 @@ export interface TimelineSectionData {
 }
 
 export class TimelineSection extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-timeline-section`;
 
   #isEndOfGroup = false;
   #isStartOfGroup = false;
@@ -61,9 +66,9 @@ export class TimelineSection extends HTMLElement {
     };
 
     // clang-format off
-    LitHtml.render(
-      LitHtml.html`
-      <div class=${LitHtml.Directives.classMap(classes)}>
+    Lit.render(
+      html`
+      <div class=${Lit.Directives.classMap(classes)}>
         <div class="overlay"></div>
         <div class="icon"><slot name="icon"></slot></div>
         <svg width="24" height="100%" class="bar">

@@ -30,8 +30,8 @@
 
 import * as Common from '../../core/common/common.js';
 import * as SDK from '../../core/sdk/sdk.js';
-import * as Protocol from '../../generated/protocol.js';
 import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
+import * as Protocol from '../../generated/protocol.js';
 
 const DEFAULT_BUCKET = '';  // Empty string is not a valid bucket name
 
@@ -151,9 +151,9 @@ export class IndexedDBModel extends SDK.SDKModel.SDKModel<EventTypes> implements
     void this.indexedDBAgent.invoke_enable();
     if (this.storageBucketModel) {
       this.storageBucketModel.addEventListener(
-          SDK.StorageBucketsModel.Events.BucketAdded, this.storageBucketAdded, this);
+          SDK.StorageBucketsModel.Events.BUCKET_ADDED, this.storageBucketAdded, this);
       this.storageBucketModel.addEventListener(
-          SDK.StorageBucketsModel.Events.BucketRemoved, this.storageBucketRemoved, this);
+          SDK.StorageBucketsModel.Events.BUCKET_REMOVED, this.storageBucketRemoved, this);
       for (const {bucket} of this.storageBucketModel.getBuckets()) {
         this.addStorageBucket(bucket);
       }
@@ -293,11 +293,11 @@ export class IndexedDBModel extends SDK.SDKModel.SDKModel<EventTypes> implements
   }
 
   private databaseAddedForStorageBucket(databaseId: DatabaseId): void {
-    this.dispatchEventToListeners(Events.DatabaseAdded, {model: this, databaseId: databaseId});
+    this.dispatchEventToListeners(Events.DatabaseAdded, {model: this, databaseId});
   }
 
   private databaseRemovedForStorageBucket(databaseId: DatabaseId): void {
-    this.dispatchEventToListeners(Events.DatabaseRemoved, {model: this, databaseId: databaseId});
+    this.dispatchEventToListeners(Events.DatabaseRemoved, {model: this, databaseId});
   }
 
   private async loadDatabaseNamesByStorageBucket(storageBucket: Protocol.Storage.StorageBucket): Promise<string[]> {
@@ -344,19 +344,18 @@ export class IndexedDBModel extends SDK.SDKModel.SDKModel<EventTypes> implements
       databaseModel.objectStores.set(objectStoreModel.name, objectStoreModel);
     }
 
-    this.dispatchEventToListeners(
-        Events.DatabaseLoaded, {model: this, database: databaseModel, entriesUpdated: entriesUpdated});
+    this.dispatchEventToListeners(Events.DatabaseLoaded, {model: this, database: databaseModel, entriesUpdated});
   }
 
   loadObjectStoreData(
       databaseId: DatabaseId, objectStoreName: string, idbKeyRange: IDBKeyRange|null, skipCount: number,
-      pageSize: number, callback: (arg0: Array<Entry>, arg1: boolean) => void): void {
+      pageSize: number, callback: (arg0: Entry[], arg1: boolean) => void): void {
     void this.requestData(databaseId, databaseId.name, objectStoreName, '', idbKeyRange, skipCount, pageSize, callback);
   }
 
   loadIndexData(
       databaseId: DatabaseId, objectStoreName: string, indexName: string, idbKeyRange: IDBKeyRange|null,
-      skipCount: number, pageSize: number, callback: (arg0: Array<Entry>, arg1: boolean) => void): void {
+      skipCount: number, pageSize: number, callback: (arg0: Entry[], arg1: boolean) => void): void {
     void this.requestData(
         databaseId, databaseId.name, objectStoreName, indexName, idbKeyRange, skipCount, pageSize, callback);
   }
@@ -364,7 +363,7 @@ export class IndexedDBModel extends SDK.SDKModel.SDKModel<EventTypes> implements
   private async requestData(
       databaseId: DatabaseId, databaseName: string, objectStoreName: string, indexName: string,
       idbKeyRange: IDBKeyRange|null, skipCount: number, pageSize: number,
-      callback: (arg0: Array<Entry>, arg1: boolean) => void): Promise<void> {
+      callback: (arg0: Entry[], arg1: boolean) => void): Promise<void> {
     const keyRange = idbKeyRange ? IndexedDBModel.keyRangeFromIDBKeyRange(idbKeyRange) : undefined;
     const runtimeModel = this.target().model(SDK.RuntimeModel.RuntimeModel);
     const response = await this.indexedDBAgent.invoke_requestData({
@@ -439,8 +438,7 @@ export class IndexedDBModel extends SDK.SDKModel.SDKModel<EventTypes> implements
     const storageBucket = this.storageBucketModel?.getBucketById(bucketId)?.bucket;
     if (storageBucket) {
       const databaseId = new DatabaseId(storageBucket, databaseName);
-      this.dispatchEventToListeners(
-          Events.IndexedDBContentUpdated, {databaseId: databaseId, objectStoreName: objectStoreName, model: this});
+      this.dispatchEventToListeners(Events.IndexedDBContentUpdated, {databaseId, objectStoreName, model: this});
     }
   }
   attributionReportingTriggerRegistered(_event: Protocol.Storage.AttributionReportingTriggerRegisteredEvent): void {
@@ -475,23 +473,25 @@ export class IndexedDBModel extends SDK.SDKModel.SDKModel<EventTypes> implements
   }
 }
 
-SDK.SDKModel.SDKModel.register(IndexedDBModel, {capabilities: SDK.Target.Capability.Storage, autostart: false});
+SDK.SDKModel.SDKModel.register(IndexedDBModel, {capabilities: SDK.Target.Capability.STORAGE, autostart: false});
 
 export enum Events {
+  /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   DatabaseAdded = 'DatabaseAdded',
   DatabaseRemoved = 'DatabaseRemoved',
   DatabaseLoaded = 'DatabaseLoaded',
   DatabaseNamesRefreshed = 'DatabaseNamesRefreshed',
   IndexedDBContentUpdated = 'IndexedDBContentUpdated',
+  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
-export type EventTypes = {
-  [Events.DatabaseAdded]: {model: IndexedDBModel, databaseId: DatabaseId},
-  [Events.DatabaseRemoved]: {model: IndexedDBModel, databaseId: DatabaseId},
-  [Events.DatabaseLoaded]: {model: IndexedDBModel, database: Database, entriesUpdated: boolean},
-  [Events.DatabaseNamesRefreshed]: void,
-  [Events.IndexedDBContentUpdated]: {model: IndexedDBModel, databaseId: DatabaseId, objectStoreName: string},
-};
+export interface EventTypes {
+  [Events.DatabaseAdded]: {model: IndexedDBModel, databaseId: DatabaseId};
+  [Events.DatabaseRemoved]: {model: IndexedDBModel, databaseId: DatabaseId};
+  [Events.DatabaseLoaded]: {model: IndexedDBModel, database: Database, entriesUpdated: boolean};
+  [Events.DatabaseNamesRefreshed]: void;
+  [Events.IndexedDBContentUpdated]: {model: IndexedDBModel, databaseId: DatabaseId, objectStoreName: string};
+}
 
 export class Entry {
   key: SDK.RemoteObject.RemoteObject;

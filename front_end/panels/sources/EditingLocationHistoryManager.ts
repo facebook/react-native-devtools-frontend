@@ -33,8 +33,8 @@ import * as Workspace from '../../models/workspace/workspace.js';
 import type * as CodeMirror from '../../third_party/codemirror.next/codemirror.next.js';
 import * as SourceFrame from '../../ui/legacy/components/source_frame/source_frame.js';
 
-import {type SourcesView} from './SourcesView.js';
-import {type UISourceCodeFrame} from './UISourceCodeFrame.js';
+import type {SourcesView} from './SourcesView.js';
+import type {UISourceCodeFrame} from './UISourceCodeFrame.js';
 
 export const HistoryDepth = 20;
 
@@ -48,7 +48,7 @@ export class EditingLocationHistoryManager {
 
   trackSourceFrameCursorJumps(sourceFrame: UISourceCodeFrame): void {
     sourceFrame.addEventListener(
-        SourceFrame.SourceFrame.Events.EditorUpdate, event => this.onEditorUpdate(event.data, sourceFrame));
+        SourceFrame.SourceFrame.Events.EDITOR_UPDATE, event => this.onEditorUpdate(event.data, sourceFrame));
   }
 
   private onEditorUpdate(update: CodeMirror.ViewUpdate, sourceFrame: UISourceCodeFrame): void {

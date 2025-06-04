@@ -28,14 +28,13 @@
 //  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 //  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// eslint-disable-next-line rulesdir/es_modules_import
 import {
+  type Color4D,
   rgbaToHsla,
   rgbaToHwba,
-  type Color4D,
 } from '../front_end/core/common/ColorUtils.js';
 
-import {type Bounds, type PathCommands, type Quad} from './common.js';
+import type {Bounds, PathCommands, Quad} from './common.js';
 
 export type PathBounds = Bounds&{
   leftmostXForY: {[key: string]: number},
@@ -55,21 +54,21 @@ export interface BoxStyle {
 }
 
 export const enum LinePattern {
-  Solid = 'solid',
-  Dotted = 'dotted',
-  Dashed = 'dashed',
+  SOLID = 'solid',
+  DOTTED = 'dotted',
+  DASHED = 'dashed',
 }
 
 export function drawPathWithLineStyle(
-    context: CanvasRenderingContext2D, path: Path2D, lineStyle?: LineStyle, lineWidth: number = 1) {
-  if (lineStyle && lineStyle.color) {
+    context: CanvasRenderingContext2D, path: Path2D, lineStyle?: LineStyle, lineWidth = 1) {
+  if (lineStyle?.color) {
     context.save();
     context.translate(0.5, 0.5);
     context.lineWidth = lineWidth;
-    if (lineStyle.pattern === LinePattern.Dashed) {
+    if (lineStyle.pattern === LinePattern.DASHED) {
       context.setLineDash([3, 3]);
     }
-    if (lineStyle.pattern === LinePattern.Dotted) {
+    if (lineStyle.pattern === LinePattern.DOTTED) {
       context.setLineDash([2, 2]);
     }
     context.strokeStyle = lineStyle.color;
@@ -172,7 +171,7 @@ export function applyMatrixToPoint(point: {x: number, y: number}, matrix: DOMMat
 const HATCH_LINE_LENGTH = 5;
 const HATCH_LINE_GAP = 3;
 let hatchLinePattern: CanvasPattern;
-let hatchLineColor: string = '';
+let hatchLineColor = '';
 
 /**
  * Draw line hatching at a 45 degree angle for a given
@@ -312,10 +311,10 @@ export function drawPath(
     context.fill(path);
   }
   if (outlineColor) {
-    if (outlinePattern === LinePattern.Dashed) {
+    if (outlinePattern === LinePattern.DASHED) {
       context.setLineDash([3, 3]);
     }
-    if (outlinePattern === LinePattern.Dotted) {
+    if (outlinePattern === LinePattern.DOTTED) {
       context.setLineDash([2, 2]);
     }
     context.lineWidth = 2;

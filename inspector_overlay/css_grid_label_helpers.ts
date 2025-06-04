@@ -2,46 +2,46 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {luminance} from '../front_end/core/common/ColorUtils.js';  // eslint-disable-line rulesdir/es_modules_import
+import {luminance} from '../front_end/core/common/ColorUtils.js';
 
-import {createChild, type AreaBounds, type Bounds, type Position} from './common.js';
+import {type AreaBounds, type Bounds, createChild, type Position} from './common.js';
 import {applyMatrixToPoint, parseHexa} from './highlight_common.js';
 
 /**
  * There are 12 different types of arrows for labels.
  *
  * The first word in an arrow type corresponds to the side of the label
- * container the arrow is on (e.g. 'Left' means the arrow is on the left side of
+ * container the arrow is on (e.g. 'LEFT' means the arrow is on the left side of
  * the container).
  *
- * The second word defines where, along that side, the arrow is (e.g. 'Top' in
- * a 'LeftTop' type means the arrow is at the top of the left side of the
+ * The second word defines where, along that side, the arrow is (e.g. 'TOP' in
+ * a 'LEFT_TOP' type means the arrow is at the top of the left side of the
  * container).
  *
  * Here are 2 examples to illustrate:
  *
- *              +----+
- * RightMid:    |     >
- *              +----+
+ *               +----+
+ * RIGHT_MID:    |     >
+ *               +----+
  *
- *              +----+
- * BottomRight: |    |
- *              +--  +
- *                  \|
+ *               +----+
+ * BOTTOM_RIGHT: |    |
+ *               +--  +
+ *                   \|
  */
-enum GridArrowType {
-  LeftTop = 'left-top',
-  LeftMid = 'left-mid',
-  LeftBottom = 'left-bottom',
-  TopLeft = 'top-left',
-  TopMid = 'top-mid',
-  TopRight = 'top-right',
-  RightTop = 'right-top',
-  RightMid = 'right-mid',
-  RightBottom = 'right-bottom',
-  BottomLeft = 'bottom-left',
-  BottomMid = 'bottom-mid',
-  BottomRight = 'bottom-right',
+const enum GridArrowType {
+  LEFT_TOP = 'left-top',
+  LEFT_MID = 'left-mid',
+  LEFT_BOTTOM = 'left-bottom',
+  TOP_LEFT = 'top-left',
+  TOP_MID = 'top-mid',
+  TOP_RIGHT = 'top-right',
+  RIGHT_TOP = 'right-top',
+  RIGHT_MID = 'right-mid',
+  RIGHT_BOTTOM = 'right-bottom',
+  BOTTOM_LEFT = 'bottom-left',
+  BOTTOM_MID = 'bottom-mid',
+  BOTTOM_RIGHT = 'bottom-right',
 }
 
 // The size (in px) of a label arrow.
@@ -125,8 +125,8 @@ export interface GridHighlightConfig {
   negativeRowLineNumberPositions?: Position[];
   positiveColumnLineNumberPositions?: Position[];
   negativeColumnLineNumberPositions?: Position[];
-  rowLineNameOffsets?: {name: string, x: number, y: number}[];
-  columnLineNameOffsets?: {name: string, x: number, y: number}[];
+  rowLineNameOffsets?: Array<{name: string, x: number, y: number}>;
+  columnLineNameOffsets?: Array<{name: string, x: number, y: number}>;
   gridHighlightConfig?: GridHighlightOptions;
 }
 
@@ -163,17 +163,15 @@ export function drawGridLabels(
     labelContainerForNode.id = labelContainerId;
   }
 
-  const rowColor = config.gridHighlightConfig && config.gridHighlightConfig.rowLineColor ?
-      config.gridHighlightConfig.rowLineColor :
-      defaultLabelColor;
+  const rowColor =
+      config.gridHighlightConfig?.rowLineColor ? config.gridHighlightConfig.rowLineColor : defaultLabelColor;
   const rowTextColor = generateLegibleTextColor(rowColor);
 
   labelContainerForNode.style.setProperty('--row-label-color', rowColor);
   labelContainerForNode.style.setProperty('--row-label-text-color', rowTextColor);
 
-  const columnColor = config.gridHighlightConfig && config.gridHighlightConfig.columnLineColor ?
-      config.gridHighlightConfig.columnLineColor :
-      defaultLabelColor;
+  const columnColor =
+      config.gridHighlightConfig?.columnLineColor ? config.gridHighlightConfig.columnLineColor : defaultLabelColor;
   const columnTextColor = generateLegibleTextColor(columnColor);
 
   labelContainerForNode.style.setProperty('--column-label-color', columnColor);
@@ -189,7 +187,7 @@ export function drawGridLabels(
 
   // Draw line numbers and names.
   const normalizedData = normalizePositionData(config, gridBounds);
-  if (config.gridHighlightConfig && config.gridHighlightConfig.showLineNames) {
+  if (config.gridHighlightConfig?.showLineNames) {
     drawGridLineNames(
         lineNameContainer, normalizedData as GridPositionNormalizedDataWithNames, canvasSize, emulationScaleFactor,
         writingModeMatrix, config.writingMode);
@@ -247,8 +245,8 @@ const first = <T>(array: T[]) => array[0];
 /**
  * Massage the list of line name positions given by the backend for easier consumption.
  */
-function normalizeNameData(namePositions: {name: string, x: number, y: number}[]):
-    {positions: {x: number, y: number}[], names: string[][]} {
+function normalizeNameData(namePositions: Array<{name: string, x: number, y: number}>):
+    {positions: Array<{x: number, y: number}>, names: string[][]} {
   const positions = [];
   const names = [];
 
@@ -275,8 +273,8 @@ export interface NormalizePositionDataConfig {
   negativeRowLineNumberPositions?: Position[];
   positiveColumnLineNumberPositions?: Position[];
   negativeColumnLineNumberPositions?: Position[];
-  rowLineNameOffsets?: {name: string, x: number, y: number}[];
-  columnLineNameOffsets?: {name: string, x: number, y: number}[];
+  rowLineNameOffsets?: Array<{name: string, x: number, y: number}>;
+  columnLineNameOffsets?: Array<{name: string, x: number, y: number}>;
   gridHighlightConfig?: {showLineNames: boolean};
 }
 
@@ -317,7 +315,7 @@ export function normalizePositionData(config: NormalizePositionDataConfig, bound
   // If showLineNames is set to true, then don't show line numbers, even if the
   // data is present.
 
-  if (config.gridHighlightConfig && config.gridHighlightConfig.showLineNames) {
+  if (config.gridHighlightConfig?.showLineNames) {
     const rowData = normalizeNameData(config.rowLineNameOffsets || []);
     const positiveRows: PositionDataWithNames = {
       positions: rowData.positions,
@@ -421,7 +419,7 @@ export function drawGridLineNumbers(
  * Places the grid track size labels on the overlay.
  */
 export function drawGridTrackSizes(
-    container: HTMLElement, trackSizes: Array<TrackSize>, direction: 'row'|'column', canvasSize: CanvasSize,
+    container: HTMLElement, trackSizes: TrackSize[], direction: 'row'|'column', canvasSize: CanvasSize,
     emulationScaleFactor: number, writingModeMatrix: DOMMatrix|undefined = new DOMMatrix(),
     writingMode: string|undefined = 'horizontal-tb') {
   const {main, cross} = getAxes(writingMode);
@@ -443,7 +441,7 @@ export function drawGridTrackSizes(
     }
 
     let arrowType = adaptArrowTypeForWritingMode(
-        direction === 'column' ? GridArrowType.BottomMid : GridArrowType.RightMid, writingMode);
+        direction === 'column' ? GridArrowType.BOTTOM_MID : GridArrowType.RIGHT_MID, writingMode);
     arrowType = flipArrowTypeIfNeeded(arrowType, flipIn);
 
     placeLineLabel(element, arrowType, point.x, point.y, labelSize, emulationScaleFactor);
@@ -497,8 +495,12 @@ export function drawGridAreaNames(
     const {width, height} = getLabelSize(element, writingMode);
 
     // The list of all points comes from the path created by the backend. This path is a rectangle with its starting point being
-    // the top left corner, which is where we want to place the label (except for vertical-rl writing-mode).
-    const point = writingMode === 'vertical-rl' ? bounds.allPoints[3] : bounds.allPoints[0];
+    // the top left corner, which is where we want to place the label.
+    // Exception: the bottom-left corner for vertical-rl or sideways-rl writing-modes
+    //            the top-right corner for sideways-lr writing-mode
+    const point = (writingMode === 'vertical-rl' || writingMode === 'sideways-rl') ? bounds.allPoints[3] :
+        writingMode === 'sideways-lr'                                              ? bounds.allPoints[1] :
+                                                                                     bounds.allPoints[0];
     const corner = applyMatrixToPoint(point, writingModeMatrix);
 
     const flipX = bounds.allPoints[1].x < bounds.allPoints[0].x;
@@ -554,7 +556,7 @@ function getLabelSideEdgePoints(
  * In vertical writing modes, the axes are swapped.
  */
 function getAxes(writingMode: string): {main: 'x'|'y', cross: 'x'|'y'} {
-  return writingMode.startsWith('vertical') ? {main: 'y', cross: 'x'} : {main: 'x', cross: 'y'};
+  return isHorizontalWritingMode(writingMode) ? {main: 'x', cross: 'y'} : {main: 'y', cross: 'x'};
 }
 
 /**
@@ -564,8 +566,8 @@ function getAxes(writingMode: string): {main: 'x'|'y', cross: 'x'|'y'} {
  * In vertical writing modes, those sizes are swapped.
  */
 function getCanvasSizes(writingMode: string, canvasSize: CanvasSize): {mainSize: number, crossSize: number} {
-  return writingMode.startsWith('vertical') ? {mainSize: canvasSize.canvasHeight, crossSize: canvasSize.canvasWidth} :
-                                              {mainSize: canvasSize.canvasWidth, crossSize: canvasSize.canvasHeight};
+  return isHorizontalWritingMode(writingMode) ? {mainSize: canvasSize.canvasWidth, crossSize: canvasSize.canvasHeight} :
+                                                {mainSize: canvasSize.canvasHeight, crossSize: canvasSize.canvasWidth};
 }
 
 /**
@@ -579,8 +581,8 @@ function placePositiveRowLabel(
   const {crossSize} = getCanvasSizes(writingMode, canvasSize);
   const labelSize = getLabelSize(element, writingMode);
 
-  const isAtSharedStartCorner = pos[cross] === start[cross] && data.columns && data.columns.positive.hasFirst;
-  const isAtSharedEndCorner = pos[cross] === end[cross] && data.columns && data.columns.negative.hasFirst;
+  const isAtSharedStartCorner = pos[cross] === start[cross] && data.columns?.positive.hasFirst;
+  const isAtSharedEndCorner = pos[cross] === end[cross] && data.columns?.negative.hasFirst;
   const isTooCloseToViewportStart = pos[cross] < gridPageMargin;
   const isTooCloseToViewportEnd = crossSize - pos[cross] < gridPageMargin;
   const flipIn = pos[main] - labelSize.mainSize < gridPageMargin;
@@ -589,11 +591,11 @@ function placePositiveRowLabel(
     element.classList.add('inner-shared-corner');
   }
 
-  let arrowType = adaptArrowTypeForWritingMode(GridArrowType.RightMid, writingMode);
+  let arrowType = adaptArrowTypeForWritingMode(GridArrowType.RIGHT_MID, writingMode);
   if (isTooCloseToViewportStart || isAtSharedStartCorner) {
-    arrowType = adaptArrowTypeForWritingMode(GridArrowType.RightTop, writingMode);
+    arrowType = adaptArrowTypeForWritingMode(GridArrowType.RIGHT_TOP, writingMode);
   } else if (isTooCloseToViewportEnd || isAtSharedEndCorner) {
-    arrowType = adaptArrowTypeForWritingMode(GridArrowType.RightBottom, writingMode);
+    arrowType = adaptArrowTypeForWritingMode(GridArrowType.RIGHT_BOTTOM, writingMode);
   }
   arrowType = flipArrowTypeIfNeeded(arrowType, flipIn);
 
@@ -611,8 +613,8 @@ function placeNegativeRowLabel(
   const {mainSize, crossSize} = getCanvasSizes(writingMode, canvasSize);
   const labelSize = getLabelSize(element, writingMode);
 
-  const isAtSharedStartCorner = pos[cross] === start[cross] && data.columns && data.columns.positive.hasLast;
-  const isAtSharedEndCorner = pos[cross] === end[cross] && data.columns && data.columns.negative.hasLast;
+  const isAtSharedStartCorner = pos[cross] === start[cross] && data.columns?.positive.hasLast;
+  const isAtSharedEndCorner = pos[cross] === end[cross] && data.columns?.negative.hasLast;
   const isTooCloseToViewportStart = pos[cross] < gridPageMargin;
   const isTooCloseToViewportEnd = crossSize - pos[cross] < gridPageMargin;
   const flipIn = mainSize - pos[main] - labelSize.mainSize < gridPageMargin;
@@ -621,11 +623,11 @@ function placeNegativeRowLabel(
     element.classList.add('inner-shared-corner');
   }
 
-  let arrowType = adaptArrowTypeForWritingMode(GridArrowType.LeftMid, writingMode);
+  let arrowType = adaptArrowTypeForWritingMode(GridArrowType.LEFT_MID, writingMode);
   if (isTooCloseToViewportStart || isAtSharedStartCorner) {
-    arrowType = adaptArrowTypeForWritingMode(GridArrowType.LeftTop, writingMode);
+    arrowType = adaptArrowTypeForWritingMode(GridArrowType.LEFT_TOP, writingMode);
   } else if (isTooCloseToViewportEnd || isAtSharedEndCorner) {
-    arrowType = adaptArrowTypeForWritingMode(GridArrowType.LeftBottom, writingMode);
+    arrowType = adaptArrowTypeForWritingMode(GridArrowType.LEFT_BOTTOM, writingMode);
   }
   arrowType = flipArrowTypeIfNeeded(arrowType, flipIn);
 
@@ -643,22 +645,23 @@ function placePositiveColumnLabel(
   const {mainSize, crossSize} = getCanvasSizes(writingMode, canvasSize);
   const labelSize = getLabelSize(element, writingMode);
 
-  const isAtSharedStartCorner = pos[main] === start[main] && data.rows && data.rows.positive.hasFirst;
-  const isAtSharedEndCorner = pos[main] === end[main] && data.rows && data.rows.negative.hasFirst;
+  const isAtSharedStartCorner = pos[main] === start[main] && data.rows?.positive.hasFirst;
+  const isAtSharedEndCorner = pos[main] === end[main] && data.rows?.negative.hasFirst;
   const isTooCloseToViewportStart = pos[main] < gridPageMargin;
   const isTooCloseToViewportEnd = mainSize - pos[main] < gridPageMargin;
-  const flipIn = writingMode === 'vertical-rl' ? crossSize - pos[cross] - labelSize.crossSize < gridPageMargin :
-                                                 pos[cross] - labelSize.crossSize < gridPageMargin;
+  const flipIn = isFlippedBlocksWritingMode(writingMode) ?
+      crossSize - pos[cross] - labelSize.crossSize < gridPageMargin :
+      pos[cross] - labelSize.crossSize < gridPageMargin;
 
   if (flipIn && (isAtSharedStartCorner || isAtSharedEndCorner)) {
     element.classList.add('inner-shared-corner');
   }
 
-  let arrowType = adaptArrowTypeForWritingMode(GridArrowType.BottomMid, writingMode);
+  let arrowType = adaptArrowTypeForWritingMode(GridArrowType.BOTTOM_MID, writingMode);
   if (isTooCloseToViewportStart) {
-    arrowType = adaptArrowTypeForWritingMode(GridArrowType.BottomLeft, writingMode);
+    arrowType = adaptArrowTypeForWritingMode(GridArrowType.BOTTOM_LEFT, writingMode);
   } else if (isTooCloseToViewportEnd) {
-    arrowType = adaptArrowTypeForWritingMode(GridArrowType.BottomRight, writingMode);
+    arrowType = adaptArrowTypeForWritingMode(GridArrowType.BOTTOM_RIGHT, writingMode);
   }
 
   arrowType = flipArrowTypeIfNeeded(arrowType, flipIn);
@@ -677,22 +680,23 @@ function placeNegativeColumnLabel(
   const {mainSize, crossSize} = getCanvasSizes(writingMode, canvasSize);
   const labelSize = getLabelSize(element, writingMode);
 
-  const isAtSharedStartCorner = pos[main] === start[main] && data.rows && data.rows.positive.hasLast;
-  const isAtSharedEndCorner = pos[main] === end[main] && data.rows && data.rows.negative.hasLast;
+  const isAtSharedStartCorner = pos[main] === start[main] && data.rows?.positive.hasLast;
+  const isAtSharedEndCorner = pos[main] === end[main] && data.rows?.negative.hasLast;
   const isTooCloseToViewportStart = pos[main] < gridPageMargin;
   const isTooCloseToViewportEnd = mainSize - pos[main] < gridPageMargin;
-  const flipIn = writingMode === 'vertical-rl' ? pos[cross] - labelSize.crossSize < gridPageMargin :
-                                                 crossSize - pos[cross] - labelSize.crossSize < gridPageMargin;
+  const flipIn = isFlippedBlocksWritingMode(writingMode) ?
+      pos[cross] - labelSize.crossSize < gridPageMargin :
+      crossSize - pos[cross] - labelSize.crossSize < gridPageMargin;
 
   if (flipIn && (isAtSharedStartCorner || isAtSharedEndCorner)) {
     element.classList.add('inner-shared-corner');
   }
 
-  let arrowType = adaptArrowTypeForWritingMode(GridArrowType.TopMid, writingMode);
+  let arrowType = adaptArrowTypeForWritingMode(GridArrowType.TOP_MID, writingMode);
   if (isTooCloseToViewportStart) {
-    arrowType = adaptArrowTypeForWritingMode(GridArrowType.TopLeft, writingMode);
+    arrowType = adaptArrowTypeForWritingMode(GridArrowType.TOP_LEFT, writingMode);
   } else if (isTooCloseToViewportEnd) {
-    arrowType = adaptArrowTypeForWritingMode(GridArrowType.TopRight, writingMode);
+    arrowType = adaptArrowTypeForWritingMode(GridArrowType.TOP_RIGHT, writingMode);
   }
   arrowType = flipArrowTypeIfNeeded(arrowType, flipIn);
 
@@ -723,8 +727,9 @@ function placeLineLabel(
 function getLabelSize(element: HTMLElement, writingMode: string): LabelSize {
   const width = getAdjustedLabelWidth(element);
   const height = element.getBoundingClientRect().height;
-  const mainSize = writingMode.startsWith('vertical') ? height : width;
-  const crossSize = writingMode.startsWith('vertical') ? width : height;
+  const isHorizontal = isHorizontalWritingMode(writingMode);
+  const mainSize = isHorizontal ? width : height;
+  const crossSize = isHorizontal ? height : width;
 
   return {width, height, mainSize, crossSize};
 }
@@ -772,30 +777,30 @@ function flipArrowTypeIfNeeded(arrowType: GridArrowType, flipIn: boolean): GridA
   }
 
   switch (arrowType) {
-    case GridArrowType.LeftTop:
-      return GridArrowType.RightTop;
-    case GridArrowType.LeftMid:
-      return GridArrowType.RightMid;
-    case GridArrowType.LeftBottom:
-      return GridArrowType.RightBottom;
-    case GridArrowType.RightTop:
-      return GridArrowType.LeftTop;
-    case GridArrowType.RightMid:
-      return GridArrowType.LeftMid;
-    case GridArrowType.RightBottom:
-      return GridArrowType.LeftBottom;
-    case GridArrowType.TopLeft:
-      return GridArrowType.BottomLeft;
-    case GridArrowType.TopMid:
-      return GridArrowType.BottomMid;
-    case GridArrowType.TopRight:
-      return GridArrowType.BottomRight;
-    case GridArrowType.BottomLeft:
-      return GridArrowType.TopLeft;
-    case GridArrowType.BottomMid:
-      return GridArrowType.TopMid;
-    case GridArrowType.BottomRight:
-      return GridArrowType.TopRight;
+    case GridArrowType.LEFT_TOP:
+      return GridArrowType.RIGHT_TOP;
+    case GridArrowType.LEFT_MID:
+      return GridArrowType.RIGHT_MID;
+    case GridArrowType.LEFT_BOTTOM:
+      return GridArrowType.RIGHT_BOTTOM;
+    case GridArrowType.RIGHT_TOP:
+      return GridArrowType.LEFT_TOP;
+    case GridArrowType.RIGHT_MID:
+      return GridArrowType.LEFT_MID;
+    case GridArrowType.RIGHT_BOTTOM:
+      return GridArrowType.LEFT_BOTTOM;
+    case GridArrowType.TOP_LEFT:
+      return GridArrowType.BOTTOM_LEFT;
+    case GridArrowType.TOP_MID:
+      return GridArrowType.BOTTOM_MID;
+    case GridArrowType.TOP_RIGHT:
+      return GridArrowType.BOTTOM_RIGHT;
+    case GridArrowType.BOTTOM_LEFT:
+      return GridArrowType.TOP_LEFT;
+    case GridArrowType.BOTTOM_MID:
+      return GridArrowType.TOP_MID;
+    case GridArrowType.BOTTOM_RIGHT:
+      return GridArrowType.TOP_RIGHT;
   }
 
   return arrowType;
@@ -808,59 +813,88 @@ function flipArrowTypeIfNeeded(arrowType: GridArrowType, flipIn: boolean): GridA
 function adaptArrowTypeForWritingMode(arrowType: GridArrowType, writingMode: string): GridArrowType {
   if (writingMode === 'vertical-lr') {
     switch (arrowType) {
-      case GridArrowType.LeftTop:
-        return GridArrowType.TopLeft;
-      case GridArrowType.LeftMid:
-        return GridArrowType.TopMid;
-      case GridArrowType.LeftBottom:
-        return GridArrowType.TopRight;
-      case GridArrowType.TopLeft:
-        return GridArrowType.LeftTop;
-      case GridArrowType.TopMid:
-        return GridArrowType.LeftMid;
-      case GridArrowType.TopRight:
-        return GridArrowType.LeftBottom;
-      case GridArrowType.RightTop:
-        return GridArrowType.BottomRight;
-      case GridArrowType.RightMid:
-        return GridArrowType.BottomMid;
-      case GridArrowType.RightBottom:
-        return GridArrowType.BottomLeft;
-      case GridArrowType.BottomLeft:
-        return GridArrowType.RightTop;
-      case GridArrowType.BottomMid:
-        return GridArrowType.RightMid;
-      case GridArrowType.BottomRight:
-        return GridArrowType.RightBottom;
+      case GridArrowType.LEFT_TOP:
+        return GridArrowType.TOP_LEFT;
+      case GridArrowType.LEFT_MID:
+        return GridArrowType.TOP_MID;
+      case GridArrowType.LEFT_BOTTOM:
+        return GridArrowType.TOP_RIGHT;
+      case GridArrowType.TOP_LEFT:
+        return GridArrowType.LEFT_TOP;
+      case GridArrowType.TOP_MID:
+        return GridArrowType.LEFT_MID;
+      case GridArrowType.TOP_RIGHT:
+        return GridArrowType.LEFT_BOTTOM;
+      case GridArrowType.RIGHT_TOP:
+        return GridArrowType.BOTTOM_RIGHT;
+      case GridArrowType.RIGHT_MID:
+        return GridArrowType.BOTTOM_MID;
+      case GridArrowType.RIGHT_BOTTOM:
+        return GridArrowType.BOTTOM_LEFT;
+      case GridArrowType.BOTTOM_LEFT:
+        return GridArrowType.RIGHT_TOP;
+      case GridArrowType.BOTTOM_MID:
+        return GridArrowType.RIGHT_MID;
+      case GridArrowType.BOTTOM_RIGHT:
+        return GridArrowType.RIGHT_BOTTOM;
     }
   }
 
-  if (writingMode === 'vertical-rl') {
+  if (writingMode === 'vertical-rl' || writingMode === 'sideways-rl') {
     switch (arrowType) {
-      case GridArrowType.LeftTop:
-        return GridArrowType.TopRight;
-      case GridArrowType.LeftMid:
-        return GridArrowType.TopMid;
-      case GridArrowType.LeftBottom:
-        return GridArrowType.TopLeft;
-      case GridArrowType.TopLeft:
-        return GridArrowType.RightTop;
-      case GridArrowType.TopMid:
-        return GridArrowType.RightMid;
-      case GridArrowType.TopRight:
-        return GridArrowType.RightBottom;
-      case GridArrowType.RightTop:
-        return GridArrowType.BottomRight;
-      case GridArrowType.RightMid:
-        return GridArrowType.BottomMid;
-      case GridArrowType.RightBottom:
-        return GridArrowType.BottomLeft;
-      case GridArrowType.BottomLeft:
-        return GridArrowType.LeftTop;
-      case GridArrowType.BottomMid:
-        return GridArrowType.LeftMid;
-      case GridArrowType.BottomRight:
-        return GridArrowType.LeftBottom;
+      case GridArrowType.LEFT_TOP:
+        return GridArrowType.TOP_RIGHT;
+      case GridArrowType.LEFT_MID:
+        return GridArrowType.TOP_MID;
+      case GridArrowType.LEFT_BOTTOM:
+        return GridArrowType.TOP_LEFT;
+      case GridArrowType.TOP_LEFT:
+        return GridArrowType.RIGHT_TOP;
+      case GridArrowType.TOP_MID:
+        return GridArrowType.RIGHT_MID;
+      case GridArrowType.TOP_RIGHT:
+        return GridArrowType.RIGHT_BOTTOM;
+      case GridArrowType.RIGHT_TOP:
+        return GridArrowType.BOTTOM_RIGHT;
+      case GridArrowType.RIGHT_MID:
+        return GridArrowType.BOTTOM_MID;
+      case GridArrowType.RIGHT_BOTTOM:
+        return GridArrowType.BOTTOM_LEFT;
+      case GridArrowType.BOTTOM_LEFT:
+        return GridArrowType.LEFT_TOP;
+      case GridArrowType.BOTTOM_MID:
+        return GridArrowType.LEFT_MID;
+      case GridArrowType.BOTTOM_RIGHT:
+        return GridArrowType.LEFT_BOTTOM;
+    }
+  }
+
+  if (writingMode === 'sideways-lr') {
+    switch (arrowType) {
+      case GridArrowType.LEFT_TOP:
+        return GridArrowType.BOTTOM_LEFT;
+      case GridArrowType.LEFT_MID:
+        return GridArrowType.BOTTOM_MID;
+      case GridArrowType.LEFT_BOTTOM:
+        return GridArrowType.BOTTOM_RIGHT;
+      case GridArrowType.TOP_LEFT:
+        return GridArrowType.LEFT_BOTTOM;
+      case GridArrowType.TOP_MID:
+        return GridArrowType.LEFT_MID;
+      case GridArrowType.TOP_RIGHT:
+        return GridArrowType.LEFT_TOP;
+      case GridArrowType.RIGHT_TOP:
+        return GridArrowType.TOP_LEFT;
+      case GridArrowType.RIGHT_MID:
+        return GridArrowType.TOP_MID;
+      case GridArrowType.RIGHT_BOTTOM:
+        return GridArrowType.TOP_RIGHT;
+      case GridArrowType.BOTTOM_LEFT:
+        return GridArrowType.RIGHT_BOTTOM;
+      case GridArrowType.BOTTOM_MID:
+        return GridArrowType.RIGHT_MID;
+      case GridArrowType.BOTTOM_RIGHT:
+        return GridArrowType.RIGHT_TOP;
     }
   }
 
@@ -879,51 +913,51 @@ function getLabelPositionByArrowType(
   x *= emulationScaleFactor;
   y *= emulationScaleFactor;
   switch (arrowType) {
-    case GridArrowType.LeftTop:
+    case GridArrowType.LEFT_TOP:
       contentTop = y;
       contentLeft = x + gridArrowWidth;
       break;
-    case GridArrowType.LeftMid:
+    case GridArrowType.LEFT_MID:
       contentTop = y - (labelHeight / 2);
       contentLeft = x + gridArrowWidth;
       break;
-    case GridArrowType.LeftBottom:
+    case GridArrowType.LEFT_BOTTOM:
       contentTop = y - labelHeight;
       contentLeft = x + gridArrowWidth;
       break;
-    case GridArrowType.RightTop:
+    case GridArrowType.RIGHT_TOP:
       contentTop = y;
       contentLeft = x - gridArrowWidth - labelWidth;
       break;
-    case GridArrowType.RightMid:
+    case GridArrowType.RIGHT_MID:
       contentTop = y - (labelHeight / 2);
       contentLeft = x - gridArrowWidth - labelWidth;
       break;
-    case GridArrowType.RightBottom:
+    case GridArrowType.RIGHT_BOTTOM:
       contentTop = y - labelHeight;
       contentLeft = x - labelWidth - gridArrowWidth;
       break;
-    case GridArrowType.TopLeft:
+    case GridArrowType.TOP_LEFT:
       contentTop = y + gridArrowWidth;
       contentLeft = x;
       break;
-    case GridArrowType.TopMid:
+    case GridArrowType.TOP_MID:
       contentTop = y + gridArrowWidth;
       contentLeft = x - (labelWidth / 2);
       break;
-    case GridArrowType.TopRight:
+    case GridArrowType.TOP_RIGHT:
       contentTop = y + gridArrowWidth;
       contentLeft = x - labelWidth;
       break;
-    case GridArrowType.BottomLeft:
+    case GridArrowType.BOTTOM_LEFT:
       contentTop = y - gridArrowWidth - labelHeight;
       contentLeft = x;
       break;
-    case GridArrowType.BottomMid:
+    case GridArrowType.BOTTOM_MID:
       contentTop = y - gridArrowWidth - labelHeight;
       contentLeft = x - (labelWidth / 2);
       break;
-    case GridArrowType.BottomRight:
+    case GridArrowType.BOTTOM_RIGHT:
       contentTop = y - gridArrowWidth - labelHeight;
       contentLeft = x - labelWidth;
       break;
@@ -969,4 +1003,19 @@ export function generateLegibleTextColor(backgroundColor: string) {
   }
 
   return luminance(rgb) > 0.2 ? defaultLabelTextColor : 'white';
+}
+
+/**
+ * Returns true if the specified string starts with 'horizontal'.
+ */
+export function isHorizontalWritingMode(writingMode: string): boolean {
+  return writingMode.startsWith('horizontal');
+}
+
+/**
+ * Returns true if the block axis of the specified writing-mode increases in the
+ * opposite direction to normal.
+ */
+function isFlippedBlocksWritingMode(writingMode: string): boolean {
+  return writingMode === 'vertical-rl' || writingMode === 'sideways-rl';
 }

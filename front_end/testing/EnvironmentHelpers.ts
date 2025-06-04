@@ -13,6 +13,7 @@ import * as Bindings from '../models/bindings/bindings.js';
 import * as IssuesManager from '../models/issues_manager/issues_manager.js';
 import * as Logs from '../models/logs/logs.js';
 import * as Persistence from '../models/persistence/persistence.js';
+import * as ProjectSettings from '../models/project_settings/project_settings.js';
 import * as Workspace from '../models/workspace/workspace.js';
 import type * as UIModule from '../ui/legacy/legacy.js';
 
@@ -25,7 +26,7 @@ let UI: typeof UIModule;
 let uniqueTargetId = 0;
 
 export function createTarget(
-    {id, name, type = SDK.Target.Type.Frame, parentTarget, subtype, url = 'http://example.com'}: {
+    {id, name, type = SDK.Target.Type.FRAME, parentTarget, subtype, url = 'http://example.com'}: {
       id?: Protocol.Target.TargetID,
       name?: string,
       type?: SDK.Target.Type,
@@ -91,7 +92,7 @@ export function stubNoopSettings() {
       type: () => Common.Settings.SettingType.BOOLEAN,
       getAsArray: () => [],
     }),
-    getHostConfig: () => {},
+    getHostConfig: () => ({} as Root.Runtime.HostConfig),
   } as unknown as Common.Settings.Settings);
 }
 
@@ -115,22 +116,18 @@ const REGISTERED_EXPERIMENTS = [
   'timeline-v8-runtime-call-stats',
   'timeline-invalidation-tracking',
   Root.Runtime.ExperimentName.INSTRUMENTATION_BREAKPOINTS,
-  'css-type-component-length-deprecate',
-  Root.Runtime.ExperimentName.STYLES_PANE_CSS_CHANGES,
   Root.Runtime.ExperimentName.HEADER_OVERRIDES,
   Root.Runtime.ExperimentName.HIGHLIGHT_ERRORS_ELEMENTS_PANEL,
   Root.Runtime.ExperimentName.USE_SOURCE_MAP_SCOPES,
   'font-editor',
   Root.Runtime.ExperimentName.NETWORK_PANEL_FILTER_BAR_REDESIGN,
-  Root.Runtime.ExperimentName.INDENTATION_MARKERS_TEMP_DISABLE,
-  Root.Runtime.ExperimentName.AUTOFILL_VIEW,
-  Root.Runtime.ExperimentName.TIMELINE_ANNOTATIONS_OVERLAYS,
-  Root.Runtime.ExperimentName.TIMELINE_SIDEBAR,
   Root.Runtime.ExperimentName.TIMELINE_DEBUG_MODE,
-  Root.Runtime.ExperimentName.TIMELINE_OBSERVATIONS,
   Root.Runtime.ExperimentName.FULL_ACCESSIBILITY_TREE,
   Root.Runtime.ExperimentName.TIMELINE_SHOW_POST_MESSAGE_EVENTS,
   Root.Runtime.ExperimentName.TIMELINE_ENHANCED_TRACES,
+  Root.Runtime.ExperimentName.TIMELINE_EXPERIMENTAL_INSIGHTS,
+  Root.Runtime.ExperimentName.TIMELINE_DIM_UNRELATED_EVENTS,
+  Root.Runtime.ExperimentName.TIMELINE_ALTERNATIVE_NAVIGATION,
   Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
   Root.Runtime.ExperimentName.NOT_REACT_NATIVE_SPECIFIC_UI,
 ];
@@ -155,14 +152,16 @@ export async function initializeGlobalVars({reset = true} = {}) {
     createSettingValue(Common.Settings.SettingCategory.DEBUGGER, 'skip-content-scripts', true),
     createSettingValue(
         Common.Settings.SettingCategory.DEBUGGER, 'automatically-ignore-list-known-third-party-scripts', true),
+    createSettingValue(Common.Settings.SettingCategory.DEBUGGER, 'skip-anonymous-scripts', false),
     createSettingValue(Common.Settings.SettingCategory.DEBUGGER, 'enable-ignore-listing', true),
     createSettingValue(
-        Common.Settings.SettingCategory.DEBUGGER, 'skip-stack-frames-pattern', '/node_modules/|/bower_components/',
-        Common.Settings.SettingType.REGEX),
+        Common.Settings.SettingCategory.DEBUGGER, 'skip-stack-frames-pattern',
+        '/node_modules/|^node:', Common.Settings.SettingType.REGEX),
     createSettingValue(Common.Settings.SettingCategory.DEBUGGER, 'navigator-group-by-folder', true),
     createSettingValue(Common.Settings.SettingCategory.ELEMENTS, 'show-detailed-inspect-tooltip', true),
     createSettingValue(Common.Settings.SettingCategory.ELEMENTS, 'show-html-comments', true),
     createSettingValue(Common.Settings.SettingCategory.ELEMENTS, 'show-ua-shadow-dom', false),
+    createSettingValue(Common.Settings.SettingCategory.PERFORMANCE, 'annotations-hidden', false),
     createSettingValue(Common.Settings.SettingCategory.NETWORK, 'cache-disabled', false),
     createSettingValue(Common.Settings.SettingCategory.RENDERING, 'avif-format-disabled', false),
     createSettingValue(
@@ -199,7 +198,6 @@ export async function initializeGlobalVars({reset = true} = {}) {
     createSettingValue(Common.Settings.SettingCategory.RENDERING, 'show-debug-borders', false),
     createSettingValue(Common.Settings.SettingCategory.RENDERING, 'show-fps-counter', false),
     createSettingValue(Common.Settings.SettingCategory.RENDERING, 'show-scroll-bottleneck-rects', false),
-    createSettingValue(Common.Settings.SettingCategory.RENDERING, 'show-web-vitals', false),
     createSettingValue(Common.Settings.SettingCategory.RENDERING, 'webp-format-disabled', false),
     createSettingValue(Common.Settings.SettingCategory.SOURCES, 'allow-scroll-past-eof', true),
     createSettingValue(Common.Settings.SettingCategory.SOURCES, 'css-source-maps-enabled', true),
@@ -220,6 +218,8 @@ export async function initializeGlobalVars({reset = true} = {}) {
     createSettingValue(
         Common.Settings.SettingCategory.EMULATION, 'emulation.idle-detection', '', Common.Settings.SettingType.ENUM),
     createSettingValue(
+        Common.Settings.SettingCategory.EMULATION, 'emulation.cpu-pressure', '', Common.Settings.SettingType.ENUM),
+    createSettingValue(
         Common.Settings.SettingCategory.GRID, 'show-grid-line-labels', 'none', Common.Settings.SettingType.ENUM),
     createSettingValue(Common.Settings.SettingCategory.GRID, 'extend-grid-lines', true),
     createSettingValue(Common.Settings.SettingCategory.GRID, 'show-grid-areas', true),
@@ -234,6 +234,8 @@ export async function initializeGlobalVars({reset = true} = {}) {
     createSettingValue(Common.Settings.SettingCategory.CONSOLE, 'monitoring-xhr-enabled', false),
     createSettingValue(
         Common.Settings.SettingCategory.NONE, 'custom-network-conditions', [], Common.Settings.SettingType.ARRAY),
+    createSettingValue(
+        Common.Settings.SettingCategory.NONE, 'calibrated-cpu-throttling', [], Common.Settings.SettingType.BOOLEAN),
     createSettingValue(
         Common.Settings.SettingCategory.APPEARANCE, 'ui-theme', 'systemPreferred', Common.Settings.SettingType.ENUM),
     createSettingValue(
@@ -262,10 +264,9 @@ export async function initializeGlobalVars({reset = true} = {}) {
         Common.Settings.SettingCategory.CONSOLE, 'console-timestamps-enabled', false,
         Common.Settings.SettingType.BOOLEAN),
     createSettingValue(
-        Common.Settings.SettingCategory.CONSOLE, 'console-insights-enabled', false,
-        Common.Settings.SettingType.BOOLEAN),
+        Common.Settings.SettingCategory.CONSOLE, 'console-insights-enabled', true, Common.Settings.SettingType.BOOLEAN),
     createSettingValue(
-        Common.Settings.SettingCategory.CONSOLE, 'console-insights-onboarding-finished', false,
+        Common.Settings.SettingCategory.CONSOLE, 'console-insights-onboarding-finished', true,
         Common.Settings.SettingType.BOOLEAN),
     createSettingValue(
         Common.Settings.SettingCategory.CONSOLE, 'console-history-autocomplete', false,
@@ -283,14 +284,22 @@ export async function initializeGlobalVars({reset = true} = {}) {
     createSettingValue(
         Common.Settings.SettingCategory.CONSOLE, 'console-trace-expand', false, Common.Settings.SettingType.BOOLEAN),
     createSettingValue(
-        Common.Settings.SettingCategory.PERFORMANCE, 'flamechart-mouse-wheel-action', false,
+        Common.Settings.SettingCategory.PERFORMANCE, 'flamechart-selected-navigation', false,
         Common.Settings.SettingType.ENUM),
     createSettingValue(
         Common.Settings.SettingCategory.ELEMENTS, 'show-css-property-documentation-on-hover', false,
         Common.Settings.SettingType.BOOLEAN),
     createSettingValue(
-        Common.Settings.SettingCategory.NONE, 'freestyler-dogfood-consent-onboarding-finished', false,
+        Common.Settings.SettingCategory.AI, 'ai-assistance-enabled', false, Common.Settings.SettingType.BOOLEAN),
+    createSettingValue(
+        Common.Settings.SettingCategory.AI, 'ai-annotations-enabled', false, Common.Settings.SettingType.BOOLEAN),
+    createSettingValue(
+        Common.Settings.SettingCategory.AI, 'ai-assistance-history-entries', [], Common.Settings.SettingType.ARRAY),
+    createSettingValue(
+        Common.Settings.SettingCategory.MOBILE, 'emulation.show-device-outline', false,
         Common.Settings.SettingType.BOOLEAN),
+    createSettingValue(
+        Common.Settings.SettingCategory.APPEARANCE, 'chrome-theme-colors', true, Common.Settings.SettingType.BOOLEAN),
   ];
 
   Common.Settings.registerSettingsForTest(settings, reset);
@@ -318,7 +327,7 @@ export async function initializeGlobalVars({reset = true} = {}) {
 export async function deinitializeGlobalVars() {
   // Remove the global SDK.
   // eslint-disable-next-line @typescript-eslint/naming-convention
-  const globalObject = (globalThis as unknown as {SDK?: {}, ls?: {}});
+  const globalObject = (globalThis as unknown as {SDK?: unknown, ls?: unknown});
   delete globalObject.SDK;
   delete globalObject.ls;
 
@@ -330,6 +339,7 @@ export async function deinitializeGlobalVars() {
   await deinitializeGlobalLocaleVars();
   Logs.NetworkLog.NetworkLog.removeInstance();
   SDK.TargetManager.TargetManager.removeInstance();
+  SDK.FrameManager.FrameManager.removeInstance();
   Root.Runtime.Runtime.removeInstance();
   Common.Settings.Settings.removeInstance();
   Common.Revealer.RevealerRegistry.removeInstance();
@@ -340,6 +350,7 @@ export async function deinitializeGlobalVars() {
   Bindings.CSSWorkspaceBinding.CSSWorkspaceBinding.removeInstance();
   IssuesManager.IssuesManager.IssuesManager.removeInstance();
   Persistence.IsolatedFileSystemManager.IsolatedFileSystemManager.removeInstance();
+  ProjectSettings.ProjectSettingsModel.ProjectSettingsModel.removeInstance();
 
   Common.Settings.resetSettings();
 
@@ -396,7 +407,6 @@ export async function initializeGlobalLocaleVars() {
   try {
     await i18n.i18n.fetchAndRegisterLocaleData('en-US');
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.warn('EnvironmentHelper: Loading en-US locale failed', error.message);
   }
 }
@@ -421,7 +431,7 @@ describeWithLocale.only = function(title: string, fn: (this: Mocha.Suite) => voi
   });
 };
 describeWithLocale.skip = function(title: string, fn: (this: Mocha.Suite) => void) {
-  // eslint-disable-next-line rulesdir/check_test_definitions
+  // eslint-disable-next-line rulesdir/check-test-definitions
   return describe.skip(title, function() {
     fn.call(this);
   });
@@ -492,28 +502,29 @@ export function expectConsoleLogs(expectedLogs: {warn?: string[], log?: string[]
   });
 }
 
-export function getGetHostConfigStub(config: RecursivePartial<Root.Runtime.HostConfig>): sinon.SinonStub {
-  const settings = Common.Settings.Settings.instance();
-  return sinon.stub(settings, 'getHostConfig').returns({
-    devToolsConsoleInsights: {
-      enabled: false,
-      aidaModelId: '',
-      aidaTemperature: 0.2,
-      ...config.devToolsConsoleInsights,
-    } as Root.Runtime.HostConfigConsoleInsights,
-    devToolsFreestylerDogfood: {
-      aidaModelId: '',
-      aidaTemperature: 0,
-      enabled: false,
-      ...config.devToolsFreestylerDogfood,
-    },
-    devToolsVeLogging: {
-      enabled: true,
-      testing: false,
-    },
-  });
+let originalUserAgent: string;
+
+export function setUserAgentForTesting(): void {
+  originalUserAgent = window.navigator.userAgent;
+  Object.defineProperty(window.navigator, 'userAgent', {value: 'Chrome/unit_test', configurable: true});
 }
 
-type RecursivePartial<T> = {
-  [P in keyof T]?: RecursivePartial<T[P]>;
-};
+export function restoreUserAgentForTesting(): void {
+  Object.defineProperty(window.navigator, 'userAgent', {value: originalUserAgent});
+}
+
+export function resetHostConfig() {
+  for (const key of Object.keys(Root.Runtime.hostConfig)) {
+    // @ts-expect-error TypeScript does not deduce the correct type
+    delete Root.Runtime.hostConfig[key];
+  }
+}
+
+/**
+ * Update `Root.Runtime.hostConfig` for testing.
+ * `Root.Runtime.hostConfig` is automatically cleaned-up between unit
+ * tests.
+ */
+export function updateHostConfig(config: Root.Runtime.HostConfig) {
+  Object.assign(Root.Runtime.hostConfig, config);
+}
