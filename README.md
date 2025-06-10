@@ -74,11 +74,15 @@ git tag --merged <branch>
     git merge chromedevtools/chromium/5845
     ```
 
-3. Submit and merge your PR.
-4. Tag the merge commit! This marks the point at which we synced the repo with the upstream branch.
-
+3. Validate your changes by running a smoke test. 
+You can use the one defined in the [summary of this pull request](https://github.com/facebook/react-native-devtools-frontend/pull/172), please also enhance it with more test cases and add all them to the summary of your PR.
+4. Before merging your PR, go to [repository settings](https://github.com/facebook/react-native-devtools-frontend/settings) and make sure "Allow merge commits" is enabled.
+5. Merge your commit. It is important to merge and not to squash, otherwise our fork would diverge from Google's upstream significantly.
+6. Go to [repository settings](https://github.com/facebook/react-native-devtools-frontend/settings) and disable "Allow merge commits" setting. All changes that are not related to fork syncing should be squashed in a single commit.
+7. Tag the merge commit! This marks the point at which we synced the repo with the upstream branch.
     ```sh
     git tag sync-chromium-5845
+    git push origin sync-chromium-5845
     ```
 
 ## Contributing
