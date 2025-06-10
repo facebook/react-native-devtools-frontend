@@ -1,0 +1,30 @@
+name: Lint DevTools frontend
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  statuses: write
+  deployments: write
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          path: src
+      - name: setup-depot-tools
+        uses: newkdev/setup-depot-tools@v1.0.1
+      - name: Sync gclient workspace
+        run: |
+          gclient config --unmanaged src --name src
+          gclient sync --no-history
+      - name: Run linter
+        run: |
+          cd src
+           NODE_OPTIONS="--max-old-space-size=8192" npm run lint -- --fix=false
