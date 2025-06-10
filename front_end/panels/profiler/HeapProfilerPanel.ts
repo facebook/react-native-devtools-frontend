@@ -4,6 +4,7 @@
 
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import * as Root from '../../core/root/root.js';
 import type * as SDK from '../../core/sdk/sdk.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
@@ -24,8 +25,17 @@ let heapProfilerPanelInstance: HeapProfilerPanel;
 export class HeapProfilerPanel extends ProfilesPanel implements UI.ContextMenu.Provider<SDK.RemoteObject.RemoteObject>,
                                                                 UI.ActionRegistration.ActionDelegate {
   constructor() {
+    const isReactNative = Root.Runtime.experiments.isEnabled(
+      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+    );
     const registry = instance;
-    const profileTypes = [
+    // [RN] Allocation sampling and Detached elements memory profiling options are not supported.
+    // We are hiding these options from the UI.
+    const profileTypes = isReactNative ? [
+      registry.heapSnapshotProfileType,
+      registry.trackingHeapSnapshotProfileType,
+      registry.samplingHeapProfileType,
+    ] : [
       registry.heapSnapshotProfileType,
       registry.trackingHeapSnapshotProfileType,
       registry.samplingHeapProfileType,
