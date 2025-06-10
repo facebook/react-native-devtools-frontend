@@ -200,20 +200,30 @@ function tokenize(selector, grammar = TOKENS) {
   }
   return tokens;
 }
-function stringify(listOrNode) {
-  if (Array.isArray(listOrNode)) {
-    return listOrNode.map((token) => token.content).join("");
-  }
-  switch (listOrNode.type) {
+function* flatten(node, parent) {
+  switch (node.type) {
     case "list":
-      return listOrNode.list.map(stringify).join(",");
-    case "relative":
-      return listOrNode.combinator + stringify(listOrNode.right);
+      for (let child of node.list) {
+        yield* flatten(child, node);
+      }
+      break;
     case "complex":
-      return stringify(listOrNode.left) + listOrNode.combinator + stringify(listOrNode.right);
+      yield* flatten(node.left, node);
+      yield* flatten(node.right, node);
+      break;
     case "compound":
-      return listOrNode.list.map(stringify).join("");
+      yield* node.list.map((token) => [token, node]);
+      break;
     default:
-      return listOrNode.content;
+      yield [node, parent];
   }
+}
+function stringify(listOrNode) {
+  let tokens;
+  if (Array.isArray(listOrNode)) {
+    tokens = listOrNode;
+  } else {
+    tokens = [...flatten(listOrNode)].map(([token]) => token);
+  }
+  return tokens.map((token) => token.content).join("");
 }

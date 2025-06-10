@@ -3,21 +3,23 @@
 // found in the LICENSE file.
 
 import {TraceLoader} from '../../../testing/TraceLoader.js';
-import * as Trace from '../trace.js';
+import * as TraceModel from '../trace.js';
 
 async function processTrace(context: Mocha.Suite|Mocha.Context|null, path: string): Promise<void> {
   const traceEvents = await TraceLoader.rawEvents(context, path);
-  Trace.Handlers.ModelHandlers.Meta.reset();
+  TraceModel.Handlers.ModelHandlers.Meta.reset();
+  TraceModel.Handlers.ModelHandlers.Meta.initialize();
   for (const event of traceEvents) {
-    Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
-    Trace.Handlers.ModelHandlers.UserInteractions.handleEvent(event);
+    TraceModel.Handlers.ModelHandlers.Meta.handleEvent(event);
+    TraceModel.Handlers.ModelHandlers.UserInteractions.handleEvent(event);
   }
-  await Trace.Handlers.ModelHandlers.Meta.finalize();
-  await Trace.Handlers.ModelHandlers.UserInteractions.finalize();
+  await TraceModel.Handlers.ModelHandlers.Meta.finalize();
+  await TraceModel.Handlers.ModelHandlers.UserInteractions.finalize();
 }
 
 beforeEach(() => {
-  Trace.Handlers.ModelHandlers.Meta.reset();
+  TraceModel.Handlers.ModelHandlers.Meta.reset();
+  TraceModel.Handlers.ModelHandlers.Meta.initialize();
 });
 
 describe('UserInteractionsHandler', function() {
@@ -27,47 +29,68 @@ describe('UserInteractionsHandler', function() {
     interactionId: number,
     processingStart?: number,
     processingEnd?: number,
-  }): Trace.Types.Events.SyntheticInteractionPair {
+  }): TraceModel.Types.TraceEvents.SyntheticInteractionPair {
     const event = {
       name: 'EventTiming',
       type,
-      ts: Trace.Types.Timing.Micro(options.startTime),
-      dur: Trace.Types.Timing.Micro(options.endTime - options.startTime),
-      processingStart: Trace.Types.Timing.Micro(options.processingStart || 0),
-      processingEnd: Trace.Types.Timing.Micro(options.processingEnd || 0),
+      ts: TraceModel.Types.Timing.MicroSeconds(options.startTime),
+      dur: TraceModel.Types.Timing.MicroSeconds(options.endTime - options.startTime),
+      processingStart: TraceModel.Types.Timing.MicroSeconds(options.processingStart || 0),
+      processingEnd: TraceModel.Types.Timing.MicroSeconds(options.processingEnd || 0),
       interactionId: options.interactionId,
     };
 
-    return event as unknown as Trace.Types.Events.SyntheticInteractionPair;
+    return event as unknown as TraceModel.Types.TraceEvents.SyntheticInteractionPair;
   }
+
+  describe('error handling', () => {
+    it('throws if not initialized', async () => {
+      TraceModel.Handlers.ModelHandlers.Meta.reset();
+      TraceModel.Handlers.ModelHandlers.Meta.initialize();
+
+      // Finalize the handler by calling data and then finalize on it.
+      TraceModel.Handlers.ModelHandlers.UserInteractions.data();
+      await TraceModel.Handlers.ModelHandlers.Meta.finalize();
+      await TraceModel.Handlers.ModelHandlers.UserInteractions.finalize();
+
+      assert.throws(() => {
+        const fakeEvent = {} as TraceModel.Types.TraceEvents.TraceEventData;
+        TraceModel.Handlers.ModelHandlers.UserInteractions.handleEvent(fakeEvent);
+      }, 'Handler is not initialized');
+    });
+  });
 
   it('returns all user interactions', async function() {
     const traceEvents = await TraceLoader.rawEvents(this, 'slow-interaction-button-click.json.gz');
     for (const event of traceEvents) {
-      Trace.Handlers.ModelHandlers.UserInteractions.handleEvent(event);
+      TraceModel.Handlers.ModelHandlers.UserInteractions.handleEvent(event);
     }
 
-    const data = Trace.Handlers.ModelHandlers.UserInteractions.data();
-    const clicks = data.allEvents.filter(Trace.Types.Events.isEventTimingStart).filter(event => {
+    const data = TraceModel.Handlers.ModelHandlers.UserInteractions.data();
+    const clicks = data.allEvents.filter(event => {
+      if (!event.args.data) {
+        return false;
+      }
+
       return event.args.data.type === 'click';
     });
 
-    assert.lengthOf(data.allEvents, 58);
-    assert.lengthOf(clicks, 1);
+    assert.strictEqual(data.allEvents.length, 58);
+    assert.strictEqual(clicks.length, 1);
   });
 
   it('returns all interaction events', async () => {
     await processTrace(this, 'slow-interaction-button-click.json.gz');
-    const data = Trace.Handlers.ModelHandlers.UserInteractions.data();
+    const data = TraceModel.Handlers.ModelHandlers.UserInteractions.data();
     // There are three inct interactions:
     // pointerdown on the button (start of the click)
     // pointerup & click on the button (end of the click)
-    assert.lengthOf(data.interactionEvents, 3);
+    assert.strictEqual(data.interactionEvents.length, 3);
   });
 
   it('adds microsecond processingStart and processingEnd times to the synthetic event', async function() {
     await processTrace(this, 'one-second-interaction.json.gz');
-    const data = Trace.Handlers.ModelHandlers.UserInteractions.data();
+    const data = TraceModel.Handlers.ModelHandlers.UserInteractions.data();
     const oneSecondInteraction = Array.from(data.interactionEvents).find(entry => {
       return entry.dur === 979974 && entry.type === 'click';
     });
@@ -81,7 +104,7 @@ describe('UserInteractionsHandler', function() {
 
   it('adds the INP phases to the interaction', async function() {
     await processTrace(this, 'one-second-interaction.json.gz');
-    const data = Trace.Handlers.ModelHandlers.UserInteractions.data();
+    const data = TraceModel.Handlers.ModelHandlers.UserInteractions.data();
     const oneSecondInteraction = Array.from(data.interactionEvents).find(entry => {
       return entry.dur === 979974 && entry.type === 'click';
     });
@@ -98,7 +121,7 @@ describe('UserInteractionsHandler', function() {
 
   it('identifies the longest interaction', async () => {
     await processTrace(this, 'slow-interaction-keydown.json.gz');
-    const data = Trace.Handlers.ModelHandlers.UserInteractions.data();
+    const data = TraceModel.Handlers.ModelHandlers.UserInteractions.data();
     assert.lengthOf(data.interactionEvents, 5);
 
     const expectedLongestEvent = data.interactionEvents.find(event => {
@@ -109,21 +132,21 @@ describe('UserInteractionsHandler', function() {
 
   it('returns a set of all interactions that exceed the threshold', async () => {
     await processTrace(this, 'one-second-interaction.json.gz');
-    const data = Trace.Handlers.ModelHandlers.UserInteractions.data();
+    const data = TraceModel.Handlers.ModelHandlers.UserInteractions.data();
     // There are two long interactions: the pointerup, and the click.
     assert.strictEqual(data.interactionsOverThreshold.size, 2);
   });
 
   it('does not include interactions below the threshold', async () => {
     await processTrace(this, 'slow-interaction-keydown.json.gz');
-    const data = Trace.Handlers.ModelHandlers.UserInteractions.data();
+    const data = TraceModel.Handlers.ModelHandlers.UserInteractions.data();
     // All the interactions in this trace are < 200ms
     assert.strictEqual(data.interactionsOverThreshold.size, 0);
   });
 
   it('sets the `dur` key on each event by finding the begin and end events and subtracting the ts', async () => {
     await processTrace(this, 'slow-interaction-button-click.json.gz');
-    const data = Trace.Handlers.ModelHandlers.UserInteractions.data();
+    const data = TraceModel.Handlers.ModelHandlers.UserInteractions.data();
     for (const syntheticEvent of data.interactionEvents) {
       assert.strictEqual(
           syntheticEvent.dur, syntheticEvent.args.data.endEvent.ts - syntheticEvent.args.data.beginEvent.ts);
@@ -132,7 +155,7 @@ describe('UserInteractionsHandler', function() {
 
   it('gets the right interaction IDs for each interaction', async () => {
     await processTrace(this, 'slow-interaction-button-click.json.gz');
-    const data = Trace.Handlers.ModelHandlers.UserInteractions.data();
+    const data = TraceModel.Handlers.ModelHandlers.UserInteractions.data();
     assert.deepEqual(data.interactionEvents.map(i => i.interactionId), [
       // pointerdown, pointerup and click are all from the same interaction
       1540,
@@ -143,7 +166,7 @@ describe('UserInteractionsHandler', function() {
 
   it('gets the right interaction IDs for a keypress interaction', async () => {
     await processTrace(this, 'slow-interaction-keydown.json.gz');
-    const data = Trace.Handlers.ModelHandlers.UserInteractions.data();
+    const data = TraceModel.Handlers.ModelHandlers.UserInteractions.data();
     assert.deepEqual(data.interactionEvents.map(i => i.interactionId), [
       // pointerdown from clicking on the input
       7371,
@@ -160,9 +183,9 @@ describe('UserInteractionsHandler', function() {
 
   it('detects correct events for a click and keydown interaction', async () => {
     await processTrace(this, 'slow-interaction-keydown.json.gz');
-    const data = Trace.Handlers.ModelHandlers.UserInteractions.data();
-    const foundInteractions = data.allEvents.filter(Trace.Types.Events.isEventTimingStart)
-                                  .filter(e => e.args.data && e.args.data.duration > 1 && e.args.data.interactionId);
+    const data = TraceModel.Handlers.ModelHandlers.UserInteractions.data();
+    const foundInteractions =
+        data.allEvents.filter(e => e.args.data && e.args.data.duration > 1 && e.args.data.interactionId);
     // We expect there to be 3 interactions:
     // User clicks on input:
     // 1.pointerdown, 2. pointerup, 3. click
@@ -187,7 +210,7 @@ describe('UserInteractionsHandler', function() {
     const events = [
       {
         cat: 'devtools.timeline',
-        ph: Trace.Types.Events.Phase.ASYNC_NESTABLE_START,
+        ph: TraceModel.Types.TraceEvents.Phase.ASYNC_NESTABLE_START,
         pid: 1537729,  // the Renderer Thread
         tid: 1,        // CrRendererMain
         id: '1234',
@@ -197,20 +220,20 @@ describe('UserInteractionsHandler', function() {
         name: 'EventTiming',
         args: {
           data: {
-            duration: 16,
-            interactionId: 9700,
-            nodeId: 0,
-            processingEnd: 993,
-            processingStart: 993,
-            timeStamp: 985,
-            type: 'pointerdown',
+            'duration': 16,
+            'interactionId': 9700,
+            'nodeId': 0,
+            'processingEnd': 993,
+            'processingStart': 993,
+            'timeStamp': 985,
+            'type': 'pointerdown',
           },
         },
       },
       // Has an interactionId of 0, so should NOT be included.
       {
         cat: 'devtools.timeline',
-        ph: Trace.Types.Events.Phase.ASYNC_NESTABLE_START,
+        ph: TraceModel.Types.TraceEvents.Phase.ASYNC_NESTABLE_START,
         pid: 1537729,  // the Renderer Thread
         tid: 1,        // CrRendererMain
         id: '1234',
@@ -220,20 +243,20 @@ describe('UserInteractionsHandler', function() {
         name: 'EventTiming',
         args: {
           data: {
-            duration: 16,
-            interactionId: 0,
-            nodeId: 0,
-            processingEnd: 993,
-            processingStart: 993,
-            timeStamp: 985,
-            type: 'pointerdown',
+            'duration': 16,
+            'interactionId': 0,
+            'nodeId': 0,
+            'processingEnd': 993,
+            'processingStart': 993,
+            'timeStamp': 985,
+            'type': 'pointerdown',
           },
         },
       },
       // Has an duration of 0, so should NOT be included.
       {
         cat: 'devtools.timeline',
-        ph: Trace.Types.Events.Phase.ASYNC_NESTABLE_START,
+        ph: TraceModel.Types.TraceEvents.Phase.ASYNC_NESTABLE_START,
         pid: 1537729,  // the Renderer Thread
         tid: 1,        // CrRendererMain
         id: '1234',
@@ -243,29 +266,29 @@ describe('UserInteractionsHandler', function() {
         name: 'EventTiming',
         args: {
           data: {
-            duration: 0,
-            interactionId: 0,
-            nodeId: 0,
-            processingEnd: 993,
-            processingStart: 993,
-            timeStamp: 985,
-            type: 'pointerdown',
+            'duration': 0,
+            'interactionId': 0,
+            'nodeId': 0,
+            'processingEnd': 993,
+            'processingStart': 993,
+            'timeStamp': 985,
+            'type': 'pointerdown',
           },
         },
       },
-    ] as unknown as Trace.Types.Events.EventTimingBeginOrEnd[];
-    Trace.Handlers.ModelHandlers.UserInteractions.reset();
+    ] as unknown as TraceModel.Types.TraceEvents.TraceEventEventTiming[];
+    TraceModel.Handlers.ModelHandlers.UserInteractions.reset();
     for (const event of events) {
-      Trace.Handlers.ModelHandlers.UserInteractions.handleEvent(event);
+      TraceModel.Handlers.ModelHandlers.UserInteractions.handleEvent(event);
     }
-    await Trace.Handlers.ModelHandlers.Meta.finalize();
-    await Trace.Handlers.ModelHandlers.UserInteractions.finalize();
-    const timings = Trace.Handlers.ModelHandlers.UserInteractions.data().allEvents;
+    await TraceModel.Handlers.ModelHandlers.Meta.finalize();
+    await TraceModel.Handlers.ModelHandlers.UserInteractions.finalize();
+    const timings = TraceModel.Handlers.ModelHandlers.UserInteractions.data().allEvents;
     assert.lengthOf(timings, 3);
   });
 
   describe('collapsing nested interactions', () => {
-    const {removeNestedInteractions} = Trace.Handlers.ModelHandlers.UserInteractions;
+    const {removeNestedInteractions} = TraceModel.Handlers.ModelHandlers.UserInteractions;
 
     it('removes interactions that have the same end time but are not the first event in that block', () => {
       /**
@@ -376,7 +399,7 @@ describe('UserInteractionsHandler', function() {
 
     it('can remove nested interactions in a real trace', async () => {
       await processTrace(this, 'nested-interactions.json.gz');
-      const data = Trace.Handlers.ModelHandlers.UserInteractions.data();
+      const data = TraceModel.Handlers.ModelHandlers.UserInteractions.data();
 
       const visibleEventInteractionIds = data.interactionEventsWithNoNesting.map(event => {
         return `${event.type}:${event.interactionId}`;
@@ -423,15 +446,15 @@ describe('UserInteractionsHandler', function() {
   it('gets the correct score classification for Interaction to Next Paint event', () => {
     const eventA = makeFakeInteraction('pointerdown', {startTime: 0, endTime: 10_000, interactionId: 1});
     assert.strictEqual(
-        Trace.Handlers.ModelHandlers.UserInteractions.scoreClassificationForInteractionToNextPaint(eventA.dur),
-        Trace.Handlers.ModelHandlers.PageLoadMetrics.ScoreClassification.GOOD);
+        TraceModel.Handlers.ModelHandlers.UserInteractions.scoreClassificationForInteractionToNextPaint(eventA.dur),
+        TraceModel.Handlers.ModelHandlers.PageLoadMetrics.ScoreClassification.GOOD);
     const eventB = makeFakeInteraction('pointerdown', {startTime: 0, endTime: 250_000, interactionId: 1});
     assert.strictEqual(
-        Trace.Handlers.ModelHandlers.UserInteractions.scoreClassificationForInteractionToNextPaint(eventB.dur),
-        Trace.Handlers.ModelHandlers.PageLoadMetrics.ScoreClassification.OK);
+        TraceModel.Handlers.ModelHandlers.UserInteractions.scoreClassificationForInteractionToNextPaint(eventB.dur),
+        TraceModel.Handlers.ModelHandlers.PageLoadMetrics.ScoreClassification.OK);
     const eventC = makeFakeInteraction('pointerdown', {startTime: 0, endTime: 1_000_000, interactionId: 1});
     assert.strictEqual(
-        Trace.Handlers.ModelHandlers.UserInteractions.scoreClassificationForInteractionToNextPaint(eventC.dur),
-        Trace.Handlers.ModelHandlers.PageLoadMetrics.ScoreClassification.BAD);
+        TraceModel.Handlers.ModelHandlers.UserInteractions.scoreClassificationForInteractionToNextPaint(eventC.dur),
+        TraceModel.Handlers.ModelHandlers.PageLoadMetrics.ScoreClassification.BAD);
   });
 });

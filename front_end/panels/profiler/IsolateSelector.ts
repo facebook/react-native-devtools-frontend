@@ -4,6 +4,7 @@
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
@@ -53,7 +54,7 @@ const UIStrings = {
    *@description Text to show an item is empty
    */
   empty: '(empty)',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/profiler/IsolateSelector.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class IsolateSelector extends UI.Widget.VBox implements UI.ListControl.ListDelegate<ListItem>,
@@ -89,34 +90,32 @@ export class IsolateSelector extends UI.Widget.VBox implements UI.ListControl.Li
 
     SDK.IsolateManager.IsolateManager.instance().observeIsolates(this);
     SDK.TargetManager.TargetManager.instance().addEventListener(
-        SDK.TargetManager.Events.NAME_CHANGED, this.targetChanged, this);
+        SDK.TargetManager.Events.NameChanged, this.targetChanged, this);
     SDK.TargetManager.TargetManager.instance().addEventListener(
-        SDK.TargetManager.Events.INSPECTED_URL_CHANGED, this.targetChanged, this);
+        SDK.TargetManager.Events.InspectedURLChanged, this.targetChanged, this);
   }
 
   override wasShown(): void {
     super.wasShown();
     SDK.IsolateManager.IsolateManager.instance().addEventListener(
-        SDK.IsolateManager.Events.MEMORY_CHANGED, this.heapStatsChanged, this);
+        SDK.IsolateManager.Events.MemoryChanged, this.heapStatsChanged, this);
   }
 
   override willHide(): void {
     SDK.IsolateManager.IsolateManager.instance().removeEventListener(
-        SDK.IsolateManager.Events.MEMORY_CHANGED, this.heapStatsChanged, this);
+        SDK.IsolateManager.Events.MemoryChanged, this.heapStatsChanged, this);
   }
 
   isolateAdded(isolate: SDK.IsolateManager.Isolate): void {
     this.list.element.tabIndex = 0;
     const item = new ListItem(isolate);
-    // Insert the primary page target at the top of the list.
     const index = (item.model() as SDK.RuntimeModel.RuntimeModel).target() ===
-            SDK.TargetManager.TargetManager.instance().primaryPageTarget() ?
+            SDK.TargetManager.TargetManager.instance().rootTarget() ?
         0 :
         this.items.length;
     this.items.insert(index, item);
     this.itemByIsolate.set(isolate, item);
-    // Select the first item by default.
-    if (index === 0) {
+    if (this.items.length === 1 || isolate.isMainThread()) {
       this.list.selectItem(item);
     }
     this.update();
@@ -171,7 +170,7 @@ export class IsolateSelector extends UI.Widget.VBox implements UI.ListControl.Li
       total += isolate.usedHeapSize();
       trend += isolate.usedHeapSizeGrowRate();
     }
-    this.totalValueDiv.textContent = i18n.ByteUtilities.bytesToString(total);
+    this.totalValueDiv.textContent = Platform.NumberUtilities.bytesToString(total);
     IsolateSelector.formatTrendElement(trend, this.totalTrendDiv);
   }
 
@@ -181,7 +180,7 @@ export class IsolateSelector extends UI.Widget.VBox implements UI.ListControl.Li
     if (Math.abs(changeRateBytesPerSecond) < changeRateThresholdBytesPerSecond) {
       return;
     }
-    const changeRateText = i18n.ByteUtilities.bytesToString(Math.abs(changeRateBytesPerSecond));
+    const changeRateText = Platform.NumberUtilities.bytesToString(Math.abs(changeRateBytesPerSecond));
     let changeText, changeLabel;
     if (changeRateBytesPerSecond > 0) {
       changeText = '\u2B06' + i18nString(UIStrings.changeRate, {PH1: changeRateText});
@@ -225,11 +224,11 @@ export class IsolateSelector extends UI.Widget.VBox implements UI.ListControl.Li
     if (toElement) {
       toElement.classList.add('selected');
     }
-    const model = to?.model();
+    const model = to && to.model();
     UI.Context.Context.instance().setFlavor(
-        SDK.HeapProfilerModel.HeapProfilerModel, model?.heapProfilerModel() ?? null);
+        SDK.HeapProfilerModel.HeapProfilerModel, model && model.heapProfilerModel());
     UI.Context.Context.instance().setFlavor(
-        SDK.CPUProfilerModel.CPUProfilerModel, model?.target().model(SDK.CPUProfilerModel.CPUProfilerModel) ?? null);
+        SDK.CPUProfilerModel.CPUProfilerModel, model && model.target().model(SDK.CPUProfilerModel.CPUProfilerModel));
   }
 
   update(): void {
@@ -266,23 +265,19 @@ export class ListItem {
   }
 
   updateStats(): void {
-    this.heapDiv.textContent = i18n.ByteUtilities.bytesToString(this.isolate.usedHeapSize());
+    this.heapDiv.textContent = Platform.NumberUtilities.bytesToString(this.isolate.usedHeapSize());
     IsolateSelector.formatTrendElement(this.isolate.usedHeapSizeGrowRate(), this.trendDiv);
   }
 
   updateTitle(): void {
     const modelCountByName = new Map<string, number>();
-    const targetManager = SDK.TargetManager.TargetManager.instance();
     for (const model of this.isolate.models()) {
       const target = model.target();
-      const isPrimaryPageTarget = targetManager.primaryPageTarget() === target;
-      const name = target.name();
+      const name = SDK.TargetManager.TargetManager.instance().rootTarget() !== target ? target.name() : '';
       const parsedURL = new Common.ParsedURL.ParsedURL(target.inspectedURL());
       const domain = parsedURL.isValid ? parsedURL.domain() : '';
-      // If it is primary page target, omit `domain` in the title.
-      // Otherwise show its `domain` and `name` as title if available.
-      const title = target.decorateLabel(
-          domain && !isPrimaryPageTarget ? `${domain}: ${name}` : name || domain || i18nString(UIStrings.empty));
+      const title =
+          target.decorateLabel(domain && name ? `${domain}: ${name}` : name || domain || i18nString(UIStrings.empty));
       modelCountByName.set(title, (modelCountByName.get(title) || 0) + 1);
     }
     this.nameDiv.removeChildren();

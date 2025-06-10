@@ -4,34 +4,38 @@
 
 import type * as SDK from '../../../core/sdk/sdk.js';
 import {
+  getCellByIndexes,
   getValuesOfAllBodyRows,
 } from '../../../testing/DataGridHelpers.js';
 import {
   dispatchClickEvent,
+  getElementWithinComponent,
   renderElementIntoDOM,
 } from '../../../testing/DOMHelpers.js';
 import {createTarget} from '../../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../../testing/MockConnection.js';
-import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
+import * as DataGrid from '../../../ui/components/data_grid/data_grid.js';
+import * as Coordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 
 import * as ApplicationComponents from './components.js';
 
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
+
 async function renderTrustTokensView(): Promise<ApplicationComponents.TrustTokensView.TrustTokensView> {
   const component = new ApplicationComponents.TrustTokensView.TrustTokensView();
-  component.style.display = 'block';
-  component.style.width = '640px';
-  component.style.height = '480px';
   renderElementIntoDOM(component);
 
   // The data-grid's renderer is scheduled, so we need to wait until the coordinator
   // is done before we can test against it.
-  await RenderCoordinator.done({waitForWork: true});
+  await coordinator.done({waitForWork: true});
 
   return component;
 }
 
 function getInternalDataGridShadowRoot(component: ApplicationComponents.TrustTokensView.TrustTokensView): ShadowRoot {
-  const dataGrid = component.shadowRoot!.querySelector('devtools-data-grid')!;
+  const dataGridController = getElementWithinComponent(
+      component, 'devtools-data-grid-controller', DataGrid.DataGridController.DataGridController);
+  const dataGrid = getElementWithinComponent(dataGridController, 'devtools-data-grid', DataGrid.DataGrid.DataGrid);
   assert.isNotNull(dataGrid.shadowRoot);
   return dataGrid.shadowRoot;
 }
@@ -94,14 +98,14 @@ describeWithMockConnection('TrustTokensView', () => {
     ]);
   });
 
-  it('shows empty state when there are no trust tokens', async () => {
+  it('hides trust token table when there are no trust tokens', async () => {
     sinon.stub(target.storageAgent(), 'invoke_getTrustTokens').resolves({tokens: [], getError: () => undefined});
     const component = await renderTrustTokensView();
 
     const nullGridElement = component.shadowRoot!.querySelector('devtools-data-grid-controller');
     assert.isNull(nullGridElement);
 
-    const noTrustTokensElement = component.shadowRoot!.querySelector('.empty-state');
+    const noTrustTokensElement = component.shadowRoot!.querySelector('div.no-tt-message');
     assert.instanceOf(noTrustTokensElement, HTMLDivElement);
   });
 
@@ -118,7 +122,9 @@ describeWithMockConnection('TrustTokensView', () => {
 
     const component = await renderTrustTokensView();
 
-    const deleteButtonComponent = component.shadowRoot!.querySelector('devtools-button');
+    const dataGridShadowRoot = getInternalDataGridShadowRoot(component);
+    const deleteCell = getCellByIndexes(dataGridShadowRoot, {column: 2, row: 1});
+    const deleteButtonComponent = deleteCell.querySelector('devtools-button');
     assert.instanceOf(deleteButtonComponent, HTMLElement);
     dispatchClickEvent(deleteButtonComponent);
 

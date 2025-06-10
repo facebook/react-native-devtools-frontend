@@ -3,48 +3,54 @@
 // found in the LICENSE file.
 
 import {
+  dispatchClickEvent,
   renderElementIntoDOM,
 } from '../../testing/DOMHelpers.js';
 import {
-  describeWithEnvironment,
+  deinitializeGlobalVars,
+  initializeGlobalVars,
 } from '../../testing/EnvironmentHelpers.js';
+import * as Buttons from '../components/buttons/buttons.js';
 
 import * as UI from './legacy.js';
 
-describeWithEnvironment('Infobar', () => {
+describe('Infobar', () => {
+  before(async () => {
+    await initializeGlobalVars();
+  });
+
+  after(async () => {
+    await deinitializeGlobalVars();
+  });
+
   const checkDetailsMessage = (component: UI.Infobar.Infobar, messageText: string) => {
     renderElementIntoDOM(component.element);
 
     const infobar = component.element.shadowRoot!.querySelector('.infobar');
     assert.instanceOf(infobar, HTMLDivElement);
-    const details = infobar.querySelector('details');
-    assert.exists(details);
-    assert.isFalse(details.hasAttribute('open'));
+    const learnMoreButton = infobar.querySelector('devtools-button');
+    assert.instanceOf(learnMoreButton, Buttons.Button.Button);
+    const detailsRow = infobar.querySelector('.infobar-details-rows');
+    assert.instanceOf(detailsRow, HTMLDivElement);
 
-    const detailsRow = details.querySelector('.infobar-details-rows');
-    assert.strictEqual(detailsRow?.textContent, messageText);
+    assert.isTrue(detailsRow.classList.contains('hidden'), 'Details row should initially be hidden');
+    assert.strictEqual(detailsRow.textContent, messageText);
 
-    const summary = details.querySelector('summary');
-    assert.exists(summary);
-    summary.click();
-    assert.isTrue(details.hasAttribute('open'));
+    dispatchClickEvent(learnMoreButton);
+    assert.isFalse(
+        detailsRow.classList.contains('hidden'),
+        'Details row should not be hidden after clicking on learn-more-button');
   };
 
-  it('shows main message', () => {
-    const component = new UI.Infobar.Infobar(UI.Infobar.Type.WARNING, 'This is a warning');
-    assert.deepEqual(
-        component.element.shadowRoot?.querySelector('.infobar-main-row')?.textContent, 'This is a warning');
-  });
-
   it('shows details message containing a string', () => {
-    const component = new UI.Infobar.Infobar(UI.Infobar.Type.WARNING, 'This is a warning');
+    const component = new UI.Infobar.Infobar(UI.Infobar.Type.Warning, 'This is a warning');
     const messageText = 'This is a more detailed warning';
     component.createDetailsRowMessage(messageText);
     checkDetailsMessage(component, messageText);
   });
 
   it('shows details message containing HTML element(s)', () => {
-    const component = new UI.Infobar.Infobar(UI.Infobar.Type.WARNING, 'This is a warning');
+    const component = new UI.Infobar.Infobar(UI.Infobar.Type.Warning, 'This is a warning');
     const linkText = 'example-link';
     const link = UI.XLink.XLink.create('https://www.example.com', linkText);
     component.createDetailsRowMessage(link);

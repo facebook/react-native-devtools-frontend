@@ -24,6 +24,7 @@ export class ImagePreviewPopover {
     this.getDOMNode = getDOMNode;
     this.popover =
         new UI.PopoverHelper.PopoverHelper(container, this.handleRequest.bind(this), 'elements.image-preview');
+    this.popover.setHasPadding(true);
     this.popover.setTimeout(0, 100);
   }
 
@@ -40,16 +41,14 @@ export class ImagePreviewPopover {
       box: link.boxInWindow(),
       hide: undefined,
       show: async (popover: UI.GlassPane.GlassPane) => {
-        const node = this.getDOMNode((link));
+        const node = this.getDOMNode((link as Element));
         if (!node) {
           return false;
         }
         const precomputedFeatures = await Components.ImagePreview.ImagePreview.loadDimensionsForNode(node);
-        const preview = await Components.ImagePreview.ImagePreview.build(node.domModel().target(), href, true, {
-          imageAltText: undefined,
-          precomputedFeatures,
-          align: Components.ImagePreview.Align.CENTER,
-        });
+        const preview = await Components.ImagePreview.ImagePreview.build(
+            node.domModel().target(), href as Platform.DevToolsPath.UrlString, true,
+            {imageAltText: undefined, precomputedFeatures});
         if (preview) {
           popover.contentElement.appendChild(preview);
         }

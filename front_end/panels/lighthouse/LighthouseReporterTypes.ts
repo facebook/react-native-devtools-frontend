@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import type * as Platform from '../../core/platform/platform.js';
-import type * as Trace from '../../models/trace/trace.js';
+import type * as TraceEngine from '../../models/trace/trace.js';
 
 export class LighthouseReportGenerator {
   generateReportHtml(_lhr: ReportJSON): string {
@@ -17,7 +17,7 @@ export interface AuditResultJSON {
   description: string;
   explanation?: string;
   errorMessage?: string;
-  displayValue?: string|Array<string|number>;
+  displayValue?: string|(string|number)[];
   scoreDisplayMode: string;
   error: boolean;
   score: number|null;
@@ -51,7 +51,7 @@ export interface ReportJSON {
   finalDisplayedUrl: string;
   finalUrl?: string;
   runWarnings?: string[];
-  artifacts: {traces: {defaultPass: {traceEvents: unknown[]}}};
+  artifacts: {traces: {defaultPass: {traceEvents: Array<unknown>}}};
   audits: {[x: string]: AuditResultJSON};
   categories: {[x: string]: CategoryJSON};
   categoryGroups: {[x: string]: GroupJSON};
@@ -64,7 +64,7 @@ export interface DetailsJSON {
   displayUnit?: string;
 }
 export interface RunnerResultArtifacts {
-  traces: {defaultPass: {traceEvents: Trace.Types.Events.Event[]}};
+  traces: {defaultPass: {traceEvents: TraceEngine.Types.TraceEvents.TraceEventData[]}};
   settings: {throttlingMethod: string};
 }
 export interface RunnerResult {

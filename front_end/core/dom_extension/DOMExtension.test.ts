@@ -4,25 +4,28 @@
 
 import './dom_extension.js';
 
+declare global {
+  interface HTMLElement {
+    traverseNextNode(node: HTMLElement): HTMLElement;
+    createChild(tagName: string, className?: string, content?: string): HTMLElement;
+  }
+}
+
 function createSlot(parent: HTMLElement, name?: string) {
-  const slot = parent.createChild('slot');
+  const slot = parent.createChild('slot') as HTMLSlotElement;
   if (name) {
     slot.name = name;
   }
   return slot;
 }
 
-function createChild(parent: HTMLElement, tagName: keyof HTMLElementTagNameMap, name?: string, text = '') {
+function createChild(parent: HTMLElement, tagName: string, name?: string, text = '') {
   const child = parent.createChild(tagName, name);
   if (name) {
     child.slot = name;
   }
   child.textContent = text;
   return child;
-}
-
-function traverseNextNode(parent: HTMLElement, stayWithin: HTMLElement): HTMLElement {
-  return parent.traverseNextNode(stayWithin) as HTMLElement;
 }
 
 describe('DataGrid', () => {
@@ -44,36 +47,36 @@ describe('DataGrid', () => {
         */
 
     let node: HTMLElement = component1;
-    assert.isNull(node.nodeValue, 'root node value is incorrect');
+    assert.strictEqual(node.nodeValue, null, 'root node value is incorrect');
     assert.strictEqual(node.nodeName, 'DIV', 'root node name is incorrect');
     assert.strictEqual(node.className, 'component1', 'root node class is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'DIV', 'first child node name is incorrect');
     assert.strictEqual(node.className, 'component1-content', 'first child class is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeValue, 'text 1', 'second child node value is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'DIV', 'second child node name is incorrect');
     assert.strictEqual(node.className, 'component2-content', 'second child class is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeValue, 'text 2', 'second child node value is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'SPAN', 'third child node name is incorrect');
     assert.strictEqual(node.className, '', 'third child class is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeValue, 'text 3', 'third child node value is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'SPAN', 'forth child node name is incorrect');
     assert.strictEqual(node.className, 'component1-content', 'forth child class is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeValue, 'text 4', 'forth child node value is incorrect');
   });
 
@@ -103,33 +106,33 @@ describe('DataGrid', () => {
     assert.strictEqual(node.nodeName, 'DIV', 'root node name is incorrect');
     assert.strictEqual(node.className, 'component1', 'root node class is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, '#document-fragment', 'first document fragment node name is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'DIV', 'first document fragment child node name is incorrect');
     assert.strictEqual(node.className, 'shadow-component1', 'first document fragment child node name is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'DIV');
     assert.strictEqual(node.className, 'component2');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, '#document-fragment');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'DIV');
     assert.strictEqual(node.className, 'shadow-component1');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'DIV');
     assert.strictEqual(node.className, 'mid-div');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'DIV');
     assert.strictEqual(node.className, '');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, '#text');
     assert.strictEqual(node.nodeValue, 'component2-text');
   });
@@ -179,56 +182,56 @@ describe('DataGrid', () => {
     assert.strictEqual(node.nodeName, 'DIV', 'root node name is incorrect');
     assert.strictEqual(node.className, 'component1', 'root node class is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, '#document-fragment', 'first document fragment node name is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'DIV', 'first document fragment child node name is incorrect');
     assert.strictEqual(node.className, 'shadow-component1', 'first document fragment child node name is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'SLOT', 'first slot node name is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'SLOT', 'second slot node name is incorrect');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'DIV');
     assert.strictEqual(node.className, 'component2');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, '#document-fragment');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'DIV');
     assert.strictEqual(node.className, 'shadow-component1');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'DIV');
     assert.strictEqual(node.className, 'mid-div');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'DIV');
     assert.strictEqual(node.className, '');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeValue, 'component2-text');
     assert.strictEqual(node.nodeName, '#text');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'SLOT');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'SLOT');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'SLOT');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeName, 'DIV');
     assert.strictEqual(node.className, 'component2-content');
 
-    node = traverseNextNode(node, component1);
+    node = node.traverseNextNode(component1);
     assert.strictEqual(node.nodeValue, 'component2 light dom text');
     assert.strictEqual(node.nodeName, '#text');
   });

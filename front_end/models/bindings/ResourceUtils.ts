@@ -39,7 +39,14 @@ import type * as Protocol from '../../generated/protocol.js';
 import * as Workspace from '../workspace/workspace.js';
 
 export function resourceForURL(url: Platform.DevToolsPath.UrlString): SDK.Resource.Resource|null {
-  return SDK.ResourceTreeModel.ResourceTreeModel.resourceForURL(url);
+  for (const resourceTreeModel of SDK.TargetManager.TargetManager.instance().models(
+           SDK.ResourceTreeModel.ResourceTreeModel)) {
+    const resource = resourceTreeModel.resourceForURL(url);
+    if (resource) {
+      return resource;
+    }
+  }
+  return null;
 }
 
 export function displayNameForURL(url: Platform.DevToolsPath.UrlString): string {

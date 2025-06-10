@@ -17,6 +17,7 @@ dialog::backdrop {
 dialog {
   background: transparent;
   border: none;
+  border-radius: 4px;
   top: var(--dialog-top);
   padding: var(--dialog-padding);
   left: var(--dialog-left);
@@ -28,7 +29,6 @@ dialog {
   animation-duration: 100ms;
   animation-timing-function: cubic-bezier(0, 0, 0.3, 1);
   overflow: hidden;
-  filter: drop-shadow(0 4px 8px rgb(0 0 0 / 15%)) drop-shadow(0 1px 3px rgb(0 0 0 / 30%));
 }
 
 dialog:focus,
@@ -39,37 +39,19 @@ dialog:focus-visible {
 #content {
   min-width: var(--content-min-width);
   background: var(--color-background-elevation-dark-only);
-  border-radius: var(--sys-size-5);
+  border-radius: 4px;
+  padding-top: var(--content-padding-top);
+  padding-bottom: var(--content-padding-bottom);
+  box-shadow: var(--override-content-box-shadow);
   max-height: var(--dialog-max-height);
   max-width: var(--dialog-max-width);
   overflow: auto;
   outline: none;
+  clip-path: polygon(var(--content-clip-path));
 }
 
-.dialog-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--sys-size-5) var(--sys-size-5) var(--sys-size-5) var(--sys-size-8);
-
-  &:empty {
-    padding: 0;
-    height: var(--sys-size-7);
-  }
-
-  .dialog-header-text {
-    font: var(--sys-typescale-body2-medium);
-    padding-top: var(--sys-size-3);
-  }
-
-  devtools-button {
-    margin: 3px;
-  }
-}
-
-.dialog-content {
-  padding: 0 var(--sys-size-8) var(--sys-size-7) var(--sys-size-8);
-  overflow: hidden;
+#content-wrap {
+  filter: drop-shadow(0 1px 2px rgb(60 64 67 / 30%)) drop-shadow(0 2px 0 rgb(60 64 67 / 15%));
 }
 
 @keyframes slideIn {

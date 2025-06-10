@@ -9,8 +9,10 @@ import * as SDK from '../../core/sdk/sdk.js';
 let contrastCheckTriggerInstance: ContrastCheckTrigger|null = null;
 
 export class ContrastCheckTrigger {
-  #pageLoadListeners = new WeakMap<SDK.ResourceTreeModel.ResourceTreeModel, Common.EventTarget.EventDescriptor>();
-  #frameAddedListeners = new WeakMap<SDK.ResourceTreeModel.ResourceTreeModel, Common.EventTarget.EventDescriptor>();
+  #pageLoadListeners: WeakMap<SDK.ResourceTreeModel.ResourceTreeModel, Common.EventTarget.EventDescriptor> =
+      new WeakMap();
+  #frameAddedListeners: WeakMap<SDK.ResourceTreeModel.ResourceTreeModel, Common.EventTarget.EventDescriptor> =
+      new WeakMap();
 
   constructor() {
     SDK.TargetManager.TargetManager.instance().observeModels(SDK.ResourceTreeModel.ResourceTreeModel, this);

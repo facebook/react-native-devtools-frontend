@@ -18,49 +18,49 @@ import * as Resources from './application.js';
 
 class SharedStorageListener {
   #model: Resources.SharedStorageModel.SharedStorageModel;
-  #storagesWatched: Resources.SharedStorageModel.SharedStorageForOrigin[];
-  #accessEvents: Protocol.Storage.SharedStorageAccessedEvent[];
+  #storagesWatched: Array<Resources.SharedStorageModel.SharedStorageForOrigin>;
+  #accessEvents: Array<Protocol.Storage.SharedStorageAccessedEvent>;
   #changeEvents:
       Map<Resources.SharedStorageModel.SharedStorageForOrigin,
-          Resources.SharedStorageModel.SharedStorageForOrigin.SharedStorageChangedEvent[]>;
+          Array<Resources.SharedStorageModel.SharedStorageForOrigin.SharedStorageChangedEvent>>;
 
   constructor(model: Resources.SharedStorageModel.SharedStorageModel) {
     this.#model = model;
-    this.#storagesWatched = [];
-    this.#accessEvents = [];
+    this.#storagesWatched = new Array<Resources.SharedStorageModel.SharedStorageForOrigin>();
+    this.#accessEvents = new Array<Protocol.Storage.SharedStorageAccessedEvent>();
     this.#changeEvents = new Map<
         Resources.SharedStorageModel.SharedStorageForOrigin,
-        Resources.SharedStorageModel.SharedStorageForOrigin.SharedStorageChangedEvent[]>();
+        Array<Resources.SharedStorageModel.SharedStorageForOrigin.SharedStorageChangedEvent>>();
 
     this.#model.addEventListener(
-        Resources.SharedStorageModel.Events.SHARED_STORAGE_ADDED, this.#sharedStorageAdded, this);
+        Resources.SharedStorageModel.Events.SharedStorageAdded, this.#sharedStorageAdded, this);
     this.#model.addEventListener(
-        Resources.SharedStorageModel.Events.SHARED_STORAGE_REMOVED, this.#sharedStorageRemoved, this);
+        Resources.SharedStorageModel.Events.SharedStorageRemoved, this.#sharedStorageRemoved, this);
     this.#model.addEventListener(
-        Resources.SharedStorageModel.Events.SHARED_STORAGE_ACCESS, this.#sharedStorageAccess, this);
+        Resources.SharedStorageModel.Events.SharedStorageAccess, this.#sharedStorageAccess, this);
   }
 
   dispose(): void {
     this.#model.removeEventListener(
-        Resources.SharedStorageModel.Events.SHARED_STORAGE_ADDED, this.#sharedStorageAdded, this);
+        Resources.SharedStorageModel.Events.SharedStorageAdded, this.#sharedStorageAdded, this);
     this.#model.removeEventListener(
-        Resources.SharedStorageModel.Events.SHARED_STORAGE_REMOVED, this.#sharedStorageRemoved, this);
+        Resources.SharedStorageModel.Events.SharedStorageRemoved, this.#sharedStorageRemoved, this);
     this.#model.removeEventListener(
-        Resources.SharedStorageModel.Events.SHARED_STORAGE_ACCESS, this.#sharedStorageAccess, this);
+        Resources.SharedStorageModel.Events.SharedStorageAccess, this.#sharedStorageAccess, this);
 
     for (const storage of this.#storagesWatched) {
       storage.removeEventListener(
-          Resources.SharedStorageModel.SharedStorageForOrigin.Events.SHARED_STORAGE_CHANGED,
+          Resources.SharedStorageModel.SharedStorageForOrigin.Events.SharedStorageChanged,
           this.#sharedStorageChanged.bind(this, storage), this);
     }
   }
 
-  get accessEvents(): Protocol.Storage.SharedStorageAccessedEvent[] {
+  get accessEvents(): Array<Protocol.Storage.SharedStorageAccessedEvent> {
     return this.#accessEvents;
   }
 
   changeEventsForStorage(storage: Resources.SharedStorageModel.SharedStorageForOrigin):
-      Resources.SharedStorageModel.SharedStorageForOrigin.SharedStorageChangedEvent[]|null {
+      Array<Resources.SharedStorageModel.SharedStorageForOrigin.SharedStorageChangedEvent>|null {
     return this.#changeEvents.get(storage) || null;
   }
 
@@ -70,18 +70,18 @@ class SharedStorageListener {
 
   #sharedStorageAdded(event: Common.EventTarget.EventTargetEvent<Resources.SharedStorageModel.SharedStorageForOrigin>):
       void {
-    const storage = (event.data);
+    const storage = (event.data as Resources.SharedStorageModel.SharedStorageForOrigin);
     this.#storagesWatched.push(storage);
     storage.addEventListener(
-        Resources.SharedStorageModel.SharedStorageForOrigin.Events.SHARED_STORAGE_CHANGED,
+        Resources.SharedStorageModel.SharedStorageForOrigin.Events.SharedStorageChanged,
         this.#sharedStorageChanged.bind(this, storage), this);
   }
 
   #sharedStorageRemoved(
       event: Common.EventTarget.EventTargetEvent<Resources.SharedStorageModel.SharedStorageForOrigin>): void {
-    const storage = (event.data);
+    const storage = (event.data as Resources.SharedStorageModel.SharedStorageForOrigin);
     storage.removeEventListener(
-        Resources.SharedStorageModel.SharedStorageForOrigin.Events.SHARED_STORAGE_CHANGED,
+        Resources.SharedStorageModel.SharedStorageForOrigin.Events.SharedStorageChanged,
         this.#sharedStorageChanged.bind(this, storage), this);
     const index = this.#storagesWatched.indexOf(storage);
     if (index === -1) {
@@ -91,7 +91,7 @@ class SharedStorageListener {
   }
 
   #sharedStorageAccess(event: Common.EventTarget.EventTargetEvent<Protocol.Storage.SharedStorageAccessedEvent>): void {
-    this.#accessEvents.push(event.data);
+    this.#accessEvents.push(event.data as Protocol.Storage.SharedStorageAccessedEvent);
   }
 
   #sharedStorageChanged(
@@ -99,14 +99,16 @@ class SharedStorageListener {
       event: Common.EventTarget
           .EventTargetEvent<Resources.SharedStorageModel.SharedStorageForOrigin.SharedStorageChangedEvent>): void {
     if (!this.#changeEvents.has(storage)) {
-      this.#changeEvents.set(storage, []);
+      this.#changeEvents.set(
+          storage, new Array<Resources.SharedStorageModel.SharedStorageForOrigin.SharedStorageChangedEvent>());
     }
-    this.#changeEvents.get(storage)?.push(event.data);
+    this.#changeEvents.get(storage)?.push(
+        event.data as Resources.SharedStorageModel.SharedStorageForOrigin.SharedStorageChangedEvent);
   }
 
   async waitForStoragesAdded(expectedCount: number): Promise<void> {
     while (this.#storagesWatched.length < expectedCount) {
-      await this.#model.once(Resources.SharedStorageModel.Events.SHARED_STORAGE_ADDED);
+      await this.#model.once(Resources.SharedStorageModel.Events.SharedStorageAdded);
     }
   }
 }
@@ -117,11 +119,8 @@ describeWithMockConnection('SharedStorageModel', () => {
   let listener: SharedStorageListener;
 
   const TEST_ORIGIN_A = 'http://a.test';
-  const TEST_SITE_A = TEST_ORIGIN_A;
   const TEST_ORIGIN_B = 'http://b.test';
-  const TEST_SITE_B = TEST_ORIGIN_B;
   const TEST_ORIGIN_C = 'http://c.test';
-  const TEST_SITE_C = TEST_ORIGIN_C;
 
   const METADATA = {
     creationTime: 100 as Protocol.Network.TimeSinceEpoch,
@@ -148,57 +147,45 @@ describeWithMockConnection('SharedStorageModel', () => {
   const EVENTS = [
     {
       accessTime: 0,
-      method: Protocol.Storage.SharedStorageAccessMethod.Append,
+      type: Protocol.Storage.SharedStorageAccessType.DocumentAppend,
       mainFrameId: MAIN_FRAME_ID,
       ownerOrigin: TEST_ORIGIN_A,
-      ownerSite: TEST_SITE_A,
       params: {key: 'key0', value: 'value0'} as Protocol.Storage.SharedStorageAccessParams,
-      scope: Protocol.Storage.SharedStorageAccessScope.Window,
     },
     {
       accessTime: 10,
-      method: Protocol.Storage.SharedStorageAccessMethod.Get,
+      type: Protocol.Storage.SharedStorageAccessType.WorkletGet,
       mainFrameId: MAIN_FRAME_ID,
       ownerOrigin: TEST_ORIGIN_A,
-      ownerSite: TEST_SITE_A,
       params: {key: 'key0'} as Protocol.Storage.SharedStorageAccessParams,
-      scope: Protocol.Storage.SharedStorageAccessScope.SharedStorageWorklet,
     },
     {
       accessTime: 15,
-      method: Protocol.Storage.SharedStorageAccessMethod.Length,
+      type: Protocol.Storage.SharedStorageAccessType.WorkletLength,
       mainFrameId: MAIN_FRAME_ID,
       ownerOrigin: TEST_ORIGIN_B,
-      ownerSite: TEST_SITE_B,
       params: {} as Protocol.Storage.SharedStorageAccessParams,
-      scope: Protocol.Storage.SharedStorageAccessScope.SharedStorageWorklet,
     },
     {
       accessTime: 20,
-      method: Protocol.Storage.SharedStorageAccessMethod.Clear,
+      type: Protocol.Storage.SharedStorageAccessType.DocumentClear,
       mainFrameId: MAIN_FRAME_ID,
       ownerOrigin: TEST_ORIGIN_B,
-      ownerSite: TEST_SITE_B,
       params: {} as Protocol.Storage.SharedStorageAccessParams,
-      scope: Protocol.Storage.SharedStorageAccessScope.Window,
     },
     {
       accessTime: 100,
-      method: Protocol.Storage.SharedStorageAccessMethod.Set,
+      type: Protocol.Storage.SharedStorageAccessType.WorkletSet,
       mainFrameId: MAIN_FRAME_ID,
       ownerOrigin: TEST_ORIGIN_C,
-      ownerSite: TEST_SITE_C,
       params: {key: 'key0', value: 'value1', ignoreIfPresent: true} as Protocol.Storage.SharedStorageAccessParams,
-      scope: Protocol.Storage.SharedStorageAccessScope.SharedStorageWorklet,
     },
     {
       accessTime: 150,
-      method: Protocol.Storage.SharedStorageAccessMethod.RemainingBudget,
+      type: Protocol.Storage.SharedStorageAccessType.WorkletRemainingBudget,
       mainFrameId: MAIN_FRAME_ID,
       ownerOrigin: TEST_ORIGIN_C,
-      ownerSite: TEST_SITE_C,
       params: {} as Protocol.Storage.SharedStorageAccessParams,
-      scope: Protocol.Storage.SharedStorageAccessScope.SharedStorageWorklet,
     },
   ];
 
@@ -324,7 +311,7 @@ describeWithMockConnection('SharedStorageModel', () => {
 
     const originSet = new Set([TEST_ORIGIN_A, TEST_ORIGIN_B, TEST_ORIGIN_C]);
     manager.updateSecurityOrigins(originSet);
-    assert.lengthOf(manager.securityOrigins(), 3);
+    assert.strictEqual(3, manager.securityOrigins().length);
 
     const addedPromise = listener.waitForStoragesAdded(3);
 
@@ -397,11 +384,9 @@ describeWithMockConnection('SharedStorageModel', () => {
     assert.deepEqual(listener.changeEventsForStorage(storageA), [
       {
         accessTime: 0,
-        method: Protocol.Storage.SharedStorageAccessMethod.Append,
+        type: Protocol.Storage.SharedStorageAccessType.DocumentAppend,
         mainFrameId: MAIN_FRAME_ID,
-        ownerSite: TEST_SITE_A,
         params: {key: 'key0', value: 'value0'} as Protocol.Storage.SharedStorageAccessParams,
-        scope: Protocol.Storage.SharedStorageAccessScope.Window,
       },
     ]);
 
@@ -410,11 +395,9 @@ describeWithMockConnection('SharedStorageModel', () => {
     assert.deepEqual(listener.changeEventsForStorage(storageB), [
       {
         accessTime: 20,
-        method: Protocol.Storage.SharedStorageAccessMethod.Clear,
+        type: Protocol.Storage.SharedStorageAccessType.DocumentClear,
         mainFrameId: MAIN_FRAME_ID,
-        ownerSite: TEST_SITE_B,
         params: {} as Protocol.Storage.SharedStorageAccessParams,
-        scope: Protocol.Storage.SharedStorageAccessScope.Window,
       },
     ]);
 
@@ -423,11 +406,9 @@ describeWithMockConnection('SharedStorageModel', () => {
     assert.deepEqual(listener.changeEventsForStorage(storageC), [
       {
         accessTime: 100,
-        method: Protocol.Storage.SharedStorageAccessMethod.Set,
+        type: Protocol.Storage.SharedStorageAccessType.WorkletSet,
         mainFrameId: MAIN_FRAME_ID,
-        ownerSite: TEST_SITE_C,
         params: {key: 'key0', value: 'value1', ignoreIfPresent: true} as Protocol.Storage.SharedStorageAccessParams,
-        scope: Protocol.Storage.SharedStorageAccessScope.SharedStorageWorklet,
       },
     ]);
   });

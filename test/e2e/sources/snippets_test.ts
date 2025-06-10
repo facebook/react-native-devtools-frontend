@@ -11,6 +11,7 @@ import {
   goToResource,
   typeText,
 } from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {openSoftContextMenuAndClickOnItem} from '../helpers/context-menu-helpers.js';
 import {openSourcesPanel} from '../helpers/sources-helpers.js';
 
@@ -33,6 +34,6 @@ describe('Snippets', function() {
     await openSoftContextMenuAndClickOnItem('[aria-label="file@name, file"]', 'Remove');
 
     treeItems = await $$('.navigator-file-tree-item');
-    assert.lengthOf(treeItems, 0);
+    assert.strictEqual(treeItems.length, 0);
   });
 });

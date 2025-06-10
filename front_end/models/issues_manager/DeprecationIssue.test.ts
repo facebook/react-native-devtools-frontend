@@ -57,12 +57,12 @@ describeWithLocale('DeprecationIssue', () => {
     const aggregator = new Issues.IssueAggregator.IssueAggregator(mockManager);
     for (const issue of issues) {
       mockManager.dispatchEventToListeners(
-          IssuesManager.IssuesManager.Events.ISSUE_ADDED, {issuesModel: mockModel, issue});
+          IssuesManager.IssuesManager.Events.IssueAdded, {issuesModel: mockModel, issue});
     }
     const aggregatedIssues = Array.from(aggregator.aggregatedIssues());
-    assert.lengthOf(aggregatedIssues, 1);
+    assert.strictEqual(aggregatedIssues.length, 1);
     const deprecationIssues = Array.from(aggregatedIssues[0].getDeprecationIssues());
-    assert.lengthOf(deprecationIssues, 2);
+    assert.strictEqual(deprecationIssues.length, 2);
   });
 
   it('does not aggregate issues with different types', () => {
@@ -73,9 +73,9 @@ describeWithLocale('DeprecationIssue', () => {
     const aggregator = new Issues.IssueAggregator.IssueAggregator(mockManager);
     for (const issue of issues) {
       mockManager.dispatchEventToListeners(
-          IssuesManager.IssuesManager.Events.ISSUE_ADDED, {issuesModel: mockModel, issue});
+          IssuesManager.IssuesManager.Events.IssueAdded, {issuesModel: mockModel, issue});
     }
     const aggregatedIssues = Array.from(aggregator.aggregatedIssues());
-    assert.lengthOf(aggregatedIssues, 2);
+    assert.strictEqual(aggregatedIssues.length, 2);
   });
 });

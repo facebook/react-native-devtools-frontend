@@ -12,35 +12,33 @@
 }
 
 .hbox {
-  flex: 0 0 var(--sys-size-14);
-  padding: 0 var(--sys-size-8);
-  gap: var(--sys-size-3);
+  flex: 0 0 40px;
   align-items: center;
 }
 
 .filtered-list-widget-hint {
-  color: var(--sys-color-on-surface-subtle);
-  font-size: var(--sys-typescale-body4-size);
-  line-height: 18px;
+  color: var(--sys-color-token-subtle);
+  padding: 12px;
 }
 
 devtools-text-prompt {
   flex-grow: 1;
-  font-size: var(--sys-typescale-body3-size);
-  gap: var(--sys-size-3);
+  font-size: 14px;
   font-family: ".SFNSDisplay-Regular", "Helvetica Neue", "Lucida Grande", sans-serif;
-  line-height: var(--sys-typescale-body3-line-height);
+  line-height: 16px;
+  padding: 12px;
 }
 
 .filtered-list-widget-progress {
   flex: none;
-  background: var(--sys-color-divider);
-  height: var(--sys-size-1);
+  background: rgb(0 0 0 / 20%); /* stylelint-disable-line plugin/use_theme_colors */
+  /* See: crbug.com/1152736 for color variable migration. */
+  height: 1px;
 }
 
 .filtered-list-widget-progress-bar {
   background-color: var(--sys-color-primary-bright);
-  height: var(--sys-size-2);
+  height: 2px;
   width: 100%;
   transform: scaleX(0);
   transform-origin: top left;
@@ -55,52 +53,51 @@ devtools-text-prompt {
 
 .filtered-list-widget .vbox > div.container {
   flex: auto;
-  overflow: hidden auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .filtered-list-widget-item-wrapper {
   color: var(--sys-color-on-surface);
   display: flex;
+  border-bottom: 1px solid var(--sys-color-divider);
   font-family: ".SFNSDisplay-Regular", "Helvetica Neue", "Lucida Grande", sans-serif;
-  padding: 0 var(--sys-size-7);
-  gap: var(--sys-size-7);
-  height: var(--sys-size-14);
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 .filtered-list-widget-item-wrapper devtools-icon {
   align-self: center;
   flex: none;
-  width: 18px;
-  height: 18px;
-
-  &.snippet {
-    color: var(--sys-color-orange-bright);
-  }
+  padding-right: 8px;
 }
 
 .filtered-list-widget-item-wrapper.selected {
-  background-color: var(--sys-color-state-hover-on-subtle);
+  background-color: var(--sys-color-tonal-container);
 }
 
 .filtered-list-widget-item {
-  white-space: break-spaces;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   align-self: center;
-  font-size: var(--sys-typescale-body4-size);
+  font-size: 12px;
   flex: auto;
 }
 
-.filtered-list-widget-item.is-ignore-listed * {
-  color: var(--sys-color-state-disabled);
+.filtered-list-widget-item.is-ignore-listed {
+  opacity: 50%;
 }
 
-.filtered-list-widget-item span.highlight {
-  font-weight: var(--ref-typeface-weight-bold);
+.filtered-list-widget-item.two-rows span.highlight {
+  color: var(--sys-color-primary);
+}
+
+.filtered-list-widget-item.one-row span.highlight {
+  font-weight: bold;
 }
 
 .filtered-list-widget-item .filtered-list-widget-title {
-  white-space: nowrap;
   flex: initial;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -110,7 +107,7 @@ devtools-text-prompt {
   flex: none;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--sys-color-on-surface-subtle);
+  color: var(--sys-color-token-subtle);
   display: flex;
   white-space: pre;
 }
@@ -122,8 +119,10 @@ devtools-text-prompt {
 }
 
 .filtered-list-widget-item-wrapper .tag {
-  font-size: var(--sys-typescale-body5-size);
-  line-height: var(--sys-typescale-headline5-line-height);
+  padding: 0 12px;
+  border-radius: 4px;
+  line-height: 24px;
+  height: 24px;
   align-self: center;
   flex-shrink: 0;
 }
@@ -133,24 +132,41 @@ devtools-text-prompt {
   color: var(--sys-color-token-subtle);
 }
 
+.filtered-list-widget-item-wrapper.selected .deprecated-tag {
+  color: var(--sys-color-on-tonal-container);
+}
+
+.filtered-list-widget-item-wrapper.selected .filtered-list-widget-item span.highlight {
+  color: var(--sys-color-on-tonal-container);
+  background-color: var(--sys-color-state-focus-select);
+}
+
+.filtered-list-widget-item-wrapper.selected .filtered-list-widget-title,
+.filtered-list-widget-item-wrapper.selected .filtered-list-widget-subtitle,
+.filtered-list-widget-item-wrapper.selected .tag {
+  color: var(--sys-color-on-tonal-container);
+}
+
 .filtered-list-widget-item.one-row {
-  line-height: var(--sys-typescale-body3-line-height);
-  align-content: center;
+  height: 36px;
+  line-height: 20px;
+  padding-top: 8px;
+  padding-bottom: 8px;
   display: flex;
 }
 
 .filtered-list-widget-item.one-row .filtered-list-widget-title {
-  display: inline;
+  padding-right: 8px;
 }
 
 .filtered-list-widget-item.two-rows {
-  display: grid;
-  align-content: center;
-  gap: var(--sys-size-2);
+  height: 45px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
-.filtered-list-widget-item-wrapper:not(.search-mode) .filtered-list-widget-item.two-rows .filtered-list-widget-title {
-  font-weight: var(--ref-typeface-weight-bold);
+.filtered-list-widget-item.two-rows .filtered-list-widget-title {
+  font-weight: bold;
 }
 
 .not-found-text {

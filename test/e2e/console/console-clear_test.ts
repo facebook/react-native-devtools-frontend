@@ -5,6 +5,7 @@
 import {assert} from 'chai';
 
 import {$$, click, getBrowserAndPages, step, waitFor} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   CONSOLE_TAB_SELECTOR,
   focusConsolePrompt,
@@ -22,13 +23,13 @@ describe('The Console Tab', function() {
     await target.evaluate(() => console.log('target'));
 
     await step('enter 1 in console', async () => {
-      await typeIntoConsoleAndWaitForResult('1;');
+      await typeIntoConsoleAndWaitForResult(frontend, '1;');
     });
     await step('enter 2 in console', async () => {
-      await typeIntoConsoleAndWaitForResult('2;');
+      await typeIntoConsoleAndWaitForResult(frontend, '2;');
     });
     await step('enter 3 in console', async () => {
-      await typeIntoConsoleAndWaitForResult('3;');
+      await typeIntoConsoleAndWaitForResult(frontend, '3;');
     });
     await step('Check the evaluation results from console', async () => {
       const evaluateResults = await frontend.evaluate(() => {
@@ -37,7 +38,7 @@ describe('The Console Tab', function() {
       assert.deepEqual(evaluateResults, ['1', '2', '3'], 'did not find expected output in the console');
     });
     await step('enter console.clear() in console', async () => {
-      await typeIntoConsole('console.clear();');
+      await typeIntoConsole(frontend, 'console.clear();');
     });
 
     await step('wait for the console to be cleared', async () => {
@@ -58,10 +59,10 @@ describe('The Console Tab', function() {
 
     // Check that the sidebar is also cleared.
     await click('[aria-label="Show console sidebar"]');
-    const sideBar = await waitFor('div[slot="sidebar"]');
+    const sideBar = await waitFor('div[slot="insertion-point-sidebar"]');
     const entries = await $$('li', sideBar);
     const entriesText = await Promise.all(entries.map(e => e.evaluate(e => e.textContent)));
-    assert.deepEqual(entriesText, [
+    assert.deepStrictEqual(entriesText, [
       '1 message',
       '<other>1',
       '1 user message',

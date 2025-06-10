@@ -10,13 +10,12 @@ import { type CDPSession, type CDPSessionEvents } from '../api/CDPSession.js';
 import { CallbackRegistry } from '../common/CallbackRegistry.js';
 import type { ConnectionTransport } from '../common/ConnectionTransport.js';
 import { EventEmitter } from '../common/EventEmitter.js';
-import { CdpCDPSession } from './CdpSession.js';
 /**
  * @public
  */
 export declare class Connection extends EventEmitter<CDPSessionEvents> {
     #private;
-    constructor(url: string, transport: ConnectionTransport, delay?: number, timeout?: number, rawErrors?: boolean);
+    constructor(url: string, transport: ConnectionTransport, delay?: number, timeout?: number);
     static fromSession(session: CDPSession): Connection | undefined;
     /**
      * @internal
@@ -30,11 +29,7 @@ export declare class Connection extends EventEmitter<CDPSessionEvents> {
     /**
      * @internal
      */
-    get _sessions(): Map<string, CdpCDPSession>;
-    /**
-     * @internal
-     */
-    _session(sessionId: string): CdpCDPSession | null;
+    get _sessions(): Map<string, CDPSession>;
     /**
      * @param sessionId - The session id
      * @returns The current CDP session if it exists
@@ -62,9 +57,7 @@ export declare class Connection extends EventEmitter<CDPSessionEvents> {
     /**
      * @internal
      */
-    _createSession(targetInfo: {
-        targetId: string;
-    }, isAutoAttachEmulated?: boolean): Promise<CdpCDPSession>;
+    _createSession(targetInfo: Protocol.Target.TargetInfo, isAutoAttachEmulated?: boolean): Promise<CDPSession>;
     /**
      * @param targetInfo - The target info
      * @returns The CDP session that is created

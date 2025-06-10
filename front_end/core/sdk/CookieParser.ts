@@ -68,31 +68,31 @@ export class CookieParser {
 
     switch (header.toLowerCase()) {
       case 'domain':
-        return Attribute.DOMAIN;
+        return Attribute.Domain;
       case 'expires':
-        return Attribute.EXPIRES;
+        return Attribute.Expires;
       case 'max-age':
-        return Attribute.MAX_AGE;
+        return Attribute.MaxAge;
       case 'httponly':
-        return Attribute.HTTP_ONLY;
+        return Attribute.HttpOnly;
       case 'name':
-        return Attribute.NAME;
+        return Attribute.Name;
       case 'path':
-        return Attribute.PATH;
+        return Attribute.Path;
       case 'samesite':
-        return Attribute.SAME_SITE;
+        return Attribute.SameSite;
       case 'secure':
-        return Attribute.SECURE;
+        return Attribute.Secure;
       case 'value':
-        return Attribute.VALUE;
+        return Attribute.Value;
       case 'priority':
-        return Attribute.PRIORITY;
+        return Attribute.Priority;
       case 'sourceport':
-        return Attribute.SOURCE_PORT;
+        return Attribute.SourcePort;
       case 'sourcescheme':
-        return Attribute.SOURCE_SCHEME;
+        return Attribute.SourceScheme;
       case 'partitioned':
-        return Attribute.PARTITIONED;
+        return Attribute.Partitioned;
       default:
         console.error('Failed getting cookie attribute: ' + header);
         return null;
@@ -111,7 +111,7 @@ export class CookieParser {
       if (this.#lastCookie) {
         this.#lastCookie.addAttribute(this.getCookieAttribute(kv.key), kv.value);
       } else {
-        this.addCookie(kv, Type.RESPONSE);
+        this.addCookie(kv, Type.Response);
       }
       if (this.advanceAndCheckCookieDelimiter()) {
         this.flushCookie();
@@ -162,7 +162,8 @@ export class CookieParser {
     }
 
     const result = new KeyValue(
-        keyValueMatch[1]?.trim(), keyValueMatch[2]?.trim(), (this.#originalInputLength) - this.#input.length);
+        keyValueMatch[1] && keyValueMatch[1].trim(), keyValueMatch[2] && keyValueMatch[2].trim(),
+        (this.#originalInputLength as number) - this.#input.length);
     this.#lastCookieLine += keyValueMatch[0];
     this.#input = this.#input.slice(keyValueMatch[0].length);
     return result;
@@ -192,7 +193,7 @@ export class CookieParser {
     this.#lastCookie = typeof keyValue.value === 'string' ? new Cookie(keyValue.key, keyValue.value, type) :
                                                             new Cookie('', keyValue.key, type);
     if (this.#domain) {
-      this.#lastCookie.addAttribute(Attribute.DOMAIN, this.#domain);
+      this.#lastCookie.addAttribute(Attribute.Domain, this.#domain);
     }
     this.#lastCookiePosition = keyValue.position;
     this.#cookiesInternal.push(this.#lastCookie);

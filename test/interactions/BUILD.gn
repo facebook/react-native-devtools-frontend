@@ -3,7 +3,7 @@
 # found in the LICENSE file.
 
 import("../../scripts/build/ninja/copy.gni")
-import("../../scripts/build/typescript/typescript.gni")
+import("../../third_party/typescript/typescript.gni")
 
 group("interactions") {
   deps = [
@@ -14,9 +14,13 @@ group("interactions") {
 
 node_ts_library("tests") {
   deps = [
+    "data_grid",
+    "data_grid_controller",
     "helpers",
     "panels/explain",
+    "panels/freestyler",
     "panels/performance/timeline",
+    "panels/recorder/injected",
     "text_editor",
     "tree_outline",
     "ui/components",

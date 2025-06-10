@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-interface AsyncActivity {
-  pending: boolean;
-  cancelDelayed?: () => void;
-  id?: string;
-  runImmediate?: () => void;
-  stack?: string;
-  promise?: Promise<unknown>;
-}
+type AsyncActivity = {
+  pending: boolean,
+  cancelDelayed?: () => void,
+  id?: string,
+  runImmediate?: () => void,
+  stack?: string,
+  promise?: Promise<unknown>,
+};
 
 const asyncActivity: AsyncActivity[] = [];
 
@@ -66,7 +66,7 @@ export async function checkForPendingActivity() {
         break;
       }
       --retries;
-    } catch {
+    } catch (e) {
       stillPending = asyncActivity.filter(a => a.pending);
       const newTotalCount = asyncActivity.length;
       // Something is still pending. It might get resolved by force completion
@@ -183,23 +183,6 @@ function cancelTrackingActivity(id: string) {
   }
 }
 
-type UntrackedPromiseMethod = 'prototype'|typeof Symbol.species;
-
-/**
- * Extracted into separate object which will make TypeScript
- * check fail if new properties are added.
- */
-const BasePromise: Omit<PromiseConstructor, UntrackedPromiseMethod> = {
-  all: Promise.all,
-  allSettled: Promise.allSettled,
-  any: Promise.any,
-  race: Promise.race,
-  reject: Promise.reject,
-  resolve: Promise.resolve,
-  withResolvers: Promise.withResolvers,
-  try: Promise.try,
-};
-
 // We can't subclass native Promise here as this will cause all derived promises
 // (e.g. those returned by `then`) to also be subclass instances. This results
 // in a new asyncActivity entry on each iteration of checkForPendingActivity
@@ -239,22 +222,28 @@ const TrackingPromise: PromiseConstructor = Object.assign(
       asyncActivity.push(activity);
       return promise;
     },
-    BasePromise as PromiseConstructor,
-);
+    {
+      all: Promise.all,
+      allSettled: Promise.allSettled,
+      any: Promise.any,
+      race: Promise.race,
+      reject: Promise.reject,
+      resolve: Promise.resolve,
+    } as PromiseConstructor);
 
 function getStack(error: Error): string {
   return (error.stack ?? 'No stack').split('\n').slice(2).join('\n');
 }
 
-// We can't use Sinon for stubbing as 1) we need to double wrap sometimes and 2)
+// We can't use Sinon for stubbing as 1) we need to double wrap somtimes and 2)
 // we need to access original values.
-interface Stub<TKey extends keyof typeof window> {
-  name: TKey;
-  original: (typeof window)[TKey];
-  stubWith: (typeof window)[TKey];
-}
+type Stub<TKey extends keyof typeof window> = {
+  name: TKey,
+  original: (typeof window)[TKey],
+  stubWith: (typeof window)[TKey],
+};
 
-const stubs: Array<Stub<keyof typeof window>> = [];
+const stubs: Stub<keyof typeof window>[] = [];
 
 function stub<T extends keyof typeof window>(name: T, stubWith: (typeof window)[T]) {
   const original = window[name];

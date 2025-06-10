@@ -18,7 +18,7 @@ describe('JavaScriptMetadata', () => {
 
   it('does not retrieve native signatures that are bound to an instance', () => {
     const signatures = metadata.signaturesForNativeFunction('find');
-    assert.isNull(signatures);
+    assert.deepEqual(signatures, null);
   });
 
   describe('with static methods', () => {
@@ -29,12 +29,12 @@ describe('JavaScriptMetadata', () => {
 
     it('does not retrieve methods that are bound to an instance', () => {
       const signatures = metadata.signaturesForStaticMethod('includes', 'Array');
-      assert.isNull(signatures);
+      assert.deepEqual(signatures, null);
     });
 
     it('handles a non-existing class', () => {
       const signatures = metadata.signaturesForStaticMethod('includes', 'bogus');
-      assert.isNull(signatures);
+      assert.deepEqual(signatures, null);
     });
   });
 
@@ -46,17 +46,17 @@ describe('JavaScriptMetadata', () => {
 
     it('does not retrieve methods that are unbound', () => {
       const signatures = metadata.signaturesForInstanceMethod('webkitRequestFullScreen', 'window');
-      assert.isNull(signatures);
+      assert.deepEqual(signatures, null);
     });
 
     it('does not retrieve static methods', () => {
       const signatures = metadata.signaturesForInstanceMethod('from', 'Array');
-      assert.isNull(signatures);
+      assert.deepEqual(signatures, null);
     });
 
     it('handles a non-existing class', () => {
       const signatures = metadata.signaturesForInstanceMethod('from', 'Sheep');
-      assert.isNull(signatures);
+      assert.deepEqual(signatures, null);
     });
   });
 });

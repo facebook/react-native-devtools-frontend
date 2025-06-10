@@ -7,14 +7,15 @@ import type * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 
 import {Issue, IssueCategory, IssueKind} from './Issue.js';
-import type {MarkdownIssueDescription} from './MarkdownIssueDescription.js';
+
+import {type MarkdownIssueDescription} from './MarkdownIssueDescription.js';
 
 const UIStrings = {
   /**
    *@description Title for Bounce Tracking Mitigation explainer url link.
    */
   bounceTrackingMitigations: 'Bounce tracking mitigations',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/BounceTrackingIssue.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -27,7 +28,7 @@ export class BounceTrackingIssue extends Issue {
   }
 
   getCategory(): IssueCategory {
-    return IssueCategory.OTHER;
+    return IssueCategory.Other;
   }
 
   getDescription(): MarkdownIssueDescription {
@@ -47,7 +48,7 @@ export class BounceTrackingIssue extends Issue {
   }
 
   getKind(): IssueKind {
-    return IssueKind.BREAKING_CHANGE;
+    return IssueKind.BreakingChange;
   }
 
   primaryKey(): string {

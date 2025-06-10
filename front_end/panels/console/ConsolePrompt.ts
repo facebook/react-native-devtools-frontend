@@ -36,7 +36,7 @@ const UIStrings = {
    *@description Text a user needs to type in order to confirm that they are aware of the danger of pasting code into the DevTools console.
    */
   allowPasting: 'allow pasting',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/console/ConsolePrompt.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, typeof UI.Widget.Widget>(
@@ -88,7 +88,6 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
 
   constructor() {
     super();
-    this.registerRequiredCSS(consolePromptStyles);
     this.addCompletionsFromHistory = true;
     this.historyInternal = new TextEditor.AutocompleteHistory.AutocompleteHistory(
         Common.Settings.Settings.instance().createLocalSetting('console-history', []));
@@ -118,6 +117,7 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
     // this.eagerEvalSetting = Common.Settings.Settings.instance().moduleSetting('console-eager-eval');
     // this.eagerEvalSetting.addChangeListener(this.eagerSettingChanged.bind(this));
     // this.eagerPreviewElement.classList.toggle('hidden', !this.eagerEvalSetting.get());
+    this.eagerPreviewElement.classList.toggle('hidden', true);
 
     this.element.tabIndex = 0;
     this.previewRequestForTest = null;
@@ -194,10 +194,10 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
     //   const asSoonAsPossible = !TextEditor.Config.contentIncludingHint(this.editor.editor);
     //   this.previewRequestForTest = this.textChangeThrottler.schedule(
     //       this.requestPreviewBound,
-    //       asSoonAsPossible ? Common.Throttler.Scheduling.AS_SOON_AS_POSSIBLE : Common.Throttler.Scheduling.DEFAULT);
+    //       asSoonAsPossible ? Common.Throttler.Scheduling.AsSoonAsPossible : Common.Throttler.Scheduling.Default);
     // }
     this.updatePromptIcon();
-    this.dispatchEventToListeners(Events.TEXT_CHANGED);
+    this.dispatchEventToListeners(Events.TextChanged);
   }
 
   private async requestPreview(): Promise<void> {
@@ -225,8 +225,12 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
     }
   }
 
+  override wasShown(): void {
+    super.wasShown();
+    this.registerCSSFiles([consolePromptStyles]);
+  }
+
   override willHide(): void {
-    super.willHide();
     if (this.highlightingNode) {
       this.highlightingNode = false;
       SDK.OverlayModel.OverlayModel.hideDOMNodeHighlight();
@@ -315,7 +319,7 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
   showSelfXssWarning(): void {
     Common.Console.Console.instance().warn(
         i18nString(UIStrings.selfXssWarning, {PH1: i18nString(UIStrings.allowPasting)}),
-        Common.Console.FrontendMessageSource.SELF_XSS);
+        Common.Console.FrontendMessageSource.SelfXss);
     this.#selfXssWarningShown = true;
     Host.userMetrics.actionTaken(Host.UserMetrics.Action.SelfXssWarningConsoleMessageShown);
     this.#updateJavaScriptCompletionCompartment();
@@ -329,7 +333,7 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
         scrollIntoView: true,
       });
       Common.Settings.Settings.instance()
-          .createSetting('disable-self-xss-warning', false, Common.Settings.SettingStorageType.SYNCED)
+          .createSetting('disable-self-xss-warning', false, Common.Settings.SettingStorageType.Synced)
           .set(true);
       this.#selfXssWarningShown = false;
       Host.userMetrics.actionTaken(Host.UserMetrics.Action.SelfXssAllowPastingInConsole);
@@ -377,7 +381,7 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
       executionContext: SDK.RuntimeModel.ExecutionContext, message: SDK.ConsoleModel.ConsoleMessage, expression: string,
       useCommandLineAPI: boolean): Promise<void> {
     const callFrame = executionContext.debuggerModel.selectedCallFrame();
-    if (callFrame?.script.isJavaScript()) {
+    if (callFrame && callFrame.script.isJavaScript()) {
       const nameMap = await SourceMapScopes.NamesResolver.allVariablesInCallFrame(callFrame);
       expression = await this.substituteNames(expression, nameMap);
     }
@@ -413,9 +417,9 @@ export class ConsolePrompt extends Common.ObjectWrapper.eventMixin<EventTypes, t
 }
 
 export const enum Events {
-  TEXT_CHANGED = 'TextChanged',
+  TextChanged = 'TextChanged',
 }
 
-export interface EventTypes {
-  [Events.TEXT_CHANGED]: void;
-}
+export type EventTypes = {
+  [Events.TextChanged]: void,
+};

@@ -58,8 +58,8 @@ export class NetworkProjectManager extends Common.ObjectWrapper.ObjectWrapper<Ev
 }
 
 export const enum Events {
-  FRAME_ATTRIBUTION_ADDED = 'FrameAttributionAdded',
-  FRAME_ATTRIBUTION_REMOVED = 'FrameAttributionRemoved',
+  FrameAttributionAdded = 'FrameAttributionAdded',
+  FrameAttributionRemoved = 'FrameAttributionRemoved',
 }
 
 export interface FrameAttributionEvent {
@@ -67,16 +67,16 @@ export interface FrameAttributionEvent {
   frame: SDK.ResourceTreeModel.ResourceTreeFrame;
 }
 
-export interface EventTypes {
-  [Events.FRAME_ATTRIBUTION_ADDED]: FrameAttributionEvent;
-  [Events.FRAME_ATTRIBUTION_REMOVED]: FrameAttributionEvent;
-}
+export type EventTypes = {
+  [Events.FrameAttributionAdded]: FrameAttributionEvent,
+  [Events.FrameAttributionRemoved]: FrameAttributionEvent,
+};
 
 export class NetworkProject {
   static resolveFrame(uiSourceCode: Workspace.UISourceCode.UISourceCode, frameId: Protocol.Page.FrameId):
       SDK.ResourceTreeModel.ResourceTreeFrame|null {
     const target = NetworkProject.targetForUISourceCode(uiSourceCode);
-    const resourceTreeModel = target?.model(SDK.ResourceTreeModel.ResourceTreeModel);
+    const resourceTreeModel = target && target.model(SDK.ResourceTreeModel.ResourceTreeModel);
     return resourceTreeModel ? resourceTreeModel.frameForId(frameId) : null;
   }
 
@@ -93,7 +93,7 @@ export class NetworkProject {
       frame: SDK.ResourceTreeModel.ResourceTreeFrame,
       count: number,
     }>();
-    attribution.set(frameId, {frame, count: 1});
+    attribution.set(frameId, {frame: frame, count: 1});
     uiSourceCodeToAttributionMap.set(uiSourceCode, attribution);
   }
 
@@ -126,15 +126,15 @@ export class NetworkProject {
     if (!frameAttribution) {
       return;
     }
-    const attributionInfo = frameAttribution.get(frameId) || {frame, count: 0};
+    const attributionInfo = frameAttribution.get(frameId) || {frame: frame, count: 0};
     attributionInfo.count += 1;
     frameAttribution.set(frameId, attributionInfo);
     if (attributionInfo.count !== 1) {
       return;
     }
 
-    const data = {uiSourceCode, frame};
-    NetworkProjectManager.instance().dispatchEventToListeners(Events.FRAME_ATTRIBUTION_ADDED, data);
+    const data = {uiSourceCode: uiSourceCode, frame: frame};
+    NetworkProjectManager.instance().dispatchEventToListeners(Events.FrameAttributionAdded, data);
   }
 
   static removeFrameAttribution(uiSourceCode: Workspace.UISourceCode.UISourceCode, frameId: Protocol.Page.FrameId):
@@ -153,8 +153,8 @@ export class NetworkProject {
       return;
     }
     frameAttribution.delete(frameId);
-    const data = {uiSourceCode, frame: attributionInfo.frame};
-    NetworkProjectManager.instance().dispatchEventToListeners(Events.FRAME_ATTRIBUTION_REMOVED, data);
+    const data = {uiSourceCode: uiSourceCode, frame: attributionInfo.frame};
+    NetworkProjectManager.instance().dispatchEventToListeners(Events.FrameAttributionRemoved, data);
   }
 
   static targetForUISourceCode(uiSourceCode: Workspace.UISourceCode.UISourceCode): SDK.Target.Target|null {
@@ -172,12 +172,12 @@ export class NetworkProject {
   static framesForUISourceCode(uiSourceCode: Workspace.UISourceCode.UISourceCode):
       SDK.ResourceTreeModel.ResourceTreeFrame[] {
     const target = NetworkProject.targetForUISourceCode(uiSourceCode);
-    const resourceTreeModel = target?.model(SDK.ResourceTreeModel.ResourceTreeModel);
+    const resourceTreeModel = target && target.model(SDK.ResourceTreeModel.ResourceTreeModel);
     const attribution = uiSourceCodeToAttributionMap.get(uiSourceCode);
     if (!resourceTreeModel || !attribution) {
       return [];
     }
     const frames = Array.from(attribution.keys()).map(frameId => resourceTreeModel.frameForId(frameId));
-    return frames.filter(frame => !!frame);
+    return frames.filter(frame => Boolean(frame)) as SDK.ResourceTreeModel.ResourceTreeFrame[];
   }
 }

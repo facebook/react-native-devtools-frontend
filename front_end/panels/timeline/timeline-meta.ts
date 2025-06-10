@@ -3,9 +3,8 @@
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
-import * as i18n from '../../core/i18n/i18n.js';
 import * as Root from '../../core/root/root.js';
-import * as SDK from '../../core/sdk/sdk.js';
+import * as i18n from '../../core/i18n/i18n.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import type * as Timeline from './timeline.js';
@@ -63,7 +62,7 @@ const UIStrings = {
    *@description Title of a setting under the Performance category in Settings
    */
   hideChromeFrameInLayersView: 'Hide `chrome` frame in Layers view',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/timeline-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 let loadedTimelineModule: (typeof Timeline|undefined);
@@ -121,11 +120,11 @@ UI.ActionRegistration.registerActionExtension({
   ],
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+E',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+E',
     },
   ],
@@ -145,17 +144,15 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+Shift+E',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Shift+E',
     },
   ],
-  experiment:
-      Root.Runtime.ExperimentName
-          .NOT_REACT_NATIVE_SPECIFIC_UI,  // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+  experiment: Root.Runtime.ExperimentName.NOT_REACT_NATIVE_SPECIFIC_UI, // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
 });
 
 UI.ActionRegistration.registerActionExtension({
@@ -171,11 +168,11 @@ UI.ActionRegistration.registerActionExtension({
   title: i18nLazyString(UIStrings.saveProfile),
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+S',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+S',
     },
   ],
@@ -194,11 +191,11 @@ UI.ActionRegistration.registerActionExtension({
   title: i18nLazyString(UIStrings.loadProfile),
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+O',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+O',
     },
   ],
@@ -253,11 +250,11 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+H',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Y',
     },
   ],
@@ -276,11 +273,11 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Alt+Left',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Left',
     },
   ],
@@ -299,11 +296,11 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Alt+Right',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Right',
     },
   ],
@@ -311,19 +308,9 @@ UI.ActionRegistration.registerActionExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.PERFORMANCE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   title: i18nLazyString(UIStrings.hideChromeFrameInLayersView),
   settingName: 'frame-viewer-hide-chrome-window',
-  settingType: Common.Settings.SettingType.BOOLEAN,
-  defaultValue: false,
-});
-
-// IMPORTANT: if you are updating this, you should also update the setting in
-// js_timeline-meta.
-Common.Settings.registerSettingExtension({
-  category: Common.Settings.SettingCategory.PERFORMANCE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
-  settingName: 'annotations-hidden',
   settingType: Common.Settings.SettingType.BOOLEAN,
   defaultValue: false,
 });
@@ -348,26 +335,4 @@ UI.ContextMenu.registerItem({
   location: UI.ContextMenu.ItemLocation.TIMELINE_MENU_OPEN,
   actionId: 'timeline.save-to-file',
   order: 15,
-});
-
-Common.Revealer.registerRevealer({
-  contextTypes() {
-    return [SDK.TraceObject.TraceObject];
-  },
-  destination: Common.Revealer.RevealerDestination.TIMELINE_PANEL,
-  async loadRevealer() {
-    const Timeline = await loadTimelineModule();
-    return new Timeline.TimelinePanel.TraceRevealer();
-  },
-});
-
-Common.Revealer.registerRevealer({
-  contextTypes() {
-    return [SDK.TraceObject.RevealableEvent];
-  },
-  destination: Common.Revealer.RevealerDestination.TIMELINE_PANEL,
-  async loadRevealer() {
-    const Timeline = await loadTimelineModule();
-    return new Timeline.TimelinePanel.EventRevealer();
-  },
 });

@@ -4,43 +4,51 @@
 
 /* eslint-disable no-console */
 
-import * as puppeteer from 'puppeteer-core';
+// use require here due to
+// https://github.com/evanw/esbuild/issues/587#issuecomment-901397213
+import puppeteer = require('puppeteer-core');
 
-import {
-  dumpCollectedErrors,
-  installPageErrorHandlers,
-  setupBrowserProcessIO,
-} from './events.js';
-import {
-  type DevToolsFrontendReloadOptions,
-  DevToolsFrontendTab,
-  loadEmptyPageAndWaitForContent,
-} from './frontend_tab.js';
+import {type CoverageMapData} from 'istanbul-lib-coverage';
+
 import {
   clearPuppeteerState,
   getBrowserAndPages,
   registerHandlers,
   setBrowserAndPages,
+  setTestServerPort,
 } from './puppeteer-state.js';
-import {setTestServerPort} from './server_port.js';
+import {
+  loadEmptyPageAndWaitForContent,
+  DevToolsFrontendTab,
+  type DevToolsFrontendReloadOptions,
+} from './frontend_tab.js';
+import {
+  dumpCollectedErrors,
+  installPageErrorHandlers,
+  setupBrowserProcessIO,
+} from './events.js';
 import {TargetTab} from './target_tab.js';
 import {TestConfig} from './test_config.js';
+
+// Workaround for mismatching versions of puppeteer types and puppeteer library.
+declare module 'puppeteer-core' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ConsoleMessage {
+    stackTrace(): ConsoleMessageLocation[];
+  }
+}
 
 const viewportWidth = 1280;
 const viewportHeight = 720;
 // Adding some offset to the window size used in the headful mode
 // so to account for the size of the browser UI.
-// Values are chosen by trial and error to make sure that the window
+// Values are choosen by trial and error to make sure that the window
 // size is not much bigger than the viewport but so that the entire
 // viewport is visible.
 const windowWidth = viewportWidth + 50;
 const windowHeight = viewportHeight + 200;
 
-const headless = !TestConfig.debug || TestConfig.headless;
-// CDP commands in e2e and interaction should not generally take
-// more than 20 seconds.
-const protocolTimeout = TestConfig.debug ? 0 : 20_000;
-
+const headless = !TestConfig.debug;
 const envSlowMo = process.env['STRESS'] ? 50 : undefined;
 const envThrottleRate = process.env['STRESS'] ? 3 : 1;
 const envLatePromises = process.env['LATE_PROMISES'] !== undefined ?
@@ -53,9 +61,36 @@ let targetTab: TargetTab;
 
 const envChromeFeatures = process.env['CHROME_FEATURES'];
 
+export async function watchForHang<T>(
+    currentTest: string|undefined, stepFn: (currentTest: string|undefined) => Promise<T>): Promise<T> {
+  const stepName = stepFn.name || stepFn.toString();
+  const stackTrace = new Error().stack;
+  function logTime(label: string) {
+    const end = performance.now();
+    console.error(`\n${stepName} ${label} ${end - start}ms\nTrace: ${stackTrace}\nTest: ${currentTest}\n`);
+  }
+  let tripped = false;
+  const timerId = setTimeout(() => {
+    logTime('takes at least');
+    tripped = true;
+  }, 10000);
+  const start = performance.now();
+  try {
+    const result = await stepFn(currentTest);
+    if (tripped) {
+      logTime('succeded after');
+    }
+    return result;
+  } catch (err) {
+    logTime('errored after');
+    throw err;
+  } finally {
+    clearTimeout(timerId);
+  }
+}
+
 function launchChrome() {
   // Use port 0 to request any free port.
-  // LINT.IfChange(features)
   const enabledFeatures = [
     'Portals',
     'PortalsCrossOrigin',
@@ -65,45 +100,26 @@ function launchChrome() {
     'PrivacySandboxAdsAPIsOverride',
     'AutofillEnableDevtoolsIssues',
   ];
-  const disabledFeatures = [
-    'PMProcessPriorityPolicy',                     // crbug.com/361252079
-    'MojoChannelAssociatedSendUsesRunOrPostTask',  // crbug.com/376228320
-    'RasterInducingScroll',                        // crbug.com/381055647
-    'CompositeBackgroundColorAnimation',           // crbug.com/381055647
-  ];
-  // LINT.ThenChange(/test/e2e_non_hosted/shared/browser-helper.ts:features)
   const launchArgs = [
-    '--remote-allow-origins=*',
-    '--remote-debugging-port=0',
-    '--enable-experimental-web-platform-features',
+    '--remote-allow-origins=*', '--remote-debugging-port=0', '--enable-experimental-web-platform-features',
     // This fingerprint may be generated from the certificate using
     // openssl x509 -noout -pubkey -in scripts/hosted_mode/cert.pem | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64
     '--ignore-certificate-errors-spki-list=KLy6vv6synForXwI6lDIl+D3ZrMV6Y1EMTY6YpOcAos=',
     '--site-per-process',  // Default on Desktop anyway, but ensure that we always use out-of-process frames when we intend to.
-    '--host-resolver-rules=MAP *.test 127.0.0.1',
-    '--disable-gpu',
-    '--disable-font-subpixel-positioning',
-    '--disable-lcd-text',
-    '--force-device-scale-factor=1',
-    '--hide-scrollbars',
+    '--host-resolver-rules=MAP *.test 127.0.0.1', '--disable-gpu',
     '--enable-blink-features=CSSContainerQueries,HighlightInheritance',  // TODO(crbug.com/1218390) Remove globally enabled flags and conditionally enable them
     '--disable-blink-features=WebAssemblyJSPromiseIntegration',  // TODO(crbug.com/325123665) Remove once heap snapshots work again with JSPI
-    `--disable-features=${disabledFeatures.join(',')}`,
   ];
-  const executablePath = TestConfig.chromeBinary;
-  const opts: puppeteer.LaunchOptions = {
+  const opts: puppeteer.LaunchOptions&puppeteer.BrowserLaunchArgumentOptions&puppeteer.BrowserConnectOptions = {
     headless,
-    executablePath,
+    executablePath: TestConfig.chromeBinary,
     dumpio: !headless || Boolean(process.env['LUCI_CONTEXT']),
     slowMo: envSlowMo,
-    protocolTimeout,
   };
-
-  TestConfig.configureChrome(executablePath);
 
   // Always set the default viewport because setting only the window size for
   // headful mode would result in much smaller actual viewport.
-  opts.defaultViewport = {width: viewportWidth, height: viewportHeight, deviceScaleFactor: 1};
+  opts.defaultViewport = {width: viewportWidth, height: viewportHeight};
   // Toggle either viewport or window size depending on headless vs not.
   if (!headless) {
     launchArgs.push(`--window-size=${windowWidth},${windowHeight}`);
@@ -165,24 +181,21 @@ export async function unregisterAllServiceWorkers() {
   });
 }
 
-export async function setupPages() {
-  const {frontend} = getBrowserAndPages();
-  await throttleCPUIfRequired(frontend);
-  await delayPromisesIfRequired(frontend);
-}
-
-export async function resetPages() {
+export async function resetPages(currentTest: string|undefined) {
   const {frontend, target} = getBrowserAndPages();
 
-  await target.bringToFront();
-  await targetTab.reset();
-  await frontend.bringToFront();
+  await watchForHang(currentTest, () => target.bringToFront());
+  await watchForHang(currentTest, () => targetTab.reset());
+
+  await watchForHang(currentTest, () => frontend.bringToFront());
+  await watchForHang(currentTest, () => throttleCPUIfRequired(frontend));
+  await watchForHang(currentTest, () => delayPromisesIfRequired(frontend));
 
   if (TestConfig.serverType === 'hosted-mode') {
-    await frontendTab.reset();
+    await watchForHang(currentTest, () => frontendTab.reset());
   } else if (TestConfig.serverType === 'component-docs') {
     // Reset the frontend back to an empty page for the component docs server.
-    await loadEmptyPageAndWaitForContent(frontend);
+    await watchForHang(currentTest, () => loadEmptyPageAndWaitForContent(frontend));
   }
 }
 
@@ -207,11 +220,10 @@ async function throttleCPUIfRequired(page: puppeteer.Page): Promise<void> {
     return;
   }
   console.log(`Throttling CPU: ${envThrottleRate}x slowdown`);
-  const client = await page.createCDPSession();
+  const client = await page.target().createCDPSession();
   await client.send('Emulation.setCPUThrottlingRate', {
     rate: envThrottleRate,
   });
-  await client.detach();
 }
 
 export async function reloadDevTools(options?: DevToolsFrontendReloadOptions) {
@@ -236,6 +248,12 @@ export async function postFileTeardown() {
 
   clearPuppeteerState();
   dumpCollectedErrors();
+}
+
+export function collectCoverageFromPage(): Promise<CoverageMapData|undefined> {
+  const {frontend} = getBrowserAndPages();
+
+  return frontend.evaluate('window.__coverage__') as Promise<CoverageMapData|undefined>;
 }
 
 export function getDevToolsFrontendHostname(): string {

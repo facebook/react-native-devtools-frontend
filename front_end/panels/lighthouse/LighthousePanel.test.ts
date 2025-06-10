@@ -35,7 +35,7 @@ describeWithMockConnection('LighthousePanel', () => {
 
   beforeEach(async () => {
     Lighthouse = await import('./lighthouse.js');
-    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
+    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
     createTarget({parentTarget: tabTarget, subtype: 'prerender'});
     target = createTarget({parentTarget: tabTarget});
     sinon.stub(target.pageAgent(), 'invoke_getNavigationHistory').resolves({

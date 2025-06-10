@@ -52,7 +52,7 @@ const UIStrings = {
    * (regions) of the page that were shifted (where a 'layout shift' occurred). A layout shift is
    * where elements on the webpage move around and cause other nearby elements to move as well.
    */
-  layoutShiftRegions: 'Layout shift regions',
+  layoutShiftRegions: 'Layout Shift Regions',
   /**
    * @description Explanation text for the 'Layout Shift Regions' setting in the Rendering tool.
    */
@@ -96,6 +96,15 @@ const UIStrings = {
    * @description Explanation text for the 'Highlight ad frames' setting in the Rendering tool.
    */
   highlightsFramesRedDetectedToBe: 'Highlights frames (red) detected to be ads.',
+  /**
+   * @description The name of a checkbox setting in the Rendering tool. This setting shows an overlay
+   * with Core Web Vitals. Core Web Vitals: https://support.google.com/webmasters/answer/9205520?hl=en
+   */
+  coreWebVitals: 'Core Web Vitals',
+  /**
+   * @description Explanation text for the 'Core Web Vitals' setting in the Rendering tool.
+   */
+  showsAnOverlayWithCoreWebVitals: 'Shows an overlay with Core Web Vitals.',
   /**
    * @description The name of a checkbox setting in the Rendering tool. This setting prevents the
    * webpage from loading 'local' fonts. Local fonts are fonts that are installed on the user's
@@ -177,7 +186,7 @@ const UIStrings = {
    * @description Explanation text for the 'Forces CSS forced-colors' setting in the Rendering tool.
    */
   forcesCssForcedColors: 'Forces CSS forced-colors media feature',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('entrypoints/inspector_main/RenderingOptions.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -206,7 +215,6 @@ const supportsPrefersContrast = (): boolean => {
 export class RenderingOptionsView extends UI.Widget.VBox {
   constructor() {
     super(true);
-    this.registerRequiredCSS(renderingOptionsStyles);
 
     this.element.setAttribute('jslog', `${VisualLogging.panel('rendering').track({resize: true})}`);
 
@@ -228,6 +236,10 @@ export class RenderingOptionsView extends UI.Widget.VBox {
     this.#appendCheckbox(
         i18nString(UIStrings.highlightAdFrames), i18nString(UIStrings.highlightsFramesRedDetectedToBe),
         Common.Settings.Settings.instance().moduleSetting('show-ad-highlights'));
+    this.#appendCheckbox(
+        i18nString(UIStrings.coreWebVitals), i18nString(UIStrings.showsAnOverlayWithCoreWebVitals),
+        Common.Settings.Settings.instance().moduleSetting('show-web-vitals'),
+        {toggle: Host.UserMetrics.Action.ToggleShowWebVitals});
     this.#appendCheckbox(
         i18nString(UIStrings.disableLocalFonts), i18nString(UIStrings.disablesLocalSourcesInFontface),
         Common.Settings.Settings.instance().moduleSetting('local-fonts-disabled'));
@@ -291,8 +303,8 @@ export class RenderingOptionsView extends UI.Widget.VBox {
   }
 
   #appendCheckbox(
-      label: Common.UIString.LocalizedString, subtitle: Common.UIString.LocalizedString,
-      setting: Common.Settings.Setting<boolean>, metric?: UI.SettingsUI.UserMetricOptions): UI.UIUtils.CheckboxLabel {
+      label: string, subtitle: string, setting: Common.Settings.Setting<boolean>,
+      metric?: UI.SettingsUI.UserMetricOptions): UI.UIUtils.CheckboxLabel {
     const checkbox = UI.UIUtils.CheckboxLabel.create(label, false, subtitle, setting.name);
     UI.SettingsUI.bindCheckbox(checkbox.checkboxElement, setting, metric);
     this.contentElement.appendChild(checkbox);
@@ -304,6 +316,10 @@ export class RenderingOptionsView extends UI.Widget.VBox {
     if (control) {
       this.contentElement.appendChild(control);
     }
+  }
+  override wasShown(): void {
+    super.wasShown();
+    this.registerCSSFiles([renderingOptionsStyles]);
   }
 }
 

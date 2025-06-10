@@ -5,11 +5,14 @@
 import * as puppeteer from 'puppeteer-core';
 
 import {querySelectorShadowTextAll, querySelectorShadowTextOne} from './custom-query-handlers.js';
-import {clearServerPort} from './server_port.js';
 
 let target: puppeteer.Page|null;
 let frontend: puppeteer.Page|null;
 let browser: puppeteer.Browser|null;
+
+// Set when we launch the server. It will be different for each
+// sub-process runner when running in parallel.
+let testServerPort: number|null;
 
 export interface BrowserAndPages {
   target: puppeteer.Page;
@@ -21,7 +24,7 @@ export const clearPuppeteerState = () => {
   target = null;
   frontend = null;
   browser = null;
-  clearServerPort();
+  testServerPort = null;
 };
 
 export const setBrowserAndPages = (newValues: BrowserAndPages) => {
@@ -52,12 +55,29 @@ export const getBrowserAndPages = (): BrowserAndPages => {
   };
 };
 
+export const setTestServerPort = (port: number) => {
+  if (testServerPort) {
+    throw new Error('Can\'t set the test server port twice.');
+  }
+  testServerPort = port;
+};
+
+export const getTestServerPort = () => {
+  if (!testServerPort) {
+    throw new Error(
+        'Unable to locate test server port. Was it stored first?' +
+        '\nYou might be calling this function at module instantiation time, instead of ' +
+        'at runtime when the port is available.');
+  }
+  return testServerPort;
+};
+
 let handlerRegistered = false;
 export const registerHandlers = () => {
   if (handlerRegistered) {
     return;
   }
-  puppeteer.Puppeteer.registerCustomQueryHandler('pierceShadowText', {
+  puppeteer.registerCustomQueryHandler('pierceShadowText', {
     queryOne: querySelectorShadowTextOne as ((node: Node, selector: string) => Node | null),
     queryAll: querySelectorShadowTextAll as unknown as ((node: Node, selector: string) => Node[]),
   });

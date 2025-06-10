@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import * as SDK from '../../core/sdk/sdk.js';
-import * as Protocol from '../../generated/protocol.js';
+import type * as Protocol from '../../generated/protocol.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {
   describeWithMockConnection,
@@ -60,7 +60,7 @@ describeWithMockConnection('WebAuthn pane', () => {
     let model: SDK.WebAuthnModel.WebAuthnModel;
     let panel: WebauthnModule.WebauthnPane.WebauthnPaneImpl;
     beforeEach(() => {
-      const tabTarget = createTarget({type: SDK.Target.Type.TAB});
+      const tabTarget = createTarget({type: SDK.Target.Type.Tab});
       createTarget({parentTarget: tabTarget, subtype: 'prerender'});
       target = createTarget({parentTarget: tabTarget});
       SDK.TargetManager.TargetManager.instance().setScopeTarget(inScope ? target : null);
@@ -131,7 +131,7 @@ describeWithMockConnection('WebAuthn pane', () => {
         assert.fail('Expected dataGrid to be truthy');
         return;
       }
-      assert.lengthOf(dataGrid.rootNode().children, 1);
+      assert.strictEqual(dataGrid.rootNode().children.length, 1);
       let emptyNode = dataGrid.rootNode().children[0];
       assert.isOk(emptyNode);
       assert.deepEqual(emptyNode.data, {});
@@ -145,13 +145,13 @@ describeWithMockConnection('WebAuthn pane', () => {
         signCount: 1,
         privateKey: '',
       };
-      model.dispatchEventToListeners(SDK.WebAuthnModel.Events.CREDENTIAL_ADDED, {
+      model.dispatchEventToListeners(SDK.WebAuthnModel.Events.CredentialAdded, {
         authenticatorId,
         credential,
       });
 
       // Verify the credential appeared and the empty row was removed.
-      assert.lengthOf(dataGrid.rootNode().children, 1);
+      assert.strictEqual(dataGrid.rootNode().children.length, 1);
       const credentialNode = dataGrid.rootNode().children[0];
       assert.isOk(credentialNode);
       assert.strictEqual(credentialNode.data, credential);
@@ -159,7 +159,7 @@ describeWithMockConnection('WebAuthn pane', () => {
       // Remove the credential.
       const removeCredential = sinon.stub(model, 'removeCredential').resolves();
       dataGrid.element.querySelectorAll('devtools-button')[1].click();
-      assert.lengthOf(dataGrid.rootNode().children, 1);
+      assert.strictEqual(dataGrid.rootNode().children.length, 1);
       emptyNode = dataGrid.rootNode().children[0];
       assert.isOk(emptyNode);
       assert.deepEqual(emptyNode.data, {});
@@ -191,7 +191,7 @@ describeWithMockConnection('WebAuthn pane', () => {
         signCount: 1,
         privateKey: '',
       };
-      model.dispatchEventToListeners(SDK.WebAuthnModel.Events.CREDENTIAL_ADDED, {
+      model.dispatchEventToListeners(SDK.WebAuthnModel.Events.CredentialAdded, {
         authenticatorId,
         credential,
       });
@@ -202,13 +202,13 @@ describeWithMockConnection('WebAuthn pane', () => {
         assert.fail('Expected dataGrid to be truthy');
         return;
       }
-      assert.lengthOf(dataGrid.rootNode().children, 1);
+      assert.strictEqual(dataGrid.rootNode().children.length, 1);
       const credentialNode = dataGrid.rootNode().children[0];
       assert.isOk(credentialNode);
       assert.strictEqual(credentialNode.data, credential);
 
       // Update the credential.
-      const updatedCredential1 = {
+      const updatedCredential = {
         credentialId: 'credential',
         isResidentCredential: false,
         rpId: 'talos1.org',
@@ -216,33 +216,14 @@ describeWithMockConnection('WebAuthn pane', () => {
         signCount: 2,
         privateKey: '',
       };
-      model.dispatchEventToListeners(SDK.WebAuthnModel.Events.CREDENTIAL_ASSERTED, {
+      model.dispatchEventToListeners(SDK.WebAuthnModel.Events.CredentialAsserted, {
         authenticatorId,
-        credential: updatedCredential1,
+        credential: updatedCredential,
       });
 
       // Verify the credential was updated.
-      assert.lengthOf(dataGrid.rootNode().children, 1);
-      assert.strictEqual(credentialNode.data, updatedCredential1);
-
-      // The credential can also be updated through the CREDENTIAL_UPDATED
-      // event.
-      const updatedCredential2 = {
-        credentialId: 'credential',
-        isResidentCredential: false,
-        rpId: 'talos1.org',
-        userHandle: 'danielle',
-        signCount: 2,
-        privateKey: '',
-      };
-      model.dispatchEventToListeners(SDK.WebAuthnModel.Events.CREDENTIAL_UPDATED, {
-        authenticatorId,
-        credential: updatedCredential2,
-      });
-
-      // Verify the credential was updated.
-      assert.lengthOf(dataGrid.rootNode().children, 1);
-      assert.strictEqual(credentialNode.data, updatedCredential2);
+      assert.strictEqual(dataGrid.rootNode().children.length, 1);
+      assert.strictEqual(credentialNode.data, updatedCredential);
 
       // Updating a different credential should not affect the existing one.
       const anotherCredential = {
@@ -253,122 +234,17 @@ describeWithMockConnection('WebAuthn pane', () => {
         signCount: 1,
         privateKey: '',
       };
-      model.dispatchEventToListeners(SDK.WebAuthnModel.Events.CREDENTIAL_ASSERTED, {
+      model.dispatchEventToListeners(SDK.WebAuthnModel.Events.CredentialAsserted, {
         authenticatorId,
         credential: anotherCredential,
       });
 
       // Verify the credential was unchanged.
-      assert.lengthOf(dataGrid.rootNode().children, 1);
-      assert.strictEqual(credentialNode.data, updatedCredential2);
-    });
-
-    it('removes credentials that were deleted', async () => {
-      const authenticatorId = 'authenticator-1' as Protocol.WebAuthn.AuthenticatorId;
-
-      // Add an authenticator.
-      const addAuthenticator = sinon.stub(model, 'addAuthenticator').resolves(authenticatorId);
-      panel.addAuthenticatorButton?.click();
-      await new Promise(resolve => setTimeout(resolve, 0));
-      assert.strictEqual(addAuthenticator.called, inScope);
-      if (!inScope) {
-        return;
-      }
-
-      // Add a credential.
-      const credential = {
-        credentialId: 'credential',
-        isResidentCredential: false,
-        rpId: 'talos1.org',
-        userHandle: 'morgan',
-        signCount: 1,
-        privateKey: '',
-      };
-      model.dispatchEventToListeners(SDK.WebAuthnModel.Events.CREDENTIAL_ADDED, {
-        authenticatorId,
-        credential,
-      });
-
-      // Verify the credential appeared.
-      const dataGrid = panel.dataGrids.get(authenticatorId);
-      if (!dataGrid) {
-        assert.fail('Expected dataGrid to be truthy');
-        return;
-      }
-      assert.lengthOf(dataGrid.rootNode().children, 1);
-      const credentialNode = dataGrid.rootNode().children[0];
-      assert.isOk(credentialNode);
-      assert.strictEqual(credentialNode.data, credential);
-
-      // Delete a credential with a different ID. This should be ignored.
-      model.dispatchEventToListeners(SDK.WebAuthnModel.Events.CREDENTIAL_DELETED, {
-        authenticatorId,
-        credentialId: 'another credential',
-      });
-      assert.lengthOf(dataGrid.rootNode().children, 1);
-
-      // Delete the credential. It should be removed from the list.
-      model.dispatchEventToListeners(SDK.WebAuthnModel.Events.CREDENTIAL_DELETED, {
-        authenticatorId,
-        credentialId: credential.credentialId,
-      });
-      assert.lengthOf(dataGrid.rootNode().children, 0);
-    });
-
-    it('disables "internal" if an internal authenticator exists', async () => {
-      const authenticatorId = 'authenticator-1' as Protocol.WebAuthn.AuthenticatorId;
-      let panel = new Webauthn.WebauthnPane.WebauthnPaneImpl();
-      let transport = panel.transportSelect;
-      if (!transport) {
-        assert.fail('Transport select is not present');
-      }
-      let internalTransportIndex = -1;
-      for (let i = 0; i < transport.options.length; ++i) {
-        if (transport.options[i].value === Protocol.WebAuthn.AuthenticatorTransport.Internal) {
-          internalTransportIndex = i;
-          break;
-        }
-      }
-      assert.notEqual(internalTransportIndex, -1);
-      assert.isFalse(transport.options[internalTransportIndex].disabled);
-
-      // Add an internal authenticator.
-      transport.selectedIndex = internalTransportIndex;
-      const addAuthenticator = sinon.stub(model, 'addAuthenticator').resolves(authenticatorId);
-      panel.addAuthenticatorButton?.click();
-      await new Promise(resolve => setTimeout(resolve, 0));
-      assert.strictEqual(addAuthenticator.called, inScope);
-      if (!inScope) {
-        return;
-      }
-
-      // The "internal" option should have been disabled, and another option selected.
-      assert.notEqual(transport.selectedIndex, internalTransportIndex);
-      assert.isTrue(transport.options[internalTransportIndex].disabled);
-
-      // Restoring the authenticator when loading the panel again should also cause "internal" to be disabled.
-      panel = new Webauthn.WebauthnPane.WebauthnPaneImpl();
-      transport = panel.transportSelect;
-      if (!transport) {
-        assert.fail('Transport select is not present');
-      }
-      assert.isTrue(transport.options[internalTransportIndex].disabled);
-
-      // Removing the internal authenticator should re-enable the option.
-      panel.removeAuthenticator(authenticatorId);
-      assert.isFalse(transport.options[internalTransportIndex].disabled);
+      assert.strictEqual(dataGrid.rootNode().children.length, 1);
+      assert.strictEqual(credentialNode.data, updatedCredential);
     });
   };
 
   describe('in scope', () => tests(true));
   describe('out of scope', () => tests(false));
-
-  it('shows the placeholder', () => {
-    const panel = new Webauthn.WebauthnPane.WebauthnPaneImpl();
-    assert.exists(panel.contentElement.querySelector('.empty-state'));
-    assert.deepEqual(panel.contentElement.querySelector('.empty-state-header')?.textContent, 'No authenticator set up');
-    assert.deepEqual(
-        panel.contentElement.querySelector('.empty-state-description > span')?.textContent,
-        'Use WebAuthn for phishing-resistant authentication.');
-  });
 });

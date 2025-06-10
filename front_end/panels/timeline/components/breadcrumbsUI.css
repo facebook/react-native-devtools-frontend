@@ -9,7 +9,8 @@
   align-items: center;
   height: 29px;
   padding: 3px;
-  overflow: scroll hidden;
+  overflow-y: hidden;
+  overflow-x: scroll;
 }
 
 .breadcrumbs::-webkit-scrollbar {
@@ -30,7 +31,7 @@
   white-space: nowrap;
 }
 
-.active-breadcrumb {
+.last-breadcrumb {
   font-weight: bold;
   color: var(--app-color-active-breadcrumb);
 }

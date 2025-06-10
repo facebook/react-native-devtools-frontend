@@ -5,7 +5,7 @@
 import("../../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../../scripts/build/ninja/devtools_module.gni")
 import("../../../../scripts/build/ninja/generate_css.gni")
-import("../../../../scripts/build/typescript/typescript.gni")
+import("../../../../third_party/typescript/typescript.gni")
 
 generate_css("css_files") {
   sources = [
@@ -51,7 +51,7 @@ ts_library("unittests") {
   deps = [
     ":bundle",
     "../../../testing",
-    "../../lit:bundle",
+    "../../lit-html:bundle",
     "../dialogs:bundle",
     "../render_coordinator:bundle",
   ]

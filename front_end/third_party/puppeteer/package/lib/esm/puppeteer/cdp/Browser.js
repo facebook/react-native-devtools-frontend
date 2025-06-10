@@ -6,21 +6,22 @@
 import { Browser as BrowserBase, } from '../api/Browser.js';
 import { CDPSessionEvent } from '../api/CDPSession.js';
 import { CdpBrowserContext } from './BrowserContext.js';
+import { ChromeTargetManager } from './ChromeTargetManager.js';
+import { FirefoxTargetManager } from './FirefoxTargetManager.js';
 import { DevToolsTarget, InitializationStatus, OtherTarget, PageTarget, WorkerTarget, } from './Target.js';
-import { TargetManager } from './TargetManager.js';
 /**
  * @internal
  */
 export class CdpBrowser extends BrowserBase {
     protocol = 'cdp';
-    static async _create(connection, contextIds, acceptInsecureCerts, defaultViewport, downloadBehavior, process, closeCallback, targetFilterCallback, isPageTargetCallback, waitForInitiallyDiscoveredTargets = true) {
-        const browser = new CdpBrowser(connection, contextIds, defaultViewport, process, closeCallback, targetFilterCallback, isPageTargetCallback, waitForInitiallyDiscoveredTargets);
-        if (acceptInsecureCerts) {
+    static async _create(product, connection, contextIds, ignoreHTTPSErrors, defaultViewport, process, closeCallback, targetFilterCallback, isPageTargetCallback, waitForInitiallyDiscoveredTargets = true) {
+        const browser = new CdpBrowser(product, connection, contextIds, defaultViewport, process, closeCallback, targetFilterCallback, isPageTargetCallback, waitForInitiallyDiscoveredTargets);
+        if (ignoreHTTPSErrors) {
             await connection.send('Security.setIgnoreCertificateErrors', {
                 ignore: true,
             });
         }
-        await browser._attach(downloadBehavior);
+        await browser._attach();
         return browser;
     }
     #defaultViewport;
@@ -32,8 +33,9 @@ export class CdpBrowser extends BrowserBase {
     #defaultContext;
     #contexts = new Map();
     #targetManager;
-    constructor(connection, contextIds, defaultViewport, process, closeCallback, targetFilterCallback, isPageTargetCallback, waitForInitiallyDiscoveredTargets = true) {
+    constructor(product, connection, contextIds, defaultViewport, process, closeCallback, targetFilterCallback, isPageTargetCallback, waitForInitiallyDiscoveredTargets = true) {
         super();
+        product = product || 'chrome';
         this.#defaultViewport = defaultViewport;
         this.#process = process;
         this.#connection = connection;
@@ -44,7 +46,12 @@ export class CdpBrowser extends BrowserBase {
                     return true;
                 });
         this.#setIsPageTargetCallback(isPageTargetCallback);
-        this.#targetManager = new TargetManager(connection, this.#createTarget, this.#targetFilterCallback, waitForInitiallyDiscoveredTargets);
+        if (product === 'firefox') {
+            this.#targetManager = new FirefoxTargetManager(connection, this.#createTarget, this.#targetFilterCallback);
+        }
+        else {
+            this.#targetManager = new ChromeTargetManager(connection, this.#createTarget, this.#targetFilterCallback, waitForInitiallyDiscoveredTargets);
+        }
         this.#defaultContext = new CdpBrowserContext(this.#connection, this);
         for (const contextId of contextIds) {
             this.#contexts.set(contextId, new CdpBrowserContext(this.#connection, this, contextId));
@@ -53,11 +60,8 @@ export class CdpBrowser extends BrowserBase {
     #emitDisconnected = () => {
         this.emit("disconnected" /* BrowserEvent.Disconnected */, undefined);
     };
-    async _attach(downloadBehavior) {
+    async _attach() {
         this.#connection.on(CDPSessionEvent.Disconnected, this.#emitDisconnected);
-        if (downloadBehavior) {
-            await this.#defaultContext.setDownloadBehavior(downloadBehavior);
-        }
         this.#targetManager.on("targetAvailable" /* TargetManagerEvent.TargetAvailable */, this.#onAttachedToTarget);
         this.#targetManager.on("targetGone" /* TargetManagerEvent.TargetGone */, this.#onDetachedFromTarget);
         this.#targetManager.on("targetChanged" /* TargetManagerEvent.TargetChanged */, this.#onTargetChanged);
@@ -90,15 +94,12 @@ export class CdpBrowser extends BrowserBase {
         return this.#isPageTargetCallback;
     }
     async createBrowserContext(options = {}) {
-        const { proxyServer, proxyBypassList, downloadBehavior } = options;
+        const { proxyServer, proxyBypassList } = options;
         const { browserContextId } = await this.#connection.send('Target.createBrowserContext', {
             proxyServer,
             proxyBypassList: proxyBypassList && proxyBypassList.join(','),
         });
         const context = new CdpBrowserContext(this.#connection, this, browserContextId);
-        if (downloadBehavior) {
-            await context.setDownloadBehavior(downloadBehavior);
-        }
         this.#contexts.set(browserContextId, context);
         return context;
     }

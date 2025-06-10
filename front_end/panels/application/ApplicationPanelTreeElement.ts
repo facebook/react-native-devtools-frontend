@@ -6,7 +6,7 @@ import * as Common from '../../core/common/common.js';
 import type * as Platform from '../../core/platform/platform.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
-import type {ResourcesPanel} from './ResourcesPanel.js';
+import {type ResourcesPanel} from './ResourcesPanel.js';
 
 export class ApplicationPanelTreeElement extends UI.TreeOutline.TreeElement {
   protected readonly resourcesPanel: ResourcesPanel;
@@ -55,21 +55,12 @@ export class ExpandableApplicationPanelTreeElement extends ApplicationPanelTreeE
   protected readonly categoryName: string;
   protected categoryLink: Platform.DevToolsPath.UrlString|null;
 
-  // These strings are used for the empty state in each top most tree element
-  // in the Application Panel.
-  protected emptyCategoryHeadline: string;
-  protected categoryDescription: string;
-
-  constructor(
-      resourcesPanel: ResourcesPanel, categoryName: string, emptyCategoryHeadline: string, categoryDescription: string,
-      settingsKey: string, settingsDefault = false) {
+  constructor(resourcesPanel: ResourcesPanel, categoryName: string, settingsKey: string, settingsDefault = false) {
     super(resourcesPanel, categoryName, false, settingsKey);
     this.expandedSetting =
         Common.Settings.Settings.instance().createSetting('resources-' + settingsKey + '-expanded', settingsDefault);
     this.categoryName = categoryName;
     this.categoryLink = null;
-    this.emptyCategoryHeadline = emptyCategoryHeadline;
-    this.categoryDescription = categoryDescription;
   }
 
   override get itemURL(): Platform.DevToolsPath.UrlString {
@@ -82,31 +73,8 @@ export class ExpandableApplicationPanelTreeElement extends ApplicationPanelTreeE
 
   override onselect(selectedByUser: boolean|undefined): boolean {
     super.onselect(selectedByUser);
-    this.updateCategoryView();
+    this.resourcesPanel.showCategoryView(this.categoryName, this.categoryLink);
     return false;
-  }
-
-  private updateCategoryView(): void {
-    const headline = this.childCount() === 0 ? this.emptyCategoryHeadline : this.categoryName;
-    this.resourcesPanel.showCategoryView(this.categoryName, headline, this.categoryDescription, this.categoryLink);
-  }
-
-  override appendChild(
-      child: UI.TreeOutline.TreeElement,
-      comparator?: ((arg0: UI.TreeOutline.TreeElement, arg1: UI.TreeOutline.TreeElement) => number)|undefined): void {
-    super.appendChild(child, comparator);
-    // Only update if relevant (changing from 0 to 1 child).
-    if (this.selected && this.childCount() === 1) {
-      this.updateCategoryView();
-    }
-  }
-
-  override removeChild(child: UI.TreeOutline.TreeElement): void {
-    super.removeChild(child);
-    // Only update if relevant (changing to 0 children).
-    if (this.selected && this.childCount() === 0) {
-      this.updateCategoryView();
-    }
   }
 
   override onattach(): void {

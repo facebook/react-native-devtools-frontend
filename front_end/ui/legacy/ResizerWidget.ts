@@ -3,12 +3,11 @@
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
-
 import {elementDragStart} from './UIUtils.js';
 
 export class ResizerWidget extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
-  private isEnabledInternal = true;
-  private elementsInternal = new Set<HTMLElement>();
+  private isEnabledInternal: boolean;
+  private elementsInternal: Set<HTMLElement>;
   private readonly installDragOnMouseDownBound: (event: Event) => false | undefined;
   private cursorInternal: string;
   private startX?: number;
@@ -17,6 +16,8 @@ export class ResizerWidget extends Common.ObjectWrapper.ObjectWrapper<EventTypes
   constructor() {
     super();
 
+    this.isEnabledInternal = true;
+    this.elementsInternal = new Set();
     this.installDragOnMouseDownBound = this.installDragOnMouseDown.bind(this);
     this.cursorInternal = 'nwse-resize';
   }
@@ -96,7 +97,7 @@ export class ResizerWidget extends Common.ObjectWrapper.ObjectWrapper<EventTypes
   }
 
   sendDragStart(x: number, y: number): void {
-    this.dispatchEventToListeners(Events.RESIZE_START, {startX: x, currentX: x, startY: y, currentY: y});
+    this.dispatchEventToListeners(Events.ResizeStart, {startX: x, currentX: x, startY: y, currentY: y});
   }
 
   private drag(event: MouseEvent): boolean {
@@ -110,21 +111,23 @@ export class ResizerWidget extends Common.ObjectWrapper.ObjectWrapper<EventTypes
   }
 
   sendDragMove(startX: number, currentX: number, startY: number, currentY: number, shiftKey: boolean): void {
-    this.dispatchEventToListeners(Events.RESIZE_UPDATE_XY, {startX, currentX, startY, currentY, shiftKey});
+    this.dispatchEventToListeners(
+        Events.ResizeUpdateXY,
+        {startX: startX, currentX: currentX, startY: startY, currentY: currentY, shiftKey: shiftKey});
   }
 
   private dragEnd(_event: MouseEvent): void {
-    this.dispatchEventToListeners(Events.RESIZE_END);
+    this.dispatchEventToListeners(Events.ResizeEnd);
     delete this.startX;
     delete this.startY;
   }
 }
 
 export const enum Events {
-  RESIZE_START = 'ResizeStart',
-  RESIZE_UPDATE_XY = 'ResizeUpdateXY',
-  RESIZE_UPDATE_POSITION = 'ResizeUpdatePosition',
-  RESIZE_END = 'ResizeEnd',
+  ResizeStart = 'ResizeStart',
+  ResizeUpdateXY = 'ResizeUpdateXY',
+  ResizeUpdatePosition = 'ResizeUpdatePosition',
+  ResizeEnd = 'ResizeEnd',
 }
 
 export interface ResizeStartXYEvent {
@@ -153,12 +156,12 @@ export interface ResizeUpdatePositionEvent {
   shiftKey: boolean;
 }
 
-export interface EventTypes {
-  [Events.RESIZE_START]: ResizeStartXYEvent|ResizeStartPositionEvent;
-  [Events.RESIZE_UPDATE_XY]: ResizeUpdateXYEvent;
-  [Events.RESIZE_UPDATE_POSITION]: ResizeUpdatePositionEvent;
-  [Events.RESIZE_END]: void;
-}
+export type EventTypes = {
+  [Events.ResizeStart]: ResizeStartXYEvent|ResizeStartPositionEvent,
+  [Events.ResizeUpdateXY]: ResizeUpdateXYEvent,
+  [Events.ResizeUpdatePosition]: ResizeUpdatePositionEvent,
+  [Events.ResizeEnd]: void,
+};
 
 export class SimpleResizerWidget extends ResizerWidget {
   private isVerticalInternal: boolean;
@@ -185,16 +188,16 @@ export class SimpleResizerWidget extends ResizerWidget {
 
   override sendDragStart(x: number, y: number): void {
     const position = this.isVerticalInternal ? y : x;
-    this.dispatchEventToListeners(Events.RESIZE_START, {startPosition: position, currentPosition: position});
+    this.dispatchEventToListeners(Events.ResizeStart, {startPosition: position, currentPosition: position});
   }
 
   override sendDragMove(startX: number, currentX: number, startY: number, currentY: number, shiftKey: boolean): void {
     if (this.isVerticalInternal) {
       this.dispatchEventToListeners(
-          Events.RESIZE_UPDATE_POSITION, {startPosition: startY, currentPosition: currentY, shiftKey});
+          Events.ResizeUpdatePosition, {startPosition: startY, currentPosition: currentY, shiftKey: shiftKey});
     } else {
       this.dispatchEventToListeners(
-          Events.RESIZE_UPDATE_POSITION, {startPosition: startX, currentPosition: currentX, shiftKey});
+          Events.ResizeUpdatePosition, {startPosition: startX, currentPosition: currentX, shiftKey: shiftKey});
     }
   }
 }

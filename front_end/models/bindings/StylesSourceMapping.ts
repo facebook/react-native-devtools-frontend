@@ -35,7 +35,7 @@ import * as TextUtils from '../text_utils/text_utils.js';
 import * as Workspace from '../workspace/workspace.js';
 
 import {ContentProviderBasedProject} from './ContentProviderBasedProject.js';
-import type {SourceMapping} from './CSSWorkspaceBinding.js';
+import {type SourceMapping} from './CSSWorkspaceBinding.js';
 import {NetworkProject} from './NetworkProject.js';
 import {metadataForURL} from './ResourceUtils.js';
 
@@ -43,20 +43,16 @@ const uiSourceCodeToStyleMap = new WeakMap<Workspace.UISourceCode.UISourceCode, 
 
 export class StylesSourceMapping implements SourceMapping {
   #cssModel: SDK.CSSModel.CSSModel;
-  #networkProject: ContentProviderBasedProject;
-  #inspectorProject: ContentProviderBasedProject;
+  #project: ContentProviderBasedProject;
   readonly #styleFiles: Map<string, StyleFile>;
   readonly #eventListeners: Common.EventTarget.EventDescriptor[];
 
   constructor(cssModel: SDK.CSSModel.CSSModel, workspace: Workspace.Workspace.WorkspaceImpl) {
     this.#cssModel = cssModel;
     const target = this.#cssModel.target();
-    this.#networkProject = new ContentProviderBasedProject(
+    this.#project = new ContentProviderBasedProject(
         workspace, 'css:' + target.id(), Workspace.Workspace.projectTypes.Network, '', false /* isServiceProject */);
-    NetworkProject.setTargetForProject(this.#networkProject, target);
-    this.#inspectorProject = new ContentProviderBasedProject(
-        workspace, 'inspector:' + target.id(), Workspace.Workspace.projectTypes.Inspector, '',
-        true /* isServiceProject */);
+    NetworkProject.setTargetForProject(this.#project, target);
 
     this.#styleFiles = new Map();
     this.#eventListeners = [
@@ -135,8 +131,7 @@ export class StylesSourceMapping implements SourceMapping {
     const url = header.resourceURL();
     let styleFile = this.#styleFiles.get(url);
     if (!styleFile) {
-      const project = header.isViaInspector() ? this.#inspectorProject : this.#networkProject;
-      styleFile = new StyleFile(this.#cssModel, project, header);
+      styleFile = new StyleFile(this.#cssModel, this.#project, header);
       this.#styleFiles.set(url, styleFile);
     } else {
       styleFile.addHeader(header);
@@ -178,8 +173,7 @@ export class StylesSourceMapping implements SourceMapping {
     }
     this.#styleFiles.clear();
     Common.EventTarget.removeEventListeners(this.#eventListeners);
-    this.#inspectorProject.removeProject();
-    this.#networkProject.removeProject();
+    this.#project.removeProject();
   }
 }
 
@@ -237,7 +231,7 @@ export class StyleFile implements TextUtils.ContentProvider.ContentProvider {
       return;
     }
     const mirrorContentBound = this.mirrorContent.bind(this, header, true /* majorChange */);
-    void this.#throttler.schedule(mirrorContentBound, Common.Throttler.Scheduling.DEFAULT);
+    void this.#throttler.schedule(mirrorContentBound, Common.Throttler.Scheduling.Default);
   }
 
   private workingCopyCommitted(): void {
@@ -245,7 +239,7 @@ export class StyleFile implements TextUtils.ContentProvider.ContentProvider {
       return;
     }
     const mirrorContentBound = this.mirrorContent.bind(this, this.uiSourceCode, true /* majorChange */);
-    void this.#throttler.schedule(mirrorContentBound, Common.Throttler.Scheduling.AS_SOON_AS_POSSIBLE);
+    void this.#throttler.schedule(mirrorContentBound, Common.Throttler.Scheduling.AsSoonAsPossible);
   }
 
   private workingCopyChanged(): void {
@@ -253,7 +247,7 @@ export class StyleFile implements TextUtils.ContentProvider.ContentProvider {
       return;
     }
     const mirrorContentBound = this.mirrorContent.bind(this, this.uiSourceCode, false /* majorChange */);
-    void this.#throttler.schedule(mirrorContentBound, Common.Throttler.Scheduling.DEFAULT);
+    void this.#throttler.schedule(mirrorContentBound, Common.Throttler.Scheduling.Default);
   }
 
   private async mirrorContent(fromProvider: TextUtils.ContentProvider.ContentProvider, majorChange: boolean):
@@ -277,7 +271,7 @@ export class StyleFile implements TextUtils.ContentProvider.ContentProvider {
 
     if (fromProvider !== this.uiSourceCode) {
       this.#isAddingRevision = true;
-      this.uiSourceCode.setWorkingCopy(newContent);
+      this.uiSourceCode.addRevision(newContent);
       this.#isAddingRevision = false;
     }
 
@@ -309,33 +303,28 @@ export class StyleFile implements TextUtils.ContentProvider.ContentProvider {
 
   contentURL(): Platform.DevToolsPath.UrlString {
     console.assert(this.headers.size > 0);
-    return this.#firstHeader().originalContentProvider().contentURL();
+    return this.headers.values().next().value.originalContentProvider().contentURL();
   }
 
   contentType(): Common.ResourceType.ResourceType {
     console.assert(this.headers.size > 0);
-    return this.#firstHeader().originalContentProvider().contentType();
+    return this.headers.values().next().value.originalContentProvider().contentType();
   }
 
   requestContent(): Promise<TextUtils.ContentProvider.DeferredContent> {
     console.assert(this.headers.size > 0);
-    return this.#firstHeader().originalContentProvider().requestContent();
+    return this.headers.values().next().value.originalContentProvider().requestContent();
   }
 
   requestContentData(): Promise<TextUtils.ContentData.ContentDataOrError> {
     console.assert(this.headers.size > 0);
-    return this.#firstHeader().originalContentProvider().requestContentData();
+    return this.headers.values().next().value.originalContentProvider().requestContentData();
   }
 
   searchInContent(query: string, caseSensitive: boolean, isRegex: boolean):
       Promise<TextUtils.ContentProvider.SearchMatch[]> {
     console.assert(this.headers.size > 0);
-    return this.#firstHeader().originalContentProvider().searchInContent(query, caseSensitive, isRegex);
-  }
-
-  #firstHeader(): SDK.CSSStyleSheetHeader.CSSStyleSheetHeader {
-    console.assert(this.headers.size > 0);
-    return this.headers.values().next().value as SDK.CSSStyleSheetHeader.CSSStyleSheetHeader;
+    return this.headers.values().next().value.originalContentProvider().searchInContent(query, caseSensitive, isRegex);
   }
 
   static readonly updateTimeout = 200;

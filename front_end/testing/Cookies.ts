@@ -52,10 +52,10 @@ export function expectCookie(cookie: SDK.Cookie.Cookie, cookieExpectation: Cooki
   const date = cookie.expiresDate(requestDate);
   if (typeof expectation.expires === 'string') {
     assert.isNotNull(date);
-    assert.strictEqual((date).toISOString(), expectation.expires, 'expires');
+    assert.strictEqual((date as Date).toISOString(), expectation.expires, 'expires');
   } else if (typeof expectation.expires === 'number') {
     assert.isNotNull(date);
-    assert.strictEqual((date).getTime(), expectation.expires, 'expires');
+    assert.strictEqual((date as Date).getTime(), expectation.expires, 'expires');
   } else {
     assert.strictEqual(date, expectation.expires, 'expires');
   }
@@ -64,8 +64,7 @@ export function expectCookie(cookie: SDK.Cookie.Cookie, cookieExpectation: Cooki
 
   assert.strictEqual(cookie.partitioned(), Boolean(expectation.partitionKey), 'partitioned');
   if (cookie.partitioned()) {
-    assert.strictEqual(
-        cookie.hasCrossSiteAncestor(), expectation.partitionKey?.hasCrossSiteAncestor, 'hasCrossSiteAncestor');
+    assert.strictEqual(cookie.hasCrossSiteAncestor(), expectation.partitionKey?.hasCrossSiteAncestor, 'partitionKey');
     assert.strictEqual(cookie.topLevelSite(), expectation.partitionKey?.topLevelSite, 'topLevelSite');
   }
   assert.strictEqual(cookie.partitionKeyOpaque(), expectation.partitionKeyOpaque, 'partitionKeyOpaque');

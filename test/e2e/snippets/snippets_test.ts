@@ -4,7 +4,8 @@
 
 import {assert} from 'chai';
 
-import {drainFrontendTaskQueue, getBrowserAndPages, typeText, waitFor, waitForFunction} from '../../shared/helper.js';
+import {getBrowserAndPages, typeText, waitFor, waitForFunction} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {maybeGetCurrentConsoleMessages} from '../helpers/console-helpers.js';
 import {getAvailableSnippets, openCommandMenu, showSnippetsAutocompletion} from '../helpers/quick_open-helpers.js';
 import {
@@ -41,8 +42,6 @@ describe('Snippet creation', () => {
     assert.deepEqual(await getAvailableSnippets(), []);
 
     await frontend.keyboard.press('Backspace');
-    // TODO: it should actually wait for rendering to finish.
-    await drainFrontendTaskQueue();
     assert.deepEqual(await getAvailableSnippets(), [
       'New snippet\u200B',
     ]);

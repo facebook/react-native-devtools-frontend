@@ -1,9 +1,11 @@
+/// <reference types="node" />
 /**
  * @license
  * Copyright 2020 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { Protocol } from 'devtools-protocol';
+import type { CDPSession } from '../api/CDPSession.js';
 import type { Frame } from '../api/Frame.js';
 import { HTTPResponse, type RemoteAddress } from '../api/HTTPResponse.js';
 import { SecurityDetails } from '../common/SecurityDetails.js';
@@ -13,7 +15,7 @@ import type { CdpHTTPRequest } from './HTTPRequest.js';
  */
 export declare class CdpHTTPResponse extends HTTPResponse {
     #private;
-    constructor(request: CdpHTTPRequest, responsePayload: Protocol.Network.Response, extraInfo: Protocol.Network.ResponseReceivedExtraInfoEvent | null);
+    constructor(client: CDPSession, request: CdpHTTPRequest, responsePayload: Protocol.Network.Response, extraInfo: Protocol.Network.ResponseReceivedExtraInfoEvent | null);
     _resolveBody(err?: Error): void;
     remoteAddress(): RemoteAddress;
     url(): string;
@@ -22,7 +24,7 @@ export declare class CdpHTTPResponse extends HTTPResponse {
     headers(): Record<string, string>;
     securityDetails(): SecurityDetails | null;
     timing(): Protocol.Network.ResourceTiming | null;
-    content(): Promise<Uint8Array>;
+    buffer(): Promise<Buffer>;
     request(): CdpHTTPRequest;
     fromCache(): boolean;
     fromServiceWorker(): boolean;

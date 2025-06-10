@@ -21,7 +21,7 @@ describeWithLocale('ServiceWorkerUpdateCycleView', () => {
 
     let view = new View.ServiceWorkerUpdateCycleView(registration);
     let ranges = view.calculateServiceWorkerUpdateRanges();
-    assert.lengthOf(ranges, 0, 'A nascent registration has no ranges to display.');
+    assert.strictEqual(ranges.length, 0, 'A nascent registration has no ranges to display.');
 
     versionId++;
     let versionPayload: Protocol.ServiceWorker.ServiceWorkerVersion = {
@@ -34,7 +34,7 @@ describeWithLocale('ServiceWorkerUpdateCycleView', () => {
     registration.updateVersion(versionPayload);
     view = new View.ServiceWorkerUpdateCycleView(registration);
     ranges = view.calculateServiceWorkerUpdateRanges();
-    assert.lengthOf(ranges, 0, 'A new registration has no ranges to display.');
+    assert.strictEqual(ranges.length, 0, 'A new registration has no ranges to display.');
 
     versionId++;
     versionPayload = {
@@ -47,7 +47,7 @@ describeWithLocale('ServiceWorkerUpdateCycleView', () => {
     registration.updateVersion(versionPayload);
     view = new View.ServiceWorkerUpdateCycleView(registration);
     ranges = view.calculateServiceWorkerUpdateRanges();
-    assert.lengthOf(ranges, 1, 'An installing registration has a range to display.');
+    assert.strictEqual(ranges.length, 1, 'An installing registration has a range to display.');
 
     versionId++;
     versionPayload = {
@@ -60,7 +60,8 @@ describeWithLocale('ServiceWorkerUpdateCycleView', () => {
     registration.updateVersion(versionPayload);
     view = new View.ServiceWorkerUpdateCycleView(registration);
     ranges = view.calculateServiceWorkerUpdateRanges();
-    assert.lengthOf(ranges, 1, 'An installing registration (reported multiple times) has a range to display.');
+    assert.strictEqual(
+        ranges.length, 1, 'An installing registration (reported multiple times) has a range to display.');
 
     versionId++;
     versionPayload = {
@@ -73,7 +74,7 @@ describeWithLocale('ServiceWorkerUpdateCycleView', () => {
     registration.updateVersion(versionPayload);
     view = new View.ServiceWorkerUpdateCycleView(registration);
     ranges = view.calculateServiceWorkerUpdateRanges();
-    assert.lengthOf(ranges, 1, 'An installed registration has a range to display. ');
+    assert.strictEqual(ranges.length, 1, 'An installed registration has a range to display. ');
 
     versionId++;
     versionPayload = {
@@ -86,7 +87,7 @@ describeWithLocale('ServiceWorkerUpdateCycleView', () => {
     registration.updateVersion(versionPayload);
     view = new View.ServiceWorkerUpdateCycleView(registration);
     ranges = view.calculateServiceWorkerUpdateRanges();
-    assert.lengthOf(ranges, 3, 'An activating registration has ranges to display.');
+    assert.strictEqual(ranges.length, 3, 'An activating registration has ranges to display.');
 
     versionId++;
     versionPayload = {
@@ -99,7 +100,7 @@ describeWithLocale('ServiceWorkerUpdateCycleView', () => {
     registration.updateVersion(versionPayload);
     view = new View.ServiceWorkerUpdateCycleView(registration);
     ranges = view.calculateServiceWorkerUpdateRanges();
-    assert.lengthOf(ranges, 3, 'An activating registration has ranges to display.');
+    assert.strictEqual(ranges.length, 3, 'An activating registration has ranges to display.');
 
     versionId++;
     versionPayload = {
@@ -112,7 +113,7 @@ describeWithLocale('ServiceWorkerUpdateCycleView', () => {
     registration.updateVersion(versionPayload);
     view = new View.ServiceWorkerUpdateCycleView(registration);
     ranges = view.calculateServiceWorkerUpdateRanges();
-    assert.lengthOf(ranges, 3, 'An activated registration has ranges to display.');
+    assert.strictEqual(ranges.length, 3, 'An activated registration has ranges to display.');
 
     versionId++;
     versionPayload = {
@@ -125,6 +126,6 @@ describeWithLocale('ServiceWorkerUpdateCycleView', () => {
     registration.updateVersion(versionPayload);
     view = new View.ServiceWorkerUpdateCycleView(registration);
     ranges = view.calculateServiceWorkerUpdateRanges();
-    assert.lengthOf(ranges, 3, 'A redundent registration has ranges to display.');
+    assert.strictEqual(ranges.length, 3, 'A redundent registration has ranges to display.');
   });
 });

@@ -3,8 +3,9 @@
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
+import * as Platform from '../../core/platform/platform.js';
 import type * as Workspace from '../../models/workspace/workspace.js';
-import {dispatchClickEvent, dispatchKeyDownEvent} from '../../testing/DOMHelpers.js';
+import {dispatchKeyDownEvent} from '../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
@@ -22,7 +23,7 @@ class FakeSearchScope implements Search.SearchScope.SearchScope {
   readonly #resolvePerformSearchCalledPromise: (args: PerformSearchArgs) => void;
 
   constructor() {
-    const {promise, resolve} = Promise.withResolvers<PerformSearchArgs>();
+    const {promise, resolve} = Platform.PromiseUtilities.promiseWithResolvers<PerformSearchArgs>();
     this.performSearchCalledPromise = promise;
     this.#resolvePerformSearchCalledPromise = resolve;
   }
@@ -119,41 +120,7 @@ describeWithEnvironment('SearchView', () => {
     const {searchFinishedCallback} = await fakeScope.performSearchCalledPromise;
     searchFinishedCallback(/* finished */ true);
 
-    assert.deepEqual(searchView.contentElement.querySelector('.empty-state-header')?.textContent, 'No matches found');
-    assert.deepEqual(
-        searchView.contentElement.querySelector('.empty-state-description')?.textContent,
-        'Nothing matched your search query');
-  });
-
-  it('has a standard placeholder when nothing has been searched yet', async () => {
-    const fakeScope = new FakeSearchScope();
-    const searchView = new TestSearchView(() => fakeScope);
-
-    assert.deepEqual(searchView.contentElement.querySelector('.empty-state-header')?.textContent, 'No search results');
-    assert.isTrue(
-        searchView.contentElement.querySelector('.empty-state-description')?.textContent?.includes('Type and press '));
-  });
-
-  it('has a standard placeholder when search has been cleared', async () => {
-    const fakeScope = new FakeSearchScope();
-    const searchView = new TestSearchView(() => fakeScope);
-
-    searchView.triggerSearch('a query', true, true);
-
-    const {searchFinishedCallback} = await fakeScope.performSearchCalledPromise;
-    searchFinishedCallback(/* finished */ true);
-
-    // After search, shows that no matches were found.
-    assert.deepEqual(searchView.contentElement.querySelector('.empty-state-header')?.textContent, 'No matches found');
-
-    const clearButton = searchView.contentElement.querySelector('.clear-button');
-    assert.exists(clearButton);
-    dispatchClickEvent(clearButton);
-
-    // After clearing, shows standard placeholder.
-    assert.deepEqual(searchView.contentElement.querySelector('.empty-state-header')?.textContent, 'No search results');
-    assert.isTrue(
-        searchView.contentElement.querySelector('.empty-state-description')?.textContent?.includes('Type and press '));
+    assert.strictEqual(searchView.currentSearchResultMessage, 'No matches found.');
   });
 
   it('updates the search result message with a count when search results are added', async () => {

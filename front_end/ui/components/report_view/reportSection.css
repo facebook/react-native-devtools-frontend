@@ -10,7 +10,8 @@
 }
 
 .section {
-  padding: var(--sys-size-5) var(--sys-size-9);
+  padding: 12px;
+  margin-left: 18px;
   display: flex;
   flex-direction: row;
   align-items: center;

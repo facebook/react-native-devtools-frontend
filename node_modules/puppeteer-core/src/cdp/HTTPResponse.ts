@@ -5,12 +5,12 @@
  */
 import type {Protocol} from 'devtools-protocol';
 
+import type {CDPSession} from '../api/CDPSession.js';
 import type {Frame} from '../api/Frame.js';
 import {HTTPResponse, type RemoteAddress} from '../api/HTTPResponse.js';
 import {ProtocolError} from '../common/Errors.js';
 import {SecurityDetails} from '../common/SecurityDetails.js';
 import {Deferred} from '../util/Deferred.js';
-import {stringToTypedArray} from '../util/encoding.js';
 
 import type {CdpHTTPRequest} from './HTTPRequest.js';
 
@@ -18,12 +18,14 @@ import type {CdpHTTPRequest} from './HTTPRequest.js';
  * @internal
  */
 export class CdpHTTPResponse extends HTTPResponse {
+  #client: CDPSession;
   #request: CdpHTTPRequest;
-  #contentPromise: Promise<Uint8Array> | null = null;
+  #contentPromise: Promise<Buffer> | null = null;
   #bodyLoadedDeferred = Deferred.create<void, Error>();
   #remoteAddress: RemoteAddress;
   #status: number;
   #statusText: string;
+  #url: string;
   #fromDiskCache: boolean;
   #fromServiceWorker: boolean;
   #headers: Record<string, string> = {};
@@ -31,11 +33,13 @@ export class CdpHTTPResponse extends HTTPResponse {
   #timing: Protocol.Network.ResourceTiming | null;
 
   constructor(
+    client: CDPSession,
     request: CdpHTTPRequest,
     responsePayload: Protocol.Network.Response,
-    extraInfo: Protocol.Network.ResponseReceivedExtraInfoEvent | null,
+    extraInfo: Protocol.Network.ResponseReceivedExtraInfoEvent | null
   ) {
     super();
+    this.#client = client;
     this.#request = request;
 
     this.#remoteAddress = {
@@ -45,6 +49,7 @@ export class CdpHTTPResponse extends HTTPResponse {
     this.#statusText =
       this.#parseStatusTextFromExtraInfo(extraInfo) ||
       responsePayload.statusText;
+    this.#url = request.url();
     this.#fromDiskCache = !!responsePayload.fromDiskCache;
     this.#fromServiceWorker = !!responsePayload.fromServiceWorker;
 
@@ -61,13 +66,13 @@ export class CdpHTTPResponse extends HTTPResponse {
   }
 
   #parseStatusTextFromExtraInfo(
-    extraInfo: Protocol.Network.ResponseReceivedExtraInfoEvent | null,
+    extraInfo: Protocol.Network.ResponseReceivedExtraInfoEvent | null
   ): string | undefined {
     if (!extraInfo || !extraInfo.headersText) {
       return;
     }
     const firstLine = extraInfo.headersText.split('\r', 1)[0];
-    if (!firstLine || firstLine.length > 1_000) {
+    if (!firstLine) {
       return;
     }
     const match = firstLine.match(/[^ ]* [^ ]* (.*)/);
@@ -93,7 +98,7 @@ export class CdpHTTPResponse extends HTTPResponse {
   }
 
   override url(): string {
-    return this.#request.url();
+    return this.#url;
   }
 
   override status(): number {
@@ -116,22 +121,22 @@ export class CdpHTTPResponse extends HTTPResponse {
     return this.#timing;
   }
 
-  override content(): Promise<Uint8Array> {
+  override buffer(): Promise<Buffer> {
     if (!this.#contentPromise) {
       this.#contentPromise = this.#bodyLoadedDeferred
         .valueOrThrow()
         .then(async () => {
           try {
-            // Use CDPSession from corresponding request to retrieve body, as it's client
-            // might have been updated (e.g. for an adopted OOPIF).
-            const response = await this.#request.client.send(
+            const response = await this.#client.send(
               'Network.getResponseBody',
               {
                 requestId: this.#request.id,
-              },
+              }
             );
-
-            return stringToTypedArray(response.body, response.base64Encoded);
+            return Buffer.from(
+              response.body,
+              response.base64Encoded ? 'base64' : 'utf8'
+            );
           } catch (error) {
             if (
               error instanceof ProtocolError &&
@@ -139,7 +144,7 @@ export class CdpHTTPResponse extends HTTPResponse {
                 'No resource with given identifier found'
             ) {
               throw new ProtocolError(
-                'Could not load body for this request. This might happen if the request is a preflight request.',
+                'Could not load body for this request. This might happen if the request is a preflight request.'
               );
             }
 

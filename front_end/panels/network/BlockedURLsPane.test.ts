@@ -2,16 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Platform from '../../core/platform/platform.js';
+import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Logs from '../../models/logs/logs.js';
-import {dispatchClickEvent} from '../../testing/DOMHelpers.js';
 import {createTarget, registerNoopActions} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
 
 import * as Network from './network.js';
-
-const {urlString} = Platform.DevToolsPath;
 
 describeWithMockConnection('BlockedURLsPane', () => {
   beforeEach(() => {
@@ -19,31 +16,6 @@ describeWithMockConnection('BlockedURLsPane', () => {
       'network.add-network-request-blocking-pattern',
       'network.remove-all-network-request-blocking-patterns',
     ]);
-  });
-
-  it('shows a placeholder', () => {
-    const blockedURLsPane = new Network.BlockedURLsPane.BlockedURLsPane();
-    const blockedElement = blockedURLsPane.contentElement.querySelector('.blocked-urls');
-    const placeholder = blockedElement?.shadowRoot?.querySelector('.empty-state');
-    assert.exists(placeholder);
-    assert.deepEqual(placeholder.querySelector('.empty-state-header')?.textContent, 'No blocked network requests');
-    assert.deepEqual(
-        placeholder.querySelector('.empty-state-description > span')?.textContent,
-        'Add a pattern to block network requests by clicking on the \"Add pattern\" button.');
-  });
-
-  it('Add pattern button triggers showing the editor view', () => {
-    const blockedURLsPane = new Network.BlockedURLsPane.BlockedURLsPane();
-    const blockedElement = blockedURLsPane.contentElement.querySelector('.blocked-urls');
-    const list = blockedElement?.shadowRoot?.querySelector('.list');
-    const placeholder = list?.querySelector('.empty-state');
-
-    const button = placeholder?.querySelector('devtools-button');
-    assert.exists(button);
-
-    assert.isNull(list?.querySelector('.editor-content'));
-    dispatchClickEvent(button);
-    assert.exists(list?.querySelector('.editor-content'));
   });
 
   describe('update', () => {
@@ -57,7 +29,7 @@ describeWithMockConnection('BlockedURLsPane', () => {
 
       const request = sinon.createStubInstance(SDK.NetworkRequest.NetworkRequest, {
         wasBlocked: true,
-        url: urlString`http://example.com`,
+        url: 'http://example.com' as Platform.DevToolsPath.UrlString,
       });
       networkManager.dispatchEventToListeners(SDK.NetworkManager.Events.RequestFinished, request);
 

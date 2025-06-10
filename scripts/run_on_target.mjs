@@ -9,20 +9,18 @@ import yargs from 'yargs';
 import unparse from 'yargs-unparser';
 
 const argv = yargs(process.argv.slice(2))
-  .parserConfiguration({
-    'strip-aliased': true,
-  })
-  .command('$0 [script]')
-  .option('target', { alias: 't', type: 'string', default: 'Default' })
-  .help(false)
-  .version(false)
-  .parseSync();
+                 .command('$0 [script]')
+                 .option('target', {alias: 't', type: 'string', default: 'Default'})
+                 .help(false)
+                 .version(false)
+                 .argv;
 
-const target = argv.target;
-let script = argv.script;
+const target = argv['target'];
+let script = argv['script'];
 
-delete argv.target;
-delete argv.script;
+delete argv['target'];
+delete argv['t'];
+delete argv['script'];
 
 let sourceRoot = path.dirname(path.dirname(path.resolve(argv['$0'])));
 
@@ -35,13 +33,8 @@ let cwd = path.join(sourceRoot, 'out', target);
 
 if (!fs.existsSync(cwd)) {
   // Check if we are in a Chromium checkout and look for the out folder there.
-  const maybeChromiumRoot = path.dirname(
-    path.dirname(path.dirname(sourceRoot)),
-  );
-  if (
-    sourceRoot ===
-    path.join(maybeChromiumRoot, 'third_party', 'devtools-frontend', 'src')
-  ) {
+  const maybeChromiumRoot = path.dirname(path.dirname(path.dirname(sourceRoot)));
+  if (sourceRoot === path.join(maybeChromiumRoot, 'third_party', 'devtools-frontend', 'src')) {
     sourceRoot = maybeChromiumRoot;
     cwd = path.join(sourceRoot, 'out', target);
     const pathParts = script.split(path.sep);
@@ -53,24 +46,15 @@ if (!fs.existsSync(cwd)) {
   }
 }
 
-if (
-  !fs.existsSync(cwd) ||
-  !fs.statSync(cwd).isDirectory() ||
-  !fs.existsSync(path.join(cwd, 'build.ninja'))
-) {
+if (!fs.existsSync(cwd) || !fs.statSync(cwd).isDirectory()) {
   console.error(
-    `Target path ${cwd} does not exist or is not a directory. Please run 'gn gen out/${target}' first.`,
-  );
+      `Target path ${cwd} does not exist or is not a directory. Please run 'gn gen out/${target}' first.`);
   process.exit(1);
 }
-const scriptPath = path.resolve(cwd, script);
+const scriptPath = path.resolve(cwd, script)
 if (!fs.existsSync(scriptPath)) {
   console.error(`Script path ${scriptPath} does not exist, trying ninja...`);
-  const { error, status } = childProcess.spawnSync(
-    'autoninja',
-    ['-C', cwd, script],
-    { stdio: 'inherit', cwd: sourceRoot },
-  );
+  const {error, status} = childProcess.spawnSync('autoninja', ['-C', cwd, script], {stdio: 'inherit', cwd: sourceRoot});
   if (error) {
     throw error;
   }
@@ -79,10 +63,6 @@ if (!fs.existsSync(scriptPath)) {
   }
 }
 
-const { argv0 } = process;
-const { status } = childProcess.spawnSync(
-  argv0,
-  [scriptPath, ...unparse(argv)],
-  { stdio: 'inherit', env },
-);
+const {argv0} = process;
+const {status} = childProcess.spawnSync(argv0, [scriptPath, ...unparse(argv)], {stdio: 'inherit', env});
 process.exit(status);

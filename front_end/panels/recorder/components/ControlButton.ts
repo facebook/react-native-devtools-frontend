@@ -2,15 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Lit from '../../../ui/lit/lit.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 
-import controlButtonStylesRaw from './controlButton.css.js';
+import controlButtonStyles from './controlButton.css.js';
 
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const controlButtonStyles = new CSSStyleSheet();
-controlButtonStyles.replaceSync(controlButtonStylesRaw.cssText);
-
-const {html, Decorators, LitElement} = Lit;
+const {html, Decorators, LitElement} = LitHtml;
 const {customElement, property} = Decorators;
 
 declare global {
@@ -25,7 +21,7 @@ export class ControlButton extends LitElement {
 
   @property() declare label: string;
   @property() declare shape: string;
-  @property({type: Boolean}) declare disabled: boolean;
+  @property() declare disabled: boolean;
 
   constructor() {
     super();

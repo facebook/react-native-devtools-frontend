@@ -1,4 +1,4 @@
-import { EventEmitter } from '../common/EventEmitter.js';
+import { EventSubscription } from '../common/EventEmitter.js';
 import { debugError } from '../common/util.js';
 import { assert } from '../util/assert.js';
 import { DisposableStack } from '../util/disposable.js';
@@ -14,24 +14,16 @@ export class PipeTransport {
     onmessage;
     constructor(pipeWrite, pipeRead) {
         this.#pipeWrite = pipeWrite;
-        const pipeReadEmitter = this.#subscriptions.use(
-        // NodeJS event emitters don't support `*` so we need to typecast
-        // As long as we don't use it we should be OK.
-        new EventEmitter(pipeRead));
-        pipeReadEmitter.on('data', (buffer) => {
+        this.#subscriptions.use(new EventSubscription(pipeRead, 'data', (buffer) => {
             return this.#dispatch(buffer);
-        });
-        pipeReadEmitter.on('close', () => {
+        }));
+        this.#subscriptions.use(new EventSubscription(pipeRead, 'close', () => {
             if (this.onclose) {
                 this.onclose.call(null);
             }
-        });
-        pipeReadEmitter.on('error', debugError);
-        const pipeWriteEmitter = this.#subscriptions.use(
-        // NodeJS event emitters don't support `*` so we need to typecast
-        // As long as we don't use it we should be OK.
-        new EventEmitter(pipeRead));
-        pipeWriteEmitter.on('error', debugError);
+        }));
+        this.#subscriptions.use(new EventSubscription(pipeRead, 'error', debugError));
+        this.#subscriptions.use(new EventSubscription(pipeWrite, 'error', debugError));
     }
     send(message) {
         assert(!this.#isClosed, '`PipeTransport` is closed.');

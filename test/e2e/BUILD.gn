@@ -3,7 +3,7 @@
 # found in the LICENSE file.
 
 import("../../scripts/build/ninja/copy.gni")
-import("../../scripts/build/typescript/typescript.gni")
+import("../../third_party/typescript/typescript.gni")
 
 group("e2e") {
   deps = [
@@ -15,9 +15,9 @@ group("e2e") {
 
 node_ts_library("tests") {
   deps = [
-    "ai_assistance",
     "animations",
     "application",
+    "assertion",
     "changes",
     "console",
     "coverage",
@@ -34,7 +34,6 @@ node_ts_library("tests") {
     "media",
     "memory",
     "network",
-    "panels",
     "performance",
     "puppeteer",
     "quick_open",
@@ -46,7 +45,8 @@ node_ts_library("tests") {
     "settings",
     "snippets",
     "sources",
-    "throttling",
+    "targets",
+    "webaudio",
   ]
   sources = [ "mocharc.ts" ]
 }

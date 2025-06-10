@@ -5,7 +5,10 @@
  */
 
 import type {ConnectionTransport} from '../common/ConnectionTransport.js';
-import type {ConnectOptions} from '../common/ConnectOptions.js';
+import type {
+  BrowserConnectOptions,
+  ConnectOptions,
+} from '../common/ConnectOptions.js';
 import {debugError, DEFAULT_VIEWPORT} from '../common/util.js';
 
 import {CdpBrowser} from './Browser.js';
@@ -20,12 +23,11 @@ import {Connection} from './Connection.js';
 export async function _connectToCdpBrowser(
   connectionTransport: ConnectionTransport,
   url: string,
-  options: ConnectOptions,
+  options: BrowserConnectOptions & ConnectOptions
 ): Promise<CdpBrowser> {
   const {
-    acceptInsecureCerts = false,
+    ignoreHTTPSErrors = false,
     defaultViewport = DEFAULT_VIEWPORT,
-    downloadBehavior,
     targetFilter,
     _isPageTarget: isPageTarget,
     slowMo = 0,
@@ -36,24 +38,29 @@ export async function _connectToCdpBrowser(
     url,
     connectionTransport,
     slowMo,
-    protocolTimeout,
+    protocolTimeout
   );
 
+  const version = await connection.send('Browser.getVersion');
+  const product = version.product.toLowerCase().includes('firefox')
+    ? 'firefox'
+    : 'chrome';
+
   const {browserContextIds} = await connection.send(
-    'Target.getBrowserContexts',
+    'Target.getBrowserContexts'
   );
   const browser = await CdpBrowser._create(
+    product || 'chrome',
     connection,
     browserContextIds,
-    acceptInsecureCerts,
+    ignoreHTTPSErrors,
     defaultViewport,
-    downloadBehavior,
     undefined,
     () => {
       return connection.send('Browser.close').catch(debugError);
     },
     targetFilter,
-    isPageTarget,
+    isPageTarget
   );
   return browser;
 }

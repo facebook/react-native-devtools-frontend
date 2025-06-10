@@ -1,3 +1,7 @@
 {
-  "recommendations": ["dbaeumer.vscode-eslint", "runem.lit-plugin", "Google.gn"]
+  "recommendations": [
+      "dbaeumer.vscode-eslint",
+      "bierner.lit-html",
+      "npclaudiu.vscode-gn"
+  ]
 }

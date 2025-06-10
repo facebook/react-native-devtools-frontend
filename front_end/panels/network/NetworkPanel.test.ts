@@ -6,26 +6,47 @@ import * as Common from '../../core/common/common.js';
 import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Logs from '../../models/logs/logs.js';
-import * as Trace from '../../models/trace/trace.js';
+import * as TraceEngine from '../../models/trace/trace.js';
 import {createTarget, registerNoopActions} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
-import {createNetworkPanelForMockConnection} from '../../testing/NetworkHelpers.js';
-import * as RenderCoordinator from '../../ui/components/render_coordinator/render_coordinator.js';
+import * as Coordinator from '../../ui/components/render_coordinator/render_coordinator.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import * as Network from './network.js';
+
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 describeWithMockConnection('NetworkPanel', () => {
   let target: SDK.Target.Target;
   let networkPanel: Network.NetworkPanel.NetworkPanel;
 
   beforeEach(async () => {
+    registerNoopActions(['network.toggle-recording', 'network.clear']);
+
     target = createTarget();
-    networkPanel = await createNetworkPanelForMockConnection();
+    const dummyStorage = new Common.Settings.SettingsStorage({});
+    for (const settingName
+             of ['network-color-code-resource-types', 'network.group-by-frame', 'network-record-film-strip-setting']) {
+      Common.Settings.registerSettingExtension({
+        settingName,
+        settingType: Common.Settings.SettingType.BOOLEAN,
+        defaultValue: false,
+      });
+    }
+    Common.Settings.Settings.instance({
+      forceNew: true,
+      syncedStorage: dummyStorage,
+      globalStorage: dummyStorage,
+      localStorage: dummyStorage,
+    });
+    networkPanel = Network.NetworkPanel.NetworkPanel.instance({forceNew: true, displayScreenshotDelay: 0});
+    networkPanel.markAsRoot();
+    networkPanel.show(document.body);
+    await coordinator.done();
   });
 
   afterEach(async () => {
-    await RenderCoordinator.done();
+    await coordinator.done();
     networkPanel.detach();
   });
 
@@ -35,7 +56,7 @@ describeWithMockConnection('NetworkPanel', () => {
       Common.Settings.Settings.instance().moduleSetting('network-record-film-strip-setting').set(true);
       const resourceTreeModel = target.model(SDK.ResourceTreeModel.ResourceTreeModel);
       assert.exists(resourceTreeModel);
-      const tracingManager = target.model(Trace.TracingManager.TracingManager);
+      const tracingManager = target.model(TraceEngine.TracingManager.TracingManager);
       assert.exists(tracingManager);
       const tracingStart = sinon.spy(tracingManager, 'start');
       resourceTreeModel.dispatchEventToListeners(SDK.ResourceTreeModel.Events.WillReloadPage);
@@ -47,7 +68,7 @@ describeWithMockConnection('NetworkPanel', () => {
       Common.Settings.Settings.instance().moduleSetting('network-record-film-strip-setting').set(true);
       const resourceTreeModel = target.model(SDK.ResourceTreeModel.ResourceTreeModel);
       assert.exists(resourceTreeModel);
-      const tracingManager = target.model(Trace.TracingManager.TracingManager);
+      const tracingManager = target.model(TraceEngine.TracingManager.TracingManager);
       assert.exists(tracingManager);
       resourceTreeModel.dispatchEventToListeners(SDK.ResourceTreeModel.Events.WillReloadPage);
       SDK.TargetManager.TargetManager.instance().setScopeTarget(inScope ? target : null);
@@ -67,7 +88,6 @@ describeWithMockConnection('NetworkPanel', () => {
   let networkPanel: Network.NetworkPanel.NetworkPanel;
 
   beforeEach(async () => {
-    registerNoopActions(['inspector-main.reload']);
     UI.ActionRegistration.maybeRemoveActionExtension('network.toggle-recording');
     UI.ActionRegistration.maybeRemoveActionExtension('network.clear');
     Root.Runtime.experiments.register(Root.Runtime.RNExperimentName.ENABLE_NETWORK_PANEL, 'Network for test');
@@ -86,20 +106,21 @@ describeWithMockConnection('NetworkPanel', () => {
     networkPanel = Network.NetworkPanel.NetworkPanel.instance({forceNew: true, displayScreenshotDelay: 0});
     networkPanel.markAsRoot();
     networkPanel.show(document.body);
-    await RenderCoordinator.done();
+    await coordinator.done();
   });
 
   afterEach(async () => {
-    await RenderCoordinator.done();
+    await coordinator.done();
     networkPanel.detach();
   });
 
   it('clears network log on button click', async () => {
     const networkLogResetSpy = sinon.spy(Logs.NetworkLog.NetworkLog.instance(), 'reset');
-    const button = networkPanel.element.querySelector('[aria-label="Clear network log"]');
-    assert.instanceOf(button, HTMLElement);
+    const toolbar = networkPanel.element.querySelector('.network-toolbar-container .toolbar');
+    const button = toolbar!.shadowRoot!.querySelector('[aria-label="Clear network log"]');
+    assert.instanceOf(button, HTMLButtonElement);
     button.click();
-    await RenderCoordinator.done({waitForWork: true});
+    await coordinator.done({waitForWork: true});
     assert.isTrue(networkLogResetSpy.called);
   });
 });

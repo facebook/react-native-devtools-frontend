@@ -4,10 +4,10 @@
 
 import * as ProtocolClient from '../core/protocol_client/protocol_client.js';
 import type * as SDK from '../core/sdk/sdk.js';
-import type {ProtocolMapping} from '../generated/protocol-mapping.js';
+import {type ProtocolMapping} from '../generated/protocol-mapping.js';
 import type * as ProtocolProxyApi from '../generated/protocol-proxy-api.js';
 
-import {cleanTestDOM} from './DOMHelpers.js';
+import {resetTestDOM} from './DOMHelpers.js';
 import {deinitializeGlobalVars, initializeGlobalVars} from './EnvironmentHelpers.js';
 import {setMockResourceTree} from './ResourceTreeHelpers.js';
 
@@ -17,21 +17,21 @@ export type ProtocolResponse<C extends ProtocolCommand> = ProtocolMapping.Comman
 export type ProtocolCommandHandler<C extends ProtocolCommand> = (...params: ProtocolCommandParams<C>) =>
     Omit<ProtocolResponse<C>, 'getError'>|{getError(): string};
 export type MessageCallback = (result: string|Object) => void;
-interface Message {
-  id: number;
-  method: ProtocolCommand;
-  params: unknown;
-  sessionId: string;
-}
+type Message = {
+  id: number,
+  method: ProtocolCommand,
+  params: unknown,
+  sessionId: string,
+};
 
-interface OutgoingMessageListenerEntry {
-  promise: Promise<void>;
-  resolve: () => void;
-}
+type OutgoingMessageListenerEntry = {
+  promise: Promise<void>,
+  resolve: Function,
+};
 
 // Note that we can't set the Function to the correct handler on the basis
 // that we don't know which ProtocolCommand will be stored.
-const responseMap = new Map<ProtocolCommand, ProtocolCommandHandler<ProtocolCommand>>();
+const responseMap = new Map<ProtocolCommand, Function>();
 const outgoingMessageListenerEntryMap = new Map<ProtocolCommand, OutgoingMessageListenerEntry>();
 export function setMockConnectionResponseHandler<C extends ProtocolCommand>(
     command: C, handler: ProtocolCommandHandler<C>) {
@@ -40,6 +40,10 @@ export function setMockConnectionResponseHandler<C extends ProtocolCommand>(
   }
 
   responseMap.set(command, handler);
+}
+
+export function getMockConnectionResponseHandler(method: ProtocolCommand) {
+  return responseMap.get(method);
 }
 
 export function clearMockConnectionResponseHandler(method: ProtocolCommand) {
@@ -53,7 +57,10 @@ export function clearAllMockConnectionResponseHandlers() {
 export function registerListenerOnOutgoingMessage(method: ProtocolCommand): Promise<void> {
   let outgoingMessageListenerEntry = outgoingMessageListenerEntryMap.get(method);
   if (!outgoingMessageListenerEntry) {
-    const {resolve, promise} = Promise.withResolvers<void>();
+    let resolve = () => {};
+    const promise = new Promise<void>(r => {
+      resolve = r;
+    });
     outgoingMessageListenerEntry = {promise, resolve};
     outgoingMessageListenerEntryMap.set(method, outgoingMessageListenerEntry);
   }
@@ -134,9 +141,9 @@ async function disable() {
   if (outgoingMessageListenerEntryMap.size > 0) {
     throw new Error('MockConnection still has pending listeners. All promises should be awaited.');
   }
-  await cleanTestDOM();
+  resetTestDOM();
   await deinitializeGlobalVars();
-  // @ts-expect-error Setting back to undefined as a hard reset.
+  // @ts-ignore Setting back to undefined as a hard reset.
   ProtocolClient.InspectorBackend.Connection.setFactory(undefined);
 }
 

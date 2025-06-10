@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Platform from '../../core/platform/platform.js';
+import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
@@ -15,7 +15,6 @@ import {createContentProviderUISourceCode} from '../../testing/UISourceCodeHelpe
 
 import * as Coverage from './coverage.js';
 
-const {urlString} = Platform.DevToolsPath;
 const {CoverageDecorationManager} = Coverage.CoverageDecorationManager;
 
 /** Test helper that returns the "identity" line ranges for any given string */
@@ -62,7 +61,7 @@ describeWithMockConnection('CoverageDeocrationManager', () => {
     await getInitializedResourceTreeModel(target);
   });
 
-  const URL = urlString`http://example.com/index.js`;
+  const URL = 'http://example.com/index.js' as Platform.DevToolsPath.UrlString;
 
   describe('usageByLine (raw)', () => {
     it('marks lines as "unknown" coverge status if no coverage info is available', async () => {
@@ -159,7 +158,7 @@ function mulWithOffset(param1, param2, offset) {
     });
 
     it('marks lines as covered if coverage info says so', async () => {
-      const uiSourceCode = workspace.uiSourceCodeForURL(urlString`file:///tmp/example.js`);
+      const uiSourceCode = workspace.uiSourceCodeForURL('file:///tmp/example.js' as Platform.DevToolsPath.UrlString);
       assert.exists(uiSourceCode);
       await uiSourceCode.requestContentData();
       coverageModel.usageForRange.callsFake((contentProvider, startOffset, endOffset) => {

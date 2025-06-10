@@ -4,12 +4,12 @@
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
-import type * as Platform from '../../core/platform/platform.js';
 import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Extensions from '../../models/extensions/extensions.js';
 import * as Workspace from '../../models/workspace/workspace.js';
 import * as UI from '../../ui/legacy/legacy.js';
+import * as TimelineUtils from '../timeline/utils/utils.js';
 
 import * as NetworkForward from './forward/forward.js';
 import type * as Network from './network.js';
@@ -127,23 +127,7 @@ const UIStrings = {
    *@description Title of an action in the Network request blocking panel to clear all URL patterns.
    */
   removeAllNetworkRequestBlockingPatterns: 'Remove all network request blocking patterns',
-  /**
-   * @description Title of an action in the Network panel (and title of a setting in the Network category)
-   *              that enables options in the UI to copy or export HAR (not translatable) with sensitive data.
-   */
-  allowToGenerateHarWithSensitiveData: 'Allow to generate `HAR` with sensitive data',
-  /**
-   * @description Title of an action in the Network panel that disables options in the UI to copy or export
-   *              HAR (not translatable) with sensitive data.
-   */
-  dontAllowToGenerateHarWithSensitiveData: 'Don\'t allow to generate `HAR` with sensitive data',
-  /**
-   * @description Tooltip shown as documentation when hovering the (?) icon next to the "Allow to generate
-   *              HAR with sensitive data" option in the Settings panel.
-   */
-  allowToGenerateHarWithSensitiveDataDocumentation:
-      'By default generated HAR logs are sanitized and don\'t include `Cookie`, `Set-Cookie`, or `Authorization` HTTP headers. When this setting is enabled, options to export/copy HAR with sensitive data are provided.',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/network/network-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -251,11 +235,11 @@ UI.ActionRegistration.registerActionExtension({
   bindings: [
     {
       shortcut: 'Ctrl+E',
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
     },
     {
       shortcut: 'Meta+E',
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
     },
   ],
 });
@@ -278,7 +262,7 @@ UI.ActionRegistration.registerActionExtension({
     },
     {
       shortcut: 'Meta+K',
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
     },
   ],
 });
@@ -314,7 +298,7 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+F',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.DEVTOOLS_DEFAULT,
@@ -322,7 +306,7 @@ UI.ActionRegistration.registerActionExtension({
       ],
     },
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+F',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.DEVTOOLS_DEFAULT,
@@ -362,33 +346,7 @@ UI.ActionRegistration.registerActionExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.NETWORK,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
-  title: i18nLazyString(UIStrings.allowToGenerateHarWithSensitiveData),
-  settingName: 'network.show-options-to-generate-har-with-sensitive-data',
-  settingType: Common.Settings.SettingType.BOOLEAN,
-  defaultValue: false,
-  tags: [
-    i18n.i18n.lockedLazyString('HAR'),
-  ],
-  options: [
-    {
-      value: true,
-      title: i18nLazyString(UIStrings.allowToGenerateHarWithSensitiveData),
-    },
-    {
-      value: false,
-      title: i18nLazyString(UIStrings.dontAllowToGenerateHarWithSensitiveData),
-    },
-  ],
-  learnMore: {
-    url: 'https://goo.gle/devtools-export-hars' as Platform.DevToolsPath.UrlString,
-    tooltip: i18nLazyString(UIStrings.allowToGenerateHarWithSensitiveDataDocumentation),
-  },
-});
-
-Common.Settings.registerSettingExtension({
-  category: Common.Settings.SettingCategory.NETWORK,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   title: i18nLazyString(UIStrings.colorcodeResourceTypes),
   settingName: 'network-color-code-resource-types',
   settingType: Common.Settings.SettingType.BOOLEAN,
@@ -411,7 +369,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.NETWORK,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   title: i18nLazyString(UIStrings.groupNetworkLogByFrame),
   settingName: 'network.group-by-frame',
   settingType: Common.Settings.SettingType.BOOLEAN,
@@ -448,7 +406,7 @@ UI.ContextMenu.registerProvider({
       SDK.NetworkRequest.NetworkRequest,
       SDK.Resource.Resource,
       Workspace.UISourceCode.UISourceCode,
-      SDK.TraceObject.RevealableNetworkRequest,
+      TimelineUtils.NetworkRequest.TimelineNetworkRequest,
     ];
   },
   async loadProvider() {

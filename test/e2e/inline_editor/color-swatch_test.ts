@@ -3,10 +3,13 @@
 // found in the LICENSE file.
 
 import {assert} from 'chai';
+
+import {waitForSoftContextMenu} from '../helpers/context-menu-helpers.js';
+
 import type * as puppeteer from 'puppeteer-core';
 
 import {click, goToResource} from '../../shared/helper.js';
-import {waitForSoftContextMenu} from '../helpers/context-menu-helpers.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   clickNthChildOfSelectedElementNode,
   editCSSProperty,
@@ -21,7 +24,7 @@ import {
   waitForElementsComputedSection,
 } from '../helpers/elements-helpers.js';
 
-async function goToTestPageAndSelectTestElement(path = 'inline_editor/default.html') {
+async function goToTestPageAndSelectTestElement(path: string = 'inline_editor/default.html') {
   await goToResource(path);
   await waitForContentOfSelectedElementsNode('<body>\u200B');
   await clickNthChildOfSelectedElementNode(1);
@@ -126,8 +129,7 @@ describe('The color swatch', () => {
     if (!property) {
       assert.fail('Property not found');
     }
-    await shiftClickColorSwatch(
-        property, 0, 'Panel: elements > Pane: styles > Section: style-properties > Tree > TreeItem: color > Value');
+    await shiftClickColorSwatch(property, 0);
 
     const menu = await waitForSoftContextMenu();
     await click('[aria-label="#f00"]', {root: menu});
@@ -142,9 +144,7 @@ describe('The color swatch', () => {
     if (!property) {
       assert.fail('Property not found');
     }
-    await shiftClickColorSwatch(
-        property, 0,
-        'Panel: elements > Pane: styles > Section: style-properties > Tree > TreeItem: background-color > Value');
+    await shiftClickColorSwatch(property, 0);
 
     const menu = await waitForSoftContextMenu();
     await click('[aria-label="#00f"]', {root: menu});

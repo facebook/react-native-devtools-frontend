@@ -5,10 +5,17 @@
  */
 import type { Browser } from '../api/Browser.js';
 import type { Configuration } from '../common/Configuration.js';
-import type { ConnectOptions } from '../common/ConnectOptions.js';
+import type { ConnectOptions, BrowserConnectOptions } from '../common/ConnectOptions.js';
+import type { Product } from '../common/Product.js';
 import { type CommonPuppeteerSettings, Puppeteer } from '../common/Puppeteer.js';
-import type { SupportedBrowser } from '../common/SupportedBrowser.js';
-import type { ChromeReleaseChannel, LaunchOptions } from './LaunchOptions.js';
+import type { BrowserLaunchArgumentOptions, ChromeReleaseChannel, LaunchOptions } from './LaunchOptions.js';
+/**
+ * @public
+ */
+export interface PuppeteerLaunchOptions extends LaunchOptions, BrowserLaunchArgumentOptions, BrowserConnectOptions {
+    product?: Product;
+    extraPrefsFirefox?: Record<string, unknown>;
+}
 /**
  * Extends the main {@link Puppeteer} class with Node specific behaviour for
  * fetching and downloading browsers.
@@ -103,23 +110,15 @@ export declare class PuppeteerNode extends Puppeteer {
      *
      * @param options - Options to configure launching behavior.
      */
-    launch(options?: LaunchOptions): Promise<Browser>;
-    /**
-     * The default executable path for a given ChromeReleaseChannel.
-     */
-    executablePath(channel: ChromeReleaseChannel): string;
-    /**
-     * The default executable path given LaunchOptions.
-     */
-    executablePath(options: LaunchOptions): string;
+    launch(options?: PuppeteerLaunchOptions): Promise<Browser>;
     /**
      * The default executable path.
      */
-    executablePath(): string;
+    executablePath(channel?: ChromeReleaseChannel): string;
     /**
      * @internal
      */
-    get browserVersion(): string;
+    get browserRevision(): string;
     /**
      * The default download path for puppeteer. For puppeteer-core, this
      * code should never be called as it is never defined.
@@ -130,18 +129,18 @@ export declare class PuppeteerNode extends Puppeteer {
     /**
      * The name of the browser that was last launched.
      */
-    get lastLaunchedBrowser(): SupportedBrowser;
+    get lastLaunchedProduct(): Product;
     /**
      * The name of the browser that will be launched by default. For
      * `puppeteer`, this is influenced by your configuration. Otherwise, it's
      * `chrome`.
      */
-    get defaultBrowser(): SupportedBrowser;
+    get defaultProduct(): Product;
     /**
      * @deprecated Do not use as this field as it does not take into account
      * multiple browsers of different types. Use
-     * {@link PuppeteerNode.defaultBrowser | defaultBrowser} or
-     * {@link PuppeteerNode.lastLaunchedBrowser | lastLaunchedBrowser}.
+     * {@link PuppeteerNode.defaultProduct | defaultProduct} or
+     * {@link PuppeteerNode.lastLaunchedProduct | lastLaunchedProduct}.
      *
      * @returns The name of the browser that is under automation.
      */
@@ -149,9 +148,9 @@ export declare class PuppeteerNode extends Puppeteer {
     /**
      * @param options - Set of configurable options to set on the browser.
      *
-     * @returns The default arguments that the browser will be launched with.
+     * @returns The default flags that Chromium will be launched with.
      */
-    defaultArgs(options?: LaunchOptions): string[];
+    defaultArgs(options?: BrowserLaunchArgumentOptions): string[];
     /**
      * Removes all non-current Firefox and Chrome binaries in the cache directory
      * identified by the provided Puppeteer configuration. The current browser

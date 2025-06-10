@@ -4,11 +4,9 @@
 
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
-import * as Platform from '../platform/platform.js';
+import type * as Platform from '../platform/platform.js';
 
 import * as SDK from './sdk.js';
-
-const {urlString} = Platform.DevToolsPath;
 
 describeWithMockConnection('StorageKeyManager', () => {
   let manager: SDK.StorageKeyManager.StorageKeyManager;
@@ -18,11 +16,11 @@ describeWithMockConnection('StorageKeyManager', () => {
   });
 
   it('updates storage keys and emits events correctly', () => {
-    let eventFired = false;
+    let eventFired: boolean = false;
     const keys = ['storagekey1', 'storagekey2'];
 
     assert.isEmpty(manager.storageKeys());
-    manager.addEventListener(SDK.StorageKeyManager.Events.STORAGE_KEY_ADDED, () => {
+    manager.addEventListener(SDK.StorageKeyManager.Events.StorageKeyAdded, () => {
       eventFired = true;
     });
     manager.updateStorageKeys(new Set<string>(keys));
@@ -30,7 +28,7 @@ describeWithMockConnection('StorageKeyManager', () => {
     assert.deepEqual(manager.storageKeys(), keys);
 
     eventFired = false;
-    manager.addEventListener(SDK.StorageKeyManager.Events.STORAGE_KEY_REMOVED, () => {
+    manager.addEventListener(SDK.StorageKeyManager.Events.StorageKeyRemoved, () => {
       eventFired = true;
     });
     manager.updateStorageKeys(new Set<string>());
@@ -43,7 +41,7 @@ describeWithMockConnection('StorageKeyManager', () => {
     let eventFired = false;
 
     assert.isEmpty(manager.mainStorageKey());
-    manager.addEventListener(SDK.StorageKeyManager.Events.MAIN_STORAGE_KEY_CHANGED, () => {
+    manager.addEventListener(SDK.StorageKeyManager.Events.MainStorageKeyChanged, () => {
       eventFired = true;
     });
     manager.setMainStorageKey(mainKey);
@@ -55,7 +53,7 @@ describeWithMockConnection('StorageKeyManager', () => {
 describe('parseStorageKey', () => {
   it('parses first-party key', () => {
     const storageKey = SDK.StorageKeyManager.parseStorageKey('https://example.com/');
-    assert.deepEqual(storageKey.origin, urlString`https://example.com`);
+    assert.deepEqual(storageKey.origin, 'https://example.com' as Platform.DevToolsPath.UrlString);
     assert.deepEqual([...storageKey.components], []);
   });
 

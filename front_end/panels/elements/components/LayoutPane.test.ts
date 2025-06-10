@@ -11,9 +11,11 @@ import {
 } from '../../../testing/DOMHelpers.js';
 import {createTarget} from '../../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../../testing/MockConnection.js';
-import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
+import * as Coordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 
 import * as ElementsComponents from './components.js';
+
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 describeWithMockConnection('LayoutPane', () => {
   let target: SDK.Target.Target;
@@ -33,7 +35,7 @@ describeWithMockConnection('LayoutPane', () => {
     const component = new ElementsComponents.LayoutPane.LayoutPane();
     renderElementIntoDOM(component);
     component.wasShown();
-    await RenderCoordinator.done({waitForWork: true});
+    await coordinator.done({waitForWork: true});
     return component;
   }
 
@@ -51,12 +53,8 @@ describeWithMockConnection('LayoutPane', () => {
   }
 
   it('renders settings', async () => {
-    Common.Settings.Settings.instance()
-        .moduleSetting('show-grid-line-labels')
-        .setTitle('Enum setting title' as Platform.UIString.LocalizedString);
-    Common.Settings.Settings.instance()
-        .moduleSetting('show-grid-track-sizes')
-        .setTitle('Boolean setting title' as Platform.UIString.LocalizedString);
+    Common.Settings.Settings.instance().moduleSetting('show-grid-line-labels').setTitle('Enum setting title');
+    Common.Settings.Settings.instance().moduleSetting('show-grid-track-sizes').setTitle('Boolean setting title');
 
     const component = await renderComponent();
     assert.deepEqual(queryLabels(component, '[data-enum-setting]'), [{label: 'Enum setting title', input: 'SELECT'}]);
@@ -112,7 +110,7 @@ describeWithMockConnection('LayoutPane', () => {
     const component = await renderComponent();
     assert.isNotNull(component.shadowRoot);
 
-    assert.lengthOf(queryLabels(component, '[data-element]'), 3);
+    assert.strictEqual(queryLabels(component, '[data-element]').length, 3);
   });
 
   it('renders flex elements', async () => {
@@ -132,7 +130,7 @@ describeWithMockConnection('LayoutPane', () => {
     const component = await renderComponent();
     assert.isNotNull(component.shadowRoot);
 
-    assert.lengthOf(queryLabels(component, '[data-element]'), 3);
+    assert.strictEqual(queryLabels(component, '[data-element]').length, 3);
   });
 
   it('send an event when an element overlay is toggled', async () => {
@@ -185,24 +183,22 @@ describeWithMockConnection('LayoutPane', () => {
   const updatesUiOnEvent = <T extends keyof SDK.OverlayModel.EventTypes>(
       event: Platform.TypeScriptUtilities.NoUnion<T>, inScope: boolean) => async () => {
     SDK.TargetManager.TargetManager.instance().setScopeTarget(inScope ? target : null);
-    const render = sinon.spy(ElementsComponents.LayoutPane.LayoutPane.prototype, 'render');
     await renderComponent();
-    await RenderCoordinator.done();
-    render.resetHistory();
+    const render = sinon.spy(coordinator, 'write');
     overlayModel.dispatchEventToListeners(
         event,
         ...[{nodeId: 42, enabled: true}] as unknown as
             Common.EventTarget.EventPayloadToRestParameters<SDK.OverlayModel.EventTypes, T>);
-    await RenderCoordinator.done();
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
     assert.strictEqual(render.called, inScope);
   };
 
   it('updates UI on in scope grid overlay update event',
-     updatesUiOnEvent(SDK.OverlayModel.Events.PERSISTENT_GRID_OVERLAY_STATE_CHANGED, true));
+     updatesUiOnEvent(SDK.OverlayModel.Events.PersistentGridOverlayStateChanged, true));
   it('does not update UI on out of scope grid overlay update event',
-     updatesUiOnEvent(SDK.OverlayModel.Events.PERSISTENT_GRID_OVERLAY_STATE_CHANGED, false));
+     updatesUiOnEvent(SDK.OverlayModel.Events.PersistentGridOverlayStateChanged, false));
   it('updates UI on in scope flex overlay update event',
-     updatesUiOnEvent(SDK.OverlayModel.Events.PERSISTENT_FLEX_CONTAINER_OVERLAY_STATE_CHANGED, true));
+     updatesUiOnEvent(SDK.OverlayModel.Events.PersistentFlexContainerOverlayStateChanged, true));
   it('does not update UI on out of scope flex overlay update event',
-     updatesUiOnEvent(SDK.OverlayModel.Events.PERSISTENT_FLEX_CONTAINER_OVERLAY_STATE_CHANGED, false));
+     updatesUiOnEvent(SDK.OverlayModel.Events.PersistentFlexContainerOverlayStateChanged, false));
 });

@@ -14,10 +14,12 @@ import {
   renderElementIntoDOM,
 } from '../../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
-import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
+import * as Coordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 
 import * as NetworkComponents from './components.js';
-import type {EditableSpan} from './EditableSpan.js';
+import {type EditableSpan} from './EditableSpan.js';
+
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 async function renderHeaderSectionRow(header: NetworkComponents.HeaderSectionRow.HeaderDescriptor): Promise<{
   component: NetworkComponents.HeaderSectionRow.HeaderSectionRow,
@@ -30,7 +32,7 @@ async function renderHeaderSectionRow(header: NetworkComponents.HeaderSectionRow
   renderElementIntoDOM(component);
   assert.isTrue(scrollIntoViewSpy.notCalled);
   component.data = {header};
-  await RenderCoordinator.done();
+  await coordinator.done();
   assert.isNotNull(component.shadowRoot);
 
   let nameEditable: HTMLSpanElement|null = null;
@@ -66,7 +68,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
     const headerData: NetworkComponents.HeaderSectionRow.HeaderDescriptor = {
       name: Platform.StringUtilities.toLowerCaseString('some-header-name'),
       value: 'someHeaderValue',
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.DISABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Disabled,
     };
     const {component, scrollIntoViewSpy} = await renderHeaderSectionRow(headerData);
     assert.isNotNull(component.shadowRoot);
@@ -85,7 +87,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
     const headerData: NetworkComponents.HeaderSectionRow.HeaderDescriptor = {
       name: Platform.StringUtilities.toLowerCaseString('cross-origin-resource-policy'),
       value: null,
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.DISABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Disabled,
       headerNotSet: true,
       blockedDetails: {
         explanation: () =>
@@ -109,7 +111,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
 
     const headerName = component.shadowRoot.querySelector('.header-name');
     assert.instanceOf(headerName, HTMLDivElement);
-    const regex = /^\s*not-set\s*cross-origin-resource-policy\s*$/;
+    const regex = /^\s*not-set\s*cross-origin-resource-policy:\s*$/;
     assert.isTrue(regex.test(headerName.textContent || ''));
 
     const headerValue = component.shadowRoot.querySelector('.header-value');
@@ -119,10 +121,10 @@ describeWithEnvironment('HeaderSectionRow', () => {
     assert.strictEqual(
         getCleanTextContentFromElements(component.shadowRoot, '.call-to-action')[0],
         'To use this resource from a different origin, the server needs to specify a cross-origin ' +
-            'resource policy in the response headers: Cross-Origin-Resource-Policy: same-site Choose ' +
-            'this option if the resource and the document are served from the same site. ' +
-            'Cross-Origin-Resource-Policy: cross-origin Only choose this option if an arbitrary website ' +
-            'including this resource does not impose a security risk. Learn more',
+            'resource policy in the response headers:Cross-Origin-Resource-Policy: same-siteChoose ' +
+            'this option if the resource and the document are served from the same site.' +
+            'Cross-Origin-Resource-Policy: cross-originOnly choose this option if an arbitrary website ' +
+            'including this resource does not impose a security risk.Learn more',
     );
   });
 
@@ -130,14 +132,14 @@ describeWithEnvironment('HeaderSectionRow', () => {
     const headerData: NetworkComponents.HeaderSectionRow.HeaderDescriptor = {
       name: Platform.StringUtilities.toLowerCaseString('x-client-data'),
       value: 'CJa2yQEIpLbJAQiTocsB',
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.DISABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Disabled,
     };
     const {component} = await renderHeaderSectionRow(headerData);
     assert.isNotNull(component.shadowRoot);
 
     const headerName = component.shadowRoot.querySelector('.header-name');
     assert.instanceOf(headerName, HTMLDivElement);
-    assert.strictEqual(headerName.textContent?.trim(), 'x-client-data');
+    assert.strictEqual(headerName.textContent?.trim(), 'x-client-data:');
 
     const headerValue = component.shadowRoot.querySelector('.header-value');
     assert.instanceOf(headerValue, HTMLDivElement);
@@ -148,7 +150,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
 
     assert.strictEqual(
         getCleanTextContentFromElements(component.shadowRoot, '.header-value code')[0],
-        'message ClientVariations { // Active Google-visible variation IDs on this client. These are reported for analysis, but do not directly affect any server-side behavior. repeated int32 variation_id = [3300118, 3300132, 3330195];\n}',
+        'message ClientVariations {// Active Google-visible variation IDs on this client. These are reported for analysis, but do not directly affect any server-side behavior.repeated int32 variation_id = [3300118, 3300132, 3330195];\n}',
     );
   });
 
@@ -156,7 +158,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
     const headerData: NetworkComponents.HeaderSectionRow.HeaderDescriptor = {
       name: Platform.StringUtilities.toLowerCaseString('set-cookie'),
       value: 'secure=only; Secure',
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.DISABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Disabled,
       setCookieBlockedReasons:
           [Protocol.Network.SetCookieBlockedReason.SecureOnly, Protocol.Network.SetCookieBlockedReason.OverwriteSecure],
     };
@@ -165,7 +167,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
 
     const headerName = component.shadowRoot.querySelector('.header-name');
     assert.instanceOf(headerName, HTMLDivElement);
-    assert.strictEqual(headerName.textContent?.trim(), 'set-cookie');
+    assert.strictEqual(headerName.textContent?.trim(), 'set-cookie:');
 
     const headerValue = component.shadowRoot.querySelector('.header-value');
     assert.instanceOf(headerValue, HTMLDivElement);
@@ -186,7 +188,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
     const headerData: NetworkComponents.HeaderSectionRow.HeaderDescriptor = {
       name: Platform.StringUtilities.toLowerCaseString('some-header-name'),
       value: 'someHeaderValue',
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.DISABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Disabled,
       highlight: true,
     };
     const {component, scrollIntoViewSpy} = await renderHeaderSectionRow(headerData);
@@ -203,7 +205,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
       name: originalHeaderName,
       value: originalHeaderValue,
       nameEditable: true,
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.ENABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Enabled,
     };
     const editedHeaderName = 'new-header-name';
     const editedHeaderValue = 'new value for header';
@@ -226,7 +228,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
     nameEditable.innerText = editedHeaderName;
     dispatchInputEvent(nameEditable, {inputType: 'insertText', data: editedHeaderName, bubbles: true, composed: true});
     nameEditable.blur();
-    await RenderCoordinator.done();
+    await coordinator.done();
 
     assert.strictEqual(headerEditedEventCount, 1);
     assert.strictEqual(headerNameFromEvent, editedHeaderName);
@@ -239,7 +241,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
     dispatchInputEvent(
         valueEditable, {inputType: 'insertText', data: editedHeaderValue, bubbles: true, composed: true});
     valueEditable.blur();
-    await RenderCoordinator.done();
+    await coordinator.done();
 
     assert.strictEqual(headerEditedEventCount, 2);
     assert.strictEqual(headerNameFromEvent, editedHeaderName);
@@ -251,7 +253,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
     dispatchInputEvent(
         nameEditable, {inputType: 'insertText', data: originalHeaderName, bubbles: true, composed: true});
     nameEditable.blur();
-    await RenderCoordinator.done();
+    await coordinator.done();
 
     assert.strictEqual(headerEditedEventCount, 3);
     assert.strictEqual(headerNameFromEvent, originalHeaderName);
@@ -263,7 +265,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
     dispatchInputEvent(
         valueEditable, {inputType: 'insertText', data: originalHeaderValue, bubbles: true, composed: true});
     valueEditable.blur();
-    await RenderCoordinator.done();
+    await coordinator.done();
 
     assert.strictEqual(headerEditedEventCount, 4);
     assert.strictEqual(headerNameFromEvent, originalHeaderName);
@@ -277,7 +279,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
       name: headerName,
       value: 'someHeaderValue',
       nameEditable: true,
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.ENABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Enabled,
     };
 
     const {component, nameEditable} = await renderHeaderSectionRow(headerData);
@@ -303,7 +305,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
       name: Platform.StringUtilities.toLowerCaseString('some-header-name'),
       value: originalHeaderValue,
       originalValue: originalHeaderValue,
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.ENABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Enabled,
     };
 
     const {component, valueEditable} = await renderHeaderSectionRow(headerData);
@@ -330,7 +332,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
     const headerData: NetworkComponents.HeaderSectionRow.HeaderDescriptor = {
       name: Platform.StringUtilities.toLowerCaseString('some-header-name'),
       value: 'someHeaderValue',
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.ENABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Enabled,
     };
     const editedHeaderValue = 'new value for header';
 
@@ -358,7 +360,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
       name: Platform.StringUtilities.toLowerCaseString('some-header-name'),
       value: 'someHeaderValue',
       originalValue: 'someHeaderValue',
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.ENABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Enabled,
       highlight: true,
     };
 
@@ -373,13 +375,13 @@ describeWithEnvironment('HeaderSectionRow', () => {
     valueEditable.focus();
     valueEditable.innerText = 'a';
     dispatchInputEvent(valueEditable, {inputType: 'insertText', data: 'a', bubbles: true, composed: true});
-    await RenderCoordinator.done();
+    await coordinator.done();
     assert.isTrue(row?.classList.contains('header-overridden'));
     assert.isFalse(row?.classList.contains('header-highlight'));
     assert.isTrue(hasReloadPrompt(component.shadowRoot));
 
     dispatchKeyDownEvent(valueEditable, {key: 'Escape', bubbles: true, composed: true});
-    await RenderCoordinator.done();
+    await coordinator.done();
     assert.isFalse(component.shadowRoot.querySelector('.row')?.classList.contains('header-overridden'));
   });
 
@@ -388,7 +390,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
       name: Platform.StringUtilities.toLowerCaseString('some-header-name'),
       value: null,
       originalValue: null,
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.ENABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Enabled,
     };
 
     const {component, valueEditable} = await renderHeaderSectionRow(headerData);
@@ -400,11 +402,11 @@ describeWithEnvironment('HeaderSectionRow', () => {
     valueEditable.focus();
     valueEditable.innerText = 'a';
     dispatchInputEvent(valueEditable, {inputType: 'insertText', data: 'a', bubbles: true, composed: true});
-    await RenderCoordinator.done();
+    await coordinator.done();
     assert.isTrue(row?.classList.contains('header-overridden'));
 
     dispatchKeyDownEvent(valueEditable, {key: 'Escape', bubbles: true, composed: true});
-    await RenderCoordinator.done();
+    await coordinator.done();
     assert.isFalse(component.shadowRoot.querySelector('.row')?.classList.contains('header-overridden'));
   });
 
@@ -414,7 +416,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
       value: 'someHeaderValue',
       originalValue: 'someHeaderValue',
       nameEditable: true,
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.ENABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Enabled,
     };
 
     const {component, nameEditable} = await renderHeaderSectionRow(headerData);
@@ -422,19 +424,19 @@ describeWithEnvironment('HeaderSectionRow', () => {
     assert.instanceOf(nameEditable, HTMLElement);
     const row = component.shadowRoot.querySelector('.row');
     assert.instanceOf(row, HTMLDivElement);
-    assert.isNull(row.querySelector('devtools-icon.disallowed-characters'));
+    assert.strictEqual(row.querySelector('devtools-icon.disallowed-characters'), null);
     assert.isTrue(hasReloadPrompt(component.shadowRoot));
 
     nameEditable.focus();
     nameEditable.innerText = '*';
     dispatchInputEvent(nameEditable, {inputType: 'insertText', data: '*', bubbles: true, composed: true});
-    await RenderCoordinator.done();
+    await coordinator.done();
     assert.instanceOf(row.querySelector('devtools-icon.disallowed-characters'), HTMLElement);
     assert.isTrue(hasReloadPrompt(component.shadowRoot));
 
     dispatchKeyDownEvent(nameEditable, {key: 'Escape', bubbles: true, composed: true});
-    await RenderCoordinator.done();
-    assert.isNull(row.querySelector('devtools-icon.disallowed-characters'));
+    await coordinator.done();
+    assert.strictEqual(row.querySelector('devtools-icon.disallowed-characters'), null);
     assert.isTrue(hasReloadPrompt(component.shadowRoot));
   });
 
@@ -445,7 +447,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
       name: originalHeaderName,
       value: originalHeaderValue,
       nameEditable: true,
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.ENABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Enabled,
     };
     const editedHeaderName = 'permissions-Policy: unload=(https://xyz.com)';
 
@@ -472,14 +474,14 @@ describeWithEnvironment('HeaderSectionRow', () => {
     dispatchPasteEvent(nameEditable, {clipboardData: dt, bubbles: true, composed: true});
     nameEditable.blur();
 
-    await RenderCoordinator.done();
+    await coordinator.done();
     assert.strictEqual(headerEditedEventCount, 1);
     assert.strictEqual(headerNameFromEvent, 'permissions-policy');
     assert.strictEqual(headerValueFromEvent, 'someHeaderValue');
 
     // update value on blur
     valueEditable.blur();
-    await RenderCoordinator.done();
+    await coordinator.done();
     assert.strictEqual(headerEditedEventCount, 2);
     assert.strictEqual(headerNameFromEvent, 'permissions-policy');
     assert.strictEqual(headerValueFromEvent, 'unload=(https://xyz.com)');
@@ -499,7 +501,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
       name: originalHeaderName,
       value: originalHeaderValue,
       nameEditable: true,
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.ENABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Enabled,
     };
     const editedHeaderName = ':abc';
 
@@ -523,13 +525,13 @@ describeWithEnvironment('HeaderSectionRow', () => {
     const nameEl = component.shadowRoot.querySelector('.header-name devtools-editable-span') as EditableSpan;
     const valueEl = component.shadowRoot.querySelector('.header-value devtools-editable-span') as EditableSpan;
 
-    await RenderCoordinator.done();
+    await coordinator.done();
     assert.strictEqual(nameEl.value, ':Abc');
     assert.strictEqual(valueEl.value, originalHeaderValue);
 
     dispatchKeyDownEvent(nameEditable, {key: 'Escape', bubbles: true, composed: true});
 
-    await RenderCoordinator.done();
+    await coordinator.done();
     assert.strictEqual(headerEditedEventCount, 0);
     assert.strictEqual(nameEl.value, 'Some-Header-Name');
   });
@@ -541,7 +543,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
       name: originalHeaderName,
       value: originalHeaderValue,
       nameEditable: true,
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.ENABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Enabled,
     };
     const editedHeaderName = 'permissions-Policy: unload=(https://xyz.com)';
 
@@ -565,24 +567,24 @@ describeWithEnvironment('HeaderSectionRow', () => {
     const nameEl = component.shadowRoot.querySelector('.header-name devtools-editable-span') as EditableSpan;
     const valueEl = component.shadowRoot.querySelector('.header-value devtools-editable-span') as EditableSpan;
 
-    await RenderCoordinator.done();
+    await coordinator.done();
     assert.strictEqual(nameEl.value, 'Permissions-Policy');
     assert.strictEqual(valueEl.value, 'unload=(https://xyz.com)');
 
     dispatchKeyDownEvent(valueEditable, {key: 'Escape', bubbles: true, composed: true});
 
-    await RenderCoordinator.done();
+    await coordinator.done();
     assert.strictEqual(headerEditedEventCount, 0);
     assert.strictEqual(nameEl.value, 'Some-Header-Name');
     assert.strictEqual(valueEl.value, 'someHeaderValue');
   });
 
   it('recoginzes only alphanumeric characters, dashes, and underscores as valid in header names', () => {
-    assert.isTrue(NetworkComponents.HeaderSectionRow.isValidHeaderName('AlphaNumeric123'));
-    assert.isFalse(NetworkComponents.HeaderSectionRow.isValidHeaderName('Alpha Numeric'));
-    assert.isFalse(NetworkComponents.HeaderSectionRow.isValidHeaderName('AlphaNumeric123!'));
-    assert.isTrue(NetworkComponents.HeaderSectionRow.isValidHeaderName('With-dashes_and_underscores'));
-    assert.isFalse(NetworkComponents.HeaderSectionRow.isValidHeaderName('no*'));
+    assert.strictEqual(NetworkComponents.HeaderSectionRow.isValidHeaderName('AlphaNumeric123'), true);
+    assert.strictEqual(NetworkComponents.HeaderSectionRow.isValidHeaderName('Alpha Numeric'), false);
+    assert.strictEqual(NetworkComponents.HeaderSectionRow.isValidHeaderName('AlphaNumeric123!'), false);
+    assert.strictEqual(NetworkComponents.HeaderSectionRow.isValidHeaderName('With-dashes_and_underscores'), true);
+    assert.strictEqual(NetworkComponents.HeaderSectionRow.isValidHeaderName('no*'), false);
   });
 
   it('allows removing a header override', async () => {
@@ -591,7 +593,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
     const headerData: NetworkComponents.HeaderSectionRow.HeaderDescriptor = {
       name: headerName,
       value: headerValue,
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.ENABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Enabled,
     };
 
     const {component} = await renderHeaderSectionRow(headerData);
@@ -622,7 +624,7 @@ describeWithEnvironment('HeaderSectionRow', () => {
       name: originalHeaderName,
       value: originalHeaderValue,
       nameEditable: true,
-      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.ENABLED,
+      valueEditable: NetworkComponents.HeaderSectionRow.EditingAllowedStatus.Enabled,
     };
     const editedHeaderName = ' new-header-name ';
     const editedHeaderValue = ' new value for header ';

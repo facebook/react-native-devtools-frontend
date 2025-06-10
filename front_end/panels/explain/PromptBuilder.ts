@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 import * as SDK from '../../core/sdk/sdk.js';
-import * as AiAssistanceModel from '../../models/ai_assistance/ai_assistance.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import * as Formatter from '../../models/formatter/formatter.js';
 import * as Logs from '../../models/logs/logs.js';
@@ -13,6 +12,7 @@ import type * as Console from '../console/console.js';
 const MAX_MESSAGE_SIZE = 1000;
 const MAX_STACK_TRACE_SIZE = 1000;
 const MAX_CODE_SIZE = 1000;
+const MAX_HEADERS_SIZE = 1000;
 
 export enum SourceType {
   MESSAGE = 'message',
@@ -130,15 +130,12 @@ export class PromptBuilder {
 
   formatPrompt({message, relatedCode, relatedRequest}: {message: string, relatedCode: string, relatedRequest: string}):
       string {
-    let prompt = `Please explain the following console error or warning:
-
-\`\`\`
-${message}
-\`\`\``;
+    let prompt = `Why does browser show an error
+${message}`;
 
     if (relatedCode) {
       prompt += `
-For the following code:
+For the following code in my web app
 
 \`\`\`
 ${relatedCode}
@@ -147,7 +144,7 @@ ${relatedCode}
 
     if (relatedRequest) {
       prompt += `
-For the following network request:
+For the following network request in my web app
 
 \`\`\`
 ${relatedRequest}
@@ -185,7 +182,7 @@ export function allowHeader(header: SDK.NetworkRequest.NameValue): boolean {
 
 export function lineWhitespace(line: string): string|null {
   const matches = /^\s*/.exec(line);
-  if (!matches?.length) {
+  if (!matches || !matches.length) {
     // This should not happen
     return null;
   }
@@ -208,7 +205,7 @@ export function formatRelatedCode(
   let relatedCodeSize = 0;
   let currentLineNumber = lineNumber;
   let currentWhitespace = lineWhitespace(lines[lineNumber]);
-  const startByPrefix = new Map<string, number>();
+  const startByPrefix: Map<string, number> = new Map();
   while (lines[currentLineNumber] !== undefined &&
          (relatedCodeSize + lines[currentLineNumber].length <= maxCodeSize / 2)) {
     const whitespace = lineWhitespace(lines[currentLineNumber]);
@@ -266,11 +263,15 @@ export function formatNetworkRequest(
     request:
         Pick<SDK.NetworkRequest.NetworkRequest, 'url'|'requestHeaders'|'responseHeaders'|'statusCode'|'statusText'>):
     string {
+  const formatHeaders = (title: string, headers: SDK.NetworkRequest.NameValue[]): string => formatLines(
+      title, headers.filter(allowHeader).map(header => header.name + ': ' + header.value + '\n'), MAX_HEADERS_SIZE);
+  // TODO: anything else that might be relavant?
+  // TODO: handle missing headers
   return `Request: ${request.url()}
 
-${AiAssistanceModel.NetworkRequestFormatter.formatHeaders('Request headers:', request.requestHeaders())}
+${formatHeaders('Request headers:', request.requestHeaders())}
 
-${AiAssistanceModel.NetworkRequestFormatter.formatHeaders('Response headers:', request.responseHeaders)}
+${formatHeaders('Response headers:', request.responseHeaders)}
 
 Response status: ${request.statusCode} ${request.statusText}`;
 }

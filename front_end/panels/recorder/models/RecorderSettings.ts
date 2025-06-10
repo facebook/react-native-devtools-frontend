@@ -19,7 +19,7 @@ const UIStrings = {
    * @example {10:32:48} TIME
    */
   defaultRecordingName: 'Recording {DATE} at {TIME}',
-} as const;
+};
 
 const str_ = i18n.i18n.registerUIStrings(
     'panels/recorder/models/RecorderSettings.ts',
@@ -34,7 +34,7 @@ export class RecorderSettings {
   );
   #speed = Common.Settings.Settings.instance().createSetting(
       'recorder-panel-replay-speed',
-      PlayRecordingSpeed.NORMAL,
+      PlayRecordingSpeed.Normal,
   );
   #replayExtension = Common.Settings.Settings.instance().createSetting(
       'recorder-panel-replay-extension',

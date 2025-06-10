@@ -10,7 +10,7 @@ import {
   type Value,
   type WasmInterface,
 } from './CustomFormatters.js';
-import type {ForeignObject} from './WasmTypes.js';
+import {type ForeignObject, type WasmValue} from './WasmTypes.js';
 
 /*
  * Numbers
@@ -147,13 +147,10 @@ CustomFormatters.addFormatter({
   format: formatLibCXX32String,
 });
 
-type CharArrayConstructor = Uint8ArrayConstructor|Uint16ArrayConstructor|Uint32ArrayConstructor;
-
+type CharArrayConstructor = typeof Uint8Array|typeof Uint16Array|typeof Uint32Array;
 function formatRawString<T extends CharArrayConstructor>(
-    wasm: WasmInterface, value: Value, charType: T, decode: (chars: InstanceType<T>) => string): string|{
-  [key: string]: Value|null,
-}
-{
+    wasm: WasmInterface, value: Value, charType: T, decode: (chars: InstanceType<T>) => string): string|
+    {[key: string]: Value | null} {
   const address = value.asUint32();
   if (address < Constants.SAFE_HEAP_START) {
     return formatPointerOrReference(wasm, value);
@@ -172,7 +169,6 @@ function formatRawString<T extends CharArrayConstructor>(
       const str = new charType(bufferSize / charSize + strlen) as InstanceType<T>;
       for (let i = 0; i < slices.length; ++i) {
         str.set(
-            // @ts-expect-error TypeScript can't find the deduce the intersection type correctly
             new charType(slices[i].buffer, slices[i].byteOffset, slices[i].byteLength / charSize),
             i * Constants.PAGE_SIZE / charSize);
       }
@@ -184,24 +180,15 @@ function formatRawString<T extends CharArrayConstructor>(
   return formatPointerOrReference(wasm, value);
 }
 
-export function formatCString(wasm: WasmInterface, value: Value): string|{
-  [key: string]: Value|null,
-}
-{
+export function formatCString(wasm: WasmInterface, value: Value): string|{[key: string]: Value | null} {
   return formatRawString(wasm, value, Uint8Array, str => new TextDecoder().decode(str));
 }
 
-export function formatU16CString(wasm: WasmInterface, value: Value): string|{
-  [key: string]: Value|null,
-}
-{
+export function formatU16CString(wasm: WasmInterface, value: Value): string|{[key: string]: Value | null} {
   return formatRawString(wasm, value, Uint16Array, str => new TextDecoder('utf-16le').decode(str));
 }
 
-export function formatCWString(wasm: WasmInterface, value: Value): string|{
-  [key: string]: Value|null,
-}
-{
+export function formatCWString(wasm: WasmInterface, value: Value): string|{[key: string]: Value | null} {
   // emscripten's wchar is 4 byte
   return formatRawString(wasm, value, Uint32Array, str => Array.from(str).map(v => String.fromCodePoint(v)).join(''));
 }
@@ -275,7 +262,7 @@ CustomFormatters.addFormatter({types: ['__int128'], format: formatInt128});
 
 export function formatExternRef(wasm: WasmInterface, value: Value): () => LazyObject {
   const obj = {
-    async getProperties(): Promise<Array<{name: string, property: LazyObject}>> {
+    async getProperties(): Promise<{name: string, property: LazyObject}[]> {
       return [];
     },
     async asRemoteObject(): Promise<ForeignObject> {

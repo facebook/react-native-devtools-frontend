@@ -3,27 +3,41 @@
  * Copyright 2023 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
-import fs from 'node:fs';
-import { rename, unlink, mkdtemp } from 'node:fs/promises';
-import os from 'node:os';
-import path from 'node:path';
-import { Browser as SupportedBrowsers, createProfile } from '@puppeteer/browsers';
+import fs from 'fs';
+import { rename, unlink, mkdtemp } from 'fs/promises';
+import os from 'os';
+import path from 'path';
+import { Browser as SupportedBrowsers, createProfile, Cache, detectBrowserPlatform, Browser, } from '@puppeteer/browsers';
 import { debugError } from '../common/util.js';
 import { assert } from '../util/assert.js';
-import { BrowserLauncher } from './BrowserLauncher.js';
+import { ProductLauncher } from './ProductLauncher.js';
 import { rm } from './util/fs.js';
 /**
  * @internal
  */
-export class FirefoxLauncher extends BrowserLauncher {
+export class FirefoxLauncher extends ProductLauncher {
     constructor(puppeteer) {
         super(puppeteer, 'firefox');
     }
-    static getPreferences(extraPrefsFirefox) {
+    static getPreferences(extraPrefsFirefox, protocol) {
         return {
             ...extraPrefsFirefox,
-            // Only enable the WebDriver BiDi protocol
-            'remote.active-protocols': 1,
+            ...(protocol === 'webDriverBiDi'
+                ? {
+                    // Only enable the WebDriver BiDi protocol
+                    'remote.active-protocols': 1,
+                }
+                : {
+                    // Do not close the window when the last tab gets closed
+                    'browser.tabs.closeWindowWithLastTab': false,
+                    // Prevent various error message on the console
+                    // jest-puppeteer asserts that no error message is emitted by the console
+                    'network.cookie.cookieBehavior': 0,
+                    // Temporarily force disable BFCache in parent (https://bit.ly/bug-1732263)
+                    'fission.bfcacheInParent': false,
+                    // Only enable the CDP protocol
+                    'remote.active-protocols': 2,
+                }),
             // Force all web content to use a single content process. TODO: remove
             // this once Firefox supports mouse event dispatch from the main frame
             // context. Once this happens, webContentIsolationStrategy should only
@@ -67,7 +81,7 @@ export class FirefoxLauncher extends BrowserLauncher {
         if (profileArgIndex !== -1) {
             userDataDir = firefoxArguments[profileArgIndex + 1];
             if (!userDataDir) {
-                throw new Error(`Missing value for profile command line argument`);
+                throw new Error(`Firefox profile not found at '${userDataDir}'`);
             }
             // When using a custom Firefox profile it needs to be populated
             // with required preferences.
@@ -80,7 +94,7 @@ export class FirefoxLauncher extends BrowserLauncher {
         }
         await createProfile(SupportedBrowsers.FIREFOX, {
             path: userDataDir,
-            preferences: FirefoxLauncher.getPreferences(extraPrefsFirefox),
+            preferences: FirefoxLauncher.getPreferences(extraPrefsFirefox, options.protocol),
         });
         let firefoxExecutable;
         if (this.puppeteer._isPuppeteerCore || executablePath) {
@@ -88,7 +102,7 @@ export class FirefoxLauncher extends BrowserLauncher {
             firefoxExecutable = executablePath;
         }
         else {
-            firefoxExecutable = this.executablePath(undefined);
+            firefoxExecutable = this.executablePath();
         }
         return {
             isTempUserDataDir,
@@ -112,20 +126,14 @@ export class FirefoxLauncher extends BrowserLauncher {
         }
         else {
             try {
-                const backupSuffix = '.puppeteer';
-                const backupFiles = ['prefs.js', 'user.js'];
-                const results = await Promise.allSettled(backupFiles.map(async (file) => {
-                    const prefsBackupPath = path.join(userDataDir, file + backupSuffix);
-                    if (fs.existsSync(prefsBackupPath)) {
-                        const prefsPath = path.join(userDataDir, file);
-                        await unlink(prefsPath);
-                        await rename(prefsBackupPath, prefsPath);
-                    }
-                }));
-                for (const result of results) {
-                    if (result.status === 'rejected') {
-                        throw result.reason;
-                    }
+                // When an existing user profile has been used remove the user
+                // preferences file and restore possibly backuped preferences.
+                await unlink(path.join(userDataDir, 'user.js'));
+                const prefsBackupPath = path.join(userDataDir, 'prefs.js.puppeteer');
+                if (fs.existsSync(prefsBackupPath)) {
+                    const prefsPath = path.join(userDataDir, 'prefs.js');
+                    await unlink(prefsPath);
+                    await rename(prefsBackupPath, prefsPath);
                 }
             }
             catch (error) {
@@ -133,13 +141,23 @@ export class FirefoxLauncher extends BrowserLauncher {
             }
         }
     }
-    executablePath(_, validatePath = true) {
-        return this.resolveExecutablePath(undefined, 
-        /* validatePath=*/ validatePath);
+    executablePath() {
+        // replace 'latest' placeholder with actual downloaded revision
+        if (this.puppeteer.browserRevision === 'latest') {
+            const cache = new Cache(this.puppeteer.defaultDownloadPath);
+            const installedFirefox = cache.getInstalledBrowsers().find(browser => {
+                return (browser.platform === detectBrowserPlatform() &&
+                    browser.browser === Browser.FIREFOX);
+            });
+            if (installedFirefox) {
+                this.actualBrowserRevision = installedFirefox.buildId;
+            }
+        }
+        return this.resolveExecutablePath();
     }
     defaultArgs(options = {}) {
         const { devtools = false, headless = !devtools, args = [], userDataDir = null, } = options;
-        const firefoxArguments = [];
+        const firefoxArguments = ['--no-remote'];
         switch (os.platform()) {
             case 'darwin':
                 firefoxArguments.push('--foreground');

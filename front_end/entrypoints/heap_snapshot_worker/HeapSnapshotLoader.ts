@@ -32,7 +32,7 @@ import * as Platform from '../../core/platform/platform.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
 
 import {type HeapSnapshotHeader, HeapSnapshotProgress, JSHeapSnapshot, type Profile} from './HeapSnapshot.js';
-import type {HeapSnapshotWorkerDispatcher} from './HeapSnapshotWorkerDispatcher.js';
+import {type HeapSnapshotWorkerDispatcher} from './HeapSnapshotWorkerDispatcher.js';
 
 export class HeapSnapshotLoader {
   readonly #progress: HeapSnapshotProgress;
@@ -44,15 +44,14 @@ export class HeapSnapshotLoader {
   #snapshot?: {[x: string]: any};
   #array!: Platform.TypedArrayUtilities.BigUint32Array|null;
   #arrayIndex!: number;
-  #json = '';
-  parsingComplete: Promise<void>;
+  #json: string = '';
   constructor(dispatcher: HeapSnapshotWorkerDispatcher) {
     this.#reset();
     this.#progress = new HeapSnapshotProgress(dispatcher);
     this.#buffer = [];
     this.#dataCallback = null;
     this.#done = false;
-    this.parsingComplete = this.#parseInput();
+    void this.#parseInput();
   }
 
   dispose(): void {
@@ -71,12 +70,11 @@ export class HeapSnapshotLoader {
     }
   }
 
-  async buildSnapshot(secondWorker: MessagePort): Promise<JSHeapSnapshot> {
+  buildSnapshot(): JSHeapSnapshot {
     this.#snapshot = this.#snapshot || {};
 
     this.#progress.updateStatus('Processing snapshot…');
     const result = new JSHeapSnapshot((this.#snapshot as Profile), this.#progress);
-    await result.initialize(secondWorker);
     this.#reset();
     return result;
   }
@@ -155,7 +153,7 @@ export class HeapSnapshotLoader {
       return Promise.resolve(this.#buffer.shift() as string);
     }
 
-    const {promise, resolve} = Promise.withResolvers<string>();
+    const {promise, resolve} = Platform.PromiseUtilities.promiseWithResolvers<string>();
     this.#dataCallback = resolve;
     return promise;
   }
@@ -256,7 +254,7 @@ export class HeapSnapshotLoader {
     const stringsTokenIndex = await this.#findToken('"strings"');
     const bracketIndex = await this.#findToken('[', stringsTokenIndex);
     this.#json = this.#json.slice(bracketIndex);
-    while (this.#buffer.length > 0 || !this.#done) {
+    while (!this.#done) {
       this.#json += await this.#fetchChunk();
     }
     this.#parseStringsArray();

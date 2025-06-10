@@ -105,8 +105,8 @@ PerformanceTestRunner.performanceModel = function() {
   return Timeline.TimelinePanel.TimelinePanel.instance().performanceModel;
 };
 
-PerformanceTestRunner.traceEngineParsedTrace = function() {
-  return Timeline.TimelinePanel.TimelinePanel.instance().getParsedTraceForLayoutTests();
+PerformanceTestRunner.traceEngineParsedData = function() {
+  return Timeline.TimelinePanel.TimelinePanel.instance().getTraceEngineDataForLayoutTests();
 };
 PerformanceTestRunner.traceEngineRawEvents = function() {
   return Timeline.TimelinePanel.TimelinePanel.instance().getTraceEngineRawTraceEventsForLayoutTests();
@@ -120,7 +120,7 @@ PerformanceTestRunner.createTraceEngineDataFromEvents = async function(events) {
   await model.parse(events);
   // Model only has one trace, so we can hardcode 0 here to get the latest
   // result.
-  return model.parsedTrace(0);
+  return model.traceParsedData(0);
 };
 
 PerformanceTestRunner.createTimelineController = function() {
@@ -222,7 +222,7 @@ PerformanceTestRunner.printTraceEventProperties = function(traceEvent) {
   const object = {
     data: traceEvent.args['data'] || traceEvent.args,
     endTime: traceEvent.endTime || traceEvent.startTime,
-    frameId,
+    frameId: frameId,
     startTime: traceEvent.startTime,
     type: traceEvent.name
   };

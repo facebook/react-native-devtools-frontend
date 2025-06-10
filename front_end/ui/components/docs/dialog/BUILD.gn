@@ -3,29 +3,20 @@
 # found in the LICENSE file.
 
 import("../../../../../scripts/build/ninja/copy.gni")
-import("../../../../../scripts/build/typescript/typescript.gni")
+import("../../../../../third_party/typescript/typescript.gni")
 
 ts_library("ts") {
   testonly = true
-  sources = [
-    "basic.ts",
-    "button_dialog.ts",
-    "shortcut_dialog.ts",
-  ]
+  sources = [ "basic.ts" ]
 
   deps = [
-    "../../../../../front_end/ui/lit:bundle",
-    "../../../../testing",
+    "../../../../../front_end/ui/lit-html:bundle",
     "../../dialogs:bundle",
   ]
 }
 
 copy_to_gen("dialog") {
   testonly = true
-  sources = [
-    "basic.html",
-    "button_dialog.html",
-    "shortcut_dialog.html",
-  ]
+  sources = [ "basic.html" ]
   deps = [ ":ts" ]
 }

@@ -12,22 +12,5 @@
   var secondKey = {p: {q: {}}};
   weakMap.set(firstKey, firstRetainer.x);
   weakMap.set(secondKey.p.q, firstRetainer.x);
-  // Some additional properties are included in the following object so that
-  // this test case can also serve to verify the formatting of plain JS objects.
-  var lastRetainer = {
-    a: {
-      b: {
-        ['#'.repeat(130)]: 2,
-        c: {
-          d: firstRetainer.x
-        }
-      },
-      irrelevantProperty: 3,
-      [Symbol('also irrelevant')]: 4,
-      '}': 5
-    }
-  };
-  for (var i = 0; i < 10; ++i) {
-    lastRetainer['extraProp' + i] = i;
-  }
+  var lastRetainer = {a: {b: {c: {d: firstRetainer.x}}}};
 </script>

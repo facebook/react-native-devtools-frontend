@@ -2,14 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import './Toolbar.js';
-
 import type * as Buttons from '../components/buttons/buttons.js';
 import * as VisualLogging from '../visual_logging/visual_logging.js';
 
 import * as ARIAUtils from './ARIAUtils.js';
-import reportViewStyles from './reportView.css.js';
-import type {Toolbar} from './Toolbar.js';
+import reportViewStyles from './reportView.css.legacy.js';
+import {Toolbar} from './Toolbar.js';
 import {Tooltip} from './Tooltip.js';
 import {VBox} from './Widget.js';
 
@@ -75,7 +73,9 @@ export class ReportView extends VBox {
   }
 
   createToolbar(): Toolbar {
-    return this.headerElement.createChild('devtools-toolbar');
+    const toolbar = new Toolbar('');
+    this.headerElement.appendChild(toolbar.element);
+    return toolbar;
   }
 
   appendSection(title: string, className?: string, jslogContext?: string): Section {
@@ -109,10 +109,10 @@ export class ReportView extends VBox {
 
 export class Section extends VBox {
   private readonly headerElement: HTMLElement;
-  private headerButtons: Buttons.Button.Button[] = [];
+  private headerButtons: Buttons.Button.Button[];
   private titleElement: HTMLElement;
   private fieldList: HTMLElement;
-  private readonly fieldMap = new Map<string, Element>();
+  private readonly fieldMap: Map<string, Element>;
   constructor(title: string, className?: string, public jslogContext?: string) {
     super();
     this.element.classList.add('report-section');
@@ -123,11 +123,13 @@ export class Section extends VBox {
       this.element.setAttribute('jslog', `${VisualLogging.section(jslogContext)}`);
     }
     this.jslogContext = jslogContext;
+    this.headerButtons = [];
     this.headerElement = this.element.createChild('div', 'report-section-header');
     this.titleElement = this.headerElement.createChild('div', 'report-section-title');
     this.setTitle(title);
     ARIAUtils.markAsHeading(this.titleElement, 2);
     this.fieldList = this.element.createChild('div', 'vbox');
+    this.fieldMap = new Map();
   }
 
   title(): string {
@@ -213,11 +215,11 @@ export class Section extends VBox {
   }
 
   appendRow(): HTMLElement {
-    return this.fieldList.createChild('div', 'report-row');
+    return this.fieldList.createChild('div', 'report-row') as HTMLElement;
   }
 
   appendSelectableRow(): HTMLElement {
-    return this.fieldList.createChild('div', 'report-row report-row-selectable');
+    return this.fieldList.createChild('div', 'report-row report-row-selectable') as HTMLElement;
   }
 
   clearContent(): void {

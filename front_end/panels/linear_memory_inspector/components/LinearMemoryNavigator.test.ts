@@ -30,7 +30,7 @@ describeWithLocale('LinearMemoryNavigator', () => {
     component.data = {
       address: '20',
       valid: true,
-      mode: LinearMemoryInspectorComponents.LinearMemoryNavigator.Mode.SUBMITTED,
+      mode: LinearMemoryInspectorComponents.LinearMemoryNavigator.Mode.Submitted,
       error: undefined,
       canGoBackInHistory: true,
       canGoForwardInHistory: true,
@@ -54,8 +54,8 @@ describeWithLocale('LinearMemoryNavigator', () => {
     }
 
     assert.deepEqual(navigation, [
-      LinearMemoryInspectorComponents.LinearMemoryNavigator.Navigation.BACKWARD,
-      LinearMemoryInspectorComponents.LinearMemoryNavigator.Navigation.FORWARD,
+      LinearMemoryInspectorComponents.LinearMemoryNavigator.Navigation.Backward,
+      LinearMemoryInspectorComponents.LinearMemoryNavigator.Navigation.Forward,
     ]);
   }
 
@@ -71,7 +71,7 @@ describeWithLocale('LinearMemoryNavigator', () => {
     component.data = {
       address: '16',
       valid: true,
-      mode: LinearMemoryInspectorComponents.LinearMemoryNavigator.Mode.SUBMITTED,
+      mode: LinearMemoryInspectorComponents.LinearMemoryNavigator.Mode.Submitted,
       error: undefined,
       canGoBackInHistory: false,
       canGoForwardInHistory: false,
@@ -109,7 +109,7 @@ describeWithLocale('LinearMemoryNavigator', () => {
     component.data = {
       address: '0',
       valid: true,
-      mode: LinearMemoryInspectorComponents.LinearMemoryNavigator.Mode.SUBMITTED,
+      mode: LinearMemoryInspectorComponents.LinearMemoryNavigator.Mode.Submitted,
       error: undefined,
       canGoBackInHistory: false,
       canGoForwardInHistory: false,
@@ -135,7 +135,7 @@ describeWithLocale('LinearMemoryNavigator', () => {
     component.data = {
       address: invalidAddress,
       valid: false,
-      mode: LinearMemoryInspectorComponents.LinearMemoryNavigator.Mode.INVALID_SUBMIT,
+      mode: LinearMemoryInspectorComponents.LinearMemoryNavigator.Mode.InvalidSubmit,
       error,
       canGoBackInHistory: false,
       canGoForwardInHistory: false,
@@ -155,7 +155,7 @@ describeWithLocale('LinearMemoryNavigator', () => {
     component.data = {
       address: '60',
       valid: false,
-      mode: LinearMemoryInspectorComponents.LinearMemoryNavigator.Mode.EDIT,
+      mode: LinearMemoryInspectorComponents.LinearMemoryNavigator.Mode.Edit,
       error,
       canGoBackInHistory: false,
       canGoForwardInHistory: false,

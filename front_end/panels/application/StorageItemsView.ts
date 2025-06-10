@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../ui/legacy/legacy.js';
-
 import type * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
@@ -29,7 +27,7 @@ const UIStrings = {
    *@description Text that informs screen reader users that the storage table has been refreshed
    */
   refreshedStatus: 'Table refreshed',
-} as const;
+};
 
 const str_ = i18n.i18n.registerUIStrings('panels/application/StorageItemsView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -41,11 +39,9 @@ export class StorageItemsView extends UI.Widget.VBox {
   readonly filterItem: UI.Toolbar.ToolbarInput;
   readonly deleteAllButton: UI.Toolbar.ToolbarButton;
   readonly deleteSelectedButton: UI.Toolbar.ToolbarButton;
-  readonly metadataView: ApplicationComponents.StorageMetadataView.StorageMetadataView;
+  readonly metadataView = new ApplicationComponents.StorageMetadataView.StorageMetadataView();
 
-  constructor(
-      _title: string, _filterName: string,
-      metadataView?: ApplicationComponents.StorageMetadataView.StorageMetadataView) {
+  constructor(_title: string, _filterName: string) {
     super(false);
     this.filterRegex = null;
 
@@ -56,11 +52,11 @@ export class StorageItemsView extends UI.Widget.VBox {
     this.refreshButton.element.setAttribute(
         'jslog', `${VisualLogging.action('storage-items-view.refresh').track({click: true})}`);
 
-    this.mainToolbar = this.element.createChild('devtools-toolbar', 'top-resources-toolbar');
-    this.mainToolbar.setAttribute('jslog', `${VisualLogging.toolbar()}`);
+    this.mainToolbar = new UI.Toolbar.Toolbar('top-resources-toolbar', this.element);
+    this.mainToolbar.element.setAttribute('jslog', `${VisualLogging.toolbar()}`);
 
     this.filterItem = new UI.Toolbar.ToolbarFilter(undefined, 0.4);
-    this.filterItem.addEventListener(UI.Toolbar.ToolbarInput.Event.TEXT_CHANGED, this.filterChanged, this);
+    this.filterItem.addEventListener(UI.Toolbar.ToolbarInput.Event.TextChanged, this.filterChanged, this);
 
     const toolbarSeparator = new UI.Toolbar.ToolbarSeparator();
     this.deleteAllButton = this.addButton(i18nString(UIStrings.clearAll), 'clear', this.deleteAllItems);
@@ -76,7 +72,6 @@ export class StorageItemsView extends UI.Widget.VBox {
     for (const item of toolbarItems) {
       this.mainToolbar.appendToolbarItem(item);
     }
-    this.metadataView = metadataView ?? new ApplicationComponents.StorageMetadataView.StorageMetadataView();
     this.contentElement.appendChild(this.metadataView);
   }
 
@@ -99,7 +94,7 @@ export class StorageItemsView extends UI.Widget.VBox {
   private addButton(label: string, glyph: string, callback: (arg0: Common.EventTarget.EventTargetEvent<Event>) => void):
       UI.Toolbar.ToolbarButton {
     const button = new UI.Toolbar.ToolbarButton(label, glyph);
-    button.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, callback, this);
+    button.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, callback, this);
     return button;
   }
 
@@ -130,6 +125,10 @@ export class StorageItemsView extends UI.Widget.VBox {
 
   setCanDeleteSelected(enabled: boolean): void {
     this.deleteSelectedButton.setEnabled(enabled);
+  }
+
+  setCanRefresh(enabled: boolean): void {
+    this.refreshButton.setEnabled(enabled);
   }
 
   setCanFilter(enabled: boolean): void {

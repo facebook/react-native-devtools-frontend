@@ -2,18 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Protocol from '../../generated/protocol.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
+import type * as Protocol from '../../generated/protocol.js';
 
-import type {CSSModel} from './CSSModel.js';
+import {type CSSModel} from './CSSModel.js';
 import {CSSQuery} from './CSSQuery.js';
-import type {DOMNode} from './DOMModel.js';
+import {type DOMNode} from './DOMModel.js';
 
 export class CSSContainerQuery extends CSSQuery {
   name?: string;
   physicalAxes?: Protocol.DOM.PhysicalAxes;
   logicalAxes?: Protocol.DOM.LogicalAxes;
-  queriesScrollState?: boolean;
 
   static parseContainerQueriesPayload(cssModel: CSSModel, payload: Protocol.CSS.CSSContainerQuery[]):
       CSSContainerQuery[] {
@@ -32,7 +31,6 @@ export class CSSContainerQuery extends CSSQuery {
     this.name = payload.name;
     this.physicalAxes = payload.physicalAxes;
     this.logicalAxes = payload.logicalAxes;
-    this.queriesScrollState = payload.queriesScrollState;
   }
 
   active(): boolean {
@@ -40,8 +38,8 @@ export class CSSContainerQuery extends CSSQuery {
   }
 
   async getContainerForNode(nodeId: Protocol.DOM.NodeId): Promise<CSSContainerQueryContainer|undefined> {
-    const containerNode = await this.cssModel.domModel().getContainerForNode(
-        nodeId, this.name, this.physicalAxes, this.logicalAxes, this.queriesScrollState);
+    const containerNode =
+        await this.cssModel.domModel().getContainerForNode(nodeId, this.name, this.physicalAxes, this.logicalAxes);
     if (!containerNode) {
       return;
     }
@@ -62,18 +60,20 @@ export class CSSContainerQueryContainer {
       return;
     }
     const containerType = styles.get('container-type');
+    const contain = styles.get('contain');
     const writingMode = styles.get('writing-mode');
-    if (!containerType || !writingMode) {
+    if (!containerType || !contain || !writingMode) {
       return;
     }
 
-    const queryAxis = getQueryAxisFromContainerType(`${containerType}`);
+    // The final queried axes are the union of both properties.
+    const queryAxis = getQueryAxis(`${containerType} ${contain}`);
     const physicalAxis = getPhysicalAxisFromQueryAxis(queryAxis, writingMode);
     let width, height;
-    if (physicalAxis === PhysicalAxis.BOTH || physicalAxis === PhysicalAxis.HORIZONTAL) {
+    if (physicalAxis === PhysicalAxis.Both || physicalAxis === PhysicalAxis.Horizontal) {
       width = styles.get('width');
     }
-    if (physicalAxis === PhysicalAxis.BOTH || physicalAxis === PhysicalAxis.VERTICAL) {
+    if (physicalAxis === PhysicalAxis.Both || physicalAxis === PhysicalAxis.Vertical) {
       height = styles.get('height');
     }
 
@@ -86,32 +86,42 @@ export class CSSContainerQueryContainer {
   }
 }
 
-export const getQueryAxisFromContainerType = (propertyValue: string): QueryAxis => {
+export const getQueryAxis = (propertyValue: string): QueryAxis => {
   const segments = propertyValue.split(' ');
   let isInline = false;
+  let isBlock = false;
   for (const segment of segments) {
     if (segment === 'size') {
-      return QueryAxis.BOTH;
+      return QueryAxis.Both;
     }
     isInline = isInline || segment === 'inline-size';
+    isBlock = isBlock || segment === 'block-size';
+  }
+
+  if (isInline && isBlock) {
+    return QueryAxis.Both;
   }
   if (isInline) {
-    return QueryAxis.INLINE;
+    return QueryAxis.Inline;
   }
-  return QueryAxis.NONE;
+  if (isBlock) {
+    return QueryAxis.Block;
+  }
+
+  return QueryAxis.None;
 };
 
 export const getPhysicalAxisFromQueryAxis = (queryAxis: QueryAxis, writingMode: string): PhysicalAxis => {
   const isVerticalWritingMode = writingMode.startsWith('vertical');
   switch (queryAxis) {
-    case QueryAxis.NONE:
-      return PhysicalAxis.NONE;
-    case QueryAxis.BOTH:
-      return PhysicalAxis.BOTH;
-    case QueryAxis.INLINE:
-      return isVerticalWritingMode ? PhysicalAxis.VERTICAL : PhysicalAxis.HORIZONTAL;
-    case QueryAxis.BLOCK:
-      return isVerticalWritingMode ? PhysicalAxis.HORIZONTAL : PhysicalAxis.VERTICAL;
+    case QueryAxis.None:
+      return PhysicalAxis.None;
+    case QueryAxis.Both:
+      return PhysicalAxis.Both;
+    case QueryAxis.Inline:
+      return isVerticalWritingMode ? PhysicalAxis.Vertical : PhysicalAxis.Horizontal;
+    case QueryAxis.Block:
+      return isVerticalWritingMode ? PhysicalAxis.Horizontal : PhysicalAxis.Vertical;
   }
 };
 
@@ -123,15 +133,15 @@ export interface ContainerQueriedSizeDetails {
 }
 
 export const enum QueryAxis {
-  NONE = '',
-  INLINE = 'inline-size',
-  BLOCK = 'block-size',
-  BOTH = 'size',
+  None = '',
+  Inline = 'inline-size',
+  Block = 'block-size',
+  Both = 'size',
 }
 
 export const enum PhysicalAxis {
-  NONE = '',
-  HORIZONTAL = 'Horizontal',
-  VERTICAL = 'Vertical',
-  BOTH = 'Both',
+  None = '',
+  Horizontal = 'Horizontal',
+  Vertical = 'Vertical',
+  Both = 'Both',
 }

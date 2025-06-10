@@ -18,8 +18,6 @@ import * as Platform from '../platform/platform.js';
 
 import * as SDK from './sdk.js';
 
-const {urlString} = Platform.DevToolsPath;
-
 interface LoadResult {
   success: boolean;
   content: string;
@@ -33,9 +31,9 @@ const initiator = {
 };
 
 describeWithLocale('PageResourceLoader', () => {
-  const foo1Url = urlString`foo1`;
-  const foo2Url = urlString`foo2`;
-  const foo3Url = urlString`foo3`;
+  const foo1Url = 'foo1' as Platform.DevToolsPath.UrlString;
+  const foo2Url = 'foo2' as Platform.DevToolsPath.UrlString;
+  const foo3Url = 'foo3' as Platform.DevToolsPath.UrlString;
   const loads: Array<{url: string, resolve?: {(_: LoadResult|PromiseLike<LoadResult>): void}}> = [];
   const load = async (url: string) => {
     loads.push({url});
@@ -57,16 +55,15 @@ describeWithLocale('PageResourceLoader', () => {
 
     const initiator: SDK.PageResourceLoader.ExtensionInitiator = {
       extensionId: '123',
-      initiatorUrl: urlString`www.test.com/main.wasm.dwp`,
+      initiatorUrl: 'www.test.com/main.wasm.dwp' as Platform.DevToolsPath.UrlString,
       target: null,
       frameId: null,
     };
     const extensionResource: SDK.PageResourceLoader.PageResource = {
-      url: urlString`main.wasm.dwp`,
+      url: 'main.wasm.dwp' as Platform.DevToolsPath.UrlString,
       success: true,
       initiator,
       size: null,
-      duration: null,
     };
 
     loader.resourceLoadedThroughExtension(extensionResource);
@@ -123,7 +120,7 @@ describeWithLocale('PageResourceLoader', () => {
             };
           },
         } as unknown as SDK.ResourceTreeModel.ResourceTreeFrame,
-        type: SDK.ResourceTreeModel.PrimaryPageChangeType.NAVIGATION,
+        type: SDK.ResourceTreeModel.PrimaryPageChangeType.Navigation,
       },
     });
     assert.deepEqual(loader.getNumberOfResources(), {loading: 3, queued: 0, resources: 0});
@@ -164,8 +161,10 @@ describeWithEnvironment('PageResourceLoader', () => {
     const loader =
         SDK.PageResourceLoader.PageResourceLoader.instance({forceNew: true, loadOverride: null, maxConcurrentLoads: 1});
 
-    const message = await loader.loadResource(urlString`file:////127.0.0.1/share/source-map.js.map`, initiator)
-                        .catch(e => e.message);
+    const message =
+        await loader
+            .loadResource('file:////127.0.0.1/share/source-map.js.map' as Platform.DevToolsPath.UrlString, initiator)
+            .catch(e => e.message);
 
     assert.include(message, 'remote file');
   });
@@ -175,7 +174,8 @@ describeWithEnvironment('PageResourceLoader', () => {
         SDK.PageResourceLoader.PageResourceLoader.instance({forceNew: true, loadOverride: null, maxConcurrentLoads: 1});
 
     const message =
-        await loader.loadResource(urlString`file://host/source-map.js.map`, initiator).catch(e => e.message);
+        await loader.loadResource('file://host/source-map.js.map' as Platform.DevToolsPath.UrlString, initiator)
+            .catch(e => e.message);
 
     assert.include(message, 'remote file');
   });
@@ -188,8 +188,10 @@ describeWithEnvironment('PageResourceLoader', () => {
     const loader =
         SDK.PageResourceLoader.PageResourceLoader.instance({forceNew: true, loadOverride: null, maxConcurrentLoads: 1});
 
-    const message = await loader.loadResource(urlString`file:///\\127.0.0.1/share/source-map.js.map`, initiator)
-                        .catch(e => e.message);
+    const message =
+        await loader
+            .loadResource('file:///\\127.0.0.1/share/source-map.js.map' as Platform.DevToolsPath.UrlString, initiator)
+            .catch(e => e.message);
 
     assert.include(message, 'remote file');
   });
@@ -204,7 +206,8 @@ describeWithEnvironment('PageResourceLoader', () => {
         });
 
     Common.Settings.Settings.instance().moduleSetting('network.enable-remote-file-loading').set(true);
-    const response = await loader.loadResource(urlString`file://host/source-map.js.map`, initiator);
+    const response =
+        await loader.loadResource('file://host/source-map.js.map' as Platform.DevToolsPath.UrlString, initiator);
 
     assert.strictEqual(response.content, 'content of the source map');
   });
@@ -223,7 +226,8 @@ describeWithEnvironment('PageResourceLoader', () => {
         });
 
     Common.Settings.Settings.instance().moduleSetting('network.enable-remote-file-loading').set(true);
-    const response = await loader.loadResource(urlString`file:////127.0.0.1/share/source-map.js.map`, initiator);
+    const response = await loader.loadResource(
+        'file:////127.0.0.1/share/source-map.js.map' as Platform.DevToolsPath.UrlString, initiator);
 
     assert.strictEqual(response.content, 'content of the source map');
   });
@@ -232,8 +236,8 @@ describeWithEnvironment('PageResourceLoader', () => {
 describeWithMockConnection('PageResourceLoader', () => {
   describe('loadResource', () => {
     const stream = 'STREAM_ID' as Protocol.IO.StreamHandle;
-    const initiatorUrl = urlString`htp://example.com`;
-    const url = urlString`${`${initiatorUrl}/test.txt`}`;
+    const initiatorUrl = 'htp://example.com' as Platform.DevToolsPath.UrlString;
+    const url = `${initiatorUrl}/test.txt` as Platform.DevToolsPath.UrlString;
 
     function setupLoadingSourceMapsAsNetworkResource(): Promise<Protocol.Network.LoadNetworkResourceRequest> {
       return new Promise(resolve => {
@@ -271,10 +275,10 @@ describeWithMockConnection('PageResourceLoader', () => {
 });
 
 describeWithMockConnection('PageResourceLoader', () => {
-  const initiatorUrl = urlString`htp://example.com`;
-  const foo1Url = urlString`foo1`;
-  const foo2Url = urlString`foo2`;
-  const foo3Url = urlString`foo3`;
+  const initiatorUrl = 'htp://example.com' as Platform.DevToolsPath.UrlString;
+  const foo1Url = 'foo1' as Platform.DevToolsPath.UrlString;
+  const foo2Url = 'foo2' as Platform.DevToolsPath.UrlString;
+  const foo3Url = 'foo3' as Platform.DevToolsPath.UrlString;
 
   it('handles scoped resources', async () => {
     const target = createTarget({id: 'main' as Protocol.Target.TargetID});
@@ -354,7 +358,7 @@ describeWithMockConnection('PageResourceLoader', () => {
             };
           },
         } as unknown as SDK.ResourceTreeModel.ResourceTreeFrame,
-        type: SDK.ResourceTreeModel.PrimaryPageChangeType.ACTIVATION,
+        type: SDK.ResourceTreeModel.PrimaryPageChangeType.Activation,
       },
     });
     assert.deepEqual(loader.getNumberOfResources(), {loading: 0, queued: 0, resources: 1});

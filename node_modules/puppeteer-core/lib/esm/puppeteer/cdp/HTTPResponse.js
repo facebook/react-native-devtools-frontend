@@ -2,24 +2,26 @@ import { HTTPResponse } from '../api/HTTPResponse.js';
 import { ProtocolError } from '../common/Errors.js';
 import { SecurityDetails } from '../common/SecurityDetails.js';
 import { Deferred } from '../util/Deferred.js';
-import { stringToTypedArray } from '../util/encoding.js';
 /**
  * @internal
  */
 export class CdpHTTPResponse extends HTTPResponse {
+    #client;
     #request;
     #contentPromise = null;
     #bodyLoadedDeferred = Deferred.create();
     #remoteAddress;
     #status;
     #statusText;
+    #url;
     #fromDiskCache;
     #fromServiceWorker;
     #headers = {};
     #securityDetails;
     #timing;
-    constructor(request, responsePayload, extraInfo) {
+    constructor(client, request, responsePayload, extraInfo) {
         super();
+        this.#client = client;
         this.#request = request;
         this.#remoteAddress = {
             ip: responsePayload.remoteIPAddress,
@@ -28,6 +30,7 @@ export class CdpHTTPResponse extends HTTPResponse {
         this.#statusText =
             this.#parseStatusTextFromExtraInfo(extraInfo) ||
                 responsePayload.statusText;
+        this.#url = request.url();
         this.#fromDiskCache = !!responsePayload.fromDiskCache;
         this.#fromServiceWorker = !!responsePayload.fromServiceWorker;
         this.#status = extraInfo ? extraInfo.statusCode : responsePayload.status;
@@ -45,7 +48,7 @@ export class CdpHTTPResponse extends HTTPResponse {
             return;
         }
         const firstLine = extraInfo.headersText.split('\r', 1)[0];
-        if (!firstLine || firstLine.length > 1_000) {
+        if (!firstLine) {
             return;
         }
         const match = firstLine.match(/[^ ]* [^ ]* (.*)/);
@@ -68,7 +71,7 @@ export class CdpHTTPResponse extends HTTPResponse {
         return this.#remoteAddress;
     }
     url() {
-        return this.#request.url();
+        return this.#url;
     }
     status() {
         return this.#status;
@@ -85,18 +88,16 @@ export class CdpHTTPResponse extends HTTPResponse {
     timing() {
         return this.#timing;
     }
-    content() {
+    buffer() {
         if (!this.#contentPromise) {
             this.#contentPromise = this.#bodyLoadedDeferred
                 .valueOrThrow()
                 .then(async () => {
                 try {
-                    // Use CDPSession from corresponding request to retrieve body, as it's client
-                    // might have been updated (e.g. for an adopted OOPIF).
-                    const response = await this.#request.client.send('Network.getResponseBody', {
+                    const response = await this.#client.send('Network.getResponseBody', {
                         requestId: this.#request.id,
                     });
-                    return stringToTypedArray(response.body, response.base64Encoded);
+                    return Buffer.from(response.body, response.base64Encoded ? 'base64' : 'utf8');
                 }
                 catch (error) {
                     if (error instanceof ProtocolError &&

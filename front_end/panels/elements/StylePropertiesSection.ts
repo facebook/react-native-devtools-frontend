@@ -31,8 +31,6 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import '../../ui/legacy/legacy.js';
-
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -42,8 +40,7 @@ import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
-import * as Buttons from '../../ui/components/buttons/buttons.js';
-import * as Tooltips from '../../ui/components/tooltips/tooltips.js';
+import type * as Buttons from '../../ui/components/buttons/buttons.js';
 import type * as Components from '../../ui/legacy/components/utils/utils.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
@@ -60,7 +57,7 @@ const UIStrings = {
   /**
    *@description Tooltip text that appears when hovering over the largeicon add button in the Styles Sidebar Pane of the Elements panel
    */
-  insertStyleRuleBelow: 'Insert style rule below',
+  insertStyleRuleBelow: 'Insert Style Rule Below',
   /**
    *@description Text in Styles Sidebar Pane of the Elements panel
    */
@@ -111,12 +108,7 @@ const UIStrings = {
    *@description Text that is announced by the screen reader when the user focuses on an input field for editing the name of a CSS selector in the Styles panel
    */
   cssSelector: '`CSS` selector',
-  /**
-   *@description Text displayed in tooltip that shows specificity information.
-   *@example {(0,0,1)} PH1
-   */
-  specificity: 'Specificity: {PH1}',
-} as const;
+};
 
 const str_ = i18n.i18n.registerUIStrings('panels/elements/StylePropertiesSection.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -131,14 +123,14 @@ export class StylePropertiesSection {
   private computedStyles: Map<string, string>|null;
   private parentsComputedStyles: Map<string, string>|null;
   editable: boolean;
-  private hoverTimer: number|null = null;
-  private willCauseCancelEditing = false;
-  private forceShowAll = false;
+  private hoverTimer: number|null;
+  private willCauseCancelEditing: boolean;
+  private forceShowAll: boolean;
   private readonly originalPropertiesCount: number;
   element: HTMLDivElement;
   readonly #styleRuleElement: HTMLElement;
   private readonly titleElement: HTMLElement;
-  propertiesTreeOutline: UI.TreeOutline.TreeOutlineInShadow = new UI.TreeOutline.TreeOutlineInShadow();
+  propertiesTreeOutline: UI.TreeOutline.TreeOutlineInShadow;
   private showAllButton: Buttons.Button.Button;
   protected selectorElement: HTMLSpanElement;
   private readonly newStyleRuleToolbar: UI.Toolbar.Toolbar|undefined;
@@ -146,7 +138,7 @@ export class StylePropertiesSection {
   private readonly fontEditorSectionManager: FontEditorSectionManager|undefined;
   private readonly fontEditorButton: UI.Toolbar.ToolbarButton|undefined;
   private selectedSinceMouseDown: boolean;
-  private readonly elementToSelectorIndex = new WeakMap<Element, number>();
+  private readonly elementToSelectorIndex: WeakMap<Element, number>;
   navigable: boolean|null|undefined;
   protected readonly selectorRefElement: HTMLElement;
   private hoverableSelectorsMode: boolean;
@@ -160,11 +152,9 @@ export class StylePropertiesSection {
   nextEditorTriggerButtonIdx = 1;
   private sectionIdx = 0;
 
+  // Used to keep track of Specificity Information
+  static #nodeElementToSpecificity: WeakMap<Element, Protocol.CSS.Specificity> = new WeakMap();
   #customHeaderText: string|undefined;
-  readonly #specificityTooltips: HTMLSpanElement;
-  static #nextSpecificityTooltipId = 0;
-  static #nextSectionTooltipIdPrefix = 0;
-  readonly sectionTooltipIdPrefix = StylePropertiesSection.#nextSectionTooltipIdPrefix++;
 
   constructor(
       parentPane: StylesSidebarPane, matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles,
@@ -178,6 +168,9 @@ export class StylePropertiesSection {
     this.computedStyles = computedStyles;
     this.parentsComputedStyles = parentsComputedStyles;
     this.editable = Boolean(style.styleSheetId && style.range);
+    this.hoverTimer = null;
+    this.willCauseCancelEditing = false;
+    this.forceShowAll = false;
     this.originalPropertiesCount = style.leadingProperties().length;
 
     const rule = style.parentRule;
@@ -207,8 +200,9 @@ export class StylePropertiesSection {
     this.titleElement =
         this.#styleRuleElement.createChild('div', 'styles-section-title ' + (rule ? 'styles-selector' : ''));
 
+    this.propertiesTreeOutline = new UI.TreeOutline.TreeOutlineInShadow();
     this.propertiesTreeOutline.setFocusable(false);
-    this.propertiesTreeOutline.registerRequiredCSS(stylePropertiesTreeOutlineStyles);
+    this.propertiesTreeOutline.registerCSSFiles([stylePropertiesTreeOutlineStyles]);
     this.propertiesTreeOutline.element.classList.add('style-properties', 'matched-styles', 'monospace');
     this.#styleRuleElement.appendChild(this.propertiesTreeOutline.element);
 
@@ -229,7 +223,6 @@ export class StylePropertiesSection {
     selectorContainer.appendChild(this.selectorElement);
     this.selectorElement.addEventListener('mouseenter', this.onMouseEnterSelector.bind(this), false);
     this.selectorElement.addEventListener('mouseleave', this.onMouseOutSelector.bind(this), false);
-    this.#specificityTooltips = selectorContainer.createChild('span');
 
     // We only add braces for style rules with selectors and non-style rules, which create their own sections.
     if (headerText.length > 0 || !(rule instanceof SDK.CSSRule.CSSStyleRule)) {
@@ -246,23 +239,21 @@ export class StylePropertiesSection {
     if (rule) {
       const newRuleButton = new UI.Toolbar.ToolbarButton(
           i18nString(UIStrings.insertStyleRuleBelow), 'plus', undefined, 'elements.new-style-rule');
-      newRuleButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.onNewRuleClick, this);
-      newRuleButton.setSize(Buttons.Button.Size.SMALL);
+      newRuleButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, this.onNewRuleClick, this);
       newRuleButton.element.tabIndex = -1;
       if (!this.newStyleRuleToolbar) {
         this.newStyleRuleToolbar =
-            this.element.createChild('devtools-toolbar', 'sidebar-pane-section-toolbar new-rule-toolbar');
+            new UI.Toolbar.Toolbar('sidebar-pane-section-toolbar new-rule-toolbar', this.element);
       }
       this.newStyleRuleToolbar.appendToolbarItem(newRuleButton);
-      UI.ARIAUtils.setHidden(this.newStyleRuleToolbar, true);
+      UI.ARIAUtils.markAsHidden(this.newStyleRuleToolbar.element);
     }
 
     if (Root.Runtime.experiments.isEnabled('font-editor') && this.editable) {
-      this.fontEditorToolbar = this.#styleRuleElement.createChild('devtools-toolbar', 'sidebar-pane-section-toolbar');
+      this.fontEditorToolbar = new UI.Toolbar.Toolbar('sidebar-pane-section-toolbar', this.#styleRuleElement);
       this.fontEditorSectionManager = new FontEditorSectionManager(this.parentPane.swatchPopoverHelper(), this);
-      this.fontEditorButton =
-          new UI.Toolbar.ToolbarButton('Font Editor', 'custom-typography', undefined, 'font-editor');
-      this.fontEditorButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, () => {
+      this.fontEditorButton = new UI.Toolbar.ToolbarButton('Font Editor', 'custom-typography');
+      this.fontEditorButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, () => {
         this.onFontEditorButtonClicked();
       }, this);
       this.fontEditorButton.element.addEventListener('keydown', event => {
@@ -275,10 +266,10 @@ export class StylePropertiesSection {
 
       if (this.styleInternal.type === SDK.CSSStyleDeclaration.Type.Inline) {
         if (this.newStyleRuleToolbar) {
-          this.newStyleRuleToolbar.classList.add('shifted-toolbar');
+          this.newStyleRuleToolbar.element.classList.add('shifted-toolbar');
         }
       } else {
-        this.fontEditorToolbar.classList.add('font-toolbar-hidden');
+        this.fontEditorToolbar.element.classList.add('font-toolbar-hidden');
       }
     }
 
@@ -292,14 +283,18 @@ export class StylePropertiesSection {
     this.element.addEventListener('mouseleave', this.onMouseLeave.bind(this), false);
     this.selectedSinceMouseDown = false;
 
+    this.elementToSelectorIndex = new WeakMap();
+
     if (rule) {
       // Prevent editing the user agent and user rules.
       if (rule.isUserAgent() || rule.isInjected()) {
         this.editable = false;
+      } else {
         // Check this is a real CSSRule, not a bogus object coming from BlankStylePropertiesSection.
-      } else if (rule.styleSheetId) {
-        const header = rule.cssModel().styleSheetHeaderForId(rule.styleSheetId);
-        this.navigable = header && !header.isAnonymousInlineStyleSheet();
+        if (rule.styleSheetId) {
+          const header = rule.cssModel().styleSheetHeaderForId(rule.styleSheetId);
+          this.navigable = header && !header.isAnonymousInlineStyleSheet();
+        }
       }
     }
 
@@ -357,9 +352,9 @@ export class StylePropertiesSection {
       this.fontEditorSectionManager.registerFontProperty(treeElement);
     }
     if (this.fontEditorToolbar) {
-      this.fontEditorToolbar.classList.remove('font-toolbar-hidden');
+      this.fontEditorToolbar.element.classList.remove('font-toolbar-hidden');
       if (this.newStyleRuleToolbar) {
-        this.newStyleRuleToolbar.classList.add('shifted-toolbar');
+        this.newStyleRuleToolbar.element.classList.add('shifted-toolbar');
       }
     }
   }
@@ -370,10 +365,10 @@ export class StylePropertiesSection {
       return;
     }
     if (this.fontEditorToolbar) {
-      this.fontEditorToolbar.classList.add('font-toolbar-hidden');
+      this.fontEditorToolbar.element.classList.add('font-toolbar-hidden');
     }
     if (this.newStyleRuleToolbar) {
-      this.newStyleRuleToolbar.classList.remove('shifted-toolbar');
+      this.newStyleRuleToolbar.element.classList.remove('shifted-toolbar');
     }
   }
 
@@ -595,12 +590,12 @@ export class StylePropertiesSection {
 
     const treeElement = this.propertiesTreeOutline.treeElementFromEvent(event);
     if (treeElement instanceof StylePropertyTreeElement) {
-      this.parentPane.setActiveProperty((treeElement));
+      this.parentPane.setActiveProperty((treeElement as StylePropertyTreeElement));
     } else {
       this.parentPane.setActiveProperty(null);
     }
     const selection = this.element.getComponentSelection();
-    if (!this.selectedSinceMouseDown && selection?.toString()) {
+    if (!this.selectedSinceMouseDown && selection && selection.toString()) {
       this.selectedSinceMouseDown = true;
     }
   }
@@ -623,13 +618,6 @@ export class StylePropertiesSection {
     if (this.styleInternal.type === SDK.CSSStyleDeclaration.Type.Inline) {
       return this.matchedStyles.isInherited(this.styleInternal) ? i18nString(UIStrings.styleAttribute) :
                                                                   'element.style';
-    }
-    if (this.styleInternal.type === SDK.CSSStyleDeclaration.Type.Transition) {
-      return 'transitions style';
-    }
-
-    if (this.styleInternal.type === SDK.CSSStyleDeclaration.Type.Animation) {
-      return this.styleInternal.animationName() ? `${this.styleInternal.animationName()} animation` : 'animation style';
     }
     if (node && this.styleInternal.type === SDK.CSSStyleDeclaration.Type.Attributes) {
       return i18nString(UIStrings.sattributesStyle, {PH1: node.nodeNameInCorrectCase()});
@@ -755,7 +743,7 @@ export class StylePropertiesSection {
   private onNewRuleClick(event: Common.EventTarget.EventTargetEvent<Event>): void {
     event.data.consume();
     const rule = this.styleInternal.parentRule;
-    if (!rule?.style.range || rule.styleSheetId === undefined) {
+    if (!rule || !rule.style.range || rule.styleSheetId === undefined) {
       return;
     }
     const range =
@@ -782,6 +770,7 @@ export class StylePropertiesSection {
     let supportsIndex = 0;
     let nestingIndex = 0;
     this.nestingLevel = 0;
+    const indent = Common.Settings.Settings.instance().moduleSetting('text-editor-indent').get();
     for (const ruleType of rule.ruleTypes) {
       let ancestorRuleElement;
       switch (ruleType) {
@@ -803,7 +792,11 @@ export class StylePropertiesSection {
       }
       if (ancestorRuleElement) {
         this.#ancestorRuleListElement.prepend(ancestorRuleElement);
-        this.#ancestorClosingBracesElement.prepend(this.indentElement(this.createClosingBrace(), this.nestingLevel));
+        const closingBrace = document.createElement('div');
+        closingBrace.createChild('span', 'styles-clipboard-only').textContent = indent.repeat(this.nestingLevel);
+        closingBrace.style.paddingLeft = `${this.nestingLevel}ch`;
+        closingBrace.append('}');
+        this.#ancestorClosingBracesElement.prepend(closingBrace);
         this.nestingLevel++;
       }
     }
@@ -815,28 +808,14 @@ export class StylePropertiesSection {
 
     let curNestingLevel = 0;
     for (const element of this.#ancestorRuleListElement.children) {
-      this.indentElement(element as HTMLElement, curNestingLevel);
+      const indentElement = document.createElement('span');
+      indentElement.classList.add('styles-clipboard-only');
+      indentElement.setAttribute('slot', 'indent');
+      indentElement.textContent = indent.repeat(curNestingLevel);
+      element.prepend(indentElement);
+      (element as HTMLElement).style.paddingLeft = `${curNestingLevel}ch`;
       curNestingLevel++;
     }
-  }
-
-  protected createClosingBrace(): HTMLElement {
-    const closingBrace = document.createElement('div');
-    closingBrace.append('}');
-    return closingBrace;
-  }
-
-  protected indentElement(element: HTMLElement, nestingLevel: number, clipboardOnly?: boolean): HTMLElement {
-    const indent = Common.Settings.Settings.instance().moduleSetting('text-editor-indent').get();
-    const indentElement = document.createElement('span');
-    indentElement.classList.add('styles-clipboard-only');
-    indentElement.setAttribute('slot', 'indent');
-    indentElement.textContent = indent.repeat(nestingLevel);
-    element.prepend(indentElement);
-    if (!clipboardOnly) {
-      element.style.paddingLeft = `${nestingLevel}ch`;
-    }
-    return element;
   }
 
   protected createMediaElement(media: SDK.CSSMedia.CSSMedia): ElementsComponents.CSSQuery.CSSQuery|undefined {
@@ -1009,7 +988,7 @@ export class StylePropertiesSection {
       }
     }
 
-    return (curSection?.editable) ? curSection : null;
+    return (curSection && curSection.editable) ? curSection : null;
   }
 
   previousEditableSibling(): StylePropertiesSection|null {
@@ -1025,7 +1004,7 @@ export class StylePropertiesSection {
       }
     }
 
-    return (curSection?.editable) ? curSection : null;
+    return (curSection && curSection.editable) ? curSection : null;
   }
 
   refreshUpdate(editedTreeElement: StylePropertyTreeElement): void {
@@ -1033,13 +1012,10 @@ export class StylePropertiesSection {
   }
 
   updateVarFunctions(editedTreeElement: StylePropertyTreeElement): void {
-    if (!editedTreeElement.property.name.startsWith('--')) {
-      return;
-    }
     let child = this.propertiesTreeOutline.firstChild();
     while (child) {
       if (child !== editedTreeElement && child instanceof StylePropertyTreeElement) {
-        child.refreshIfComputedValueChanged();
+        child.updateTitleIfComputedValueChanged();
       }
       child = child.traverseNextTreeElement(false /* skipUnrevealed */, null /* stayWithin */, true /* dontPopulate */);
     }
@@ -1077,10 +1053,7 @@ export class StylePropertiesSection {
     this.parentPane.setActiveProperty(null);
     this.nextEditorTriggerButtonIdx = 1;
     this.propertiesTreeOutline.removeChildren();
-    this.populateStyle(this.styleInternal, this.propertiesTreeOutline);
-  }
-
-  populateStyle(style: SDK.CSSStyleDeclaration.CSSStyleDeclaration, parent: TreeElementParent): void {
+    const style = this.styleInternal;
     let count = 0;
     const properties = style.leadingProperties();
     const maxProperties = DEFAULT_MAX_PROPERTIES + properties.length - this.originalPropertiesCount;
@@ -1108,7 +1081,7 @@ export class StylePropertiesSection {
       });
       item.setComputedStyles(this.computedStyles);
       item.setParentsComputedStyles(this.parentsComputedStyles);
-      parent.appendChild(item);
+      this.propertiesTreeOutline.appendChild(item);
     }
 
     if (count < properties.length) {
@@ -1120,7 +1093,7 @@ export class StylePropertiesSection {
   }
 
   isPropertyOverloaded(property: SDK.CSSProperty.CSSProperty): boolean {
-    return this.matchedStyles.propertyState(property) === SDK.CSSMatchedStyles.PropertyState.OVERLOADED;
+    return this.matchedStyles.propertyState(property) === SDK.CSSMatchedStyles.PropertyState.Overloaded;
   }
 
   updateFilter(): boolean {
@@ -1163,47 +1136,43 @@ export class StylePropertiesSection {
       return;
     }
 
-    this.renderSelectors(rule.selectors, matchingSelectors, this.elementToSelectorIndex);
+    const fragment =
+        StylePropertiesSection.renderSelectors(rule.selectors, matchingSelectors, this.elementToSelectorIndex);
+    this.selectorElement.removeChildren();
+    this.selectorElement.appendChild(fragment);
     this.markSelectorHighlights();
   }
 
-  static getNextSpecificityTooltipId(): string {
-    return `specificity-tooltip-${this.#nextSpecificityTooltipId++}`;
+  static getSpecificityStoredForNodeElement(element: Element): Protocol.CSS.Specificity|undefined {
+    return StylePropertiesSection.#nodeElementToSpecificity.get(element);
   }
 
-  renderSelectors(
-      selectors: Array<{text: string, specificity?: Protocol.CSS.Specificity}>, matchingSelectors: boolean[],
-      elementToSelectorIndex: WeakMap<Element, number>): void {
-    this.selectorElement.removeChildren();
-    this.#specificityTooltips.removeChildren();
+  static renderSelectors(
+      selectors: {text: string, specificity: Protocol.CSS.Specificity|undefined}[], matchingSelectors: boolean[],
+      elementToSelectorIndex: WeakMap<Element, number>): DocumentFragment {
+    const fragment = document.createDocumentFragment();
     for (const [i, selector] of selectors.entries()) {
-      if (i > 0) {
-        this.selectorElement.append(', ');
+      if (i) {
+        UI.UIUtils.createTextChild(fragment, ', ');
       }
-      const specificityTooltipId = selector.specificity ? StylePropertiesSection.getNextSpecificityTooltipId() : null;
-      const span = this.selectorElement.createChild('span', 'simple-selector');
-      span.classList.toggle('selector-matches', matchingSelectors[i]);
-      elementToSelectorIndex.set(span, i);
-      span.textContent = selectors[i].text;
-      if (specificityTooltipId && selector.specificity) {
-        span.setAttribute('aria-details', specificityTooltipId);
-        const PH1 = `(${selector.specificity.a},${selector.specificity.b},${selector.specificity.c})`;
-        const tooltip = this.#specificityTooltips.appendChild(new Tooltips.Tooltip.Tooltip({
-          id: specificityTooltipId,
-          anchor: span,
-          variant: 'rich',
-          jslogContext: 'elements.css-selector-specificity',
-        }));
-        tooltip.textContent = i18nString(UIStrings.specificity, {PH1});
+      const selectorElement = document.createElement('span');
+      selectorElement.classList.add('simple-selector');
+      selectorElement.classList.toggle('selector-matches', matchingSelectors[i]);
+      if (selector.specificity) {
+        StylePropertiesSection.#nodeElementToSpecificity.set(selectorElement, selector.specificity);
       }
+      elementToSelectorIndex.set(selectorElement, i);
+      selectorElement.textContent = selectors[i].text;
+      fragment.append(selectorElement);
     }
+    return fragment;
   }
 
   markSelectorHighlights(): void {
     const selectors = this.selectorElement.getElementsByClassName('simple-selector');
     const regex = this.parentPane.filterRegex();
     for (let i = 0; i < selectors.length; ++i) {
-      const selectorMatchesFilter = regex?.test(selectors[i].textContent || '');
+      const selectorMatchesFilter = regex !== null && regex.test(selectors[i].textContent || '');
       selectors[i].classList.toggle('filter-match', selectorMatchesFilter);
     }
   }
@@ -1329,13 +1298,8 @@ export class StylePropertiesSection {
   }
 
   private async editingMediaCommitted(
-      query: SDK.CSSQuery.CSSQuery,
-      element: Element,
-      newContent: string,
-      _oldContent: string|null,
-      _context: Context|undefined,
-      _moveDirection: string,
-      ): Promise<void> {
+      query: SDK.CSSQuery.CSSQuery, element: Element, newContent: string, _oldContent: string,
+      _context: Context|undefined, _moveDirection: string): Promise<void> {
     this.parentPane.setEditingStyle(false);
     this.editingMediaFinished(element);
 
@@ -1402,22 +1366,26 @@ export class StylePropertiesSection {
     contextMenu.clipboardSection().appendItem(i18nString(UIStrings.copySelector), () => {
       const selectorText = this.headerText();
       Host.InspectorFrontendHost.InspectorFrontendHostInstance.copyText(selectorText);
+      Host.userMetrics.styleTextCopied(Host.UserMetrics.StyleTextCopied.SelectorViaContextMenu);
     }, {jslogContext: 'copy-selector'});
 
     contextMenu.clipboardSection().appendItem(i18nString(UIStrings.copyRule), () => {
       const ruleText = StylesSidebarPane.formatLeadingProperties(this).ruleText;
       Host.InspectorFrontendHost.InspectorFrontendHostInstance.copyText(ruleText);
+      Host.userMetrics.styleTextCopied(Host.UserMetrics.StyleTextCopied.RuleViaContextMenu);
     }, {jslogContext: 'copy-rule'});
 
     contextMenu.clipboardSection().appendItem(i18nString(UIStrings.copyAllDeclarations), () => {
       const allDeclarationText = StylesSidebarPane.formatLeadingProperties(this).allDeclarationText;
       Host.InspectorFrontendHost.InspectorFrontendHostInstance.copyText(allDeclarationText);
+      Host.userMetrics.styleTextCopied(Host.UserMetrics.StyleTextCopied.AllDeclarationsViaContextMenu);
     }, {jslogContext: 'copy-all-declarations'});
 
     // TODO(changhaohan): conditionally add this item only when there are changes to copy
     contextMenu.clipboardSection().appendItem(i18nString(UIStrings.copyAllCSSChanges), async () => {
       const allChanges = await this.parentPane.getFormattedChanges();
       Host.InspectorFrontendHost.InspectorFrontendHostInstance.copyText(allChanges);
+      Host.userMetrics.styleTextCopied(Host.UserMetrics.StyleTextCopied.AllChangesViaStylesPane);
     }, {jslogContext: 'copy-all-css-changes'});
     void contextMenu.show();
   }
@@ -1428,7 +1396,7 @@ export class StylePropertiesSection {
       return;
     }
     const rule = (this.styleInternal.parentRule as SDK.CSSRule.CSSStyleRule | null);
-    if (rule?.styleSheetId === undefined) {
+    if (!rule || rule.styleSheetId === undefined) {
       return;
     }
     const header = cssModel.styleSheetHeaderForId(rule.styleSheetId);
@@ -1462,7 +1430,7 @@ export class StylePropertiesSection {
 
   startEditingSelector(): void {
     const element = this.selectorElement;
-    if (UI.UIUtils.isBeingEdited(element) || this.titleElement.classList.contains('hidden')) {
+    if (UI.UIUtils.isBeingEdited(element)) {
       return;
     }
 
@@ -1470,12 +1438,11 @@ export class StylePropertiesSection {
     // Reset selector marks in group, and normalize whitespace.
     const textContent = element.textContent;
     if (textContent !== null) {
-      this.#specificityTooltips.querySelectorAll('devtools-tooltip')?.forEach(tooltip => tooltip.hidePopover());
       element.textContent = textContent.replace(/\s+/g, ' ').trim();
     }
 
-    const config = new UI.InplaceEditor.Config(
-        this.editingSelectorCommitted.bind(this), this.editingSelectorCancelled.bind(this), undefined);
+    const config =
+        new UI.InplaceEditor.Config(this.editingSelectorCommitted.bind(this), this.editingSelectorCancelled.bind(this));
     UI.InplaceEditor.InplaceEditor.startEditing(this.selectorElement, config);
 
     const selection = element.getComponentSelection();
@@ -1498,7 +1465,7 @@ export class StylePropertiesSection {
     if (moveDirection === 'forward') {
       const firstChild = (this.propertiesTreeOutline.firstChild() as StylePropertyTreeElement);
       let currentChild: (StylePropertyTreeElement|null)|StylePropertyTreeElement = firstChild;
-      while (currentChild?.inherited()) {
+      while (currentChild && currentChild.inherited()) {
         const sibling: UI.TreeOutline.TreeElement|null = currentChild.nextSibling;
         currentChild = sibling instanceof StylePropertyTreeElement ? sibling : null;
       }
@@ -1518,12 +1485,8 @@ export class StylePropertiesSection {
   }
 
   editingSelectorCommitted(
-      element: Element,
-      newContent: string,
-      oldContent: string|null,
-      context: Context|undefined,
-      moveDirection: string,
-      ): void {
+      element: Element, newContent: string, oldContent: string, context: Context|undefined,
+      moveDirection: string): void {
     this.editingSelectorEnded();
     if (newContent) {
       newContent = newContent.trim();
@@ -1631,7 +1594,8 @@ export class BlankStylePropertiesSection extends StylePropertiesSection {
     this.selectorRefElement.removeChildren();
     this.selectorRefElement.appendChild(StylePropertiesSection.linkifyRuleLocation(
         cssModel, this.parentPane.linkifier, styleSheetId, this.actualRuleLocation()));
-    if (insertAfterStyle?.parentRule && insertAfterStyle.parentRule instanceof SDK.CSSRule.CSSStyleRule) {
+    if (insertAfterStyle && insertAfterStyle.parentRule &&
+        insertAfterStyle.parentRule instanceof SDK.CSSRule.CSSStyleRule) {
       this.createAncestorRules(insertAfterStyle.parentRule);
     }
     this.element.classList.add('blank-section');
@@ -1758,68 +1722,6 @@ export class RegisteredPropertiesSection extends StylePropertiesSection {
   }
 }
 
-export class FunctionRuleSection extends StylePropertiesSection {
-  constructor(
-      stylesPane: StylesSidebarPane, matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles,
-      style: SDK.CSSStyleDeclaration.CSSStyleDeclaration, children: SDK.CSSRule.CSSNestedStyle[], sectionIdx: number,
-      functionName: string, parameters: string[], expandedByDefault: boolean) {
-    super(stylesPane, matchedStyles, style, sectionIdx, null, null, `${functionName}(${parameters.join(', ')})`);
-    if (!expandedByDefault) {
-      this.element.classList.add('hidden');
-    }
-    this.selectorElement.className = 'function-key';
-    this.addChildren(children, this.propertiesTreeOutline);
-  }
-
-  createConditionElement(condition: SDK.CSSRule.CSSNestedStyleCondition): HTMLElement|undefined {
-    if ('media' in condition) {
-      return this.createMediaElement(condition.media);
-    }
-    if ('container' in condition) {
-      return this.createContainerQueryElement(condition.container);
-    }
-    if ('supports' in condition) {
-      return this.createSupportsElement(condition.supports);
-    }
-    return;
-  }
-
-  positionNestingElement(element: HTMLElement): HTMLElement {
-    // Add this class to get the same margins as a property and syntax highlighting.
-    element.classList.add('css-function-inline-block');
-    // Also add the clipboard text, but don't add additional margins because
-    // the tree nesting takes care of that.
-    return this.indentElement(element, this.nestingLevel, true);
-  }
-
-  addChildren(children: SDK.CSSRule.CSSNestedStyle[], parent: TreeElementParent): void {
-    for (const child of children) {
-      if ('style' in child) {
-        this.populateStyle(child.style, parent);
-      } else if ('children' in child) {
-        const conditionElement = this.createConditionElement(child);
-        let newParent = parent;
-        this.nestingLevel++;
-        if (conditionElement) {
-          const treeElement = new UI.TreeOutline.TreeElement();
-          treeElement.listItemElement.appendChild(this.positionNestingElement(conditionElement));
-          treeElement.setExpandable(true);
-          treeElement.setCollapsible(false);
-          parent.appendChild(treeElement);
-          newParent = treeElement;
-        }
-        this.addChildren(child.children, newParent);
-        if (conditionElement) {
-          const treeElement = new UI.TreeOutline.TreeElement();
-          treeElement.listItemElement.appendChild(this.positionNestingElement(this.createClosingBrace()));
-          parent.appendChild(treeElement);
-        }
-        this.nestingLevel--;
-      }
-    }
-  }
-}
-
 export class FontPaletteValuesRuleSection extends StylePropertiesSection {
   constructor(
       stylesPane: StylesSidebarPane, matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles,
@@ -1901,8 +1803,4 @@ export class HighlightPseudoStylePropertiesSection extends StylePropertiesSectio
     // be shown in the darker style of non-inherited properties.
     return false;
   }
-}
-
-interface TreeElementParent {
-  appendChild(child: UI.TreeOutline.TreeElement): void;
 }

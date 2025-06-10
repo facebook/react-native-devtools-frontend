@@ -1002,15 +1002,6 @@ const sub = (x, y) => x - y;
       );
     });
   });
-
-  it('terminates for property assignments with member expressions at the end of a script', () => {
-    const doc = 'o.x = o.y;';
-    for (const typescript of [false, true]) {
-      const extensions = [CodeMirror.javascript.javascript({typescript})];
-      const state = CodeMirror.EditorState.create({doc, extensions});
-      assert.isEmpty(Sources.OutlineQuickOpen.outline(state));
-    }
-  });
 });
 
 describe('OutlineQuickOpen', () => {

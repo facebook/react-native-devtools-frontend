@@ -30,6 +30,10 @@ const UIStrings = {
    */
   clearConsoleHistory: 'Clear console history',
   /**
+   *@description Title of an action in the console tool to create pin. A live expression is code that the user can enter into the console and it will be pinned in the UI. Live expressions are constantly evaluated as the user interacts with the console (hence 'live').
+   */
+  createLiveExpression: 'Create live expression',
+  /**
    *@description Title of a setting under the Console category that can be invoked through the Command Menu
    */
   hideNetworkMessages: 'Hide network messages',
@@ -98,6 +102,18 @@ const UIStrings = {
    */
   doNotShowCorsErrorsIn: 'Do not show `CORS` errors in console',
   /**
+   *@description Title of a setting under the Console category in Settings
+   */
+  eagerEvaluation: 'Eager evaluation',
+  /**
+   *@description Title of a setting under the Console category that can be invoked through the Command Menu
+   */
+  eagerlyEvaluateConsolePromptText: 'Eagerly evaluate console prompt text',
+  /**
+   *@description Title of a setting under the Console category that can be invoked through the Command Menu
+   */
+  doNotEagerlyEvaluateConsole: 'Do not eagerly evaluate console prompt text',
+  /**
    *@description Allows code that is executed in the console to do things that usually are only allowed if triggered by a user action
    */
   evaluateTriggersUserActivation: 'Treat code evaluation as user action',
@@ -117,7 +133,7 @@ const UIStrings = {
    * @description Title of a setting under the Console category in Settings that controls whether `console.trace()` messages appear collapsed by default.
    */
   collapseConsoleTraceMessagesByDefault: 'Do not automatically expand `console.trace()` messages',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/console/console-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 let loadedConsoleModule: (typeof Console|undefined);
@@ -198,7 +214,7 @@ UI.ActionRegistration.registerActionExtension({
     },
     {
       shortcut: 'Meta+K',
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
     },
   ],
 });
@@ -227,7 +243,7 @@ UI.ActionRegistration.registerActionExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.CONSOLE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   title: i18nLazyString(UIStrings.hideNetworkMessages),
   settingName: 'hide-network-messages',
   settingType: Common.Settings.SettingType.BOOLEAN,
@@ -246,7 +262,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.CONSOLE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   title: i18nLazyString(UIStrings.selectedContextOnly),
   settingName: 'selected-context-filter-enabled',
   settingType: Common.Settings.SettingType.BOOLEAN,
@@ -265,7 +281,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.CONSOLE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   title: i18nLazyString(UIStrings.logXmlhttprequests),
   settingName: 'monitoring-xhr-enabled',
   settingType: Common.Settings.SettingType.BOOLEAN,
@@ -274,7 +290,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.CONSOLE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   title: i18nLazyString(UIStrings.timestamps),
   settingName: 'console-timestamps-enabled',
   settingType: Common.Settings.SettingType.BOOLEAN,
@@ -311,7 +327,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.CONSOLE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   title: i18nLazyString(UIStrings.autocompleteOnEnter),
   settingName: 'console-autocomplete-on-enter',
   settingType: Common.Settings.SettingType.BOOLEAN,
@@ -330,7 +346,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.CONSOLE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   title: i18nLazyString(UIStrings.groupSimilarMessagesInConsole),
   settingName: 'console-group-similar',
   settingType: Common.Settings.SettingType.BOOLEAN,
@@ -368,7 +384,7 @@ Common.Settings.registerSettingExtension({
 // TODO(T225263604): Restore this setting
 // Common.Settings.registerSettingExtension({
 //   category: Common.Settings.SettingCategory.CONSOLE,
-//   storageType: Common.Settings.SettingStorageType.SYNCED,
+//   storageType: Common.Settings.SettingStorageType.Synced,
 //   title: i18nLazyString(UIStrings.eagerEvaluation),
 //   settingName: 'console-eager-eval',
 //   settingType: Common.Settings.SettingType.BOOLEAN,
@@ -387,7 +403,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.CONSOLE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   title: i18nLazyString(UIStrings.evaluateTriggersUserActivation),
   settingName: 'console-user-activation-eval',
   settingType: Common.Settings.SettingType.BOOLEAN,
@@ -406,7 +422,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.CONSOLE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   title: i18nLazyString(UIStrings.expandConsoleTraceMessagesByDefault),
   settingName: 'console-trace-expand',
   settingType: Common.Settings.SettingType.BOOLEAN,

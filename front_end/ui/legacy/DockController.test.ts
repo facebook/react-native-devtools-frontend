@@ -60,13 +60,13 @@ describe('DockController', () => {
      */
     await registerDockingSettings('left');
     const dockController = LegacyUI.DockController.DockController.instance({forceNew: true, canDock: true});
-    assert.isUndefined(dockController.dockSide());
+    assert.strictEqual(dockController.dockSide(), undefined);
   });
 
   it('falls back to undefined if the setting value is unexpected', async () => {
     await registerDockingSettings('woah-not-a-real-setting-value');
     const dockController = LegacyUI.DockController.DockController.instance({forceNew: true, canDock: true});
-    assert.isUndefined(dockController.dockSide());
+    assert.strictEqual(dockController.dockSide(), undefined);
   });
 
   it('sets the dockSide to undocked if the dock cannot be docked', async () => {

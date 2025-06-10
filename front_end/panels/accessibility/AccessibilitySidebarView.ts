@@ -24,7 +24,7 @@ export class AccessibilitySidebarView extends UI.ThrottledWidget.ThrottledWidget
   private readonly axNodeSubPane: AXNodeSubPane;
   private readonly sourceOrderSubPane: SourceOrderPane;
   private constructor(throttlingTimeout?: number) {
-    super(false /* useShadowDom */, throttlingTimeout);
+    super(false /* isWebComponent */, throttlingTimeout);
     this.nodeInternal = null;
     this.axNodeInternal = null;
     this.skipNextPullNode = false;
@@ -150,7 +150,7 @@ export class AccessibilitySidebarView extends UI.ThrottledWidget.ThrottledWidget
       return;
     }
     const data = event.data;
-    const node = (data instanceof SDK.DOMModel.DOMNode ? data : data.node);
+    const node = (data instanceof SDK.DOMModel.DOMNode ? data : data.node as SDK.DOMModel.DOMNode);
     if (this.node() !== node) {
       return;
     }

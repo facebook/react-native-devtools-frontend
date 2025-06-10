@@ -21,6 +21,7 @@ import {
   waitForElementWithTextContent,
   waitForFunction,
 } from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   CONSOLE_ALL_MESSAGES_SELECTOR,
   focusConsolePrompt,
@@ -266,10 +267,10 @@ describe('The Console Tab', () => {
         return messages.length === test.expectedMessages.length ? messages : undefined;
       });
       for (const message of actualMessages) {
-        if (message.source?.includes('pptr:')) {
+        if (message.source && message.source.includes('pptr:')) {
           message.source = replacePuppeteerUrl(message.source);
         }
-        if (message.stackPreview?.includes('pptr:')) {
+        if (message.stackPreview && message.stackPreview.includes('pptr:')) {
           message.stackPreview = replacePuppeteerUrl(message.stackPreview);
         }
       }
@@ -342,7 +343,7 @@ describe('The Console Tab', () => {
 
   describe('Console log message formatters', () => {
     async function getConsoleMessageTextChunksWithStyle(
-        frontend: puppeteer.Page, styles: Array<keyof CSSStyleDeclaration> = []): Promise<string[][][]> {
+        frontend: puppeteer.Page, styles: (keyof CSSStyleDeclaration)[] = []): Promise<string[][][]> {
       return await frontend.evaluate((selector, styles) => {
         return [...document.querySelectorAll(selector)].map(message => [...message.childNodes].map(node => {
           // For all nodes, extract text.
@@ -402,9 +403,9 @@ describe('The Console Tab', () => {
 
       // Check that the 'BG' text has the background image set.
       const textsAndStyles = await getConsoleMessageTextChunksWithStyle(frontend, ['backgroundImage']);
-      assert.lengthOf(textsAndStyles, 1);
+      assert.strictEqual(textsAndStyles.length, 1);
       const message = textsAndStyles[0];
-      assert.lengthOf(message, 2);
+      assert.strictEqual(message.length, 2);
       const textWithBackground = message[1];
       assert.strictEqual(textWithBackground[0], 'BG');
       assert.include(textWithBackground[1], 'data:image/png;base64');
@@ -438,11 +439,12 @@ describe('The Console Tab', () => {
   });
 
   describe('for memory objects', () => {
-    const MEMORY_ICON_SELECTOR = '[aria-label="Open in Memory inspector panel"]';
+    const MEMORY_ICON_SELECTOR = '[aria-label="Reveal in Memory inspector panel"]';
 
     it('shows one memory icon to open memory inspector for ArrayBuffers (description)', async () => {
+      const {frontend} = getBrowserAndPages();
       await navigateToConsoleTab();
-      await typeIntoConsoleAndWaitForResult('new ArrayBuffer(10)');
+      await typeIntoConsoleAndWaitForResult(frontend, 'new ArrayBuffer(10)');
 
       // We expect one memory icon directly next to the description.
       let memoryIcons = await $$(MEMORY_ICON_SELECTOR);
@@ -458,8 +460,9 @@ describe('The Console Tab', () => {
     });
 
     it('shows two memory icons to open memory inspector for a TypedArray (description, buffer)', async () => {
+      const {frontend} = getBrowserAndPages();
       await navigateToConsoleTab();
-      await typeIntoConsoleAndWaitForResult('new Uint8Array(10)');
+      await typeIntoConsoleAndWaitForResult(frontend, 'new Uint8Array(10)');
 
       // We expect one memory icon directly next to the description.
       let memoryIcons = await $$(MEMORY_ICON_SELECTOR);
@@ -480,8 +483,9 @@ describe('The Console Tab', () => {
     });
 
     it('shows two memory icons to open memory inspector for a DataView (description, buffer)', async () => {
+      const {frontend} = getBrowserAndPages();
       await navigateToConsoleTab();
-      await typeIntoConsoleAndWaitForResult('new DataView(new Uint8Array(10).buffer)');
+      await typeIntoConsoleAndWaitForResult(frontend, 'new DataView(new Uint8Array(10).buffer)');
 
       // We expect one memory icon directly next to the description.
       let memoryIcons = await $$(MEMORY_ICON_SELECTOR);
@@ -502,8 +506,9 @@ describe('The Console Tab', () => {
     });
 
     it('shows two memory icons to open memory inspector for WebAssembly memory (description, buffer)', async () => {
+      const {frontend} = getBrowserAndPages();
       await navigateToConsoleTab();
-      await typeIntoConsoleAndWaitForResult('new WebAssembly.Memory({initial: 10})');
+      await typeIntoConsoleAndWaitForResult(frontend, 'new WebAssembly.Memory({initial: 10})');
 
       // We expect one memory icon directly next to the description.
       let memoryIcons = await $$(MEMORY_ICON_SELECTOR);

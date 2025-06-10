@@ -4,6 +4,7 @@
 
 import {assert} from 'chai';
 
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   getConsoleMessages,
   showVerboseMessages,

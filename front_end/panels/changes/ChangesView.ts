@@ -2,13 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../ui/legacy/legacy.js';
-
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
-import type * as Platform from '../../core/platform/platform.js';
-import * as Root from '../../core/root/root.js';
 import type * as Formatter from '../../models/formatter/formatter.js';
 import type * as Workspace from '../../models/workspace/workspace.js';
 import * as WorkspaceDiff from '../../models/workspace_diff/workspace_diff.js';
@@ -20,27 +16,16 @@ import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import {ChangesSidebar, Events} from './ChangesSidebar.js';
 import changesViewStyles from './changesView.css.js';
-import * as CombinedDiffView from './CombinedDiffView.js';
-
-const CHANGES_VIEW_URL = 'https://developer.chrome.com/docs/devtools/changes' as Platform.DevToolsPath.UrlString;
 
 const UIStrings = {
   /**
-   *@description Text in Changes View of the Changes tab if no change has been made so far.
+   *@description Text in Changes View of the Changes tab
    */
-  noChanges: 'No changes yet',
+  noChanges: 'No changes',
   /**
-   *@description Text in Changes View of the Changes tab to explain the Changes panel.
+   *@description Text in Changes View of the Changes tab
    */
-  changesViewDescription: 'On this page you can track code changes made within DevTools.',
-  /**
-   *@description Text in Changes View of the Changes tab if the changed content is of a binary type.
-   */
-  noTextualDiff: 'No textual diff available',
-  /**
-   *@description Text in Changes View of the Changes tab when binary data has been changed
-   */
-  binaryDataDescription: 'The changes tab doesn\'t show binary data changes',
+  binaryData: 'Binary data',
   /**
    * @description Text in the Changes tab that indicates how many lines of code have changed in the
    * selected file. An insertion refers to an added line of code. The (+) is a visual cue to indicate
@@ -57,10 +42,9 @@ const UIStrings = {
    *@description Text for a button in the Changes tool that copies all the changes from the currently open file.
    */
   copy: 'Copy',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/changes/ChangesView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
 function diffStats(diff: Diff.Diff.DiffArray): string {
   const insertions =
@@ -78,63 +62,52 @@ export class ChangesView extends UI.Widget.VBox {
   readonly changesSidebar: ChangesSidebar;
   private selectedUISourceCode: Workspace.UISourceCode.UISourceCode|null;
   #selectedSourceCodeFormattedMapping?: Formatter.ScriptFormatter.FormatterSourceMapping;
-  #learnMoreLinkElement?: HTMLElement;
   private readonly diffContainer: HTMLElement;
   private readonly toolbar: UI.Toolbar.Toolbar;
-  private readonly diffStats?: UI.Toolbar.ToolbarText;
-  private readonly diffView?: DiffView.DiffView.DiffView;
-  private readonly combinedDiffView?: CombinedDiffView.CombinedDiffView;
+  private readonly diffStats: UI.Toolbar.ToolbarText;
+  private readonly diffView: DiffView.DiffView.DiffView;
 
   constructor() {
     super(true);
-    this.registerRequiredCSS(changesViewStyles);
 
     this.element.setAttribute('jslog', `${VisualLogging.panel('changes').track({resize: true})}`);
 
     const splitWidget = new UI.SplitWidget.SplitWidget(true /* vertical */, false /* sidebar on left */);
-    const mainWidget = new UI.Widget.VBox();
+    const mainWidget = new UI.Widget.Widget();
     splitWidget.setMainWidget(mainWidget);
     splitWidget.show(this.contentElement);
 
-    this.emptyWidget = new UI.EmptyWidget.EmptyWidget('', '');
+    this.emptyWidget = new UI.EmptyWidget.EmptyWidget('');
     this.emptyWidget.show(mainWidget.element);
 
     this.workspaceDiff = WorkspaceDiff.WorkspaceDiff.workspaceDiff();
     this.changesSidebar = new ChangesSidebar(this.workspaceDiff);
-    // TODO(ergunsh): Add scroll to singular diffs when they are clicked on sidebar.
-    this.changesSidebar.addEventListener(
-        Events.SELECTED_UI_SOURCE_CODE_CHANGED, this.selectedUISourceCodeChanged, this);
+    this.changesSidebar.addEventListener(Events.SelectedUISourceCodeChanged, this.selectedUISourceCodeChanged, this);
     splitWidget.setSidebarWidget(this.changesSidebar);
 
     this.selectedUISourceCode = null;
 
     this.diffContainer = mainWidget.element.createChild('div', 'diff-container');
     UI.ARIAUtils.markAsTabpanel(this.diffContainer);
-    if (shouldRenderCombinedDiffView()) {
-      // TODO(ergunsh): Handle clicks from CombinedDiffView too.
-      this.combinedDiffView = new CombinedDiffView.CombinedDiffView();
-      this.combinedDiffView.workspaceDiff = this.workspaceDiff;
-      this.combinedDiffView.show(this.diffContainer);
-    } else {
-      this.diffView = this.diffContainer.appendChild(new DiffView.DiffView.DiffView());
-      this.diffContainer.addEventListener('click', event => this.click(event));
-    }
+    this.diffContainer.addEventListener('click', event => this.click(event));
 
-    this.toolbar = mainWidget.element.createChild('devtools-toolbar', 'changes-toolbar');
-    this.toolbar.setAttribute('jslog', `${VisualLogging.toolbar()}`);
-    this.toolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButton('changes.revert'));
-    if (!shouldRenderCombinedDiffView()) {
-      // TODO(ergunsh): We do not show the diff stats & the copy button for the combined view.
-      this.diffStats = new UI.Toolbar.ToolbarText('');
-      this.toolbar.appendToolbarItem(this.diffStats);
+    this.diffView = this.diffContainer.appendChild(new DiffView.DiffView.DiffView());
 
-      this.toolbar.appendToolbarItem(new UI.Toolbar.ToolbarSeparator());
-      this.toolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButton('changes.copy', {
-        label: i18nLazyString(UIStrings.copy),
-      }));
-    }
+    this.toolbar = new UI.Toolbar.Toolbar('changes-toolbar', mainWidget.element);
+    this.toolbar.element.setAttribute('jslog', `${VisualLogging.toolbar()}`);
+    this.toolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButtonForId('changes.revert'));
+    this.diffStats = new UI.Toolbar.ToolbarText('');
+    this.toolbar.appendToolbarItem(this.diffStats);
 
-    this.hideDiff(i18nString(UIStrings.noChanges), i18nString(UIStrings.changesViewDescription), CHANGES_VIEW_URL);
+    this.toolbar.appendToolbarItem(new UI.Toolbar.ToolbarSeparator());
+    this.toolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButtonForId('changes.copy', {
+      showLabel: true,
+      label() {
+        return i18nString(UIStrings.copy);
+      },
+    }));
+
+    this.hideDiff(i18nString(UIStrings.noChanges));
     this.selectedUISourceCodeChanged();
   }
 
@@ -158,7 +131,7 @@ export class ChangesView extends UI.Widget.VBox {
     if (!uiSourceCode) {
       return;
     }
-    const diffResponse = await this.workspaceDiff.requestDiff(uiSourceCode);
+    const diffResponse = await this.workspaceDiff.requestDiff(uiSourceCode, {shouldFormatDiff: true});
     // Diff array with real diff will contain at least 2 lines.
     if (!diffResponse || diffResponse?.diff.length < 2) {
       return;
@@ -216,6 +189,7 @@ export class ChangesView extends UI.Widget.VBox {
 
   override wasShown(): void {
     UI.Context.Context.instance().setFlavor(ChangesView, this);
+    this.registerCSSFiles([changesViewStyles]);
     super.wasShown();
     void this.refreshDiff();
   }
@@ -236,10 +210,10 @@ export class ChangesView extends UI.Widget.VBox {
     }
     const uiSourceCode = this.selectedUISourceCode;
     if (!uiSourceCode.contentType().isTextType()) {
-      this.hideDiff(i18nString(UIStrings.noTextualDiff), i18nString(UIStrings.binaryDataDescription));
+      this.hideDiff(i18nString(UIStrings.binaryData));
       return;
     }
-    const diffResponse = await this.workspaceDiff.requestDiff(uiSourceCode);
+    const diffResponse = await this.workspaceDiff.requestDiff(uiSourceCode, {shouldFormatDiff: true});
     if (this.selectedUISourceCode !== uiSourceCode) {
       return;
     }
@@ -247,37 +221,24 @@ export class ChangesView extends UI.Widget.VBox {
     this.renderDiffRows(diffResponse?.diff);
   }
 
-  private hideDiff(header: string, text: string, link?: Platform.DevToolsPath.UrlString): void {
-    this.diffStats?.setText('');
+  private hideDiff(message: string): void {
+    this.diffStats.setText('');
     this.toolbar.setEnabled(false);
     this.diffContainer.style.display = 'none';
-    this.emptyWidget.header = header;
-    this.emptyWidget.text = text;
-
-    if (link && !this.#learnMoreLinkElement) {
-      this.#learnMoreLinkElement = this.emptyWidget.appendLink(link);
-    } else if (link && this.#learnMoreLinkElement) {
-      this.#learnMoreLinkElement.setAttribute('href', link);
-      this.#learnMoreLinkElement.setAttribute('title', link);
-    } else if (!link && this.#learnMoreLinkElement) {
-      this.#learnMoreLinkElement.remove();
-      this.#learnMoreLinkElement = undefined;
-    }
+    this.emptyWidget.text = message;
     this.emptyWidget.showWidget();
   }
 
   private renderDiffRows(diff?: Diff.Diff.DiffArray): void {
     if (!diff || (diff.length === 1 && diff[0][0] === Diff.Diff.Operation.Equal)) {
-      this.hideDiff(i18nString(UIStrings.noChanges), i18nString(UIStrings.changesViewDescription), CHANGES_VIEW_URL);
+      this.hideDiff(i18nString(UIStrings.noChanges));
     } else {
-      this.diffStats?.setText(diffStats(diff));
+      this.diffStats.setText(diffStats(diff));
       this.toolbar.setEnabled(true);
       this.emptyWidget.hideWidget();
       const mimeType = (this.selectedUISourceCode as Workspace.UISourceCode.UISourceCode).mimeType();
       this.diffContainer.style.display = 'block';
-      if (this.diffView) {
-        this.diffView.data = {diff, mimeType};
-      }
+      this.diffView.data = {diff, mimeType};
     }
   }
 }
@@ -298,8 +259,4 @@ export class ActionDelegate implements UI.ActionRegistration.ActionDelegate {
     }
     return false;
   }
-}
-
-function shouldRenderCombinedDiffView(): boolean {
-  return Boolean(Root.Runtime.hostConfig.devToolsFreestyler?.patching);
 }

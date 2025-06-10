@@ -8,21 +8,19 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ChromeLauncher = void 0;
-exports.getFeatures = getFeatures;
-exports.removeMatchingFlags = removeMatchingFlags;
-const promises_1 = require("node:fs/promises");
-const node_os_1 = __importDefault(require("node:os"));
-const node_path_1 = __importDefault(require("node:path"));
+exports.removeMatchingFlags = exports.getFeatures = exports.ChromeLauncher = void 0;
+const promises_1 = require("fs/promises");
+const os_1 = __importDefault(require("os"));
+const path_1 = __importDefault(require("path"));
 const browsers_1 = require("@puppeteer/browsers");
 const util_js_1 = require("../common/util.js");
 const assert_js_1 = require("../util/assert.js");
-const BrowserLauncher_js_1 = require("./BrowserLauncher.js");
+const ProductLauncher_js_1 = require("./ProductLauncher.js");
 const fs_js_1 = require("./util/fs.js");
 /**
  * @internal
  */
-class ChromeLauncher extends BrowserLauncher_js_1.BrowserLauncher {
+class ChromeLauncher extends ProductLauncher_js_1.ProductLauncher {
     constructor(puppeteer) {
         super(puppeteer, 'chrome');
     }
@@ -30,7 +28,7 @@ class ChromeLauncher extends BrowserLauncher_js_1.BrowserLauncher {
         if (this.puppeteer.configuration.logLevel === 'warn' &&
             process.platform === 'darwin' &&
             process.arch === 'x64') {
-            const cpus = node_os_1.default.cpus();
+            const cpus = os_1.default.cpus();
             if (cpus[0]?.model.includes('Apple')) {
                 console.warn([
                     '\x1B[1m\x1B[43m\x1B[30m',
@@ -88,9 +86,7 @@ class ChromeLauncher extends BrowserLauncher_js_1.BrowserLauncher {
         let chromeExecutable = executablePath;
         if (!chromeExecutable) {
             (0, assert_js_1.assert)(channel || !this.puppeteer._isPuppeteerCore, `An \`executablePath\` or \`channel\` must be specified for \`puppeteer-core\``);
-            chromeExecutable = channel
-                ? this.executablePath(channel)
-                : this.resolveExecutablePath(options.headless ?? true);
+            chromeExecutable = this.executablePath(channel, options.headless ?? true);
         }
         return {
             executablePath: chromeExecutable,
@@ -159,7 +155,7 @@ class ChromeLauncher extends BrowserLauncher_js_1.BrowserLauncher {
             '--disable-breakpad',
             '--disable-client-side-phishing-detection',
             '--disable-component-extensions-with-background-pages',
-            '--disable-crash-reporter', // No crash reporting in CfT.
+            '--disable-component-update',
             '--disable-default-apps',
             '--disable-dev-shm-usage',
             '--disable-extensions',
@@ -173,8 +169,8 @@ class ChromeLauncher extends BrowserLauncher_js_1.BrowserLauncher {
             '--disable-sync',
             '--enable-automation',
             '--export-tagged-pdf',
-            '--force-color-profile=srgb',
             '--generate-pdf-document-outline',
+            '--force-color-profile=srgb',
             '--metrics-recording-only',
             '--no-first-run',
             '--password-store=basic',
@@ -186,7 +182,7 @@ class ChromeLauncher extends BrowserLauncher_js_1.BrowserLauncher {
         });
         const { devtools = false, headless = !devtools, args = [], userDataDir, } = options;
         if (userDataDir) {
-            chromeArguments.push(`--user-data-dir=${node_path_1.default.resolve(userDataDir)}`);
+            chromeArguments.push(`--user-data-dir=${path_1.default.resolve(userDataDir)}`);
         }
         if (devtools) {
             chromeArguments.push('--auto-open-devtools-for-tabs');
@@ -202,7 +198,7 @@ class ChromeLauncher extends BrowserLauncher_js_1.BrowserLauncher {
         chromeArguments.push(...args);
         return chromeArguments;
     }
-    executablePath(channel, validatePath = true) {
+    executablePath(channel, headless) {
         if (channel) {
             return (0, browsers_1.computeSystemExecutablePath)({
                 browser: browsers_1.Browser.CHROME,
@@ -210,7 +206,7 @@ class ChromeLauncher extends BrowserLauncher_js_1.BrowserLauncher {
             });
         }
         else {
-            return this.resolveExecutablePath(undefined, validatePath);
+            return this.resolveExecutablePath(headless);
         }
     }
 }
@@ -251,6 +247,7 @@ function getFeatures(flag, options = []) {
         return s;
     });
 }
+exports.getFeatures = getFeatures;
 /**
  * Removes all elements in-place from the given string array
  * that match the given command-line flag.
@@ -270,4 +267,5 @@ function removeMatchingFlags(array, flag) {
     }
     return array;
 }
+exports.removeMatchingFlags = removeMatchingFlags;
 //# sourceMappingURL=ChromeLauncher.js.map

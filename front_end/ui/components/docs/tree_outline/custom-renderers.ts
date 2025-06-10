@@ -3,11 +3,9 @@
 // found in the LICENSE file.
 
 import * as FrontendHelpers from '../../../../testing/EnvironmentHelpers.js';
-import * as Lit from '../../../lit/lit.js';
+import * as LitHtml from '../../../lit-html/lit-html.js';
 import * as ComponentHelpers from '../../helpers/helpers.js';
 import * as TreeOutline from '../../tree_outline/tree_outline.js';
-
-const {html} = Lit;
 
 await ComponentHelpers.ComponentServerSetup.setup();
 await FrontendHelpers.initializeGlobalVars();
@@ -20,13 +18,13 @@ interface TreeNodeData {
 const data: TreeOutline.TreeOutline.TreeOutlineData<TreeNodeData> = {
   defaultRenderer: (node, state) => {
     const {cssProperty, cssValue} = node.treeNodeData;
-    const valueStyles = Lit.Directives.styleMap({
+    const valueStyles = LitHtml.Directives.styleMap({
       paddingLeft: '10px',
       fontStyle: 'italic',
       color: 'var(--sys-color-token-property-special)',
     });
-    return html`<code>${cssProperty}</code>:${
-        state.isExpanded ? Lit.nothing : html`<code style=${valueStyles}>${cssValue}</code>`}`;
+    return LitHtml.html`<code>${cssProperty}</code>:${
+        state.isExpanded ? LitHtml.nothing : LitHtml.html`<code style=${valueStyles}>${cssValue}</code>`}`;
   },
   tree: [
     {
@@ -40,7 +38,7 @@ const data: TreeOutline.TreeOutline.TreeOutlineData<TreeNodeData> = {
     {
       treeNodeData: {cssProperty: 'margin', cssValue: '10px 5px'},
       id: '3',
-      async children(): Promise<Array<TreeOutline.TreeOutlineUtils.TreeNode<TreeNodeData>>> {
+      async children(): Promise<TreeOutline.TreeOutlineUtils.TreeNode<TreeNodeData>[]> {
         return [
           {treeNodeData: {cssProperty: 'margin-left', cssValue: '5px'}, id: '4'},
           {treeNodeData: {cssProperty: 'margin-right', cssValue: '5px'}, id: '5'},

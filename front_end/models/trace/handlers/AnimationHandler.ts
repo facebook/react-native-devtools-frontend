@@ -5,20 +5,23 @@
 import * as Helpers from '../helpers/helpers.js';
 import * as Types from '../types/types.js';
 
-const animations: Types.Events.Animation[] = [];
-const animationsSyntheticEvents: Types.Events.SyntheticAnimationPair[] = [];
+import {HandlerState} from './types.js';
+
+const animations: Types.TraceEvents.TraceEventAnimation[] = [];
+const animationsSyntheticEvents: Types.TraceEvents.SyntheticAnimationPair[] = [];
 
 export interface AnimationData {
-  animations: readonly Types.Events.SyntheticAnimationPair[];
+  animations: readonly Types.TraceEvents.SyntheticAnimationPair[];
 }
+let handlerState = HandlerState.UNINITIALIZED;
 
 export function reset(): void {
   animations.length = 0;
   animationsSyntheticEvents.length = 0;
 }
 
-export function handleEvent(event: Types.Events.Event): void {
-  if (Types.Events.isAnimation(event)) {
+export function handleEvent(event: Types.TraceEvents.TraceEventData): void {
+  if (Types.TraceEvents.isTraceEventAnimation(event)) {
     animations.push(event);
     return;
   }
@@ -27,9 +30,14 @@ export function handleEvent(event: Types.Events.Event): void {
 export async function finalize(): Promise<void> {
   const syntheticEvents = Helpers.Trace.createMatchedSortedSyntheticEvents(animations);
   animationsSyntheticEvents.push(...syntheticEvents);
+  handlerState = HandlerState.FINALIZED;
 }
 
 export function data(): AnimationData {
+  if (handlerState !== HandlerState.FINALIZED) {
+    throw new Error('Animation handler is not finalized');
+  }
+
   return {
     animations: animationsSyntheticEvents,
   };

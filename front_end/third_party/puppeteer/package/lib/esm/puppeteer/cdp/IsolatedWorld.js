@@ -67,16 +67,15 @@ export class IsolatedWorld extends Realm {
      * Waits for the next context to be set on the isolated world.
      */
     async #waitForExecutionContext() {
-        const error = new Error('Execution context was destroyed');
         const result = await firstValueFrom(fromEmitterEvent(this.#emitter, 'context').pipe(raceWith(fromEmitterEvent(this.#emitter, 'disposed').pipe(map(() => {
             // The message has to match the CDP message expected by the WaitTask class.
-            throw error;
+            throw new Error('Execution context was destroyed');
         })), timeout(this.timeoutSettings.timeout()))));
         return result;
     }
     async evaluateHandle(pageFunction, ...args) {
         pageFunction = withSourcePuppeteerURLIfNone(this.evaluateHandle.name, pageFunction);
-        // This code needs to schedule evaluateHandle call synchronously (at
+        // This code needs to schedule evaluateHandle call synchroniously (at
         // least when the context is there) so we cannot unconditionally
         // await.
         let context = this.#executionContext();
@@ -87,7 +86,7 @@ export class IsolatedWorld extends Realm {
     }
     async evaluate(pageFunction, ...args) {
         pageFunction = withSourcePuppeteerURLIfNone(this.evaluate.name, pageFunction);
-        // This code needs to schedule evaluate call synchronously (at
+        // This code needs to schedule evaluate call synchroniously (at
         // least when the context is there) so we cannot unconditionally
         // await.
         let context = this.#executionContext();
@@ -97,7 +96,7 @@ export class IsolatedWorld extends Realm {
         return await context.evaluate(pageFunction, ...args);
     }
     async adoptBackendNode(backendNodeId) {
-        // This code needs to schedule resolveNode call synchronously (at
+        // This code needs to schedule resolveNode call synchroniously (at
         // least when the context is there) so we cannot unconditionally
         // await.
         let context = this.#executionContext();

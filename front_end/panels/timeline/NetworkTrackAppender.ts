@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 import * as i18n from '../../core/i18n/i18n.js';
-import * as Trace from '../../models/trace/trace.js';
+import * as TraceEngine from '../../models/trace/trace.js';
 import * as PerfUI from '../../ui/legacy/components/perf_ui/perf_ui.js';
 import * as ThemeSupport from '../../ui/legacy/theme_support/theme_support.js';
 
@@ -11,14 +11,17 @@ import {
   buildGroupStyle,
   buildTrackHeader,
   getEventLevel,
+  getFormattedTime,
   type LastTimestampByLevel,
 } from './AppenderUtils.js';
 import {
+  type HighlightedEntryInfo,
   type TrackAppender,
   type TrackAppenderName,
   VisualLoggingTrackName,
 } from './CompatibilityTracksAppender.js';
-import * as Components from './components/components.js';
+import {Utils} from './components/components.js';
+import {colorForNetworkCategory, colorForNetworkRequest, NetworkCategory} from './components/Utils.js';
 import {InstantEventVisibleDurationMs} from './TimelineFlameChartDataProvider.js';
 
 const UIStrings = {
@@ -26,12 +29,26 @@ const UIStrings = {
    *@description Text in Timeline Flame Chart Data Provider of the Performance panel
    */
   network: 'Network',
-} as const;
+  /**
+   *@description Text in Timeline Flame Chart Data Provider of the Performance panel
+   */
+  wsConnectionOpened: 'WebSocket opened',
+  /**
+   *@description Text in Timeline Flame Chart Data Provider of the Performance panel
+   *@example {ws://example.com} PH1
+   */
+  wsConnectionOpenedWithUrl: 'WebSocket opened: {PH1}',
+  /**
+   *@description Text in Timeline Flame Chart Data Provider of the Performance panel
+   */
+  wsConnectionClosed: 'WebSocket closed',
+};
 
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/NetworkTrackAppender.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-export type NetworkTrackEvent = Trace.Types.Events.SyntheticNetworkRequest|Trace.Types.Events.WebSocketEvent;
+export type NetworkTrackEvent =
+    TraceEngine.Types.TraceEvents.SyntheticNetworkRequest|TraceEngine.Types.TraceEvents.WebSocketEvent;
 
 export class NetworkTrackAppender implements TrackAppender {
   readonly appenderName: TrackAppenderName = 'Network';
@@ -99,9 +116,16 @@ export class NetworkTrackAppender implements TrackAppender {
       useFirstLineForOverview: false,
       useDecoratorsForOverview: true,
     });
+    const legends: PerfUI.FlameChart.Legend[] = [];
+    for (const category in NetworkCategory) {
+      legends.push({
+        color: Utils.colorForNetworkCategory(category as NetworkCategory),
+        category,
+      });
+    }
     this.#group = buildTrackHeader(
         VisualLoggingTrackName.NETWORK, 0, i18nString(UIStrings.network), style, /* selectable= */ true, expanded,
-        /* showStackContextMenu= */ false);
+        /* showStackContextMenu= */ false, legends);
     this.#flameChartData.groups.push(this.#group);
   }
 
@@ -117,23 +141,22 @@ export class NetworkTrackAppender implements TrackAppender {
    * trace events (the first available level to append next track).
    */
   #appendEventsAtLevel(events: NetworkTrackEvent[], trackStartLevel: number): number {
-    // Appending everything to the same level isn't "correct", but relayoutEntriesWithinBounds() will handle that
+    // Appending everything to the same level isn't "correct", but filterTimelineDataBetweenTimes() will handle that
     // before anything is rendered.
     for (let i = 0; i < events.length; ++i) {
       const event = events[i];
       this.#appendEventAtLevel(event, trackStartLevel);
       // Decorate render blocking
-      if (Trace.Types.Events.isSyntheticNetworkRequest(event) &&
-          Trace.Helpers.Network.isSyntheticNetworkRequestEventRenderBlocking(event)) {
+      if (TraceEngine.Types.TraceEvents.isSyntheticNetworkRequestEvent(event) &&
+          TraceEngine.Helpers.Network.isSyntheticNetworkRequestEventRenderBlocking(event)) {
         addDecorationToEvent(this.#flameChartData, i, {
           type: PerfUI.FlameChart.FlameChartDecorationType.WARNING_TRIANGLE,
-          customStartTime: event.args.data.syntheticData.sendStartTime,
           customEndTime: event.args.data.syntheticData.finishTime,
         });
       }
     }
     return this.relayoutEntriesWithinBounds(
-        events, Trace.Types.Timing.Milli(-Infinity), Trace.Types.Timing.Milli(Infinity));
+        events, TraceEngine.Types.Timing.MilliSeconds(-Infinity), TraceEngine.Types.Timing.MilliSeconds(Infinity));
   }
 
   /**
@@ -142,12 +165,12 @@ export class NetworkTrackAppender implements TrackAppender {
    * @param level the level to append the event,
    * @returns the index of the event in all events to be rendered in the flamechart.
    */
-  #appendEventAtLevel(event: Trace.Types.Events.Event, level: number): number {
+  #appendEventAtLevel(event: TraceEngine.Types.TraceEvents.TraceEventData, level: number): number {
     const index = this.#flameChartData.entryLevels.length;
     this.#flameChartData.entryLevels[index] = level;
-    this.#flameChartData.entryStartTimes[index] = Trace.Helpers.Timing.microToMilli(event.ts);
-    const dur = event.dur || Trace.Helpers.Timing.milliToMicro(InstantEventVisibleDurationMs);
-    this.#flameChartData.entryTotalTimes[index] = Trace.Helpers.Timing.microToMilli(dur);
+    this.#flameChartData.entryStartTimes[index] = TraceEngine.Helpers.Timing.microSecondsToMilliseconds(event.ts);
+    const dur = event.dur || TraceEngine.Helpers.Timing.millisecondsToMicroseconds(InstantEventVisibleDurationMs);
+    this.#flameChartData.entryTotalTimes[index] = TraceEngine.Helpers.Timing.microSecondsToMilliseconds(dur);
     return level;
   }
 
@@ -159,7 +182,8 @@ export class NetworkTrackAppender implements TrackAppender {
    * @returns the number of levels used by this track
    */
   relayoutEntriesWithinBounds(
-      events: NetworkTrackEvent[], minTime: Trace.Types.Timing.Milli, maxTime: Trace.Types.Timing.Milli): number {
+      events: NetworkTrackEvent[], minTime: TraceEngine.Types.Timing.MilliSeconds,
+      maxTime: TraceEngine.Types.Timing.MilliSeconds): number {
     if (!this.#flameChartData || events.length === 0) {
       return 0;
     }
@@ -168,8 +192,9 @@ export class NetworkTrackAppender implements TrackAppender {
     let maxLevel = 0;
     for (let i = 0; i < events.length; ++i) {
       const event = events[i];
-      const beginTime = Trace.Helpers.Timing.microToMilli(event.ts);
-      const dur = event.dur ? Trace.Helpers.Timing.microToMilli(event.dur) : InstantEventVisibleDurationMs;
+      const beginTime = TraceEngine.Helpers.Timing.microSecondsToMilliseconds(event.ts);
+      const dur =
+          event.dur ? TraceEngine.Helpers.Timing.microSecondsToMilliseconds(event.dur) : InstantEventVisibleDurationMs;
       const endTime = beginTime + dur;
       const isBetweenTimes = beginTime < maxTime && endTime > minTime;
       // Exclude events outside the the specified timebounds
@@ -179,7 +204,7 @@ export class NetworkTrackAppender implements TrackAppender {
       }
       // Layout the entries by assigning levels.
       let level: number;
-      if ('identifier' in event.args.data && Trace.Types.Events.isWebSocketEvent(event)) {
+      if ('identifier' in event.args.data && TraceEngine.Types.TraceEvents.isWebSocketEvent(event)) {
         level = this.getWebSocketLevel(event, lastTimestampByLevel);
       } else {
         level = getEventLevel(event, lastTimestampByLevel);
@@ -197,7 +222,8 @@ export class NetworkTrackAppender implements TrackAppender {
     return maxLevel;
   }
 
-  getWebSocketLevel(event: Trace.Types.Events.WebSocketEvent, lastTimestampByLevel: LastTimestampByLevel): number {
+  getWebSocketLevel(event: TraceEngine.Types.TraceEvents.WebSocketEvent, lastTimestampByLevel: LastTimestampByLevel):
+      number {
     const webSocketIdentifier = event.args.data.identifier;
     let level: number;
     if (this.webSocketIdToLevel.has(webSocketIdentifier)) {
@@ -221,17 +247,50 @@ export class NetworkTrackAppender implements TrackAppender {
   /**
    * Gets the color an event added by this appender should be rendered with.
    */
-  colorForEvent(event: Trace.Types.Events.Event): string {
-    if (Trace.Types.Events.isSyntheticWebSocketConnection(event)) {
+  colorForEvent(event: TraceEngine.Types.TraceEvents.TraceEventData): string {
+    if (TraceEngine.Types.TraceEvents.isSyntheticWebSocketConnectionEvent(event)) {
       // the synthetic WebSocket events are not selectable, so we don't need to set the color.
       return '';
     }
-    if (Trace.Types.Events.isWebSocketTraceEvent(event)) {
-      return Components.Utils.colorForNetworkCategory(Components.Utils.NetworkCategory.JS);
+    if (TraceEngine.Types.TraceEvents.isWebSocketTraceEvent(event)) {
+      return colorForNetworkCategory(NetworkCategory.JS);
     }
-    if (!Trace.Types.Events.isSyntheticNetworkRequest(event)) {
+    if (!TraceEngine.Types.TraceEvents.isSyntheticNetworkRequestEvent(event)) {
       throw new Error(`Unexpected Network Request: The event's type is '${event.name}'`);
     }
-    return Components.Utils.colorForNetworkRequest(event);
+    return colorForNetworkRequest(event);
+  }
+
+  /**
+   * Gets the title an event added by this appender should be rendered with.
+   */
+  titleForEvent(event: TraceEngine.Types.TraceEvents.TraceEventData): string {
+    return event.name;
+  }
+
+  /**
+   * Returns the info shown when an event added by this appender
+   * is hovered in the timeline.
+   */
+  highlightedEntryInfo(event: TraceEngine.Types.TraceEvents.TraceEventData): HighlightedEntryInfo {
+    const title = this.titleForEvent(event);
+    return {title, formattedTime: getFormattedTime(event.dur)};
+  }
+
+  /**
+   * Returns the title an event is shown with in the timeline.
+   */
+  titleForWebSocketEvent(event: TraceEngine.Types.TraceEvents.TraceEventData): string {
+    if (TraceEngine.Types.TraceEvents.isTraceEventWebSocketCreate(event)) {
+      if (event.args.data.url) {
+        return i18nString(UIStrings.wsConnectionOpenedWithUrl, {PH1: event.args.data.url});
+      }
+
+      return i18nString(UIStrings.wsConnectionOpened);
+    }
+    if (TraceEngine.Types.TraceEvents.isTraceEventWebSocketDestroy(event)) {
+      return i18nString(UIStrings.wsConnectionClosed);
+    }
+    return event.name;
   }
 }

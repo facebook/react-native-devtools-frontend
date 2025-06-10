@@ -4,16 +4,15 @@
 
 const glob = require('glob');
 const path = require('path');
-const yargs = require('yargs');
 
-const {writeIfChanged} = require('../../../scripts/build/ninja/write-if-changed.js');
-const {bakePlaceholders} = require('../../../third_party/i18n/bake-ctc-to-lhl.js');
 const {collectAllStringsInDir, createPsuedoLocaleStrings, IGNORED_PATH_COMPONENTS} =
     require('../../../third_party/i18n/collect-strings.js');
+const {bakePlaceholders} = require('../../../third_party/i18n/bake-ctc-to-lhl.js');
+const {writeIfChanged} = require('../../../scripts/build/ninja/write-if-changed.js');
 
 /** @typedef {import('../../../third_party/i18n/bake-ctc-to-lhl.js').CtcMessage} CtcMessage */
 
-const yargsObject = yargs
+const yargsObject = require('yargs')
                         .option('input-directories', {
                           type: 'array',
                           demandOption: true,
@@ -26,7 +25,7 @@ const yargsObject = yargs
                           type: 'boolean',
                         })
                         .strict()
-                        .parseSync();
+                        .argv;
 
 /**
  * @param {string} outputDirectory

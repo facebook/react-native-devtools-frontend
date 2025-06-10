@@ -13,13 +13,13 @@ import * as Marked from '../../third_party/marked/marked.js';
 export interface MarkdownIssueDescription {
   file: string;
   substitutions?: Map<string, string>;
-  links: Array<{link: string, linkTitle: string}>;
+  links: {link: string, linkTitle: string}[];
 }
 
 export interface LazyMarkdownIssueDescription {
   file: string;
   substitutions?: Map<string, () => string>;
-  links: Array<{link: string, linkTitle: () => string}>;
+  links: {link: string, linkTitle: () => string}[];
 }
 
 /**
@@ -52,21 +52,21 @@ export function resolveLazyDescription(lazyDescription: LazyMarkdownIssueDescrip
 export interface IssueDescription {
   title: string;
   markdown: Marked.Marked.Token[];
-  links: Array<{link: string, linkTitle: string}>;
+  links: {link: string, linkTitle: string}[];
 }
 
 export async function getFileContent(url: URL): Promise<string> {
   try {
     const response = await fetch(url.toString());
-    return await response.text();
-  } catch {
+    return response.text();
+  } catch (error) {
     throw new Error(
         `Markdown file ${url.toString()} not found. Make sure it is correctly listed in the relevant BUILD.gn files.`);
   }
 }
 
 export async function getMarkdownFileContent(filename: string): Promise<string> {
-  return await getFileContent(new URL(`descriptions/${filename}`, import.meta.url));
+  return getFileContent(new URL(`descriptions/${filename}`, import.meta.url));
 }
 
 export async function createIssueDescriptionFromMarkdown(description: MarkdownIssueDescription):

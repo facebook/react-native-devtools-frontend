@@ -5,7 +5,7 @@
 import type {Chrome} from '../../../extension-api/ExtensionAPI.js';
 
 import type * as DWARFSymbols from './DWARFSymbols.js';
-import type {HostInterface} from './WorkerRPC.js';
+import {type HostInterface} from './WorkerRPC.js';
 
 export class ResourceLoader implements DWARFSymbols.ResourceLoader {
   protected async fetchSymbolsData(rawModule: DWARFSymbols.RawModule, url: URL, hostInterface: HostInterface):
@@ -26,7 +26,7 @@ export class ResourceLoader implements DWARFSymbols.ResourceLoader {
         // get a 404 response.
         console.error(symbolsDwpError);
       }
-      if (!(symbolsDwpResponse?.ok)) {
+      if (!(symbolsDwpResponse && symbolsDwpResponse.ok)) {
         // Often this won't exist, but remember the missing file because if
         // we can't find symbol information later it is likely because this
         // file was missing.
@@ -37,13 +37,13 @@ export class ResourceLoader implements DWARFSymbols.ResourceLoader {
       }
       const [symbolsData, symbolsDwpData] = await Promise.all([
         symbolsResponse.arrayBuffer(),
-        symbolsDwpResponse?.ok ? symbolsDwpResponse.arrayBuffer() : undefined,
+        symbolsDwpResponse && symbolsDwpResponse.ok ? symbolsDwpResponse.arrayBuffer() : undefined,
       ]);
-      void hostInterface.reportResourceLoad(url.href, {success: true, size: symbolsData.byteLength});
+      hostInterface.reportResourceLoad(url.href, {success: true, size: symbolsData.byteLength});
       if (symbolsDwpData) {
-        void hostInterface.reportResourceLoad(dwpUrl, {success: true, size: symbolsDwpData.byteLength});
+        hostInterface.reportResourceLoad(dwpUrl, {success: true, size: symbolsDwpData.byteLength});
       } else {
-        void hostInterface.reportResourceLoad(
+        hostInterface.reportResourceLoad(
             dwpUrl, {success: false, errorMessage: `Failed to fetch dwp file: ${symbolsDwpError}`});
       }
       return {symbolsData, symbolsDwpData};
@@ -52,11 +52,11 @@ export class ResourceLoader implements DWARFSymbols.ResourceLoader {
     if (rawModule.url !== url.href) {
       const errorMessage = `NotFoundError: Unable to load debug symbols from '${url}' for the WebAssembly module '${
           rawModule.url}' (${statusText}), double-check the parameter to -gseparate-dwarf in your Emscripten link step`;
-      void hostInterface.reportResourceLoad(url.href, {success: false, errorMessage});
+      hostInterface.reportResourceLoad(url.href, {success: false, errorMessage});
       throw new Error(errorMessage);
     }
     const errorMessage = `NotFoundError: Unable to load debug symbols from '${url}' (${statusText})`;
-    void hostInterface.reportResourceLoad(url.href, {success: false, errorMessage});
+    hostInterface.reportResourceLoad(url.href, {success: false, errorMessage});
     throw new Error(errorMessage);
   }
 
@@ -74,7 +74,7 @@ export class ResourceLoader implements DWARFSymbols.ResourceLoader {
     // This file is sometimes preserved on reload, causing problems.
     try {
       fileSystem.unlink('/' + symbolsFileName);
-    } catch {
+    } catch (_) {
     }
 
     fileSystem.createDataFile(

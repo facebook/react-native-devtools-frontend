@@ -13,6 +13,7 @@ import {
   waitFor,
   waitForElementWithTextContent,
 } from '../../shared/helper.js';
+import {describe} from '../../shared/mocha-extensions.js';
 import {
   clickStartButton,
   getAuditsBreakdown,
@@ -86,7 +87,7 @@ describe('Navigation', function() {
 
     const receivedCategories = Array.from(Object.keys(lhr.categories)).sort();
     const sentCategories = Array.from(lhr.configSettings.onlyCategories).sort();
-    assert.deepEqual(receivedCategories, sentCategories);
+    assert.deepStrictEqual(receivedCategories, sentCategories);
 
     // 1 initial about:blank jump
     // 1 navigation for the actual page load
@@ -94,24 +95,24 @@ describe('Navigation', function() {
     // 1 refresh after auditing to reset state
     assert.strictEqual(numNavigations, 5);
 
-    assert.strictEqual(lhr.lighthouseVersion, '12.5.1');
+    assert.strictEqual(lhr.lighthouseVersion, '12.1.0');
     assert.match(lhr.finalUrl, /^https:\/\/localhost:[0-9]+\/test\/e2e\/resources\/lighthouse\/hello.html/);
 
     assert.strictEqual(lhr.configSettings.throttlingMethod, 'simulate');
-    assert.isFalse(lhr.configSettings.disableStorageReset);
+    assert.strictEqual(lhr.configSettings.disableStorageReset, false);
     assert.strictEqual(lhr.configSettings.formFactor, 'mobile');
     assert.strictEqual(lhr.configSettings.throttling.rttMs, 150);
-    assert.isTrue(lhr.configSettings.screenEmulation.disabled);
+    assert.strictEqual(lhr.configSettings.screenEmulation.disabled, true);
     assert.include(lhr.configSettings.emulatedUserAgent, 'Mobile');
     assert.include(lhr.environment.networkUserAgent, 'Mobile');
 
     const trace = artifacts.Trace;
-    assert.isNotOk(
+    assert.notOk(
         trace.traceEvents.some((e: Record<string, unknown>) => e.cat === 'disabled-by-default-v8.cpu_profiler'),
         'Trace contained v8 profiler events',
     );
 
-    assert.deepEqual(artifacts.ViewportDimensions, {
+    assert.deepStrictEqual(artifacts.ViewportDimensions, {
       innerHeight: 823,
       innerWidth: 412,
       outerHeight: 823,
@@ -120,18 +121,17 @@ describe('Navigation', function() {
     });
 
     const {auditResults, erroredAudits, failedAudits} = getAuditsBreakdown(lhr, ['max-potential-fid']);
-    assert.lengthOf(auditResults, 174);
-    assert.deepEqual(erroredAudits, []);
-    assert.deepEqual(failedAudits.map(audit => audit.id), [
+    assert.strictEqual(auditResults.length, 155);
+    assert.deepStrictEqual(erroredAudits, []);
+    assert.deepStrictEqual(failedAudits.map(audit => audit.id), [
       'document-title',
       'html-has-lang',
       'render-blocking-resources',
       'meta-description',
-      'render-blocking-insight',
     ]);
 
     const viewTraceButton = await $textContent('View Trace', reportEl);
-    assert.isOk(!viewTraceButton);
+    assert.ok(!viewTraceButton);
 
     // Test view trace button behavior
     // For some reason the CDP click command doesn't work here even if the tools menu is open.
@@ -194,23 +194,21 @@ describe('Navigation', function() {
     // [crbug.com/1347220] DevTools throttling can force resources to load slow enough for these audits to fail sometimes.
     const flakyAudits = [
       'server-response-time',
-      'document-latency-insight',
       'render-blocking-resources',
-      'render-blocking-insight',
       'max-potential-fid',
     ];
 
     const {auditResults, erroredAudits, failedAudits} = getAuditsBreakdown(lhr, flakyAudits);
-    assert.lengthOf(auditResults, 174);
-    assert.deepEqual(erroredAudits, []);
-    assert.deepEqual(failedAudits.map(audit => audit.id), [
+    assert.strictEqual(auditResults.length, 155);
+    assert.deepStrictEqual(erroredAudits, []);
+    assert.deepStrictEqual(failedAudits.map(audit => audit.id), [
       'document-title',
       'html-has-lang',
       'meta-description',
     ]);
 
     const viewTraceButton = await $textContent('View Trace', reportEl);
-    assert.isOk(viewTraceButton);
+    assert.ok(viewTraceButton);
   });
 
   it('successfully returns a Lighthouse report when settings changed', async () => {
@@ -228,7 +226,7 @@ describe('Navigation', function() {
     const {reportEl, lhr, artifacts} = await waitForResult();
 
     const trace = artifacts.Trace;
-    assert.isOk(
+    assert.ok(
         trace.traceEvents.some((e: Record<string, unknown>) => e.cat === 'disabled-by-default-v8.cpu_profiler'),
         'Trace did not contain any v8 profiler events',
     );
@@ -240,18 +238,18 @@ describe('Navigation', function() {
     assert.strictEqual(devicePixelRatio, 1);
 
     const {erroredAudits} = getAuditsBreakdown(lhr);
-    assert.deepEqual(erroredAudits, []);
+    assert.deepStrictEqual(erroredAudits, []);
 
-    assert.deepEqual(Object.keys(lhr.categories), ['performance', 'best-practices']);
-    assert.isTrue(lhr.configSettings.disableStorageReset);
+    assert.deepStrictEqual(Object.keys(lhr.categories), ['performance', 'best-practices']);
+    assert.strictEqual(lhr.configSettings.disableStorageReset, true);
     assert.strictEqual(lhr.configSettings.formFactor, 'desktop');
     assert.strictEqual(lhr.configSettings.throttling.rttMs, 40);
-    assert.isTrue(lhr.configSettings.screenEmulation.disabled);
+    assert.strictEqual(lhr.configSettings.screenEmulation.disabled, true);
     assert.notInclude(lhr.configSettings.emulatedUserAgent, 'Mobile');
     assert.notInclude(lhr.environment.networkUserAgent, 'Mobile');
 
     const viewTreemapButton = await $textContent('Ver gráfico de rectángulos', reportEl);
-    assert.isOk(viewTreemapButton);
+    assert.ok(viewTreemapButton);
 
     const footerIssueText = await reportEl.$eval('.lh-footer__version_issue', footerIssueEl => {
       return footerIssueEl.textContent;

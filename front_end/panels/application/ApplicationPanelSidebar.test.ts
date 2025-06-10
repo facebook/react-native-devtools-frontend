@@ -3,7 +3,8 @@
 // found in the LICENSE file.
 
 import type * as Common from '../../core/common/common.js';
-import * as Platform from '../../core/platform/platform.js';
+import type * as Platform from '../../core/platform/platform.js';
+import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import {createTarget, stubNoopSettings} from '../../testing/EnvironmentHelpers.js';
@@ -12,28 +13,25 @@ import {
   setMockConnectionResponseHandler,
 } from '../../testing/MockConnection.js';
 import {createResource, getMainFrame} from '../../testing/ResourceTreeHelpers.js';
-import * as RenderCoordinator from '../../ui/components/render_coordinator/render_coordinator.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import * as Application from './application.js';
 
-const {urlString} = Platform.DevToolsPath;
-
 class SharedStorageTreeElementListener {
   #sidebar: Application.ApplicationPanelSidebar.ApplicationPanelSidebar;
-  #originsAdded: string[] = [];
+  #originsAdded: Array<String> = new Array<String>();
 
   constructor(sidebar: Application.ApplicationPanelSidebar.ApplicationPanelSidebar) {
     this.#sidebar = sidebar;
 
     this.#sidebar.sharedStorageTreeElementDispatcher.addEventListener(
-        Application.ApplicationPanelSidebar.SharedStorageTreeElementDispatcher.Events.SHARED_STORAGE_TREE_ELEMENT_ADDED,
+        Application.ApplicationPanelSidebar.SharedStorageTreeElementDispatcher.Events.SharedStorageTreeElementAdded,
         this.#treeElementAdded, this);
   }
 
   dispose(): void {
     this.#sidebar.sharedStorageTreeElementDispatcher.removeEventListener(
-        Application.ApplicationPanelSidebar.SharedStorageTreeElementDispatcher.Events.SHARED_STORAGE_TREE_ELEMENT_ADDED,
+        Application.ApplicationPanelSidebar.SharedStorageTreeElementDispatcher.Events.SharedStorageTreeElementAdded,
         this.#treeElementAdded, this);
   }
 
@@ -46,8 +44,7 @@ class SharedStorageTreeElementListener {
   async waitForElementsAdded(expectedCount: number): Promise<void> {
     while (this.#originsAdded.length < expectedCount) {
       await this.#sidebar.sharedStorageTreeElementDispatcher.once(
-          Application.ApplicationPanelSidebar.SharedStorageTreeElementDispatcher.Events
-              .SHARED_STORAGE_TREE_ELEMENT_ADDED);
+          Application.ApplicationPanelSidebar.SharedStorageTreeElementDispatcher.Events.SharedStorageTreeElementAdded);
     }
   }
 }
@@ -56,78 +53,63 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
   let target: SDK.Target.Target;
 
   const TEST_ORIGIN_A = 'http://www.example.com/';
-  const TEST_SITE_A = 'http://example.com';
   const TEST_ORIGIN_B = 'http://www.example.org/';
   const TEST_ORIGIN_C = 'http://www.example.net/';
-  const TEST_SITE_C = 'http://example.net';
-
-  const TEST_EXTENSION_NAME = 'Test Extension';
 
   const ID = 'AA' as Protocol.Page.FrameId;
 
   const EVENTS = [
     {
       accessTime: 0,
-      method: Protocol.Storage.SharedStorageAccessMethod.Append,
+      type: Protocol.Storage.SharedStorageAccessType.DocumentAppend,
       mainFrameId: ID,
       ownerOrigin: TEST_ORIGIN_A,
-      ownerSite: TEST_SITE_A,
       params: {key: 'key0', value: 'value0'} as Protocol.Storage.SharedStorageAccessParams,
-      scope: Protocol.Storage.SharedStorageAccessScope.Window,
     },
     {
       accessTime: 10,
-      method: Protocol.Storage.SharedStorageAccessMethod.Get,
+      type: Protocol.Storage.SharedStorageAccessType.WorkletGet,
       mainFrameId: ID,
       ownerOrigin: TEST_ORIGIN_A,
-      ownerSite: TEST_SITE_A,
       params: {key: 'key0'} as Protocol.Storage.SharedStorageAccessParams,
-      scope: Protocol.Storage.SharedStorageAccessScope.SharedStorageWorklet,
     },
     {
       accessTime: 15,
-      method: Protocol.Storage.SharedStorageAccessMethod.Length,
+      type: Protocol.Storage.SharedStorageAccessType.WorkletLength,
       mainFrameId: ID,
       ownerOrigin: TEST_ORIGIN_A,
-      ownerSite: TEST_SITE_A,
       params: {} as Protocol.Storage.SharedStorageAccessParams,
-      scope: Protocol.Storage.SharedStorageAccessScope.SharedStorageWorklet,
     },
     {
       accessTime: 20,
-      method: Protocol.Storage.SharedStorageAccessMethod.Clear,
+      type: Protocol.Storage.SharedStorageAccessType.DocumentClear,
       mainFrameId: ID,
       ownerOrigin: TEST_ORIGIN_C,
-      ownerSite: TEST_SITE_C,
       params: {} as Protocol.Storage.SharedStorageAccessParams,
-      scope: Protocol.Storage.SharedStorageAccessScope.Window,
     },
     {
       accessTime: 100,
-      method: Protocol.Storage.SharedStorageAccessMethod.Set,
+      type: Protocol.Storage.SharedStorageAccessType.WorkletSet,
       mainFrameId: ID,
       ownerOrigin: TEST_ORIGIN_C,
-      ownerSite: TEST_SITE_C,
       params: {key: 'key0', value: 'value1', ignoreIfPresent: true} as Protocol.Storage.SharedStorageAccessParams,
-      scope: Protocol.Storage.SharedStorageAccessScope.SharedStorageWorklet,
     },
     {
       accessTime: 150,
-      method: Protocol.Storage.SharedStorageAccessMethod.RemainingBudget,
+      type: Protocol.Storage.SharedStorageAccessType.WorkletRemainingBudget,
       mainFrameId: ID,
       ownerOrigin: TEST_ORIGIN_C,
-      ownerSite: TEST_SITE_C,
       params: {} as Protocol.Storage.SharedStorageAccessParams,
-      scope: Protocol.Storage.SharedStorageAccessScope.SharedStorageWorklet,
     },
   ];
 
   beforeEach(() => {
     stubNoopSettings();
     SDK.ChildTargetManager.ChildTargetManager.install();
-    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
+    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
     createTarget({parentTarget: tabTarget, subtype: 'prerender'});
     target = createTarget({parentTarget: tabTarget});
+    Root.Runtime.experiments.register(Root.Runtime.ExperimentName.PRELOADING_STATUS_PANEL, '', false);
     sinon.stub(UI.ViewManager.ViewManager.instance(), 'showView').resolves();  // Silence console error
     setMockConnectionResponseHandler('Storage.getSharedStorageEntries', () => ({}));
     setMockConnectionResponseHandler('Storage.setSharedStorageTracking', () => ({}));
@@ -159,7 +141,7 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
     resourceTreeModel.dispatchEventToListeners(SDK.ResourceTreeModel.Events.CachedResourcesLoaded, resourceTreeModel);
 
     assert.strictEqual(sidebar.cookieListTreeElement.childCount(), 2);
-    assert.deepEqual(
+    assert.deepStrictEqual(
         sidebar.cookieListTreeElement.children().map(e => e.title),
         ['http://www.example.com', 'http://www.example.org']);
   });
@@ -194,7 +176,7 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
     assert.isTrue(setTrackingSpy.calledOnceWithExactly({enable: true}));
 
     assert.strictEqual(sidebar.sharedStorageListTreeElement.childCount(), 3);
-    assert.deepEqual(sidebar.sharedStorageListTreeElement.children().map(e => e.title), [
+    assert.deepStrictEqual(sidebar.sharedStorageListTreeElement.children().map(e => e.title), [
       TEST_ORIGIN_A,
       TEST_ORIGIN_B,
       TEST_ORIGIN_C,
@@ -202,100 +184,18 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
 
     sidebar.sharedStorageListTreeElement.view.setDefaultIdForTesting(ID);
     for (const event of EVENTS) {
-      sharedStorageModel.dispatchEventToListeners(Application.SharedStorageModel.Events.SHARED_STORAGE_ACCESS, event);
+      sharedStorageModel.dispatchEventToListeners(Application.SharedStorageModel.Events.SharedStorageAccess, event);
     }
 
     assert.deepEqual(sidebar.sharedStorageListTreeElement.view.getEventsForTesting(), EVENTS);
-  });
-
-  it('shows extension storage based on added models', async () => {
-    for (const useTreeView of [false, true]) {
-      Application.ResourcesPanel.ResourcesPanel.instance({forceNew: true});
-      const sidebar = await Application.ResourcesPanel.ResourcesPanel.showAndGetSidebar();
-
-      // Cast to any allows overriding private method.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      sinon.stub(sidebar, 'useTreeViewForExtensionStorage' as any).returns(useTreeView);
-
-      const extensionStorageModel = target.model(Application.ExtensionStorageModel.ExtensionStorageModel);
-      assert.exists(extensionStorageModel);
-
-      const makeFakeExtensionStorage = (storageArea: Protocol.Extensions.StorageArea) =>
-          new Application.ExtensionStorageModel.ExtensionStorage(
-              extensionStorageModel, '', TEST_EXTENSION_NAME, storageArea);
-
-      const fakeModelLocal = makeFakeExtensionStorage(Protocol.Extensions.StorageArea.Local);
-      const fakeModelSession = makeFakeExtensionStorage(Protocol.Extensions.StorageArea.Session);
-
-      extensionStorageModel.dispatchEventToListeners(
-          Application.ExtensionStorageModel.Events.EXTENSION_STORAGE_ADDED, fakeModelLocal);
-      extensionStorageModel.dispatchEventToListeners(
-          Application.ExtensionStorageModel.Events.EXTENSION_STORAGE_ADDED, fakeModelSession);
-
-      if (useTreeView) {
-        assert.strictEqual(sidebar.extensionStorageListTreeElement.childCount(), 1);
-        assert.strictEqual(sidebar.extensionStorageListTreeElement.children()[0].title, TEST_EXTENSION_NAME);
-        assert.deepEqual(
-            sidebar.extensionStorageListTreeElement.children()[0].children().map(e => e.title), ['Session', 'Local']);
-      } else {
-        assert.strictEqual(sidebar.extensionStorageListTreeElement.childCount(), 2);
-        assert.deepEqual(sidebar.extensionStorageListTreeElement.children().map(e => e.title), ['Session', 'Local']);
-      }
-
-      extensionStorageModel.dispatchEventToListeners(
-          Application.ExtensionStorageModel.Events.EXTENSION_STORAGE_REMOVED, fakeModelLocal);
-      extensionStorageModel.dispatchEventToListeners(
-          Application.ExtensionStorageModel.Events.EXTENSION_STORAGE_REMOVED, fakeModelSession);
-      assert.strictEqual(sidebar.extensionStorageListTreeElement.childCount(), 0);
-    }
-  });
-
-  it('does not add extension storage if already added by another model', async () => {
-    Application.ResourcesPanel.ResourcesPanel.instance({forceNew: true});
-    const sidebar = await Application.ResourcesPanel.ResourcesPanel.showAndGetSidebar();
-
-    // Fakes adding an ExtensionStorage to the ExtensionStorageModel for
-    // `target`. Returns a function that can be used to trigger a removal.
-    const addFakeExtensionStorage = (target: SDK.Target.Target): () => void => {
-      const model = target.model(Application.ExtensionStorageModel.ExtensionStorageModel);
-      assert.exists(model);
-
-      const extensionStorage = new Application.ExtensionStorageModel.ExtensionStorage(
-          model, '', TEST_EXTENSION_NAME, Protocol.Extensions.StorageArea.Local);
-
-      const stub = sinon.stub(model, 'storageForIdAndArea').returns(extensionStorage);
-      model.dispatchEventToListeners(
-          Application.ExtensionStorageModel.Events.EXTENSION_STORAGE_ADDED, extensionStorage);
-
-      return () => {
-        stub.restore();
-        model.dispatchEventToListeners(
-            Application.ExtensionStorageModel.Events.EXTENSION_STORAGE_REMOVED, extensionStorage);
-      };
-    };
-
-    // Add a fake extension storage to the main target. The UI should be updated.
-    addFakeExtensionStorage(target);
-    assert.strictEqual(sidebar.extensionStorageListTreeElement.children()[0].childCount(), 1);
-
-    // Add a fake extension storage using a non-main target (e.g, an iframe).
-    // Make sure we don't add a second entry to the UI.
-    const removeFrameStorage =
-        addFakeExtensionStorage(createTarget({type: SDK.Target.Type.FRAME, parentTarget: target}));
-    assert.strictEqual(sidebar.extensionStorageListTreeElement.children()[0].childCount(), 1);
-
-    // Removing the frame also shouldn't do anything, since the main frame
-    // still exists.
-    removeFrameStorage();
-    assert.strictEqual(sidebar.extensionStorageListTreeElement.children()[0].childCount(), 1);
   });
 
   async function getExpectedCall(expectedCall: string): Promise<sinon.SinonSpy> {
     Application.ResourcesPanel.ResourcesPanel.instance({forceNew: true});
     const sidebar = await Application.ResourcesPanel.ResourcesPanel.showAndGetSidebar();
     const components = expectedCall.split('.');
-    assert.lengthOf(components, 2);
-    // @ts-expect-error
+    assert.strictEqual(components.length, 2);
+    // @ts-ignore
     const object = sidebar[components[0]];
     assert.exists(object);
     return sinon.spy(object, components[1]);
@@ -305,7 +205,6 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
     addEventListener: () => {},
     securityOrigin: 'https://example.com',
     databaseId: new Application.IndexedDBModel.DatabaseId({storageKey: ''}, ''),
-    getEntries: () => Promise.resolve([]),
   };
 
   const testUiUpdate = <Events, T extends keyof Events>(
@@ -314,7 +213,6 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
     SDK.TargetManager.TargetManager.instance().setScopeTarget(inScope ? target : null);
     const expectedCall = await getExpectedCall(expectedCallString);
     const model = target.model(modelClass);
-    await RenderCoordinator.done({waitForWork: true});
     assert.exists(model);
     const data = [{...MOCK_EVENT_ITEM, model}] as Common.EventTarget.EventPayloadToRestParameters<Events, T>;
     model.dispatchEventToListeners(event as Platform.TypeScriptUtilities.NoUnion<T>, ...data);
@@ -324,46 +222,38 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
 
   it('adds interest group event on in scope event',
      testUiUpdate(
-         Application.InterestGroupStorageModel.Events.INTEREST_GROUP_ACCESS,
+         Application.InterestGroupStorageModel.Events.InterestGroupAccess,
          Application.InterestGroupStorageModel.InterestGroupStorageModel, 'interestGroupTreeElement.addEvent', true));
-  // Failing on the toolbar button CL together with some AnimationTimeline tests
-  it.skip(
-      '[crbug.com/354673294] does not add interest group event on out of scope event',
-      testUiUpdate(
-          Application.InterestGroupStorageModel.Events.INTEREST_GROUP_ACCESS,
-          Application.InterestGroupStorageModel.InterestGroupStorageModel, 'interestGroupTreeElement.addEvent', false));
+  it('does not add interest group event on out of scope event',
+     testUiUpdate(
+         Application.InterestGroupStorageModel.Events.InterestGroupAccess,
+         Application.InterestGroupStorageModel.InterestGroupStorageModel, 'interestGroupTreeElement.addEvent', false));
   it('adds DOM storage on in scope event',
      testUiUpdate(
-         Application.DOMStorageModel.Events.DOM_STORAGE_ADDED, Application.DOMStorageModel.DOMStorageModel,
+         Application.DOMStorageModel.Events.DOMStorageAdded, Application.DOMStorageModel.DOMStorageModel,
          'sessionStorageListTreeElement.appendChild', true));
-  // Failing on the toolbar button CL together with some AnimationTimeline tests
-  it.skip(
-      '[crbug.com/354673294] does not add DOM storage on out of scope event',
-      testUiUpdate(
-          Application.DOMStorageModel.Events.DOM_STORAGE_ADDED, Application.DOMStorageModel.DOMStorageModel,
-          'sessionStorageListTreeElement.appendChild', false));
+  it('does not add DOM storage on out of scope event',
+     testUiUpdate(
+         Application.DOMStorageModel.Events.DOMStorageAdded, Application.DOMStorageModel.DOMStorageModel,
+         'sessionStorageListTreeElement.appendChild', false));
 
   it('adds indexed DB on in scope event',
      testUiUpdate(
          Application.IndexedDBModel.Events.DatabaseAdded, Application.IndexedDBModel.IndexedDBModel,
          'indexedDBListTreeElement.appendChild', true));
-  // Failing on the toolbar button CL together with some AnimationTimeline tests
-  it.skip(
-      '[crbug.com/354673294] does not add indexed DB on out of scope event',
-      testUiUpdate(
-          Application.IndexedDBModel.Events.DatabaseAdded, Application.IndexedDBModel.IndexedDBModel,
-          'indexedDBListTreeElement.appendChild', false));
+  it('does not add indexed DB on out of scope event',
+     testUiUpdate(
+         Application.IndexedDBModel.Events.DatabaseAdded, Application.IndexedDBModel.IndexedDBModel,
+         'indexedDBListTreeElement.appendChild', false));
 
   it('adds shared storage on in scope event',
      testUiUpdate(
-         Application.SharedStorageModel.Events.SHARED_STORAGE_ADDED, Application.SharedStorageModel.SharedStorageModel,
+         Application.SharedStorageModel.Events.SharedStorageAdded, Application.SharedStorageModel.SharedStorageModel,
          'sharedStorageListTreeElement.appendChild', true));
-  // Failing on the toolbar button CL together with some AnimationTimeline tests
-  it.skip(
-      '[crbug.com/354673294] does not add shared storage on out of scope event',
-      testUiUpdate(
-          Application.SharedStorageModel.Events.SHARED_STORAGE_ADDED, Application.SharedStorageModel.SharedStorageModel,
-          'sharedStorageListTreeElement.appendChild', false));
+  it('does not add shared storage on out of scope event',
+     testUiUpdate(
+         Application.SharedStorageModel.Events.SharedStorageAdded, Application.SharedStorageModel.SharedStorageModel,
+         'sharedStorageListTreeElement.appendChild', false));
 
   const MOCK_GETTER_ITEM = {
     ...MOCK_EVENT_ITEM,
@@ -379,7 +269,7 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
     sinon.stub(model, getter).returns([MOCK_GETTER_ITEM]);
     SDK.TargetManager.TargetManager.instance().setScopeTarget(target);
     await new Promise(resolve => setTimeout(resolve, 0));
-    assert.isTrue(expectedCall.called);
+    assert.strictEqual(expectedCall.called, true);
   };
 
   it('adds DOM storage element after scope change',
@@ -393,27 +283,12 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
   it('adds indexed db after scope change',
      testUiUpdateOnScopeChange(
          Application.IndexedDBModel.IndexedDBModel, 'databases', 'indexedDBListTreeElement.appendChild'));
-
-  it('uses extension name when available for tree element title', () => {
-    const panel = Application.ResourcesPanel.ResourcesPanel.instance({forceNew: true});
-    const extensionName = 'Test Extension';
-    assert.strictEqual(
-        new Application.ApplicationPanelSidebar.ExtensionStorageTreeParentElement(panel, 'id', extensionName).title,
-        extensionName);
-  });
-
-  it('uses extension id as fallback for tree element title', () => {
-    const panel = Application.ResourcesPanel.ResourcesPanel.instance({forceNew: true});
-    const extensionId = 'id';
-    assert.strictEqual(
-        new Application.ApplicationPanelSidebar.ExtensionStorageTreeParentElement(panel, extensionId, '').title,
-        extensionId);
-  });
 });
 
 describeWithMockConnection('IDBDatabaseTreeElement', () => {
   beforeEach(() => {
     stubNoopSettings();
+    Root.Runtime.experiments.register(Root.Runtime.ExperimentName.PRELOADING_STATUS_PANEL, '', false);
   });
 
   it('only becomes selectable after database is updated', () => {
@@ -435,6 +310,7 @@ describeWithMockConnection('ResourcesSection', () => {
     let target: SDK.Target.Target;
     beforeEach(() => {
       stubNoopSettings();
+      Root.Runtime.experiments.register(Root.Runtime.ExperimentName.PRELOADING_STATUS_PANEL, '', false);
       SDK.FrameManager.FrameManager.instance({forceNew: true});
       target = createTarget();
     });
@@ -451,7 +327,7 @@ describeWithMockConnection('ResourcesSection', () => {
       assert.strictEqual(treeElement.childCount(), 0);
       const frame = getMainFrame(target);
 
-      const url = urlString`http://example.com`;
+      const url = 'http://example.com' as Platform.DevToolsPath.UrlString;
       assert.strictEqual(treeElement.firstChild()?.childCount() ?? 0, 0);
       createResource(frame, url, 'text/html', '');
       assert.strictEqual(treeElement.firstChild()?.childCount() ?? 0, inScope ? 1 : 0);
@@ -463,7 +339,7 @@ describeWithMockConnection('ResourcesSection', () => {
       const treeElement = new UI.TreeOutline.TreeElement();
       new Application.ApplicationPanelSidebar.ResourcesSection(panel, treeElement);
 
-      const url = urlString`http://example.com`;
+      const url = 'http://example.com' as Platform.DevToolsPath.UrlString;
       createResource(getMainFrame(target), url, 'text/html', '');
       assert.strictEqual(treeElement.firstChild()?.childCount() ?? 0, 0);
 

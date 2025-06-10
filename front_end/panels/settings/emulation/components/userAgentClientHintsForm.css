@@ -23,7 +23,8 @@
   display: grid;
   grid-template-columns: 1fr 1fr 1fr auto;
   align-items: center;
-  gap: 8px 10px;
+  column-gap: 10px;
+  row-gap: 8px;
   padding: 0 10px;
 }
 

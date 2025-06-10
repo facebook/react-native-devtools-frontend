@@ -2,21 +2,21 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-interface Response {
-  requestId: number;
-  result: unknown;
-  error: Error|null;
-}
+type Response = {
+  requestId: number,
+  result: unknown,
+  error: Error|null,
+};
 
-interface Event {
-  event: string;
-}
+type Event = {
+  event: string,
+};
 
 type Message = MessageEvent<Response|Event>;
 
 export class ExtensionEndpoint {
   private readonly port: MessagePort;
-  private nextRequestId = 0;
+  private nextRequestId: number = 0;
   private pendingRequests: Map<number, {
     resolve: (arg: unknown) => void,
     reject: (error: Error) => void,

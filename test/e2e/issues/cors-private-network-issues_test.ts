@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import {assertNotNullOrUndefined, getBrowserAndPages, goToResource} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   ensureResourceSectionIsExpanded,
   expandIssue,
@@ -20,7 +21,7 @@ describe('Cors Private Network issue', () => {
   it('should display correct information for insecure contexts', async () => {
     await navigateToIssuesTab();
     const {frontend} = getBrowserAndPages();
-    await frontend.evaluate(() => {
+    frontend.evaluate(() => {
       const issue = {
         code: 'CorsIssue',
         details: {
@@ -37,7 +38,7 @@ describe('Cors Private Network issue', () => {
           },
         },
       };
-      // @ts-expect-error
+      // @ts-ignore
       window.addIssueForTest(issue);
       const issue2 = {
         code: 'CorsIssue',
@@ -55,7 +56,7 @@ describe('Cors Private Network issue', () => {
           },
         },
       };
-      // @ts-expect-error
+      // @ts-ignore
       window.addIssueForTest(issue2);
     });
 
@@ -94,7 +95,7 @@ describe('Cors Private Network issue', () => {
   it('should display correct information for secure contexts', async () => {
     await navigateToIssuesTab();
     const {frontend} = getBrowserAndPages();
-    await frontend.evaluate(() => {
+    frontend.evaluate(() => {
       const issue = {
         code: 'CorsIssue',
         details: {
@@ -111,7 +112,7 @@ describe('Cors Private Network issue', () => {
           },
         },
       };
-      // @ts-expect-error
+      // @ts-ignore
       window.addIssueForTest(issue);
       const issue2 = {
         code: 'CorsIssue',
@@ -129,7 +130,7 @@ describe('Cors Private Network issue', () => {
           },
         },
       };
-      // @ts-expect-error
+      // @ts-ignore
       window.addIssueForTest(issue2);
     });
 
@@ -167,7 +168,7 @@ describe('Cors Private Network issue', () => {
   it('should display correct information for preflight request errors', async () => {
     await navigateToIssuesTab();
     const {frontend} = getBrowserAndPages();
-    await frontend.evaluate(() => {
+    frontend.evaluate(() => {
       const issue = {
         code: 'CorsIssue',
         details: {
@@ -184,7 +185,7 @@ describe('Cors Private Network issue', () => {
           },
         },
       };
-      // @ts-expect-error
+      // @ts-ignore
       window.addIssueForTest(issue);
       const issue2 = {
         code: 'CorsIssue',
@@ -202,7 +203,7 @@ describe('Cors Private Network issue', () => {
           },
         },
       };
-      // @ts-expect-error
+      // @ts-ignore
       window.addIssueForTest(issue2);
     });
 
@@ -244,7 +245,7 @@ describe('Cors Private Network issue', () => {
   it('should display correct information for failed preflight requests', async () => {
     await navigateToIssuesTab();
     const {frontend} = getBrowserAndPages();
-    await frontend.evaluate(() => {
+    frontend.evaluate(() => {
       const issue = {
         code: 'CorsIssue',
         details: {
@@ -261,7 +262,7 @@ describe('Cors Private Network issue', () => {
           },
         },
       };
-      // @ts-expect-error
+      // @ts-ignore
       window.addIssueForTest(issue);
     });
 

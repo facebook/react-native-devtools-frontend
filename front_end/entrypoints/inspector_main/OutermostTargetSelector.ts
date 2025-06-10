@@ -22,7 +22,7 @@ const UIStrings = {
    *@example {top} PH1
    */
   targetS: 'Page: {PH1}',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('entrypoints/inspector_main/OutermostTargetSelector.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -30,24 +30,25 @@ let outermostTargetSelectorInstance: OutermostTargetSelector;
 
 export class OutermostTargetSelector implements SDK.TargetManager.Observer, UI.SoftDropDown.Delegate<SDK.Target.Target>,
                                                 UI.Toolbar.Provider {
-  readonly listItems = new UI.ListModel.ListModel<SDK.Target.Target>();
+  readonly listItems: UI.ListModel.ListModel<SDK.Target.Target>;
   readonly #dropDown: UI.SoftDropDown.SoftDropDown<SDK.Target.Target>;
   readonly #toolbarItem: UI.Toolbar.ToolbarItem;
 
   constructor() {
+    this.listItems = new UI.ListModel.ListModel();
     this.#dropDown = new UI.SoftDropDown.SoftDropDown(this.listItems, this);
     this.#dropDown.setRowHeight(36);
     this.#toolbarItem = new UI.Toolbar.ToolbarItem(this.#dropDown.element);
     this.#toolbarItem.setTitle(i18nString(UIStrings.targetNotSelected));
     this.listItems.addEventListener(
-        UI.ListModel.Events.ITEMS_REPLACED, () => this.#toolbarItem.setEnabled(Boolean(this.listItems.length)));
+        UI.ListModel.Events.ItemsReplaced, () => this.#toolbarItem.setEnabled(Boolean(this.listItems.length)));
 
     this.#toolbarItem.element.classList.add('toolbar-has-dropdown');
     const targetManager = SDK.TargetManager.TargetManager.instance();
     targetManager.addModelListener(
-        SDK.ChildTargetManager.ChildTargetManager, SDK.ChildTargetManager.Events.TARGET_INFO_CHANGED,
+        SDK.ChildTargetManager.ChildTargetManager, SDK.ChildTargetManager.Events.TargetInfoChanged,
         this.#onTargetInfoChanged, this);
-    targetManager.addEventListener(SDK.TargetManager.Events.NAME_CHANGED, this.#onInspectedURLChanged, this);
+    targetManager.addEventListener(SDK.TargetManager.Events.NameChanged, this.#onInspectedURLChanged, this);
     targetManager.observeTargets(this);
 
     UI.Context.Context.instance().addFlavorChangeListener(SDK.Target.Target, this.#targetChanged, this);
@@ -150,7 +151,8 @@ export class OutermostTargetSelector implements SDK.TargetManager.Observer, UI.S
   createElementForItem(item: SDK.Target.Target): Element {
     const element = document.createElement('div');
     element.classList.add('target');
-    const shadowRoot = UI.UIUtils.createShadowRootWithCoreStyles(element, {cssFile: outermostTargetSelectorStyles});
+    const shadowRoot = UI.UIUtils.createShadowRootWithCoreStyles(
+        element, {cssFile: [outermostTargetSelectorStyles], delegatesFocus: undefined});
     const title = shadowRoot.createChild('div', 'title');
     UI.UIUtils.createTextChild(title, Platform.StringUtilities.trimEndWithMaxLength(this.titleFor(item), 100));
     const subTitle = shadowRoot.createChild('div', 'subtitle');

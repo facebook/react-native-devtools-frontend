@@ -8,15 +8,16 @@ describe('TextUtils', () => {
   describe('Utils', () => {
     describe('isSpaceChar', () => {
       it('returns the correct result for various inputs', () => {
-        assert.isTrue(TextUtils.TextUtils.Utils.isSpaceChar(' '), 'space was not a space char');
-        assert.isTrue(TextUtils.TextUtils.Utils.isSpaceChar('\t'), 'tab was not a space char');
-        assert.isTrue(TextUtils.TextUtils.Utils.isSpaceChar('\f'), 'formfeed was not a space char');
-        assert.isTrue(TextUtils.TextUtils.Utils.isSpaceChar('\r'), 'return was not a space char');
-        assert.isTrue(TextUtils.TextUtils.Utils.isSpaceChar('\v'), 'vertical tab was not a space char');
-        assert.isTrue(TextUtils.TextUtils.Utils.isSpaceChar('\xA0'), 'non-breaking space was not a space char');
-        assert.isFalse(TextUtils.TextUtils.Utils.isSpaceChar('\0'), 'null was a space char');
-        assert.isFalse(TextUtils.TextUtils.Utils.isSpaceChar('a'), 'a was a space char');
-        assert.isFalse(TextUtils.TextUtils.Utils.isSpaceChar('A'), 'A was a space char');
+        assert.strictEqual(TextUtils.TextUtils.Utils.isSpaceChar(' '), true, 'space was not a space char');
+        assert.strictEqual(TextUtils.TextUtils.Utils.isSpaceChar('\t'), true, 'tab was not a space char');
+        assert.strictEqual(TextUtils.TextUtils.Utils.isSpaceChar('\f'), true, 'formfeed was not a space char');
+        assert.strictEqual(TextUtils.TextUtils.Utils.isSpaceChar('\r'), true, 'return was not a space char');
+        assert.strictEqual(TextUtils.TextUtils.Utils.isSpaceChar('\v'), true, 'vertical tab was not a space char');
+        assert.strictEqual(
+            TextUtils.TextUtils.Utils.isSpaceChar('\xA0'), true, 'non-breaking space was not a space char');
+        assert.strictEqual(TextUtils.TextUtils.Utils.isSpaceChar('\0'), false, 'null was a space char');
+        assert.strictEqual(TextUtils.TextUtils.Utils.isSpaceChar('a'), false, 'a was a space char');
+        assert.strictEqual(TextUtils.TextUtils.Utils.isSpaceChar('A'), false, 'A was a space char');
       });
     });
 
@@ -30,17 +31,17 @@ describe('TextUtils', () => {
     describe('splitStringByRegexes', () => {
       it('returns the correct result for a single regex', () => {
         let result = TextUtils.TextUtils.Utils.splitStringByRegexes('', [/a/]);
-        assert.lengthOf(result, 0, 'length was wrong');
+        assert.strictEqual(result.length, 0, 'length was wrong');
 
         result = TextUtils.TextUtils.Utils.splitStringByRegexes('a', [/a/]);
-        assert.lengthOf(result, 1, 'length was wrong');
+        assert.strictEqual(result.length, 1, 'length was wrong');
         assert.strictEqual(result[0].value, 'a', 'value was wrong');
         assert.strictEqual(result[0].position, 0, 'position was wrong');
         assert.strictEqual(result[0].regexIndex, 0, 'regex index was wrong');
         assert.deepEqual(result[0].captureGroups, [], 'capture groups was not empty');
 
         result = TextUtils.TextUtils.Utils.splitStringByRegexes('ba b', [/a/]);
-        assert.lengthOf(result, 3, 'length was wrong');
+        assert.strictEqual(result.length, 3, 'length was wrong');
         assert.strictEqual(result[0].value, 'b', 'value was wrong');
         assert.strictEqual(result[0].position, 0, 'position was wrong');
         assert.strictEqual(result[0].regexIndex, -1, 'regex index was wrong');
@@ -56,17 +57,17 @@ describe('TextUtils', () => {
       });
       it('returns the correct result for a multiple regexs', () => {
         let result = TextUtils.TextUtils.Utils.splitStringByRegexes('', [/a/, /b/]);
-        assert.lengthOf(result, 0, 'length was wrong');
+        assert.strictEqual(result.length, 0, 'length was wrong');
 
         result = TextUtils.TextUtils.Utils.splitStringByRegexes('a', [/a/, /b/]);
-        assert.lengthOf(result, 1, 'length was wrong');
+        assert.strictEqual(result.length, 1, 'length was wrong');
         assert.strictEqual(result[0].value, 'a', 'value was wrong');
         assert.strictEqual(result[0].position, 0, 'position was wrong');
         assert.strictEqual(result[0].regexIndex, 0, 'regex index was wrong');
         assert.deepEqual(result[0].captureGroups, [], 'capture groups was not empty');
 
         result = TextUtils.TextUtils.Utils.splitStringByRegexes('ba b', [/a/, /b/]);
-        assert.lengthOf(result, 4, 'length was wrong');
+        assert.strictEqual(result.length, 4, 'length was wrong');
         assert.strictEqual(result[0].value, 'b', 'value was wrong');
         assert.strictEqual(result[0].position, 0, 'position was wrong');
         assert.strictEqual(result[0].regexIndex, 1, 'regex index was wrong');
@@ -86,10 +87,10 @@ describe('TextUtils', () => {
       });
       it('returns the correct result for global regexs', () => {
         let result = TextUtils.TextUtils.Utils.splitStringByRegexes('', [/a/g, /b/g]);
-        assert.lengthOf(result, 0, 'length was wrong');
+        assert.strictEqual(result.length, 0, 'length was wrong');
 
         result = TextUtils.TextUtils.Utils.splitStringByRegexes('a', [/a/g, /b/g]);
-        assert.lengthOf(result, 1, 'length was wrong');
+        assert.strictEqual(result.length, 1, 'length was wrong');
         assert.strictEqual(result[0].value, 'a', 'value was wrong');
         assert.strictEqual(result[0].position, 0, 'position was wrong');
         assert.strictEqual(result[0].regexIndex, 0, 'regex index was wrong');
@@ -104,7 +105,7 @@ describe('TextUtils', () => {
       const filterParser = new TextUtils.TextUtils.FilterParser(['TestVal1']);
       const result = filterParser.parse(testVal);
       assert.strictEqual(result[0].text, testVal, 'text value was not returned correctly');
-      assert.isFalse(result[0].negative, 'negative value was not returned correctly');
+      assert.strictEqual(result[0].negative, false, 'negative value was not returned correctly');
     });
 
     describe('parse', () => {
@@ -120,7 +121,7 @@ describe('TextUtils', () => {
         const filterParser = new TextUtils.TextUtils.FilterParser(['key1', 'key2']);
 
         const parse = (text: string) => {
-          return filterParser.parse(text) as Array<{key?: string, text?: string, regex?: RegExp, negative: boolean}>;
+          return filterParser.parse(text) as {key?: string, text?: string, regex?: RegExp, negative: boolean}[];
         };
 
         let result = parse('text');
@@ -147,47 +148,47 @@ describe('TextUtils', () => {
 
         result = parse('/regex/');
         assert.deepEqual(
-            result[0], {key: undefined, regex: /regex/im, text: undefined, negative: false}, 'result was incorrect');
+            result[0], {key: undefined, regex: /regex/i, text: undefined, negative: false}, 'result was incorrect');
 
         result = parse('/regex/ /another/');
         assert.deepEqual(
-            result[0], {key: undefined, regex: /regex/im, text: undefined, negative: false}, 'result was incorrect');
+            result[0], {key: undefined, regex: /regex/i, text: undefined, negative: false}, 'result was incorrect');
         assert.deepEqual(
-            result[1], {key: undefined, regex: /another/im, text: undefined, negative: false}, 'result was incorrect');
+            result[1], {key: undefined, regex: /another/i, text: undefined, negative: false}, 'result was incorrect');
 
         result = parse(String.raw`/complex\/regex/`);
         assert.deepEqual(
-            result[0], {key: undefined, regex: /complex\/regex/im, text: undefined, negative: false},
+            result[0], {key: undefined, regex: /complex\/regex/i, text: undefined, negative: false},
             'result was incorrect');
 
         result = parse(String.raw`/regex\?/`);
         assert.deepEqual(
-            result[0], {key: undefined, regex: /regex\?/im, text: undefined, negative: false}, 'result was incorrect');
+            result[0], {key: undefined, regex: /regex\?/i, text: undefined, negative: false}, 'result was incorrect');
 
         result = parse(String.raw`/regex\//`);
         assert.deepEqual(
-            result[0], {key: undefined, regex: /regex\//im, text: undefined, negative: false}, 'result was incorrect');
+            result[0], {key: undefined, regex: /regex\//i, text: undefined, negative: false}, 'result was incorrect');
 
         result = parse(String.raw`/regex\?/ text`);
         assert.deepEqual(
-            result[0], {key: undefined, regex: /regex\?/im, text: undefined, negative: false}, 'result was incorrect');
+            result[0], {key: undefined, regex: /regex\?/i, text: undefined, negative: false}, 'result was incorrect');
         assert.deepEqual(
             result[1], {key: undefined, regex: undefined, text: 'text', negative: false}, 'result was incorrect');
 
         result = parse('/regex with spaces/');
         assert.deepEqual(
-            result[0], {key: undefined, regex: /regex with spaces/im, text: undefined, negative: false},
+            result[0], {key: undefined, regex: /regex with spaces/i, text: undefined, negative: false},
             'result was incorrect');
 
         result = parse('/regex/ text');
         assert.deepEqual(
-            result[0], {key: undefined, regex: /regex/im, text: undefined, negative: false}, 'result was incorrect');
+            result[0], {key: undefined, regex: /regex/i, text: undefined, negative: false}, 'result was incorrect');
         assert.deepEqual(
             result[1], {key: undefined, regex: undefined, text: 'text', negative: false}, 'result was incorrect');
 
         result = parse('/regex with spaces/ text');
         assert.deepEqual(
-            result[0], {key: undefined, regex: /regex with spaces/im, text: undefined, negative: false},
+            result[0], {key: undefined, regex: /regex with spaces/i, text: undefined, negative: false},
             'result was incorrect');
         assert.deepEqual(
             result[1], {key: undefined, regex: undefined, text: 'text', negative: false}, 'result was incorrect');
@@ -329,7 +330,7 @@ describe('TextUtils', () => {
       assert.strictEqual(cloned.key, 'a', 'key was incorrect');
       assert.strictEqual(cloned.text, 'b', 'text was incorrect');
       assert.deepEqual(cloned.regex, /a/, 'regex was incorrect');
-      assert.isTrue(cloned.negative, 'negative was incorrect');
+      assert.strictEqual(cloned.negative, true, 'negative was incorrect');
     });
   });
 
@@ -350,11 +351,11 @@ describe('TextUtils', () => {
       const tokenizer = new TextUtils.TextUtils.BalancedJSONTokenizer(callback, findMultiple);
 
       let result = tokenizer.write('a');
-      assert.isTrue(result, 'return value was incorrect');
+      assert.strictEqual(result, true, 'return value was incorrect');
       assert.deepEqual(callbackResults, [], 'callback was called');
 
       result = tokenizer.write('{}');
-      assert.isTrue(result, 'return value was incorrect');
+      assert.strictEqual(result, true, 'return value was incorrect');
       assert.deepEqual(callbackResults, ['a{}'], 'callback had unexpected results');
     });
 
@@ -367,7 +368,7 @@ describe('TextUtils', () => {
       const tokenizer = new TextUtils.TextUtils.BalancedJSONTokenizer(callback, findMultiple);
 
       const result = tokenizer.write('{}}');
-      assert.isTrue(result, 'return value was incorrect');
+      assert.strictEqual(result, true, 'return value was incorrect');
       assert.deepEqual(callbackResults, ['{}'], 'callback had unexpected results');
       assert.strictEqual(tokenizer.remainder(), '}', 'remainder was incorrect');
     });
@@ -381,7 +382,7 @@ describe('TextUtils', () => {
       const tokenizer = new TextUtils.TextUtils.BalancedJSONTokenizer(callback, findMultiple);
 
       const result = tokenizer.write('"""');
-      assert.isTrue(result, 'return value was incorrect');
+      assert.strictEqual(result, true, 'return value was incorrect');
       assert.deepEqual(callbackResults, [], 'callback had unexpected results');
       assert.strictEqual(tokenizer.remainder(), '"""', 'remainder was incorrect');
     });
@@ -395,7 +396,7 @@ describe('TextUtils', () => {
       const tokenizer = new TextUtils.TextUtils.BalancedJSONTokenizer(callback, findMultiple);
 
       const result = tokenizer.write('}}');
-      assert.isFalse(result, 'return value was incorrect');
+      assert.strictEqual(result, false, 'return value was incorrect');
       assert.deepEqual(callbackResults, [], 'callback had unexpected results');
       assert.strictEqual(tokenizer.remainder(), '}}', 'remainder was incorrect');
     });
@@ -409,7 +410,7 @@ describe('TextUtils', () => {
       const tokenizer = new TextUtils.TextUtils.BalancedJSONTokenizer(callback, findMultiple);
 
       const result = tokenizer.write(']]');
-      assert.isFalse(result, 'return value was incorrect');
+      assert.strictEqual(result, false, 'return value was incorrect');
       assert.deepEqual(callbackResults, [], 'callback had unexpected results');
       assert.strictEqual(tokenizer.remainder(), ']]', 'remainder was incorrect');
     });
@@ -420,7 +421,7 @@ describe('TextUtils', () => {
 
     it('handles empty string', () => {
       const result = isMinified('');
-      assert.isFalse(result, 'was minified');
+      assert.strictEqual(result, false, 'was minified');
     });
 
     it('correctly detects a minified HTML document', () => {
@@ -431,7 +432,7 @@ describe('TextUtils', () => {
 <style>* { color: black; }</style>
 </html>
 `;
-      assert.isTrue(isMinified(text));
+      assert.strictEqual(isMinified(text), true);
     });
 
     it('correctly detects minified Closure-style modules', () => {
@@ -449,7 +450,7 @@ for(let e=0;e<l.lineCount();++e){const t=l.lineAt(e);s.lastIndex=0;const i=s.exe
 }catch(e){_._DumpException(e)}
 //# sourceMappingURL=http://some.staging-system.some-company.com/path/to/my/amazing/sourcemap/for/this/file.js.map
 // Some Company.`;
-      assert.isTrue(isMinified(text));
+      assert.strictEqual(isMinified(text), true);
     });
 
     it('doesn\'t detect JavaScript with one very long line in the end as minified', () => {
@@ -463,7 +464,7 @@ for(let e=0;e<l.lineCount();++e){const t=l.lineAt(e);s.lastIndex=0;const i=s.exe
       }
       exports += '};\n';
       const text = `${functions}${exports}`;
-      assert.isFalse(isMinified(text));
+      assert.strictEqual(isMinified(text), false);
     });
   });
 
@@ -690,6 +691,15 @@ export class ApiProxy {
             },
         });
     }
+    async setRealTarget(target) {
+        this.target = target;
+        for (const item of this.onQueue) {
+            this.target.on[item.method](...item.args);
+        }
+        for (const item of this.targetQueue) {
+            item.resolve(await this.target[item.method](...item.args));
+        }
+    }
 }`.split('\n')),
           '    ');
     });
@@ -699,8 +709,7 @@ export class ApiProxy {
     it('returns an entry for each match on the same line', () => {
       const lines = ['The first line with a second "the".', 'The second line.'];
 
-      const result =
-          TextUtils.TextUtils.performSearchInContent(new TextUtils.Text.Text(lines.join('\n')), 'the', false, false);
+      const result = TextUtils.TextUtils.performSearchInContent(lines.join('\n'), 'the', false, false);
 
       assert.deepEqual(result, [
         new TextUtils.ContentProvider.SearchMatch(0, lines[0], 0, 3),

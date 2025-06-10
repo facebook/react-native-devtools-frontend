@@ -8,21 +8,25 @@
   border: none;
 }
 
-::part(url-outer) {
+.data-grid td .url-outer {
   width: 100%;
   display: inline-flex;
   justify-content: flex-start;
 }
 
-::part(filter-highlight) {
+.data-grid td .url-outer .filter-highlight {
   font-weight: bold;
 }
 
-::part(url-prefix) {
+.data-grid td .url-prefix {
   overflow-x: hidden;
   text-overflow: ellipsis;
 }
 
-::part(url-suffix) {
+.data-grid td .url-suffix {
   flex: none;
+}
+
+.data-grid td.error-message .filter-highlight {
+  font-weight: bold;
 }

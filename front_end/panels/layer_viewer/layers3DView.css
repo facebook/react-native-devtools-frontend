@@ -7,15 +7,9 @@
 .layers-3d-view {
   overflow: hidden;
   user-select: none;
-
-  > .empty-view-scroller{
-    inset: 0;
-    position: absolute;
-    background-color: var(--sys-color-cdt-base-container);
-  }
 }
 
-devtools-toolbar {
+.toolbar {
   background-color: var(--sys-color-cdt-base-container);
   border-bottom: 1px solid var(--sys-color-divider);
 }

@@ -3,7 +3,8 @@
 // found in the LICENSE file.
 
 import type * as Protocol from '../../generated/protocol.js';
-import * as Trace from '../../models/trace/trace.js';
+import type * as TimelineModel from '../../models/timeline_model/timeline_model.js';
+import type * as TraceEngine from '../../models/trace/trace.js';
 import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
 import {makeInstantEvent} from '../../testing/TraceHelpers.js';
 
@@ -48,11 +49,11 @@ describeWithEnvironment('TimelineLoader', () => {
       processingStartedSpy();
     },
     async loadingComplete(
-        collectedEvents: Trace.Types.Events.Event[],
-        exclusiveFilter: Trace.Extras.TraceFilter.TraceFilter|null,
-        metadata: Trace.Types.File.MetaData,
+        collectedEvents: TraceEngine.Types.TraceEvents.TraceEventData[],
+        exclusiveFilter: TimelineModel.TimelineModelFilter.TimelineModelFilter|null,
+        isCpuProfile: boolean,
     ) {
-      loadingCompleteSpy(collectedEvents, exclusiveFilter, metadata);
+      loadingCompleteSpy(collectedEvents, exclusiveFilter, isCpuProfile);
     },
     recordingProgress: function(usage: number): void {
       recordingProgressSpy(usage);
@@ -87,12 +88,12 @@ describeWithEnvironment('TimelineLoader', () => {
     // function. TS doesn't know what the types are (they are [any, any] by
     // default), so we tell it that they align with the types of the
     // loadingComplete parameters.
-    const [collectedEvents, exclusiveFilter, metadata] =
+    const [collectedEvents, exclusiveFilter, isCpuProfile] =
         loadingCompleteSpy.args[0] as Parameters<Timeline.TimelineController.Client['loadingComplete']>;
     assert.isNull(exclusiveFilter);  // We are not filtering out any events for this trace.
     // Ensure that we loaded something that looks about right!
     assert.lengthOf(collectedEvents, 8252);
-    assert.notStrictEqual(metadata?.dataOrigin, Trace.Types.File.DataOrigin.CPU_PROFILE);
+    assert.isFalse(isCpuProfile);
   });
 
   it('can load a saved CPUProfile file', async () => {
@@ -110,17 +111,17 @@ describeWithEnvironment('TimelineLoader', () => {
     // function. TS doesn't know what the types are (they are [any, any] by
     // default), so we tell it that they align with the types of the
     // loadingComplete parameters.
-    const [collectedEvents, /* exclusiveFilter */, metadata] =
+    const [collectedEvents, /* exclusiveFilter */, isCpuProfile] =
         loadingCompleteSpy.args[0] as Parameters<Timeline.TimelineController.Client['loadingComplete']>;
     // We create fake trace event for CPU profile, includes one for
     // TracingStartedInPage, one for metadata, one for root, and one for CPU
     // profile
     assert.lengthOf(collectedEvents, 4);
-    assert.strictEqual(metadata?.dataOrigin, Trace.Types.File.DataOrigin.CPU_PROFILE);
+    assert.isTrue(isCpuProfile);
   });
 
   it('can load recorded trace events correctly', async () => {
-    const testTraceEvents: Trace.Types.Events.Event[] = [
+    const testTraceEvents: TraceEngine.Types.TraceEvents.TraceEventData[] = [
       makeInstantEvent('test-event-1', 1),
       makeInstantEvent('test-event-2', 2),
     ];
@@ -137,12 +138,12 @@ describeWithEnvironment('TimelineLoader', () => {
     // function. TS doesn't know what the types are (they are [any, any] by
     // default), so we tell it that they align with the types of the
     // loadingComplete parameters.
-    const [collectedEvents, exclusiveFilter, metadata] =
+    const [collectedEvents, exclusiveFilter, isCpuProfile] =
         loadingCompleteSpy.args[0] as Parameters<Timeline.TimelineController.Client['loadingComplete']>;
     assert.isNull(exclusiveFilter);
     // Ensure that we loaded something that looks about right!
     assert.lengthOf(collectedEvents, testTraceEvents.length);
-    assert.notStrictEqual(metadata?.dataOrigin, Trace.Types.File.DataOrigin.CPU_PROFILE);
+    assert.isFalse(isCpuProfile);
   });
 
   it('can load recorded CPUProfile correctly', async () => {
@@ -160,11 +161,11 @@ describeWithEnvironment('TimelineLoader', () => {
     // function. TS doesn't know what the types are (they are [any, any] by
     // default), so we tell it that they align with the types of the
     // loadingComplete parameters.
-    const [collectedEvents, /* exclusiveFilter */, metadata] =
+    const [collectedEvents, /* exclusiveFilter */, isCpuProfile] =
         loadingCompleteSpy.args[0] as Parameters<Timeline.TimelineController.Client['loadingComplete']>;
     // We create fake trace event for CPU profile, includes one for TracingStartedInPage,
     // one for metadata, one for root, and one for CPU profile
     assert.lengthOf(collectedEvents, 4);
-    assert.strictEqual(metadata?.dataOrigin, Trace.Types.File.DataOrigin.CPU_PROFILE);
+    assert.isTrue(isCpuProfile);
   });
 });

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Platform from '../../core/platform/platform.js';
+import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
@@ -19,8 +19,6 @@ import * as Bindings from '../bindings/bindings.js';
 import * as Breakpoints from '../breakpoints/breakpoints.js';
 import * as Persistence from '../persistence/persistence.js';
 import * as Workspace from '../workspace/workspace.js';
-
-const {urlString} = Platform.DevToolsPath;
 
 describeWithMockConnection('PersistenceImpl', () => {
   const FILE_SYSTEM_BREAK_ID = 'BREAK_ID' as Protocol.Debugger.BreakpointId;
@@ -41,7 +39,7 @@ describeWithMockConnection('PersistenceImpl', () => {
           ];
 
   const SCRIPT_DESCRIPTION = {
-    url: urlString`http://www.google.com/script.js`,
+    url: 'http://www.google.com/script.js' as Platform.DevToolsPath.UrlString,
     content: 'console.log(1);\nconsole.log(2);\n',
     startLine: 0,
     startColumn: 0,
@@ -112,15 +110,10 @@ describeWithMockConnection('PersistenceImpl', () => {
   }
 
   it('moves breakpoint from file system uiSourceCode to the network uiSourceCode when binding is created', async () => {
-    const fileSystemPath = urlString`file://path/to/filesystem`;
-    const fileSystemFileUrl = urlString`${fileSystemPath + '/script.js'}`;
+    const fileSystemPath = 'file://path/to/filesystem' as Platform.DevToolsPath.UrlString;
+    const fileSystemFileUrl = fileSystemPath + '/script.js' as Platform.DevToolsPath.UrlString;
     const {uiSourceCode: fileSystemUiSourceCode, project} = createFileSystemFileForPersistenceTests(
-        {
-          fileSystemPath,
-          fileSystemFileUrl,
-          type: Persistence.PlatformFileSystem.PlatformFileSystemType.WORKSPACE_PROJECT
-        },
-        SCRIPT_DESCRIPTION.url, SCRIPT_DESCRIPTION.content, target);
+        {fileSystemPath, fileSystemFileUrl, type: ''}, SCRIPT_DESCRIPTION.url, SCRIPT_DESCRIPTION.content, target);
     const breakpointLine = 0;
 
     // Set the breakpoint response for our upcoming request.
@@ -142,15 +135,10 @@ describeWithMockConnection('PersistenceImpl', () => {
 
   it('copies breakpoint from network uiSourceCode to the file system uiSourceCode when binding is removed ',
      async () => {
-       const fileSystemPath = urlString`file://path/to/filesystem`;
-       const fileSystemFileUrl = urlString`${fileSystemPath + '/script.js'}`;
+       const fileSystemPath = 'file://path/to/filesystem' as Platform.DevToolsPath.UrlString;
+       const fileSystemFileUrl = fileSystemPath + '/script.js' as Platform.DevToolsPath.UrlString;
        const {uiSourceCode: fileSystemUiSourceCode, project} = createFileSystemFileForPersistenceTests(
-           {
-             fileSystemPath,
-             fileSystemFileUrl,
-             type: Persistence.PlatformFileSystem.PlatformFileSystemType.WORKSPACE_PROJECT
-           },
-           SCRIPT_DESCRIPTION.url, SCRIPT_DESCRIPTION.content, target);
+           {fileSystemPath, fileSystemFileUrl, type: ''}, SCRIPT_DESCRIPTION.url, SCRIPT_DESCRIPTION.content, target);
        const breakpointLine = 0;
 
        // Set the breakpoint response for our upcoming request.
@@ -193,7 +181,7 @@ describeWithMockConnection('PersistenceImpl', () => {
   // Replaces web test: http/tests/devtools/persistence/automapping-bind-committed-network-sourcecode.js
   it('it marks the filesystem UISourceCode dirty when the network UISourceCode was committed before the binding was established',
      async () => {
-       const url = urlString`https://example.com/script.js`;
+       const url = 'https://example.com/script.js' as Platform.DevToolsPath.UrlString;
        const origContent = 'window.foo = () => "foo";\n';
        const {uiSourceCode: networkUISourceCode} = createContentProviderUISourceCode({
          url,
@@ -210,7 +198,7 @@ describeWithMockConnection('PersistenceImpl', () => {
        // Add a filesystem version of 'script.js' with the original content.
        const mappingPromise =
            Persistence.Persistence.PersistenceImpl.instance().once(Persistence.Persistence.Events.BindingCreated);
-       const localUrl = urlString`file:///var/www/script.js`;
+       const localUrl = 'file:///var/www/script.js' as Platform.DevToolsPath.UrlString;
        const {uiSourceCode} = createFileSystemUISourceCode({
          url: localUrl,
          mimeType: 'text/javascript',

@@ -110,7 +110,7 @@ const UIStrings = {
    *@example {"script-src 'self'"} PH1
    */
   scriptBlockedDueToContent: 'Script blocked due to Content Security Policy directive: {PH1}',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/sources/DebuggerPausedMessage.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
@@ -123,9 +123,9 @@ export class DebuggerPausedMessage {
     this.elementInternal.classList.add('paused-message');
     this.elementInternal.classList.add('flex-none');
     this.elementInternal.setAttribute('jslog', `${VisualLogging.dialog('debugger-paused')}`);
-    const root =
-        UI.UIUtils.createShadowRootWithCoreStyles(this.elementInternal, {cssFile: debuggerPausedMessageStyles});
-    this.contentElement = root.createChild('div');
+    const root = UI.UIUtils.createShadowRootWithCoreStyles(
+        this.elementInternal, {cssFile: [debuggerPausedMessageStyles], delegatesFocus: undefined});
+    this.contentElement = (root.createChild('div') as HTMLElement);
     UI.ARIAUtils.markAsPoliteLiveRegion(this.elementInternal, false);
   }
 
@@ -265,7 +265,8 @@ export class DebuggerPausedMessage {
     } else if (details.reason === Protocol.Debugger.PausedEventReason.OOM) {
       messageWrapper = buildWrapper(i18nString(UIStrings.pausedBeforePotentialOutofmemory));
     } else if (
-        details.reason === Protocol.Debugger.PausedEventReason.CSPViolation && details.auxData?.['violationType']) {
+        details.reason === Protocol.Debugger.PausedEventReason.CSPViolation && details.auxData &&
+        details.auxData['violationType']) {
       const text = (details.auxData['violationType'] as string);
       if (text === Protocol.DOMDebugger.CSPViolationType.TrustedtypeSinkViolation) {
         messageWrapper =

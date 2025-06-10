@@ -15,7 +15,7 @@ describe('FormattedContentBuilder', () => {
     const formattedContentBuilder = new FormatterWorker.FormattedContentBuilder.FormattedContentBuilder('  ');
     formattedContentBuilder.setEnforceSpaceBetweenWords(false);
     const result = formattedContentBuilder.setEnforceSpaceBetweenWords(true);
-    assert.isFalse(result);
+    assert.strictEqual(result, false);
   });
 
   it('should squash new lines by default', () => {

@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import {assert} from 'chai';
-import type {ElementHandle} from 'puppeteer-core';
+import {type ElementHandle} from 'puppeteer-core';
 
 import {
   $,
@@ -27,16 +27,8 @@ export async function navigateToLighthouseTab(path?: string): Promise<ElementHan
     lighthouseTabButton = await waitForElementWithTextContent('Lighthouse');
   }
 
-  // TODO(b/388183157): Investigate why a single click doesn't open the tab properly sometimes
-  const interval = setInterval(() => {
-    void lighthouseTabButton.click();
-  }, 500);
-
-  try {
-    await waitFor('.view-container > .lighthouse');
-  } finally {
-    clearInterval(interval);
-  }
+  await lighthouseTabButton.click();
+  await waitFor('.view-container > .lighthouse');
 
   const {target, frontend} = getBrowserAndPages();
   if (path) {
@@ -45,7 +37,7 @@ export async function navigateToLighthouseTab(path?: string): Promise<ElementHan
     await frontend.bringToFront();
   }
 
-  return await waitFor('.lighthouse-start-view');
+  return waitFor('.lighthouse-start-view');
 }
 
 // Instead of watching the worker or controller/panel internals, we wait for the Lighthouse renderer
@@ -91,7 +83,7 @@ type CheckboxLabel = Element&{checkboxElement: HTMLInputElement};
  */
 export async function selectCategories(selectedCategoryIds: string[]) {
   const startViewHandle = await waitFor('.lighthouse-start-view');
-  const checkboxHandles = await startViewHandle.$$('dt-checkbox');
+  const checkboxHandles = await startViewHandle.$$('[is=dt-checkbox]');
   for (const checkboxHandle of checkboxHandles) {
     await checkboxHandle.evaluate((dtCheckboxElem, selectedCategoryIds: string[]) => {
       const elem = dtCheckboxElem as CheckboxLabel;
@@ -120,7 +112,7 @@ export async function selectDevice(device: 'mobile'|'desktop') {
 }
 
 export async function setToolbarCheckboxWithText(enabled: boolean, textContext: string) {
-  const toolbarHandle = await waitFor('.lighthouse-settings-pane .lighthouse-settings-toolbar');
+  const toolbarHandle = await waitFor('.lighthouse-settings-pane .toolbar');
   const label = await waitForElementWithTextContent(textContext, toolbarHandle);
   await label.evaluate((label, enabled: boolean) => {
     const rootNode = label.getRootNode() as ShadowRoot;
@@ -132,9 +124,9 @@ export async function setToolbarCheckboxWithText(enabled: boolean, textContext: 
 }
 
 export async function setThrottlingMethod(throttlingMethod: 'simulate'|'devtools') {
-  const toolbarHandle = await waitFor('.lighthouse-settings-pane .lighthouse-settings-toolbar');
+  const toolbarHandle = await waitFor('.lighthouse-settings-pane .toolbar');
   await toolbarHandle.evaluate((toolbar, throttlingMethod) => {
-    const selectElem = toolbar.querySelector('select')!;
+    const selectElem = toolbar.shadowRoot?.querySelector('select') as HTMLSelectElement;
     const optionElem = selectElem.querySelector(`option[value="${throttlingMethod}"]`) as HTMLOptionElement;
     optionElem.selected = true;
     selectElem.dispatchEvent(new Event('change'));  // Need change event to update the backing setting.
@@ -146,14 +138,15 @@ export async function clickStartButton() {
 }
 
 export async function isGenerateReportButtonDisabled() {
-  const buttonContainer = await waitFor<HTMLElement>('.lighthouse-start-button-container');
-  const button = await waitFor('button', buttonContainer);
-  return await button.evaluate(element => element.hasAttribute('disabled'));
+  const button = await waitFor<HTMLElement>('.lighthouse-start-view devtools-button');
+  return button.evaluate(element => {
+    return element.hasAttribute('disabled');
+  });
 }
 
 export async function getHelpText() {
   const helpTextHandle = await waitFor('.lighthouse-start-view .lighthouse-help-text');
-  return await helpTextHandle.evaluate(helpTextEl => helpTextEl.textContent);
+  return helpTextHandle.evaluate(helpTextEl => helpTextEl.textContent);
 }
 
 export async function openStorageView() {
@@ -178,7 +171,7 @@ export async function waitForStorageUsage(p: (quota: number) => boolean) {
 }
 
 export async function waitForTimespanStarted() {
-  await waitForElementWithTextContent('Timespan started');
+  await waitForElementWithTextContent('Timespan started, interact with the page');
 }
 
 export async function endTimespan() {
@@ -189,7 +182,7 @@ export async function endTimespan() {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getAuditsBreakdown(lhr: any, flakyAudits: string[] = []) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const auditResults = Object.values<any>(lhr.audits);
+  const auditResults = Object.values(lhr.audits) as any[];
   const irrelevantDisplayModes = new Set(['notApplicable', 'manual']);
   const applicableAudits = auditResults.filter(
       audit => !irrelevantDisplayModes.has(audit.scoreDisplayMode),
@@ -214,18 +207,18 @@ export function getAuditsBreakdown(lhr: any, flakyAudits: string[] = []) {
 
 export async function getTargetViewport() {
   const {target} = await getBrowserAndPages();
-  return await target.evaluate(() => ({
-                                 innerHeight: window.innerHeight,
-                                 innerWidth: window.innerWidth,
-                                 outerWidth: window.outerWidth,
-                                 outerHeight: window.outerHeight,
-                                 devicePixelRatio: window.devicePixelRatio,
-                               }));
+  return target.evaluate(() => ({
+                           innerHeight: window.innerHeight,
+                           innerWidth: window.innerWidth,
+                           outerWidth: window.outerWidth,
+                           outerHeight: window.outerHeight,
+                           devicePixelRatio: window.devicePixelRatio,
+                         }));
 }
 
 export async function getServiceWorkerCount() {
   const {target} = await getBrowserAndPages();
-  return await target.evaluate(async () => {
+  return target.evaluate(async () => {
     return (await navigator.serviceWorker.getRegistrations()).length;
   });
 }
@@ -250,7 +243,7 @@ export async function interceptNextFileSave(): Promise<() => Promise<string>> {
         resolve(content);
       };
     });
-    void nextFilePromise.finally(() => {
+    nextFilePromise.finally(() => {
       // @ts-expect-error
       InspectorFrontendHost.save = original;
     });

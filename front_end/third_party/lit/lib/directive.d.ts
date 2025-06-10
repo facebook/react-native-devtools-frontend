@@ -1,8 +1,4 @@
-declare class TrustedHTML {
-    private constructor(); // To prevent instantiting with 'new'.
-    private brand: true; // To prevent structural typing.
-}
-
+/// <reference types="trusted-types" />
 /**
  * @license
  * Copyright 2017 Google LLC
@@ -24,18 +20,14 @@ type ValueSanitizer = (value: unknown) => unknown;
 /** TemplateResult types */
 declare const HTML_RESULT = 1;
 declare const SVG_RESULT = 2;
-declare const MATHML_RESULT = 3;
-type ResultType = typeof HTML_RESULT | typeof SVG_RESULT | typeof MATHML_RESULT;
+type ResultType = typeof HTML_RESULT | typeof SVG_RESULT;
 declare const ATTRIBUTE_PART = 1;
 declare const CHILD_PART = 2;
-declare const PROPERTY_PART = 3;
-declare const BOOLEAN_ATTRIBUTE_PART = 4;
-declare const EVENT_PART = 5;
 declare const ELEMENT_PART = 6;
 declare const COMMENT_PART = 7;
 /**
  * The return type of the template tag functions, {@linkcode html} and
- * {@linkcode svg} when it hasn't been compiled by @lit-labs/compiler.
+ * {@linkcode svg}.
  *
  * A `TemplateResult` object holds all the information about a template
  * expression required to render it: the template strings, expression values,
@@ -46,7 +38,7 @@ declare const COMMENT_PART = 7;
  * [Rendering](https://lit.dev/docs/components/rendering) for more information.
  *
  */
-type UncompiledTemplateResult<T extends ResultType = ResultType> = {
+type TemplateResult<T extends ResultType = ResultType> = {
     ['_$litType$']: T;
     strings: TemplateStringsArray;
     values: unknown[];
@@ -95,7 +87,7 @@ interface DirectiveParent {
 }
 declare class Template {
     parts: Array<TemplatePart>;
-    constructor({ strings, ['_$litType$']: type }: UncompiledTemplateResult, options?: RenderOptions);
+    constructor({ strings, ['_$litType$']: type }: TemplateResult, options?: RenderOptions);
     /** @nocollapse */
     static createElement(html: TrustedHTML, _options?: RenderOptions): HTMLTemplateElement;
 }
@@ -188,7 +180,7 @@ declare class ChildPart implements Disconnectable {
     private _commitIterable;
 }
 declare class AttributePart implements Disconnectable {
-    readonly type: typeof ATTRIBUTE_PART | typeof PROPERTY_PART | typeof BOOLEAN_ATTRIBUTE_PART | typeof EVENT_PART;
+    readonly type: 1 | 3 | 4 | 5;
     readonly element: HTMLElement;
     readonly name: string;
     readonly options: RenderOptions | undefined;
@@ -280,7 +272,7 @@ type PartInfo = ChildPartInfo | AttributePartInfo | ElementPartInfo;
  * Creates a user-facing directive function from a Directive class. This
  * function has the same parameters as the directive's render() method.
  */
-declare const directive: <C extends DirectiveClass>(c: C) => (...values: DirectiveParameters<InstanceType<C>>) => DirectiveResult<C>;
+declare const directive: <C extends DirectiveClass>(c: C) => (...values: Parameters<InstanceType<C>["render"]>) => DirectiveResult<C>;
 /**
  * Base class for creating custom directives. Users should extend this class,
  * implement `render` and/or `update`, and then pass their subclass to
@@ -293,4 +285,4 @@ declare abstract class Directive implements Disconnectable {
     update(_part: Part, props: Array<unknown>): unknown;
 }
 
-export { AttributePart, type AttributePartInfo, BooleanAttributePart, ChildPart, type ChildPartInfo, Directive, type DirectiveClass, type DirectiveParameters, type DirectiveResult, ElementPart, type ElementPartInfo, EventPart, type Part, type PartInfo, PartType, PropertyPart, directive };
+export { AttributePart, AttributePartInfo, BooleanAttributePart, ChildPart, ChildPartInfo, Directive, DirectiveClass, DirectiveParameters, DirectiveResult, ElementPart, ElementPartInfo, EventPart, Part, PartInfo, PartType, PropertyPart, directive };

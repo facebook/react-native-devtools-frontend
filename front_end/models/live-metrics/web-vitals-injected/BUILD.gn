@@ -8,7 +8,6 @@ import("../../../../scripts/build/ninja/node.gni")
 devtools_module("web-vitals-injected") {
   sources = [
     "OnEachInteraction.ts",
-    "OnEachLayoutShift.ts",
     "web-vitals-injected.ts",
   ]
 
@@ -24,14 +23,14 @@ devtools_module("web-vitals-injected") {
 }
 
 node_action("bundled_library") {
-  script = "node_modules/@rollup/wasm-node/dist/bin/rollup"
+  script = "node_modules/rollup/dist/bin/rollup"
 
   _bundled_entrypoint = target_gen_dir + "/web-vitals-injected.js"
   _output_file_location = target_gen_dir + "/web-vitals-injected.generated.js"
 
   inputs = [
     _bundled_entrypoint,
-    "rollup.config.mjs",
+    "rollup.config.js",
   ]
 
   deps = [ ":web-vitals-injected" ]
@@ -42,7 +41,7 @@ node_action("bundled_library") {
     # and instead looks if `stderr` is empty.
     "--silent",
     "--config",
-    rebase_path("rollup.config.mjs", root_build_dir),
+    rebase_path("rollup.config.js", root_build_dir),
     "--input",
     rebase_path(_bundled_entrypoint, root_build_dir),
     "--file",
@@ -54,7 +53,6 @@ node_action("bundled_library") {
   }
 
   outputs = [ _output_file_location ]
-  data = outputs
   metadata = {
     grd_files = [ _output_file_location ]
   }

@@ -2,14 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import './Icon.js';
+import * as LitHtml from '../../lit-html/lit-html.js';
 
-import * as Lit from '../../lit/lit.js';
-
-import type {IconData} from './Icon.js';
+import {Icon, type IconData} from './Icon.js';
 import iconButtonStyles from './iconButton.css.js';
-
-const {html} = Lit;
 
 export interface IconWithTextData {
   iconName: string;
@@ -29,12 +25,13 @@ export interface IconButtonData {
 }
 
 export class IconButton extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`icon-button`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   #clickHandler: undefined|(() => void) = undefined;
   #groups: IconWithTextData[] = [];
-  #compact = false;
-  #leadingText = '';
-  #trailingText = '';
+  #compact: boolean = false;
+  #leadingText: string = '';
+  #trailingText: string = '';
   #accessibleName: string|undefined;
 
   set data(data: IconButtonData) {
@@ -58,6 +55,10 @@ export class IconButton extends HTMLElement {
     };
   }
 
+  connectedCallback(): void {
+    this.#shadow.adoptedStyleSheets = [iconButtonStyles];
+  }
+
   #onClickHandler(event: Event): void {
     if (this.#clickHandler) {
       event.preventDefault();
@@ -66,29 +67,27 @@ export class IconButton extends HTMLElement {
   }
 
   #render(): void {
-    const buttonClasses = Lit.Directives.classMap({
+    const buttonClasses = LitHtml.Directives.classMap({
       'icon-button': true,
       'with-click-handler': Boolean(this.#clickHandler),
-      compact: this.#compact,
+      'compact': this.#compact,
     });
     const filteredGroups = this.#groups.filter(counter => counter.text !== undefined)
                                .filter((_, index) => this.#compact ? index === 0 : true);
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    Lit.render(html`
-      <style>${iconButtonStyles.cssText}</style>
-      <button class=${buttonClasses} @click=${this.#onClickHandler} aria-label=${Lit.Directives.ifDefined(this.#accessibleName)}>
-      ${(!this.#compact && this.#leadingText) ? html`<span class="icon-button-title">${this.#leadingText}</span>` : Lit.nothing}
+    LitHtml.render(LitHtml.html`
+      <button class=${buttonClasses} @click=${this.#onClickHandler} aria-label=${LitHtml.Directives.ifDefined(this.#accessibleName)}>
+      ${(!this.#compact && this.#leadingText) ? LitHtml.html`<span class="icon-button-title">${this.#leadingText}</span>` : LitHtml.nothing}
       ${filteredGroups.map(counter =>
-      html`
-      <devtools-icon class="status-icon"
+      LitHtml.html`
+      <${Icon.litTagName} class="status-icon"
       .data=${{iconName: counter.iconName, color: counter.iconColor, width: counter.iconWidth || '1.5ex', height: counter.iconHeight || '1.5ex'} as IconData}>
-      </devtools-icon>
-      ${this.#compact ? html`<!-- Force line-height for this element --><span>&#8203;</span>` : Lit.nothing}
-      <span class="icon-button-title">${counter.text}</span>`,
-      )}
-      </button>
-      ${(!this.#compact && this.#trailingText) ? html`<span class="icon-button-title">${this.#trailingText}</span>` : Lit.nothing}
+      </${Icon.litTagName}>
+      ${this.#compact ? LitHtml.html`<!-- Force line-height for this element --><span>&#8203;</span>` : LitHtml.nothing}
+      <span class="icon-button-title">${counter.text}</span>
+      </button>`)}
+      ${(!this.#compact && this.#trailingText) ? LitHtml.html`<span class="icon-button-title">${this.#trailingText}</span>` : LitHtml.nothing}
     `, this.#shadow, { host: this});
     // clang-format on
   }

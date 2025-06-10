@@ -30,7 +30,11 @@ const UIStrings = {
    * @description Message shown to the user if the DevTools locale is not
    * supported.
    */
-  wrongLocale: 'To use this feature, set your language preference to English in DevTools settings.',
+  wrongLocale: 'To use this feature, update your Language preference in DevTools Settings to English.',
+  /**
+   * @description Message shown to the user if the age check is not successful.
+   */
+  ageRestricted: 'This feature is only available to users who are 18 years of age or older.',
   /**
    * @description Message shown to the user if the user's region is not
    * supported.
@@ -40,8 +44,12 @@ const UIStrings = {
    * @description Message shown to the user if the enterprise policy does
    * not allow this feature.
    */
-  policyRestricted: 'This setting is managed by your administrator.',
-} as const;
+  policyRestricted: 'Your organization turned off this feature. Contact your administrators for more information.',
+  /**
+   * @description  Message shown to the user if the feature roll out is currently happening.
+   */
+  rolloutRestricted: 'This feature is currently being rolled out. Stay tuned.',
+};
 const str_ = i18n.i18n.registerUIStrings('panels/explain/explain-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -84,39 +92,53 @@ function isLocaleRestricted(): boolean {
   return !devtoolsLocale.locale.startsWith('en-');
 }
 
+function isAgeRestricted(config?: Root.Runtime.HostConfig): boolean {
+  return config?.devToolsConsoleInsights?.blockedByAge === true;
+}
+
+function isRolloutRestricted(config?: Root.Runtime.HostConfig): boolean {
+  return config?.devToolsConsoleInsights?.blockedByRollout === true;
+}
+
 function isGeoRestricted(config?: Root.Runtime.HostConfig): boolean {
-  return config?.aidaAvailability?.blockedByGeo === true;
+  return config?.devToolsConsoleInsights?.blockedByGeo === true;
 }
 
 function isPolicyRestricted(config?: Root.Runtime.HostConfig): boolean {
-  return config?.aidaAvailability?.blockedByEnterprisePolicy === true;
+  return config?.devToolsConsoleInsights?.blockedByEnterprisePolicy === true;
+}
+
+function isOptIn(config?: Root.Runtime.HostConfig): boolean {
+  return config?.devToolsConsoleInsights?.optIn === true;
 }
 
 function isFeatureEnabled(config?: Root.Runtime.HostConfig): boolean {
-  return (config?.aidaAvailability?.enabled && config?.devToolsConsoleInsights?.enabled) === true;
+  return config?.devToolsConsoleInsights?.blockedByFeatureFlag === false;
 }
 
 Common.Settings.registerSettingExtension({
-  category: Common.Settings.SettingCategory.AI,
+  category: Common.Settings.SettingCategory.CONSOLE,
   settingName: setting,
   settingType: Common.Settings.SettingType.BOOLEAN,
   title: i18nLazyString(UIStrings.enableConsoleInsights),
-  defaultValue: false,
-  reloadRequired: false,
+  defaultValue: (config: Root.Runtime.HostConfig): boolean => !isOptIn(config),
+  reloadRequired: true,
   condition: config => isFeatureEnabled(config),
   disabledCondition: config => {
-    const reasons = [];
+    if (isLocaleRestricted()) {
+      return {disabled: true, reason: i18nString(UIStrings.wrongLocale)};
+    }
+    if (isAgeRestricted(config)) {
+      return {disabled: true, reason: i18nString(UIStrings.ageRestricted)};
+    }
     if (isGeoRestricted(config)) {
-      reasons.push(i18nString(UIStrings.geoRestricted));
+      return {disabled: true, reason: i18nString(UIStrings.geoRestricted)};
     }
     if (isPolicyRestricted(config)) {
-      reasons.push(i18nString(UIStrings.policyRestricted));
+      return {disabled: true, reason: i18nString(UIStrings.policyRestricted)};
     }
-    if (isLocaleRestricted()) {
-      reasons.push(i18nString(UIStrings.wrongLocale));
-    }
-    if (reasons.length > 0) {
-      return {disabled: true, reasons};
+    if (isRolloutRestricted(config)) {
+      return {disabled: true, reason: i18nString(UIStrings.rolloutRestricted)};
     }
     return {disabled: false};
   },
@@ -125,13 +147,15 @@ Common.Settings.registerSettingExtension({
 for (const action of actions) {
   UI.ActionRegistration.registerActionExtension({
     ...action,
+    setting,
     category: UI.ActionRegistration.ActionCategory.CONSOLE,
     async loadActionDelegate() {
       const Explain = await import('./explain.js');
       return new Explain.ActionDelegate();
     },
     condition: config => {
-      return isFeatureEnabled(config) && !isPolicyRestricted(config);
+      return isFeatureEnabled(config) && !isAgeRestricted(config) && !isGeoRestricted(config) &&
+          !isLocaleRestricted() && !isPolicyRestricted(config) && !isRolloutRestricted(config);
     },
   });
 }

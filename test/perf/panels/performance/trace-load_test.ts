@@ -29,13 +29,13 @@ async function timeFixture(fixture: string): Promise<number> {
   });
   const uploadProfileHandle = await waitFor<HTMLInputElement>('input[type=file]');
   await uploadProfileHandle.uploadFile(path.join(GEN_DIR, `front_end/panels/timeline/fixtures/traces/${fixture}.gz`));
-  return await eventPromise;
+  return eventPromise;
 }
 
 describe('Performance panel trace load performance', () => {
-  const allTestValues: Array<{name: string, values: number[]}> = [];
-  // Slow test
-  describe.skip('[crbug.com/383713603]: Large CPU profile load benchmark', () => {
+  const allTestValues: {name: string, values: number[]}[] = [];
+
+  describe('Total trace load time', () => {
     beforeEach(async () => {
       // Reload devtools to get a fresh version of the panel on each
       // run and prevent a skew due to caching, etc.
@@ -43,38 +43,13 @@ describe('Performance panel trace load performance', () => {
     });
     const RUNS = 10;
     const testValues = {
-      name: 'LargeCPULoad',
+      name: 'TraceLoad',
       values: [] as number[],
     };
     for (let run = 1; run <= RUNS; run++) {
-      it('run large cpu profile benchmark', async function() {
+      it(`run ${run}/${RUNS}`, async function() {
         this.timeout(20_000);
         const duration = await timeFixture('large-profile.cpuprofile');
-        // Ensure only 2 decimal places.
-        const timeTaken = Number(duration.toFixed(2));
-        testValues.values.push(timeTaken);
-      });
-    }
-    after(() => {
-      allTestValues.push(testValues);
-    });
-  });
-
-  describe('Large DOM trace load benchmark', () => {
-    beforeEach(async () => {
-      // Reload devtools to get a fresh version of the panel on each
-      // run and prevent a skew due to caching, etc.
-      await reloadDevTools();
-    });
-    const RUNS = 10;
-    const testValues = {
-      name: 'LargeDOMTraceLoad',
-      values: [] as number[],
-    };
-    for (let run = 1; run <= RUNS; run++) {
-      it('run large dom trace load benchmark', async function() {
-        this.timeout(8_000);
-        const duration = await timeFixture('dom-size-long.json');
         // Ensure only 2 decimal places.
         const timeTaken = Number(duration.toFixed(2));
         testValues.values.push(timeTaken);
@@ -120,10 +95,10 @@ describe('Performance panel trace load performance', () => {
       addBenchmarkResult(benchmark);
       /* eslint-disable no-console */
       console.log(`Benchmark name: ${testValues.name}`);
-      console.log(`Mean time: ${meanMeasure}ms`);
-      console.log(`50th percentile time: ${percentile50}ms`);
-      console.log(`90th percentile time: ${percentile90}ms`);
-      console.log(`99th percentile time: ${percentile99}ms`);
+      console.log(`Mean boot time: ${meanMeasure}ms`);
+      console.log(`50th percentile boot time: ${percentile50}ms`);
+      console.log(`90th percentile boot time: ${percentile90}ms`);
+      console.log(`99th percentile boot time: ${percentile99}ms`);
       /* eslint-enable no-console */
     }
   });

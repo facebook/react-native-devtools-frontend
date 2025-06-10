@@ -7,14 +7,14 @@ import type * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 
 import {Issue, IssueCategory, IssueKind} from './Issue.js';
-import type {MarkdownIssueDescription} from './MarkdownIssueDescription.js';
+import {type MarkdownIssueDescription} from './MarkdownIssueDescription.js';
 
 const UIStrings = {
   /**
    *@description Title for a learn more link in Heavy Ads issue description
    */
   handlingHeavyAdInterventions: 'Handling Heavy Ad Interventions',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/HeavyAdIssue.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -48,15 +48,15 @@ export class HeavyAdIssue extends Issue {
   }
 
   getCategory(): IssueCategory {
-    return IssueCategory.HEAVY_AD;
+    return IssueCategory.HeavyAd;
   }
 
   getKind(): IssueKind {
     switch (this.#issueDetails.resolution) {
       case Protocol.Audits.HeavyAdResolutionStatus.HeavyAdBlocked:
-        return IssueKind.PAGE_ERROR;
+        return IssueKind.PageError;
       case Protocol.Audits.HeavyAdResolutionStatus.HeavyAdWarning:
-        return IssueKind.BREAKING_CHANGE;
+        return IssueKind.BreakingChange;
     }
   }
 

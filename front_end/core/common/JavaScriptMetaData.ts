@@ -5,16 +5,16 @@
 export interface DOMPinnedWebIDLProp {
   global?: boolean;
   specs?: number;
-  rules?: DOMPinnedWebIDLRule[];
+  rules?: Array<DOMPinnedWebIDLRule>;
 }
 
 export interface DOMPinnedWebIDLType {
   inheritance?: string;
-  includes?: string[];
+  includes?: Array<string>;
   props?: {
     [PropName: string]: DOMPinnedWebIDLProp,
   };
-  rules?: DOMPinnedWebIDLRule[];
+  rules?: Array<DOMPinnedWebIDLRule>;
 }
 
 export interface DOMPinnedWebIDLRule {

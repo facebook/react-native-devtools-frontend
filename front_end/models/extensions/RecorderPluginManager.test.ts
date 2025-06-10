@@ -9,10 +9,10 @@ describe('RecorderPluginManager', () => {
     const manager = Extensions.RecorderPluginManager.RecorderPluginManager.instance();
     const events: Array<{event: string, plugin: Extensions.RecorderExtensionEndpoint.RecorderExtensionEndpoint}> = [];
     manager.addEventListener(
-        Extensions.RecorderPluginManager.Events.PLUGIN_ADDED,
+        Extensions.RecorderPluginManager.Events.PluginAdded,
         event => events.push({event: 'pluginAdded', plugin: event.data}));
     manager.addEventListener(
-        Extensions.RecorderPluginManager.Events.PLUGIN_REMOVED,
+        Extensions.RecorderPluginManager.Events.PluginRemoved,
         event => events.push({event: 'pluginRemoved', plugin: event.data}));
     const plugin = new Extensions.RecorderExtensionEndpoint.RecorderExtensionEndpoint(
         'test', new MessageChannel().port1, ['export'], 'application/javascript');
@@ -20,7 +20,7 @@ describe('RecorderPluginManager', () => {
     manager.addPlugin(plugin);
     manager.removePlugin(plugin);
 
-    assert.deepEqual(events, [
+    assert.deepStrictEqual(events, [
       {
         event: 'pluginAdded',
         plugin,

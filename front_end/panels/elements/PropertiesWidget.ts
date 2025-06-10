@@ -31,8 +31,6 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import '../../ui/legacy/legacy.js';
-
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -64,7 +62,7 @@ const UIStrings = {
    * no properties matched the filter and thus no results were returned.
    */
   noMatchingProperty: 'No matching property',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/elements/PropertiesWidget.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -78,7 +76,6 @@ export class PropertiesWidget extends UI.ThrottledWidget.ThrottledWidget {
   private lastRequestedNode?: SDK.DOMModel.DOMNode;
   constructor(throttlingTimeout?: number) {
     super(true /* isWebComponent */, throttlingTimeout);
-    this.registerRequiredCSS(propertiesWidgetStyles);
 
     this.showAllPropertiesSetting = Common.Settings.Settings.instance().createSetting('show-all-properties', false);
     this.showAllPropertiesSetting.addChangeListener(this.filterList.bind(this));
@@ -95,9 +92,9 @@ export class PropertiesWidget extends UI.ThrottledWidget.ThrottledWidget {
     this.node = UI.Context.Context.instance().flavor(SDK.DOMModel.DOMNode);
 
     const hbox = this.contentElement.createChild('div', 'hbox properties-widget-toolbar');
-    const toolbar = hbox.createChild('devtools-toolbar', 'styles-pane-toolbar');
+    const toolbar = new UI.Toolbar.Toolbar('styles-pane-toolbar', hbox);
     const filterInput = new UI.Toolbar.ToolbarFilter(undefined, 1, 1, undefined, undefined, false);
-    filterInput.addEventListener(UI.Toolbar.ToolbarInput.Event.TEXT_CHANGED, this.onFilterChanged, this);
+    filterInput.addEventListener(UI.Toolbar.ToolbarInput.Event.TextChanged, this.onFilterChanged, this);
     toolbar.appendToolbarItem(filterInput);
     toolbar.appendToolbarItem(new UI.Toolbar.ToolbarSettingCheckbox(
         this.showAllPropertiesSetting, i18nString(UIStrings.showAllTooltip), i18nString(UIStrings.showAll)));
@@ -179,10 +176,15 @@ export class PropertiesWidget extends UI.ThrottledWidget.ThrottledWidget {
       return;
     }
     const data = event.data;
-    const node = (data instanceof SDK.DOMModel.DOMNode ? data : data.node);
+    const node = (data instanceof SDK.DOMModel.DOMNode ? data : data.node as SDK.DOMModel.DOMNode);
     if (this.node !== node) {
       return;
     }
     this.update();
+  }
+
+  override wasShown(): void {
+    super.wasShown();
+    this.registerCSSFiles([propertiesWidgetStyles]);
   }
 }

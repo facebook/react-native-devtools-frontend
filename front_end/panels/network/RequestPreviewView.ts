@@ -28,8 +28,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import '../../ui/legacy/legacy.js';
-
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as SDK from '../../core/sdk/sdk.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
@@ -52,7 +50,7 @@ const UIStrings = {
    *@description Text in Request Preview View of the Network panel
    */
   previewNotAvailable: 'Preview not available',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/network/RequestPreviewView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class RequestPreviewView extends RequestResponseView {
@@ -66,7 +64,7 @@ export class RequestPreviewView extends RequestResponseView {
     if (!(view instanceof UI.View.SimpleView)) {
       return view;
     }
-    const toolbar = this.element.createChild('devtools-toolbar', 'network-item-preview-toolbar');
+    const toolbar = new UI.Toolbar.Toolbar('network-item-preview-toolbar', this.element);
     void view.toolbarItems().then(items => {
       items.map(item => toolbar.appendToolbarItem(item));
     });
@@ -76,7 +74,7 @@ export class RequestPreviewView extends RequestResponseView {
   private async htmlPreview(): Promise<UI.Widget.Widget|null> {
     const contentData = await this.request.requestContentData();
     if (TextUtils.ContentData.ContentData.isError(contentData)) {
-      return new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.failedToLoadResponseData), contentData.error);
+      return new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.failedToLoadResponseData) + ': ' + contentData.error);
     }
 
     const allowlist = new Set<string>(['text/html', 'text/plain', 'application/xhtml+xml']);
@@ -113,6 +111,6 @@ export class RequestPreviewView extends RequestResponseView {
       return provided;
     }
 
-    return new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.previewNotAvailable), '');
+    return new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.previewNotAvailable));
   }
 }

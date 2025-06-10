@@ -2,25 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/* eslint-disable rulesdir/inject_checkbox_styles */
+
 import '../../../ui/legacy/legacy.js';
-import '../../../ui/components/icon_button/icon_button.js';
-import './ControlButton.js';
 
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
+import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
 import * as Input from '../../../ui/components/input/input.js';
-import * as Lit from '../../../ui/lit/lit.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 import * as Models from '../models/models.js';
 import * as Actions from '../recorder-actions/recorder-actions.js';
 
-import createRecordingViewStylesRaw from './createRecordingView.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const createRecordingViewStyles = new CSSStyleSheet();
-createRecordingViewStyles.replaceSync(createRecordingViewStylesRaw.cssText);
-
-const {html, Directives: {ifDefined}} = Lit;
+import createRecordingViewStyles from './createRecordingView.css.js';
 
 const UIStrings = {
   /**
@@ -98,7 +93,7 @@ const UIStrings = {
    * @description Title of a link to the developer documentation.
    */
   learnMore: 'Learn more',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings(
     'panels/recorder/components/CreateRecordingView.ts',
     UIStrings,
@@ -145,8 +140,9 @@ export interface CreateRecordingViewData {
 }
 
 export class CreateRecordingView extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-create-recording-view`;
   readonly #shadow = this.attachShadow({mode: 'open'});
-  #defaultRecordingName = '';
+  #defaultRecordingName: string = '';
   #error?: Error;
   #recorderSettings?: Models.RecorderSettings.RecorderSettings;
 
@@ -266,12 +262,12 @@ export class CreateRecordingView extends HTMLElement {
       ],
     ]);
     // clang-format off
-    Lit.render(
-      html`
+    LitHtml.render(
+      LitHtml.html`
         <div class="wrapper">
           <div class="header-wrapper">
             <h1>${i18nString(UIStrings.createRecording)}</h1>
-            <devtools-button
+            <${Buttons.Button.Button.litTagName}
               title=${i18nString(UIStrings.cancelRecording)}
               jslog=${VisualLogging.close().track({click: true})}
               .data=${
@@ -282,7 +278,7 @@ export class CreateRecordingView extends HTMLElement {
                 } as Buttons.Button.ButtonData
               }
               @click=${this.#dispatchRecordingCancelled}
-            ></devtools-button>
+            ></${Buttons.Button.Button.litTagName}>
           </div>
           <label class="row-label" for="user-flow-name">${i18nString(
             UIStrings.recordingName,
@@ -301,12 +297,12 @@ export class CreateRecordingView extends HTMLElement {
               class="link" href="https://g.co/devtools/recorder#selector"
               title=${i18nString(UIStrings.learnMore)}
               jslog=${VisualLogging.link('recorder-selector-help').track({click: true})}>
-              <devtools-icon name="help">
-              </devtools-icon>
+              <${IconButton.Icon.Icon.litTagName} name="help">
+              </${IconButton.Icon.Icon.litTagName}>
             </x-link>
           </label>
           <input
-            value=${ifDefined(this.#recorderSettings?.selectorAttribute)}
+            value=${this.#recorderSettings?.selectorAttribute}
             placeholder="data-testid"
             @keydown=${this.#onKeyDown}
             jslog=${VisualLogging.textField('selector-attribute').track({change: true})}
@@ -319,21 +315,23 @@ export class CreateRecordingView extends HTMLElement {
               class="link" href="https://g.co/devtools/recorder#selector"
               title=${i18nString(UIStrings.learnMore)}
               jslog=${VisualLogging.link('recorder-selector-help').track({click: true})}>
-              <devtools-icon name="help">
-              </devtools-icon>
+              <${IconButton.Icon.Icon.litTagName} name="help">
+              </${IconButton.Icon.Icon.litTagName}>
             </x-link>
           </label>
           <div class="checkbox-container">
             ${Object.values(Models.Schema.SelectorType).map(selectorType => {
               const checked =
                 this.#recorderSettings?.getSelectorByType(selectorType);
-              return html`
+              return LitHtml.html`
                   <label class="checkbox-label selector-type">
                     <input
                       @keydown=${this.#onKeyDown}
                       .value=${selectorType}
                       jslog=${VisualLogging.toggle().track({click: true}).context(`selector-${selectorType}`)}
-                      ?checked=${checked}
+                      checked=${LitHtml.Directives.ifDefined(
+                        checked ? checked : undefined,
+                      )}
                       type="checkbox"
                     />
                     ${selectorTypeToLabel.get(selectorType) || selectorType}
@@ -344,7 +342,7 @@ export class CreateRecordingView extends HTMLElement {
 
           ${
             this.#error &&
-            html`
+            LitHtml.html`
           <div class="error" role="alert">
             ${this.#error.message}
           </div>
@@ -357,10 +355,10 @@ export class CreateRecordingView extends HTMLElement {
               @click=${this.startRecording}
               .label=${i18nString(UIStrings.startRecording)}
               .shape=${'circle'}
-              jslog=${VisualLogging.action(Actions.RecorderActions.START_RECORDING).track({click: true})}
+              jslog=${VisualLogging.action(Actions.RecorderActions.StartRecording).track({click: true})}
               title=${Models.Tooltip.getTooltipForActions(
                 i18nString(UIStrings.startRecording),
-                Actions.RecorderActions.START_RECORDING,
+                Actions.RecorderActions.StartRecording,
               )}
             ></devtools-control-button>
           </div>

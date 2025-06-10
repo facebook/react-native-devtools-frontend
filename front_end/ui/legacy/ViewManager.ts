@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import './Toolbar.js';
-
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -13,12 +11,12 @@ import * as IconButton from '../components/icon_button/icon_button.js';
 import * as VisualLogging from '../visual_logging/visual_logging.js';
 
 import * as ARIAUtils from './ARIAUtils.js';
-import type {ContextMenu} from './ContextMenu.js';
+import {type ContextMenu} from './ContextMenu.js';
 import {type EventData, Events as TabbedPaneEvents, TabbedPane} from './TabbedPane.js';
-import {type ItemsProvider, type ToolbarItem, ToolbarMenuButton} from './Toolbar.js';
+import {type ItemsProvider, Toolbar, type ToolbarItem, ToolbarMenuButton} from './Toolbar.js';
 import {createTextChild} from './UIUtils.js';
-import type {TabbedViewLocation, View, ViewLocation} from './View.js';
-import viewContainersStyles from './viewContainers.css.js';
+import {type TabbedViewLocation, type View, type ViewLocation} from './View.js';
+import viewContainersStyles from './viewContainers.css.legacy.js';
 import {
   getLocalizedViewLocationCategory,
   getRegisteredLocationResolvers,
@@ -40,13 +38,12 @@ const UIStrings = {
    *@example {Sensors} PH1
    */
   sPanel: '{PH1} panel',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/ViewManager.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export const defaultOptionsForTabs = {
   security: true,
-  freestyler: true,
 };
 
 export class PreRegisteredView implements View {
@@ -161,7 +158,7 @@ export class ViewManager {
     // default ordering as defined by the views themselves.
 
     const viewsByLocation = new Map<ViewLocationValues|'none', PreRegisteredView[]>();
-    for (const view of getRegisteredViewExtensions()) {
+    for (const view of getRegisteredViewExtensions(Common.Settings.Settings.instance().getHostConfig())) {
       const location = view.location() || 'none';
       const views = viewsByLocation.get(location) || [];
       views.push(view);
@@ -216,11 +213,11 @@ export class ViewManager {
     if (!toolbarItems.length) {
       return null;
     }
-    const toolbar = document.createElement('devtools-toolbar');
+    const toolbar = new Toolbar('');
     for (const item of toolbarItems) {
       toolbar.appendToolbarItem(item);
     }
-    return toolbar;
+    return toolbar.element;
   }
 
   locationNameForViewId(viewId: string): string {
@@ -453,7 +450,6 @@ class ExpandableContainerWidget extends VBox {
   }
 
   override wasShown(): void {
-    super.wasShown();
     if (this.widget && this.materializePromise) {
       void this.materializePromise.then(() => {
         if (this.titleElement.classList.contains('expanded') && this.widget) {
@@ -591,7 +587,7 @@ class TabbedLocation extends Location implements TabbedViewLocation {
   private readonly tabOrderSetting: Common.Settings.Setting<TabOrderSetting>;
   private readonly lastSelectedTabSetting?: Common.Settings.Setting<string>;
   private readonly defaultTab: string|null|undefined;
-  private readonly views = new Map<string, View>();
+  private readonly views: Map<string, View>;
 
   constructor(
       manager: ViewManager, revealCallback?: (() => void), location?: string, restoreSelection?: boolean,
@@ -620,6 +616,8 @@ class TabbedLocation extends Location implements TabbedViewLocation {
     }
     this.defaultTab = defaultTab;
 
+    this.views = new Map();
+
     if (location) {
       this.appendApplicableItems(location);
     }
@@ -644,8 +642,9 @@ class TabbedLocation extends Location implements TabbedViewLocation {
   }
 
   enableMoreTabsButton(): ToolbarMenuButton {
-    const moreTabsButton = new ToolbarMenuButton(
-        this.appendTabsToMenu.bind(this), /* isIconDropdown */ true, undefined, 'more-tabs', 'dots-vertical');
+    const moreTabsButton =
+        new ToolbarMenuButton(this.appendTabsToMenu.bind(this), /* isIconDropdown */ true, undefined, 'more-tabs');
+    moreTabsButton.setGlyph('dots-vertical');
     this.tabbedPaneInternal.leftToolbar().appendToolbarItem(moreTabsButton);
     this.tabbedPaneInternal.disableOverflowMenu();
     return moreTabsButton;
@@ -705,15 +704,14 @@ class TabbedLocation extends Location implements TabbedViewLocation {
 
       if (view.viewId() === 'issues-pane') {
         contextMenu.defaultSection().appendItem(title, () => {
-          Host.userMetrics.issuesPanelOpenedFrom(Host.UserMetrics.IssueOpener.HAMBURGER_MENU);
+          Host.userMetrics.issuesPanelOpenedFrom(Host.UserMetrics.IssueOpener.HamburgerMenu);
           void this.showView(view, undefined, true);
         }, {jslogContext: 'issues-pane'});
         continue;
       }
 
-      const isPreviewFeature = view.isPreviewFeature();
       contextMenu.defaultSection().appendItem(
-          title, this.showView.bind(this, view, undefined, true), {isPreviewFeature, jslogContext: view.viewId()});
+          title, this.showView.bind(this, view, undefined, true), {jslogContext: view.viewId()});
     }
   }
 
@@ -913,15 +911,15 @@ class StackLocation extends Location implements ViewLocation {
 }
 
 export {
-  getLocalizedViewLocationCategory,
-  getRegisteredLocationResolvers,
+  ViewRegistration,
+  ViewPersistence,
   getRegisteredViewExtensions,
   maybeRemoveViewExtension,
-  registerLocationResolver,
   registerViewExtension,
-  resetViewRegistration,
-  ViewLocationCategory,
   ViewLocationValues,
-  ViewPersistence,
-  ViewRegistration,
+  getRegisteredLocationResolvers,
+  registerLocationResolver,
+  ViewLocationCategory,
+  getLocalizedViewLocationCategory,
+  resetViewRegistration,
 };

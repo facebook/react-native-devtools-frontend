@@ -21,8 +21,12 @@
 
 .data-grid .data-container {
   position: absolute;
-  inset: 0;
-  overflow: hidden auto;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  overflow-x: hidden;
+  overflow-y: overlay;
   transform: translateZ(0);
   background-color: var(--sys-color-cdt-base-container);
 }
@@ -67,7 +71,10 @@
 
 .data-grid table.data {
   position: absolute;
-  inset: 0;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
   border-top: 0 none transparent;
   table-layout: fixed;
 }
@@ -79,18 +86,14 @@
 .data-grid tbody tr {
   display: none;
   height: 20px;
-
-  &:has(td.show-more) {
-    height: var(--sys-size-13);
-  }
 }
 
 .data-grid tbody tr.revealed {
   display: table-row;
 }
 
-.striped-data-grid .revealed.data-grid-data-grid-node:nth-child(odd):not(.dirty, .selected),
-.striped-data-grid-starts-with-odd .revealed.data-grid-data-grid-node:nth-child(even):not(.dirty, .selected) {
+.striped-data-grid .revealed.data-grid-data-grid-node:nth-child(odd):not(.dirty):not(.selected),
+.striped-data-grid-starts-with-odd .revealed.data-grid-data-grid-node:nth-child(even):not(.dirty):not(.selected) {
   background-color: var(--sys-color-surface1);
 }
 
@@ -189,8 +192,7 @@
   padding-right: 14px;
 }
 
-.data-grid th.sortable:hover,
-.data-grid th.sortable:focus-within {
+.data-grid th.sortable:hover {
   background-color: var(--sys-color-state-hover-on-subtle);
 }
 
@@ -232,15 +234,14 @@
 
   & ::selection {
     background-color: var(--sys-color-state-focus-select);
-    color: currentcolor;
   }
 }
 
-.data-grid:focus-within tbody tr.revealed.selected {
+.data-grid tbody tr.revealed:focus-within {
   background-color: var(--sys-color-tonal-container);
 }
 
-.data-grid tbody tr.revealed:not(.data-grid-filler-row, .selected):hover {
+.data-grid tbody tr.revealed:not(.data-grid-filler-row):not(.selected):hover {
   background-color: var(--sys-color-state-hover-on-subtle);
 }
 
@@ -288,25 +289,8 @@
   font-style: normal;
 }
 
-.data-grid tr.highlighted:not(.selected) {
-  background-color: var(--sys-color-surface-yellow);
-}
-
-.striped-data-grid .revealed.data-grid-data-grid-node.highlighted:nth-child(odd):not(.dirty, .selected),
-.striped-data-grid-starts-with-odd .revealed.data-grid-data-grid-node.highlighted:nth-child(even):not(.dirty, .selected) {
-  background-color: var(--sys-color-surface-yellow-high);
-}
-
 .data-grid td.show-more {
   white-space: normal;
-  gap: var(--sys-size-3);
-
-  devtools-button {
-    margin-right: var(--sys-size-6);
-    position: relative;
-    margin-top: 3px;
-    margin-bottom: 3px;
-  }
 }
 
 .data-grid td.show-more::before {
@@ -347,8 +331,8 @@
     background-color: HighlightText;
   }
 
-  .striped-data-grid .revealed.data-grid-data-grid-node:nth-child(odd):not(.dirty, .selected),
-  .striped-data-grid-starts-with-odd .revealed.data-grid-data-grid-node:nth-child(even):not(.dirty, .selected),
+  .striped-data-grid .revealed.data-grid-data-grid-node:nth-child(odd):not(.dirty):not(.selected),
+  .striped-data-grid-starts-with-odd .revealed.data-grid-data-grid-node:nth-child(even):not(.dirty):not(.selected),
   .request-cookies-view tr.revealed.data-grid-data-grid-node.flagged-cookie-attribute-row:not(.selected):nth-child(2n),
   .cookies-table tr.revealed.data-grid-data-grid-node.flagged-cookie-attribute-row:not(.selected):nth-child(odd) {
     background-color: canvas;
@@ -362,8 +346,8 @@
   .data-grid th.sortable:hover,
   .data-grid tbody tr.revealed:hover,
   .data-grid tbody tr.revealed.selected,
-  .striped-data-grid .revealed:hover.data-grid-data-grid-node:nth-child(odd):not(.dirty, .selected),
-  .striped-data-grid-starts-with-odd .revealed:hover.data-grid-data-grid-node:nth-child(even):not(.dirty, .selected),
+  .striped-data-grid .revealed:hover.data-grid-data-grid-node:nth-child(odd):not(.dirty):not(.selected),
+  .striped-data-grid-starts-with-odd .revealed:hover.data-grid-data-grid-node:nth-child(even):not(.dirty):not(.selected),
   .request-cookies-view tr.revealed:hover.data-grid-data-grid-node.flagged-cookie-attribute-row:not(.selected):nth-child(2n),
   .cookies-table tr.revealed:hover.data-grid-data-grid-node.flagged-cookie-attribute-row:not(.selected):nth-child(odd) {
     forced-color-adjust: none;

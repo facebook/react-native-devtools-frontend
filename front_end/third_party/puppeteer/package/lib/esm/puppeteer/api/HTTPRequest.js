@@ -1,6 +1,5 @@
 import { debugError, isString } from '../common/util.js';
 import { assert } from '../util/assert.js';
-import { typedArrayToBase64 } from '../util/encoding.js';
 /**
  * The default cooperative request interception resolution priority
  *
@@ -15,7 +14,6 @@ export const DEFAULT_INTERCEPT_RESOLUTION_PRIORITY = 0;
  * following events are emitted by Puppeteer's `page`:
  *
  * - `request`: emitted when the request is issued by the page.
- *
  * - `requestfinished` - emitted when the response body is downloaded and the
  *   request is complete.
  *
@@ -146,7 +144,7 @@ export class HTTPRequest {
         await this.interception.handlers.reduce((promiseChain, interceptAction) => {
             return promiseChain.then(interceptAction);
         }, Promise.resolve());
-        this.interception.handlers = [];
+        this.interception.handlers = []; // TODO: verify this is correct top let gc run
         const { action } = this.interceptResolutionState();
         switch (action) {
             case 'abort':
@@ -159,9 +157,6 @@ export class HTTPRequest {
             case 'continue':
                 return await this._continue(this.interception.requestOverrides);
         }
-    }
-    #canBeIntercepted() {
-        return !this.url().startsWith('data:') && !this._fromMemoryCache;
     }
     /**
      * Continues request with optional request overrides.
@@ -192,7 +187,8 @@ export class HTTPRequest {
      * Exception is immediately thrown if the request interception is not enabled.
      */
     async continue(overrides = {}, priority) {
-        if (!this.#canBeIntercepted()) {
+        // Request interception is not supported for data: urls.
+        if (this.url().startsWith('data:')) {
             return;
         }
         assert(this.interception.enabled, 'Request Interception is not enabled!');
@@ -252,7 +248,8 @@ export class HTTPRequest {
      * Exception is immediately thrown if the request interception is not enabled.
      */
     async respond(response, priority) {
-        if (!this.#canBeIntercepted()) {
+        // Mocking responses for dataURL requests is not currently supported.
+        if (this.url().startsWith('data:')) {
             return;
         }
         assert(this.interception.enabled, 'Request Interception is not enabled!');
@@ -292,7 +289,8 @@ export class HTTPRequest {
      * throw an exception immediately.
      */
     async abort(errorCode = 'failed', priority) {
-        if (!this.#canBeIntercepted()) {
+        // Request interception is not supported for data: urls.
+        if (this.url().startsWith('data:')) {
             return;
         }
         const errorReason = errorReasons[errorCode];
@@ -320,9 +318,13 @@ export class HTTPRequest {
         const byteBody = isString(body)
             ? new TextEncoder().encode(body)
             : body;
+        const bytes = [];
+        for (const byte of byteBody) {
+            bytes.push(String.fromCharCode(byte));
+        }
         return {
             contentLength: byteBody.byteLength,
-            base64: typedArrayToBase64(byteBody),
+            base64: btoa(bytes.join('')),
         };
     }
 }
@@ -449,7 +451,6 @@ export function handleError(error) {
     // Firefox throws an invalid argument error with a message starting with
     // 'Expected "header" [...]'.
     if (error.originalMessage.includes('Invalid header') ||
-        error.originalMessage.includes('Unsafe header') ||
         error.originalMessage.includes('Expected "header"') ||
         // WebDriver BiDi error for invalid values, for example, headers.
         error.originalMessage.includes('invalid argument')) {

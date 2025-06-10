@@ -20,8 +20,8 @@ const UIStrings = {
   /**
    *@description A context menu item in the Scope View of the Sources Panel
    */
-  openInMemoryInspectorPanel: 'Open in Memory inspector panel',
-} as const;
+  revealInMemoryInspectorPanel: 'Reveal in Memory inspector panel',
+};
 const str_ =
     i18n.i18n.registerUIStrings('panels/linear_memory_inspector/LinearMemoryInspectorController.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -31,7 +31,7 @@ const MEMORY_TRANSFER_MIN_CHUNK_SIZE = 1000;
 let controllerInstance: LinearMemoryInspectorController;
 
 export interface LazyUint8Array {
-  getRange(start: number, end: number): Promise<Uint8Array<ArrayBuffer>>;
+  getRange(start: number, end: number): Promise<Uint8Array>;
   length(): number;
 }
 
@@ -46,7 +46,7 @@ export class RemoteArrayBufferWrapper implements LazyUint8Array {
     return this.#remoteArrayBuffer.byteLength();
   }
 
-  async getRange(start: number, end: number): Promise<Uint8Array<ArrayBuffer>> {
+  async getRange(start: number, end: number): Promise<Uint8Array> {
     const newEnd = Math.min(end, this.length());
     if (start < 0 || start > newEnd) {
       console.error(`Requesting invalid range of memory: (${start}, ${end})`);
@@ -75,21 +75,30 @@ async function getBufferFromObject(obj: SDK.RemoteObject.RemoteObject): Promise<
   return new SDK.RemoteObject.RemoteArrayBuffer(obj);
 }
 
-interface SerializableSettings {
-  valueTypes: LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.ValueType[];
-  valueTypeModes: Array<[
-    LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.ValueType,
-    LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.ValueTypeMode,
-  ]>;
-  endianness: LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.Endianness;
+export function isDWARFMemoryObject(obj: SDK.RemoteObject.RemoteObject): boolean {
+  if (obj instanceof Bindings.DebuggerLanguagePlugins.ExtensionRemoteObject) {
+    return obj.linearMemoryAddress !== undefined;
+  }
+  return false;
 }
+
+type SerializableSettings = {
+  valueTypes: LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.ValueType[],
+  valueTypeModes:
+      [
+        LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.ValueType,
+        LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.ValueTypeMode,
+      ][],
+  endianness: LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.Endianness,
+};
 
 export class LinearMemoryInspectorController extends SDK.TargetManager.SDKModelObserver<SDK.RuntimeModel.RuntimeModel>
     implements Common.Revealer.Revealer<SDK.RemoteObject.LinearMemoryInspectable>,
                UI.ContextMenu.Provider<ObjectUI.ObjectPropertiesSection.ObjectPropertyTreeElement> {
   #paneInstance = LinearMemoryInspectorPane.instance();
-  #bufferIdToRemoteObject = new Map<string, SDK.RemoteObject.RemoteObject>();
-  #bufferIdToHighlightInfo = new Map<string, LinearMemoryInspectorComponents.LinearMemoryViewerUtils.HighlightInfo>();
+  #bufferIdToRemoteObject: Map<string, SDK.RemoteObject.RemoteObject> = new Map();
+  #bufferIdToHighlightInfo: Map<string, LinearMemoryInspectorComponents.LinearMemoryViewerUtils.HighlightInfo> =
+      new Map();
   #settings: Common.Settings.Setting<SerializableSettings>;
 
   private constructor() {
@@ -97,7 +106,7 @@ export class LinearMemoryInspectorController extends SDK.TargetManager.SDKModelO
     SDK.TargetManager.TargetManager.instance().observeModels(SDK.RuntimeModel.RuntimeModel, this);
     SDK.TargetManager.TargetManager.instance().addModelListener(
         SDK.DebuggerModel.DebuggerModel, SDK.DebuggerModel.Events.GlobalObjectCleared, this.#onGlobalObjectClear, this);
-    this.#paneInstance.addEventListener(LmiEvents.VIEW_CLOSED, this.#viewClosed.bind(this));
+    this.#paneInstance.addEventListener(LmiEvents.ViewClosed, this.#viewClosed.bind(this));
 
     SDK.TargetManager.TargetManager.instance().addModelListener(
         SDK.DebuggerModel.DebuggerModel, SDK.DebuggerModel.Events.DebuggerPaused, this.#onDebuggerPause, this);
@@ -107,7 +116,7 @@ export class LinearMemoryInspectorController extends SDK.TargetManager.SDKModelO
     const defaultSettings: SerializableSettings = {
       valueTypes: Array.from(defaultValueTypeModes.keys()),
       valueTypeModes: Array.from(defaultValueTypeModes),
-      endianness: LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.Endianness.LITTLE,
+      endianness: LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.Endianness.Little,
     };
     this.#settings = Common.Settings.Settings.instance().createSetting('lmi-interpreter-settings', defaultSettings);
   }
@@ -121,18 +130,17 @@ export class LinearMemoryInspectorController extends SDK.TargetManager.SDKModelO
   }
 
   static async getMemoryForAddress(memoryWrapper: LazyUint8Array, address: number):
-      Promise<{memory: Uint8Array<ArrayBuffer>, offset: number}> {
+      Promise<{memory: Uint8Array, offset: number}> {
     // Provide a chunk of memory that covers the address to show and some before and after
     // as 1. the address shown is not necessarily at the beginning of a page and
     // 2. to allow for fewer memory requests.
     const memoryChunkStart = Math.max(0, address - MEMORY_TRANSFER_MIN_CHUNK_SIZE / 2);
     const memoryChunkEnd = memoryChunkStart + MEMORY_TRANSFER_MIN_CHUNK_SIZE;
     const memory = await memoryWrapper.getRange(memoryChunkStart, memoryChunkEnd);
-    return {memory, offset: memoryChunkStart};
+    return {memory: memory, offset: memoryChunkStart};
   }
 
-  static async getMemoryRange(memoryWrapper: LazyUint8Array, start: number, end: number):
-      Promise<Uint8Array<ArrayBuffer>> {
+  static async getMemoryRange(memoryWrapper: LazyUint8Array, start: number, end: number): Promise<Uint8Array> {
     // Check that the requested start is within bounds.
     // If the requested end is larger than the actual
     // memory, it will be automatically capped when
@@ -321,7 +329,7 @@ export class LinearMemoryInspectorController extends SDK.TargetManager.SDKModelO
       const expression = target.path();
       const object = target.property.value;
       contextMenu.debugSection().appendItem(
-          i18nString(UIStrings.openInMemoryInspectorPanel),
+          i18nString(UIStrings.revealInMemoryInspectorPanel),
           this.reveal.bind(this, new SDK.RemoteObject.LinearMemoryInspectable(object, expression)),
           {jslogContext: 'reveal-in-memory-inspector'});
     }
@@ -342,7 +350,7 @@ export class LinearMemoryInspectorController extends SDK.TargetManager.SDKModelO
         name: expression ? LinearMemoryInspectorController.extractObjectName(obj, expression) : expression,
         type: LinearMemoryInspectorController.extractObjectTypeDescription(obj),
       };
-    } catch {
+    } catch (err) {
       highlightInfo = undefined;
     }
     return highlightInfo;

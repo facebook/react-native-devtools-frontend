@@ -32,10 +32,11 @@ import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
+import {type FilesChangedData} from './FileSystemWorkspaceBinding.js';
 
-import type {FilesChangedData} from './FileSystemWorkspaceBinding.js';
 import {IsolatedFileSystem} from './IsolatedFileSystem.js';
-import {type PlatformFileSystem, PlatformFileSystemType} from './PlatformFileSystem.js';
+
+import {type PlatformFileSystem} from './PlatformFileSystem.js';
 
 const UIStrings = {
   /**
@@ -43,14 +44,14 @@ const UIStrings = {
    *@example {folder does not exist} PH1
    */
   unableToAddFilesystemS: 'Unable to add filesystem: {PH1}',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('models/persistence/IsolatedFileSystemManager.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 let isolatedFileSystemManagerInstance: IsolatedFileSystemManager|null;
 
 export class IsolatedFileSystemManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
   private readonly fileSystemsInternal: Map<Platform.DevToolsPath.UrlString, PlatformFileSystem>;
-  private readonly callbacks: Map<number, (arg0: Platform.DevToolsPath.RawPathString[]) => void>;
+  private readonly callbacks: Map<number, (arg0: Array<Platform.DevToolsPath.RawPathString>) => void>;
   private readonly progresses: Map<number, Common.Progress.Progress>;
   private readonly workspaceFolderExcludePatternSettingInternal: Common.Settings.RegExpSetting;
   private fileSystemRequestResolve: ((arg0: IsolatedFileSystem|null) => void)|null;
@@ -82,6 +83,7 @@ export class IsolatedFileSystemManager extends Common.ObjectWrapper.ObjectWrappe
     // Initialize exclude pattern settings
     const defaultCommonExcludedFolders = [
       '/node_modules/',
+      '/bower_components/',
       '/\\.devtools',
       '/\\.git/',
       '/\\.sass-cache/',
@@ -132,7 +134,10 @@ export class IsolatedFileSystemManager extends Common.ObjectWrapper.ObjectWrappe
   }
 
   private requestFileSystems(): Promise<IsolatedFileSystem[]> {
-    const {resolve, promise} = Promise.withResolvers<IsolatedFileSystem[]>();
+    let fulfill: (arg0: IsolatedFileSystem[]) => void;
+    const promise = new Promise<IsolatedFileSystem[]>(f => {
+      fulfill = f;
+    });
     Host.InspectorFrontendHost.InspectorFrontendHostInstance.events.addEventListener(
         Host.InspectorFrontendHostAPI.Events.FileSystemsLoaded, onFileSystemsLoaded, this);
     Host.InspectorFrontendHost.InspectorFrontendHostInstance.requestFileSystems();
@@ -149,8 +154,8 @@ export class IsolatedFileSystemManager extends Common.ObjectWrapper.ObjectWrappe
       void Promise.all(promises).then(onFileSystemsAdded);
     }
 
-    function onFileSystemsAdded(fileSystems: Array<IsolatedFileSystem|null>): void {
-      resolve(fileSystems.filter(fs => !!fs));
+    function onFileSystemsAdded(fileSystems: (IsolatedFileSystem|null)[]): void {
+      fulfill(fileSystems.filter(fs => Boolean(fs)) as IsolatedFileSystem[]);
     }
   }
 
@@ -166,8 +171,8 @@ export class IsolatedFileSystemManager extends Common.ObjectWrapper.ObjectWrappe
 
   removeFileSystem(fileSystem: PlatformFileSystem): void {
     Host.userMetrics.actionTaken(
-        fileSystem.type() === PlatformFileSystemType.OVERRIDES ? Host.UserMetrics.Action.OverrideTabRemoveFolder :
-                                                                 Host.UserMetrics.Action.WorkspaceTabRemoveFolder);
+        fileSystem.type() === 'overrides' ? Host.UserMetrics.Action.OverrideTabRemoveFolder :
+                                            Host.UserMetrics.Action.WorkspaceTabRemoveFolder);
     Host.InspectorFrontendHost.InspectorFrontendHostInstance.removeFileSystem(fileSystem.embedderPath());
   }
 
@@ -180,8 +185,7 @@ export class IsolatedFileSystemManager extends Common.ObjectWrapper.ObjectWrappe
     const embedderPath = fileSystem.fileSystemPath;
     const fileSystemURL = Common.ParsedURL.ParsedURL.rawPathToUrlString(fileSystem.fileSystemPath);
     const promise = IsolatedFileSystem.create(
-        this, fileSystemURL, embedderPath, hostFileSystemTypeToPlatformFileSystemType(fileSystem.type),
-        fileSystem.fileSystemName, fileSystem.rootURL, fileSystem.type === 'automatic');
+        this, fileSystemURL, embedderPath, fileSystem.type, fileSystem.fileSystemName, fileSystem.rootURL);
     return promise.then(storeFileSystem.bind(this));
 
     function storeFileSystem(this: IsolatedFileSystemManager, fileSystem: IsolatedFileSystem|null): IsolatedFileSystem|
@@ -255,7 +259,8 @@ export class IsolatedFileSystemManager extends Common.ObjectWrapper.ObjectWrappe
         const filePath = Common.ParsedURL.ParsedURL.rawPathToUrlString(embedderPath);
         for (const fileSystemPath of this.fileSystemsInternal.keys()) {
           const fileSystem = this.fileSystemsInternal.get(fileSystemPath);
-          if (fileSystem?.isFileExcluded(Common.ParsedURL.ParsedURL.rawPathToEncodedPathString(embedderPath))) {
+          if (fileSystem &&
+              fileSystem.isFileExcluded(Common.ParsedURL.ParsedURL.rawPathToEncodedPathString(embedderPath))) {
             continue;
           }
           const pathPrefix = fileSystemPath.endsWith('/') ? fileSystemPath : fileSystemPath + '/';
@@ -281,7 +286,7 @@ export class IsolatedFileSystemManager extends Common.ObjectWrapper.ObjectWrappe
     return this.workspaceFolderExcludePatternSettingInternal;
   }
 
-  registerCallback(callback: (arg0: Platform.DevToolsPath.RawPathString[]) => void): number {
+  registerCallback(callback: (arg0: Array<Platform.DevToolsPath.RawPathString>) => void): number {
     const requestId = ++lastRequestId;
     this.callbacks.set(requestId, callback);
     return requestId;
@@ -342,32 +347,19 @@ export class IsolatedFileSystemManager extends Common.ObjectWrapper.ObjectWrappe
 }
 
 export enum Events {
-  /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   FileSystemAdded = 'FileSystemAdded',
   FileSystemRemoved = 'FileSystemRemoved',
   FileSystemFilesChanged = 'FileSystemFilesChanged',
   ExcludedFolderAdded = 'ExcludedFolderAdded',
   ExcludedFolderRemoved = 'ExcludedFolderRemoved',
-  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
-export interface EventTypes {
-  [Events.FileSystemAdded]: PlatformFileSystem;
-  [Events.FileSystemRemoved]: PlatformFileSystem;
-  [Events.FileSystemFilesChanged]: FilesChangedData;
-  [Events.ExcludedFolderAdded]: Platform.DevToolsPath.EncodedPathString;
-  [Events.ExcludedFolderRemoved]: Platform.DevToolsPath.EncodedPathString;
-}
+export type EventTypes = {
+  [Events.FileSystemAdded]: PlatformFileSystem,
+  [Events.FileSystemRemoved]: PlatformFileSystem,
+  [Events.FileSystemFilesChanged]: FilesChangedData,
+  [Events.ExcludedFolderAdded]: Platform.DevToolsPath.EncodedPathString,
+  [Events.ExcludedFolderRemoved]: Platform.DevToolsPath.EncodedPathString,
+};
 
 let lastRequestId = 0;
-
-function hostFileSystemTypeToPlatformFileSystemType(type: string): PlatformFileSystemType {
-  switch (type) {
-    case 'snippets':
-      return PlatformFileSystemType.SNIPPETS;
-    case 'overrides':
-      return PlatformFileSystemType.OVERRIDES;
-    default:
-      return PlatformFileSystemType.WORKSPACE_PROJECT;
-  }
-}

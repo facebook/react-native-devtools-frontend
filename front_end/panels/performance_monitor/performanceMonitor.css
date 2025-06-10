@@ -48,7 +48,8 @@
   display: flex;
   flex-direction: column;
   padding: 6px 0;
-  overflow: hidden auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .perfmon-chart-container {
@@ -78,7 +79,6 @@
   flex: 0 0 55px;
   text-align: right;
   overflow: visible;
-  align-self: center;
 }
 
 .perfmon-indicator:not(.active) .perfmon-indicator-value {

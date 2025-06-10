@@ -5,8 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createEvaluationError = createEvaluationError;
-exports.rewriteNavigationError = rewriteNavigationError;
+exports.rewriteNavigationError = exports.createEvaluationError = void 0;
 const Errors_js_1 = require("../common/Errors.js");
 const util_js_1 = require("../common/util.js");
 const Deserializer_js_1 = require("./Deserializer.js");
@@ -41,6 +40,7 @@ function createEvaluationError(details) {
     error.stack = [details.text, ...stackLines].join('\n');
     return error;
 }
+exports.createEvaluationError = createEvaluationError;
 /**
  * @internal
  */
@@ -55,4 +55,5 @@ function rewriteNavigationError(message, ms) {
         throw error;
     };
 }
+exports.rewriteNavigationError = rewriteNavigationError;
 //# sourceMappingURL=util.js.map

@@ -51,17 +51,17 @@ function assertItemBoolean(result: StructuredHeaders.Item|StructuredHeaders.Erro
 }
 
 function assertParams(
-    result: StructuredHeaders.Parameters, expectParams: Array<[string, StructuredHeaders.BareItem]>): void {
+    result: StructuredHeaders.Parameters, expectParams: [string, StructuredHeaders.BareItem][]): void {
   assert.lengthOf(result.items, expectParams.length);
   for (let i = 0; i < expectParams.length; ++i) {
     assert.strictEqual(result.items[i].name.value, expectParams[i][0]);
-    assert.deepEqual(result.items[i].value, expectParams[i][1], 'Param ' + i + ' value mismatch');
+    assert.deepStrictEqual(result.items[i].value, expectParams[i][1], 'Param ' + i + ' value mismatch');
   }
 }
 
 function assertItemParams(
     result: StructuredHeaders.Item|StructuredHeaders.Error,
-    expectParams: Array<[string, StructuredHeaders.BareItem]>): void {
+    expectParams: [string, StructuredHeaders.BareItem][]): void {
   if (result.kind === StructuredHeaders.ResultKind.ERROR) {
     assert.fail('No params on parse error');
     return;
@@ -83,12 +83,12 @@ function assertListAndGetItems(result: StructuredHeaders.List|StructuredHeaders.
 
 function assertListItem(
     item: StructuredHeaders.ListMember, expectValue: StructuredHeaders.BareItem,
-    expectParams: Array<[string, StructuredHeaders.BareItem]>): void {
+    expectParams: [string, StructuredHeaders.BareItem][]): void {
   if (item.kind === StructuredHeaders.ResultKind.INNER_LIST) {
     assert.fail('Unexpected inner list when an item expected');
     return;
   }
-  assert.deepEqual(
+  assert.deepStrictEqual(
       item.value, expectValue,
       'List item bare value mismatch, ' + item.value.value + ' vs expected ' + expectValue.value);
   assertItemParams(item, expectParams);
@@ -96,7 +96,7 @@ function assertListItem(
 
 function assertInnerListAndGetItems(
     item: StructuredHeaders.ListMember,
-    expectParams: Array<[string, StructuredHeaders.BareItem]>): StructuredHeaders.Item[] {
+    expectParams: [string, StructuredHeaders.BareItem][]): StructuredHeaders.Item[] {
   if (item.kind !== StructuredHeaders.ResultKind.INNER_LIST) {
     assert.fail('Expected inner list, got:' + item.kind);
     return [];
@@ -126,7 +126,7 @@ function makeItem(bareItem: StructuredHeaders.BareItem): StructuredHeaders.Item 
   };
 }
 
-function makeParams(params: Array<[string, StructuredHeaders.BareItem]>): StructuredHeaders.Parameters {
+function makeParams(params: [string, StructuredHeaders.BareItem][]): StructuredHeaders.Parameters {
   const typedParams: StructuredHeaders.Parameters = {kind: StructuredHeaders.ResultKind.PARAMETERS, items: []};
   for (const param of params) {
     typedParams.items.push({
@@ -139,17 +139,17 @@ function makeParams(params: Array<[string, StructuredHeaders.BareItem]>): Struct
 }
 
 function makeItemWithParams(
-    bareItem: StructuredHeaders.BareItem, params: Array<[string, StructuredHeaders.BareItem]>): StructuredHeaders.Item {
+    bareItem: StructuredHeaders.BareItem, params: [string, StructuredHeaders.BareItem][]): StructuredHeaders.Item {
   return {kind: StructuredHeaders.ResultKind.ITEM, value: bareItem, parameters: makeParams(params)};
 }
 
 function makeList(items: StructuredHeaders.ListMember[]): StructuredHeaders.List {
-  return {kind: StructuredHeaders.ResultKind.LIST, items};
+  return {kind: StructuredHeaders.ResultKind.LIST, items: items};
 }
 
 function makeInnerList(
-    items: StructuredHeaders.Item[], params: Array<[string, StructuredHeaders.BareItem]>): StructuredHeaders.InnerList {
-  return {kind: StructuredHeaders.ResultKind.INNER_LIST, items, parameters: makeParams(params)};
+    items: StructuredHeaders.Item[], params: [string, StructuredHeaders.BareItem][]): StructuredHeaders.InnerList {
+  return {kind: StructuredHeaders.ResultKind.INNER_LIST, items: items, parameters: makeParams(params)};
 }
 
 describe('StructuredHeaders', () => {

@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.parsePSelectors = parsePSelectors;
+exports.parsePSelectors = void 0;
 const parsel_js_js_1 = require("../../third_party/parsel-js/parsel-js.js");
 parsel_js_js_1.TOKENS['nesting'] = /&/g;
 parsel_js_js_1.TOKENS['combinator'] = /\s*(>>>>?|[\s>+~])\s*/g;
@@ -100,4 +100,5 @@ function parsePSelectors(selector) {
     }
     return [selectors, isPureCSS, hasPseudoClasses, hasAria];
 }
+exports.parsePSelectors = parsePSelectors;
 //# sourceMappingURL=PSelectorParser.js.map

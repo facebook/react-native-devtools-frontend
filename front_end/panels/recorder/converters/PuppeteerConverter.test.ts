@@ -15,7 +15,7 @@ describe('PuppeteerConverter', () => {
       title: 'test',
       steps: [{type: Models.Schema.StepType.Scroll, selectors: [['.cls']]}],
     });
-    const expected = `const puppeteer = require('puppeteer'); // v23.0.0 or later
+    const expected = `const puppeteer = require('puppeteer'); // v22.0.0 or later
 
 (async () => {
   const browser = await puppeteer.launch();
@@ -35,7 +35,7 @@ describe('PuppeteerConverter', () => {
   await browser.close();`;
     const actual = result.substring(0, expected.length);
     assert.strictEqual(actual, expected, `Unexpected start of generated result:\n${actual}`);
-    assert.deepEqual(sourceMap, [1, 8, 8]);
+    assert.deepStrictEqual(sourceMap, [1, 8, 8]);
   });
 
   it('should stringify a step', async () => {
@@ -53,36 +53,5 @@ describe('PuppeteerConverter', () => {
 }
 `,
     );
-  });
-
-  it('should stringify a flow for Firefox', async () => {
-    const converter = new Converters.PuppeteerFirefoxConverter.PuppeteerFirefoxConverter(
-        '  ',
-    );
-    const [result, sourceMap] = await converter.stringify({
-      title: 'test',
-      steps: [{type: Models.Schema.StepType.Scroll, selectors: [['.cls']]}],
-    });
-    const expected = `const puppeteer = require('puppeteer'); // v23.0.0 or later
-
-(async () => {
-  const browser = await puppeteer.launch({browser: 'firefox'});
-  const page = await browser.newPage();
-  const timeout = 5000;
-  page.setDefaultTimeout(timeout);
-
-  {
-    const targetPage = page;
-    await puppeteer.Locator.race([
-      targetPage.locator('.cls')
-    ])
-      .setTimeout(timeout)
-      .scroll({ scrollTop: undefined, scrollLeft: undefined});
-  }
-
-  await browser.close();`;
-    const actual = result.substring(0, expected.length);
-    assert.strictEqual(actual, expected, `Unexpected start of generated result:\n${actual}`);
-    assert.deepEqual(sourceMap, [1, 8, 8]);
   });
 });

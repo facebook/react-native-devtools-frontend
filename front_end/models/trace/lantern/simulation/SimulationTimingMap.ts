@@ -47,18 +47,18 @@ export interface ConnectionTiming {
 }
 
 class SimulatorTimingMap {
-  nodeTimings: Map<Graph.Node, NodeTimingData>;
+  _nodeTimings: Map<Graph.Node, NodeTimingData>;
 
   constructor() {
-    this.nodeTimings = new Map<Graph.Node, NodeTimingData>();
+    this._nodeTimings = new Map<Graph.Node, NodeTimingData>();
   }
 
   getNodes(): Graph.Node[] {
-    return Array.from(this.nodeTimings.keys());
+    return Array.from(this._nodeTimings.keys());
   }
 
   setReadyToStart(node: Graph.Node, values: {queuedTime: number}): void {
-    this.nodeTimings.set(node, values);
+    this._nodeTimings.set(node, values);
   }
 
   setInProgress(node: Graph.Node, values: {startTime: number}): void {
@@ -68,7 +68,7 @@ class SimulatorTimingMap {
       timeElapsed: 0,
     };
 
-    this.nodeTimings.set(
+    this._nodeTimings.set(
         node,
         node.type === Graph.BaseNode.types.NETWORK ? {...nodeTiming, timeElapsedOvershoot: 0, bytesDownloaded: 0} :
                                                      nodeTiming,
@@ -82,7 +82,7 @@ class SimulatorTimingMap {
       connectionTiming: values.connectionTiming,
     };
 
-    this.nodeTimings.set(node, nodeTiming);
+    this._nodeTimings.set(node, nodeTiming);
   }
 
   setCpu(node: Graph.CPUNode, values: {timeElapsed: number}): void {
@@ -91,7 +91,7 @@ class SimulatorTimingMap {
       timeElapsed: values.timeElapsed,
     };
 
-    this.nodeTimings.set(node, nodeTiming);
+    this._nodeTimings.set(node, nodeTiming);
   }
 
   setCpuEstimated(node: Graph.CPUNode, values: {estimatedTimeElapsed: number}): void {
@@ -100,7 +100,7 @@ class SimulatorTimingMap {
       estimatedTimeElapsed: values.estimatedTimeElapsed,
     };
 
-    this.nodeTimings.set(node, nodeTiming);
+    this._nodeTimings.set(node, nodeTiming);
   }
 
   setNetwork(
@@ -113,7 +113,7 @@ class SimulatorTimingMap {
       bytesDownloaded: values.bytesDownloaded,
     };
 
-    this.nodeTimings.set(node, nodeTiming);
+    this._nodeTimings.set(node, nodeTiming);
   }
 
   setNetworkEstimated(node: Graph.NetworkNode, values: {estimatedTimeElapsed: number}): void {
@@ -122,11 +122,11 @@ class SimulatorTimingMap {
       estimatedTimeElapsed: values.estimatedTimeElapsed,
     };
 
-    this.nodeTimings.set(node, nodeTiming);
+    this._nodeTimings.set(node, nodeTiming);
   }
 
   getQueued(node: Graph.Node): NodeTimingData {
-    const timing = this.nodeTimings.get(node);
+    const timing = this._nodeTimings.get(node);
     if (!timing) {
       throw new Core.LanternError(`Node ${node.id} not yet queued`);
     }
@@ -134,7 +134,7 @@ class SimulatorTimingMap {
   }
 
   getCpuStarted(node: Graph.CPUNode): CpuNodeTimingStarted {
-    const timing = this.nodeTimings.get(node);
+    const timing = this._nodeTimings.get(node);
     if (!timing) {
       throw new Core.LanternError(`Node ${node.id} not yet queued`);
     }
@@ -148,7 +148,7 @@ class SimulatorTimingMap {
   }
 
   getNetworkStarted(node: Graph.NetworkNode): NetworkNodeTimingStarted {
-    const timing = this.nodeTimings.get(node);
+    const timing = this._nodeTimings.get(node);
     if (!timing) {
       throw new Core.LanternError(`Node ${node.id} not yet queued`);
     }
@@ -162,7 +162,7 @@ class SimulatorTimingMap {
   }
 
   getInProgress(node: Graph.Node): CpuNodeTimingInProgress|NetworkNodeTimingInProgress {
-    const timing = this.nodeTimings.get(node);
+    const timing = this._nodeTimings.get(node);
     if (!timing) {
       throw new Core.LanternError(`Node ${node.id} not yet queued`);
     }
@@ -176,7 +176,7 @@ class SimulatorTimingMap {
   }
 
   getCompleted(node: Graph.Node): CpuNodeTimingComplete|NetworkNodeTimingComplete {
-    const timing = this.nodeTimings.get(node);
+    const timing = this._nodeTimings.get(node);
     if (!timing) {
       throw new Core.LanternError(`Node ${node.id} not yet queued`);
     }

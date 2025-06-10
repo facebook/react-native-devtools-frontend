@@ -2,12 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../icon_button/icon_button.js';
-
 import * as Common from '../../../core/common/common.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as IssuesManager from '../../../models/issues_manager/issues_manager.js';
-import {html, render} from '../../lit/lit.js';
+import * as LitHtml from '../../lit-html/lit-html.js';
 import type * as IconButton from '../icon_button/icon_button.js';
 
 import issueCounterStyles from './issueCounter.css.js';
@@ -25,17 +23,17 @@ const UIStrings = {
    *@description Label for link to Issues tab, specifying how many issues there are.
    */
   possibleImprovements: '{issueCount, plural, =1 {# possible improvement} other {# possible improvements}}',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('ui/components/issue_counter/IssueCounter.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export function getIssueKindIconData(issueKind: IssuesManager.Issue.IssueKind): IconButton.Icon.IconWithName {
   switch (issueKind) {
-    case IssuesManager.Issue.IssueKind.PAGE_ERROR:
+    case IssuesManager.Issue.IssueKind.PageError:
       return {iconName: 'issue-cross-filled', color: 'var(--icon-error)', width: '20px', height: '20px'};
-    case IssuesManager.Issue.IssueKind.BREAKING_CHANGE:
+    case IssuesManager.Issue.IssueKind.BreakingChange:
       return {iconName: 'issue-exclamation-filled', color: 'var(--icon-warning)', width: '20px', height: '20px'};
-    case IssuesManager.Issue.IssueKind.IMPROVEMENT:
+    case IssuesManager.Issue.IssueKind.Improvement:
       return {iconName: 'issue-text-filled', color: 'var(--icon-info)', width: '20px', height: '20px'};
   }
 }
@@ -49,9 +47,9 @@ function toIconGroup({iconName, color, width, height}: IconButton.Icon.IconWithN
 }
 
 export const enum DisplayMode {
-  OMIT_EMPTY = 'OmitEmpty',
-  SHOW_ALWAYS = 'ShowAlways',
-  ONLY_MOST_IMPORTANT = 'OnlyMostImportant',
+  OmitEmpty = 'OmitEmpty',
+  ShowAlways = 'ShowAlways',
+  OnlyMostImportant = 'OnlyMostImportant',
 }
 
 export interface IssueCounterData {
@@ -65,44 +63,33 @@ export interface IssueCounterData {
   compact?: boolean;
 }
 
-// Lazily instantiate the formatter as the constructor takes 50ms+
-// TODO: move me and others like me to i18n module
-const listFormatter = (function defineFormatter() {
-  let intlListFormat: Intl.ListFormat;
-  return {
-    format(...args: Parameters<Intl.ListFormat['format']>): ReturnType<Intl.ListFormat['format']> {
-      if (!intlListFormat) {
-        const opts: Intl.ListFormatOptions = {type: 'unit', style: 'short'};
-        intlListFormat = new Intl.ListFormat(i18n.DevToolsLocale.DevToolsLocale.instance().locale, opts);
-      }
-      return intlListFormat.format(...args);
-    },
-  };
-})();
+// @ts-ignore Remove this comment once Intl.ListFormat is in type defs.
+const listFormat = new Intl.ListFormat(navigator.language, {type: 'unit', style: 'short'});
 
 export function getIssueCountsEnumeration(
-    issuesManager: IssuesManager.IssuesManager.IssuesManager, omitEmpty = true): string {
+    issuesManager: IssuesManager.IssuesManager.IssuesManager, omitEmpty: boolean = true): string {
   const counts: [number, number, number] = [
-    issuesManager.numberOfIssues(IssuesManager.Issue.IssueKind.PAGE_ERROR),
-    issuesManager.numberOfIssues(IssuesManager.Issue.IssueKind.BREAKING_CHANGE),
-    issuesManager.numberOfIssues(IssuesManager.Issue.IssueKind.IMPROVEMENT),
+    issuesManager.numberOfIssues(IssuesManager.Issue.IssueKind.PageError),
+    issuesManager.numberOfIssues(IssuesManager.Issue.IssueKind.BreakingChange),
+    issuesManager.numberOfIssues(IssuesManager.Issue.IssueKind.Improvement),
   ];
   const phrases = [
     i18nString(UIStrings.pageErrors, {issueCount: counts[0]}),
     i18nString(UIStrings.breakingChanges, {issueCount: counts[1]}),
     i18nString(UIStrings.possibleImprovements, {issueCount: counts[2]}),
   ];
-  return listFormatter.format(phrases.filter((_, i) => omitEmpty ? counts[i] > 0 : true));
+  return listFormat.format(phrases.filter((_, i) => omitEmpty ? counts[i] > 0 : true));
 }
 
 export class IssueCounter extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-issue-counter`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   #clickHandler: undefined|(() => void) = undefined;
   #tooltipCallback: undefined|(() => void) = undefined;
-  #leadingText = '';
+  #leadingText: string = '';
   #throttler: undefined|Common.Throttler.Throttler;
   #counts: [number, number, number] = [0, 0, 0];
-  #displayMode: DisplayMode = DisplayMode.OMIT_EMPTY;
+  #displayMode: DisplayMode = DisplayMode.OmitEmpty;
   #issuesManager: IssuesManager.IssuesManager.IssuesManager|undefined = undefined;
   #accessibleName: string|undefined = undefined;
   #throttlerTimeout: number|undefined;
@@ -116,20 +103,24 @@ export class IssueCounter extends HTMLElement {
     }
   }
 
+  connectedCallback(): void {
+    this.#shadow.adoptedStyleSheets = [issueCounterStyles];
+  }
+
   set data(data: IssueCounterData) {
     this.#clickHandler = data.clickHandler;
     this.#leadingText = data.leadingText ?? '';
     this.#tooltipCallback = data.tooltipCallback;
-    this.#displayMode = data.displayMode ?? DisplayMode.OMIT_EMPTY;
+    this.#displayMode = data.displayMode ?? DisplayMode.OmitEmpty;
     this.#accessibleName = data.accessibleName;
     this.#throttlerTimeout = data.throttlerTimeout;
     this.#compact = Boolean(data.compact);
     if (this.#issuesManager !== data.issuesManager) {
       this.#issuesManager?.removeEventListener(
-          IssuesManager.IssuesManager.Events.ISSUES_COUNT_UPDATED, this.scheduleUpdate, this);
+          IssuesManager.IssuesManager.Events.IssuesCountUpdated, this.scheduleUpdate, this);
       this.#issuesManager = data.issuesManager;
       this.#issuesManager.addEventListener(
-          IssuesManager.IssuesManager.Events.ISSUES_COUNT_UPDATED, this.scheduleUpdate, this);
+          IssuesManager.IssuesManager.Events.IssuesCountUpdated, this.scheduleUpdate, this);
     }
     if (data.throttlerTimeout !== 0) {
       this.#throttler = new Common.Throttler.Throttler(data.throttlerTimeout ?? 100);
@@ -157,24 +148,24 @@ export class IssueCounter extends HTMLElement {
       return;
     }
     this.#counts = [
-      this.#issuesManager.numberOfIssues(IssuesManager.Issue.IssueKind.PAGE_ERROR),
-      this.#issuesManager.numberOfIssues(IssuesManager.Issue.IssueKind.BREAKING_CHANGE),
-      this.#issuesManager.numberOfIssues(IssuesManager.Issue.IssueKind.IMPROVEMENT),
+      this.#issuesManager.numberOfIssues(IssuesManager.Issue.IssueKind.PageError),
+      this.#issuesManager.numberOfIssues(IssuesManager.Issue.IssueKind.BreakingChange),
+      this.#issuesManager.numberOfIssues(IssuesManager.Issue.IssueKind.Improvement),
     ];
     const importance = [
-      IssuesManager.Issue.IssueKind.PAGE_ERROR,
-      IssuesManager.Issue.IssueKind.BREAKING_CHANGE,
-      IssuesManager.Issue.IssueKind.IMPROVEMENT,
+      IssuesManager.Issue.IssueKind.PageError,
+      IssuesManager.Issue.IssueKind.BreakingChange,
+      IssuesManager.Issue.IssueKind.Improvement,
     ];
     const mostImportant = importance[this.#counts.findIndex(x => x > 0) ?? 2];
 
     const countToString = (kind: IssuesManager.Issue.IssueKind, count: number): string|undefined => {
       switch (this.#displayMode) {
-        case DisplayMode.OMIT_EMPTY:
+        case DisplayMode.OmitEmpty:
           return count > 0 ? `${count}` : undefined;
-        case DisplayMode.SHOW_ALWAYS:
+        case DisplayMode.ShowAlways:
           return `${count}`;
-        case DisplayMode.ONLY_MOST_IMPORTANT:
+        case DisplayMode.OnlyMostImportant:
           return kind === mostImportant ? `${count}` : undefined;
       }
     };
@@ -182,16 +173,16 @@ export class IssueCounter extends HTMLElement {
     const data: IconButton.IconButton.IconButtonData = {
       groups: [
         {
-          ...toIconGroup(getIssueKindIconData(IssuesManager.Issue.IssueKind.PAGE_ERROR), iconSize),
-          text: countToString(IssuesManager.Issue.IssueKind.PAGE_ERROR, this.#counts[0]),
+          ...toIconGroup(getIssueKindIconData(IssuesManager.Issue.IssueKind.PageError), iconSize),
+          text: countToString(IssuesManager.Issue.IssueKind.PageError, this.#counts[0]),
         },
         {
-          ...toIconGroup(getIssueKindIconData(IssuesManager.Issue.IssueKind.BREAKING_CHANGE), iconSize),
-          text: countToString(IssuesManager.Issue.IssueKind.BREAKING_CHANGE, this.#counts[1]),
+          ...toIconGroup(getIssueKindIconData(IssuesManager.Issue.IssueKind.BreakingChange), iconSize),
+          text: countToString(IssuesManager.Issue.IssueKind.BreakingChange, this.#counts[1]),
         },
         {
-          ...toIconGroup(getIssueKindIconData(IssuesManager.Issue.IssueKind.IMPROVEMENT), iconSize),
-          text: countToString(IssuesManager.Issue.IssueKind.IMPROVEMENT, this.#counts[2]),
+          ...toIconGroup(getIssueKindIconData(IssuesManager.Issue.IssueKind.Improvement), iconSize),
+          text: countToString(IssuesManager.Issue.IssueKind.Improvement, this.#counts[2]),
         },
       ],
       clickHandler: this.#clickHandler,
@@ -199,10 +190,10 @@ export class IssueCounter extends HTMLElement {
       accessibleName: this.#accessibleName,
       compact: this.#compact,
     };
-    render(
-        html`
-        <style>${issueCounterStyles.cssText}</style>
-        <icon-button .data=${data} .accessibleName=${this.#accessibleName}></icon-button>
+    LitHtml.render(
+        LitHtml.html`
+        <icon-button .data=${data as IconButton.IconButton.IconButtonData} .accessibleName=${
+            this.#accessibleName}></icon-button>
         `,
         this.#shadow, {host: this});
     this.#tooltipCallback?.();

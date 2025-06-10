@@ -17,7 +17,7 @@ describeWithMockConnection('LayersPanel', () => {
     const actionRegistryInstance = UI.ActionRegistry.ActionRegistry.instance({forceNew: true});
     UI.ShortcutRegistry.ShortcutRegistry.instance({forceNew: true, actionRegistry: actionRegistryInstance});
     stubNoopSettings();
-    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
+    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
     prerenderTarget = createTarget({parentTarget: tabTarget, subtype: 'prerender'});
     target = createTarget({parentTarget: tabTarget});
   });

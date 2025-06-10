@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../ui/legacy/legacy.js';
-
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -11,7 +9,6 @@ import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import * as Workspace from '../../models/workspace/workspace.js';
-import * as Buttons from '../../ui/components/buttons/buttons.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
@@ -64,27 +61,14 @@ const UIStrings = {
   contentScripts: 'Content scripts',
   /**
    *@description Message in Coverage View of the Coverage tab
+   *@example {record button icon} PH1
    */
-  noCoverageData: 'No coverage data',
+  clickTheReloadButtonSToReloadAnd: 'Click the reload button {PH1} to reload and start capturing coverage.',
   /**
    *@description Message in Coverage View of the Coverage tab
+   *@example {record button icon} PH1
    */
-  reloadPage: 'Reload page',
-  /**
-   *@description Message in Coverage View of the Coverage tab
-   */
-  startRecording: 'Start recording',
-
-  /**
-   *@description Message in Coverage View of the Coverage tab
-   *@example {Reload page} PH1
-   */
-  clickTheReloadButtonSToReloadAnd: 'Click the "{PH1}" button to reload and start capturing coverage.',
-  /**
-   *@description Message in Coverage View of the Coverage tab
-   *@example {Start recording} PH1
-   */
-  clickTheRecordButtonSToStart: 'Click the "{PH1}" button to start capturing coverage.',
+  clickTheRecordButtonSToStart: 'Click the record button {PH1} to start capturing coverage.',
   /**
    *@description Message in the Coverage View explaining that DevTools could not capture coverage.
    */
@@ -113,7 +97,7 @@ const UIStrings = {
    *@example {29%} PH4
    */
   sOfSSUsedSoFarSUnused: '{PH1} of {PH2} ({PH3}%) used so far, {PH4} unused.',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/coverage/CoverageView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -146,7 +130,6 @@ export class CoverageView extends UI.Widget.VBox {
 
   constructor() {
     super(true);
-    this.registerRequiredCSS(coverageViewStyles);
 
     this.element.setAttribute('jslog', `${VisualLogging.panel('coverage').track({resize: true})}`);
 
@@ -155,10 +138,8 @@ export class CoverageView extends UI.Widget.VBox {
 
     const toolbarContainer = this.contentElement.createChild('div', 'coverage-toolbar-container');
     toolbarContainer.setAttribute('jslog', `${VisualLogging.toolbar()}`);
-    toolbarContainer.role = 'toolbar';
-    const toolbar = toolbarContainer.createChild('devtools-toolbar', 'coverage-toolbar');
-    toolbar.role = 'presentation';
-    toolbar.wrappable = true;
+    const toolbar = new UI.Toolbar.Toolbar('coverage-toolbar', toolbarContainer);
+    toolbar.makeWrappable(true);
 
     this.coverageTypeComboBox = new UI.Toolbar.ToolbarComboBox(
         this.onCoverageTypeComboBoxSelectionChanged.bind(this), i18nString(UIStrings.chooseCoverageGranularityPer),
@@ -166,11 +147,11 @@ export class CoverageView extends UI.Widget.VBox {
     const coverageTypes = [
       {
         label: i18nString(UIStrings.perFunction),
-        value: CoverageType.JAVA_SCRIPT | CoverageType.JAVA_SCRIPT_PER_FUNCTION,
+        value: CoverageType.JavaScript | CoverageType.JavaScriptPerFunction,
       },
       {
         label: i18nString(UIStrings.perBlock),
-        value: CoverageType.JAVA_SCRIPT,
+        value: CoverageType.JavaScript,
       },
     ];
     for (const type of coverageTypes) {
@@ -186,10 +167,10 @@ export class CoverageView extends UI.Widget.VBox {
     toolbar.appendToolbarItem(this.toggleRecordButton);
 
     const mainTarget = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
-    const mainTargetSupportsRecordOnReload = mainTarget?.model(SDK.ResourceTreeModel.ResourceTreeModel);
+    const mainTargetSupportsRecordOnReload = mainTarget && mainTarget.model(SDK.ResourceTreeModel.ResourceTreeModel);
     this.inlineReloadButton = null;
     if (mainTargetSupportsRecordOnReload) {
-      this.startWithReloadButton = UI.Toolbar.Toolbar.createActionButton('coverage.start-with-reload');
+      this.startWithReloadButton = UI.Toolbar.Toolbar.createActionButtonForId('coverage.start-with-reload');
       toolbar.appendToolbarItem(this.startWithReloadButton);
       this.toggleRecordButton.setEnabled(false);
       this.toggleRecordButton.setVisible(false);
@@ -205,9 +186,9 @@ export class CoverageView extends UI.Widget.VBox {
 
     this.textFilterRegExp = null;
     toolbar.appendSeparator();
-    this.filterInput = new UI.Toolbar.ToolbarFilter(i18nString(UIStrings.filterByUrl), 1, 1);
+    this.filterInput = new UI.Toolbar.ToolbarFilter(i18nString(UIStrings.filterByUrl), 0.4, 1);
     this.filterInput.setEnabled(false);
-    this.filterInput.addEventListener(UI.Toolbar.ToolbarInput.Event.TEXT_CHANGED, this.onFilterChanged, this);
+    this.filterInput.addEventListener(UI.Toolbar.ToolbarInput.Event.TextChanged, this.onFilterChanged, this);
     toolbar.appendToolbarItem(this.filterInput);
 
     toolbar.appendSeparator();
@@ -227,7 +208,7 @@ export class CoverageView extends UI.Widget.VBox {
       },
       {
         label: i18nString(UIStrings.javascript),
-        value: CoverageType.JAVA_SCRIPT | CoverageType.JAVA_SCRIPT_PER_FUNCTION,
+        value: CoverageType.JavaScript | CoverageType.JavaScriptPerFunction,
       },
     ];
     for (const option of options) {
@@ -271,24 +252,21 @@ export class CoverageView extends UI.Widget.VBox {
   }
 
   private buildLandingPage(): UI.Widget.VBox {
-    const widget = new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.noCoverageData), '');
-    widget.appendLink('https://developer.chrome.com/docs/devtools/coverage' as Platform.DevToolsPath.UrlString);
+    const widget = new UI.Widget.VBox();
+    let message;
     if (this.startWithReloadButton) {
-      const action = UI.ActionRegistry.ActionRegistry.instance().getAction('coverage.start-with-reload');
-      if (action) {
-        widget.text = i18nString(UIStrings.clickTheReloadButtonSToReloadAnd, {PH1: i18nString(UIStrings.reloadPage)});
-        const button = UI.UIUtils.createTextButton(
-            i18nString(UIStrings.reloadPage), () => action.execute(),
-            {jslogContext: action.id(), variant: Buttons.Button.Variant.TONAL});
-        widget.contentElement.append(button);
-      }
+      this.inlineReloadButton =
+          UI.UIUtils.createInlineButton(UI.Toolbar.Toolbar.createActionButtonForId('coverage.start-with-reload'));
+      message = i18n.i18n.getFormatLocalizedString(
+          str_, UIStrings.clickTheReloadButtonSToReloadAnd, {PH1: this.inlineReloadButton});
     } else {
-      widget.text = i18nString(UIStrings.clickTheRecordButtonSToStart, {PH1: i18nString(UIStrings.startRecording)});
-      const button = UI.UIUtils.createTextButton(
-          i18nString(UIStrings.startRecording), () => this.toggleRecordAction.execute(),
-          {jslogContext: this.toggleRecordAction.id(), variant: Buttons.Button.Variant.TONAL});
-      widget.contentElement.append(button);
+      const recordButton =
+          UI.UIUtils.createInlineButton(UI.Toolbar.Toolbar.createActionButton(this.toggleRecordAction));
+      message = i18n.i18n.getFormatLocalizedString(str_, UIStrings.clickTheRecordButtonSToStart, {PH1: recordButton});
     }
+    message.classList.add('message');
+    widget.contentElement.appendChild(message);
+    widget.element.classList.add('landing-page');
     return widget;
   }
 
@@ -299,7 +277,7 @@ export class CoverageView extends UI.Widget.VBox {
     reasonDiv.textContent = message;
     widget.contentElement.appendChild(reasonDiv);
     this.inlineReloadButton =
-        UI.UIUtils.createInlineButton(UI.Toolbar.Toolbar.createActionButton('inspector-main.reload'));
+        UI.UIUtils.createInlineButton(UI.Toolbar.Toolbar.createActionButtonForId('inspector-main.reload'));
     const messageElement =
         i18n.i18n.getFormatLocalizedString(str_, UIStrings.reloadPrompt, {PH1: this.inlineReloadButton});
     messageElement.classList.add('message');
@@ -344,7 +322,7 @@ export class CoverageView extends UI.Widget.VBox {
     const option = this.coverageTypeComboBox.selectedOption();
     const coverageType = Number(option ? option.value : Number.NaN);
     // Check that Coverage.CoverageType.JavaScriptPerFunction is not present.
-    return coverageType === CoverageType.JAVA_SCRIPT;
+    return coverageType === CoverageType.JavaScript;
   }
 
   private selectCoverageType(jsCoveragePerBlock: boolean): void {
@@ -356,10 +334,20 @@ export class CoverageView extends UI.Widget.VBox {
     this.coverageTypeComboBoxSetting.set(this.coverageTypeComboBox.selectedIndex());
   }
 
+  async ensureRecordingStarted(): Promise<void> {
+    const enabled = this.toggleRecordAction.toggled();
+
+    if (enabled) {
+      await this.stopRecording();
+    }
+    await this.startRecording({reload: false, jsCoveragePerBlock: false});
+  }
+
   async startRecording(options: {reload: (boolean|undefined), jsCoveragePerBlock: (boolean|undefined)}|
                        null): Promise<void> {
     let hadFocus, reloadButtonFocused;
-    if ((this.startWithReloadButton?.element.hasFocus()) || (this.inlineReloadButton?.hasFocus())) {
+    if ((this.startWithReloadButton && this.startWithReloadButton.element.hasFocus()) ||
+        (this.inlineReloadButton && this.inlineReloadButton.hasFocus())) {
       reloadButtonFocused = true;
     } else if (this.hasFocus()) {
       hadFocus = true;
@@ -390,7 +378,8 @@ export class CoverageView extends UI.Widget.VBox {
     this.selectCoverageType(Boolean(jsCoveragePerBlock));
     this.model.addEventListener(Events.CoverageUpdated, this.onCoverageDataReceived, this);
     this.model.addEventListener(Events.SourceMapResolved, this.updateListView, this);
-    const resourceTreeModel = mainTarget.model(SDK.ResourceTreeModel.ResourceTreeModel);
+    const resourceTreeModel =
+        mainTarget.model(SDK.ResourceTreeModel.ResourceTreeModel) as SDK.ResourceTreeModel.ResourceTreeModel | null;
     SDK.TargetManager.TargetManager.instance().addModelListener(
         SDK.ResourceTreeModel.ResourceTreeModel, SDK.ResourceTreeModel.Events.PrimaryPageChanged,
         this.onPrimaryPageChanged, this);
@@ -433,7 +422,7 @@ export class CoverageView extends UI.Widget.VBox {
   }
 
   private updateListView(): void {
-    this.listView.update(this.model?.entries() || []);
+    this.listView.update(this.model && this.model.entries() || []);
   }
 
   async stopRecording(): Promise<void> {
@@ -457,6 +446,10 @@ export class CoverageView extends UI.Widget.VBox {
       this.toggleRecordButton.setVisible(false);
     }
     this.clearAction.setEnabled(true);
+  }
+
+  processBacklog(): void {
+    this.model && void this.model.processJSBacklog();
   }
 
   private async onPrimaryPageChanged(
@@ -499,7 +492,7 @@ export class CoverageView extends UI.Widget.VBox {
       this.listView.detach();
       this.bfcacheReloadPromptPage.show(this.coverageResultsElement);
     }
-    if (event.data.type === SDK.ResourceTreeModel.PrimaryPageChangeType.ACTIVATION) {
+    if (event.data.type === SDK.ResourceTreeModel.PrimaryPageChangeType.Activation) {
       this.listView.detach();
       this.activationReloadPromptPage.show(this.coverageResultsElement);
     }
@@ -512,7 +505,7 @@ export class CoverageView extends UI.Widget.VBox {
 
   private updateViews(updatedEntries: CoverageInfo[]): void {
     this.updateStats();
-    this.listView.update(this.model?.entries() || []);
+    this.listView.update(this.model && this.model.entries() || []);
     this.exportAction.setEnabled(this.model !== null && this.model.entries().length > 0);
     this.decorationManager && this.decorationManager.update(updatedEntries);
   }
@@ -549,10 +542,10 @@ export class CoverageView extends UI.Widget.VBox {
       const used = total - unused;
       const percentUsed = total ? Math.round(100 * used / total) : 0;
       return i18nString(UIStrings.sOfSSUsedSoFarSUnused, {
-        PH1: i18n.ByteUtilities.bytesToString(used),
-        PH2: i18n.ByteUtilities.bytesToString(total),
+        PH1: Platform.NumberUtilities.bytesToString(used),
+        PH2: Platform.NumberUtilities.bytesToString(total),
         PH3: percentUsed,
-        PH4: i18n.ByteUtilities.bytesToString(unused),
+        PH4: Platform.NumberUtilities.bytesToString(unused),
       });
     }
   }
@@ -575,7 +568,7 @@ export class CoverageView extends UI.Widget.VBox {
     Host.userMetrics.actionTaken(Host.UserMetrics.Action.CoverageReportFiltered);
 
     const option = this.filterByTypeComboBox.selectedOption();
-    const type = option?.value;
+    const type = option && option.value;
     this.typeFilterValue = parseInt(type || '', 10) || null;
     this.listView.updateFilterAndHighlight(this.textFilterRegExp);
     this.updateStats();
@@ -624,6 +617,7 @@ export class CoverageView extends UI.Widget.VBox {
   override wasShown(): void {
     UI.Context.Context.instance().setFlavor(CoverageView, this);
     super.wasShown();
+    this.registerCSSFiles([coverageViewStyles]);
   }
 
   override willHide(): void {
@@ -639,7 +633,7 @@ export class ActionDelegate implements UI.ActionRegistration.ActionDelegate {
         .showView(coverageViewId, /** userGesture= */ false, /** omitFocus= */ true)
         .then(() => {
           const view = UI.ViewManager.ViewManager.instance().view(coverageViewId);
-          return view?.widget();
+          return view && view.widget();
         })
         .then(widget => this.innerHandleAction(widget as CoverageView, actionId));
 

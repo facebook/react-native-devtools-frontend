@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import './RequestHeaderSection.js';
-
 import * as Common from '../../../core/common/common.js';
 import * as Host from '../../../core/host/host.js';
 import * as i18n from '../../../core/i18n/i18n.js';
@@ -14,28 +12,26 @@ import * as Workspace from '../../../models/workspace/workspace.js';
 import * as NetworkForward from '../../../panels/network/forward/forward.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as ComponentHelpers from '../../../ui/components/helpers/helpers.js';
-import type * as IconButton from '../../../ui/components/icon_button/icon_button.js';
+import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
 import * as Input from '../../../ui/components/input/input.js';
 import * as LegacyWrapper from '../../../ui/components/legacy_wrapper/legacy_wrapper.js';
-import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
+import * as Coordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 import * as UI from '../../../ui/legacy/legacy.js';
-import * as Lit from '../../../ui/lit/lit.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 import * as Sources from '../../sources/sources.js';
 
-import type {RequestHeaderSectionData} from './RequestHeaderSection.js';
-import requestHeadersViewStylesRaw from './RequestHeadersView.css.js';
+import {RequestHeaderSection, type RequestHeaderSectionData} from './RequestHeaderSection.js';
+import requestHeadersViewStyles from './RequestHeadersView.css.js';
 import {
+  EarlyHintsHeaderSection,
   RESPONSE_HEADER_SECTION_DATA_KEY,
+  ResponseHeaderSection,
   type ResponseHeaderSectionData,
 } from './ResponseHeaderSection.js';
 
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const requestHeadersViewStyles = new CSSStyleSheet();
-requestHeadersViewStyles.replaceSync(requestHeadersViewStylesRaw.cssText);
-
 const RAW_HEADER_CUTOFF = 3000;
-const {render, html} = Lit;
+const {render, html} = LitHtml;
 
 const UIStrings = {
   /**
@@ -114,12 +110,15 @@ const UIStrings = {
    *@description HTTP response code
    */
   statusCode: 'Status Code',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/network/components/RequestHeadersView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
+
 export class RequestHeadersView extends LegacyWrapper.LegacyWrapper.WrappableComponent {
   #request: Readonly<SDK.NetworkRequest.NetworkRequest>;
+  static readonly litTagName = LitHtml.literal`devtools-request-headers`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   #showResponseHeadersText = false;
   #showRequestHeadersText = false;
@@ -135,22 +134,21 @@ export class RequestHeadersView extends LegacyWrapper.LegacyWrapper.WrappableCom
   }
 
   override wasShown(): void {
-    this.#request.addEventListener(SDK.NetworkRequest.Events.REMOTE_ADDRESS_CHANGED, this.#refreshHeadersView, this);
-    this.#request.addEventListener(SDK.NetworkRequest.Events.FINISHED_LOADING, this.#refreshHeadersView, this);
-    this.#request.addEventListener(SDK.NetworkRequest.Events.REQUEST_HEADERS_CHANGED, this.#refreshHeadersView, this);
+    this.#request.addEventListener(SDK.NetworkRequest.Events.RemoteAddressChanged, this.#refreshHeadersView, this);
+    this.#request.addEventListener(SDK.NetworkRequest.Events.FinishedLoading, this.#refreshHeadersView, this);
+    this.#request.addEventListener(SDK.NetworkRequest.Events.RequestHeadersChanged, this.#refreshHeadersView, this);
     this.#request.addEventListener(
-        SDK.NetworkRequest.Events.RESPONSE_HEADERS_CHANGED, this.#resetAndRefreshHeadersView, this);
+        SDK.NetworkRequest.Events.ResponseHeadersChanged, this.#resetAndRefreshHeadersView, this);
     this.#toReveal = undefined;
     this.#refreshHeadersView();
   }
 
   override willHide(): void {
-    this.#request.removeEventListener(SDK.NetworkRequest.Events.REMOTE_ADDRESS_CHANGED, this.#refreshHeadersView, this);
-    this.#request.removeEventListener(SDK.NetworkRequest.Events.FINISHED_LOADING, this.#refreshHeadersView, this);
+    this.#request.removeEventListener(SDK.NetworkRequest.Events.RemoteAddressChanged, this.#refreshHeadersView, this);
+    this.#request.removeEventListener(SDK.NetworkRequest.Events.FinishedLoading, this.#refreshHeadersView, this);
+    this.#request.removeEventListener(SDK.NetworkRequest.Events.RequestHeadersChanged, this.#refreshHeadersView, this);
     this.#request.removeEventListener(
-        SDK.NetworkRequest.Events.REQUEST_HEADERS_CHANGED, this.#refreshHeadersView, this);
-    this.#request.removeEventListener(
-        SDK.NetworkRequest.Events.RESPONSE_HEADERS_CHANGED, this.#resetAndRefreshHeadersView, this);
+        SDK.NetworkRequest.Events.ResponseHeadersChanged, this.#resetAndRefreshHeadersView, this);
   }
 
   #resetAndRefreshHeadersView(): void {
@@ -199,7 +197,7 @@ export class RequestHeadersView extends LegacyWrapper.LegacyWrapper.WrappableCom
       return;
     }
 
-    return await RenderCoordinator.write(() => {
+    return coordinator.write(() => {
       // Disabled until https://crbug.com/1079231 is fixed.
       // clang-format off
       render(html`
@@ -213,9 +211,9 @@ export class RequestHeadersView extends LegacyWrapper.LegacyWrapper.WrappableCom
     });
   }
 
-  #renderEarlyHintsHeaders(): Lit.LitTemplate {
+  #renderEarlyHintsHeaders(): LitHtml.LitTemplate {
     if (!this.#request || !this.#request.earlyHintsHeaders || this.#request.earlyHintsHeaders.length === 0) {
-      return Lit.nothing;
+      return LitHtml.nothing;
     }
 
     const toggleShowRaw = (): void => {
@@ -226,7 +224,7 @@ export class RequestHeadersView extends LegacyWrapper.LegacyWrapper.WrappableCom
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
     return html`
-      <devtools-request-headers-category
+      <${Category.litTagName}
         @togglerawevent=${toggleShowRaw}
         .data=${{
         name: 'early-hints-headers',
@@ -234,26 +232,26 @@ export class RequestHeadersView extends LegacyWrapper.LegacyWrapper.WrappableCom
         headerCount: this.#request.earlyHintsHeaders.length,
         checked: undefined,
         additionalContent: undefined,
-        forceOpen: this.#toReveal?.section === NetworkForward.UIRequestLocation.UIHeaderSection.EARLY_HINTS,
+        forceOpen: this.#toReveal?.section === NetworkForward.UIRequestLocation.UIHeaderSection.EarlyHints,
         loggingContext: 'early-hints-headers',
       } as CategoryData}
         aria-label=${i18nString(UIStrings.earlyHintsHeaders)}
       >
         ${this.#showResponseHeadersText ?
         this.#renderRawHeaders(this.#request.responseHeadersText, true) : html`
-          <devtools-early-hints-header-section .data=${{
+          <${EarlyHintsHeaderSection.litTagName} .data=${{
             request: this.#request,
             toReveal: this.#toReveal,
-          } as ResponseHeaderSectionData}></devtools-early-hints-header-section>
+          } as ResponseHeaderSectionData}></${EarlyHintsHeaderSection.litTagName}>
         `}
-      </devtools-request-headers-category>
+      </${Category.litTagName}>
     `;
     // clang-format on
   }
 
-  #renderResponseHeaders(): Lit.LitTemplate {
+  #renderResponseHeaders(): LitHtml.LitTemplate {
     if (!this.#request) {
-      return Lit.nothing;
+      return LitHtml.nothing;
     }
 
     const toggleShowRaw = (): void => {
@@ -264,7 +262,7 @@ export class RequestHeadersView extends LegacyWrapper.LegacyWrapper.WrappableCom
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
     return html`
-      <devtools-request-headers-category
+      <${Category.litTagName}
         @togglerawevent=${toggleShowRaw}
         .data=${{
           name: 'response-headers',
@@ -272,26 +270,26 @@ export class RequestHeadersView extends LegacyWrapper.LegacyWrapper.WrappableCom
           headerCount: this.#request.sortedResponseHeaders.length,
           checked: this.#request.responseHeadersText ? this.#showResponseHeadersText : undefined,
           additionalContent: this.#renderHeaderOverridesLink(),
-          forceOpen: this.#toReveal?.section === NetworkForward.UIRequestLocation.UIHeaderSection.RESPONSE,
+          forceOpen: this.#toReveal?.section === NetworkForward.UIRequestLocation.UIHeaderSection.Response,
           loggingContext: 'response-headers',
         } as CategoryData}
         aria-label=${i18nString(UIStrings.responseHeaders)}
       >
         ${this.#showResponseHeadersText ?
             this.#renderRawHeaders(this.#request.responseHeadersText, true) : html`
-          <devtools-response-header-section .data=${{
+          <${ResponseHeaderSection.litTagName} .data=${{
             request: this.#request,
             toReveal: this.#toReveal,
-          } as ResponseHeaderSectionData} jslog=${VisualLogging.section('response-headers')}></devtools-response-header-section>
+          } as ResponseHeaderSectionData} jslog=${VisualLogging.section('response-headers')}></${ResponseHeaderSection.litTagName}>
         `}
-      </devtools-request-headers-category>
+      </${Category.litTagName}>
     `;
     // clang-format on
   }
 
-  #renderHeaderOverridesLink(): Lit.LitTemplate {
+  #renderHeaderOverridesLink(): LitHtml.LitTemplate {
     if (!this.#workspace.uiSourceCodeForURL(this.#getHeaderOverridesFileUrl())) {
-      return Lit.nothing;
+      return LitHtml.nothing;
     }
 
     const overridesSetting: Common.Settings.Setting<boolean> =
@@ -299,12 +297,12 @@ export class RequestHeadersView extends LegacyWrapper.LegacyWrapper.WrappableCom
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
     const fileIcon = html`
-      <devtools-icon class=${overridesSetting.get() ? 'inline-icon dot purple': 'inline-icon'} .data=${{
+      <${IconButton.Icon.Icon.litTagName} class=${overridesSetting.get() ? 'inline-icon dot purple': 'inline-icon'} .data=${{
           iconName: 'document',
           width: '16px',
           height: '16px',
         } as IconButton.Icon.IconData}>
-      </devtools-icon>`;
+      </${IconButton.Icon.Icon.litTagName}>`;
     // clang-format on
 
     const revealHeadersFile = (event: Event): void => {
@@ -324,12 +322,12 @@ export class RequestHeadersView extends LegacyWrapper.LegacyWrapper.WrappableCom
           class="link devtools-link"
           jslog=${VisualLogging.link('devtools-override').track({click: true})}
       >
-        <devtools-icon class="inline-icon" .data=${{
+        <${IconButton.Icon.Icon.litTagName} class="inline-icon" .data=${{
             iconName: 'help',
             width: '16px',
             height: '16px',
           } as IconButton.Icon.IconData}>
-        </devtools-icon
+        </${IconButton.Icon.Icon.litTagName}
       ></x-link>
       <x-link
           @click=${revealHeadersFile}
@@ -353,9 +351,9 @@ export class RequestHeadersView extends LegacyWrapper.LegacyWrapper.WrappableCom
         Persistence.NetworkPersistenceManager.HEADERS_FILENAME as Platform.DevToolsPath.UrlString;
   }
 
-  #renderRequestHeaders(): Lit.LitTemplate {
+  #renderRequestHeaders(): LitHtml.LitTemplate {
     if (!this.#request) {
-      return Lit.nothing;
+      return LitHtml.nothing;
     }
     const requestHeadersText = this.#request.requestHeadersText();
 
@@ -367,31 +365,31 @@ export class RequestHeadersView extends LegacyWrapper.LegacyWrapper.WrappableCom
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
     return html`
-      <devtools-request-headers-category
+      <${Category.litTagName}
         @togglerawevent=${toggleShowRaw}
         .data=${{
           name: 'request-headers',
           title: i18nString(UIStrings.requestHeaders),
           headerCount: this.#request.requestHeaders().length,
           checked: requestHeadersText? this.#showRequestHeadersText : undefined,
-          forceOpen: this.#toReveal?.section === NetworkForward.UIRequestLocation.UIHeaderSection.REQUEST,
+          forceOpen: this.#toReveal?.section === NetworkForward.UIRequestLocation.UIHeaderSection.Request,
           loggingContext: 'request-headers',
         } as CategoryData}
         aria-label=${i18nString(UIStrings.requestHeaders)}
       >
         ${(this.#showRequestHeadersText && requestHeadersText) ?
             this.#renderRawHeaders(requestHeadersText, false) : html`
-          <devtools-request-header-section .data=${{
+          <${RequestHeaderSection.litTagName} .data=${{
             request: this.#request,
             toReveal: this.#toReveal,
-          } as RequestHeaderSectionData} jslog=${VisualLogging.section('request-headers')}></devtools-request-header-section>
+          } as RequestHeaderSectionData} jslog=${VisualLogging.section('request-headers')}></${RequestHeaderSection.litTagName}>
         `}
-      </devtools-request-headers-category>
+      </${Category.litTagName}>
     `;
     // clang-format on
   }
 
-  #renderRawHeaders(rawHeadersText: string, forResponseHeaders: boolean): Lit.TemplateResult {
+  #renderRawHeaders(rawHeadersText: string, forResponseHeaders: boolean): LitHtml.TemplateResult {
     const trimmed = rawHeadersText.trim();
     const showFull = forResponseHeaders ? this.#showResponseHeadersTextFull : this.#showRequestHeadersTextFull;
     const isShortened = !showFull && trimmed.length > RAW_HEADER_CUTOFF;
@@ -427,21 +425,21 @@ export class RequestHeadersView extends LegacyWrapper.LegacyWrapper.WrappableCom
       <div class="row raw-headers-row" on-render=${ComponentHelpers.Directives.nodeRenderedCallback(addContextMenuListener)}>
         <div class="raw-headers">${isShortened ? trimmed.substring(0, RAW_HEADER_CUTOFF) : trimmed}</div>
         ${isShortened ? html`
-          <devtools-button
+          <${Buttons.Button.Button.litTagName}
             .size=${Buttons.Button.Size.SMALL}
             .variant=${Buttons.Button.Variant.OUTLINED}
             @click=${showMore}
             jslog=${VisualLogging.action('raw-headers-show-more').track({click: true})}
-          >${i18nString(UIStrings.showMore)}</devtools-button>
-        ` : Lit.nothing}
+          >${i18nString(UIStrings.showMore)}</${Buttons.Button.Button.litTagName}>
+        ` : LitHtml.nothing}
       </div>
     `;
     // clang-format on
   }
 
-  #renderGeneralSection(): Lit.LitTemplate {
+  #renderGeneralSection(): LitHtml.LitTemplate {
     if (!this.#request) {
-      return Lit.nothing;
+      return LitHtml.nothing;
     }
 
     const statusClasses = ['status'];
@@ -479,33 +477,33 @@ export class RequestHeadersView extends LegacyWrapper.LegacyWrapper.WrappableCom
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
     return html`
-      <devtools-request-headers-category
+      <${Category.litTagName}
         .data=${{
           name: 'general',
           title: i18nString(UIStrings.general),
-          forceOpen: this.#toReveal?.section === NetworkForward.UIRequestLocation.UIHeaderSection.GENERAL,
+          forceOpen: this.#toReveal?.section === NetworkForward.UIRequestLocation.UIHeaderSection.General,
           loggingContext: 'general',
         } as CategoryData}
         aria-label=${i18nString(UIStrings.general)}
       >
       <div jslog=${VisualLogging.section('general')}>
         ${this.#renderGeneralRow(i18nString(UIStrings.requestUrl), this.#request.url())}
-        ${this.#request.statusCode? this.#renderGeneralRow(i18nString(UIStrings.requestMethod), this.#request.requestMethod) : Lit.nothing}
-        ${this.#request.statusCode? this.#renderGeneralRow(i18nString(UIStrings.statusCode), statusText, statusClasses) : Lit.nothing}
-        ${this.#request.remoteAddress()? this.#renderGeneralRow(i18nString(UIStrings.remoteAddress), this.#request.remoteAddress()) : Lit.nothing}
-        ${this.#request.referrerPolicy()? this.#renderGeneralRow(i18nString(UIStrings.referrerPolicy), String(this.#request.referrerPolicy())) : Lit.nothing}
+        ${this.#request.statusCode? this.#renderGeneralRow(i18nString(UIStrings.requestMethod), this.#request.requestMethod) : LitHtml.nothing}
+        ${this.#request.statusCode? this.#renderGeneralRow(i18nString(UIStrings.statusCode), statusText, statusClasses) : LitHtml.nothing}
+        ${this.#request.remoteAddress()? this.#renderGeneralRow(i18nString(UIStrings.remoteAddress), this.#request.remoteAddress()) : LitHtml.nothing}
+        ${this.#request.referrerPolicy()? this.#renderGeneralRow(i18nString(UIStrings.referrerPolicy), String(this.#request.referrerPolicy())) : LitHtml.nothing}
       </div>
-      </devtools-request-headers-category>
+      </${Category.litTagName}>
     `;
     // clang-format on
   }
 
-  #renderGeneralRow(name: Common.UIString.LocalizedString, value: string, classNames?: string[]): Lit.LitTemplate {
-    const isHighlighted = this.#toReveal?.section === NetworkForward.UIRequestLocation.UIHeaderSection.GENERAL &&
+  #renderGeneralRow(name: Common.UIString.LocalizedString, value: string, classNames?: string[]): LitHtml.LitTemplate {
+    const isHighlighted = this.#toReveal?.section === NetworkForward.UIRequestLocation.UIHeaderSection.General &&
         name.toLowerCase() === this.#toReveal?.header?.toLowerCase();
     return html`
       <div class="row ${isHighlighted ? 'header-highlight' : ''}">
-        <div class="header-name">${name}</div>
+        <div class="header-name">${name}:</div>
         <div
           class="header-value ${classNames?.join(' ')}"
           @copy=${() => Host.userMetrics.actionTaken(Host.UserMetrics.Action.NetworkPanelCopyValue)}
@@ -528,18 +526,19 @@ export interface CategoryData {
   title: Common.UIString.LocalizedString;
   headerCount?: number;
   checked?: boolean;
-  additionalContent?: Lit.LitTemplate;
+  additionalContent?: LitHtml.LitTemplate;
   forceOpen?: boolean;
   loggingContext: string;
 }
 
 export class Category extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-request-headers-category`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   #expandedSetting?: Common.Settings.Setting<boolean>;
   #title: Common.UIString.LocalizedString = Common.UIString.LocalizedEmptyString;
   #headerCount?: number = undefined;
   #checked: boolean|undefined = undefined;
-  #additionalContent: Lit.LitTemplate|undefined = undefined;
+  #additionalContent: LitHtml.LitTemplate|undefined = undefined;
   #forceOpen: boolean|undefined = undefined;
   #loggingContext = '';
 
@@ -578,7 +577,7 @@ export class Category extends HTMLElement {
             <div>
               ${this.#title}${this.#headerCount !== undefined ?
                 html`<span class="header-count"> (${this.#headerCount})</span>` :
-                Lit.nothing
+                LitHtml.nothing
               }
             </div>
             <div class="hide-when-closed">
@@ -589,10 +588,9 @@ export class Category extends HTMLElement {
                     @change=${this.#onCheckboxToggle}
                     jslog=${VisualLogging.toggle('raw-headers').track({change: true})}
                 />${i18nString(UIStrings.raw)}</label>
-              ` : Lit.nothing}
+              ` : LitHtml.nothing}
             </div>
             <div class="hide-when-closed">${this.#additionalContent}</div>
-          </div>
         </summary>
         <slot></slot>
       </details>

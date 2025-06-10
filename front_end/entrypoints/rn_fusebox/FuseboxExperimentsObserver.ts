@@ -3,14 +3,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Common from '../../core/common/common.js';
-import * as i18n from '../../core/i18n/i18n.js';
+import * as Common from '../../core/common/common.js';
+import * as Protocol from '../../generated/protocol.js';
 import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
-import type * as Protocol from '../../generated/protocol.js';
 import * as UI from '../../ui/legacy/legacy.js';
-
-import {FuseboxWindowTitleManager} from './FuseboxWindowTitleManager.js';
+import * as i18n from '../../core/i18n/i18n.js';
+import FuseboxWindowTitleManager from './FuseboxWindowTitleManager.js';
 
 const UIStrings = {
   /**
@@ -22,7 +21,7 @@ const UIStrings = {
    * @description Message for the "settings changed" banner shown when a reload is required for the Network panel.
    */
   reloadRequiredForNetworkPanelMessage: 'Network panel is now available for dogfooding. Please reload to access it.',
-} as const;
+};
 
 const str_ = i18n.i18n.registerUIStrings('entrypoints/rn_fusebox/FuseboxExperimentsObserver.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -31,7 +30,7 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
  * [Experimental] Model observer which configures available DevTools features
  * based on the target's capabilities, e.g. when a profiling build is identified, or when network inspection is supported.
  */
-export class FuseboxFeatureObserver implements
+export default class FuseboxFeatureObserver implements
     SDK.TargetManager.SDKModelObserver<SDK.ReactNativeApplicationModel.ReactNativeApplicationModel> {
   constructor(targetManager: SDK.TargetManager.TargetManager) {
     targetManager.observeModels(SDK.ReactNativeApplicationModel.ReactNativeApplicationModel, this);
@@ -39,17 +38,16 @@ export class FuseboxFeatureObserver implements
 
   modelAdded(model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel): void {
     model.ensureEnabled();
-    model.addEventListener(SDK.ReactNativeApplicationModel.Events.METADATA_UPDATED, this.#handleMetadataUpdated, this);
+    model.addEventListener(SDK.ReactNativeApplicationModel.Events.MetadataUpdated, this.#handleMetadataUpdated, this);
   }
 
   modelRemoved(model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel): void {
     model.removeEventListener(
-        SDK.ReactNativeApplicationModel.Events.METADATA_UPDATED, this.#handleMetadataUpdated, this);
+        SDK.ReactNativeApplicationModel.Events.MetadataUpdated, this.#handleMetadataUpdated, this);
   }
 
   #handleMetadataUpdated(
       event: Common.EventTarget.EventTargetEvent<Protocol.ReactNativeApplication.MetadataUpdatedEvent>): void {
-    // eslint-disable-next-line @typescript-eslint/naming-convention
     const {unstable_isProfilingBuild, unstable_networkInspectionEnabled} = event.data;
 
     if (unstable_isProfilingBuild) {

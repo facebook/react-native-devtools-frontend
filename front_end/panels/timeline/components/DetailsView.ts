@@ -5,13 +5,13 @@
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Platform from '../../../core/platform/platform.js';
 import type * as Protocol from '../../../generated/protocol.js';
-import * as Trace from '../../../models/trace/trace.js';
+import * as TraceEngine from '../../../models/trace/trace.js';
 import * as UI from '../../../ui/legacy/legacy.js';
 
 // *********************************************************************
 // At the moment this file consists of helpers to aid in the rendering
 // of events details in the bottom drawer. In the future, we should use
-// Lit for this section, and update this helpers accordingly.
+// LitHtml for this section, and update this helpers accordingly.
 // *********************************************************************
 
 const UIStrings = {
@@ -55,7 +55,7 @@ const UIStrings = {
   /**
    *@description Text in Timeline UIUtils of the Performance panel
    */
-  websocketProtocol: 'WebSocket protocol',
+  websocketProtocol: 'WebSocket Protocol',
   /**
    * @description Details text indicating how many bytes were received in a WebSocket message
    * @example {1024} PH1
@@ -64,21 +64,23 @@ const UIStrings = {
   /**
    * @description Details text indicating how many bytes were sent in a WebSocket message
    */
-  webSocketDataLength: 'Data length',
-} as const;
+  webSocketDataLength: 'Data Length',
+};
 
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/components/DetailsView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export function buildWarningElementsForEvent(
-    event: Trace.Types.Events.Event, parsedTrace: Trace.Handlers.Types.ParsedTrace): HTMLSpanElement[] {
-  const warnings = parsedTrace.Warnings.perEvent.get(event);
+    event: TraceEngine.Types.TraceEvents.TraceEventData,
+    traceParsedData: TraceEngine.Handlers.Types.TraceParseData): HTMLSpanElement[] {
+  const warnings = traceParsedData.Warnings.perEvent.get(event);
   const warningElements: HTMLSpanElement[] = [];
   if (!warnings) {
     return warningElements;
   }
   for (const warning of warnings) {
-    const duration = Trace.Helpers.Timing.microToMilli(Trace.Types.Timing.Micro(event.dur || 0));
+    const duration =
+        TraceEngine.Helpers.Timing.microSecondsToMilliseconds(TraceEngine.Types.Timing.MicroSeconds(event.dur || 0));
     const span = document.createElement('span');
     switch (warning) {
       case 'FORCED_REFLOW': {
@@ -90,7 +92,7 @@ export function buildWarningElementsForEvent(
         break;
       }
       case 'IDLE_CALLBACK_OVER_TIME': {
-        if (!Trace.Types.Events.isFireIdleCallback(event)) {
+        if (!TraceEngine.Types.TraceEvents.isTraceEventFireIdleCallback(event)) {
           break;
         }
         const exceededMs =
@@ -128,24 +130,25 @@ export interface DetailRow {
   value: string;
 }
 export function buildRowsForWebSocketEvent(
-    event: Trace.Types.Events.WebSocketCreate|Trace.Types.Events.WebSocketInfo|Trace.Types.Events.WebSocketTransfer,
-    parsedTrace: Trace.Handlers.Types.ParsedTrace): readonly DetailRow[] {
+    event: TraceEngine.Types.TraceEvents.TraceEventWebSocketCreate|
+    TraceEngine.Types.TraceEvents.TraceEventWebSocketInfo|TraceEngine.Types.TraceEvents.TraceEventWebSocketTransfer,
+    traceParsedData: TraceEngine.Handlers.Types.TraceParseData): readonly DetailRow[] {
   const rows: DetailRow[] = [];
 
-  const initiator = parsedTrace.Initiators.eventToInitiator.get(event);
-  if (initiator && Trace.Types.Events.isWebSocketCreate(initiator)) {
+  const initiator = traceParsedData.Initiators.eventToInitiator.get(event);
+  if (initiator && TraceEngine.Types.TraceEvents.isTraceEventWebSocketCreate(initiator)) {
     // The initiator will be a WebSocketCreate, but this check helps TypeScript to understand.
     rows.push({key: i18n.i18n.lockedString('URL'), value: initiator.args.data.url});
     if (initiator.args.data.websocketProtocol) {
       rows.push({key: i18nString(UIStrings.websocketProtocol), value: initiator.args.data.websocketProtocol});
     }
-  } else if (Trace.Types.Events.isWebSocketCreate(event)) {
+  } else if (TraceEngine.Types.TraceEvents.isTraceEventWebSocketCreate(event)) {
     rows.push({key: i18n.i18n.lockedString('URL'), value: event.args.data.url});
     if (event.args.data.websocketProtocol) {
       rows.push({key: i18nString(UIStrings.websocketProtocol), value: event.args.data.websocketProtocol});
     }
   }
-  if (Trace.Types.Events.isWebSocketTransfer(event)) {
+  if (TraceEngine.Types.TraceEvents.isTraceEventWebSocketTransfer(event)) {
     if (event.args.data.dataLength) {
       rows.push({
         key: i18nString(UIStrings.webSocketDataLength),
@@ -166,14 +169,14 @@ export function buildRowsForWebSocketEvent(
  * It is exported only for testing purposes.
  **/
 export function generateInvalidationsList(
-    invalidations: Trace.Types.Events.InvalidationTrackingEvent[],
+    invalidations: TraceEngine.Types.TraceEvents.InvalidationTrackingEvent[],
     ): {
-  groupedByReason: Record<string, Trace.Types.Events.InvalidationTrackingEvent[]>,
+  groupedByReason: Record<string, TraceEngine.Types.TraceEvents.InvalidationTrackingEvent[]>,
   backendNodeIds: Set<Protocol.DOM.BackendNodeId>,
 } {
-  const groupedByReason: Record<string, Trace.Types.Events.InvalidationTrackingEvent[]> = {};
+  const groupedByReason: Record<string, TraceEngine.Types.TraceEvents.InvalidationTrackingEvent[]> = {};
 
-  const backendNodeIds = new Set<Protocol.DOM.BackendNodeId>();
+  const backendNodeIds: Set<Protocol.DOM.BackendNodeId> = new Set();
   for (const invalidation of invalidations) {
     backendNodeIds.add(invalidation.args.data.nodeId);
 
@@ -182,7 +185,8 @@ export function generateInvalidationsList(
     // ScheduleStyle events do not always have a reason, but if they tell us
     // via their data what changed, we can update the reason that we show to
     // the user.
-    if (reason === 'unknown' && Trace.Types.Events.isScheduleStyleInvalidationTracking(invalidation) &&
+    if (reason === 'unknown' &&
+        TraceEngine.Types.TraceEvents.isTraceEventScheduleStyleInvalidationTracking(invalidation) &&
         invalidation.args.data.invalidatedSelectorId) {
       switch (invalidation.args.data.invalidatedSelectorId) {
         case 'attribute':
@@ -206,13 +210,15 @@ export function generateInvalidationsList(
       }
     }
 
-    if (reason === 'PseudoClass' && Trace.Types.Events.isStyleRecalcInvalidationTracking(invalidation) &&
+    if (reason === 'PseudoClass' &&
+        TraceEngine.Types.TraceEvents.isTraceEventStyleRecalcInvalidationTracking(invalidation) &&
         invalidation.args.data.extraData) {
       // This will append the `:focus` onto the reason.
       reason += invalidation.args.data.extraData;
     }
 
-    if (reason === 'Attribute' && Trace.Types.Events.isStyleRecalcInvalidationTracking(invalidation) &&
+    if (reason === 'Attribute' &&
+        TraceEngine.Types.TraceEvents.isTraceEventStyleRecalcInvalidationTracking(invalidation) &&
         invalidation.args.data.extraData) {
       // Append the attribute that changed.
       reason += ` (${invalidation.args.data.extraData})`;

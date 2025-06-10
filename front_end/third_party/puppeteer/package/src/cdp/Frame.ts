@@ -7,8 +7,6 @@
 import type {Protocol} from 'devtools-protocol';
 
 import type {CDPSession} from '../api/CDPSession.js';
-import type {ElementHandle} from '../api/ElementHandle.js';
-import type {WaitForOptions} from '../api/Frame.js';
 import {Frame, FrameEvent, throwIfDetached} from '../api/Frame.js';
 import type {HTTPResponse} from '../api/HTTPResponse.js';
 import type {WaitTimeoutOptions} from '../api/Page.js';
@@ -59,7 +57,7 @@ export class CdpFrame extends Frame {
     frameManager: FrameManager,
     frameId: string,
     parentFrameId: string | undefined,
-    client: CDPSession,
+    client: CDPSession
   ) {
     super();
     this._frameManager = frameManager;
@@ -74,11 +72,11 @@ export class CdpFrame extends Frame {
       [MAIN_WORLD]: new IsolatedWorld(this, this._frameManager.timeoutSettings),
       [PUPPETEER_WORLD]: new IsolatedWorld(
         this,
-        this._frameManager.timeoutSettings,
+        this._frameManager.timeoutSettings
       ),
     };
 
-    this.accessibility = new Accessibility(this.worlds[MAIN_WORLD], frameId);
+    this.accessibility = new Accessibility(this.worlds[MAIN_WORLD]);
 
     this.on(FrameEvent.FrameSwappedByActivation, () => {
       // Emulate loading process for swapped frames.
@@ -88,16 +86,16 @@ export class CdpFrame extends Frame {
 
     this.worlds[MAIN_WORLD].emitter.on(
       'consoleapicalled',
-      this.#onMainWorldConsoleApiCalled.bind(this),
+      this.#onMainWorldConsoleApiCalled.bind(this)
     );
     this.worlds[MAIN_WORLD].emitter.on(
       'bindingcalled',
-      this.#onMainWorldBindingCalled.bind(this),
+      this.#onMainWorldBindingCalled.bind(this)
     );
   }
 
   #onMainWorldConsoleApiCalled(
-    event: Protocol.Runtime.ConsoleAPICalledEvent,
+    event: Protocol.Runtime.ConsoleAPICalledEvent
   ): void {
     this._frameManager.emit(FrameManagerEvent.ConsoleApiCalled, [
       this.worlds[MAIN_WORLD],
@@ -137,6 +135,10 @@ export class CdpFrame extends Frame {
     return this._frameManager.page();
   }
 
+  override isOOPFrame(): boolean {
+    return this.#client !== this._frameManager.client;
+  }
+
   @throwIfDetached
   override async goto(
     url: string,
@@ -145,7 +147,7 @@ export class CdpFrame extends Frame {
       referrerPolicy?: string;
       timeout?: number;
       waitUntil?: PuppeteerLifeCycleEvent | PuppeteerLifeCycleEvent[];
-    } = {},
+    } = {}
   ): Promise<HTTPResponse | null> {
     const {
       referer = this._frameManager.networkManager.extraHTTPHeaders()['referer'],
@@ -161,7 +163,7 @@ export class CdpFrame extends Frame {
       this._frameManager.networkManager,
       this,
       waitUntil,
-      timeout,
+      timeout
     );
     let error = await Deferred.race([
       navigate(
@@ -169,7 +171,7 @@ export class CdpFrame extends Frame {
         url,
         referer,
         referrerPolicy as Protocol.Page.ReferrerPolicy,
-        this._id,
+        this._id
       ),
       watcher.terminationPromise(),
     ]);
@@ -196,7 +198,7 @@ export class CdpFrame extends Frame {
       url: string,
       referrer: string | undefined,
       referrerPolicy: Protocol.Page.ReferrerPolicy | undefined,
-      frameId: string,
+      frameId: string
     ): Promise<Error | null> {
       try {
         const response = await client.send('Page.navigate', {
@@ -223,19 +225,21 @@ export class CdpFrame extends Frame {
 
   @throwIfDetached
   override async waitForNavigation(
-    options: WaitForOptions = {},
+    options: {
+      timeout?: number;
+      waitUntil?: PuppeteerLifeCycleEvent | PuppeteerLifeCycleEvent[];
+      ignoreSameDocumentNavigation?: boolean;
+    } = {}
   ): Promise<HTTPResponse | null> {
     const {
       waitUntil = ['load'],
       timeout = this._frameManager.timeoutSettings.navigationTimeout(),
-      signal,
     } = options;
     const watcher = new LifecycleWatcher(
       this._frameManager.networkManager,
       this,
       waitUntil,
-      timeout,
-      signal,
+      timeout
     );
     const error = await Deferred.race([
       watcher.terminationPromise(),
@@ -278,7 +282,7 @@ export class CdpFrame extends Frame {
     options: {
       timeout?: number;
       waitUntil?: PuppeteerLifeCycleEvent | PuppeteerLifeCycleEvent[];
-    } = {},
+    } = {}
   ): Promise<void> {
     const {
       waitUntil = ['load'],
@@ -293,7 +297,7 @@ export class CdpFrame extends Frame {
       this._frameManager.networkManager,
       this,
       waitUntil,
-      timeout,
+      timeout
     );
     const error = await Deferred.race<void | Error | undefined>([
       watcher.terminationPromise(),
@@ -318,13 +322,17 @@ export class CdpFrame extends Frame {
   }
 
   #deviceRequestPromptManager(): DeviceRequestPromptManager {
-    return this._frameManager._deviceRequestPromptManager(this.#client);
+    const rootFrame = this.page().mainFrame();
+    if (this.isOOPFrame() || rootFrame === null) {
+      return this._frameManager._deviceRequestPromptManager(this.#client);
+    } else {
+      return rootFrame._frameManager._deviceRequestPromptManager(this.#client);
+    }
   }
 
   @throwIfDetached
   async addPreloadScript(preloadScript: CdpPreloadScript): Promise<void> {
-    const parentFrame = this.parentFrame();
-    if (parentFrame && this.#client === parentFrame.client) {
+    if (!this.isOOPFrame() && this !== this._frameManager.mainFrame()) {
       return;
     }
     if (preloadScript.getIdForFrame(this)) {
@@ -334,7 +342,7 @@ export class CdpFrame extends Frame {
       'Page.addScriptToEvaluateOnNewDocument',
       {
         source: preloadScript.source,
-      },
+      }
     );
     preloadScript.setIdForFrame(this, identifier);
   }
@@ -375,10 +383,10 @@ export class CdpFrame extends Frame {
 
   @throwIfDetached
   override async waitForDevicePrompt(
-    options: WaitTimeoutOptions = {},
+    options: WaitTimeoutOptions = {}
   ): Promise<DeviceRequestPrompt> {
     return await this.#deviceRequestPromptManager().waitForDevicePrompt(
-      options,
+      options
     );
   }
 
@@ -412,7 +420,7 @@ export class CdpFrame extends Frame {
     return this.#detached;
   }
 
-  override [disposeSymbol](): void {
+  [disposeSymbol](): void {
     if (this.#detached) {
       return;
     }
@@ -423,18 +431,5 @@ export class CdpFrame extends Frame {
 
   exposeFunction(): never {
     throw new UnsupportedOperation();
-  }
-
-  override async frameElement(): Promise<ElementHandle<HTMLIFrameElement> | null> {
-    const parent = this.parentFrame();
-    if (!parent) {
-      return null;
-    }
-    const {backendNodeId} = await parent.client.send('DOM.getFrameOwner', {
-      frameId: this._id,
-    });
-    return (await parent
-      .mainRealm()
-      .adoptBackendNode(backendNodeId)) as ElementHandle<HTMLIFrameElement>;
   }
 }

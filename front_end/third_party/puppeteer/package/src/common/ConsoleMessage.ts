@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type {Frame} from '../api/Frame.js';
 import type {JSHandle} from '../api/JSHandle.js';
 
 /**
@@ -61,7 +60,6 @@ export class ConsoleMessage {
   #text: string;
   #args: JSHandle[];
   #stackTraceLocations: ConsoleMessageLocation[];
-  #frame?: Frame;
 
   /**
    * @internal
@@ -70,14 +68,12 @@ export class ConsoleMessage {
     type: ConsoleMessageType,
     text: string,
     args: JSHandle[],
-    stackTraceLocations: ConsoleMessageLocation[],
-    frame?: Frame,
+    stackTraceLocations: ConsoleMessageLocation[]
   ) {
     this.#type = type;
     this.#text = text;
     this.#args = args;
     this.#stackTraceLocations = stackTraceLocations;
-    this.#frame = frame;
   }
 
   /**
@@ -105,10 +101,7 @@ export class ConsoleMessage {
    * The location of the console message.
    */
   location(): ConsoleMessageLocation {
-    return (
-      this.#stackTraceLocations[0] ??
-      (this.#frame ? {url: this.#frame.url()} : {})
-    );
+    return this.#stackTraceLocations[0] ?? {};
   }
 
   /**

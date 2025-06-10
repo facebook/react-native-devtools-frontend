@@ -4,7 +4,8 @@
 
 import {assert} from 'chai';
 
-import {click, getTestServerPort, waitFor} from '../../shared/helper.js';
+import {click, getBrowserAndPages, getTestServerPort, waitFor} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {getTrimmedTextContent, navigateToApplicationTab} from '../helpers/application-helpers.js';
 
 const MANIFEST_SELECTOR = '[aria-label="Manifest"]';
@@ -21,7 +22,8 @@ const FIELD_VALUES_SELECTOR = '.report-field-value';
 // npm run debug-e2etest -- -- --chrome-features=WebAppEnableManifestId
 describe.skip('[crbug.com/1222571]: The Manifest Page', () => {
   it('shows app id', async () => {
-    await navigateToApplicationTab('app-manifest-id');
+    const {target} = getBrowserAndPages();
+    await navigateToApplicationTab(target, 'app-manifest-id');
     await click(MANIFEST_SELECTOR);
     await waitFor(APP_ID_SELECTOR);
 
@@ -32,7 +34,8 @@ describe.skip('[crbug.com/1222571]: The Manifest Page', () => {
   });
 
   it('shows start id as app id', async () => {
-    await navigateToApplicationTab('app-manifest-no-id');
+    const {target} = getBrowserAndPages();
+    await navigateToApplicationTab(target, 'app-manifest-no-id');
     await click(MANIFEST_SELECTOR);
     await waitFor(APP_ID_SELECTOR);
 

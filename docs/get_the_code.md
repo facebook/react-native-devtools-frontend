@@ -27,79 +27,38 @@ To build, follow these steps:
 ```bash
 cd devtools-frontend
 gclient sync
-npm run build
+gn gen out/Default
+autoninja -C out/Default
 ```
 
 The resulting build artifacts can be found in `out/Default/gen/front_end`.
 
-The build tools generally assume `Default` as the target (and `out/Default` as the
-build directory). You can pass `-t <name>` (or `--target=<name>`) to use a different
-target. For example
+There are two tips to have a faster development workflow:
+* Disabling type checking for TypeScript.
+* Using watch script for faster incremental builds with CSS hot reload.
 
-```bash
-npm run build -- -t Debug
-```
-
-will build in `out/Debug` instead of `out/Default`. If the directory doesn't exist,
-it'll automatically create and initialize it.
-
-You can disable type checking (via TypeScript) by using the `devtools_skip_typecheck`
-argument in your GN configuration. This uses [esbuild](https://esbuild.github.io/)
-instead of `tsc` to compile the TypeScript files and generally results in much
-shorter build times. To switch the `Default` target to esbuild, use
-
-```bash
-gn gen out/Default --args="devtools_skip_typecheck=true"
-```
-
-or if you don't want to change the default target, use something like
-
+#### Disabling type checking
+You can disable type checking for TypeScript by using `devtools_skip_typecheck` argument:
 ```bash
 gn gen out/fast-build --args="devtools_skip_typecheck=true"
 ```
 
-and use `npm run build -- -t fast-build` to build this target.
-
-### Rebuilding automatically
-
-You can use
-
+#### Faster incremental builds & CSS hot reload
+In addition to that, you can enable CSS hot reload while using `watch` script with `devtools_css_hot_reload_enabled` argument:
 ```bash
-npm run build -- --watch
+gn gen out/fast-build --args="devtools_css_hot_reload_enabled=true"
 ```
 
-to have the build script watch for changes in source files and automatically trigger
-rebuilds as necessary.
-
-#### Linux system limits
-
-The watch mode uses `inotify` by default on Linux to monitor directories for changes.
-It's fairly common to encounter a system limit on the number of files you can monitor.
-For example, Ubuntu Lucid's (64bit) inotify limit is set to 8192.
-
-You can get your current inotify file watch limit by executing:
-
+with this and `devtools_skip_typecheck=true` in place, you can use `watch` script by:
 ```bash
-cat /proc/sys/fs/inotify/max_user_watches
+npm run watch -- --target=fast-build
 ```
+which will automatically apply CSS changes & instantly build changed TS files.
 
-When this limit is not enough to monitor all files inside a directory, the limit must
-be increased for the watch mode to work properly. You can set a new limit temporary with:
-
-```bash
-sudo sysctl fs.inotify.max_user_watches=524288
-sudo sysctl -p
-```
-
-If you like to make your limit permanent, use:
-
-```bash
-echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf
-sudo sysctl -p
-```
-
-You may also need to pay attention to the values of `max_queued_events` and `max_user_instances`
-if you encounter any errors.
+> Caution! `watch` script is not based on `ninja` thus the build output and behavior
+> might differ with the official ninja build. In addition to that,
+> there might be some cases that `watch` build doesn't reliably handle, so you
+> might need to run `autoninja` and restart the script from time to time.
 
 ### Update to latest
 
@@ -115,7 +74,6 @@ gclient sync
 The revisions of git dependencies must always be in sync between the entry in DEPS and the git submodule. PRESUBMIT will
 reject CLs that try to submit changes to one but not the other.
 It can happen that dependencies go out of sync for three main reasons:
-
 1. The developer attempted a manual roll by only updating the DEPS file (which was the process before migrating to git
    submodules, see [below](#Managing-dependencies)),
 1. after switching branches or checking out new commit the developer didn't run `gclient sync`, or
@@ -129,68 +87,7 @@ and a separate CL with a proper roll.
 
 ### Run in a pre-built Chromium
 
-You can run a [build](#Build) of DevTools frontend in a pre-built Chrome or Chromium in order to avoid the expensive build. Options:
-
-- Use the downloaded Chrome for Testing binary in `third_party/chrome`.
-- Use the latest Chrome Canary. This includes any DevTools features that are only available in regular Chrome builds (`is_official_build` + `is_chrome_branded`), such as GenAI-related features.
-
-#### Using `npm start` script (recommended)
-
-With Chromium 136, we added (back) a `start` script that can be used to easily launch DevTools with pre-built [Chrome
-for Testing](https://developer.chrome.com/blog/chrome-for-testing) or [Chrome Canary](https://www.google.com/chrome/canary/).
-It'll also take care of automatically enabling/disabling experimental features that are actively being worked on. Use
-
-```bash
-npm start
-```
-
-to build DevTools front-end in `out/Default` (you can change this to `out/foo` by passing `--target=foo` if needed),
-and open Chrome for Testing (in `third_party/chrome`) with the custom DevTools front-end. This will also monitor the
-source files for changes while Chrome is running and automatically trigger a rebuild whenever source files change.
-
-By default, `npm start` will automatically open DevTools for every new tab, you can use
-
-```bash
-npm start -- --no-open
-```
-
-to disable this behavior. You can also use
-
-```bash
-npm start -- --browser=canary
-```
-
-to run in Chrome Canary instead of Chrome for Testing; this requires you to install Chrome Canary manually first
-(Googlers can install `google-chrome-canary` on gLinux). And finally use
-
-```bash
-npm start -- http://www.example.com
-```
-
-to automatically open `http://www.example.com` in the newly spawned Chrome tab.
-
-
-##### Controlling the feature set
-
-By default `npm start` will enable a bunch of experimental features (related to DevTools) that are considered ready for teamfood.
-To also enable experimental features that aren't yet considered sufficiently stable to enable them by default for the team, run:
-
-```bash
-# Long version
-npm start -- --unstable-features
-
-# Short version
-npm start -- -u
-```
-
-Just like with Chrome itself, you can also control the set of enabled and disabled features using
-
-```bash
-npm start -- --enable-features=DevToolsAutomaticFileSystems
-npm start -- --disable-features=DevToolsWellKnown --enable-features=DevToolsFreestyler:multimodal/true
-```
-
-which you can use to override the default feature set.
+You can run a [build](#Build) of DevTools frontend in a pre-built Chromium in order to avoid the expensive Chromium build. For example, you can use the latest version of Chrome Canary, or the downloaded binary in `third_party/chrome`.
 
 #### Running from file system
 
@@ -219,7 +116,7 @@ Note that `$(realpath out/Default/gen/front_end)` expands to the absolute path t
 
 Open DevTools via F12 or Ctrl+Shift+J on Windows/Linux or Cmd+Option+I on Mac.
 
-If you get errors along the line of `Uncaught TypeError: Cannot read property 'setInspectedTabId'` you probably specified an incorrect path - the path has to be absolute. On Mac and Linux, the file url will start with **three** slashes: `file:///Users/...`.
+If you get errors along the line of `Uncaught TypeError: Cannot read property 'setInspectedTabId'` you probably specified an incorrect path - the path has to be absolute. On Mac and Linux, the file url will start with __three__ slashes: `file:///Users/...`.
 
 **Tip**: You can inspect DevTools with DevTools by undocking DevTools and then opening a second instance of DevTools (see keyboard shortcut above).
 
@@ -250,7 +147,6 @@ Then start Chrome, allowing for accesses from the web server:
 ```
 
 Get the list of pages together with their DevTools frontend URLs:
-
 ```bash
 $ curl http://localhost:9222/json -s | grep '\(url\|devtoolsFrontend\)'
    "devtoolsFrontendUrl": "/devtools/inspector.html?ws=localhost:9222/devtools/page/BADADD4E55BADADD4E55BADADD4E5511",

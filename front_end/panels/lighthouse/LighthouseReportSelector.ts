@@ -17,7 +17,7 @@ const UIStrings = {
    *@description New report item label in Lighthouse Report Selector
    */
   newReport: '(new report)',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/lighthouse/LighthouseReportSelector.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class ReportSelector {
@@ -38,12 +38,12 @@ export class ReportSelector {
   }
 
   private setEmptyState(): void {
-    this.comboBoxInternal.removeOptions();
+    this.comboBoxInternal.selectElement().removeChildren();
 
     this.comboBoxInternal.setEnabled(false);
     this.newLighthouseItem = document.createElement('option');
     this.newLighthouseItem.label = i18nString(UIStrings.newReport);
-    this.comboBoxInternal.addOption(this.newLighthouseItem);
+    this.comboBoxInternal.selectElement().appendChild(this.newLighthouseItem);
     this.comboBoxInternal.select(this.newLighthouseItem);
   }
 
@@ -61,6 +61,10 @@ export class ReportSelector {
     return this.itemByOptionElement.get(option as Element) as Item;
   }
 
+  hasCurrentSelection(): boolean {
+    return Boolean(this.selectedItem());
+  }
+
   hasItems(): boolean {
     return this.itemByOptionElement.size > 0;
   }
@@ -71,7 +75,7 @@ export class ReportSelector {
 
   prepend(item: Item): void {
     const optionEl = item.optionElement();
-    const selectEl = this.comboBoxInternal.element;
+    const selectEl = this.comboBoxInternal.selectElement();
 
     this.itemByOptionElement.set(optionEl, item);
     selectEl.insertBefore(optionEl, selectEl.firstElementChild);

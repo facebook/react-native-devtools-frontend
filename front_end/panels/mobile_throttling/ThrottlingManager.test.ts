@@ -11,8 +11,7 @@ import * as MobileThrottling from './mobile_throttling.js';
 describeWithEnvironment('ThrottlingManager', () => {
   describe('OfflineToolbarCheckbox', () => {
     it('has initial checked state which depends on throttling setting', () => {
-      SDK.NetworkManager.MultitargetNetworkManager.instance({forceNew: true});
-      const throttlingManager = MobileThrottling.ThrottlingManager.ThrottlingManager.instance({forceNew: true});
+      const throttlingManager = MobileThrottling.ThrottlingManager.throttlingManager();
 
       SDK.NetworkManager.MultitargetNetworkManager.instance().setNetworkConditions(
           SDK.NetworkManager.OfflineConditions);
@@ -25,8 +24,7 @@ describeWithEnvironment('ThrottlingManager', () => {
     });
 
     it('listens to changes in throttling setting', () => {
-      SDK.NetworkManager.MultitargetNetworkManager.instance({forceNew: true});
-      const throttlingManager = MobileThrottling.ThrottlingManager.ThrottlingManager.instance({forceNew: true});
+      const throttlingManager = MobileThrottling.ThrottlingManager.throttlingManager();
       const checkbox = throttlingManager.createOfflineToolbarCheckbox();
       assert.isFalse(checkbox.checked());
 
@@ -40,8 +38,8 @@ describeWithEnvironment('ThrottlingManager', () => {
     });
 
     it('updates setting when checkbox is clicked on', () => {
-      const multiTargetNetworkManager = SDK.NetworkManager.MultitargetNetworkManager.instance({forceNew: true});
-      const throttlingManager = MobileThrottling.ThrottlingManager.ThrottlingManager.instance({forceNew: true});
+      const throttlingManager = MobileThrottling.ThrottlingManager.throttlingManager();
+      const multiTargetNetworkManager = SDK.NetworkManager.MultitargetNetworkManager.instance();
 
       multiTargetNetworkManager.setNetworkConditions(SDK.NetworkManager.OfflineConditions);
       const checkbox = throttlingManager.createOfflineToolbarCheckbox();
@@ -61,24 +59,6 @@ describeWithEnvironment('ThrottlingManager', () => {
       dispatchClickEvent(checkbox.inputElement);
       assert.isFalse(checkbox.checked());
       assert.strictEqual(SDK.NetworkManager.Slow3GConditions, multiTargetNetworkManager.networkConditions());
-    });
-  });
-  describe('CPU throttling', () => {
-    it('listens to changes in cpu throttling setting', () => {
-      SDK.NetworkManager.MultitargetNetworkManager.instance({forceNew: true});
-      const cpuThrottlingPresets = MobileThrottling.ThrottlingPresets.ThrottlingPresets.cpuThrottlingPresets;
-      const throttlingManager = MobileThrottling.ThrottlingManager.ThrottlingManager.instance({forceNew: true});
-      const selector = throttlingManager.createCPUThrottlingSelector().control;
-      assert.strictEqual(cpuThrottlingPresets[selector.selectedIndex()], SDK.CPUThrottlingManager.NoThrottlingOption);
-
-      SDK.CPUThrottlingManager.CPUThrottlingManager.instance().setCPUThrottlingOption(
-          SDK.CPUThrottlingManager.ExtraSlowThrottlingOption);
-      assert.strictEqual(
-          cpuThrottlingPresets[selector.selectedIndex()], SDK.CPUThrottlingManager.ExtraSlowThrottlingOption);
-
-      SDK.CPUThrottlingManager.CPUThrottlingManager.instance().setCPUThrottlingOption(
-          SDK.CPUThrottlingManager.NoThrottlingOption);
-      assert.strictEqual(cpuThrottlingPresets[selector.selectedIndex()], SDK.CPUThrottlingManager.NoThrottlingOption);
     });
   });
 });

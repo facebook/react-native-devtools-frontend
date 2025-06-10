@@ -3,11 +3,11 @@
 // found in the LICENSE file.
 
 import * as i18n from '../../core/i18n/i18n.js';
-import type * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 
-import {Issue, IssueCategory, IssueKind} from './Issue.js';
-import type {MarkdownIssueDescription} from './MarkdownIssueDescription.js';
+import {type MarkdownIssueDescription} from './MarkdownIssueDescription.js';
+import {Issue, IssueKind, IssueCategory} from './Issue.js';
+import type * as SDK from '../../core/sdk/sdk.js';
 
 const UIStrings = {
   /**
@@ -15,7 +15,7 @@ const UIStrings = {
    * and is the title of an article that describes how to enable a JavaScript feature called SharedArrayBuffer.
    */
   enablingSharedArrayBuffer: 'Enabling `SharedArrayBuffer`',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/SharedArrayBufferIssue.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -29,7 +29,7 @@ export class SharedArrayBufferIssue extends Issue {
   }
 
   getCategory(): IssueCategory {
-    return IssueCategory.OTHER;
+    return IssueCategory.Other;
   }
 
   details(): Protocol.Audits.SharedArrayBufferIssueDetails {
@@ -52,9 +52,9 @@ export class SharedArrayBufferIssue extends Issue {
 
   getKind(): IssueKind {
     if (this.#issueDetails.isWarning) {
-      return IssueKind.BREAKING_CHANGE;
+      return IssueKind.BreakingChange;
     }
-    return IssueKind.PAGE_ERROR;
+    return IssueKind.PageError;
   }
 
   static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):

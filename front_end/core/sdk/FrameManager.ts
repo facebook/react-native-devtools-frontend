@@ -2,13 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Protocol from '../../generated/protocol.js';
 import * as Common from '../common/common.js';
+import type * as Protocol from '../../generated/protocol.js';
 
-import type {Resource} from './Resource.js';
-import {Events as ResourceTreeModelEvents, type ResourceTreeFrame, ResourceTreeModel} from './ResourceTreeModel.js';
-import type {Target} from './Target.js';
-import {type SDKModelObserver, TargetManager} from './TargetManager.js';
+import {type Resource} from './Resource.js';
+
+import {Events as ResourceTreeModelEvents, ResourceTreeModel, type ResourceTreeFrame} from './ResourceTreeModel.js';
+import {type Target} from './Target.js';
+
+import {TargetManager, type SDKModelObserver} from './TargetManager.js';
 
 let frameManagerInstance: FrameManager|null = null;
 
@@ -35,7 +37,7 @@ export class FrameManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes>
     creationStackTrace?: Protocol.Runtime.StackTrace,
     creationStackTraceTarget?: Target,
   }>();
-  #awaitedFrames = new Map<string, Array<{notInTarget?: Target, resolve: (frame: ResourceTreeFrame) => void}>>();
+  #awaitedFrames: Map<string, {notInTarget?: Target, resolve: (frame: ResourceTreeFrame) => void}[]> = new Map();
 
   constructor() {
     super();
@@ -49,10 +51,6 @@ export class FrameManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes>
       frameManagerInstance = new FrameManager();
     }
     return frameManagerInstance;
-  }
-
-  static removeInstance(): void {
-    frameManagerInstance = null;
   }
 
   modelAdded(resourceTreeModel: ResourceTreeModel): void {
@@ -116,7 +114,7 @@ export class FrameManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes>
       frameSet.add(frame.id);
     }
 
-    this.dispatchEventToListeners(Events.FRAME_ADDED_TO_TARGET, {frame});
+    this.dispatchEventToListeners(Events.FrameAddedToTarget, {frame});
     this.resolveAwaitedFrame(frame);
   }
 
@@ -146,14 +144,14 @@ export class FrameManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes>
 
   private frameNavigated(event: Common.EventTarget.EventTargetEvent<ResourceTreeFrame>): void {
     const frame = event.data;
-    this.dispatchEventToListeners(Events.FRAME_NAVIGATED, {frame});
+    this.dispatchEventToListeners(Events.FrameNavigated, {frame});
     if (frame.isOutermostFrame()) {
-      this.dispatchEventToListeners(Events.OUTERMOST_FRAME_NAVIGATED, {frame});
+      this.dispatchEventToListeners(Events.OutermostFrameNavigated, {frame});
     }
   }
 
   private resourceAdded(event: Common.EventTarget.EventTargetEvent<Resource>): void {
-    this.dispatchEventToListeners(Events.RESOURCE_ADDED, {resource: event.data});
+    this.dispatchEventToListeners(Events.ResourceAdded, {resource: event.data});
   }
 
   private decreaseOrRemoveFrame(frameId: Protocol.Page.FrameId): void {
@@ -162,7 +160,7 @@ export class FrameManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes>
       if (frameData.count === 1) {
         this.#frames.delete(frameId);
         this.resetOutermostFrame();
-        this.dispatchEventToListeners(Events.FRAME_REMOVED, {frameId});
+        this.dispatchEventToListeners(Events.FrameRemoved, {frameId});
       } else {
         frameData.count--;
       }
@@ -207,7 +205,7 @@ export class FrameManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes>
     if (frame && (!notInTarget || notInTarget !== frame.resourceTreeModel().target())) {
       return frame;
     }
-    return await new Promise<ResourceTreeFrame>(resolve => {
+    return new Promise<ResourceTreeFrame>(resolve => {
       const waiting = this.#awaitedFrames.get(frameId);
       if (waiting) {
         waiting.push({notInTarget, resolve});
@@ -241,19 +239,19 @@ export const enum Events {
   // The FrameAddedToTarget event is sent whenever a frame is added to a target.
   // This means that for OOPIFs it is sent twice: once when it's added to a
   // parent target and a second time when it's added to its own target.
-  FRAME_ADDED_TO_TARGET = 'FrameAddedToTarget',
-  FRAME_NAVIGATED = 'FrameNavigated',
+  FrameAddedToTarget = 'FrameAddedToTarget',
+  FrameNavigated = 'FrameNavigated',
   // The FrameRemoved event is only sent when a frame has been detached from
   // all targets.
-  FRAME_REMOVED = 'FrameRemoved',
-  RESOURCE_ADDED = 'ResourceAdded',
-  OUTERMOST_FRAME_NAVIGATED = 'OutermostFrameNavigated',
+  FrameRemoved = 'FrameRemoved',
+  ResourceAdded = 'ResourceAdded',
+  OutermostFrameNavigated = 'OutermostFrameNavigated',
 }
 
-export interface EventTypes {
-  [Events.FRAME_ADDED_TO_TARGET]: {frame: ResourceTreeFrame};
-  [Events.FRAME_NAVIGATED]: {frame: ResourceTreeFrame};
-  [Events.FRAME_REMOVED]: {frameId: Protocol.Page.FrameId};
-  [Events.RESOURCE_ADDED]: {resource: Resource};
-  [Events.OUTERMOST_FRAME_NAVIGATED]: {frame: ResourceTreeFrame};
-}
+export type EventTypes = {
+  [Events.FrameAddedToTarget]: {frame: ResourceTreeFrame},
+  [Events.FrameNavigated]: {frame: ResourceTreeFrame},
+  [Events.FrameRemoved]: {frameId: Protocol.Page.FrameId},
+  [Events.ResourceAdded]: {resource: Resource},
+  [Events.OutermostFrameNavigated]: {frame: ResourceTreeFrame},
+};

@@ -1,8 +1,7 @@
 Name: image_diff
 Short Name: image_diff
 URL: https://source.chromium.org/chromium/chromium/src/+/main:tools/imagediff/
-Version: N/A
-Date: 2023-01-31
+Version: 0
 License: Chromium
 Security Critical: No
 Shipped: no

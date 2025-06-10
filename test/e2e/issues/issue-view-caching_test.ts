@@ -12,6 +12,7 @@ import {
   waitFor,
   waitForFunction,
 } from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   ensureResourceSectionIsExpanded,
   expandIssue,
@@ -37,11 +38,11 @@ describe('IssueView cache', () => {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({geeting: 'hello'}),
           });
-        } catch {
+        } catch (e) {
         }
         try {
           await fetch(url, {credentials: 'include'});
-        } catch {
+        } catch (e) {
         }
       });
     }

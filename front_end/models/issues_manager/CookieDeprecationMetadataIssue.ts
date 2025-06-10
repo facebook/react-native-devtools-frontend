@@ -7,14 +7,14 @@ import type * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 
 import {Issue, IssueCategory, IssueKind} from './Issue.js';
-import type {MarkdownIssueDescription} from './MarkdownIssueDescription.js';
+import {type MarkdownIssueDescription} from './MarkdownIssueDescription.js';
 
 const UIStrings = {
   /**
    * @description Label for a link for third-party cookie Issues.
    */
-  thirdPartyPhaseoutExplained: 'Changes to Chrome\'s treatment of third-party cookies',
-} as const;
+  thirdPartyPhaseoutExplained: 'Prepare for phasing out third-party cookies',
+};
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/CookieDeprecationMetadataIssue.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -31,7 +31,7 @@ export class CookieDeprecationMetadataIssue extends Issue {
   }
 
   getCategory(): IssueCategory {
-    return IssueCategory.OTHER;
+    return IssueCategory.Other;
   }
 
   getDescription(): MarkdownIssueDescription {
@@ -51,7 +51,7 @@ export class CookieDeprecationMetadataIssue extends Issue {
       ]),
       links: [
         {
-          link: 'https://goo.gle/changes-to-chrome-browsing',
+          link: 'https://developer.chrome.com/docs/privacy-sandbox/third-party-cookie-phase-out/',
           linkTitle: i18nString(UIStrings.thirdPartyPhaseoutExplained),
         },
       ],
@@ -63,7 +63,7 @@ export class CookieDeprecationMetadataIssue extends Issue {
   }
 
   getKind(): IssueKind {
-    return IssueKind.BREAKING_CHANGE;
+    return IssueKind.BreakingChange;
   }
 
   primaryKey(): string {

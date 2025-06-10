@@ -2,26 +2,26 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Platform from '../../../core/platform/platform.js';
+import type * as Platform from '../../../core/platform/platform.js';
 import {renderElementIntoDOM} from '../../../testing/DOMHelpers.js';
 import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
-import * as RenderCoordinator from '../render_coordinator/render_coordinator.js';
+import * as Coordinator from '../render_coordinator/render_coordinator.js';
 
 import * as PanelFeedback from './panel_feedback.js';
 
-const {urlString} = Platform.DevToolsPath;
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 describeWithLocale('Panel Feedback', () => {
   async function renderFeedbackComponent(): Promise<PanelFeedback.PanelFeedback.PanelFeedback> {
     const component = new PanelFeedback.PanelFeedback.PanelFeedback();
     component.data = {
-      feedbackUrl: urlString`https://feedbackurl.com`,
-      quickStartUrl: urlString`https://quickstarturl.com`,
+      feedbackUrl: 'https://feedbackurl.com' as Platform.DevToolsPath.UrlString,
+      quickStartUrl: 'https://quickstarturl.com' as Platform.DevToolsPath.UrlString,
       quickStartLinkText: 'quick start link text',
     };
 
     renderElementIntoDOM(component);
-    await RenderCoordinator.done();
+    await coordinator.done();
     return component;
   }
 

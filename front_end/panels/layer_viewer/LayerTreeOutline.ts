@@ -32,9 +32,7 @@ import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as SDK from '../../core/sdk/sdk.js';
 import * as UI from '../../ui/legacy/legacy.js';
-import * as ThemeSupport from '../../ui/legacy/theme_support/theme_support.js';
 
-import layerTreeOutlineStyles from './layerTreeOutline.css.js';
 import {
   LayerSelection,
   type LayerView,
@@ -44,11 +42,6 @@ import {
 } from './LayerViewHost.js';
 
 const UIStrings = {
-  /**
-   *@description A count of the number of rendering layers in Layer Tree Outline of the Layers panel
-   *@example {10} PH1
-   */
-  layerCount: '{PH1} layers',
   /**
    *@description Label for layers sidepanel tree
    */
@@ -63,7 +56,7 @@ const UIStrings = {
    *@example {10} PH2
    */
   updateChildDimension: ' ({PH1} × {PH2})',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/layer_viewer/LayerTreeOutline.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class LayerTreeOutline extends Common.ObjectWrapper.eventMixin<EventTypes, typeof UI.TreeOutline.TreeOutline>(
@@ -71,8 +64,6 @@ export class LayerTreeOutline extends Common.ObjectWrapper.eventMixin<EventTypes
   private layerViewHost: LayerViewHost;
   private treeOutline: UI.TreeOutline.TreeOutlineInShadow;
   private lastHoveredNode: LayerTreeElement|null;
-  private layerCountElement: HTMLSpanElement;
-  private layerMemoryElement: HTMLSpanElement;
   override element: HTMLElement;
   private layerTree?: SDK.LayerTreeBase.LayerTreeBase|null;
   private layerSnapshotMap?: Map<SDK.LayerTreeBase.Layer, SnapshotSelection>;
@@ -90,22 +81,7 @@ export class LayerTreeOutline extends Common.ObjectWrapper.eventMixin<EventTypes
     UI.ARIAUtils.setLabel(this.treeOutline.contentElement, i18nString(UIStrings.layersTreePane));
 
     this.lastHoveredNode = null;
-
-    const summaryElement = document.createElement('div');
-    summaryElement.classList.add('hbox', 'layer-summary');
-    this.layerCountElement = document.createElement('span');
-    this.layerCountElement.classList.add('layer-count');
-    this.layerMemoryElement = document.createElement('span');
-    summaryElement.appendChild(this.layerCountElement);
-    summaryElement.appendChild(this.layerMemoryElement);
-
-    const wrapperElement = document.createElement('div');
-    wrapperElement.classList.add('vbox', 'layer-tree-wrapper');
-    wrapperElement.appendChild(this.treeOutline.element);
-    wrapperElement.appendChild(summaryElement);
-    this.element = wrapperElement;
-    ThemeSupport.ThemeSupport.instance().appendStyle(this.element, layerTreeOutlineStyles);
-
+    this.element = this.treeOutline.element;
     this.layerViewHost.showInternalLayersSetting().addChangeListener(this.update, this);
   }
 
@@ -115,7 +91,7 @@ export class LayerTreeOutline extends Common.ObjectWrapper.eventMixin<EventTypes
 
   selectObject(selection: Selection|null): void {
     this.hoverObject(null);
-    const layer = selection?.layer();
+    const layer = selection && selection.layer();
     const node = layer && layerToTreeElement.get(layer);
     if (node) {
       node.revealAndSelect(true);
@@ -125,7 +101,7 @@ export class LayerTreeOutline extends Common.ObjectWrapper.eventMixin<EventTypes
   }
 
   hoverObject(selection: Selection|null): void {
-    const layer = selection?.layer();
+    const layer = selection && selection.layer();
     const node = layer && layerToTreeElement.get(layer);
     if (node === this.lastHoveredNode) {
       return;
@@ -157,9 +133,6 @@ export class LayerTreeOutline extends Common.ObjectWrapper.eventMixin<EventTypes
       }
     }
 
-    let layerCount = 0;
-    let totalLayerMemory = 0;
-
     function updateLayer(this: LayerTreeOutline, layer: SDK.LayerTreeBase.Layer): void {
       if (!layer.drawsContent() && !showInternalLayers) {
         return;
@@ -168,10 +141,6 @@ export class LayerTreeOutline extends Common.ObjectWrapper.eventMixin<EventTypes
         console.assert(false, 'Duplicate layer: ' + layer.id());
       }
       seenLayers.set(layer, true);
-
-      layerCount++;
-      totalLayerMemory += layer.gpuMemoryUsage();
-
       let node: LayerTreeElement|null = layerToTreeElement.get(layer) || null;
       let parentLayer = layer.parent();
       // Skip till nearest visible ancestor.
@@ -208,7 +177,7 @@ export class LayerTreeOutline extends Common.ObjectWrapper.eventMixin<EventTypes
     if (root && this.layerTree) {
       this.layerTree.forEachLayer(updateLayer.bind(this), root);
     }
-    // Clean up layers that don't exist anymore from tree.
+    // Cleanup layers that don't exist anymore from tree.
     const rootElement = this.treeOutline.rootElement();
     for (let node = rootElement.firstChild(); node instanceof LayerTreeElement && !node.root;) {
       if (seenLayers.get(node.layer)) {
@@ -233,9 +202,6 @@ export class LayerTreeOutline extends Common.ObjectWrapper.eventMixin<EventTypes
         }
       }
     }
-
-    this.layerCountElement.textContent = i18nString(UIStrings.layerCount, {PH1: layerCount});
-    this.layerMemoryElement.textContent = i18n.ByteUtilities.bytesToString(totalLayerMemory);
   }
 
   private onMouseMove(event: MouseEvent): void {
@@ -253,13 +219,13 @@ export class LayerTreeOutline extends Common.ObjectWrapper.eventMixin<EventTypes
   private onContextMenu(event: MouseEvent): void {
     const selection = this.selectionForNode(this.treeOutline.treeElementFromEvent(event) as LayerTreeElement | null);
     const contextMenu = new UI.ContextMenu.ContextMenu(event);
-    const layer = selection?.layer();
-    if (selection && layer) {
+    const layer = selection && selection.layer();
+    if (layer) {
       this.layerSnapshotMap = this.layerViewHost.getLayerSnapshotMap();
       if (this.layerSnapshotMap.has(layer)) {
         contextMenu.defaultSection().appendItem(
             i18nString(UIStrings.showPaintProfiler),
-            () => this.dispatchEventToListeners(Events.PAINT_PROFILER_REQUESTED, selection),
+            () => this.dispatchEventToListeners(Events.PaintProfilerRequested, selection as Selection),
             {jslogContext: 'layers.paint-profiler'});
       }
     }
@@ -267,17 +233,17 @@ export class LayerTreeOutline extends Common.ObjectWrapper.eventMixin<EventTypes
   }
 
   private selectionForNode(node: LayerTreeElement|null): Selection|null {
-    return node?.layer ? new LayerSelection(node.layer) : null;
+    return node && node.layer ? new LayerSelection(node.layer) : null;
   }
 }
 
 export const enum Events {
-  PAINT_PROFILER_REQUESTED = 'PaintProfilerRequested',
+  PaintProfilerRequested = 'PaintProfilerRequested',
 }
 
-export interface EventTypes {
-  [Events.PAINT_PROFILER_REQUESTED]: Selection;
-}
+export type EventTypes = {
+  [Events.PaintProfilerRequested]: Selection,
+};
 
 export class LayerTreeElement extends UI.TreeOutline.TreeElement {
   // Watch out: This is different from treeOutline that

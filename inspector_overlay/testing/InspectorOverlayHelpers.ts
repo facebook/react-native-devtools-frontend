@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {AreaBounds, Bounds} from '../common.js';
+import {type AreaBounds, type Bounds} from '../common.js';
 import {
   type CanvasSize,
   drawGridAreaNames,
@@ -44,9 +44,9 @@ const renderElementIntoDOM = (element: HTMLElement, renderOptions: RenderOptions
   return element;
 };
 
-interface Constructor<T> {
-  new(...args: unknown[]): T;
-}
+type Constructor<T> = {
+  new (...args: unknown[]): T,
+};
 
 function assertElements<T extends Element>(
     nodeList: NodeListOf<Element>, elementClass: Constructor<T>): asserts nodeList is NodeListOf<T> {
@@ -187,7 +187,7 @@ export function drawGridLineNamesAndAssertLabels(
   assert.strictEqual(labels.length, expectedLabels.length, 'The right total number of line name labels were displayed');
   assertElements(labels, HTMLElement);
 
-  const foundLabels: Array<{textContent: string, x: number, y: number}> = [];
+  const foundLabels: {textContent: string, x: number, y: number}[] = [];
   labels.forEach(el => {
     const width = el.offsetWidth;
     const height = el.offsetHeight;

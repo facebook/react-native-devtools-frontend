@@ -83,7 +83,7 @@ const UIStrings = {
    * The user opens this context menu by selecting a specific call frame in the call stack sidebar pane.
    */
   restartFrame: 'Restart frame',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/sources/CallStackSidebarPane.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -109,7 +109,6 @@ export class CallStackSidebarPane extends UI.View.SimpleView implements UI.Conte
 
   private constructor() {
     super(i18nString(UIStrings.callStack), true, 'sources.callstack');
-    this.registerRequiredCSS(callStackSidebarPaneStyles);
 
     this.contentElement.setAttribute('jslog', `${VisualLogging.section('sources.callstack')}`);
     ({element: this.ignoreListMessageElement, checkbox: this.ignoreListCheckboxElement} =
@@ -203,11 +202,11 @@ export class CallStackSidebarPane extends UI.View.SimpleView implements UI.Conte
     }
   }
 
-  update(): void {
+  private update(): void {
     void this.updateThrottler.schedule(() => this.doUpdate());
   }
 
-  async doUpdate(): Promise<void> {
+  private async doUpdate(): Promise<void> {
     this.locationPool.disposeAll();
 
     this.callFrameWarningsElement.classList.add('hidden');
@@ -226,7 +225,7 @@ export class CallStackSidebarPane extends UI.View.SimpleView implements UI.Conte
     this.notPausedMessageElement.classList.add('hidden');
 
     const itemPromises = [];
-    const uniqueWarnings = new Set<string>();
+    const uniqueWarnings: Set<string> = new Set();
     for (const frame of details.callFrames) {
       const itemPromise = Item.createForDebuggerCallFrame(frame, this.locationPool, this.refreshItem.bind(this));
       itemPromises.push(itemPromise);
@@ -354,7 +353,7 @@ export class CallStackSidebarPane extends UI.View.SimpleView implements UI.Conte
     element.appendChild(icon);
     element.tabIndex = item === this.list.selectedItem() ? 0 : -1;
 
-    if (callframe?.missingDebugInfoDetails) {
+    if (callframe && callframe.missingDebugInfoDetails) {
       const icon = new IconButton.Icon.Icon();
       icon.data = {
         iconName: 'warning-filled',
@@ -403,7 +402,7 @@ export class CallStackSidebarPane extends UI.View.SimpleView implements UI.Conte
     element.classList.add('ignore-listed-message');
     const label = element.createChild('label');
     label.classList.add('ignore-listed-message-label');
-    const checkbox = label.createChild('input');
+    const checkbox = label.createChild('input') as HTMLInputElement;
     checkbox.tabIndex = 0;
     checkbox.type = 'checkbox';
     checkbox.classList.add('ignore-listed-checkbox');
@@ -540,6 +539,10 @@ export class CallStackSidebarPane extends UI.View.SimpleView implements UI.Conte
       text.push(itemText);
     }
     Host.InspectorFrontendHost.InspectorFrontendHostInstance.copyText(text.join('\n'));
+  }
+  override wasShown(): void {
+    super.wasShown();
+    this.registerCSSFiles([callStackSidebarPaneStyles]);
   }
 }
 

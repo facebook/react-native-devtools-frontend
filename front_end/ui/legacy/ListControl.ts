@@ -24,11 +24,9 @@ export interface ListDelegate<T> {
 }
 
 export enum ListMode {
-  /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   NonViewport = 'UI.ListMode.NonViewport',
   EqualHeightItems = 'UI.ListMode.EqualHeightItems',
   VariousHeightItems = 'UI.ListMode.VariousHeightItems',
-  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
 export class ListControl<T> {
@@ -61,7 +59,7 @@ export class ListControl<T> {
     this.bottomHeight = 0;
 
     this.model = model;
-    this.model.addEventListener(ListModelEvents.ITEMS_REPLACED, this.replacedItemsInRange, this);
+    this.model.addEventListener(ListModelEvents.ItemsReplaced, this.replacedItemsInRange, this);
     this.itemToElement = new Map();
     this.selectedIndexInternal = -1;
     this.selectedItemInternal = null;
@@ -87,9 +85,9 @@ export class ListControl<T> {
   setModel(model: ListModel<T>): void {
     this.itemToElement.clear();
     const length = this.model.length;
-    this.model.removeEventListener(ListModelEvents.ITEMS_REPLACED, this.replacedItemsInRange, this);
+    this.model.removeEventListener(ListModelEvents.ItemsReplaced, this.replacedItemsInRange, this);
     this.model = model;
-    this.model.addEventListener(ListModelEvents.ITEMS_REPLACED, this.replacedItemsInRange, this);
+    this.model.addEventListener(ListModelEvents.ItemsReplaced, this.replacedItemsInRange, this);
     this.invalidateRange(0, length);
   }
 
@@ -340,7 +338,7 @@ export class ListControl<T> {
 
   private indexAtOffset(offset: number): number {
     if (this.mode === ListMode.NonViewport) {
-      throw new Error('There should be no offset conversions in non-viewport mode');
+      throw 'There should be no offset conversions in non-viewport mode';
     }
     if (!this.model.length || offset < 0) {
       return 0;
@@ -426,7 +424,7 @@ export class ListControl<T> {
     const newElement = this.selectedIndexInternal !== -1 ? this.elementAtIndex(index) : null;
     this.delegate.selectedItemChanged(
         oldItem, newItem, (oldElement as HTMLElement | null), (newElement as HTMLElement | null));
-    if (!this.delegate.updateSelectedItemARIA((oldElement), newElement)) {
+    if (!this.delegate.updateSelectedItemARIA((oldElement as Element | null), newElement)) {
       if (oldElement) {
         ARIAUtils.setSelected(oldElement, false);
       }

@@ -1,3 +1,6 @@
+monorail: {
+  component: "Platform>DevTools"
+}
 team_email: "devtools-dev@chromium.org"
 buganizer_public: {
   component_id: 1457055

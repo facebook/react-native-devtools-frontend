@@ -4,7 +4,7 @@
 
 import("../../../../../scripts/build/ninja/copy.gni")
 
-import("../../../../../scripts/build/typescript/typescript.gni")
+import("../../../../../third_party/typescript/typescript.gni")
 
 ts_library("ts") {
   testonly = true

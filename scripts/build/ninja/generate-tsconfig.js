@@ -26,6 +26,7 @@ const generatedTSConfig = {
     // part it is assumed to be the same as the final dirname of
     // the path.
 
+    // eslint-disable-next-line prefer-const
     let [pathPart, targetPart] = dep.split(':');
     if (pathPart === '') {
       pathPart = '.';

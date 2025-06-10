@@ -86,7 +86,6 @@ export namespace ProtocolMapping {
      * Fired whenever an active document stylesheet is removed.
      */
     'CSS.styleSheetRemoved': [Protocol.CSS.StyleSheetRemovedEvent];
-    'CSS.computedStyleUpdated': [Protocol.CSS.ComputedStyleUpdatedEvent];
     /**
      * This is fired whenever the list of available sinks changes. A sink is a
      * device or a software surface that you can cast to.
@@ -142,10 +141,6 @@ export namespace ProtocolMapping {
      */
     'DOM.topLayerElementsUpdated': [];
     /**
-     * Fired when a node's scrollability state changes.
-     */
-    'DOM.scrollableFlagUpdated': [Protocol.DOM.ScrollableFlagUpdatedEvent];
-    /**
      * Called when a pseudo element is removed from an element.
      */
     'DOM.pseudoElementRemoved': [Protocol.DOM.PseudoElementRemovedEvent];
@@ -166,6 +161,7 @@ export namespace ProtocolMapping {
     'DOMStorage.domStorageItemRemoved': [Protocol.DOMStorage.DomStorageItemRemovedEvent];
     'DOMStorage.domStorageItemUpdated': [Protocol.DOMStorage.DomStorageItemUpdatedEvent];
     'DOMStorage.domStorageItemsCleared': [Protocol.DOMStorage.DomStorageItemsClearedEvent];
+    'Database.addDatabase': [Protocol.Database.AddDatabaseEvent];
     /**
      * Notification sent after the virtual time budget for the current VirtualTimePolicy has run out.
      */
@@ -276,22 +272,6 @@ export namespace ProtocolMapping {
      */
     'Network.webTransportClosed': [Protocol.Network.WebTransportClosedEvent];
     /**
-     * Fired upon direct_socket.TCPSocket creation.
-     */
-    'Network.directTCPSocketCreated': [Protocol.Network.DirectTCPSocketCreatedEvent];
-    /**
-     * Fired when direct_socket.TCPSocket connection is opened.
-     */
-    'Network.directTCPSocketOpened': [Protocol.Network.DirectTCPSocketOpenedEvent];
-    /**
-     * Fired when direct_socket.TCPSocket is aborted.
-     */
-    'Network.directTCPSocketAborted': [Protocol.Network.DirectTCPSocketAbortedEvent];
-    /**
-     * Fired when direct_socket.TCPSocket is closed.
-     */
-    'Network.directTCPSocketClosed': [Protocol.Network.DirectTCPSocketClosedEvent];
-    /**
      * Fired when additional information about a requestWillBeSent event is available from the
      * network stack. Not every requestWillBeSent event will have an additional
      * requestWillBeSentExtraInfo fired for it, and there is no guarantee whether requestWillBeSent
@@ -381,11 +361,6 @@ export namespace ProtocolMapping {
      */
     'Page.frameDetached': [Protocol.Page.FrameDetachedEvent];
     /**
-     * Fired before frame subtree is detached. Emitted before any frame of the
-     * subtree is actually detached.
-     */
-    'Page.frameSubtreeWillBeDetached': [Protocol.Page.FrameSubtreeWillBeDetachedEvent];
-    /**
      * Fired once navigation of the frame has completed. Frame is now associated with the new loader.
      */
     'Page.frameNavigated': [Protocol.Page.FrameNavigatedEvent];
@@ -394,16 +369,6 @@ export namespace ProtocolMapping {
      */
     'Page.documentOpened': [Protocol.Page.DocumentOpenedEvent];
     'Page.frameResized': [];
-    /**
-     * Fired when a navigation starts. This event is fired for both
-     * renderer-initiated and browser-initiated navigations. For renderer-initiated
-     * navigations, the event is fired after `frameRequestedNavigation`.
-     * Navigation may still be cancelled after the event is issued. Multiple events
-     * can be fired for a single navigation, for example, when a same-document
-     * navigation becomes a cross-document navigation (such as in the case of a
-     * frameset).
-     */
-    'Page.frameStartedNavigating': [Protocol.Page.FrameStartedNavigatingEvent];
     /**
      * Fired when a renderer-initiated navigation is requested.
      * Navigation may still be cancelled after the event is issued.
@@ -450,8 +415,7 @@ export namespace ProtocolMapping {
      */
     'Page.javascriptDialogOpening': [Protocol.Page.JavascriptDialogOpeningEvent];
     /**
-     * Fired for lifecycle events (navigation, load, paint, etc) in the current
-     * target (including local frames).
+     * Fired for top level page lifecycle events such as navigation, load, paint, etc.
      */
     'Page.lifecycleEvent': [Protocol.Page.LifecycleEventEvent];
     /**
@@ -674,16 +638,6 @@ export namespace ProtocolMapping {
      */
     'WebAuthn.credentialAdded': [Protocol.WebAuthn.CredentialAddedEvent];
     /**
-     * Triggered when a credential is deleted, e.g. through
-     * PublicKeyCredential.signalUnknownCredential().
-     */
-    'WebAuthn.credentialDeleted': [Protocol.WebAuthn.CredentialDeletedEvent];
-    /**
-     * Triggered when a credential is updated, e.g. through
-     * PublicKeyCredential.signalCurrentUserDetails().
-     */
-    'WebAuthn.credentialUpdated': [Protocol.WebAuthn.CredentialUpdatedEvent];
-    /**
      * Triggered when a credential is used in a webauthn assertion.
      */
     'WebAuthn.credentialAsserted': [Protocol.WebAuthn.CredentialAssertedEvent];
@@ -744,13 +698,7 @@ export namespace ProtocolMapping {
      */
     'FedCm.dialogClosed': [Protocol.FedCm.DialogClosedEvent];
     /**
-     * Event for when a GATT operation of |type| to the peripheral with |address|
-     * happened.
-     */
-    'BluetoothEmulation.gattOperationReceived': [Protocol.BluetoothEmulation.GattOperationReceivedEvent];
-    /**
      * Fired when breakpoint is resolved to an actual script and location.
-     * Deprecated in favor of `resolvedBreakpoints` in the `scriptParsed` event.
      */
     'Debugger.breakpointResolved': [Protocol.Debugger.BreakpointResolvedEvent];
     /**
@@ -1021,52 +969,11 @@ export namespace ProtocolMapping {
     /**
      * Installs an unpacked extension from the filesystem similar to
      * --load-extension CLI flags. Returns extension ID once the extension
-     * has been installed. Available if the client is connected using the
-     * --remote-debugging-pipe flag and the --enable-unsafe-extension-debugging
-     * flag is set.
+     * has been installed.
      */
     'Extensions.loadUnpacked': {
       paramsType: [Protocol.Extensions.LoadUnpackedRequest];
       returnType: Protocol.Extensions.LoadUnpackedResponse;
-    };
-    /**
-     * Uninstalls an unpacked extension (others not supported) from the profile.
-     * Available if the client is connected using the --remote-debugging-pipe flag
-     * and the --enable-unsafe-extension-debugging.
-     */
-    'Extensions.uninstall': {
-      paramsType: [Protocol.Extensions.UninstallRequest];
-      returnType: void;
-    };
-    /**
-     * Gets data from extension storage in the given `storageArea`. If `keys` is
-     * specified, these are used to filter the result.
-     */
-    'Extensions.getStorageItems': {
-      paramsType: [Protocol.Extensions.GetStorageItemsRequest];
-      returnType: Protocol.Extensions.GetStorageItemsResponse;
-    };
-    /**
-     * Removes `keys` from extension storage in the given `storageArea`.
-     */
-    'Extensions.removeStorageItems': {
-      paramsType: [Protocol.Extensions.RemoveStorageItemsRequest];
-      returnType: void;
-    };
-    /**
-     * Clears extension storage in the given `storageArea`.
-     */
-    'Extensions.clearStorageItems': {
-      paramsType: [Protocol.Extensions.ClearStorageItemsRequest];
-      returnType: void;
-    };
-    /**
-     * Sets `values` in extension storage in the given `storageArea`. The provided `values`
-     * will be merged with existing values in the storage area.
-     */
-    'Extensions.setStorageItems': {
-      paramsType: [Protocol.Extensions.SetStorageItemsRequest];
-      returnType: void;
     };
     /**
      * Trigger autofill on a form identified by the fieldId.
@@ -1254,16 +1161,6 @@ export namespace ProtocolMapping {
       returnType: void;
     };
     /**
-     * Configures encryption keys used with a given privacy sandbox API to talk
-     * to a trusted coordinator.  Since this is intended for test automation only,
-     * coordinatorOrigin must be a .test domain. No existing coordinator
-     * configuration for the origin may exist.
-     */
-    'Browser.addPrivacySandboxCoordinatorKeyConfig': {
-      paramsType: [Protocol.Browser.AddPrivacySandboxCoordinatorKeyConfigRequest];
-      returnType: void;
-    };
-    /**
      * Inserts a new rule with the given `ruleText` in a stylesheet with given `styleSheetId`, at the
      * position specified by `location`.
      */
@@ -1308,13 +1205,6 @@ export namespace ProtocolMapping {
       paramsType: [Protocol.CSS.ForcePseudoStateRequest];
       returnType: void;
     };
-    /**
-     * Ensures that the given node is in its starting-style state.
-     */
-    'CSS.forceStartingStyle': {
-      paramsType: [Protocol.CSS.ForceStartingStyleRequest];
-      returnType: void;
-    };
     'CSS.getBackgroundColors': {
       paramsType: [Protocol.CSS.GetBackgroundColorsRequest];
       returnType: Protocol.CSS.GetBackgroundColorsResponse;
@@ -1327,34 +1217,12 @@ export namespace ProtocolMapping {
       returnType: Protocol.CSS.GetComputedStyleForNodeResponse;
     };
     /**
-     * Resolve the specified values in the context of the provided element.
-     * For example, a value of '1em' is evaluated according to the computed
-     * 'font-size' of the element and a value 'calc(1px + 2px)' will be
-     * resolved to '3px'.
-     */
-    'CSS.resolveValues': {
-      paramsType: [Protocol.CSS.ResolveValuesRequest];
-      returnType: Protocol.CSS.ResolveValuesResponse;
-    };
-    'CSS.getLonghandProperties': {
-      paramsType: [Protocol.CSS.GetLonghandPropertiesRequest];
-      returnType: Protocol.CSS.GetLonghandPropertiesResponse;
-    };
-    /**
      * Returns the styles defined inline (explicitly in the "style" attribute and implicitly, using DOM
      * attributes) for a DOM node identified by `nodeId`.
      */
     'CSS.getInlineStylesForNode': {
       paramsType: [Protocol.CSS.GetInlineStylesForNodeRequest];
       returnType: Protocol.CSS.GetInlineStylesForNodeResponse;
-    };
-    /**
-     * Returns the styles coming from animations & transitions
-     * including the animation & transition styles coming from inheritance chain.
-     */
-    'CSS.getAnimatedStylesForNode': {
-      paramsType: [Protocol.CSS.GetAnimatedStylesForNodeRequest];
-      returnType: Protocol.CSS.GetAnimatedStylesForNodeResponse;
     };
     /**
      * Returns requested styles for a DOM node identified by `nodeId`.
@@ -1402,18 +1270,6 @@ export namespace ProtocolMapping {
     'CSS.getLocationForSelector': {
       paramsType: [Protocol.CSS.GetLocationForSelectorRequest];
       returnType: Protocol.CSS.GetLocationForSelectorResponse;
-    };
-    /**
-     * Starts tracking the given node for the computed style updates
-     * and whenever the computed style is updated for node, it queues
-     * a `computedStyleUpdated` event with throttling.
-     * There can only be 1 node tracked for computed style updates
-     * so passing a new node id removes tracking from the previous node.
-     * Pass `undefined` to disable tracking.
-     */
-    'CSS.trackComputedStyleUpdatesForNode': {
-      paramsType: [Protocol.CSS.TrackComputedStyleUpdatesForNodeRequest?];
-      returnType: void;
     };
     /**
      * Starts tracking the given computed styles for updates. The specified array of properties
@@ -1932,13 +1788,6 @@ export namespace ProtocolMapping {
       returnType: Protocol.DOM.GetFileInfoResponse;
     };
     /**
-     * Returns list of detached nodes
-     */
-    'DOM.getDetachedDomNodes': {
-      paramsType: [];
-      returnType: Protocol.DOM.GetDetachedDomNodesResponse;
-    };
-    /**
      * Enables console to refer to the node with given id via $x (see Command Line API for more details
      * $x functions).
      */
@@ -1983,10 +1832,9 @@ export namespace ProtocolMapping {
     };
     /**
      * Returns the query container of the given node based on container query
-     * conditions: containerName, physical and logical axes, and whether it queries
-     * scroll-state. If no axes are provided and queriesScrollState is false, the
-     * style container is returned, which is the direct parent or the closest
-     * element with a matching container-name.
+     * conditions: containerName, physical, and logical axes. If no axes are
+     * provided, the style container is returned, which is the direct parent or the
+     * closest element with a matching container-name.
      */
     'DOM.getContainerForNode': {
       paramsType: [Protocol.DOM.GetContainerForNodeRequest];
@@ -2164,6 +2012,28 @@ export namespace ProtocolMapping {
       returnType: void;
     };
     /**
+     * Disables database tracking, prevents database events from being sent to the client.
+     */
+    'Database.disable': {
+      paramsType: [];
+      returnType: void;
+    };
+    /**
+     * Enables database tracking, database events will now be delivered to the client.
+     */
+    'Database.enable': {
+      paramsType: [];
+      returnType: void;
+    };
+    'Database.executeSQL': {
+      paramsType: [Protocol.Database.ExecuteSQLRequest];
+      returnType: Protocol.Database.ExecuteSQLResponse;
+    };
+    'Database.getDatabaseTableNames': {
+      paramsType: [Protocol.Database.GetDatabaseTableNamesRequest];
+      returnType: Protocol.Database.GetDatabaseTableNamesResponse;
+    };
+    /**
      * Clears the overridden Device Orientation.
      */
     'DeviceOrientation.clearDeviceOrientationOverride': {
@@ -2235,14 +2105,6 @@ export namespace ProtocolMapping {
       returnType: void;
     };
     /**
-     * Overrides the values for env(safe-area-inset-*) and env(safe-area-max-inset-*). Unset values will cause the
-     * respective variables to be undefined, even if previously overridden.
-     */
-    'Emulation.setSafeAreaInsetsOverride': {
-      paramsType: [Protocol.Emulation.SetSafeAreaInsetsOverrideRequest];
-      returnType: void;
-    };
-    /**
      * Overrides the values of device screen dimensions (window.screen.width, window.screen.height,
      * window.innerWidth, window.innerHeight, and "device-width"/"device-height"-related CSS media
      * query results).
@@ -2266,24 +2128,6 @@ export namespace ProtocolMapping {
      * Does nothing if no override is set.
      */
     'Emulation.clearDevicePostureOverride': {
-      paramsType: [];
-      returnType: void;
-    };
-    /**
-     * Start using the given display features to pupulate the Viewport Segments API.
-     * This override can also be set in setDeviceMetricsOverride().
-     */
-    'Emulation.setDisplayFeaturesOverride': {
-      paramsType: [Protocol.Emulation.SetDisplayFeaturesOverrideRequest];
-      returnType: void;
-    };
-    /**
-     * Clears the display features override set with either setDeviceMetricsOverride()
-     * or setDisplayFeaturesOverride() and starts using display features from the
-     * platform again.
-     * Does nothing if no override is set.
-     */
-    'Emulation.clearDisplayFeaturesOverride': {
       paramsType: [];
       returnType: void;
     };
@@ -2776,24 +2620,10 @@ export namespace ProtocolMapping {
       paramsType: [];
       returnType: void;
     };
-    /**
-     * Retruns current DOM object counters.
-     */
     'Memory.getDOMCounters': {
       paramsType: [];
       returnType: Protocol.Memory.GetDOMCountersResponse;
     };
-    /**
-     * Retruns DOM object counters after preparing renderer for leak detection.
-     */
-    'Memory.getDOMCountersForLeakDetection': {
-      paramsType: [];
-      returnType: Protocol.Memory.GetDOMCountersForLeakDetectionResponse;
-    };
-    /**
-     * Prepares for leak detection by terminating workers, stopping spellcheckers,
-     * dropping non-essential internal caches, running garbage collections, etc.
-     */
     'Memory.prepareForLeakDetection': {
       paramsType: [];
       returnType: void;
@@ -3111,14 +2941,6 @@ export namespace ProtocolMapping {
       returnType: Protocol.Network.LoadNetworkResourceResponse;
     };
     /**
-     * Sets Controls for third-party cookie access
-     * Page reload is required before the new cookie bahavior will be observed
-     */
-    'Network.setCookieControls': {
-      paramsType: [Protocol.Network.SetCookieControlsRequest];
-      returnType: void;
-    };
-    /**
      * Disables domain notifications.
      */
     'Overlay.disable': {
@@ -3281,7 +3103,7 @@ export namespace ProtocolMapping {
       returnType: void;
     };
     /**
-     * Deprecated, no longer has any effect.
+     * Request that backend shows an overlay with web vital metrics.
      */
     'Overlay.setShowWebVitals': {
       paramsType: [Protocol.Overlay.SetShowWebVitalsRequest];
@@ -3397,7 +3219,7 @@ export namespace ProtocolMapping {
      * Enables page domain notifications.
      */
     'Page.enable': {
-      paramsType: [Protocol.Page.EnableRequest?];
+      paramsType: [];
       returnType: void;
     };
     /**
@@ -4133,15 +3955,6 @@ export namespace ProtocolMapping {
       returnType: Protocol.Storage.GetRelatedWebsiteSetsResponse;
     };
     /**
-     * Returns the list of URLs from a page and its embedded resources that match
-     * existing grace period URL pattern rules.
-     * https://developers.google.com/privacy-sandbox/cookies/temporary-exceptions/grace-period
-     */
-    'Storage.getAffectedUrlsForThirdPartyCookieMetadata': {
-      paramsType: [Protocol.Storage.GetAffectedUrlsForThirdPartyCookieMetadataRequest];
-      returnType: Protocol.Storage.GetAffectedUrlsForThirdPartyCookieMetadataResponse;
-    };
-    /**
      * Returns information about the system.
      */
     'SystemInfo.getInfo': {
@@ -4717,83 +4530,6 @@ export namespace ProtocolMapping {
       returnType: void;
     };
     /**
-     * Enable the BluetoothEmulation domain.
-     */
-    'BluetoothEmulation.enable': {
-      paramsType: [Protocol.BluetoothEmulation.EnableRequest];
-      returnType: void;
-    };
-    /**
-     * Set the state of the simulated central.
-     */
-    'BluetoothEmulation.setSimulatedCentralState': {
-      paramsType: [Protocol.BluetoothEmulation.SetSimulatedCentralStateRequest];
-      returnType: void;
-    };
-    /**
-     * Disable the BluetoothEmulation domain.
-     */
-    'BluetoothEmulation.disable': {
-      paramsType: [];
-      returnType: void;
-    };
-    /**
-     * Simulates a peripheral with |address|, |name| and |knownServiceUuids|
-     * that has already been connected to the system.
-     */
-    'BluetoothEmulation.simulatePreconnectedPeripheral': {
-      paramsType: [Protocol.BluetoothEmulation.SimulatePreconnectedPeripheralRequest];
-      returnType: void;
-    };
-    /**
-     * Simulates an advertisement packet described in |entry| being received by
-     * the central.
-     */
-    'BluetoothEmulation.simulateAdvertisement': {
-      paramsType: [Protocol.BluetoothEmulation.SimulateAdvertisementRequest];
-      returnType: void;
-    };
-    /**
-     * Simulates the response code from the peripheral with |address| for a
-     * GATT operation of |type|. The |code| value follows the HCI Error Codes from
-     * Bluetooth Core Specification Vol 2 Part D 1.3 List Of Error Codes.
-     */
-    'BluetoothEmulation.simulateGATTOperationResponse': {
-      paramsType: [Protocol.BluetoothEmulation.SimulateGATTOperationResponseRequest];
-      returnType: void;
-    };
-    /**
-     * Adds a service with |serviceUuid| to the peripheral with |address|.
-     */
-    'BluetoothEmulation.addService': {
-      paramsType: [Protocol.BluetoothEmulation.AddServiceRequest];
-      returnType: Protocol.BluetoothEmulation.AddServiceResponse;
-    };
-    /**
-     * Removes the service respresented by |serviceId| from the peripheral with
-     * |address|.
-     */
-    'BluetoothEmulation.removeService': {
-      paramsType: [Protocol.BluetoothEmulation.RemoveServiceRequest];
-      returnType: void;
-    };
-    /**
-     * Adds a characteristic with |characteristicUuid| and |properties| to the
-     * service represented by |serviceId| in the peripheral with |address|.
-     */
-    'BluetoothEmulation.addCharacteristic': {
-      paramsType: [Protocol.BluetoothEmulation.AddCharacteristicRequest];
-      returnType: Protocol.BluetoothEmulation.AddCharacteristicResponse;
-    };
-    /**
-     * Removes the characteristic respresented by |characteristicId| from the
-     * service respresented by |serviceId| in the peripheral with |address|.
-     */
-    'BluetoothEmulation.removeCharacteristic': {
-      paramsType: [Protocol.BluetoothEmulation.RemoveCharacteristicRequest];
-      returnType: void;
-    };
-    /**
      * Continues execution until specific location is reached.
      */
     'Debugger.continueToLocation': {
@@ -4921,15 +4657,6 @@ export namespace ProtocolMapping {
      */
     'Debugger.setAsyncCallStackDepth': {
       paramsType: [Protocol.Debugger.SetAsyncCallStackDepthRequest];
-      returnType: void;
-    };
-    /**
-     * Replace previous blackbox execution contexts with passed ones. Forces backend to skip
-     * stepping/pausing in scripts in these execution contexts. VM will try to leave blackboxed script by
-     * performing 'step in' several times, finally resorting to 'step out' if unsuccessful.
-     */
-    'Debugger.setBlackboxExecutionContexts': {
-      paramsType: [Protocol.Debugger.SetBlackboxExecutionContextsRequest];
       returnType: void;
     };
     /**

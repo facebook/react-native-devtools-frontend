@@ -524,7 +524,7 @@ async function printStyleSection(section, omitLonghands, includeSelectorGroupMar
   const selector =
       section.titleElement.querySelector('.selector') || section.titleElement.querySelector('.keyframe-key');
   let selectorText = (includeSelectorGroupMarks ? buildMarkedSelectors(selector) : text(selector));
-  selectorText += text(selector.nextSibling.nextSibling);
+  selectorText += text(selector.nextSibling);
   const anchor = section.element.querySelector('.styles-section-subtitle');
 
   if (anchor) {
@@ -726,7 +726,7 @@ ElementsTestRunner.dumpStyleTreeItem = function(treeItem, prefix, depth, printIn
     const children = treeItem.children();
 
     for (let i = 0; children && i < children.length; ++i) {
-      ElementsTestRunner.dumpStyleTreeItem(children[i], prefix + '    ', depth, printInnerText);
+      ElementsTestRunner.dumpStyleTreeItem(children[i], prefix + '    ', depth);
     }
   }
 };
@@ -1208,7 +1208,8 @@ ElementsTestRunner.addNewRuleInStyleSheet = function(styleSheetHeader, selector,
 
 ElementsTestRunner.addNewRule = function(selector, callback) {
   Elements.ElementsPanel.ElementsPanel.instance()
-      .stylesWidget.contentElement.querySelector('[aria-label="New Style Rule"]')
+      .stylesWidget.contentElement.querySelector('.styles-pane-toolbar')
+      .shadowRoot.querySelector('[aria-label="New Style Rule"]')
       .click();
   TestRunner.addSniffer(
       Elements.StylesSidebarPane.StylesSidebarPane.prototype, 'addBlankSection',

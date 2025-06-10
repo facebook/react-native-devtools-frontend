@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../ui/legacy/legacy.js';
-
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -14,7 +12,7 @@ import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import {SearchResultsPane} from './SearchResultsPane.js';
-import type {SearchResult, SearchScope} from './SearchScope.js';
+import {type SearchResult, type SearchScope} from './SearchScope.js';
 import searchViewStyles from './searchView.css.js';
 
 const UIStrings = {
@@ -80,11 +78,7 @@ const UIStrings = {
   /**
    *@description Search results message element text content in Search View of the Search tab
    */
-  noMatchesFound: 'No matches found',
-  /**
-   *@description Search results message element text content in Search View of the Search tab
-   */
-  nothingMatchedTheQuery: 'Nothing matched your search query',
+  noMatchesFound: 'No matches found.',
   /**
    *@description Text in Search View of the Search tab
    */
@@ -93,16 +87,7 @@ const UIStrings = {
    *@description Text in Search View of the Search tab
    */
   searchInterrupted: 'Search interrupted.',
-  /**
-   *@description Text in Search View of the Search tab if user hasn't started the search
-   *@example {Enter} PH1
-   */
-  typeAndPressSToSearch: 'Type and press {PH1} to search',
-  /**
-   *@description Text in Search view of the Search tab if user hasn't started the search
-   */
-  noSearchResult: 'No search results',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/search/SearchView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -110,10 +95,10 @@ function createSearchToggleButton(iconName: string, jslogContext: string): Butto
   const button = new Buttons.Button.Button();
   button.data = {
     variant: Buttons.Button.Variant.ICON_TOGGLE,
+    size: Buttons.Button.Size.SMALL,
     iconName,
     toggledIconName: iconName,
     toggleType: Buttons.Button.ToggleType.PRIMARY,
-    size: Buttons.Button.Size.SMALL,
     toggled: false,
     jslogContext,
   };
@@ -135,7 +120,7 @@ export class SearchView extends UI.Widget.VBox {
   private visiblePane: UI.Widget.Widget|null;
   private readonly searchPanelElement: HTMLElement;
   private readonly searchResultsElement: HTMLElement;
-  protected readonly search: HTMLInputElement;
+  protected readonly search: UI.HistoryInput.HistoryInput;
   protected readonly matchCaseButton: Buttons.Button.Button;
   protected readonly regexButton: Buttons.Button.Button;
   private searchMessageElement: HTMLElement;
@@ -152,12 +137,10 @@ export class SearchView extends UI.Widget.VBox {
   // result added.
   #throttler: Common.Throttler.Throttler;
   #pendingSearchResults: SearchResult[] = [];
-  #emptyStartView: UI.EmptyWidget.EmptyWidget;
 
   constructor(settingKey: string, throttler: Common.Throttler.Throttler) {
     super(true);
     this.setMinimumSize(0, 40);
-    this.registerRequiredCSS(searchViewStyles);
 
     this.focusOnShow = false;
     this.isIndexing = false;
@@ -178,7 +161,7 @@ export class SearchView extends UI.Widget.VBox {
 
     this.contentElement.classList.add('search-view');
     this.contentElement.addEventListener('keydown', event => {
-      this.onKeyDownOnPanel((event));
+      this.onKeyDownOnPanel((event as KeyboardEvent));
     });
 
     this.searchPanelElement = this.contentElement.createChild('div', 'search-drawer-header');
@@ -192,24 +175,26 @@ export class SearchView extends UI.Widget.VBox {
     const searchIcon = IconButton.Icon.create('search');
     searchElements.appendChild(searchIcon);
 
-    this.search = UI.UIUtils.createHistoryInput('search', 'search-toolbar-input');
+    this.search = UI.HistoryInput.HistoryInput.create();
     this.search.addEventListener('keydown', event => {
-      this.onKeyDown((event));
+      this.onKeyDown((event as KeyboardEvent));
     });
     this.search.setAttribute(
         'jslog', `${VisualLogging.textField().track({change: true, keydown: 'ArrowUp|ArrowDown|Enter'})}`);
     searchElements.appendChild(this.search);
     this.search.placeholder = i18nString(UIStrings.find);
+    this.search.setAttribute('type', 'search');
     this.search.setAttribute('results', '0');
     this.search.setAttribute('size', '100');
+    this.search.classList.add('search-toolbar-input');
     UI.ARIAUtils.setLabel(this.search, this.search.placeholder);
 
     const clearInputFieldButton = new Buttons.Button.Button();
     clearInputFieldButton.data = {
       variant: Buttons.Button.Variant.ICON,
+      size: Buttons.Button.Size.SMALL,
       iconName: 'cross-circle-filled',
       jslogContext: 'clear-input',
-      size: Buttons.Button.Size.SMALL,
       title: i18nString(UIStrings.clearInput),
     };
     clearInputFieldButton.classList.add('clear-button');
@@ -230,15 +215,15 @@ export class SearchView extends UI.Widget.VBox {
     searchElements.appendChild(this.matchCaseButton);
 
     this.searchPanelElement.appendChild(searchContainer);
-    const toolbar = this.searchPanelElement.createChild('devtools-toolbar', 'search-toolbar');
-    toolbar.setAttribute('jslog', `${VisualLogging.toolbar()}`);
+    const toolbar = new UI.Toolbar.Toolbar('search-toolbar', this.searchPanelElement);
+    toolbar.element.setAttribute('jslog', `${VisualLogging.toolbar()}`);
     const refreshButton =
         new UI.Toolbar.ToolbarButton(i18nString(UIStrings.refresh), 'refresh', undefined, 'search.refresh');
     const clearButton = new UI.Toolbar.ToolbarButton(i18nString(UIStrings.clear), 'clear', undefined, 'search.clear');
     toolbar.appendToolbarItem(refreshButton);
     toolbar.appendToolbarItem(clearButton);
-    refreshButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, () => this.onAction());
-    clearButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, () => {
+    refreshButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, () => this.onAction());
+    clearButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, () => {
       this.resetSearch();
       this.onSearchInputClear();
     });
@@ -253,12 +238,6 @@ export class SearchView extends UI.Widget.VBox {
 
     this.load();
     this.searchScope = null;
-
-    this.#emptyStartView = new UI.EmptyWidget.EmptyWidget(
-        i18nString(UIStrings.noSearchResult), i18nString(UIStrings.typeAndPressSToSearch, {
-          PH1: UI.KeyboardShortcut.KeyboardShortcut.shortcutToString(UI.KeyboardShortcut.Keys.Enter)
-        }));
-    this.showPane(this.#emptyStartView);
   }
 
   regexButtonToggled(): void {
@@ -301,11 +280,11 @@ export class SearchView extends UI.Widget.VBox {
   }
 
   override wasShown(): void {
-    super.wasShown();
     if (this.focusOnShow) {
       this.focus();
       this.focusOnShow = false;
     }
+    this.registerCSSFiles([searchViewStyles]);
   }
 
   private onIndexingFinished(): void {
@@ -347,14 +326,13 @@ export class SearchView extends UI.Widget.VBox {
     this.search.value = '';
     this.save();
     this.focus();
-    this.showPane(this.#emptyStartView);
   }
 
   private onSearchResult(searchId: number, searchResult: SearchResult): void {
     if (searchId !== this.searchId || !this.progressIndicator) {
       return;
     }
-    if (this.progressIndicator?.isCanceled()) {
+    if (this.progressIndicator && this.progressIndicator.isCanceled()) {
       this.onIndexingFinished();
       return;
     }
@@ -425,7 +403,7 @@ export class SearchView extends UI.Widget.VBox {
     this.searchResultsCount = 0;
     this.nonEmptySearchResultsCount = 0;
     if (!this.searchingView) {
-      this.searchingView = new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.searching), '');
+      this.searchingView = new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.searching));
     }
     this.showPane(this.searchingView);
     this.searchMessageElement.textContent = i18nString(UIStrings.searching);
@@ -462,10 +440,10 @@ export class SearchView extends UI.Widget.VBox {
 
   private nothingFound(): void {
     if (!this.notFoundView) {
-      this.notFoundView = new UI.EmptyWidget.EmptyWidget(
-          i18nString(UIStrings.noMatchesFound), i18nString(UIStrings.nothingMatchedTheQuery));
+      this.notFoundView = new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.noMatchesFound));
     }
     this.showPane(this.notFoundView);
+    this.searchResultsMessageElement.textContent = i18nString(UIStrings.noMatchesFound);
   }
 
   private addSearchResult(searchResult: SearchResult): void {
@@ -560,7 +538,7 @@ export class SearchView extends UI.Widget.VBox {
 
   private onAction(): void {
     const searchConfig = this.buildSearchConfig();
-    if (!searchConfig.query()?.length) {
+    if (!searchConfig.query() || !searchConfig.query().length) {
       return;
     }
     this.resetSearch();

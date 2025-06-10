@@ -32,7 +32,6 @@ export enum RegisteredAdorners {
   TOP_LAYER = 'top-layer',
   REVEAL = 'reveal',
   MEDIA = 'media',
-  SCROLL = 'scroll',
 }
 
 // This enum-like const object serves as the authoritative registry for all the
@@ -98,12 +97,6 @@ export function getRegisteredAdorner(which: RegisteredAdorners): RegisteredAdorn
         name: 'media',
         category: AdornerCategories.DEFAULT,
         enabledByDefault: false,
-      };
-    case RegisteredAdorners.SCROLL:
-      return {
-        name: 'scroll',
-        category: AdornerCategories.LAYOUT,
-        enabledByDefault: true,
       };
   }
 }

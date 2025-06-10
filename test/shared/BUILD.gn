@@ -2,19 +2,19 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("../../scripts/build/typescript/typescript.gni")
+import("../../third_party/typescript/typescript.gni")
 
 node_ts_library("shared") {
   sources = [
+    "async-scope.ts",
     "debug-check.ts",
     "helper.ts",
+    "mocha-extensions.ts",
     "mocha-resultsdb-reporter.ts",
-    "non_hosted_wrappers.ts",
+    "screenshot-error.ts",
     "screenshots.ts",
+    "snapshots.ts",
   ]
 
-  deps = [
-    "../conductor:implementation",
-    "../e2e_non_hosted/shared",
-  ]
+  deps = [ "../conductor:implementation" ]
 }

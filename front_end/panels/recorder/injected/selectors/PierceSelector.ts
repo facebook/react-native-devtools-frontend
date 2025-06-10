@@ -2,17 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {
-  pierceQuerySelectorAll,
-} from '../../../../third_party/puppeteer/package/lib/esm/puppeteer/injected/PierceQuerySelector.js';
+import {type Selector} from './Selector.js';
 
 import {
   findMinMax,
-  type QueryableNode,
-  type RangeOps,
   SelectorRangeOps,
+  type RangeOps,
+  type QueryableNode,
 } from './CSSSelector.js';
-import type {Selector} from './Selector.js';
+import {
+  pierceQuerySelectorAll,
+} from
+    '../../../../third_party/puppeteer/package/lib/esm/puppeteer/injected/PierceQuerySelector.js';
 
 class PierceSelectorRangeOpts implements RangeOps<QueryableNode, string[][]> {
   #selector: string[][] = [[]];

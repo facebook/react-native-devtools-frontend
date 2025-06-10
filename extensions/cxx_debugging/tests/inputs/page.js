@@ -15,7 +15,6 @@ try {
 
   window.go = function() {
     if (isReady()) {
-      // eslint-disable-next-line no-console
       console.trace('go()');
       return wasmModule._main();
     }
@@ -24,12 +23,11 @@ try {
 
   window.load = async function() {
     wasmModule = await moduleImport.default();
-    // eslint-disable-next-line no-console
     console.trace('loaded');
     return true;
   };
 } catch (e) {
   window.load = () => {
     throw e;
-  };
+  }
 }

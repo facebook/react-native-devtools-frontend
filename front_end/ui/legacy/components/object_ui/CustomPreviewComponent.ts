@@ -21,7 +21,7 @@ const UIStrings = {
    *@description A context menu item in the Custom Preview Component
    */
   showAsJavascriptObject: 'Show as JavaScript object',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/components/object_ui/CustomPreviewComponent.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -192,7 +192,10 @@ export class CustomPreviewComponent {
     this.customPreviewSection = new CustomPreviewSection(object);
     this.element = document.createElement('span');
     this.element.classList.add('source-code');
-    const shadowRoot = UI.UIUtils.createShadowRootWithCoreStyles(this.element, {cssFile: customPreviewComponentStyles});
+    const shadowRoot = UI.UIUtils.createShadowRootWithCoreStyles(this.element, {
+      cssFile: [customPreviewComponentStyles],
+      delegatesFocus: undefined,
+    });
     this.element.addEventListener('contextmenu', this.contextMenuEventFired.bind(this), false);
     shadowRoot.appendChild(this.customPreviewSection.element());
   }

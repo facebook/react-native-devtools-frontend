@@ -7,7 +7,7 @@
 var __addDisposableResource = (this && this.__addDisposableResource) || function (env, value, async) {
     if (value !== null && value !== void 0) {
         if (typeof value !== "object" && typeof value !== "function") throw new TypeError("Object expected.");
-        var dispose, inner;
+        var dispose;
         if (async) {
             if (!Symbol.asyncDispose) throw new TypeError("Symbol.asyncDispose is not defined.");
             dispose = value[Symbol.asyncDispose];
@@ -15,10 +15,8 @@ var __addDisposableResource = (this && this.__addDisposableResource) || function
         if (dispose === void 0) {
             if (!Symbol.dispose) throw new TypeError("Symbol.dispose is not defined.");
             dispose = value[Symbol.dispose];
-            if (async) inner = dispose;
         }
         if (typeof dispose !== "function") throw new TypeError("Object not disposable.");
-        if (inner) dispose = function() { try { inner.call(this); } catch (e) { return Promise.reject(e); } };
         env.stack.push({ value: value, dispose: dispose, async: async });
     }
     else if (async) {
@@ -32,22 +30,17 @@ var __disposeResources = (this && this.__disposeResources) || (function (Suppres
             env.error = env.hasError ? new SuppressedError(e, env.error, "An error was suppressed during disposal.") : e;
             env.hasError = true;
         }
-        var r, s = 0;
         function next() {
-            while (r = env.stack.pop()) {
+            while (env.stack.length) {
+                var rec = env.stack.pop();
                 try {
-                    if (!r.async && s === 1) return s = 0, env.stack.push(r), Promise.resolve().then(next);
-                    if (r.dispose) {
-                        var result = r.dispose.call(r.value);
-                        if (r.async) return s |= 2, Promise.resolve(result).then(next, function(e) { fail(e); return next(); });
-                    }
-                    else s |= 1;
+                    var result = rec.dispose && rec.dispose.call(rec.value);
+                    if (rec.async) return Promise.resolve(result).then(next, function(e) { fail(e); return next(); });
                 }
                 catch (e) {
                     fail(e);
                 }
             }
-            if (s === 1) return env.hasError ? Promise.reject(env.error) : Promise.resolve();
             if (env.hasError) throw env.error;
         }
         return next();
@@ -72,13 +65,15 @@ const Binding_js_1 = require("./Binding.js");
 const ElementHandle_js_1 = require("./ElementHandle.js");
 const JSHandle_js_1 = require("./JSHandle.js");
 const utils_js_1 = require("./utils.js");
-const ariaQuerySelectorBinding = new Binding_js_1.Binding('__ariaQuerySelector', AriaQueryHandler_js_1.ARIAQueryHandler.queryOne, '');
+const ariaQuerySelectorBinding = new Binding_js_1.Binding('__ariaQuerySelector', AriaQueryHandler_js_1.ARIAQueryHandler.queryOne, '' // custom init
+);
 const ariaQuerySelectorAllBinding = new Binding_js_1.Binding('__ariaQuerySelectorAll', (async (element, selector) => {
     const results = AriaQueryHandler_js_1.ARIAQueryHandler.queryAll(element, selector);
     return await element.realm.evaluateHandle((...elements) => {
         return elements;
     }, ...(await AsyncIterableUtil_js_1.AsyncIterableUtil.collect(results)));
-}), '');
+}), '' // custom init
+);
 /**
  * @internal
  */
@@ -228,8 +223,9 @@ class ExecutionContext extends EventEmitter_js_1.EventEmitter {
             await this.#addBinding(binding);
         }
         catch (err) {
-            // If the binding cannot be added, the context is broken. We cannot
-            // recover so we ignore the error.
+            // If the binding cannot be added, then either the browser doesn't support
+            // bindings (e.g. Firefox) or the context is broken. Either breakage is
+            // okay, so we ignore the error.
             (0, util_js_1.debugError)(err);
         }
     }
@@ -260,7 +256,7 @@ class ExecutionContext extends EventEmitter_js_1.EventEmitter {
      * const result = await executionContext.evaluate(
      *   (a, b) => a + b,
      *   oneHandle,
-     *   twoHandle,
+     *   twoHandle
      * );
      * await oneHandle.dispose();
      * await twoHandle.dispose();
@@ -290,7 +286,7 @@ class ExecutionContext extends EventEmitter_js_1.EventEmitter {
      * ```ts
      * const context = await page.mainFrame().executionContext();
      * const handle: JSHandle<typeof globalThis> = await context.evaluateHandle(
-     *   () => Promise.resolve(self),
+     *   () => Promise.resolve(self)
      * );
      * ```
      *
@@ -311,7 +307,7 @@ class ExecutionContext extends EventEmitter_js_1.EventEmitter {
      *   });
      * const stringHandle: JSHandle<string> = await context.evaluateHandle(
      *   body => body.innerHTML,
-     *   body,
+     *   body
      * );
      * console.log(await stringHandle.jsonValue()); // prints body's innerHTML
      * // Always dispose your garbage! :)
@@ -362,17 +358,9 @@ class ExecutionContext extends EventEmitter_js_1.EventEmitter {
             callFunctionOnPromise = this.#client.send('Runtime.callFunctionOn', {
                 functionDeclaration: functionDeclarationWithSourceUrl,
                 executionContextId: this.#id,
-                // LazyArgs are used only internally and should not affect the order
-                // evaluate calls for the public APIs.
-                arguments: args.some(arg => {
-                    return arg instanceof LazyArg_js_1.LazyArg;
-                })
-                    ? await Promise.all(args.map(arg => {
-                        return convertArgumentAsync(this, arg);
-                    }))
-                    : args.map(arg => {
-                        return convertArgument(this, arg);
-                    }),
+                arguments: args.length
+                    ? await Promise.all(args.map(convertArgument.bind(this)))
+                    : [],
                 returnByValue,
                 awaitPromise: true,
                 userGesture: true,
@@ -392,14 +380,12 @@ class ExecutionContext extends EventEmitter_js_1.EventEmitter {
         return returnByValue
             ? (0, utils_js_1.valueFromRemoteObject)(remoteObject)
             : this.#world.createCdpHandle(remoteObject);
-        async function convertArgumentAsync(context, arg) {
+        async function convertArgument(arg) {
             if (arg instanceof LazyArg_js_1.LazyArg) {
-                arg = await arg.get(context);
+                arg = await arg.get(this);
             }
-            return convertArgument(context, arg);
-        }
-        function convertArgument(context, arg) {
             if (typeof arg === 'bigint') {
+                // eslint-disable-line valid-typeof
                 return { unserializableValue: `${arg.toString()}n` };
             }
             if (Object.is(arg, -0)) {
@@ -418,7 +404,7 @@ class ExecutionContext extends EventEmitter_js_1.EventEmitter {
                 ? arg
                 : null;
             if (objectHandle) {
-                if (objectHandle.realm !== context.#world) {
+                if (objectHandle.realm !== this.#world) {
                     throw new Error('JSHandles can be evaluated only in the context they were created!');
                 }
                 if (objectHandle.disposed) {

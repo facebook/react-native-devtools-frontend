@@ -139,6 +139,7 @@ export class Aggregate {
   distance!: number;
   self!: number;
   maxRet!: number;
+  type!: number;
   name!: string;
   idxs!: number[];
   constructor() {
@@ -146,12 +147,10 @@ export class Aggregate {
 }
 
 export class AggregateForDiff {
-  name: string;
   indexes: number[];
   ids: number[];
   selfSizes: number[];
   constructor() {
-    this.name = '';
     this.indexes = [];
     this.ids = [];
     this.selfSizes = [];
@@ -159,7 +158,6 @@ export class AggregateForDiff {
 }
 
 export class Diff {
-  name: string;
   addedCount: number;
   removedCount: number;
   addedSize: number;
@@ -168,8 +166,7 @@ export class Diff {
   addedIndexes: number[];
   countDelta!: number;
   sizeDelta!: number;
-  constructor(name: string) {
-    this.name = name;
+  constructor() {
     this.addedCount = 0;
     this.removedCount = 0;
     this.addedSize = 0;
@@ -180,7 +177,6 @@ export class Diff {
 }
 
 export class DiffForClass {
-  name!: string;
   addedCount!: number;
   removedCount!: number;
   addedSize!: number;
@@ -224,8 +220,8 @@ export class ItemsRange {
   startPosition: number;
   endPosition: number;
   totalLength: number;
-  items: Array<Node|Edge>;
-  constructor(startPosition: number, endPosition: number, totalLength: number, items: Array<Node|Edge>) {
+  items: (Node|Edge)[];
+  constructor(startPosition: number, endPosition: number, totalLength: number, items: (Node|Edge)[]) {
     this.startPosition = startPosition;
     this.endPosition = endPosition;
     this.totalLength = totalLength;
@@ -246,10 +242,16 @@ export class StaticData {
   }
 }
 
-export interface Statistics {
-  total: number;
-  native: {total: number, typedArrays: number};
-  v8heap: {total: number, code: number, jsArrays: number, strings: number, system: number};
+export class Statistics {
+  total!: number;
+  v8heap!: number;
+  native!: number;
+  code!: number;
+  jsArrays!: number;
+  strings!: number;
+  system!: number;
+  constructor() {
+  }
 }
 
 export class NodeFilter {

@@ -2,6 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {type Chrome} from '../../../extension-api/ExtensionAPI.js';
+import {createEmbindPool} from '../src/DWARFSymbols.js';
+
 import {Debugger} from './RealBackend.js';
 import {createWorkerPlugin, makeURL, nonNull} from './TestUtils.js';
 
@@ -25,7 +28,7 @@ describe('Externref', () => {
     if (!sourceFileURL) {
       throw new Error('externref.c source not found');
     }
-    await debug.setBreakpoint(1, new URL(sourceFileURL), plugin, rawModuleId);
+    const {lineNumber} = await debug.setBreakpoint(1, new URL(sourceFileURL), plugin, rawModuleId);
 
     const goPromise = page.go();
     const pauseOrExitcode = await Promise.race([debug.waitForPause(), goPromise]);
@@ -45,7 +48,7 @@ describe('Externref', () => {
       const {subtype, description, preview} = await debug.getRemoteObject(callFrame, value);
       expect(subtype).to.eql('wasmvalue');
       expect(description).to.eql('externref');
-      expect(preview?.properties).to.eql([{name: 'value', type: 'object', value: 'Object'}]);
+      expect(preview?.properties).to.eql([{'name': 'value', 'type': 'object', 'value': 'Object'}]);
     }
 
     {
@@ -54,7 +57,7 @@ describe('Externref', () => {
       const {subtype, description, preview} = await debug.getRemoteObject(callFrame, value);
       expect(subtype).to.eql('wasmvalue');
       expect(description).to.eql('externref');
-      expect(preview?.properties).to.eql([{name: 'value', type: 'string', value: 'test'}]);
+      expect(preview?.properties).to.eql([{'name': 'value', 'type': 'string', 'value': 'test'}]);
     }
 
     await debug.resume();

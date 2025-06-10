@@ -3,8 +3,8 @@
 // found in the LICENSE file.
 
 import * as i18n from '../../core/i18n/i18n.js';
-import type * as Platform from '../../core/platform/platform.js';
 import type * as ProtocolClient from '../../core/protocol_client/protocol_client.js';
+import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 
 import type * as ReportRenderer from './LighthouseReporterTypes.js';
@@ -50,10 +50,7 @@ let lastId = 1;
 export interface LighthouseRun {
   inspectedURL: Platform.DevToolsPath.UrlString;
   categoryIDs: string[];
-  flags: {
-    formFactor: (string|undefined),
-    mode: string,
-  };
+  flags: Record<string, Object|undefined>;
 }
 
 /**
@@ -66,7 +63,7 @@ export class ProtocolService {
   private lighthouseWorkerPromise?: Promise<Worker>;
   private lighthouseMessageUpdateCallback?: ((arg0: string) => void);
   private removeDialogHandler?: () => void;
-  private configForTesting?: object;
+  private configForTesting?: Object;
 
   async attach(): Promise<void> {
     await SDK.TargetManager.TargetManager.instance().suspendAllTargets();
@@ -155,7 +152,7 @@ export class ProtocolService {
       mode = 'endTimespan';
     }
 
-    return await this.sendWithResponse(mode, {
+    return this.sendWithResponse(mode, {
       url: inspectedURL,
       categoryIDs,
       flags,
@@ -191,7 +188,7 @@ export class ProtocolService {
     this.lighthouseMessageUpdateCallback = callback;
   }
 
-  private dispatchProtocolMessage(message: string|object): void {
+  private dispatchProtocolMessage(message: Object): void {
     // A message without a sessionId is the main session of the main target (call it "Main session").
     // A parallel connection and session was made that connects to the same main target (call it "Lighthouse session").
     // Messages from the "Lighthouse session" have a sessionId.
@@ -205,7 +202,7 @@ export class ProtocolService {
       sessionId?: string,
       method?: string,
     };
-    if (protocolMessage.sessionId || (protocolMessage.method?.startsWith('Target'))) {
+    if (protocolMessage.sessionId || (protocolMessage.method && protocolMessage.method.startsWith('Target'))) {
       void this.send('dispatchProtocolMessage', {message});
     }
   }
@@ -262,14 +259,14 @@ export class ProtocolService {
     }
   }
 
-  private async send(action: string, args: {[x: string]: string|string[]|object} = {}): Promise<void> {
+  private async send(action: string, args: {[x: string]: string|string[]|Object} = {}): Promise<void> {
     const worker = await this.ensureWorkerExists();
     const messageId = lastId++;
     worker.postMessage({id: messageId, action, args: {...args, id: messageId}});
   }
 
   /** sendWithResponse currently only handles the original startLighthouse request and LHR-filled response. */
-  private async sendWithResponse(action: string, args: {[x: string]: string|string[]|object|undefined} = {}):
+  private async sendWithResponse(action: string, args: {[x: string]: string|string[]|Object|undefined} = {}):
       Promise<ReportRenderer.RunnerResult> {
     const worker = await this.ensureWorkerExists();
     const messageId = lastId++;
@@ -286,6 +283,6 @@ export class ProtocolService {
     });
     worker.postMessage({id: messageId, action, args: {...args, id: messageId}});
 
-    return await messageResult;
+    return messageResult;
   }
 }

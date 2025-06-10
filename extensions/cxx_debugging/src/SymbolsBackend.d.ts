@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-/* eslint-disable @typescript-eslint/naming-convention */
-
 export interface EmbindObject {
   new(): this;
   delete(): void;
@@ -154,12 +152,12 @@ export interface Module extends EmscriptenModule {
   FieldInfoArray: Vector<FieldInfo>;
   EnumeratorArray: Vector<Enumerator>;
   ErrorCode:
-      {INTERNAL_ERROR: ErrorCode, PROTOCOL_ERROR: ErrorCode, MODULE_NOT_FOUND_ERROR: ErrorCode, EVAL_ERROR: ErrorCode};
+      {INTERNAL_ERROR: ErrorCode; PROTOCOL_ERROR: ErrorCode; MODULE_NOT_FOUND_ERROR: ErrorCode; EVAL_ERROR: ErrorCode;};
   Error: Error;
   RawLocationRange: RawLocationRange;
   RawLocation: RawLocation;
   SourceLocation: SourceLocation;
-  VariableScope: {LOCAL: VariableScope, PARAMETER: VariableScope, GLOBAL: VariableScope};
+  VariableScope: {LOCAL: VariableScope; PARAMETER: VariableScope; GLOBAL: VariableScope;};
   Variable: Variable;
   FieldInfo: FieldInfo;
   Enumerator: Enumerator;
@@ -175,5 +173,5 @@ export interface Module extends EmscriptenModule {
   EvaluateExpressionResponse: EvaluateExpressionResponse;
 }
 
-declare let createSymbolsBackend: EmscriptenModuleFactory<Module>;
+declare var createSymbolsBackend: EmscriptenModuleFactory<Module>;
 export default createSymbolsBackend;

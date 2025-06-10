@@ -17,8 +17,8 @@ import * as Components from '../../ui/legacy/components/utils/utils.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
-import type {AggregatedIssue} from './IssueAggregator.js';
-import type {IssueView} from './IssueView.js';
+import {type AggregatedIssue} from './IssueAggregator.js';
+import {type IssueView} from './IssueView.js';
 
 const UIStrings = {
   /**
@@ -33,16 +33,16 @@ const UIStrings = {
    *@description Replacement text for a link to an HTML element which is not available (anymore).
    */
   unavailable: 'unavailable',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/issues/AffectedResourcesView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export const enum AffectedItem {
-  COOKIE = 'Cookie',
-  DIRECTIVE = 'Directive',
-  ELEMENT = 'Element',
-  REQUEST = 'Request',
-  SOURCE = 'Source',
+  Cookie = 'Cookie',
+  Directive = 'Directive',
+  Element = 'Element',
+  Request = 'Request',
+  Source = 'Source',
 }
 
 export const extractShortPath = (path: Platform.DevToolsPath.UrlString): string => {
@@ -146,9 +146,9 @@ export abstract class AffectedResourcesView extends UI.TreeOutline.TreeElement {
       this.#unresolvedFrameIds.add(frameId);
       if (!this.#frameListeners.length) {
         const addListener = SDK.FrameManager.FrameManager.instance().addEventListener(
-            SDK.FrameManager.Events.FRAME_ADDED_TO_TARGET, this.#onFrameChanged, this);
+            SDK.FrameManager.Events.FrameAddedToTarget, this.#onFrameChanged, this);
         const navigateListener = SDK.FrameManager.FrameManager.instance().addEventListener(
-            SDK.FrameManager.Events.FRAME_NAVIGATED, this.#onFrameChanged, this);
+            SDK.FrameManager.Events.FrameNavigated, this.#onFrameChanged, this);
         this.#frameListeners = [addListener, navigateListener];
       }
     }
@@ -183,7 +183,7 @@ export abstract class AffectedResourcesView extends UI.TreeOutline.TreeElement {
       icon.data = {iconName: 'code-circle', color: 'var(--icon-link)', width: '16px', height: '16px'};
       icon.classList.add('link', 'elements-panel');
       icon.onclick = async () => {
-        Host.userMetrics.issuesPanelResourceOpened(issueCategory, AffectedItem.ELEMENT);
+        Host.userMetrics.issuesPanelResourceOpened(issueCategory, AffectedItem.Element);
         const frame = SDK.FrameManager.FrameManager.instance().getFrame(frameId);
         if (frame) {
           const ownerNode = await frame.getOwnerDOMNodeOrDocument();
@@ -226,7 +226,7 @@ export abstract class AffectedResourcesView extends UI.TreeOutline.TreeElement {
     }
 
     function sendTelemetry(): void {
-      Host.userMetrics.issuesPanelResourceOpened(issueCategory, AffectedItem.ELEMENT);
+      Host.userMetrics.issuesPanelResourceOpened(issueCategory, AffectedItem.Element);
     }
 
     const deferredDOMNode = new SDK.DOMModel.DeferredDOMNode(target, backendNodeId);

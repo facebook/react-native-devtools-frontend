@@ -8,7 +8,7 @@
   padding: 12px;
 }
 
-dt-checkbox {
+[is="dt-checkbox"] {
   margin: 0 0 10px;
   flex: none;
 }

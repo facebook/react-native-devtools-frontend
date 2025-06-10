@@ -4,21 +4,21 @@
 
 import * as Common from '../../core/common/common.js';
 
-import type {RecorderExtensionEndpoint} from './RecorderExtensionEndpoint.js';
+import {type RecorderExtensionEndpoint} from './RecorderExtensionEndpoint.js';
 
 let instance: RecorderPluginManager|null = null;
 
-export interface ViewDescriptor {
-  id: string;
-  title: string;
-  pagePath: string;
-  onShown: () => void;
-  onHidden: () => void;
-}
+export type ViewDescriptor = {
+  id: string,
+  title: string,
+  pagePath: string,
+  onShown: () => void,
+  onHidden: () => void,
+};
 
 export class RecorderPluginManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
-  #plugins = new Set<RecorderExtensionEndpoint>();
-  #views = new Map<string, ViewDescriptor>();
+  #plugins: Set<RecorderExtensionEndpoint> = new Set();
+  #views: Map<string, ViewDescriptor> = new Map();
 
   static instance(): RecorderPluginManager {
     if (!instance) {
@@ -29,12 +29,12 @@ export class RecorderPluginManager extends Common.ObjectWrapper.ObjectWrapper<Ev
 
   addPlugin(plugin: RecorderExtensionEndpoint): void {
     this.#plugins.add(plugin);
-    this.dispatchEventToListeners(Events.PLUGIN_ADDED, plugin);
+    this.dispatchEventToListeners(Events.PluginAdded, plugin);
   }
 
   removePlugin(plugin: RecorderExtensionEndpoint): void {
     this.#plugins.delete(plugin);
-    this.dispatchEventToListeners(Events.PLUGIN_REMOVED, plugin);
+    this.dispatchEventToListeners(Events.PluginRemoved, plugin);
   }
 
   plugins(): RecorderExtensionEndpoint[] {
@@ -43,7 +43,7 @@ export class RecorderPluginManager extends Common.ObjectWrapper.ObjectWrapper<Ev
 
   registerView(descriptor: ViewDescriptor): void {
     this.#views.set(descriptor.id, descriptor);
-    this.dispatchEventToListeners(Events.VIEW_REGISTERED, descriptor);
+    this.dispatchEventToListeners(Events.ViewRegistered, descriptor);
   }
 
   views(): ViewDescriptor[] {
@@ -59,20 +59,20 @@ export class RecorderPluginManager extends Common.ObjectWrapper.ObjectWrapper<Ev
     if (!descriptor) {
       throw new Error(`View with id ${id} is not found.`);
     }
-    this.dispatchEventToListeners(Events.SHOW_VIEW_REQUESTED, descriptor);
+    this.dispatchEventToListeners(Events.ShowViewRequested, descriptor);
   }
 }
 
 export const enum Events {
-  PLUGIN_ADDED = 'pluginAdded',
-  PLUGIN_REMOVED = 'pluginRemoved',
-  VIEW_REGISTERED = 'viewRegistered',
-  SHOW_VIEW_REQUESTED = 'showViewRequested',
+  PluginAdded = 'pluginAdded',
+  PluginRemoved = 'pluginRemoved',
+  ViewRegistered = 'viewRegistered',
+  ShowViewRequested = 'showViewRequested',
 }
 
-export interface EventTypes {
-  [Events.PLUGIN_ADDED]: RecorderExtensionEndpoint;
-  [Events.PLUGIN_REMOVED]: RecorderExtensionEndpoint;
-  [Events.VIEW_REGISTERED]: ViewDescriptor;
-  [Events.SHOW_VIEW_REQUESTED]: ViewDescriptor;
-}
+export type EventTypes = {
+  [Events.PluginAdded]: RecorderExtensionEndpoint,
+  [Events.PluginRemoved]: RecorderExtensionEndpoint,
+  [Events.ViewRegistered]: ViewDescriptor,
+  [Events.ShowViewRequested]: ViewDescriptor,
+};

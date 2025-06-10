@@ -10,7 +10,7 @@ const ERROR_STATE = Symbol('error');
  */
 export function lazy<T>(producer: () => T): () => symbol | T {
   let value: T|typeof ERROR_STATE|typeof UNINITIALIZED = UNINITIALIZED;
-  let error: Error = new Error('Initial');
+  let error: null = null;
 
   return (): symbol|T => {
     if (value === ERROR_STATE) {
@@ -23,7 +23,7 @@ export function lazy<T>(producer: () => T): () => symbol | T {
       value = producer();
       return value;
     } catch (err) {
-      error = err instanceof Error ? err : new Error(err);
+      error = err;
       value = ERROR_STATE;
       throw error;
     }

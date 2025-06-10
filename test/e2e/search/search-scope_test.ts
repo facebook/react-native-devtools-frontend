@@ -5,6 +5,7 @@
 import {assert} from 'chai';
 
 import {$, $$, getBrowserAndPages, goToResource, timeout, waitFor, waitForFunction} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {triggerFindDialog} from '../helpers/search-helpers.js';
 
 describe('The Search Panel', () => {
@@ -62,7 +63,7 @@ describe('The Search Panel', () => {
       }
       // Wrap the entries with the file details.
       return {
-        fileName: fileNameElement.firstChild?.textContent || '',
+        fileName: fileNameElement.firstChild && fileNameElement.firstChild.textContent || '',
         matchesCount: parseInt(matchesCountElement.textContent || '', 10),
       };
     })));

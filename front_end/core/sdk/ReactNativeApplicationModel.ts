@@ -3,12 +3,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Host from '../../core/host/host.js';
 import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 import type * as Protocol from '../../generated/protocol.js';
 
+import * as Host from '../../core/host/host.js';
+import {Capability, type Target} from './Target.js';
 import {SDKModel} from './SDKModel.js';
-import type {Target} from './Target.js';
 
 export class ReactNativeApplicationModel extends SDKModel<EventTypes> implements ProtocolProxyApi.ReactNativeApplicationDispatcher {
   #enabled: boolean;
@@ -49,14 +49,14 @@ export class ReactNativeApplicationModel extends SDKModel<EventTypes> implements
 
   metadataUpdated(metadata: Protocol.ReactNativeApplication.MetadataUpdatedEvent): void {
     this.metadataCached = metadata;
-    this.dispatchEventToListeners(Events.METADATA_UPDATED, metadata);
+    this.dispatchEventToListeners(Events.MetadataUpdated, metadata);
   }
 }
 
 export const enum Events {
-  METADATA_UPDATED = 'MetadataUpdated',
+  MetadataUpdated = 'MetadataUpdated',
 }
 
-export interface EventTypes {
-  [Events.METADATA_UPDATED]: Protocol.ReactNativeApplication.MetadataUpdatedEvent;
-}
+export type EventTypes = {
+  [Events.MetadataUpdated]: Protocol.ReactNativeApplication.MetadataUpdatedEvent,
+};

@@ -9,11 +9,9 @@ import {
   describeWithMockConnection,
 } from '../../testing/MockConnection.js';
 import * as Host from '../host/host.js';
-import * as Platform from '../platform/platform.js';
+import type * as Platform from '../platform/platform.js';
 
 import * as SDK from './sdk.js';
-
-const {urlString} = Platform.DevToolsPath;
 
 describeWithMockConnection('TargetManager', () => {
   let targetManager: SDK.TargetManager.TargetManager;
@@ -244,12 +242,12 @@ describeWithMockConnection('TargetManager', () => {
     const inspectedURLChangedHostApi =
         sinon.spy(Host.InspectorFrontendHost.InspectorFrontendHostInstance, 'inspectedURLChanged');
     const inspectedURLChangedEventListener = sinon.spy();
-    targetManager.addEventListener(SDK.TargetManager.Events.INSPECTED_URL_CHANGED, inspectedURLChangedEventListener);
+    targetManager.addEventListener(SDK.TargetManager.Events.InspectedURLChanged, inspectedURLChangedEventListener);
 
     targetManager.setScopeTarget(null);
     assert.isTrue(inspectedURLChangedHostApi.notCalled && inspectedURLChangedEventListener.notCalled);
 
-    targets.forEach(t => t.setInspectedURL(urlString`${`https://a.com/${t.id()}`}`));
+    targets.forEach(t => t.setInspectedURL(`https://a.com/${t.id()}` as Platform.DevToolsPath.UrlString));
     assert.isTrue(inspectedURLChangedHostApi.notCalled && inspectedURLChangedEventListener.notCalled);
 
     targetManager.setScopeTarget(targets[0]);
@@ -260,7 +258,7 @@ describeWithMockConnection('TargetManager', () => {
     targetManager.setScopeTarget(targets[0]);
     assert.isTrue(inspectedURLChangedHostApi.calledOnce && inspectedURLChangedEventListener.calledOnce);
 
-    targets.forEach(t => t.setInspectedURL(urlString`${`https://b.com/${t.id()}`}`));
+    targets.forEach(t => t.setInspectedURL(`https://b.com/${t.id()}` as Platform.DevToolsPath.UrlString));
     assert.isTrue(inspectedURLChangedHostApi.calledTwice && inspectedURLChangedEventListener.calledTwice);
     assert.strictEqual(inspectedURLChangedHostApi.lastCall.firstArg, `https://b.com/${targets[0].id()}`);
     assert.strictEqual(inspectedURLChangedEventListener.lastCall.firstArg.data, targets[0]);
@@ -270,7 +268,7 @@ describeWithMockConnection('TargetManager', () => {
     assert.strictEqual(inspectedURLChangedHostApi.lastCall.firstArg, `https://b.com/${targets[1].id()}`);
     assert.strictEqual(inspectedURLChangedEventListener.lastCall.firstArg.data, targets[1]);
 
-    targets.forEach(t => t.setInspectedURL(urlString`${`https://c.com/${t.id()}`}`));
+    targets.forEach(t => t.setInspectedURL(`https://c.com/${t.id()}` as Platform.DevToolsPath.UrlString));
     assert.strictEqual(inspectedURLChangedHostApi.callCount, 4);
     assert.strictEqual(inspectedURLChangedEventListener.callCount, 4);
     assert.strictEqual(inspectedURLChangedHostApi.lastCall.firstArg, `https://c.com/${targets[1].id()}`);

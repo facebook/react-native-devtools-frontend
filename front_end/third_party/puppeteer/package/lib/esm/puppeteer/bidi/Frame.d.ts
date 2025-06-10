@@ -33,6 +33,7 @@ export declare class BidiFrame extends Frame {
     isolatedRealm(): BidiFrameRealm;
     realm(id: string): BidiRealm | undefined;
     page(): BidiPage;
+    isOOPFrame(): never;
     url(): string;
     parentFrame(): BidiFrame | null;
     childFrames(): BidiFrame[];

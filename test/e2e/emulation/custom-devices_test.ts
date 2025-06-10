@@ -16,6 +16,7 @@ import {
   waitForAria,
   waitForNone,
 } from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {waitForDomNodeToBeVisible} from '../helpers/elements-helpers.js';
 import {
   clickZoomDropDown,
@@ -40,7 +41,7 @@ async function targetTextContent(selector: string): Promise<string> {
   if (!handle) {
     assert.fail(`targetTextContent: could not find element for ${selector}`);
   }
-  return await elementTextContent(handle);
+  return elementTextContent(handle);
 }
 
 describe('Custom devices', () => {
@@ -147,7 +148,7 @@ describe('Custom devices', () => {
     const firstDevice = await waitFor('.devices-list-item');
     await firstDevice.focus();
 
-    const editButton = await waitForAria('Edit');
+    const editButton = await waitFor('.toolbar-button[aria-label="Edit"]');
     await editButton.click();
 
     // Make sure the device name field is what's focused.
@@ -223,23 +224,5 @@ describe('Custom devices', () => {
     await clickElement(zoomTo100Button);
     assert.strictEqual(await elementTextContent(fitButton), 'Fit to window (51%)');
     assert.strictEqual(await elementTextContent(zoomButton), '100%');
-  });
-
-  it('shows an error if the pixel ratio is not a number', async () => {
-    await selectEdit();
-    await click(ADD_DEVICE_BUTTON_SELECTOR);
-    await waitFor(FOCUSED_DEVICE_NAME_FIELD_SELECTOR);
-    await typeText('Prime numbers');
-
-    await tabForward();  // Focus width.
-    await typeText('700');
-    await tabForward();  // Focus height.
-    await typeText('400');
-    await tabForward();  // Focus DPR.
-    await typeText('zzz.213213');
-
-    const error = await waitFor('.list-widget-input-validation-error');
-    const errorText = await error.evaluate(element => element.textContent);
-    assert.strictEqual(errorText, 'Device pixel ratio must be a number or blank.');
   });
 });

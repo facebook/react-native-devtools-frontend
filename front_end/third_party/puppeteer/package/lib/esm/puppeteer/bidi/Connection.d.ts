@@ -7,20 +7,20 @@ import type * as Bidi from 'chromium-bidi/lib/cjs/protocol/protocol.js';
 import type { ConnectionTransport } from '../common/ConnectionTransport.js';
 import type { EventsWithWildcard } from '../common/EventEmitter.js';
 import { EventEmitter } from '../common/EventEmitter.js';
-import type { BidiEvents, Commands as BidiCommands, Connection } from './core/Connection.js';
+import type { Commands as BidiCommands, BidiEvents, Connection } from './core/Connection.js';
 /**
  * @internal
  */
 export interface Commands extends BidiCommands {
-    'goog:cdp.sendCommand': {
+    'cdp.sendCommand': {
         params: Bidi.Cdp.SendCommandParameters;
         returnType: Bidi.Cdp.SendCommandResult;
     };
-    'goog:cdp.getSession': {
+    'cdp.getSession': {
         params: Bidi.Cdp.GetSessionParameters;
         returnType: Bidi.Cdp.GetSessionResult;
     };
-    'goog:cdp.resolveRealm': {
+    'cdp.resolveRealm': {
         params: Bidi.Cdp.ResolveRealmParameters;
         returnType: Bidi.Cdp.ResolveRealmResult;
     };

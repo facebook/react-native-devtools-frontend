@@ -31,17 +31,17 @@
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Root from '../../core/root/root.js';
 
-import * as Utils from './utils/utils.js';
+import {type CategoryPalette, EventCategory, TimelineCategory, TimelineRecordStyle} from './EventUICategory.js';
 
 const UIStrings = {
   /**
    *@description Text in Timeline UIUtils of the Performance panel
    */
-  frameStart: 'Frame start',
+  frameStart: 'Frame Start',
   /**
    *@description Text in Timeline UIUtils of the Performance panel
    */
-  drawFrame: 'Draw frame',
+  drawFrame: 'Draw Frame',
   /**
    *@description Text in Timeline UIUtils of the Performance panel
    */
@@ -94,14 +94,14 @@ const UIStrings = {
    *@description Text in Timeline UIUtils of the Performance panel
    */
   messaging: 'Messaging',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/UIDevtoolsUtils.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 let eventStylesMap: {
-  [x: string]: Utils.EntryStyles.TimelineRecordStyle,
+  [x: string]: TimelineRecordStyle,
 }|null = null;
-let categories: Utils.EntryStyles.CategoryPalette|null = null;
+let categories: CategoryPalette|null = null;
 
 export class UIDevtoolsUtils {
   static isUiDevTools(): boolean {
@@ -109,7 +109,7 @@ export class UIDevtoolsUtils {
   }
 
   static categorizeEvents(): {
-    [x: string]: Utils.EntryStyles.TimelineRecordStyle,
+    [x: string]: TimelineRecordStyle,
   } {
     if (eventStylesMap) {
       return eventStylesMap;
@@ -124,10 +124,8 @@ export class UIDevtoolsUtils {
     const other = categories['other'];
 
     const eventStyles: {
-      [x: string]: Utils.EntryStyles.TimelineRecordStyle,
+      [x: string]: TimelineRecordStyle,
     } = {};
-
-    const {TimelineRecordStyle} = Utils.EntryStyles;
 
     // Paint Categories
     eventStyles[type.ViewPaint] = new TimelineRecordStyle('View::Paint', painting);
@@ -160,11 +158,10 @@ export class UIDevtoolsUtils {
     return eventStyles;
   }
 
-  static categories(): Utils.EntryStyles.CategoryPalette {
+  static categories(): CategoryPalette {
     if (categories) {
       return categories;
     }
-    const {TimelineCategory, EventCategory} = Utils.EntryStyles;
     categories = {
       layout: new TimelineCategory(
           EventCategory.LAYOUT, i18nString(UIStrings.layout), true, '--app-color-loading-children',
@@ -212,7 +209,6 @@ export class UIDevtoolsUtils {
 }
 
 export enum RecordType {
-  /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   ViewPaint = 'View::Paint',
   ViewOnPaint = 'View::OnPaint',
   ViewPaintChildren = 'View::PaintChildren',
@@ -228,5 +224,4 @@ export enum RecordType {
   DrawFrame = 'DrawFrame',
   NeedsBeginFrameChanged = 'NeedsBeginFrameChanged',
   ThreadControllerImplRunTask = 'ThreadControllerImpl::RunTask',
-  /* eslint-enable @typescript-eslint/naming-convention */
 }

@@ -3,17 +3,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Common from '../../core/common/common.js';
+import * as Common from '../../core/common/common.js';
+import * as Protocol from '../../generated/protocol.js';
 import * as SDK from '../../core/sdk/sdk.js';
-import type * as Protocol from '../../generated/protocol.js';
-
-import {FuseboxWindowTitleManager} from './FuseboxWindowTitleManager.js';
+import FuseboxWindowTitleManager from './FuseboxWindowTitleManager.js';
 
 /**
  * Model observer which updates the DevTools window title based on the connected
  * React Native app metadata.
  */
-export class FuseboxAppMetadataObserver implements
+export default class FuseboxAppMetadataObserver implements
     SDK.TargetManager.SDKModelObserver<SDK.ReactNativeApplicationModel.ReactNativeApplicationModel> {
   constructor(targetManager: SDK.TargetManager.TargetManager) {
     targetManager.observeModels(SDK.ReactNativeApplicationModel.ReactNativeApplicationModel, this);
@@ -21,12 +20,12 @@ export class FuseboxAppMetadataObserver implements
 
   modelAdded(model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel): void {
     model.ensureEnabled();
-    model.addEventListener(SDK.ReactNativeApplicationModel.Events.METADATA_UPDATED, this.#handleMetadataUpdated, this);
+    model.addEventListener(SDK.ReactNativeApplicationModel.Events.MetadataUpdated, this.#handleMetadataUpdated, this);
   }
 
   modelRemoved(model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel): void {
     model.removeEventListener(
-        SDK.ReactNativeApplicationModel.Events.METADATA_UPDATED, this.#handleMetadataUpdated, this);
+        SDK.ReactNativeApplicationModel.Events.MetadataUpdated, this.#handleMetadataUpdated, this);
   }
 
   #handleMetadataUpdated(

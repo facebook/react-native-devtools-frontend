@@ -32,12 +32,11 @@ import * as Platform from '../platform/platform.js';
 import * as Root from '../root/root.js';
 
 import {Console} from './Console.js';
-import type {EventDescriptor, EventTargetEvent, GenericEvents} from './EventTarget.js';
+import {type EventDescriptor, type EventTargetEvent, type GenericEvents} from './EventTarget.js';
 import {ObjectWrapper} from './Object.js';
 import {
   getLocalizedSettingsCategory,
   getRegisteredSettings as getRegisteredSettingsInternal,
-  type LearnMore,
   maybeRemoveSettingExtension,
   type RegExpSettingItem,
   registerSettingExtension,
@@ -52,28 +51,33 @@ import {
 let settingsInstance: Settings|undefined;
 
 export class Settings {
-  readonly #sessionStorage = new SettingsStorage({});
-  settingNameSet = new Set<string>();
-  orderValuesBySettingCategory = new Map<SettingCategory, Set<number>>();
-  #eventSupport = new ObjectWrapper<GenericEvents>();
-  #registry = new Map<string, Setting<unknown>>();
-  readonly moduleSettings = new Map<string, Setting<unknown>>();
-  #logSettingAccess?: (name: string, value: number|string|boolean) => Promise<void>;
+  readonly #sessionStorage: SettingsStorage;
+  settingNameSet: Set<string>;
+  orderValuesBySettingCategory: Map<SettingCategory, Set<number>>;
+  #eventSupport: ObjectWrapper<GenericEvents>;
+  #registry: Map<string, Setting<unknown>>;
+  readonly moduleSettings: Map<string, Setting<unknown>>;
+  readonly #config?: Root.Runtime.HostConfig;
 
   private constructor(
-      readonly syncedStorage: SettingsStorage,
-      readonly globalStorage: SettingsStorage,
-      readonly localStorage: SettingsStorage,
-      logSettingAccess?: (name: string, value: number|string|boolean) => Promise<void>,
-  ) {
-    this.#logSettingAccess = logSettingAccess;
+      readonly syncedStorage: SettingsStorage, readonly globalStorage: SettingsStorage,
+      readonly localStorage: SettingsStorage, config?: Root.Runtime.HostConfig) {
+    this.#sessionStorage = new SettingsStorage({});
 
+    this.settingNameSet = new Set();
+
+    this.orderValuesBySettingCategory = new Map();
+
+    this.#eventSupport = new ObjectWrapper<GenericEvents>();
+    this.#registry = new Map();
+    this.moduleSettings = new Map();
+
+    this.#config = config;
     for (const registration of this.getRegisteredSettings()) {
       const {settingName, defaultValue, storageType} = registration;
       const isRegex = registration.settingType === SettingType.REGEX;
 
-      const evaluatedDefaultValue =
-          typeof defaultValue === 'function' ? defaultValue(Root.Runtime.hostConfig) : defaultValue;
+      const evaluatedDefaultValue = typeof defaultValue === 'function' ? defaultValue(this.#config) : defaultValue;
       const setting = isRegex && typeof evaluatedDefaultValue === 'string' ?
           this.createRegExpSetting(settingName, evaluatedDefaultValue, undefined, storageType) :
           this.createSetting(settingName, evaluatedDefaultValue, storageType);
@@ -89,7 +93,7 @@ export class Settings {
   }
 
   getRegisteredSettings(): SettingRegistration[] {
-    return getRegisteredSettingsInternal();
+    return getRegisteredSettingsInternal(this.#config);
   }
 
   static hasInstance(): boolean {
@@ -101,15 +105,15 @@ export class Settings {
     syncedStorage: SettingsStorage|null,
     globalStorage: SettingsStorage|null,
     localStorage: SettingsStorage|null,
-    logSettingAccess?: (name: string, value: number|string|boolean) => Promise<void>,
+    config?: Root.Runtime.HostConfig,
   } = {forceNew: null, syncedStorage: null, globalStorage: null, localStorage: null}): Settings {
-    const {forceNew, syncedStorage, globalStorage, localStorage, logSettingAccess} = opts;
+    const {forceNew, syncedStorage, globalStorage, localStorage, config} = opts;
     if (!settingsInstance || forceNew) {
       if (!syncedStorage || !globalStorage || !localStorage) {
         throw new Error(`Unable to create settings: global and local storage must be provided: ${new Error().stack}`);
       }
 
-      settingsInstance = new Settings(syncedStorage, globalStorage, localStorage, logSettingAccess);
+      settingsInstance = new Settings(syncedStorage, globalStorage, localStorage, config);
     }
 
     return settingsInstance;
@@ -117,6 +121,10 @@ export class Settings {
 
   static removeInstance(): void {
     settingsInstance = undefined;
+  }
+
+  getHostConfig(): Root.Runtime.HostConfig|undefined {
+    return this.#config;
   }
 
   private registerModuleSetting(setting: Setting<unknown>): void {
@@ -151,14 +159,6 @@ export class Settings {
     return Platform.StringUtilities.toKebabCase(name);
   }
 
-  /**
-   * Prefer a module setting if this setting is one that you might not want to
-   * surface to the user to control themselves. Examples of these are settings
-   * to store UI state such as how a user choses to position a split widget or
-   * which panel they last opened.
-   * If you are creating a setting that you expect the user to control, and
-   * sync, prefer {@see createSetting}
-   */
   // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   moduleSetting<T = any>(settingName: string): Setting<T> {
@@ -179,32 +179,26 @@ export class Settings {
 
   /**
    * Get setting via key, and create a new setting if the requested setting does not exist.
-   * @param {string} key kebab-case string ID
-   * @param {T} defaultValue
-   * @param {SettingStorageType=} storageType If not specified, SettingStorageType.GLOBAL is used.
    */
   createSetting<T>(key: string, defaultValue: T, storageType?: SettingStorageType): Setting<T> {
     const storage = this.storageFromType(storageType);
-    let setting = this.#registry.get(key) as Setting<T>;
+    let setting = (this.#registry.get(key) as Setting<T>);
     if (!setting) {
-      setting = new Setting(key, defaultValue, this.#eventSupport, storage, this.#logSettingAccess);
+      setting = new Setting(key, defaultValue, this.#eventSupport, storage);
       this.#registry.set(key, setting);
     }
     return setting;
   }
 
   createLocalSetting<T>(key: string, defaultValue: T): Setting<T> {
-    return this.createSetting(key, defaultValue, SettingStorageType.LOCAL);
+    return this.createSetting(key, defaultValue, SettingStorageType.Local);
   }
 
   createRegExpSetting(key: string, defaultValue: string, regexFlags?: string, storageType?: SettingStorageType):
       RegExpSetting {
     if (!this.#registry.get(key)) {
       this.#registry.set(
-          key,
-          new RegExpSetting(
-              key, defaultValue, this.#eventSupport, this.storageFromType(storageType), regexFlags,
-              this.#logSettingAccess));
+          key, new RegExpSetting(key, defaultValue, this.#eventSupport, this.storageFromType(storageType), regexFlags));
     }
     return this.#registry.get(key) as RegExpSetting;
   }
@@ -218,13 +212,13 @@ export class Settings {
 
   private storageFromType(storageType?: SettingStorageType): SettingsStorage {
     switch (storageType) {
-      case SettingStorageType.LOCAL:
+      case SettingStorageType.Local:
         return this.localStorage;
-      case SettingStorageType.SESSION:
+      case SettingStorageType.Session:
         return this.#sessionStorage;
-      case SettingStorageType.GLOBAL:
+      case SettingStorageType.Global:
         return this.globalStorage;
-      case SettingStorageType.SYNCED:
+      case SettingStorageType.Synced:
         return this.syncedStorage;
     }
     return this.globalStorage;
@@ -254,7 +248,7 @@ export const NOOP_STORAGE: SettingsBackingStore = {
 export class SettingsStorage {
   constructor(
       private object: Record<string, string>, private readonly backingStore: SettingsBackingStore = NOOP_STORAGE,
-      private readonly storagePrefix = '') {
+      private readonly storagePrefix: string = '') {
   }
 
   register(name: string): void {
@@ -357,7 +351,7 @@ export class Deprecation {
 
 export class Setting<V> {
   #titleFunction?: () => Platform.UIString.LocalizedString;
-  #titleInternal!: Platform.UIString.LocalizedString;
+  #titleInternal!: string;
   #registration: SettingRegistration|null = null;
   #requiresUserAction?: boolean;
   #value?: V;
@@ -366,15 +360,11 @@ export class Setting<V> {
   #hadUserAction?: boolean;
   #disabled?: boolean;
   #deprecation: Deprecation|null = null;
-  #loggedInitialAccess = false;
-  #logSettingAccess?: (name: string, value: number|string|boolean) => Promise<void>;
 
   constructor(
       readonly name: string, readonly defaultValue: V, private readonly eventSupport: ObjectWrapper<GenericEvents>,
-      readonly storage: SettingsStorage,
-      logSettingAccess?: (name: string, value: number|string|boolean) => Promise<void>) {
+      readonly storage: SettingsStorage) {
     storage.register(this.name);
-    this.#logSettingAccess = logSettingAccess;
   }
 
   setSerializer(serializer: Serializer<unknown, V>): void {
@@ -389,14 +379,14 @@ export class Setting<V> {
     this.eventSupport.removeEventListener(this.name, listener, thisObject);
   }
 
-  title(): Platform.UIString.LocalizedString {
+  title(): string {
     if (this.#titleInternal) {
       return this.#titleInternal;
     }
     if (this.#titleFunction) {
       return this.#titleFunction();
     }
-    return '' as Platform.UIString.LocalizedString;
+    return '';
   }
 
   setTitleFunction(titleFunction: (() => Platform.UIString.LocalizedString)|undefined): void {
@@ -405,7 +395,7 @@ export class Setting<V> {
     }
   }
 
-  setTitle(title: Platform.UIString.LocalizedString): void {
+  setTitle(title: string): void {
     this.#titleInternal = title;
   }
 
@@ -415,7 +405,7 @@ export class Setting<V> {
 
   disabled(): boolean {
     if (this.#registration?.disabledCondition) {
-      const {disabled} = this.#registration.disabledCondition(Root.Runtime.hostConfig);
+      const {disabled} = this.#registration.disabledCondition(Settings.instance().getHostConfig());
       // If registration does not disable it, pass through to #disabled
       // attribute check.
       if (disabled) {
@@ -425,14 +415,14 @@ export class Setting<V> {
     return this.#disabled || false;
   }
 
-  disabledReasons(): string[] {
+  disabledReason(): string|undefined {
     if (this.#registration?.disabledCondition) {
-      const result = this.#registration.disabledCondition(Root.Runtime.hostConfig);
+      const result = this.#registration.disabledCondition(Settings.instance().getHostConfig());
       if (result.disabled) {
-        return result.reasons;
+        return result.reason;
       }
     }
-    return [];
+    return undefined;
   }
 
   setDisabled(disabled: boolean): void {
@@ -440,30 +430,12 @@ export class Setting<V> {
     this.eventSupport.dispatchEventToListeners(this.name);
   }
 
-  #maybeLogAccess(value: V): void {
-    const valueToLog = typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ?
-        value :
-        this.#serializer?.stringify(value);
-    if (valueToLog !== undefined && this.#logSettingAccess) {
-      void this.#logSettingAccess(this.name, valueToLog);
-    }
-  }
-
-  #maybeLogInitialAccess(value: V): void {
-    if (!this.#loggedInitialAccess) {
-      this.#maybeLogAccess(value);
-      this.#loggedInitialAccess = true;
-    }
-  }
-
   get(): V {
     if (this.#requiresUserAction && !this.#hadUserAction) {
-      this.#maybeLogInitialAccess(this.defaultValue);
       return this.defaultValue;
     }
 
     if (typeof this.#value !== 'undefined') {
-      this.#maybeLogInitialAccess(this.#value);
       return this.#value;
     }
 
@@ -471,22 +443,11 @@ export class Setting<V> {
     if (this.storage.has(this.name)) {
       try {
         this.#value = this.#serializer.parse(this.storage.get(this.name));
-      } catch {
+      } catch (e) {
         this.storage.remove(this.name);
       }
     }
-    this.#maybeLogInitialAccess(this.#value);
     return this.#value;
-  }
-
-  // Prefer this getter for settings which are "disableable". The plain getter returns `this.#value`,
-  // even if the setting is disabled, which means the callsite has to explicitly call the `disabled()`
-  // getter and add its own logic for the disabled state.
-  getIfNotDisabled(): V|undefined {
-    if (this.disabled()) {
-      return;
-    }
-    return this.get();
   }
 
   async forceGet(): Promise<V> {
@@ -497,7 +458,7 @@ export class Setting<V> {
     if (value) {
       try {
         this.#value = this.#serializer.parse(value);
-      } catch {
+      } catch (e) {
         this.storage.remove(this.name);
       }
     }
@@ -506,12 +467,10 @@ export class Setting<V> {
       this.eventSupport.dispatchEventToListeners(this.name, this.#value);
     }
 
-    this.#maybeLogInitialAccess(this.#value);
     return this.#value;
   }
 
   set(value: V): void {
-    this.#maybeLogAccess(value);
     this.#hadUserAction = true;
     this.#value = value;
     try {
@@ -553,10 +512,10 @@ export class Setting<V> {
       return this.#registration.options.map(opt => {
         const {value, title, text, raw} = opt;
         return {
-          value,
+          value: value,
           title: title(),
           text: typeof text === 'function' ? text() : text,
-          raw,
+          raw: raw,
         };
       });
     }
@@ -592,10 +551,6 @@ export class Setting<V> {
     return null;
   }
 
-  learnMore(): LearnMore|null {
-    return this.#registration?.learnMore ?? null;
-  }
-
   get deprecation(): Deprecation|null {
     if (!this.#registration || !this.#registration.deprecationNotice) {
       return null;
@@ -623,8 +578,8 @@ export class RegExpSetting extends Setting<any> {
 
   constructor(
       name: string, defaultValue: string, eventSupport: ObjectWrapper<GenericEvents>, storage: SettingsStorage,
-      regexFlags?: string, logSettingAccess?: (name: string, value: number|string|boolean) => Promise<void>) {
-    super(name, defaultValue ? [{pattern: defaultValue}] : [], eventSupport, storage, logSettingAccess);
+      regexFlags?: string) {
+    super(name, defaultValue ? [{pattern: defaultValue}] : [], eventSupport, storage);
     this.#regexFlags = regexFlags;
   }
 
@@ -663,7 +618,7 @@ export class RegExpSetting extends Setting<any> {
       if (pattern) {
         this.#regex = new RegExp(pattern, this.#regexFlags || '');
       }
-    } catch {
+    } catch (e) {
     }
     return this.#regex;
   }
@@ -674,7 +629,7 @@ export class VersionController {
   static readonly SYNCED_VERSION_SETTING_NAME = 'syncedInspectorVersion';
   static readonly LOCAL_VERSION_SETTING_NAME = 'localInspectorVersion';
 
-  static readonly CURRENT_VERSION = 38;
+  static readonly CURRENT_VERSION = 37;
 
   readonly #globalVersionSetting: Setting<number>;
   readonly #syncedVersionSetting: Setting<number>;
@@ -683,11 +638,11 @@ export class VersionController {
   constructor() {
     // If no version setting is found, we initialize with the current version and don't do anything.
     this.#globalVersionSetting = Settings.instance().createSetting(
-        VersionController.GLOBAL_VERSION_SETTING_NAME, VersionController.CURRENT_VERSION, SettingStorageType.GLOBAL);
+        VersionController.GLOBAL_VERSION_SETTING_NAME, VersionController.CURRENT_VERSION, SettingStorageType.Global);
     this.#syncedVersionSetting = Settings.instance().createSetting(
-        VersionController.SYNCED_VERSION_SETTING_NAME, VersionController.CURRENT_VERSION, SettingStorageType.SYNCED);
+        VersionController.SYNCED_VERSION_SETTING_NAME, VersionController.CURRENT_VERSION, SettingStorageType.Synced);
     this.#localVersionSetting = Settings.instance().createSetting(
-        VersionController.LOCAL_VERSION_SETTING_NAME, VersionController.CURRENT_VERSION, SettingStorageType.LOCAL);
+        VersionController.LOCAL_VERSION_SETTING_NAME, VersionController.CURRENT_VERSION, SettingStorageType.Local);
   }
 
   /**
@@ -713,11 +668,11 @@ export class VersionController {
         Math.min(this.#globalVersionSetting.get(), this.#syncedVersionSetting.get(), this.#localVersionSetting.get());
     const methodsToRun = this.methodsToRunToUpdateVersion(minimumVersion, currentVersion);
     console.assert(
-        // @ts-expect-error
+        // @ts-ignore
         this[`updateVersionFrom${currentVersion}To${currentVersion + 1}`] === undefined,
         'Unexpected migration method found. Increment CURRENT_VERSION or remove the method.');
     for (const method of methodsToRun) {
-      // @ts-expect-error Special version method matching
+      // @ts-ignore Special version method matching
       this[method].call(this);
     }
     this.resetToCurrent();
@@ -754,32 +709,32 @@ export class VersionController {
     const settingNames: {
       [x: string]: string,
     } = {
-      FileSystemViewSidebarWidth: 'fileSystemViewSplitViewState',
-      elementsSidebarWidth: 'elementsPanelSplitViewState',
-      StylesPaneSplitRatio: 'stylesPaneSplitViewState',
-      heapSnapshotRetainersViewSize: 'heapSnapshotSplitViewState',
+      'FileSystemViewSidebarWidth': 'fileSystemViewSplitViewState',
+      'elementsSidebarWidth': 'elementsPanelSplitViewState',
+      'StylesPaneSplitRatio': 'stylesPaneSplitViewState',
+      'heapSnapshotRetainersViewSize': 'heapSnapshotSplitViewState',
       'InspectorView.splitView': 'InspectorView.splitViewState',
       'InspectorView.screencastSplitView': 'InspectorView.screencastSplitViewState',
       'Inspector.drawerSplitView': 'Inspector.drawerSplitViewState',
-      layerDetailsSplitView: 'layerDetailsSplitViewState',
-      networkSidebarWidth: 'networkPanelSplitViewState',
-      sourcesSidebarWidth: 'sourcesPanelSplitViewState',
-      scriptsPanelNavigatorSidebarWidth: 'sourcesPanelNavigatorSplitViewState',
-      sourcesPanelSplitSidebarRatio: 'sourcesPanelDebuggerSidebarSplitViewState',
+      'layerDetailsSplitView': 'layerDetailsSplitViewState',
+      'networkSidebarWidth': 'networkPanelSplitViewState',
+      'sourcesSidebarWidth': 'sourcesPanelSplitViewState',
+      'scriptsPanelNavigatorSidebarWidth': 'sourcesPanelNavigatorSplitViewState',
+      'sourcesPanelSplitSidebarRatio': 'sourcesPanelDebuggerSidebarSplitViewState',
       'timeline-details': 'timelinePanelDetailsSplitViewState',
       'timeline-split': 'timelinePanelRecorsSplitViewState',
       'timeline-view': 'timelinePanelTimelineStackSplitViewState',
-      auditsSidebarWidth: 'auditsPanelSplitViewState',
-      layersSidebarWidth: 'layersPanelSplitViewState',
-      profilesSidebarWidth: 'profilesPanelSplitViewState',
-      resourcesSidebarWidth: 'resourcesPanelSplitViewState',
+      'auditsSidebarWidth': 'auditsPanelSplitViewState',
+      'layersSidebarWidth': 'layersPanelSplitViewState',
+      'profilesSidebarWidth': 'profilesPanelSplitViewState',
+      'resourcesSidebarWidth': 'resourcesPanelSplitViewState',
     };
     const empty = {};
     for (const oldName in settingNames) {
       const newName = settingNames[oldName];
       const oldNameH = oldName + 'H';
 
-      let newValue: object|null = null;
+      let newValue: {}|null = null;
       const oldSetting = Settings.instance().createSetting(oldName, empty);
       if (oldSetting.get() !== empty) {
         newValue = newValue || {};
@@ -808,8 +763,8 @@ export class VersionController {
     const settingNames: {
       [x: string]: string,
     } = {
-      debuggerSidebarHidden: 'sourcesPanelSplitViewState',
-      navigatorHidden: 'sourcesPanelNavigatorSplitViewState',
+      'debuggerSidebarHidden': 'sourcesPanelSplitViewState',
+      'navigatorHidden': 'sourcesPanelNavigatorSplitViewState',
       'WebInspector.Drawer.showOnLoad': 'Inspector.drawerSplitViewState',
     };
 
@@ -846,10 +801,10 @@ export class VersionController {
 
   private updateVersionFrom6To7(): void {
     const settingNames = {
-      sourcesPanelNavigatorSplitViewState: 'sourcesPanelNavigatorSplitViewState',
-      elementsPanelSplitViewState: 'elementsPanelSplitViewState',
-      stylesPaneSplitViewState: 'stylesPaneSplitViewState',
-      sourcesPanelDebuggerSidebarSplitViewState: 'sourcesPanelDebuggerSidebarSplitViewState',
+      'sourcesPanelNavigatorSplitViewState': 'sourcesPanelNavigatorSplitViewState',
+      'elementsPanelSplitViewState': 'elementsPanelSplitViewState',
+      'stylesPaneSplitViewState': 'stylesPaneSplitViewState',
+      'sourcesPanelDebuggerSidebarSplitViewState': 'sourcesPanelDebuggerSidebarSplitViewState',
     };
 
     const empty = {};
@@ -861,10 +816,10 @@ export class VersionController {
         continue;
       }
       // Zero out saved percentage sizes, and they will be restored to defaults.
-      if (value.vertical?.size && value.vertical.size < 1) {
+      if (value.vertical && value.vertical.size && value.vertical.size < 1) {
         value.vertical.size = 0;
       }
-      if (value.horizontal?.size && value.horizontal.size < 1) {
+      if (value.horizontal && value.horizontal.size && value.horizontal.size < 1) {
         value.horizontal.size = 0;
       }
       setting.set(value);
@@ -958,7 +913,7 @@ export class VersionController {
   }
 
   private updateVersionFrom13To14(): void {
-    const defaultValue = {throughput: -1, latency: 0};
+    const defaultValue = {'throughput': -1, 'latency': 0};
     Settings.instance().createSetting('networkConditions', defaultValue).set(defaultValue);
   }
 
@@ -1320,26 +1275,6 @@ export class VersionController {
     }
   }
 
-  updateVersionFrom37To38(): void {
-    const getConsoleInsightsEnabledSetting = (): Setting<boolean>|undefined => {
-      try {
-        return moduleSetting('console-insights-enabled') as Setting<boolean>;
-      } catch {
-        return;
-      }
-    };
-
-    const consoleInsightsEnabled = getConsoleInsightsEnabledSetting();
-    const onboardingFinished = Settings.instance().createLocalSetting('console-insights-onboarding-finished', false);
-
-    if (consoleInsightsEnabled && consoleInsightsEnabled.get() === true && onboardingFinished.get() === false) {
-      consoleInsightsEnabled.set(false);
-    }
-    if (consoleInsightsEnabled && consoleInsightsEnabled.get() === false) {
-      onboardingFinished.set(false);
-    }
-  }
-
   /*
    * Any new migration should be added before this comment.
    *
@@ -1388,16 +1323,17 @@ export class VersionController {
 }
 
 export const enum SettingStorageType {
-  /** Persists with the active Chrome profile but also syncs the settings across devices via Chrome Sync. */
-  SYNCED = 'Synced',
-  /** Persists with the active Chrome profile, but not synchronized to other devices.
-   * The default SettingStorageType of createSetting(). */
-  GLOBAL = 'Global',
-  /** Uses Window.localStorage. Not recommended, legacy. */
-  LOCAL = 'Local',
-  /** Session storage dies when DevTools window closes. Useful for atypical conditions that should be reverted when the
-   * user is done with their task. (eg Emulation modes, Debug overlays). These are also not carried into/out of incognito */
-  SESSION = 'Session',
+  /**
+   * Synced storage persists settings with the active Chrome profile but also
+   * syncs the settings across devices via Chrome Sync.
+   */
+  Synced = 'Synced',
+  /** Global storage persists settings with the active Chrome profile */
+  Global = 'Global',
+  /** Uses Window.localStorage */
+  Local = 'Local',
+  /** Session storage dies when DevTools window closes */
+  Session = 'Session',
 }
 
 export function moduleSetting(settingName: string): Setting<unknown> {
@@ -1411,14 +1347,14 @@ export function settingForTest(settingName: string): Setting<unknown> {
 export {
   getLocalizedSettingsCategory,
   maybeRemoveSettingExtension,
-  RegExpSettingItem,
   registerSettingExtension,
-  registerSettingsForTest,
-  resetSettings,
+  RegExpSettingItem,
   SettingCategory,
   SettingExtensionOption,
   SettingRegistration,
   SettingType,
+  registerSettingsForTest,
+  resetSettings,
 };
 
 export interface Serializer<I, O> {

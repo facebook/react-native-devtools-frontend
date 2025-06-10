@@ -29,12 +29,14 @@
  */
 
 import * as i18n from '../../core/i18n/i18n.js';
-import type * as SDK from '../../core/sdk/sdk.js';
-import type * as Protocol from '../../generated/protocol.js';
-import * as UI from '../../ui/legacy/legacy.js';
 
-import {type ComputedStyleModel, Events} from './ComputedStyleModel.js';
 import platformFontsWidgetStyles from './platformFontsWidget.css.js';
+
+import type * as SDK from '../../core/sdk/sdk.js';
+import * as UI from '../../ui/legacy/legacy.js';
+import type * as Protocol from '../../generated/protocol.js';
+
+import {Events, type ComputedStyleModel} from './ComputedStyleModel.js';
 
 const UIStrings = {
   /**
@@ -65,7 +67,7 @@ const UIStrings = {
    *@description Text in Platform Fonts Widget of the Elements panel. Indicates a number of glyphs (characters) .
    */
   dGlyphs: '{n, plural, =1 {(# glyph)} other {(# glyphs)}}',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/elements/PlatformFontsWidget.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -76,11 +78,9 @@ export class PlatformFontsWidget extends UI.ThrottledWidget.ThrottledWidget {
 
   constructor(sharedModel: ComputedStyleModel) {
     super(true);
-    this.registerRequiredCSS(platformFontsWidgetStyles);
 
     this.sharedModel = sharedModel;
-    this.sharedModel.addEventListener(Events.CSS_MODEL_CHANGED, this.update, this);
-    this.sharedModel.addEventListener(Events.COMPUTED_STYLE_CHANGED, this.update, this);
+    this.sharedModel.addEventListener(Events.ComputedStyleChanged, this.update, this);
 
     this.sectionTitle = document.createElement('div');
     this.sectionTitle.classList.add('title');
@@ -107,7 +107,7 @@ export class PlatformFontsWidget extends UI.ThrottledWidget.ThrottledWidget {
 
     this.fontStatsSection.removeChildren();
 
-    const isEmptySection = !platformFonts?.length;
+    const isEmptySection = !platformFonts || !platformFonts.length;
     this.sectionTitle.classList.toggle('hidden', isEmptySection);
     if (isEmptySection || !platformFonts) {
       return;
@@ -134,5 +134,9 @@ export class PlatformFontsWidget extends UI.ThrottledWidget.ThrottledWidget {
       const usage = platformFont.glyphCount;
       fontUsageElement.textContent = i18nString(UIStrings.dGlyphs, {n: usage});
     }
+  }
+  override wasShown(): void {
+    super.wasShown();
+    this.registerCSSFiles([platformFontsWidgetStyles]);
   }
 }

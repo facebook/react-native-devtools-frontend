@@ -2,15 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Lit from '../../../ui/lit/lit.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 
-import nodeTextStylesRaw from './nodeText.css.js';
+import nodeTextStyles from './nodeText.css.js';
 
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const nodeTextStyles = new CSSStyleSheet();
-nodeTextStyles.replaceSync(nodeTextStylesRaw.cssText);
-
-const {render, html} = Lit;
+const {render, html} = LitHtml;
 
 export interface NodeTextData {
   nodeTitle: string;
@@ -19,9 +15,10 @@ export interface NodeTextData {
 }
 
 export class NodeText extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-node-text`;
 
   readonly #shadow = this.attachShadow({mode: 'open'});
-  #nodeTitle = '';
+  #nodeTitle: string = '';
   #nodeId?: string = '';
   #nodeClasses?: string[] = [];
 
@@ -45,7 +42,7 @@ export class NodeText extends HTMLElement {
     ];
 
     if (this.#nodeId) {
-      const classes = Lit.Directives.classMap({
+      const classes = LitHtml.Directives.classMap({
         'node-label-id': true,
         'node-multiple-descriptors': hasNodeClasses,
       });
@@ -54,7 +51,7 @@ export class NodeText extends HTMLElement {
 
     if (this.#nodeClasses && this.#nodeClasses.length > 0) {
       const text = this.#nodeClasses.map(c => `.${CSS.escape(c)}`).join('');
-      const classes = Lit.Directives.classMap({
+      const classes = LitHtml.Directives.classMap({
         'node-label-class': true,
         'node-multiple-descriptors': hasId,
       });

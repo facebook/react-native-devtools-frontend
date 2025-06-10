@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import * as Common from '../../../core/common/common.js';
-import * as Platform from '../../../core/platform/platform.js';
+import type * as Platform from '../../../core/platform/platform.js';
 import * as SDK from '../../../core/sdk/sdk.js';
 import type * as Protocol from '../../../generated/protocol.js';
 import * as Bindings from '../../../models/bindings/bindings.js';
@@ -21,8 +21,6 @@ import * as CodeMirror from '../../../third_party/codemirror.next/codemirror.nex
 import * as UI from '../../legacy/legacy.js';
 
 import * as TextEditor from './text_editor.js';
-
-const {urlString} = Platform.DevToolsPath;
 
 function makeState(doc: string, extensions: CodeMirror.Extension = []) {
   return CodeMirror.EditorState.create({
@@ -58,15 +56,15 @@ describeWithEnvironment('TextEditor', () => {
       const editor = new TextEditor.TextEditor.TextEditor(
           makeState('line1  \n  line2( )\n\tline3  ', TextEditor.Config.showWhitespace.instance()));
       renderElementIntoDOM(editor);
-      assert.lengthOf(editor.editor.dom.querySelectorAll('.cm-trailingWhitespace, .cm-highlightedSpaces'), 0);
+      assert.strictEqual(editor.editor.dom.querySelectorAll('.cm-trailingWhitespace, .cm-highlightedSpaces').length, 0);
       Common.Settings.Settings.instance().moduleSetting('show-whitespaces-in-editor').set('all');
-      assert.lengthOf(editor.editor.dom.querySelectorAll('.cm-highlightedSpaces'), 4);
-      assert.lengthOf(editor.editor.dom.querySelectorAll('.cm-highlightedTab'), 1);
+      assert.strictEqual(editor.editor.dom.querySelectorAll('.cm-highlightedSpaces').length, 4);
+      assert.strictEqual(editor.editor.dom.querySelectorAll('.cm-highlightedTab').length, 1);
       Common.Settings.Settings.instance().moduleSetting('show-whitespaces-in-editor').set('trailing');
-      assert.lengthOf(editor.editor.dom.querySelectorAll('.cm-highlightedSpaces'), 0);
-      assert.lengthOf(editor.editor.dom.querySelectorAll('.cm-trailingWhitespace'), 2);
+      assert.strictEqual(editor.editor.dom.querySelectorAll('.cm-highlightedSpaces').length, 0);
+      assert.strictEqual(editor.editor.dom.querySelectorAll('.cm-trailingWhitespace').length, 2);
       Common.Settings.Settings.instance().moduleSetting('show-whitespaces-in-editor').set('none');
-      assert.lengthOf(editor.editor.dom.querySelectorAll('.cm-trailingWhitespace, .cm-highlightedSpaces'), 0);
+      assert.strictEqual(editor.editor.dom.querySelectorAll('.cm-trailingWhitespace, .cm-highlightedSpaces').length, 0);
       editor.remove();
     });
 
@@ -142,7 +140,7 @@ describeWithEnvironment('TextEditor', () => {
         code: string,
         pos: number,
         type?: TextEditor.JavaScript.QueryType,
-        range = '',
+        range: string = '',
         related?: string,
         ): Promise<void> {
       const state = makeState(code, CodeMirror.javascript.javascriptLanguage);
@@ -160,36 +158,35 @@ describeWithEnvironment('TextEditor', () => {
     }
 
     it('recognizes expression queries', async () => {
-      await testQueryType('foo', 3, TextEditor.JavaScript.QueryType.EXPRESSION, 'foo');
-      await testQueryType('foo ', 4, TextEditor.JavaScript.QueryType.EXPRESSION, '');
-      await testQueryType('let', 3, TextEditor.JavaScript.QueryType.EXPRESSION, 'let');
+      await testQueryType('foo', 3, TextEditor.JavaScript.QueryType.Expression, 'foo');
+      await testQueryType('foo ', 4, TextEditor.JavaScript.QueryType.Expression, '');
+      await testQueryType('let', 3, TextEditor.JavaScript.QueryType.Expression, 'let');
     });
 
     it('recognizes propery name queries', async () => {
-      await testQueryType('foo.bar', 7, TextEditor.JavaScript.QueryType.PROPERTY_NAME, 'bar', 'foo.bar');
-      await testQueryType('foo.', 4, TextEditor.JavaScript.QueryType.PROPERTY_NAME, '', 'foo.');
-      await testQueryType('if (foo.', 8, TextEditor.JavaScript.QueryType.PROPERTY_NAME, '', 'foo.');
-      await testQueryType('new foo.bar().', 14, TextEditor.JavaScript.QueryType.PROPERTY_NAME, '', 'new foo.bar().');
-      await testQueryType('foo?.', 5, TextEditor.JavaScript.QueryType.PROPERTY_NAME, '', 'foo?.');
-      await testQueryType('foo?.b', 6, TextEditor.JavaScript.QueryType.PROPERTY_NAME, 'b', 'foo?.b');
+      await testQueryType('foo.bar', 7, TextEditor.JavaScript.QueryType.PropertyName, 'bar', 'foo.bar');
+      await testQueryType('foo.', 4, TextEditor.JavaScript.QueryType.PropertyName, '', 'foo.');
+      await testQueryType('if (foo.', 8, TextEditor.JavaScript.QueryType.PropertyName, '', 'foo.');
+      await testQueryType('new foo.bar().', 14, TextEditor.JavaScript.QueryType.PropertyName, '', 'new foo.bar().');
+      await testQueryType('foo?.', 5, TextEditor.JavaScript.QueryType.PropertyName, '', 'foo?.');
+      await testQueryType('foo?.b', 6, TextEditor.JavaScript.QueryType.PropertyName, 'b', 'foo?.b');
     });
 
     it('recognizes property expression queries', async () => {
-      await testQueryType('foo[', 4, TextEditor.JavaScript.QueryType.PROPERTY_EXPRESSION, '', 'foo[');
-      await testQueryType('foo["ba', 7, TextEditor.JavaScript.QueryType.PROPERTY_EXPRESSION, '"ba', 'foo["ba');
+      await testQueryType('foo[', 4, TextEditor.JavaScript.QueryType.PropertyExpression, '', 'foo[');
+      await testQueryType('foo["ba', 7, TextEditor.JavaScript.QueryType.PropertyExpression, '"ba', 'foo["ba');
     });
 
     describe('potential map key retrievals', () => {
       it('recognizes potential maps', async () => {
-        await testQueryType('foo.get(', 8, TextEditor.JavaScript.QueryType.POTENTIALLY_RETRIEVING_FROM_MAP, '', 'foo');
-        await testQueryType(
-            'foo\n.get(', 9, TextEditor.JavaScript.QueryType.POTENTIALLY_RETRIEVING_FROM_MAP, '', 'foo');
+        await testQueryType('foo.get(', 8, TextEditor.JavaScript.QueryType.PotentiallyRetrievingFromMap, '', 'foo');
+        await testQueryType('foo\n.get(', 9, TextEditor.JavaScript.QueryType.PotentiallyRetrievingFromMap, '', 'foo');
       });
 
       it('leaves other expressions as-is', async () => {
-        await testQueryType('foo.method(', 11, TextEditor.JavaScript.QueryType.EXPRESSION);
-        await testQueryType('5 + (', 5, TextEditor.JavaScript.QueryType.EXPRESSION);
-        await testQueryType('functionCall(', 13, TextEditor.JavaScript.QueryType.EXPRESSION);
+        await testQueryType('foo.method(', 11, TextEditor.JavaScript.QueryType.Expression);
+        await testQueryType('5 + (', 5, TextEditor.JavaScript.QueryType.Expression);
+        await testQueryType('functionCall(', 13, TextEditor.JavaScript.QueryType.Expression);
       });
     });
 
@@ -232,8 +229,8 @@ describeWithMockConnection('TextEditor autocompletion', () => {
     const {pluginManager} = Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance(
         {forceNew: true, targetManager, resourceMapping});
     const testScript = debuggerModel.parsedScriptSource(
-        '1' as Protocol.Runtime.ScriptId, urlString`script://1`, 0, 0, 0, 0, executionContext.id, '', undefined, false,
-        undefined, false, false, 0, null, null, null, null, null, null);
+        '1' as Protocol.Runtime.ScriptId, 'script://1' as Platform.DevToolsPath.UrlString, 0, 0, 0, 0,
+        executionContext.id, '', undefined, false, undefined, false, false, 0, null, null, null, null, null, null);
     const payload: Protocol.Debugger.CallFrame = {
       callFrameId: '0' as Protocol.Debugger.CallFrameId,
       functionName: 'test',

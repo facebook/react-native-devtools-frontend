@@ -38,12 +38,12 @@ export class DeviceRequestPromptDevice {
  * @example
  *
  * ```ts
- * const [devicePrompt] = Promise.all([
+ * const [deviceRequest] = Promise.all([
  *   page.waitForDevicePrompt(),
  *   page.click('#connect-bluetooth'),
  * ]);
  * await devicePrompt.select(
- *   await devicePrompt.waitForDevice(({name}) => name.includes('My Device')),
+ *   await devicePrompt.waitForDevice(({name}) => name.includes('My Device'))
  * );
  * ```
  *
@@ -106,11 +106,6 @@ export class DeviceRequestPrompt {
             message: `Waiting for \`DeviceRequestPromptDevice\` failed: ${timeout}ms exceeded`,
             timeout,
         });
-        if (options.signal) {
-            options.signal.addEventListener('abort', () => {
-                deferred.reject(options.signal?.reason);
-            }, { once: true });
-        }
         const handle = { filter, promise: deferred };
         this.#waitForDevicePromises.add(handle);
         try {
@@ -151,7 +146,7 @@ export class DeviceRequestPrompt {
 export class DeviceRequestPromptManager {
     #client;
     #timeoutSettings;
-    #deviceRequestPromptDeferreds = new Set();
+    #deviceRequestPrompDeferreds = new Set();
     /**
      * @internal
      */
@@ -171,7 +166,7 @@ export class DeviceRequestPromptManager {
      */
     async waitForDevicePrompt(options = {}) {
         assert(this.#client !== null, 'Cannot wait for device prompt through detached session!');
-        const needsEnable = this.#deviceRequestPromptDeferreds.size === 0;
+        const needsEnable = this.#deviceRequestPrompDeferreds.size === 0;
         let enablePromise;
         if (needsEnable) {
             enablePromise = this.#client.send('DeviceAccess.enable');
@@ -181,12 +176,7 @@ export class DeviceRequestPromptManager {
             message: `Waiting for \`DeviceRequestPrompt\` failed: ${timeout}ms exceeded`,
             timeout,
         });
-        if (options.signal) {
-            options.signal.addEventListener('abort', () => {
-                deferred.reject(options.signal?.reason);
-            }, { once: true });
-        }
-        this.#deviceRequestPromptDeferreds.add(deferred);
+        this.#deviceRequestPrompDeferreds.add(deferred);
         try {
             const [result] = await Promise.all([
                 deferred.valueOrThrow(),
@@ -195,22 +185,22 @@ export class DeviceRequestPromptManager {
             return result;
         }
         finally {
-            this.#deviceRequestPromptDeferreds.delete(deferred);
+            this.#deviceRequestPrompDeferreds.delete(deferred);
         }
     }
     /**
      * @internal
      */
     #onDeviceRequestPrompted(event) {
-        if (!this.#deviceRequestPromptDeferreds.size) {
+        if (!this.#deviceRequestPrompDeferreds.size) {
             return;
         }
         assert(this.#client !== null);
         const devicePrompt = new DeviceRequestPrompt(this.#client, this.#timeoutSettings, event);
-        for (const promise of this.#deviceRequestPromptDeferreds) {
+        for (const promise of this.#deviceRequestPrompDeferreds) {
             promise.resolve(devicePrompt);
         }
-        this.#deviceRequestPromptDeferreds.clear();
+        this.#deviceRequestPrompDeferreds.clear();
     }
 }
 //# sourceMappingURL=DeviceRequestPrompt.js.map

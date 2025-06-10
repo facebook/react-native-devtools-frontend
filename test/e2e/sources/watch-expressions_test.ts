@@ -5,6 +5,7 @@
 import {assert} from 'chai';
 
 import {click, getBrowserAndPages, step, typeText, waitFor} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   addBreakpointForLine,
   openSourceCodeEditorForFile,
@@ -29,12 +30,12 @@ describe('Watch Expression Pane', () => {
 
     // Retrieve watch element and ensure that it is expanded
     const initialExpandCheck = await element.evaluate(e => e.classList.contains('expanded'));
-    assert.isTrue(initialExpandCheck);
+    assert.strictEqual(initialExpandCheck, true);
 
     // Begin editing and check that element is now collapsed.
     await frontend.keyboard.press('Enter');
     const editingExpandCheck = await element.evaluate(e => e.classList.contains('expanded'));
-    assert.isFalse(editingExpandCheck);
+    assert.strictEqual(editingExpandCheck, false);
 
     // Remove the watch so that it does not interfere with other tests.
     await frontend.keyboard.press('Escape');

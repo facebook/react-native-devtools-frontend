@@ -158,7 +158,7 @@ const UIStrings = {
    * @description Command for toggling the eye dropper when the color picker is open
    */
   toggleEyeDropper: 'Toggle eye dropper',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/elements/elements-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 let loadedElementsModule: (typeof Elements|undefined);
@@ -357,11 +357,11 @@ UI.ActionRegistration.registerActionExtension({
   bindings: [
     {
       shortcut: 'Ctrl+Alt+C',
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
     },
     {
       shortcut: 'Meta+Alt+C',
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
     },
   ],
 });
@@ -380,11 +380,11 @@ UI.ActionRegistration.registerActionExtension({
   bindings: [
     {
       shortcut: 'Ctrl+Z',
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
     },
     {
       shortcut: 'Meta+Z',
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
     },
   ],
 });
@@ -403,11 +403,11 @@ UI.ActionRegistration.registerActionExtension({
   bindings: [
     {
       shortcut: 'Ctrl+Y',
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
     },
     {
       shortcut: 'Meta+Shift+Z',
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
     },
   ],
 });
@@ -436,11 +436,11 @@ UI.ActionRegistration.registerActionExtension({
   bindings: [
     {
       shortcut: 'Ctrl+Shift+C',
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
     },
     {
       shortcut: 'Meta+Shift+C',
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
     },
   ],
 });
@@ -475,7 +475,7 @@ UI.ActionRegistration.registerActionExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.ELEMENTS,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   order: 1,
   title: i18nLazyString(UIStrings.showUserAgentShadowDOM),
   settingName: 'show-ua-shadow-dom',
@@ -485,7 +485,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.ELEMENTS,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   order: 2,
   title: i18nLazyString(UIStrings.wordWrap),
   settingName: 'dom-word-wrap',
@@ -505,7 +505,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.ELEMENTS,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   order: 3,
   title: i18nLazyString(UIStrings.showHtmlComments),
   settingName: 'show-html-comments',
@@ -525,7 +525,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.ELEMENTS,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   order: 4,
   title: i18nLazyString(UIStrings.revealDomNodeOnHover),
   settingName: 'highlight-node-on-hover-in-overlay',
@@ -535,7 +535,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.ELEMENTS,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   order: 5,
   title: i18nLazyString(UIStrings.showDetailedInspectTooltip),
   settingName: 'show-detailed-inspect-tooltip',
@@ -551,7 +551,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.ADORNER,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   settingName: 'adorner-settings',
   settingType: Common.Settings.SettingType.ARRAY,
   defaultValue: [],
@@ -559,7 +559,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.ELEMENTS,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   title: i18nLazyString(UIStrings.showCSSDocumentationTooltip),
   settingName: 'show-css-property-documentation-on-hover',
   settingType: Common.Settings.SettingType.BOOLEAN,

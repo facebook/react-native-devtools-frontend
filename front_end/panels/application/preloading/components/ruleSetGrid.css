@@ -15,8 +15,8 @@
   flex-direction: column;
 }
 
-devtools-data-grid {
-  flex: auto;
+devtools-data-grid-controller {
+  border: 1px solid var(--sys-color-divider);
 }
 
 .inline-icon {

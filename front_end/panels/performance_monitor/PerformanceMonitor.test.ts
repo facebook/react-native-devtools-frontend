@@ -14,7 +14,7 @@ describeWithMockConnection('PerformanceMonitor', () => {
   let performanceMonitor: PerformanceMonitor.PerformanceMonitor.PerformanceMonitorImpl;
 
   beforeEach(() => {
-    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
+    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
     createTarget({parentTarget: tabTarget, subtype: 'prerender'});
     target = createTarget({parentTarget: tabTarget});
   });

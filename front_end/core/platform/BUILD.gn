@@ -6,13 +6,12 @@ import("../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../scripts/build/ninja/devtools_module.gni")
 import("../../../scripts/build/ninja/devtools_pre_built.gni")
 import("../../../scripts/build/ninja/vars.gni")
-import("../../../scripts/build/typescript/typescript.gni")
+import("../../../third_party/typescript/typescript.gni")
 
 devtools_module("platform") {
   sources = [
     "ArrayUtilities.ts",
     "Brand.ts",
-    "Constructor.ts",
     "DOMUtilities.ts",
     "DateUtilities.ts",
     "DevToolsPath.ts",
@@ -20,6 +19,7 @@ devtools_module("platform") {
     "MapUtilities.ts",
     "MimeType.ts",
     "NumberUtilities.ts",
+    "PromiseUtilities.ts",
     "StringUtilities.ts",
     "Timing.ts",
     "TypedArrayUtilities.ts",

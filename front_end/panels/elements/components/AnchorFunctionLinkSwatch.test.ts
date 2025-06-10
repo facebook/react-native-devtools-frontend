@@ -45,7 +45,6 @@ describeWithEnvironment('AnchorFunctionLinkSwatch', () => {
       assert.isTrue(linkSwatchDataStub.set.calledWith({
         text: '--identifier',
         isDefined: true,
-        tooltip: undefined,
         jslogContext: 'anchor-link',
         onLinkActivate: sinon.match.func,
       }));
@@ -62,7 +61,6 @@ describeWithEnvironment('AnchorFunctionLinkSwatch', () => {
       assert.isTrue(linkSwatchDataStub.set.calledWith({
         text: '--identifier',
         isDefined: false,
-        tooltip: {title: '--identifier is not defined'},
         jslogContext: 'anchor-link',
         onLinkActivate: sinon.match.func,
       }));

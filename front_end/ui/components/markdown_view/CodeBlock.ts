@@ -7,24 +7,14 @@ import '../../../ui/legacy/legacy.js'; // for x-link
 import * as Host from '../../../core/host/host.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as CodeMirror from '../../../third_party/codemirror.next/codemirror.next.js';
-import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as TextEditor from '../../../ui/components/text_editor/text_editor.js';
-import * as Lit from '../../lit/lit.js';
+import * as IconButton from '../../components/icon_button/icon_button.js';
+import * as LitHtml from '../../lit-html/lit-html.js';
 import * as VisualLogging from '../../visual_logging/visual_logging.js';
 
-import stylesRaw from './codeBlock.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const styles = new CSSStyleSheet();
-styles.replaceSync(stylesRaw.cssText);
-
-const {html} = Lit;
+import styles from './codeBlock.css.js';
 
 const UIStrings = {
-  /**
-   * @description The header text if not present and language is not set.
-   */
-  code: 'Code',
   /**
    * @description The title of the button to copy the codeblock from a Markdown view.
    */
@@ -37,11 +27,12 @@ const UIStrings = {
    * @description Disclaimer shown in the code blocks.
    */
   disclaimer: 'Use code snippets with caution',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('ui/components/markdown_view/CodeBlock.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class CodeBlock extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-code-block`;
 
   readonly #shadow = this.attachShadow({mode: 'open'});
 
@@ -57,8 +48,10 @@ export class CodeBlock extends HTMLElement {
    * blocks.
    */
   #displayNotice = false;
-  #header?: string;
-  #showCopyButton = true;
+  /**
+   * Whether to display the toolbar on the top.
+   */
+  #displayToolbar = true;
 
   connectedCallback(): void {
     this.#shadow.adoptedStyleSheets = [styles];
@@ -98,13 +91,8 @@ export class CodeBlock extends HTMLElement {
     this.#render();
   }
 
-  set header(header: string) {
-    this.#header = header;
-    this.#render();
-  }
-
-  set showCopyButton(show: boolean) {
-    this.#showCopyButton = show;
+  set displayToolbar(value: boolean) {
+    this.#displayToolbar = value;
     this.#render();
   }
 
@@ -119,73 +107,48 @@ export class CodeBlock extends HTMLElement {
     }, this.#copyTimeout);
   }
 
-  #renderNotice(): Lit.TemplateResult {
-    // clang-format off
-    return html`<p class="notice">
-      <x-link class="link" href="https://support.google.com/legal/answer/13505487" jslog=${
-        VisualLogging.link('code-disclaimer').track({
-          click: true,
-        })}>
-        ${i18nString(UIStrings.disclaimer)}
-      </x-link>
-    </p>`;
-    // clang-format on
-  }
-
-  #renderCopyButton(): Lit.LitTemplate {
-    // clang-format off
-    return html`
-      <div class="copy-button-container">
-        <devtools-button
-          .data=${
-            {
-              variant: Buttons.Button.Variant.ICON,
-              size: Buttons.Button.Size.SMALL,
-              jslogContext: 'copy',
-              iconName: 'copy',
-              title: i18nString(UIStrings.copy),
-            } as Buttons.Button.ButtonData
-          }
-          @click=${this.#onCopy}
-        ></devtools-button>
-        ${this.#copied ? html`<span>${i18nString(UIStrings.copied)}</span>` : Lit.nothing}
-      </div>`;
-    // clang-format on
-  }
-
-  #renderTextEditor(): Lit.TemplateResult {
-    if (!this.#editorState) {
-      throw new Error('Unexpected: trying to render the text editor without editorState');
-    }
-    // clang-format off
-    return html`
-      <div class="code">
-        <devtools-text-editor .state=${this.#editorState}></devtools-text-editor>
-      </div>
-    `;
-    // clang-format on
-  }
-
   #render(): void {
-    const header = (this.#header ?? this.#codeLang) || i18nString(UIStrings.code);
-
+    const copyButtonClasses = LitHtml.Directives.classMap({
+      copied: this.#copied,
+      'copy-button': true,
+    });
     // clang-format off
-    Lit.render(
-      html`<div class='codeblock' jslog=${VisualLogging.section('code')}>
-      <div class="editor-wrapper">
-        <div class="heading">
-          <h4 class="heading-text">${header}</h4>
-          ${this.#showCopyButton ? this.#renderCopyButton() : Lit.nothing}
+    LitHtml.render(LitHtml.html`<div class="codeblock" jslog=${VisualLogging.section('code')}>
+      ${this.#displayToolbar ? LitHtml.html`<div class="toolbar" jslog=${VisualLogging.toolbar()}>
+        <div class="lang">${this.#codeLang}</div>
+        <div class="copy">
+          <button class=${copyButtonClasses}
+            title=${i18nString(UIStrings.copy)}
+            jslog=${VisualLogging.action('copy').track({click: true})}
+            @click=${this.#onCopy}>
+            <${IconButton.Icon.Icon.litTagName}
+              .data=${{
+                iconName: 'copy',
+                width: '16px',
+                height: '16px',
+                color: 'var(--copy-icon-color, var(--icon-default))',
+              } as IconButton.Icon.IconData}
+            >
+            </${IconButton.Icon.Icon.litTagName}>
+            <span>${this.#copied ?
+              i18nString(UIStrings.copied) :
+              i18nString(UIStrings.copy)}</span>
+          </button>
         </div>
-        ${this.#renderTextEditor()}
+      </div>` : ''}
+      <div class="editor-wrapper">
+        <${TextEditor.TextEditor.TextEditor.litTagName} .state=${
+          this.#editorState
+        }></${TextEditor.TextEditor.TextEditor.litTagName}>
+        ${this.#displayNotice ? LitHtml.html`<p class="notice">
+          <x-link class="link" href="https://support.google.com/legal/answer/13505487" jslog=${VisualLogging.link('code-disclaimer').track({click: true})}>
+            ${i18nString(UIStrings.disclaimer)}
+         </x-link>
+        </p>` : LitHtml.nothing}
       </div>
-      ${this.#displayNotice ? this.#renderNotice() : Lit.nothing}
-    </div>`,
-      this.#shadow,
-      {
-        host: this,
-      },
-    );
+    </div>`, this.#shadow, {
+      host: this,
+    });
     // clang-format on
 
     const editor = this.#shadow?.querySelector('devtools-text-editor')?.editor;

@@ -7,14 +7,14 @@ import type * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 
 import {Issue, IssueCategory, IssueKind} from './Issue.js';
-import type {MarkdownIssueDescription} from './MarkdownIssueDescription.js';
+import {type MarkdownIssueDescription} from './MarkdownIssueDescription.js';
 
 const UIStrings = {
   /**
    *@description Link title for the Quirks Mode issue in the Issues panel
    */
   documentCompatibilityMode: 'Document compatibility mode',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/QuirksModeIssue.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -33,7 +33,7 @@ export class QuirksModeIssue extends Issue {
   }
 
   getCategory(): IssueCategory {
-    return IssueCategory.QUIRKS_MODE;
+    return IssueCategory.QuirksMode;
   }
 
   details(): Protocol.Audits.QuirksModeIssueDetails {
@@ -53,7 +53,7 @@ export class QuirksModeIssue extends Issue {
   }
 
   getKind(): IssueKind {
-    return IssueKind.IMPROVEMENT;
+    return IssueKind.Improvement;
   }
 
   static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):

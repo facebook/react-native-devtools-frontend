@@ -2,21 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../../ui/components/icon_button/icon_button.js';
-import '../../../ui/components/node_text/node_text.js';
-
 import * as SDK from '../../../core/sdk/sdk.js';
-import * as Lit from '../../../ui/lit/lit.js';
+import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
+import * as NodeText from '../../../ui/components/node_text/node_text.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import type {DOMNode} from './Helper.js';
-import queryContainerStylesRaw from './queryContainer.css.js';
+import {type DOMNode} from './Helper.js';
+import queryContainerStyles from './queryContainer.css.js';
 
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const queryContainerStyles = new CSSStyleSheet();
-queryContainerStyles.replaceSync(queryContainerStylesRaw.cssText);
-
-const {render, html} = Lit;
+const {render, html} = LitHtml;
 const {PhysicalAxis, QueryAxis} = SDK.CSSContainerQuery;
 
 export class QueriedSizeRequestedEvent extends Event {
@@ -33,6 +28,8 @@ export interface QueryContainerData {
 }
 
 export class QueryContainer extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-query-container`;
+
   readonly #shadow = this.attachShadow({mode: 'open'});
   #queryName?: string;
   #container?: DOMNode;
@@ -83,7 +80,7 @@ export class QueryContainer extends HTMLElement {
 
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    // eslint-disable-next-line rulesdir/no-a-tags-in-lit
+    // eslint-disable-next-line rulesdir/ban_a_tags_in_lit_html
     render(html`
       →
       <a href="#"
@@ -93,46 +90,46 @@ export class QueryContainer extends HTMLElement {
         @click=${this.#onContainerLinkClick}
         @mouseenter=${this.#onContainerLinkMouseEnter}
         @mouseleave=${this.#onContainerLinkMouseLeave}
-      ><devtools-node-text
+      ><${NodeText.NodeText.NodeText.litTagName}
           data-node-title=${nodeTitle}
           .data=${{
         nodeTitle,
         nodeId: idToDisplay,
         nodeClasses: classesToDisplay,
-      }}></devtools-node-text></a>
-      ${this.#isContainerLinkHovered ? this.#renderQueriedSizeDetails() : Lit.nothing}
+      } as NodeText.NodeText.NodeTextData}></${NodeText.NodeText.NodeText.litTagName}></a>
+      ${this.#isContainerLinkHovered ? this.#renderQueriedSizeDetails() : LitHtml.nothing}
     `, this.#shadow, {
       host: this,
     });
     // clang-format on
   }
 
-  #renderQueriedSizeDetails(): Lit.LitTemplate {
-    if (!this.#queriedSizeDetails || this.#queriedSizeDetails.queryAxis === QueryAxis.NONE) {
-      return Lit.nothing;
+  #renderQueriedSizeDetails(): LitHtml.LitTemplate {
+    if (!this.#queriedSizeDetails || this.#queriedSizeDetails.queryAxis === QueryAxis.None) {
+      return LitHtml.nothing;
     }
 
-    const areBothAxesQueried = this.#queriedSizeDetails.queryAxis === QueryAxis.BOTH;
+    const areBothAxesQueried = this.#queriedSizeDetails.queryAxis === QueryAxis.Both;
 
-    const axisIconClasses = Lit.Directives.classMap({
+    const axisIconClasses = LitHtml.Directives.classMap({
       'axis-icon': true,
-      hidden: areBothAxesQueried,
-      vertical: this.#queriedSizeDetails.physicalAxis === PhysicalAxis.VERTICAL,
+      'hidden': areBothAxesQueried,
+      'vertical': this.#queriedSizeDetails.physicalAxis === PhysicalAxis.Vertical,
     });
 
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
     return html`
       <span class="queried-size-details">
-        (${this.#queriedSizeDetails.queryAxis}<devtools-icon
+        (${this.#queriedSizeDetails.queryAxis}<${IconButton.Icon.Icon.litTagName}
           class=${axisIconClasses} .data=${{
             iconName: 'width',
             color: 'var(--icon-default)',
-          }}></devtools-icon>)
-        ${areBothAxesQueried && this.#queriedSizeDetails.width ? 'width:' : Lit.nothing}
-        ${this.#queriedSizeDetails.width || Lit.nothing}
-        ${areBothAxesQueried && this.#queriedSizeDetails.height ? 'height:' : Lit.nothing}
-        ${this.#queriedSizeDetails.height || Lit.nothing}
+          } as IconButton.Icon.IconData}></${IconButton.Icon.Icon.litTagName}>)
+        ${areBothAxesQueried && this.#queriedSizeDetails.width ? 'width:' : LitHtml.nothing}
+        ${this.#queriedSizeDetails.width || LitHtml.nothing}
+        ${areBothAxesQueried && this.#queriedSizeDetails.height ? 'height:' : LitHtml.nothing}
+        ${this.#queriedSizeDetails.height || LitHtml.nothing}
       </span>
     `;
     // clang-format on

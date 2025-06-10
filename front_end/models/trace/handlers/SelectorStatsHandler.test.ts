@@ -3,17 +3,17 @@
 // found in the LICENSE file.
 
 import {TraceLoader} from '../../../testing/TraceLoader.js';
-import * as Trace from '../trace.js';
+import * as TraceEngine from '../trace.js';
 
 describe('SelectorStatsHandler', () => {
   it('associates timings and stats with each UpdateLayoutEvent', async function() {
-    Trace.Handlers.ModelHandlers.SelectorStats.reset();
+    TraceEngine.Handlers.ModelHandlers.SelectorStats.reset();
 
     const events = await TraceLoader.rawEvents(this, 'selector-stats.json.gz');
     for (const event of events) {
-      Trace.Handlers.ModelHandlers.SelectorStats.handleEvent(event);
+      TraceEngine.Handlers.ModelHandlers.SelectorStats.handleEvent(event);
     }
-    const data = Trace.Handlers.ModelHandlers.SelectorStats.data();
+    const data = TraceEngine.Handlers.ModelHandlers.SelectorStats.data();
 
     // There are 10 UpdateLayoutTree events that we expect to find
     // SelectorStats for.
@@ -25,11 +25,11 @@ describe('SelectorStatsHandler', () => {
     // previous UpdateLayoutTreeEvent
     const targetTimeStamp = 400015719531;
     const updateLayoutEvent = events.find(event => {
-      return Trace.Types.Events.isUpdateLayoutTree(event) && event.ts === targetTimeStamp;
+      return TraceEngine.Types.TraceEvents.isTraceEventUpdateLayoutTree(event) && event.ts === targetTimeStamp;
     });
     assert.isOk(updateLayoutEvent);
 
-    if (!Trace.Types.Events.isUpdateLayoutTree(updateLayoutEvent)) {
+    if (!TraceEngine.Types.TraceEvents.isTraceEventUpdateLayoutTree(updateLayoutEvent)) {
       assert.fail('Event was of the wrong type.');
     }
 

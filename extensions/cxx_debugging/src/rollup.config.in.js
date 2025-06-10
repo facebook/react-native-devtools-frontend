@@ -12,7 +12,9 @@ const files = ['$<JOIN:@EXTENSION_BUNDLE_ENTRYPOINTS@,', '>'];
 const sourcemap = '$<$<BOOL:@EXTENSION_BUNDLE_SOURCEMAP@>:inline>';
 
 const resolveOptions = {
-  modulePaths: ['@PROJECT_SOURCE_DIR@/third_party'],
+  customResolveOptions: {
+    moduleDirectory: '@PROJECT_SOURCE_DIR@/third_party',
+  },
   rootDir: '@PROJECT_SOURCE_DIR@',
   jail: '@PROJECT_SOURCE_DIR@',
   resolveOnly: ['lit-html'],

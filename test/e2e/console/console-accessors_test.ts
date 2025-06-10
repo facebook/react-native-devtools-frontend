@@ -4,17 +4,20 @@
 
 import {assert} from 'chai';
 
-import {click, step, waitFor} from '../../shared/helper.js';
+import {click, getBrowserAndPages, step, waitFor} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {CONSOLE_TAB_SELECTOR, focusConsolePrompt, typeIntoConsole} from '../helpers/console-helpers.js';
 
 describe('The Console Tab', () => {
   it('correctly expands getters on string properties', async () => {
+    const {frontend} = getBrowserAndPages();
+
     await step('open the console tab and focus the prompt', async () => {
       await click(CONSOLE_TAB_SELECTOR);
       await focusConsolePrompt();
     });
 
-    await typeIntoConsole('new class ClassWithStringGetter { get x() { return 84 / 2; }}');
+    await typeIntoConsole(frontend, 'new class ClassWithStringGetter { get x() { return 84 / 2; }}');
 
     await click('.console-view-object-properties-section');
     await click('.object-value-calculate-value-button');
@@ -24,12 +27,14 @@ describe('The Console Tab', () => {
   });
 
   it('correctly expands getters on symbol properties', async () => {
+    const {frontend} = getBrowserAndPages();
+
     await step('open the console tab and focus the prompt', async () => {
       await click(CONSOLE_TAB_SELECTOR);
       await focusConsolePrompt();
     });
 
-    await typeIntoConsole('new class ClassWithSymbolGetter { get [Symbol("foo")]() { return 21 + 21; }}');
+    await typeIntoConsole(frontend, 'new class ClassWithSymbolGetter { get [Symbol("foo")]() { return 21 + 21; }}');
 
     await click('.console-view-object-properties-section');
     await click('.object-value-calculate-value-button');
@@ -39,12 +44,14 @@ describe('The Console Tab', () => {
   });
 
   it('correctly expands private getters', async () => {
+    const {frontend} = getBrowserAndPages();
+
     await step('open the console tab and focus the prompt', async () => {
       await click(CONSOLE_TAB_SELECTOR);
       await focusConsolePrompt();
     });
 
-    await typeIntoConsole('new class ClassWithPrivateGetter { get #x() { return 21 << 1; }}');
+    await typeIntoConsole(frontend, 'new class ClassWithPrivateGetter { get #x() { return 21 << 1; }}');
 
     await click('.console-view-object-properties-section');
     await click('.object-value-calculate-value-button');

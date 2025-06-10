@@ -3,8 +3,9 @@
 // found in the LICENSE file.
 
 import type * as Dialogs from '../../../../front_end/ui/components/dialogs/dialogs.js';
-import {loadComponentDocExample} from '../../../../test/interactions/helpers/shared.js';
+import {loadComponentDocExample, preloadForCodeCoverage} from '../../../../test/interactions/helpers/shared.js';
 import {getBrowserAndPages, waitFor} from '../../../../test/shared/helper.js';
+import {describe, itScreenshot} from '../../../../test/shared/mocha-extensions.js';
 import {
   assertElementScreenshotUnchanged,
   waitForDialogAnimationEnd,
@@ -23,6 +24,8 @@ async function openDialog(dialogNumber: number) {
 }
 
 describe('dialog screenshots test', () => {
+  preloadForCodeCoverage('dialog/basic.html');
+
   describe('dialog is positioned properly', () => {
     itScreenshot('renders the dialog at the top left properly', async () => {
       await openDialog(1);
@@ -53,6 +56,8 @@ describe('dialog screenshots test', () => {
 });
 
 describe('dialog interactions test', () => {
+  preloadForCodeCoverage('dialog/basic.html');
+
   it('keeps the dialog open when moving the cursor is moved inside the hitarea', async () => {
     const {frontend} = getBrowserAndPages();
     await openDialog(2);

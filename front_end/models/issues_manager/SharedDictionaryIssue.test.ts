@@ -59,9 +59,9 @@ describeWithLocale('SharedDictionaryIssue', () => {
       assert.lengthOf(sharedDictionaryIssues, 1);
       const sharedDictionaryIssue = sharedDictionaryIssues[0];
 
-      assert.strictEqual(sharedDictionaryIssue.getCategory(), IssuesManager.Issue.IssueCategory.OTHER);
-      assert.deepEqual(sharedDictionaryIssue.details(), issueDetails);
-      assert.strictEqual(sharedDictionaryIssue.getKind(), IssuesManager.Issue.IssueKind.PAGE_ERROR);
+      assert.strictEqual(sharedDictionaryIssue.getCategory(), IssuesManager.Issue.IssueCategory.Other);
+      assert.deepStrictEqual(sharedDictionaryIssue.details(), issueDetails);
+      assert.strictEqual(sharedDictionaryIssue.getKind(), IssuesManager.Issue.IssueKind.PageError);
       assert.isNotNull(sharedDictionaryIssue.getDescription());
     }
   });

@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../ui/legacy/legacy.js';
-
 import type * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Protocol from '../../generated/protocol.js';
@@ -69,19 +67,19 @@ const UIStrings = {
    *@description The label for a root cause error associated with this error.
    */
   errorCauseLabel: 'Caused by:',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/media/PlayerMessagesView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 const enum MessageLevelBitfield {
-  ERROR = 0b0001,
-  WARNING = 0b0010,
-  INFO = 0b0100,
-  DEBUG = 0b1000,
+  Error = 0b0001,
+  Warning = 0b0010,
+  Info = 0b0100,
+  Debug = 0b1000,
 
-  DEFAULT = 0b0111,  // Error, Warning, Info
-  ALL = 0b1111,      // Error, Warning, Info, Debug
-  CUSTOM = 0,
+  Default = 0b0111,  // Error, Warning, Info
+  All = 0b1111,      // Error, Warning, Info, Debug
+  Custom = 0,
 }
 
 interface SelectableLevel {
@@ -111,8 +109,8 @@ class MessageLevelSelector implements UI.SoftDropDown.Delegate<SelectableLevel> 
 
     this.hiddenLevels = [];
 
-    this.bitFieldValue = MessageLevelBitfield.DEFAULT;
-    this.savedBitFieldValue = MessageLevelBitfield.DEFAULT;
+    this.bitFieldValue = MessageLevelBitfield.Default;
+    this.savedBitFieldValue = MessageLevelBitfield.Default;
 
     this.defaultTitleInternal = i18nString(UIStrings.default);
     this.customTitle = i18nString(UIStrings.custom);
@@ -134,7 +132,7 @@ class MessageLevelSelector implements UI.SoftDropDown.Delegate<SelectableLevel> 
       title: this.defaultTitleInternal,
       overwrite: true,
       stringValue: '',
-      value: MessageLevelBitfield.DEFAULT,
+      value: MessageLevelBitfield.Default,
       selectable: undefined,
     });
 
@@ -142,7 +140,7 @@ class MessageLevelSelector implements UI.SoftDropDown.Delegate<SelectableLevel> 
       title: this.allTitle,
       overwrite: true,
       stringValue: '',
-      value: MessageLevelBitfield.ALL,
+      value: MessageLevelBitfield.All,
       selectable: undefined,
     });
 
@@ -150,7 +148,7 @@ class MessageLevelSelector implements UI.SoftDropDown.Delegate<SelectableLevel> 
       title: i18nString(UIStrings.error),
       overwrite: false,
       stringValue: 'error',
-      value: MessageLevelBitfield.ERROR,
+      value: MessageLevelBitfield.Error,
       selectable: undefined,
     });
 
@@ -158,7 +156,7 @@ class MessageLevelSelector implements UI.SoftDropDown.Delegate<SelectableLevel> 
       title: i18nString(UIStrings.warning),
       overwrite: false,
       stringValue: 'warning',
-      value: MessageLevelBitfield.WARNING,
+      value: MessageLevelBitfield.Warning,
       selectable: undefined,
     });
 
@@ -166,7 +164,7 @@ class MessageLevelSelector implements UI.SoftDropDown.Delegate<SelectableLevel> 
       title: i18nString(UIStrings.info),
       overwrite: false,
       stringValue: 'info',
-      value: MessageLevelBitfield.INFO,
+      value: MessageLevelBitfield.Info,
       selectable: undefined,
     });
 
@@ -174,7 +172,7 @@ class MessageLevelSelector implements UI.SoftDropDown.Delegate<SelectableLevel> 
       title: i18nString(UIStrings.debug),
       overwrite: false,
       stringValue: 'debug',
-      value: MessageLevelBitfield.DEBUG,
+      value: MessageLevelBitfield.Debug,
       selectable: undefined,
     });
   }
@@ -183,8 +181,8 @@ class MessageLevelSelector implements UI.SoftDropDown.Delegate<SelectableLevel> 
     this.hiddenLevels = [];
     for (const [key, item] of this.itemMap) {
       if (!item.overwrite) {
-        const elementForItem = this.elementsForItems.get(item);
-        if (elementForItem?.firstChild) {
+        const elementForItem = this.elementsForItems.get(item as SelectableLevel);
+        if (elementForItem && elementForItem.firstChild) {
           elementForItem.firstChild.remove();
         }
         if (elementForItem && key & this.bitFieldValue) {
@@ -205,11 +203,11 @@ class MessageLevelSelector implements UI.SoftDropDown.Delegate<SelectableLevel> 
       this.bitFieldValue ^= item.value;
     }
 
-    if (this.bitFieldValue === MessageLevelBitfield.DEFAULT) {
+    if (this.bitFieldValue === MessageLevelBitfield.Default) {
       return this.defaultTitleInternal;
     }
 
-    if (this.bitFieldValue === MessageLevelBitfield.ALL) {
+    if (this.bitFieldValue === MessageLevelBitfield.All) {
       return this.allTitle;
     }
 
@@ -223,9 +221,10 @@ class MessageLevelSelector implements UI.SoftDropDown.Delegate<SelectableLevel> 
 
   createElementForItem(item: SelectableLevel): Element {
     const element = document.createElement('div');
-    const shadowRoot = UI.UIUtils.createShadowRootWithCoreStyles(element, {cssFile: playerMessagesViewStyles});
+    const shadowRoot = UI.UIUtils.createShadowRootWithCoreStyles(
+        element, {cssFile: [playerMessagesViewStyles], delegatesFocus: undefined});
     const container = shadowRoot.createChild('div', 'media-messages-level-dropdown-element');
-    const checkBox = container.createChild('div', 'media-messages-level-dropdown-checkbox');
+    const checkBox = container.createChild('div', 'media-messages-level-dropdown-checkbox') as HTMLElement;
     const text = container.createChild('span', 'media-messages-level-dropdown-text');
     UI.UIUtils.createTextChild(text, item.title);
     this.elementsForItems.set(item, checkBox);
@@ -257,7 +256,6 @@ export class PlayerMessagesView extends UI.Widget.VBox {
 
   constructor() {
     super();
-    this.registerRequiredCSS(playerMessagesViewStyles);
 
     this.element.setAttribute('jslog', `${VisualLogging.pane('messages')}`);
 
@@ -268,7 +266,7 @@ export class PlayerMessagesView extends UI.Widget.VBox {
   }
 
   private buildToolbar(): void {
-    const toolbar = this.headerPanel.createChild('devtools-toolbar', 'media-messages-toolbar');
+    const toolbar = new UI.Toolbar.Toolbar('media-messages-toolbar', this.headerPanel);
     toolbar.appendText(i18nString(UIStrings.logLevel));
     toolbar.appendToolbarItem(this.createDropdown());
     toolbar.appendSeparator();
@@ -295,7 +293,7 @@ export class PlayerMessagesView extends UI.Widget.VBox {
 
   private createFilterInput(): UI.Toolbar.ToolbarInput {
     const filterInput = new UI.Toolbar.ToolbarFilter(i18nString(UIStrings.filterByLogMessages), 1, 1);
-    filterInput.addEventListener(UI.Toolbar.ToolbarInput.Event.TEXT_CHANGED, (data: {data: string}) => {
+    filterInput.addEventListener(UI.Toolbar.ToolbarInput.Event.TextChanged, (data: {data: string}) => {
       this.filterByString(data as {
         data: string,
       });
@@ -330,7 +328,7 @@ export class PlayerMessagesView extends UI.Widget.VBox {
     for (const message of messages) {
       if (userString === '') {
         message.classList.remove('media-messages-message-filtered');
-      } else if (message.textContent?.includes(userString)) {
+      } else if (message.textContent && message.textContent.includes(userString)) {
         message.classList.remove('media-messages-message-filtered');
       } else {
         message.classList.add('media-messages-message-filtered');
@@ -398,5 +396,10 @@ export class PlayerMessagesView extends UI.Widget.VBox {
   addError(error: Protocol.Media.PlayerError): void {
     const container = this.bodyPanel.createChild('div', 'media-messages-message-container media-message-error');
     container.appendChild(this.errorToDiv(error));
+  }
+
+  override wasShown(): void {
+    super.wasShown();
+    this.registerCSSFiles([playerMessagesViewStyles]);
   }
 }

@@ -4,11 +4,12 @@
 
 import '../src/CreditsItem.js';
 
-import {html, render, type TemplateResult} from 'lit-html';
+import {html, render, TemplateResult} from 'lit-html';
 
-import type {CreditsItem, CreditsItemData} from '../src/CreditsItem.js';
+import {CreditsItem, CreditsItemData} from '../src/CreditsItem.js';
 
 import {nonNull} from './TestUtils.js';
+
 
 async function createItem(text: TemplateResult): Promise<CreditsItem> {
   const container = document.createElement('div');
@@ -30,8 +31,8 @@ describe('CreditsItem', () => {
       homepage: 'https://www.example.com',
       license: 'Do whatever you want!'
     };
-    const el = await createItem(
-        html`<devtools-cxx-debugging-credits-item .data=${data}></devtools-cxx-debugging-credits-item>`);
+    const el = await createItem(html`<devtools-cxx-debugging-credits-item .data=${
+        data as CreditsItemData}></devtools-cxx-debugging-credits-item>`);
     expect(el.data).to.equal(data);
 
     el.data = {title: 'title', homepage: 'homepage', license: 'license'};
@@ -42,8 +43,8 @@ describe('CreditsItem', () => {
 
   it('renders title and homepage correctly', async () => {
     const data: CreditsItemData = {title: 'My project', homepage: 'https://www.example.com', license: '3-BSD License'};
-    const el = await createItem(
-        html`<devtools-cxx-debugging-credits-item .data=${data}></devtools-cxx-debugging-credits-item>`);
+    const el = await createItem(html`<devtools-cxx-debugging-credits-item .data=${
+        data as CreditsItemData}></devtools-cxx-debugging-credits-item>`);
     expect(el.shadowRoot?.querySelector('.title')?.textContent).to.eql(data.title);
     expect(el.shadowRoot?.querySelector('a')?.getAttribute('href')).to.eql(data.homepage);
   });

@@ -13,7 +13,9 @@ generate_css("css_files") {
 }
 
 devtools_module("rn_welcome") {
-  sources = [ "RNWelcome.ts" ]
+  sources = [
+    "RNWelcome.ts",
+  ]
 
   deps = [
     "../../core/host:bundle",
@@ -21,9 +23,10 @@ devtools_module("rn_welcome") {
     "../../core/protocol_client:bundle",
     "../../core/sdk:bundle",
     "../../models/text_utils:bundle",
+    "../../ui/components/data_grid:bundle",
     "../../ui/components/icon_button:bundle",
     "../../ui/legacy:bundle",
-    "../../ui/legacy/components/data_grid:bundle",
+    "../../ui/lit-html:bundle",
   ]
 }
 
@@ -38,7 +41,6 @@ devtools_entrypoint("bundle") {
   visibility = [
     ":*",
     "../../../test/unittests/front_end/entrypoints/missing_entrypoints/*",
-
     # "../../../test/unittests/front_end/panels/rn_welcome/*",
     "../../entrypoints/*",
   ]

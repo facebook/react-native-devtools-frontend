@@ -2,25 +2,28 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {assert} from 'chai';
-import type {ElementHandle, Page} from 'puppeteer-core';
+/* eslint-disable rulesdir/es_modules_import */
 
-import type {UserFlow} from '../../../front_end/panels/recorder/models/Schema.js';
+import {type ElementHandle, type Page} from 'puppeteer-core';
+
+import {type UserFlow} from '../../../front_end/panels/recorder/models/Schema.js';
 import type * as Recorder from '../../../front_end/panels/recorder/recorder.js';
 import {openPanelViaMoreTools} from '../../../test/e2e/helpers/settings-helpers.js';
 import {
   $,
   click,
+  clickElement,
   getBrowserAndPages,
   getTestServerPort,
   goToResource,
   platform,
-  selectOption,
+  timeout,
   waitFor,
   waitForAria,
 } from '../../../test/shared/helper.js';
+import {assertMatchesJSONSnapshot} from '../../../test/shared/snapshots.js';
 
-const RECORDER_CONTROLLER_TAG_NAME = 'devtools-recorder-controller' as const;
+const RECORDER_CONTROLLER_TAG_NAME = 'devtools-recorder-controller';
 const TEST_RECORDING_NAME = 'New Recording';
 const ControlOrMeta = platform === 'mac' ? 'Meta' : 'Control';
 
@@ -32,7 +35,7 @@ export async function getRecordingController() {
 
 export async function onRecordingStateChanged(): Promise<unknown> {
   const view = await getRecordingController();
-  return await view.evaluate(el => {
+  return view.evaluate(el => {
     return new Promise(resolve => {
       el.addEventListener(
           'recordingstatechanged',
@@ -47,7 +50,7 @@ export async function onRecordingStateChanged(): Promise<unknown> {
 
 export async function onRecorderAttachedToTarget(): Promise<unknown> {
   const {frontend} = getBrowserAndPages();
-  return await frontend.evaluate(() => {
+  return frontend.evaluate(() => {
     return new Promise(resolve => {
       window.addEventListener('recorderAttachedToTarget', resolve, {
         once: true,
@@ -58,7 +61,7 @@ export async function onRecorderAttachedToTarget(): Promise<unknown> {
 
 export async function onReplayFinished(): Promise<unknown> {
   const view = await getRecordingController();
-  return await view.evaluate(el => {
+  return view.evaluate(el => {
     return new Promise(resolve => {
       el.addEventListener('replayfinished', resolve, {once: true});
     });
@@ -82,7 +85,7 @@ export async function enableAndOpenRecorderPanel(path: string) {
 }
 
 async function createRecording(name: string, selectorAttribute?: string) {
-  const newRecordingButton = await waitForAria('Create recording');
+  const newRecordingButton = await waitForAria('Create a new recording');
   await newRecordingButton.click();
   const input = await waitForAria('RECORDING NAME');
   await input.type(name);
@@ -95,10 +98,10 @@ async function createRecording(name: string, selectorAttribute?: string) {
 }
 
 export async function createAndStartRecording(
-    name?: string,
+    name: string,
     selectorAttribute?: string,
 ) {
-  await createRecording(name ?? TEST_RECORDING_NAME, selectorAttribute);
+  await createRecording(name, selectorAttribute);
   const onRecordingStarted = onRecordingStateChanged();
   await click('devtools-control-button');
   await waitFor('devtools-recording-view');
@@ -118,11 +121,11 @@ export async function openRecorderPanel() {
   await waitFor('devtools-recording-view');
 }
 
-interface StartRecordingOptions {
-  networkCondition?: string;
-  untrustedEvents?: boolean;
-  selectorAttribute?: string;
-}
+type StartRecordingOptions = {
+  networkCondition?: string,
+  untrustedEvents?: boolean,
+  selectorAttribute?: string,
+};
 
 export async function startRecording(
     path: string,
@@ -159,71 +162,31 @@ interface RecordingSnapshotOptions {
    * @defaultValue `false`
    */
   offsets?: boolean;
-  /**
-   * @defaultValue `true`
-   */
-  expectCommon?: boolean;
-  resource?: string;
 }
 
-export const processAndVerifyBaseRecording = (
+const preprocessRecording = (
     recording: unknown,
     options: RecordingSnapshotOptions = {},
     ) => {
-  const {
-    offsets = false,
-    expectCommon = true,
-    resource = 'recorder/recorder.html',
-  } = options;
-
   let value = JSON.stringify(recording).replaceAll(
       `:${getTestServerPort()}`,
       ':<test-port>',
   );
   value = value.replaceAll('\u200b', '');
-  if (!offsets) {
+  if (!options.offsets) {
     value = value.replaceAll(
         /,?"(?:offsetY|offsetX)":[0-9]+(?:\.[0-9]+)?/g,
         '',
     );
   }
+  return JSON.parse(value.trim());
+};
 
-  const parsed = JSON.parse(value.trim());
-  if (expectCommon) {
-    assert.strictEqual(
-        parsed.title,
-        'New Recording',
-    );
-    delete parsed.title;
-    assert.deepEqual(
-        parsed.steps[0],
-        {
-          type: 'setViewport',
-          width: 1280,
-          height: 720,
-          deviceScaleFactor: 1,
-          isMobile: false,
-          hasTouch: false,
-          isLandscape: false
-        },
-    );
-    assert.deepEqual(
-        parsed.steps[1],
-        {
-          type: 'navigate',
-          url: `https://localhost:<test-port>/test/e2e/resources/${resource}`,
-          assertedEvents: [{
-            type: 'navigation',
-            url: `https://localhost:<test-port>/test/e2e/resources/${resource}`,
-            title: '',
-          }]
-        },
-    );
-
-    parsed.steps = parsed.steps.slice(2);
-  }
-
-  return parsed;
+export const assertRecordingMatchesSnapshot = (
+    recording: unknown,
+    options: RecordingSnapshotOptions = {},
+    ) => {
+  assertMatchesJSONSnapshot(preprocessRecording(recording, options));
 };
 
 async function setCode(flow: string) {
@@ -233,21 +196,54 @@ async function setCode(flow: string) {
   }, flow);
 }
 
+async function waitForDialogAnimationEnd(root?: ElementHandle) {
+  const ANIMATION_TIMEOUT = 2000;
+  const dialog = await waitFor('dialog[open]', root);
+  const animationPromise = dialog.evaluate((dialog: Element) => {
+    return new Promise<void>(resolve => {
+      dialog.addEventListener('animationend', () => resolve(), {once: true});
+    });
+  });
+  await Promise.race([animationPromise, timeout(ANIMATION_TIMEOUT)]);
+}
+
 export async function clickSelectButtonItem(itemLabel: string, root: string) {
   const selectMenu = await waitFor(root);
   const selectMenuButton = await waitFor(
-      'select',
+      'devtools-select-menu-button',
       selectMenu,
   );
+  const selectMenuButtonArrow = await waitFor('#arrow', selectMenuButton);
+  const animationEndPromise = waitForDialogAnimationEnd();
+  await clickElement(selectMenuButtonArrow);
+  await animationEndPromise;
 
-  void selectOption(await selectMenuButton.toElement('select'), itemLabel);
+  const selectMenuItems = await selectMenu.$$('pierce/devtools-menu-item');
+  const selectMenuItemIndex =
+      await Promise
+          .all(
+              selectMenuItems.map(
+                  selectMenuItem => selectMenuItem.evaluate(element => element.textContent?.trim()),
+                  ),
+              )
+          .then(
+              elements => elements.findIndex(elementText => elementText === itemLabel),
+          );
 
-  await click('devtools-button', {root: selectMenu});
+  if (selectMenuItemIndex === -1) {
+    throw new Error(
+        `Select menu item for label "${itemLabel}" is not found in "${root}"`,
+    );
+  }
+
+  await clickElement(selectMenuItems[selectMenuItemIndex]);
+  const button = await waitFor('devtools-button', selectMenu);
+  await clickElement(button);
 }
 
 export async function setupRecorderWithScript(
     script: UserFlow,
-    path = 'recorder/recorder.html',
+    path: string = 'recorder/recorder.html',
     ): Promise<void> {
   await enableAndOpenRecorderPanel(path);
   await createAndStartRecording(script.title);
@@ -257,7 +253,7 @@ export async function setupRecorderWithScript(
 
 export async function setupRecorderWithScriptAndReplay(
     script: UserFlow,
-    path = 'recorder/recorder.html',
+    path: string = 'recorder/recorder.html',
     ): Promise<void> {
   await setupRecorderWithScript(script, path);
   const onceFinished = onReplayFinished();
@@ -265,7 +261,7 @@ export async function setupRecorderWithScriptAndReplay(
   await onceFinished;
 }
 
-export async function getCurrentRecording() {
+export async function getCurrentRecording(): Promise<unknown> {
   const {frontend} = getBrowserAndPages();
   await frontend.bringToFront();
   const controller = await $(RECORDER_CONTROLLER_TAG_NAME);

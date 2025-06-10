@@ -63,7 +63,7 @@ export async function getPlayerButtonText() {
 }
 
 export async function waitForPlayerButtonTexts(count: number) {
-  return await waitForFunction(async () => {
+  return waitForFunction(async () => {
     return await waitForMany('.player-entry-player-title', count);
   });
 }

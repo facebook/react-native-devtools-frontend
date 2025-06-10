@@ -23,7 +23,7 @@ const UIStrings = {
    * targets at the same time in some scenarios.
    */
   main: 'Main',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('core/sdk/ChildTargetManager.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -31,10 +31,10 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
   readonly #targetManager: TargetManager;
   #parentTarget: Target;
   readonly #targetAgent: ProtocolProxyApi.TargetApi;
-  readonly #targetInfosInternal = new Map<Protocol.Target.TargetID, Protocol.Target.TargetInfo>();
-  readonly #childTargetsBySessionId = new Map<Protocol.Target.SessionID, Target>();
-  readonly #childTargetsById = new Map<Protocol.Target.TargetID|'main', Target>();
-  readonly #parallelConnections = new Map<string, ProtocolClient.InspectorBackend.Connection>();
+  readonly #targetInfosInternal: Map<Protocol.Target.TargetID, Protocol.Target.TargetInfo> = new Map();
+  readonly #childTargetsBySessionId: Map<Protocol.Target.SessionID, Target> = new Map();
+  readonly #childTargetsById: Map<Protocol.Target.TargetID|'main', Target> = new Map();
+  readonly #parallelConnections: Map<string, ProtocolClient.InspectorBackend.Connection> = new Map();
   #parentTargetId: Protocol.Target.TargetID|null = null;
 
   constructor(parentTarget: Target) {
@@ -53,7 +53,7 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
       void this.#targetAgent.invoke_setAutoAttach({autoAttach: true, waitForDebuggerOnStart: true, flatten: true});
     }
 
-    if (parentTarget.parentTarget()?.type() !== Type.FRAME && !Host.InspectorFrontendHost.isUnderTest()) {
+    if (parentTarget.parentTarget()?.type() !== Type.Frame && !Host.InspectorFrontendHost.isUnderTest()) {
       void this.#targetAgent.invoke_setDiscoverTargets({discover: true});
       void this.#targetAgent.invoke_setRemoteLocations({locations: [{host: 'localhost', port: 9229}]});
     }
@@ -64,7 +64,7 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
                                      waitingForDebugger: boolean,
                                    }) => Promise<void>)): void {
     ChildTargetManager.attachCallback = attachCallback;
-    SDKModel.register(ChildTargetManager, {capabilities: Capability.TARGET, autostart: true});
+    SDKModel.register(ChildTargetManager, {capabilities: Capability.Target, autostart: true});
   }
 
   childTargets(): Target[] {
@@ -88,19 +88,18 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
   targetCreated({targetInfo}: Protocol.Target.TargetCreatedEvent): void {
     this.#targetInfosInternal.set(targetInfo.targetId, targetInfo);
     this.fireAvailableTargetsChanged();
-    this.dispatchEventToListeners(Events.TARGET_CREATED, targetInfo);
+    this.dispatchEventToListeners(Events.TargetCreated, targetInfo);
   }
 
   targetInfoChanged({targetInfo}: Protocol.Target.TargetInfoChangedEvent): void {
     this.#targetInfosInternal.set(targetInfo.targetId, targetInfo);
     const target = this.#childTargetsById.get(targetInfo.targetId);
     if (target) {
-      void target.setHasCrashed(false);
       if (target.targetInfo()?.subtype === 'prerender' && !targetInfo.subtype) {
         const resourceTreeModel = target.model(ResourceTreeModel);
         target.updateTargetInfo(targetInfo);
-        if (resourceTreeModel?.mainFrame) {
-          resourceTreeModel.primaryPageChanged(resourceTreeModel.mainFrame, PrimaryPageChangeType.ACTIVATION);
+        if (resourceTreeModel && resourceTreeModel.mainFrame) {
+          resourceTreeModel.primaryPageChanged(resourceTreeModel.mainFrame, PrimaryPageChangeType.Activation);
         }
         target.setName(i18nString(UIStrings.main));
       } else {
@@ -108,25 +107,28 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
       }
     }
     this.fireAvailableTargetsChanged();
-    this.dispatchEventToListeners(Events.TARGET_INFO_CHANGED, targetInfo);
+    this.dispatchEventToListeners(Events.TargetInfoChanged, targetInfo);
   }
 
   targetDestroyed({targetId}: Protocol.Target.TargetDestroyedEvent): void {
     this.#targetInfosInternal.delete(targetId);
     this.fireAvailableTargetsChanged();
-    this.dispatchEventToListeners(Events.TARGET_DESTROYED, targetId);
+    this.dispatchEventToListeners(Events.TargetDestroyed, targetId);
   }
 
   targetCrashed({targetId}: Protocol.Target.TargetCrashedEvent): void {
+    this.#targetInfosInternal.delete(targetId);
     const target = this.#childTargetsById.get(targetId);
     if (target) {
-      target.setHasCrashed(true);
+      target.dispose('targetCrashed event from CDP');
     }
+    this.fireAvailableTargetsChanged();
+    this.dispatchEventToListeners(Events.TargetDestroyed, targetId);
   }
 
   private fireAvailableTargetsChanged(): void {
     TargetManager.instance().dispatchEventToListeners(
-        TargetManagerEvents.AVAILABLE_TARGETS_CHANGED, [...this.#targetInfosInternal.values()]);
+        TargetManagerEvents.AvailableTargetsChanged, [...this.#targetInfosInternal.values()]);
   }
 
   async getParentTargetId(): Promise<Protocol.Target.TargetID> {
@@ -145,7 +147,7 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
     if (this.#parentTargetId === targetInfo.targetId) {
       return;
     }
-    let type = Type.BROWSER;
+    let type = Type.Browser;
     let targetName = '';
     if (targetInfo.type === 'worker' && targetInfo.title && targetInfo.title !== targetInfo.url) {
       targetName = targetInfo.title;
@@ -159,7 +161,7 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
         '^devtools://',
       ];
       if (KNOWN_FRAME_PATTERNS.some(p => targetInfo.url.match(p))) {
-        type = Type.FRAME;
+        type = Type.Frame;
       } else {
         const parsedURL = Common.ParsedURL.ParsedURL.fromString(targetInfo.url);
         targetName =
@@ -168,23 +170,24 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
     }
 
     if (targetInfo.type === 'iframe' || targetInfo.type === 'webview') {
-      type = Type.FRAME;
+      type = Type.Frame;
     } else if (targetInfo.type === 'background_page' || targetInfo.type === 'app' || targetInfo.type === 'popup_page') {
-      type = Type.FRAME;
-    } else if (targetInfo.type === 'page') {
-      type = Type.FRAME;
+      type = Type.Frame;
+    }
+    else if (targetInfo.type === 'page') {
+      type = Type.Frame;
     } else if (targetInfo.type === 'worker') {
       type = Type.Worker;
     } else if (targetInfo.type === 'worklet') {
-      type = Type.WORKLET;
+      type = Type.Worklet;
     } else if (targetInfo.type === 'shared_worker') {
-      type = Type.SHARED_WORKER;
+      type = Type.SharedWorker;
     } else if (targetInfo.type === 'shared_storage_worklet') {
-      type = Type.SHARED_STORAGE_WORKLET;
+      type = Type.SharedStorageWorklet;
     } else if (targetInfo.type === 'service_worker') {
       type = Type.ServiceWorker;
     } else if (targetInfo.type === 'auction_worklet') {
-      type = Type.AUCTION_WORKLET;
+      type = Type.AuctionWorklet;
     }
     const target = this.#targetManager.createTarget(
         targetInfo.targetId, targetName, type, this.#parentTarget, sessionId, undefined, undefined, targetInfo);
@@ -261,13 +264,13 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
 }
 
 export const enum Events {
-  TARGET_CREATED = 'TargetCreated',
-  TARGET_DESTROYED = 'TargetDestroyed',
-  TARGET_INFO_CHANGED = 'TargetInfoChanged',
+  TargetCreated = 'TargetCreated',
+  TargetDestroyed = 'TargetDestroyed',
+  TargetInfoChanged = 'TargetInfoChanged',
 }
 
-export interface EventTypes {
-  [Events.TARGET_CREATED]: Protocol.Target.TargetInfo;
-  [Events.TARGET_DESTROYED]: Protocol.Target.TargetID;
-  [Events.TARGET_INFO_CHANGED]: Protocol.Target.TargetInfo;
-}
+export type EventTypes = {
+  [Events.TargetCreated]: Protocol.Target.TargetInfo,
+  [Events.TargetDestroyed]: Protocol.Target.TargetID,
+  [Events.TargetInfoChanged]: Protocol.Target.TargetInfo,
+};

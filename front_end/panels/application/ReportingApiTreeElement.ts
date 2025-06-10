@@ -10,14 +10,14 @@ import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import {ApplicationPanelTreeElement} from './ApplicationPanelTreeElement.js';
 import * as ApplicationComponents from './components/components.js';
 import {ReportingApiView} from './ReportingApiView.js';
-import type {ResourcesPanel} from './ResourcesPanel.js';
+import {type ResourcesPanel} from './ResourcesPanel.js';
 
 const UIStrings = {
   /**
    *@description Label for an item in the Application Panel Sidebar of the Application panel
    */
   reportingApi: 'Reporting API',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/application/ReportingApiTreeElement.ts', UIStrings);
 export const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 

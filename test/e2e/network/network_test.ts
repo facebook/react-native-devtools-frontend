@@ -8,6 +8,7 @@ import {
   goTo,
   waitForFunction,
 } from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   clearTimeWindow,
   getAllRequestNames,
@@ -48,7 +49,7 @@ describe('The Network Tab', function() {
     expectedNames.push(SIMPLE_PAGE_URL);
 
     const names = (await getAllRequestNames()).sort();
-    assert.deepEqual(names, expectedNames, 'The right request names should appear in the list');
+    assert.deepStrictEqual(names, expectedNames, 'The right request names should appear in the list');
   });
 
   it('can select requests', async () => {
@@ -83,14 +84,14 @@ describe('The Network Tab', function() {
     // Navigate to a new page, and wait for the same requests to still be there.
     await goTo('about:blank');
     await waitForSomeRequestsToAppear(SIMPLE_PAGE_REQUEST_NUMBER + 1);
-    let secondPageRequestNames: Array<string|null> = [];
+    let secondPageRequestNames: (string|null)[] = [];
     await waitForFunction(async () => {
       secondPageRequestNames = await getAllRequestNames();
       return secondPageRequestNames.length === SIMPLE_PAGE_REQUEST_NUMBER + 1;
     });
     secondPageRequestNames.sort();
 
-    assert.deepEqual(secondPageRequestNames, firstPageRequestNames, 'The requests were persisted');
+    assert.deepStrictEqual(secondPageRequestNames, firstPageRequestNames, 'The requests were persisted');
   });
 
   it('should continue receiving new requests after timeline filter is cleared', async () => {

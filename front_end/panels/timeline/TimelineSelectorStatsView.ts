@@ -2,25 +2,21 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../ui/components/linkifier/linkifier.js';
-import '../../ui/legacy/components/data_grid/data_grid.js';
-
 import * as i18n from '../../core/i18n/i18n.js';
+import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
-import * as Trace from '../../models/trace/trace.js';
-import type * as Linkifier from '../../ui/components/linkifier/linkifier.js';
+import type * as TraceEngine from '../../models/trace/trace.js';
+import * as DataGrid from '../../ui/components/data_grid/data_grid.js';
+import * as Linkifier from '../../ui/components/linkifier/linkifier.js';
 import * as UI from '../../ui/legacy/legacy.js';
-import {html, render} from '../../ui/lit/lit.js';
-import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
-
-import timelineSelectorStatsViewStyles from './timelineSelectorStatsView.css.js';
+import * as LitHtml from '../../ui/lit-html/lit-html.js';
 
 const UIStrings = {
   /**
    *@description Label for selector stats data table
    */
-  selectorStats: 'Selector stats',
+  selectorStats: 'Selector Stats',
   /**
    *@description Column name and time unit for elapsed time spent computing a style rule
    */
@@ -28,20 +24,20 @@ const UIStrings = {
   /**
    *@description Column name and percentage of slow mach non-matches computing a style rule
    */
-  rejectPercentage: '% of slow-path non-matches',
+  rejectPercentage: '% of Slow-Path Non-Matches',
   /**
    *@description Tooltip description '% of slow-path non-matches'
    */
   rejectPercentageExplanation:
-      'The percentage of non-matching nodes (Match Attempts - Match Count) that couldn\'t be quickly ruled out by the bloom filter due to high selector complexity. Lower is better.',
+      'The percentage of non-matching nodes (Match Attempts - Match Count) that couldn\'t be quickly ruled out by the bloom filter. Lower is better.',
   /**
    *@description Column name for count of elements that the engine attempted to match against a style rule
    */
-  matchAttempts: 'Match attempts',
+  matchAttempts: 'Match Attempts',
   /**
    *@description Column name for count of elements that matched a style rule
    */
-  matchCount: 'Match count',
+  matchCount: 'Match Count',
   /**
    *@description Column name for a style rule's CSS selector text
    */
@@ -53,7 +49,7 @@ const UIStrings = {
   /**
    *@description A context menu item in data grids to copy entire table to clipboard
    */
-  copyTable: 'Copy table',
+  copyTable: 'Copy Table',
   /**
    *@description A cell value displayed in table when no source file can be traced via css style
    */
@@ -78,24 +74,24 @@ const UIStrings = {
    *@example {14} PH2
    */
   lineNumber: 'Line {PH1}:{PH2}',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/TimelineSelectorStatsView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-const SelectorTimingsKey = Trace.Types.Events.SelectorTimingsKey;
-
-type SelectorTiming =
-    Trace.Types.Events.SelectorTiming&{locations: Linkifier.Linkifier.LinkifierData[] | undefined | null};
-
-interface ViewInput {
-  timings: SelectorTiming[];
-  onContextMenu: (event: CustomEvent<{menu: UI.ContextMenu.ContextMenu, element: HTMLElement}>) => void;
+export const enum SelectorTimingsKey {
+  Elapsed = 'elapsed (us)',
+  RejectPercentage = 'reject_percentage',
+  FastRejectCount = 'fast_reject_count',
+  MatchAttempts = 'match_attempts',
+  MatchCount = 'match_count',
+  Selector = 'selector',
+  StyleSheetId = 'style_sheet_id',
 }
-type View = (input: ViewInput, output: object, target: HTMLElement) => void;
 
 export class TimelineSelectorStatsView extends UI.Widget.VBox {
+  #datagrid: DataGrid.DataGridController.DataGridController;
   #selectorLocations: Map<string, Protocol.CSS.SourceRange[]>;
-  #parsedTrace: Trace.Handlers.Types.ParsedTrace|null = null;
+  #traceParsedData: TraceEngine.Handlers.Types.TraceParseData|null = null;
   /**
    * We store the last event (or array of events) that we renderered. We do
    * this because as the user zooms around the panel this view is updated,
@@ -104,133 +100,131 @@ export class TimelineSelectorStatsView extends UI.Widget.VBox {
    * If the user views a single event, this will be set to that single event, but if they are viewing a range of events, this will be set to an array.
    * If it's null, that means we have not rendered yet.
    */
-  #lastStatsSourceEventOrEvents: Trace.Types.Events.UpdateLayoutTree|Trace.Types.Events.UpdateLayoutTree[]|null = null;
-  #view: View;
-  #timings: SelectorTiming[] = [];
+  #lastStatsSourceEventOrEvents: TraceEngine.Types.TraceEvents.TraceEventUpdateLayoutTree|
+      TraceEngine.Types.TraceEvents.TraceEventUpdateLayoutTree[]|null = null;
 
-  constructor(parsedTrace: Trace.Handlers.Types.ParsedTrace|null, view: View = (input, _, target) => {
-    render(
-        html`
-      <devtools-data-grid striped name=${i18nString(UIStrings.selectorStats)}
-          @contextmenu=${input.onContextMenu.bind(input)}>
-        <table>
-          <tr>
-            <th id=${SelectorTimingsKey.Elapsed} weight="1" sortable hideable align="right">
-              ${i18nString(UIStrings.elapsed)}
-            </th>
-            <th id=${SelectorTimingsKey.MatchAttempts} weight="1" sortable hideable align="right">
-              ${i18nString(UIStrings.matchAttempts)}
-            </th>
-            <th id=${SelectorTimingsKey.MatchCount} weight="1" sortable hideable align="right">
-              ${i18nString(UIStrings.matchCount)}
-            </th>
-            <th id=${SelectorTimingsKey.RejectPercentage} weight="1" sortable hideable align="right">
-              <span title=${i18nString(UIStrings.rejectPercentageExplanation)}>${
-            i18nString(UIStrings.rejectPercentage)}</span>
-            </th>
-            <th id=${SelectorTimingsKey.Selector} weight="3" sortable hideable>
-              ${i18nString(UIStrings.selector)}
-            </th>
-            <th id=${SelectorTimingsKey.StyleSheetId} weight="1.5" sortable hideable>
-              ${i18nString(UIStrings.styleSheetId)}
-            </th>
-          </tr>
-          ${input.timings.map(timing => {
-          const nonMatches = timing[SelectorTimingsKey.MatchAttempts] - timing[SelectorTimingsKey.MatchCount];
-          const rejectPercentage = (nonMatches ? timing[SelectorTimingsKey.FastRejectCount] / nonMatches : 1) * 100;
-          const styleSheetId = timing[SelectorTimingsKey.StyleSheetId];
-          const locations = timing.locations;
-          const locationMessage = locations ? null :
-              locations === null            ? '' :
-                                              i18nString(UIStrings.unableToLinkViaStyleSheetId, {PH1: styleSheetId});
-          return html`<tr>
-            <td data-value=${timing[SelectorTimingsKey.Elapsed]}>
-              ${(timing[SelectorTimingsKey.Elapsed] / 1000.0).toFixed(3)}
-            </td>
-            <td>${timing[SelectorTimingsKey.MatchAttempts]}</td>
-            <td>${timing[SelectorTimingsKey.MatchCount]}</td>
-            <td data-value=${rejectPercentage}>
-              ${rejectPercentage.toFixed(1)}
-            </td>
-            <td title=${timing[SelectorTimingsKey.Selector]}>
-             ${timing[SelectorTimingsKey.Selector]}
-            </td>
-            <td data-value=${styleSheetId}>${
-              locations ? html`${locations.map((location, itemIndex) => html`
-                <devtools-linkifier .data=${location}></devtools-linkifier
-                >${itemIndex !== locations.length - 1 ? ',' : ''}`)}` :
-                          locationMessage}
-            </td>
-          </tr>`;
-        })}
-        </table>
-      </devtools-data-grid>`,
-        target, {host: this});
-  }) {
+  constructor(traceParsedData: TraceEngine.Handlers.Types.TraceParseData|null) {
     super();
-    this.registerRequiredCSS(timelineSelectorStatsViewStyles);
 
-    this.#view = view;
-    this.element.setAttribute('jslog', `${VisualLogging.pane('selector-stats').track({resize: true})}`);
+    this.#datagrid = new DataGrid.DataGridController.DataGridController();
     this.#selectorLocations = new Map<string, Protocol.CSS.SourceRange[]>();
-    this.#parsedTrace = parsedTrace;
+    this.#traceParsedData = traceParsedData;
 
-    this.performUpdate();
-  }
-
-  #onContextMenu(e: CustomEvent<{menu: UI.ContextMenu.ContextMenu, element: HTMLElement}>): void {
-    const {menu} = e.detail;
-    menu.defaultSection().appendItem(i18nString(UIStrings.copyTable), () => {
-      const tableData = [];
-      const columnName = [
-        i18nString(UIStrings.elapsed), i18nString(UIStrings.matchAttempts), i18nString(UIStrings.matchCount),
-        i18nString(UIStrings.rejectPercentage), i18nString(UIStrings.selector), i18nString(UIStrings.styleSheetId)
-      ];
-      tableData.push(columnName.join('\t'));
-      for (const timing of this.#timings) {
-        const nonMatches = timing[SelectorTimingsKey.MatchAttempts] - timing[SelectorTimingsKey.MatchCount];
-        const rejectPercentage = (nonMatches ? timing[SelectorTimingsKey.FastRejectCount] / nonMatches : 1) * 100;
-        const styleSheetId = timing[SelectorTimingsKey.StyleSheetId] as Protocol.CSS.StyleSheetId;
-        let linkData = '';
-        const target = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
-        const cssModel = target?.model(SDK.CSSModel.CSSModel);
-        if (cssModel) {
-          const styleSheetHeader = cssModel.styleSheetHeaderForId(styleSheetId);
-          if (styleSheetHeader) {
-            linkData = styleSheetHeader.resourceURL().toString();
-          }
-        }
-        if (!linkData) {
-          linkData = i18nString(UIStrings.unableToLink);
-        }
-        tableData.push([
-          timing[SelectorTimingsKey.Elapsed] / 1000.0,
-          timing[SelectorTimingsKey.MatchAttempts],
-          timing[SelectorTimingsKey.MatchCount],
-          rejectPercentage,
-          timing[SelectorTimingsKey.Selector],
-          linkData,
-        ].join('\t'));
-      }
-      const data = tableData.join('\n');
-      void navigator.clipboard.writeText(data);
-      UI.ARIAUtils.alert(i18nString(UIStrings.tableCopiedToClipboard));
-    });
-  }
-
-  override performUpdate(): void {
-    const viewInput = {
-      timings: this.#timings,
-      onContextMenu: (event: CustomEvent<{menu: UI.ContextMenu.ContextMenu, element: HTMLElement}>) => {
-        this.#onContextMenu(event);
+    this.#datagrid.data = {
+      label: i18nString(UIStrings.selectorStats),
+      showScrollbar: true,
+      autoScrollToBottom: false,
+      initialSort: {
+        columnId: SelectorTimingsKey.Elapsed as Lowercase<string>,
+        direction: DataGrid.DataGridUtils.SortDirection.DESC,
+      },
+      columns: [
+        {
+          id: SelectorTimingsKey.Elapsed as Lowercase<string>,
+          title: i18nString(UIStrings.elapsed),
+          sortable: true,
+          widthWeighting: 1,
+          visible: true,
+          hideable: true,
+          styles: {
+            'text-align': 'right',
+          },
+        },
+        {
+          id: SelectorTimingsKey.MatchAttempts as Lowercase<string>,
+          title: i18nString(UIStrings.matchAttempts),
+          sortable: true,
+          widthWeighting: 1,
+          visible: true,
+          hideable: true,
+          styles: {
+            'text-align': 'right',
+          },
+        },
+        {
+          id: SelectorTimingsKey.MatchCount as Lowercase<string>,
+          title: i18nString(UIStrings.matchCount),
+          sortable: true,
+          widthWeighting: 1,
+          visible: true,
+          hideable: true,
+          styles: {
+            'text-align': 'right',
+          },
+        },
+        {
+          id: SelectorTimingsKey.RejectPercentage as Lowercase<string>,
+          title: i18nString(UIStrings.rejectPercentage),
+          titleElement: LitHtml.html`<span title=${i18nString(UIStrings.rejectPercentageExplanation)}>${
+              i18nString(UIStrings.rejectPercentage)}</span>`,
+          sortable: true,
+          widthWeighting: 1,
+          visible: true,
+          hideable: true,
+          styles: {
+            'text-align': 'right',
+          },
+        },
+        {
+          id: SelectorTimingsKey.Selector as Lowercase<string>,
+          title: i18nString(UIStrings.selector),
+          sortable: true,
+          widthWeighting: 3,
+          visible: true,
+          hideable: true,
+        },
+        {
+          id: SelectorTimingsKey.StyleSheetId as Lowercase<string>,
+          title: i18nString(UIStrings.styleSheetId),
+          sortable: true,
+          widthWeighting: 1.5,
+          visible: true,
+          hideable: true,
+        },
+      ],
+      rows: [],
+      contextMenus: {
+        bodyRow: (
+            menu: UI.ContextMenu.ContextMenu, columns: readonly DataGrid.DataGridUtils.Column[],
+            row: Readonly<DataGrid.DataGridUtils.Row>, rows: readonly DataGrid.DataGridUtils.Row[]): void => {
+          menu.defaultSection().appendItem(i18nString(UIStrings.copyTable), () => {
+            const tableData = [];
+            const columnName = columns.map(col => col.title);
+            tableData.push(columnName.join('\t'));
+            for (const rowData of rows) {
+              const cellsValue = rowData.cells;
+              const rowValue = cellsValue.map(cell => {
+                if (cell.columnId === SelectorTimingsKey.StyleSheetId) {
+                  // Export link via raw StyleSheetId data
+                  const defaultLinkValue = i18nString(UIStrings.unableToLink);
+                  let linkData = '';
+                  const target = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
+                  const cssModel = target?.model(SDK.CSSModel.CSSModel);
+                  if (cssModel) {
+                    const styleSheetHeader = cssModel.styleSheetHeaderForId(cell.value as Protocol.CSS.StyleSheetId);
+                    if (styleSheetHeader) {
+                      linkData = styleSheetHeader.resourceURL().toString();
+                    }
+                  }
+                  return linkData ? linkData.toString() : defaultLinkValue;
+                }
+                return String(cell.value);
+              });
+              tableData.push(rowValue.join('\t'));
+            }
+            const data = tableData.join('\n');
+            void navigator.clipboard.writeText(data);
+            UI.ARIAUtils.alert(i18nString(UIStrings.tableCopiedToClipboard));
+          });
+        },
       },
     };
-    const viewOutput = {};
-    this.#view(viewInput, viewOutput, this.contentElement);
+
+    this.contentElement.appendChild(this.#datagrid);
   }
 
-  setEvent(event: Trace.Types.Events.UpdateLayoutTree): boolean {
-    if (!this.#parsedTrace) {
+  setEvent(event: TraceEngine.Types.TraceEvents.TraceEventUpdateLayoutTree): boolean {
+    if (!this.#traceParsedData) {
       return false;
     }
 
@@ -242,25 +236,25 @@ export class TimelineSelectorStatsView extends UI.Widget.VBox {
 
     this.#lastStatsSourceEventOrEvents = event;
 
-    const selectorStats = this.#parsedTrace.SelectorStats.dataForUpdateLayoutEvent.get(event);
+    const selectorStats = this.#traceParsedData.SelectorStats.dataForUpdateLayoutEvent.get(event);
     if (!selectorStats) {
-      this.#timings = [];
-      this.requestUpdate();
+      this.#datagrid.data = {...this.#datagrid.data, rows: []};
       return false;
     }
 
-    void this.processSelectorTimings(selectorStats.timings).then(timings => {
-      this.#timings = timings;
-      this.requestUpdate();
+    const timings: TraceEngine.Types.TraceEvents.SelectorTiming[] = selectorStats.timings;
+    void this.createRowsForTable(timings).then(rows => {
+      this.#datagrid.data = {...this.#datagrid.data, rows};
     });
+
     return true;
   }
 
-  setAggregatedEvents(events: Trace.Types.Events.UpdateLayoutTree[]): void {
-    const timings: Trace.Types.Events.SelectorTiming[] = [];
-    const selectorMap = new Map<String, Trace.Types.Events.SelectorTiming>();
+  setAggregatedEvents(events: TraceEngine.Types.TraceEvents.TraceEventUpdateLayoutTree[]): void {
+    const timings: TraceEngine.Types.TraceEvents.SelectorTiming[] = [];
+    const selectorMap = new Map<String, TraceEngine.Types.TraceEvents.SelectorTiming>();
 
-    if (!this.#parsedTrace) {
+    if (!this.#traceParsedData) {
       return;
     }
 
@@ -282,7 +276,8 @@ export class TimelineSelectorStatsView extends UI.Widget.VBox {
             // This is true due to the isArray check, but without this cast TS
             // would want us to repeat the isArray() check inside this callback,
             // but we want to avoid that extra work.
-            const previousEvents = this.#lastStatsSourceEventOrEvents as Trace.Types.Events.UpdateLayoutTree[];
+            const previousEvents =
+                this.#lastStatsSourceEventOrEvents as TraceEngine.Types.TraceEvents.TraceEventUpdateLayoutTree[];
             return event === previousEvents[index];
           })) {
         return;
@@ -293,11 +288,11 @@ export class TimelineSelectorStatsView extends UI.Widget.VBox {
 
     for (let i = 0; i < events.length; i++) {
       const event = events[i];
-      const selectorStats = event ? this.#parsedTrace.SelectorStats.dataForUpdateLayoutEvent.get(event) : undefined;
+      const selectorStats = event ? this.#traceParsedData.SelectorStats.dataForUpdateLayoutEvent.get(event) : undefined;
       if (!selectorStats) {
         continue;
       } else {
-        const data: Trace.Types.Events.SelectorTiming[] = selectorStats.timings;
+        const data: TraceEngine.Types.TraceEvents.SelectorTiming[] = selectorStats.timings;
         for (const timing of data) {
           const key = timing[SelectorTimingsKey.Selector] + '_' + timing[SelectorTimingsKey.StyleSheetId];
           const findTiming = selectorMap.get(key);
@@ -323,8 +318,7 @@ export class TimelineSelectorStatsView extends UI.Widget.VBox {
       });
       selectorMap.clear();
     } else {
-      this.#timings = [];
-      this.requestUpdate();
+      this.#datagrid.data = {...this.#datagrid.data, rows: []};
       return;
     }
 
@@ -338,13 +332,13 @@ export class TimelineSelectorStatsView extends UI.Widget.VBox {
       [SelectorTimingsKey.StyleSheetId]: 'n/a',
     });
 
-    void this.processSelectorTimings(timings).then(timings => {
-      this.#timings = timings;
-      this.requestUpdate();
+    void this.createRowsForTable(timings).then(rows => {
+      this.#datagrid.data = {...this.#datagrid.data, rows};
     });
   }
 
-  private async processSelectorTimings(timings: Trace.Types.Events.SelectorTiming[]): Promise<SelectorTiming[]> {
+  private async createRowsForTable(timings: TraceEngine.Types.TraceEvents.SelectorTiming[]):
+      Promise<DataGrid.DataGridUtils.Row[]> {
     async function toSourceFileLocation(
         cssModel: SDK.CSSModel.CSSModel, styleSheetId: Protocol.CSS.StyleSheetId, selectorText: string,
         selectorLocations: Map<string, Protocol.CSS.SourceRange[]>):
@@ -358,7 +352,7 @@ export class TimelineSelectorStatsView extends UI.Widget.VBox {
       }
 
       // get the locations from cache if available
-      const key: string = JSON.stringify({selectorText, styleSheetId});
+      const key: string = JSON.stringify({selectorText: selectorText, styleSheetId: styleSheetId});
       let ranges = selectorLocations.get(key);
       if (!ranges) {
         const result = await cssModel.agent.invoke_getLocationForSelector({styleSheetId, selectorText});
@@ -371,11 +365,10 @@ export class TimelineSelectorStatsView extends UI.Widget.VBox {
 
       const linkData = ranges.map(range => {
         return {
-          url: styleSheetHeader.resourceURL(),
+          url: styleSheetHeader.resourceURL() as Platform.DevToolsPath.UrlString,
           lineNumber: range.startLine,
           columnNumber: range.startColumn,
           linkText: i18nString(UIStrings.lineNumber, {PH1: range.startLine + 1, PH2: range.startColumn + 1}),
-          title: `${styleSheetHeader.id} line ${range.startLine + 1}:${range.startColumn + 1}`,
         } as Linkifier.Linkifier.LinkifierData;
       });
       return linkData;
@@ -387,15 +380,71 @@ export class TimelineSelectorStatsView extends UI.Widget.VBox {
       return [];
     }
 
-    return await Promise.all(
-        timings.sort((a, b) => b[SelectorTimingsKey.Elapsed] - a[SelectorTimingsKey.Elapsed]).map(async x => {
-          const styleSheetId = x[SelectorTimingsKey.StyleSheetId] as Protocol.CSS.StyleSheetId;
-          const selectorText = x[SelectorTimingsKey.Selector].trim();
-          const locations = styleSheetId === 'n/a' ?
-              null :
-              await toSourceFileLocation(cssModel, styleSheetId, selectorText, this.#selectorLocations);
+    const rows = await Promise.all(timings.map(async x => {
+      const styleSheetId = x[SelectorTimingsKey.StyleSheetId] as Protocol.CSS.StyleSheetId;
+      const selectorText = x[SelectorTimingsKey.Selector].trim();
+      const elapsedTimeInMs = x[SelectorTimingsKey.Elapsed] / 1000.0;
+      const nonMatches = x[SelectorTimingsKey.MatchAttempts] - x[SelectorTimingsKey.MatchCount];
+      const rejectPercentage = (nonMatches ? x[SelectorTimingsKey.FastRejectCount] / nonMatches : 1) * 100;
+      const locations = styleSheetId === 'n/a' ?
+          null :
+          await toSourceFileLocation(cssModel, styleSheetId, selectorText, this.#selectorLocations);
 
-          return {...x, locations};
-        }));
+      return {
+        cells: [
+          {
+            columnId: SelectorTimingsKey.Elapsed,
+            value: elapsedTimeInMs,
+            renderer(): LitHtml.TemplateResult {
+              return LitHtml.html`${elapsedTimeInMs.toFixed(3)}`;
+            },
+          },
+          {
+            columnId: SelectorTimingsKey.RejectPercentage,
+            value: rejectPercentage,
+            renderer(): LitHtml.TemplateResult {
+              return LitHtml.html`${rejectPercentage.toFixed(1)}`;
+            },
+          },
+          {columnId: SelectorTimingsKey.MatchAttempts, value: x[SelectorTimingsKey.MatchAttempts]},
+          {columnId: SelectorTimingsKey.MatchCount, value: x[SelectorTimingsKey.MatchCount]},
+          {
+            columnId: SelectorTimingsKey.Selector,
+            title: x[SelectorTimingsKey.Selector],
+            value: x[SelectorTimingsKey.Selector],
+          },
+          {
+            columnId: SelectorTimingsKey.StyleSheetId,
+            value: x[SelectorTimingsKey.StyleSheetId],
+            renderer(): LitHtml.TemplateResult {
+              if (locations === null) {
+                return LitHtml.html`<span></span>`;
+              }
+              if (locations === undefined) {
+                return LitHtml.html`<span title=${i18nString(UIStrings.unableToLinkViaStyleSheetId, {
+                  PH1: x[SelectorTimingsKey.StyleSheetId],
+                })} aria-label=${i18nString(UIStrings.unableToLinkViaStyleSheetId, {
+                  PH1: x[SelectorTimingsKey.StyleSheetId],
+                })}>${i18nString(UIStrings.unableToLink)}</span>`;
+              }
+              return LitHtml.html`
+              ${locations.map((location, itemIndex) => {
+                if (itemIndex !== locations.length - 1) {
+                  // eslint-disable-next-line rulesdir/ban_a_tags_in_lit_html
+                  return LitHtml.html`<${Linkifier.Linkifier.Linkifier.litTagName} .data=${
+                      location as Linkifier.Linkifier.LinkifierData}></${Linkifier.Linkifier.Linkifier.litTagName}>
+                    <a>, </a>`;
+                }
+                return LitHtml.html`<${Linkifier.Linkifier.Linkifier.litTagName} .data=${
+                    location as Linkifier.Linkifier.LinkifierData}></${Linkifier.Linkifier.Linkifier.litTagName}>`;
+              })}
+              `;
+            },
+          },
+        ],
+      };
+    }));
+
+    return rows;
   }
 }

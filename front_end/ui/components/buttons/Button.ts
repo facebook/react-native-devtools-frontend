@@ -2,14 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../icon_button/icon_button.js';
-
-import * as Lit from '../../lit/lit.js';
+import * as LitHtml from '../../lit-html/lit-html.js';
 import * as VisualLogging from '../../visual_logging/visual_logging.js';
+import * as ComponentHelpers from '../helpers/helpers.js';
+import * as IconButton from '../icon_button/icon_button.js';
 
 import buttonStyles from './button.css.js';
-
-const {html, Directives: {ifDefined, ref, classMap}} = Lit;
 
 declare global {
   interface HTMLElementTagNameMap {
@@ -27,7 +25,6 @@ export const enum Variant {
   PRIMARY_TOOLBAR = 'primary_toolbar',
   ICON = 'icon',
   ICON_TOGGLE = 'icon_toggle',
-  ADORNER_ICON = 'adorner_icon',
 }
 
 export const enum Size {
@@ -44,13 +41,11 @@ export const enum ToggleType {
 type ButtonType = 'button'|'submit'|'reset';
 
 interface ButtonState {
-  variant: Variant;
+  iconUrl?: string;
+  variant?: Variant;
   size?: Size;
-  reducedFocusRing?: boolean;
   disabled: boolean;
   toggled?: boolean;
-  toggleOnClick?: boolean;
-  checked?: boolean;
   active: boolean;
   spinner?: boolean;
   type: ButtonType;
@@ -60,34 +55,33 @@ interface ButtonState {
   toggledIconName?: string;
   toggleType?: ToggleType;
   jslogContext?: string;
-  longClickable?: boolean;
 }
 
 interface CommonButtonData {
   variant: Variant;
+  iconUrl?: string;
   iconName?: string;
   toggledIconName?: string;
   toggleType?: ToggleType;
-  toggleOnClick?: boolean;
   size?: Size;
-  reducedFocusRing?: boolean;
   disabled?: boolean;
   toggled?: boolean;
-  checked?: boolean;
   active?: boolean;
   spinner?: boolean;
   type?: ButtonType;
   value?: string;
   title?: string;
   jslogContext?: string;
-  longClickable?: boolean;
 }
 
 export type ButtonData = CommonButtonData&(|{
   variant: Variant.PRIMARY_TOOLBAR | Variant.TOOLBAR | Variant.ICON,
+  iconUrl: string,
+}|{
+  variant: Variant.PRIMARY_TOOLBAR | Variant.TOOLBAR | Variant.ICON,
   iconName: string,
 }|{
-  variant: Variant.PRIMARY | Variant.OUTLINED | Variant.TONAL | Variant.TEXT | Variant.ADORNER_ICON,
+  variant: Variant.PRIMARY | Variant.OUTLINED | Variant.TONAL | Variant.TEXT,
 }|{
   variant: Variant.ICON_TOGGLE,
   iconName: string,
@@ -98,32 +92,24 @@ export type ButtonData = CommonButtonData&(|{
 
 export class Button extends HTMLElement {
   static formAssociated = true;
+  static readonly litTagName = LitHtml.literal`devtools-button`;
   readonly #shadow = this.attachShadow({mode: 'open', delegatesFocus: true});
+  readonly #boundRender = this.#render.bind(this);
   readonly #boundOnClick = this.#onClick.bind(this);
   readonly #props: ButtonState = {
     size: Size.REGULAR,
-    variant: Variant.PRIMARY,
-    toggleOnClick: true,
     disabled: false,
     active: false,
     spinner: false,
     type: 'button',
-    longClickable: false,
   };
+  #isEmpty = true;
   #internals = this.attachInternals();
-  #slotRef = Lit.Directives.createRef();
 
   constructor() {
     super();
     this.setAttribute('role', 'presentation');
     this.addEventListener('click', this.#boundOnClick, true);
-  }
-
-  override cloneNode(deep?: boolean): Node {
-    const node = super.cloneNode(deep) as Button;
-    Object.assign(node.#props, this.#props);
-    node.#render();
-    return node;
   }
 
   /**
@@ -132,9 +118,9 @@ export class Button extends HTMLElement {
    */
   set data(data: ButtonData) {
     this.#props.variant = data.variant;
+    this.#props.iconUrl = data.iconUrl;
     this.#props.iconName = data.iconName;
     this.#props.toggledIconName = data.toggledIconName;
-    this.#props.toggleOnClick = data.toggleOnClick !== undefined ? data.toggleOnClick : true;
     this.#props.size = Size.REGULAR;
 
     if ('size' in data && data.size) {
@@ -150,85 +136,67 @@ export class Button extends HTMLElement {
     }
     this.#props.toggled = data.toggled;
     this.#props.toggleType = data.toggleType;
-    this.#props.checked = data.checked;
-    this.#props.disabled = Boolean(data.disabled);
+    this.#setDisabledProperty(data.disabled || false);
     this.#props.title = data.title;
     this.#props.jslogContext = data.jslogContext;
-    this.#props.longClickable = data.longClickable;
-    this.#render();
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
+  }
+
+  set iconUrl(iconUrl: string|undefined) {
+    this.#props.iconUrl = iconUrl;
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
   }
 
   set iconName(iconName: string|undefined) {
     this.#props.iconName = iconName;
-    this.#render();
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
   }
 
   set toggledIconName(toggledIconName: string) {
     this.#props.toggledIconName = toggledIconName;
-    this.#render();
   }
 
   set toggleType(toggleType: ToggleType) {
     this.#props.toggleType = toggleType;
-    this.#render();
   }
 
   set variant(variant: Variant) {
     this.#props.variant = variant;
-    this.#render();
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
   }
 
   set size(size: Size) {
     this.#props.size = size;
-    this.#render();
-  }
-
-  set reducedFocusRing(reducedFocusRing: boolean) {
-    this.#props.reducedFocusRing = reducedFocusRing;
-    this.#render();
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
   }
 
   set type(type: ButtonType) {
     this.#props.type = type;
-    this.#render();
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
   }
 
   override set title(title: string) {
     this.#props.title = title;
-    this.#render();
-  }
-
-  get disabled(): boolean {
-    return this.#props.disabled;
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
   }
 
   set disabled(disabled: boolean) {
     this.#setDisabledProperty(disabled);
-    this.#render();
-  }
-
-  set toggleOnClick(toggleOnClick: boolean) {
-    this.#props.toggleOnClick = toggleOnClick;
-    this.#render();
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
   }
 
   set toggled(toggled: boolean) {
     this.#props.toggled = toggled;
-    this.#render();
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
   }
 
   get toggled(): boolean {
     return Boolean(this.#props.toggled);
   }
 
-  set checked(checked: boolean) {
-    this.#props.checked = checked;
-    this.#render();
-  }
-
   set active(active: boolean) {
     this.#props.active = active;
-    this.#render();
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
   }
 
   get active(): boolean {
@@ -237,7 +205,7 @@ export class Button extends HTMLElement {
 
   set spinner(spinner: boolean) {
     this.#props.spinner = spinner;
-    this.#render();
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
   }
 
   get jslogContext(): string|undefined {
@@ -246,21 +214,21 @@ export class Button extends HTMLElement {
 
   set jslogContext(jslogContext: string|undefined) {
     this.#props.jslogContext = jslogContext;
-    this.#render();
-  }
-
-  set longClickable(longClickable: boolean) {
-    this.#props.longClickable = longClickable;
-    this.#render();
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
   }
 
   #setDisabledProperty(disabled: boolean): void {
     this.#props.disabled = disabled;
-    this.#render();
+    this.toggleAttribute('disabled', disabled);
+  }
+
+  override focus(): void {
+    this.#shadow.querySelector('button')?.focus();
   }
 
   connectedCallback(): void {
-    this.#render();
+    this.#shadow.adoptedStyleSheets = [buttonStyles];
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
   }
 
   #onClick(event: Event): void {
@@ -279,31 +247,16 @@ export class Button extends HTMLElement {
       event.preventDefault();
       this.form.reset();
     }
-    if (this.#props.toggleOnClick && this.#props.variant === Variant.ICON_TOGGLE && this.#props.iconName) {
+    if (this.#props.variant === Variant.ICON_TOGGLE && this.#props.iconName) {
       this.toggled = !this.#props.toggled;
     }
   }
 
-  /**
-   * Handles "keydown" events on the internal `<button>` element.
-   *
-   * This callback stops propagation of "keydown" events for Enter and Space
-   * originating from the `<button>` element, to ensure that this custom element
-   * can safely be used within parent elements (such as the `TreeOutline`) that
-   * do have "keydown" handlers as well.
-   *
-   * Without this special logic, the Enter and Space events would be
-   * consumed by parent elements, and no "click" event would be generated from
-   * this button.
-   *
-   * @param event the "keydown" event.
-   * @see https://crbug.com/373168872
-   */
-  #onKeydown(event: KeyboardEvent): void {
-    if (event.key !== 'Enter' && event.key !== ' ') {
-      return;
-    }
-    event.stopPropagation();
+  #onSlotChange(event: Event): void {
+    const slot = event.target as HTMLSlotElement | undefined;
+    const nodes = slot?.assignedNodes();
+    this.#isEmpty = !nodes || !Boolean(nodes.length);
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
   }
 
   #isToolbarVariant(): boolean {
@@ -311,28 +264,29 @@ export class Button extends HTMLElement {
   }
 
   #render(): void {
-    const nodes = (this.#slotRef.value as HTMLSlotElement | undefined)?.assignedNodes();
-    const isEmpty = !Boolean(nodes?.length);
     if (!this.#props.variant) {
       throw new Error('Button requires a variant to be defined');
     }
     if (this.#isToolbarVariant()) {
-      if (!this.#props.iconName) {
+      if (!this.#props.iconUrl && !this.#props.iconName) {
         throw new Error('Toolbar button requires an icon');
       }
-      if (!isEmpty) {
+      if (!this.#isEmpty) {
         throw new Error('Toolbar button does not accept children');
       }
     }
     if (this.#props.variant === Variant.ICON) {
-      if (!this.#props.iconName) {
+      if (!this.#props.iconUrl && !this.#props.iconName) {
         throw new Error('Icon button requires an icon');
       }
-      if (!isEmpty) {
+      if (!this.#isEmpty) {
         throw new Error('Icon button does not accept children');
       }
     }
-    const hasIcon = Boolean(this.#props.iconName);
+    if (this.#props.iconName && this.#props.iconUrl) {
+      throw new Error('Both iconName and iconUrl are provided.');
+    }
+    const hasIcon = Boolean(this.#props.iconUrl) || Boolean(this.#props.iconName);
     const classes = {
       primary: this.#props.variant === Variant.PRIMARY,
       tonal: this.#props.variant === Variant.TONAL,
@@ -340,47 +294,36 @@ export class Button extends HTMLElement {
       text: this.#props.variant === Variant.TEXT,
       toolbar: this.#isToolbarVariant(),
       'primary-toolbar': this.#props.variant === Variant.PRIMARY_TOOLBAR,
-      icon: this.#props.variant === Variant.ICON || this.#props.variant === Variant.ICON_TOGGLE ||
-          this.#props.variant === Variant.ADORNER_ICON,
+      icon: this.#props.variant === Variant.ICON || this.#props.variant === Variant.ICON_TOGGLE,
       'primary-toggle': this.#props.toggleType === ToggleType.PRIMARY,
       'red-toggle': this.#props.toggleType === ToggleType.RED,
       toggled: Boolean(this.#props.toggled),
-      checked: Boolean(this.#props.checked),
-      'text-with-icon': hasIcon && !isEmpty,
-      'only-icon': hasIcon && isEmpty,
+      'text-with-icon': hasIcon && !this.#isEmpty,
+      'only-icon': hasIcon && this.#isEmpty,
+      'only-text': !hasIcon && !this.#isEmpty,
       micro: this.#props.size === Size.MICRO,
-      small: this.#props.size === Size.SMALL,
-      'reduced-focus-ring': Boolean(this.#props.reducedFocusRing),
+      small: Boolean(this.#props.size === Size.SMALL),
       active: this.#props.active,
     };
     const spinnerClasses = {
       primary: this.#props.variant === Variant.PRIMARY,
       outlined: this.#props.variant === Variant.OUTLINED,
-      disabled: this.#props.disabled,
+      disabled: Boolean(this.#props.disabled),
       spinner: true,
     };
     const jslog =
         this.#props.jslogContext && VisualLogging.action().track({click: true}).context(this.#props.jslogContext);
     // clang-format off
-    Lit.render(
-      html`
-        <style>${buttonStyles.cssText}</style>
-        <button title=${ifDefined(this.#props.title)}
-                .disabled=${this.#props.disabled}
-                class=${classMap(classes)}
-                aria-pressed=${ifDefined(this.#props.toggled)}
-                jslog=${ifDefined(jslog)}
-                @keydown=${this.#onKeydown}
-        >${hasIcon
-            ? html`
-                <devtools-icon name=${ifDefined(this.#props.toggled ? this.#props.toggledIconName : this.#props.iconName)}>
-                </devtools-icon>`
+    LitHtml.render(
+      LitHtml.html`
+        <button title=${LitHtml.Directives.ifDefined(this.#props.title)} .disabled=${this.#props.disabled} class=${LitHtml.Directives.classMap(classes)} jslog=${LitHtml.Directives.ifDefined(jslog)}>
+          ${hasIcon
+            ? LitHtml.html`
+                <${IconButton.Icon.Icon.litTagName} name=${this.#props.toggled ? this.#props.toggledIconName : this.#props.iconName || this.#props.iconUrl}>
+                </${IconButton.Icon.Icon.litTagName}>`
             : ''}
-          ${this.#props.longClickable ? html`<devtools-icon name=${'triangle-bottom-right'} class="long-click"
-            ></devtools-icon>`
-      : ''}
-          ${this.#props.spinner ? html`<span class=${classMap(spinnerClasses)}></span>` : ''}
-          <slot @slotchange=${this.#render} ${ref(this.#slotRef)}></slot>
+          ${this.#props.spinner ? LitHtml.html`<span class=${LitHtml.Directives.classMap(spinnerClasses)}></span>` : ''}
+          <slot @slotchange=${this.#onSlotChange}></slot>
         </button>
       `, this.#shadow, {host: this});
     // clang-format on

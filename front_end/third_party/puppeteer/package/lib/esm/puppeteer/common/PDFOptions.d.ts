@@ -23,27 +23,27 @@ export type LowerCasePaperFormat = 'letter' | 'legal' | 'tabloid' | 'ledger' | '
  *
  * The sizes of each format are as follows:
  *
- * - `Letter`: 8.5in x 11in / 21.59cm x 27.94cm
+ * - `Letter`: 8.5in x 11in
  *
- * - `Legal`: 8.5in x 14in / 21.59cm x 35.56cm
+ * - `Legal`: 8.5in x 14in
  *
- * - `Tabloid`: 11in x 17in / 27.94cm x 43.18cm
+ * - `Tabloid`: 11in x 17in
  *
- * - `Ledger`: 17in x 11in / 43.18cm x 27.94cm
+ * - `Ledger`: 17in x 11in
  *
- * - `A0`: 33.1102in x 46.811in / 84.1cm x 118.9cm
+ * - `A0`: 33.1in x 46.8in
  *
- * - `A1`: 23.3858in x 33.1102in / 59.4cm x 84.1cm
+ * - `A1`: 23.4in x 33.1in
  *
- * - `A2`: 16.5354in x 23.3858in / 42cm x 59.4cm
+ * - `A2`: 16.54in x 23.4in
  *
- * - `A3`: 11.6929in x 16.5354in / 29.7cm x 42cm
+ * - `A3`: 11.7in x 16.54in
  *
- * - `A4`: 8.2677in x 11.6929in / 21cm x 29.7cm
+ * - `A4`: 8.27in x 11.7in
  *
- * - `A5`: 5.8268in x 8.2677in / 14.8cm x 21cm
+ * - `A5`: 5.83in x 8.27in
  *
- * - `A6`: 4.1339in x 5.8268in / 10.5cm x 14.8cm
+ * - `A6`: 4.13in x 5.83in
  *
  * @public
  */
@@ -195,9 +195,6 @@ export interface ParsedPDFOptionsInterface {
 export type ParsedPDFOptions = Required<Omit<PDFOptions, 'path' | 'format' | 'timeout'> & ParsedPDFOptionsInterface>;
 /**
  * @internal
- *
- * @remarks All A series paper format sizes in inches are calculated from centimeters
- * rounded mathematically to four decimal places.
  */
-export declare const paperFormats: Record<LowerCasePaperFormat, Record<'cm' | 'in', PaperFormatDimensions>>;
+export declare const paperFormats: Record<LowerCasePaperFormat, PaperFormatDimensions>;
 //# sourceMappingURL=PDFOptions.d.ts.map

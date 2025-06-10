@@ -2,37 +2,38 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Trace from '../../models/trace/trace.js';
+import * as TimelineModel from '../../models/timeline_model/timeline_model.js';
+import * as TraceEngine from '../../models/trace/trace.js';
 
 import {TimelineUIUtils} from './TimelineUIUtils.js';
 
-export class IsLong extends Trace.Extras.TraceFilter.TraceFilter {
-  #minimumRecordDurationMilli = Trace.Types.Timing.Milli(0);
+export class IsLong extends TimelineModel.TimelineModelFilter.TimelineModelFilter {
+  #minimumRecordDurationMilli = TraceEngine.Types.Timing.MilliSeconds(0);
   constructor() {
     super();
   }
 
-  setMinimumRecordDuration(value: Trace.Types.Timing.Milli): void {
+  setMinimumRecordDuration(value: TraceEngine.Types.Timing.MilliSeconds): void {
     this.#minimumRecordDurationMilli = value;
   }
 
-  accept(event: Trace.Types.Events.Event): boolean {
-    const {duration} = Trace.Helpers.Timing.eventTimingsMilliSeconds(event);
+  accept(event: TraceEngine.Types.TraceEvents.TraceEventData): boolean {
+    const {duration} = TraceEngine.Helpers.Timing.eventTimingsMilliSeconds(event);
     return duration >= this.#minimumRecordDurationMilli;
   }
 }
 
-export class Category extends Trace.Extras.TraceFilter.TraceFilter {
+export class Category extends TimelineModel.TimelineModelFilter.TimelineModelFilter {
   constructor() {
     super();
   }
 
-  accept(event: Trace.Types.Events.Event): boolean {
+  accept(event: TraceEngine.Types.TraceEvents.TraceEventData): boolean {
     return !TimelineUIUtils.eventStyle(event).category.hidden;
   }
 }
 
-export class TimelineRegExp extends Trace.Extras.TraceFilter.TraceFilter {
+export class TimelineRegExp extends TimelineModel.TimelineModelFilter.TimelineModelFilter {
   private regExpInternal!: RegExp|null;
   constructor(regExp?: RegExp) {
     super();
@@ -47,7 +48,9 @@ export class TimelineRegExp extends Trace.Extras.TraceFilter.TraceFilter {
     return this.regExpInternal;
   }
 
-  accept(event: Trace.Types.Events.Event, parsedTrace?: Trace.Handlers.Types.ParsedTrace): boolean {
-    return !this.regExpInternal || TimelineUIUtils.testContentMatching(event, this.regExpInternal, parsedTrace);
+  accept(
+      event: TraceEngine.Types.TraceEvents.TraceEventData,
+      traceParsedData?: TraceEngine.Handlers.Types.TraceParseData): boolean {
+    return !this.regExpInternal || TimelineUIUtils.testContentMatching(event, this.regExpInternal, traceParsedData);
   }
 }

@@ -8,5 +8,8 @@
   background-color: var(--sys-color-cdt-base-container);
   overflow: hidden;
   position: absolute !important; /* stylelint-disable-line declaration-no-important */
-  inset: 0;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
 }

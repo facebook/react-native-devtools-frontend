@@ -6,7 +6,7 @@ import * as Common from '../../../core/common/common.js';
 import * as Host from '../../../core/host/host.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Platform from '../../../core/platform/platform.js';
-import type {NameValue} from '../../../core/sdk/NetworkRequest.js';
+import {type NameValue} from '../../../core/sdk/NetworkRequest.js';
 import type * as SDK from '../../../core/sdk/sdk.js';
 import * as Protocol from '../../../generated/protocol.js';
 import * as IssuesManager from '../../../models/issues_manager/issues_manager.js';
@@ -16,7 +16,7 @@ import * as NetworkForward from '../../../panels/network/forward/forward.js';
 import * as Sources from '../../../panels/sources/sources.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as UI from '../../../ui/legacy/legacy.js';
-import {html, nothing, render} from '../../../ui/lit/lit.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
 import {
@@ -27,15 +27,13 @@ import {
   type HeaderEditedEvent,
   type HeaderEditorDescriptor,
   type HeaderRemovedEvent,
-  type HeaderSectionRow,
+  HeaderSectionRow,
   type HeaderSectionRowData,
   isValidHeaderName,
 } from './HeaderSectionRow.js';
-import responseHeaderSectionStylesRaw from './ResponseHeaderSection.css.js';
+import responseHeaderSectionStyles from './ResponseHeaderSection.css.js';
 
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const responseHeaderSectionStyles = new CSSStyleSheet();
-responseHeaderSectionStyles.replaceSync(responseHeaderSectionStylesRaw.cssText);
+const {render, html} = LitHtml;
 
 const UIStrings = {
   /**
@@ -77,11 +75,13 @@ const UIStrings = {
    */
   toUseThisResourceFromADifferentSite:
       'To use this resource from a different site, the server may relax the cross-origin resource policy response header:',
-} as const;
+};
 
 const str_ = i18n.i18n.registerUIStrings('panels/network/components/ResponseHeaderSection.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
+
+const plusIconUrl = new URL('../../../Images/plus.svg', import.meta.url).toString();
 
 export const RESPONSE_HEADER_SECTION_DATA_KEY = 'ResponseHeaderSection';
 
@@ -110,7 +110,7 @@ class ResponseHeaderSectionBase extends HTMLElement {
   }
 
   protected highlightHeaders(data: ResponseHeaderSectionData): void {
-    if (data.toReveal?.section === NetworkForward.UIRequestLocation.UIHeaderSection.RESPONSE) {
+    if (data.toReveal?.section === NetworkForward.UIRequestLocation.UIHeaderSection.Response) {
       this.headerDetails.filter(header => compareHeaders(header.name, data.toReveal?.header?.toLowerCase()))
           .forEach(header => {
             header.highlight = true;
@@ -120,6 +120,7 @@ class ResponseHeaderSectionBase extends HTMLElement {
 }
 
 export class EarlyHintsHeaderSection extends ResponseHeaderSectionBase {
+  static readonly litTagName = LitHtml.literal`devtools-early-hints-header-section`;
   #request?: SDK.NetworkRequest.NetworkRequest;
 
   set data(data: ResponseHeaderSectionData) {
@@ -140,9 +141,9 @@ export class EarlyHintsHeaderSection extends ResponseHeaderSectionBase {
     // clang-format off
     render(html`
       ${this.headerDetails.map(header => html`
-        <devtools-header-section-row .data=${{
-        header,
-      } as HeaderSectionRowData}></devtools-header-section-row>
+        <${HeaderSectionRow.litTagName} .data=${{
+        header: header,
+      } as HeaderSectionRowData}></${HeaderSectionRow.litTagName}>
       `)}
     `, this.shadow, { host: this });
     // clang-format on
@@ -152,18 +153,19 @@ export class EarlyHintsHeaderSection extends ResponseHeaderSectionBase {
 customElements.define('devtools-early-hints-header-section', EarlyHintsHeaderSection);
 
 export class ResponseHeaderSection extends ResponseHeaderSectionBase {
+  static readonly litTagName = LitHtml.literal`devtools-response-header-section`;
   #request?: SDK.NetworkRequest.NetworkRequest;
   #headerEditors: HeaderEditorDescriptor[] = [];
   #uiSourceCode: Workspace.UISourceCode.UISourceCode|null = null;
   #overrides: Persistence.NetworkPersistenceManager.HeaderOverride[] = [];
-  #isEditingAllowed = EditingAllowedStatus.DISABLED;
+  #isEditingAllowed = EditingAllowedStatus.Disabled;
 
   set data(data: ResponseHeaderSectionData) {
     this.#request = data.request;
     this.#isEditingAllowed =
         Persistence.NetworkPersistenceManager.NetworkPersistenceManager.isForbiddenNetworkUrl(this.#request.url()) ?
-        EditingAllowedStatus.FORBIDDEN :
-        EditingAllowedStatus.DISABLED;
+        EditingAllowedStatus.Forbidden :
+        EditingAllowedStatus.Disabled;
     // If the request has been locally overridden, its 'sortedResponseHeaders'
     // contains no 'set-cookie' headers, because they have been filtered out by
     // the Chromium backend. DevTools therefore uses previously stored values.
@@ -176,12 +178,12 @@ export class ResponseHeaderSection extends ResponseHeaderSectionBase {
           BlockedReasonDetails.get((this.#request.blockedReason() as Protocol.Network.BlockedReason));
       if (headerWithIssues) {
         if (IssuesManager.RelatedIssue.hasIssueOfCategory(
-                this.#request, IssuesManager.Issue.IssueCategory.CROSS_ORIGIN_EMBEDDER_POLICY)) {
+                this.#request, IssuesManager.Issue.IssueCategory.CrossOriginEmbedderPolicy)) {
           const followLink = (): void => {
-            Host.userMetrics.issuesPanelOpenedFrom(Host.UserMetrics.IssueOpener.LEARN_MORE_LINK_COEP);
+            Host.userMetrics.issuesPanelOpenedFrom(Host.UserMetrics.IssueOpener.LearnMoreLinkCOEP);
             if (this.#request) {
               void IssuesManager.RelatedIssue.reveal(
-                  this.#request, IssuesManager.Issue.IssueCategory.CROSS_ORIGIN_EMBEDDER_POLICY);
+                  this.#request, IssuesManager.Issue.IssueCategory.CrossOriginEmbedderPolicy);
             }
           };
           if (headerWithIssues.blockedDetails) {
@@ -254,8 +256,8 @@ export class ResponseHeaderSection extends ResponseHeaderSectionBase {
     }
     this.#isEditingAllowed =
         Persistence.NetworkPersistenceManager.NetworkPersistenceManager.isForbiddenNetworkUrl(this.#request.url()) ?
-        EditingAllowedStatus.FORBIDDEN :
-        EditingAllowedStatus.DISABLED;
+        EditingAllowedStatus.Forbidden :
+        EditingAllowedStatus.Disabled;
     this.#headerEditors = this.headerDetails.map(header => ({
                                                    name: header.name,
                                                    value: header.value,
@@ -283,16 +285,16 @@ export class ResponseHeaderSection extends ResponseHeaderSectionBase {
       this.#overrides =
           JSON.parse(deferredContent.content || '[]') as Persistence.NetworkPersistenceManager.HeaderOverride[];
       if (!this.#overrides.every(Persistence.NetworkPersistenceManager.isHeaderOverride)) {
-        throw new Error('Type mismatch after parsing');
+        throw 'Type mismatch after parsing';
       }
       if (Common.Settings.Settings.instance().moduleSetting('persistence-network-overrides-enabled').get() &&
-          this.#isEditingAllowed === EditingAllowedStatus.DISABLED) {
-        this.#isEditingAllowed = EditingAllowedStatus.ENABLED;
+          this.#isEditingAllowed === EditingAllowedStatus.Disabled) {
+        this.#isEditingAllowed = EditingAllowedStatus.Enabled;
       }
       for (const header of this.#headerEditors) {
         header.valueEditable = this.#isEditingAllowed;
       }
-    } catch {
+    } catch (error) {
       console.error(
           'Failed to parse', this.#uiSourceCode?.url() || 'source code file', 'for locally overriding headers.');
       this.#resetEditorState();
@@ -514,7 +516,7 @@ export class ResponseHeaderSection extends ResponseHeaderSectionBase {
       value: i18n.i18n.lockedString('header value'),
       isOverride: true,
       nameEditable: true,
-      valueEditable: EditingAllowedStatus.ENABLED,
+      valueEditable: EditingAllowedStatus.Enabled,
     });
     const index = this.#headerEditors.length - 1;
     this.#updateOverrides(this.#headerEditors[index].name, this.#headerEditors[index].value || '', index);
@@ -538,25 +540,25 @@ export class ResponseHeaderSection extends ResponseHeaderSectionBase {
     // clang-format off
     render(html`
       ${headerDescriptors.map((header, index) => html`
-        <devtools-header-section-row
+        <${HeaderSectionRow.litTagName}
             .data=${{header} as HeaderSectionRowData}
             @headeredited=${this.#onHeaderEdited}
             @headerremoved=${this.#onHeaderRemoved}
             @enableheaderediting=${this.#onEnableHeaderEditingClick}
             data-index=${index}
             jslog=${VisualLogging.item('response-header')}
-        ></devtools-header-section-row>
+        ></${HeaderSectionRow.litTagName}>
       `)}
-      ${this.#isEditingAllowed === EditingAllowedStatus.ENABLED ? html`
-        <devtools-button
+      ${this.#isEditingAllowed === EditingAllowedStatus.Enabled ? html`
+        <${Buttons.Button.Button.litTagName}
           class="add-header-button"
           .variant=${Buttons.Button.Variant.OUTLINED}
-          .iconName=${'plus'}
+          .iconUrl=${plusIconUrl}
           @click=${this.#onAddHeaderClick}
           jslog=${VisualLogging.action('add-header').track({click: true})}>
           ${i18nString(UIStrings.addHeader)}
-        </devtools-button>
-      ` : nothing}
+        </${Buttons.Button.Button.litTagName}>
+      ` : LitHtml.nothing}
     `, this.shadow, {host: this});
     // clang-format on
   }

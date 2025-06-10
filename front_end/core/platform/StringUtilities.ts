@@ -52,7 +52,7 @@ export const formatAsJSLiteral = (content: string): string => {
   const escapePattern = (match: string, pattern: string, controlChar: string, loneSurrogate: string): string => {
     if (controlChar) {
       if (escapedReplacements.has(controlChar)) {
-        // @ts-expect-error https://github.com/microsoft/TypeScript/issues/13086
+        // @ts-ignore https://github.com/microsoft/TypeScript/issues/13086
         return escapedReplacements.get(controlChar);
       }
       const twoDigitHex = toHexadecimal(controlChar.charCodeAt(0), 2);
@@ -292,14 +292,14 @@ export const filterRegex = function(query: string): RegExp {
 };
 
 export const createSearchRegex = function(
-    query: string, caseSensitive: boolean, isRegex: boolean, matchWholeWord = false): RegExp {
+    query: string, caseSensitive: boolean, isRegex: boolean, matchWholeWord: boolean = false): RegExp {
   const regexFlags = caseSensitive ? 'g' : 'gi';
   let regexObject;
 
   if (isRegex) {
     try {
       regexObject = new RegExp(query, regexFlags);
-    } catch {
+    } catch (e) {
       // Silent catch.
     }
   }

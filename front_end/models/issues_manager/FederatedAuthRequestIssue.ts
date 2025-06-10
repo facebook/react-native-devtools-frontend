@@ -7,10 +7,11 @@ import type * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 
 import {Issue, IssueCategory, IssueKind} from './Issue.js';
+
 import {
-  type LazyMarkdownIssueDescription,
-  type MarkdownIssueDescription,
   resolveLazyDescription,
+  type MarkdownIssueDescription,
+  type LazyMarkdownIssueDescription,
 } from './MarkdownIssueDescription.js';
 
 const UIStrings = {
@@ -18,7 +19,7 @@ const UIStrings = {
    *@description Title for Client Hint specification url link
    */
   fedCm: 'Federated Credential Management API',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/FederatedAuthRequestIssue.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
@@ -40,7 +41,7 @@ export class FederatedAuthRequestIssue extends Issue {
   }
 
   getCategory(): IssueCategory {
-    return IssueCategory.OTHER;
+    return IssueCategory.Other;
   }
 
   details(): Protocol.Audits.FederatedAuthRequestIssueDetails {
@@ -60,7 +61,7 @@ export class FederatedAuthRequestIssue extends Issue {
   }
 
   getKind(): IssueKind {
-    return IssueKind.PAGE_ERROR;
+    return IssueKind.PageError;
   }
 
   static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):
@@ -74,7 +75,7 @@ export class FederatedAuthRequestIssue extends Issue {
   }
 }
 
-const issueDescriptions = new Map<Protocol.Audits.FederatedAuthRequestIssueReason, LazyMarkdownIssueDescription>([
+const issueDescriptions: Map<Protocol.Audits.FederatedAuthRequestIssueReason, LazyMarkdownIssueDescription> = new Map([
   [
     Protocol.Audits.FederatedAuthRequestIssueReason.TooManyRequests,
     {

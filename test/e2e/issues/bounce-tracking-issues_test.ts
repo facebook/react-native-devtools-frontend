@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import {assertNotNullOrUndefined, getBrowserAndPages, goToResource} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   ensureResourceSectionIsExpanded,
   expandIssue,
@@ -17,30 +18,29 @@ describe('Bounce Tracking issue', () => {
     await goToResource('empty.html');
   });
 
-  // Flaky
-  it.skip('[crbug.com/380046260] should display correct information', async () => {
+  it('should display correct information', async () => {
     await navigateToIssuesTab();
     const {frontend} = getBrowserAndPages();
-    await frontend.evaluate(() => {
+    frontend.evaluate(() => {
       const issue = {
-        code: 'BounceTrackingIssue',
-        details: {
-          bounceTrackingIssueDetails: {
-            trackingSites: ['example_1.test'],
+        'code': 'BounceTrackingIssue',
+        'details': {
+          'bounceTrackingIssueDetails': {
+            'trackingSites': ['example_1.test'],
           },
         },
       };
-      // @ts-expect-error
+      // @ts-ignore
       window.addIssueForTest(issue);
       const issue2 = {
-        code: 'BounceTrackingIssue',
-        details: {
-          bounceTrackingIssueDetails: {
-            trackingSites: ['example_2.test'],
+        'code': 'BounceTrackingIssue',
+        'details': {
+          'bounceTrackingIssueDetails': {
+            'trackingSites': ['example_2.test'],
           },
         },
       };
-      // @ts-expect-error
+      // @ts-ignore
       window.addIssueForTest(issue2);
     });
     await expandIssue();

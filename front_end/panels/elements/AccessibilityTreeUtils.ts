@@ -2,14 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import './components/components.js';
-
 import * as SDK from '../../core/sdk/sdk.js';
-import type * as Protocol from '../../generated/protocol.js';
 import type * as TreeOutline from '../../ui/components/tree_outline/tree_outline.js';
-import * as Lit from '../../ui/lit/lit.js';
-
-const {html} = Lit;
+import * as ElementsComponents from './components/components.js';
+import * as LitHtml from '../../ui/lit-html/lit-html.js';
+import type * as Protocol from '../../generated/protocol.js';
 
 export type AXTreeNodeData = SDK.AccessibilityModel.AccessibilityNode;
 export type AXTreeNode = TreeOutline.TreeOutlineUtils.TreeNode<AXTreeNodeData>;
@@ -22,7 +19,7 @@ function getModel(frameId: Protocol.Page.FrameId): SDK.AccessibilityModel.Access
   const frame = SDK.FrameManager.FrameManager.instance().getFrame(frameId);
   const model = frame?.resourceTreeModel().target().model(SDK.AccessibilityModel.AccessibilityModel);
   if (!model) {
-    throw new Error('Could not instantiate model for frameId');
+    throw Error('Could not instantiate model for frameId');
   }
   return model;
 }
@@ -31,7 +28,7 @@ export async function getRootNode(frameId: Protocol.Page.FrameId): Promise<SDK.A
   const model = getModel(frameId);
   const root = await model.requestRootNode(frameId);
   if (!root) {
-    throw new Error('No accessibility root for frame');
+    throw Error('No accessibility root for frame');
   }
   return root;
 }
@@ -44,7 +41,7 @@ function getFrameIdForNodeOrDocument(node: SDK.DOMModel.DOMNode): Protocol.Page.
     frameId = node.frameId();
   }
   if (!frameId) {
-    throw new Error('No frameId for DOM node');
+    throw Error('No frameId for DOM node');
   }
   return frameId;
 }
@@ -55,7 +52,7 @@ export async function getNodeAndAncestorsFromDOMNode(domNode: SDK.DOMModel.DOMNo
   const model = getModel(frameId);
   const result = await model.requestAndLoadSubTreeToNode(domNode);
   if (!result) {
-    throw new Error('Could not retrieve accessibility node for inspected DOM node');
+    throw Error('Could not retrieve accessibility node for inspected DOM node');
   }
 
   const outermostFrameId = SDK.FrameManager.FrameManager.instance().getOutermostFrame()?.id;
@@ -84,12 +81,12 @@ async function getChildren(node: SDK.AccessibilityModel.AccessibilityNode):
     }
     const frameId = domNode.frameOwnerFrameId();
     if (!frameId) {
-      throw new Error('No owner frameId on iframe node');
+      throw Error('No owner frameId on iframe node');
     }
     const localRoot = await getRootNode(frameId);
     return [localRoot];
   }
-  return await node.accessibilityModel().requestAXChildren(node.id(), node.getFrameId() || undefined);
+  return node.accessibilityModel().requestAXChildren(node.id(), node.getFrameId() || undefined);
 }
 
 export async function sdkNodeToAXTreeNodes(sdkNode: SDK.AccessibilityModel.AccessibilityNode): Promise<AXTreeNode[]> {
@@ -112,17 +109,17 @@ export async function sdkNodeToAXTreeNodes(sdkNode: SDK.AccessibilityModel.Acces
   }];
 }
 
-export function accessibilityNodeRenderer(node: AXTreeNode): Lit.TemplateResult {
+type Data = ElementsComponents.AccessibilityTreeNode.AccessibilityTreeNodeData;
+
+export function accessibilityNodeRenderer(node: AXTreeNode): LitHtml.TemplateResult {
+  const tag = ElementsComponents.AccessibilityTreeNode.AccessibilityTreeNode.litTagName;
   const sdkNode = node.treeNodeData;
   const name = sdkNode.name()?.value || '';
   const role = sdkNode.role()?.value || '';
   const properties = sdkNode.properties() || [];
   const ignored = sdkNode.ignored();
   const id = getNodeId(sdkNode);
-  return html`<devtools-accessibility-tree-node .data=${{
-    name, role, ignored, properties, id,
-  }
-  }></devtools-accessibility-tree-node>`;
+  return LitHtml.html`<${tag} .data=${{name, role, ignored, properties, id} as Data}></${tag}>`;
 }
 
 export function getNodeId(node: SDK.AccessibilityModel.AccessibilityNode): string {

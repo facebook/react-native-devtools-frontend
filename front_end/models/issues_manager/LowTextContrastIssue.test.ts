@@ -41,13 +41,13 @@ describe('LowTextContrastIssue', () => {
     const aggregator = new Issues.IssueAggregator.IssueAggregator(mockManager);
     for (const issue of issues) {
       mockManager.dispatchEventToListeners(
-          IssuesManager.IssuesManager.Events.ISSUE_ADDED, {issuesModel: mockModel, issue});
+          IssuesManager.IssuesManager.Events.IssueAdded, {issuesModel: mockModel, issue});
     }
 
     const aggregatedIssues = Array.from(aggregator.aggregatedIssues());
-    assert.lengthOf(aggregatedIssues, 1);
+    assert.strictEqual(aggregatedIssues.length, 1);
     const lowContrastIssues = Array.from(aggregatedIssues[0].getLowContrastIssues());
-    assert.lengthOf(lowContrastIssues, 3);
+    assert.strictEqual(lowContrastIssues.length, 3);
     const violatingNodeIds = [];
     for (const contrastIssue of lowContrastIssues) {
       violatingNodeIds.push(contrastIssue.details().violatingNodeId);

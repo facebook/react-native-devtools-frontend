@@ -8,7 +8,7 @@ import type * as Bindings from '../../models/bindings/bindings.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
 import * as Workspace from '../../models/workspace/workspace.js';
 
-import type {CoverageInfo, CoverageModel} from './CoverageModel.js';
+import {type CoverageInfo, type CoverageModel} from './CoverageModel.js';
 
 export const decoratorType = 'coverage';
 
@@ -69,7 +69,7 @@ export class CoverageDecorationManager {
    *                     the original content.
    */
   async usageByLine(uiSourceCode: Workspace.UISourceCode.UISourceCode, lineMappings: TextUtils.TextRange.TextRange[]):
-      Promise<Array<boolean|undefined>> {
+      Promise<(boolean | undefined)[]> {
     const result = [];
     await this.updateTexts(uiSourceCode, lineMappings);
 
@@ -130,9 +130,8 @@ export class CoverageDecorationManager {
   }
 
   private async updateTextForProvider(contentProvider: TextUtils.ContentProvider.ContentProvider): Promise<void> {
-    const contentData =
-        TextUtils.ContentData.ContentData.contentDataOrEmpty(await contentProvider.requestContentData());
-    this.textByProvider.set(contentProvider, contentData.textObj);
+    const content = TextUtils.ContentData.ContentData.textOr(await contentProvider.requestContentData(), '');
+    this.textByProvider.set(contentProvider, new TextUtils.Text.Text(content));
   }
 
   private async rawLocationsForSourceLocation(
@@ -141,7 +140,7 @@ export class CoverageDecorationManager {
     const contentType = uiSourceCode.contentType();
     if (contentType.hasScripts()) {
       let locations = await this.#debuggerBinding.uiLocationToRawLocations(uiSourceCode, line, column);
-      locations = locations.filter(location => !!location.script());
+      locations = locations.filter(location => Boolean(location.script()));
       for (const location of locations) {
         const script = location.script();
         if (!script) {

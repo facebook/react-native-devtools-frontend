@@ -42,7 +42,7 @@ export interface Ignore {
   test(pathname: Pathname): TestResult
 }
 
-export interface Options {
+interface Options {
   ignorecase?: boolean
   // For compatibility
   ignoreCase?: boolean

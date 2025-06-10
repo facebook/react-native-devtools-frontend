@@ -86,7 +86,7 @@ class TotalBlockingTime extends Metric {
   }
 
   static getTopLevelEvents(nodeTimings: Simulation.Result['nodeTimings'], minDurationMs: number):
-      Array<{start: number, end: number, duration: number}> {
+      {start: number, end: number, duration: number}[] {
     const events: Array<{start: number, end: number, duration: number}> = [];
 
     for (const [node, timing] of nodeTimings.entries()) {

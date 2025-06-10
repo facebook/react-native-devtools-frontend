@@ -97,14 +97,14 @@ export class FileManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
   }
 
   private appendedToURL({data: url}: Common.EventTarget.EventTargetEvent<string>): void {
-    this.dispatchEventToListeners(Events.APPENDED_TO_URL, url);
+    this.dispatchEventToListeners(Events.AppendedToURL, url);
   }
 }
 
 export const enum Events {
-  APPENDED_TO_URL = 'AppendedToURL',
+  AppendedToURL = 'AppendedToURL',
 }
 
-export interface EventTypes {
-  [Events.APPENDED_TO_URL]: string;
-}
+export type EventTypes = {
+  [Events.AppendedToURL]: string,
+};

@@ -16,7 +16,8 @@
 }
 
 .security-origin-view {
-  overflow: hidden scroll;
+  overflow-x: hidden;
+  overflow-y: scroll;
   display: block;
   user-select: text;
 }

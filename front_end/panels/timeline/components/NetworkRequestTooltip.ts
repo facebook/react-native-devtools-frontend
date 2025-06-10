@@ -2,35 +2,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../../ui/components/icon_button/icon_button.js';
-
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Platform from '../../../core/platform/platform.js';
-import * as Trace from '../../../models/trace/trace.js';
+import * as TraceEngine from '../../../models/trace/trace.js';
+import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
 import * as PerfUI from '../../../ui/legacy/components/perf_ui/perf_ui.js';
-import * as Lit from '../../../ui/lit/lit.js';
-import * as TimelineUtils from '../utils/utils.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 
-import networkRequestTooltipStylesRaw from './networkRequestTooltip.css.js';
-import {colorForNetworkRequest, networkResourceCategory} from './Utils.js';
+import networkRequestTooltipStyles from './networkRequestTooltip.css.js';
+import {colorForNetworkRequest} from './Utils.js';
 
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const networkRequestTooltipStyles = new CSSStyleSheet();
-networkRequestTooltipStyles.replaceSync(networkRequestTooltipStylesRaw.cssText);
-
-const {html} = Lit;
-
-const MAX_URL_LENGTH = 60;
+const MAX_URL_LENGTH = 30;
 
 const UIStrings = {
   /**
    *@description Text that refers to the priority of network request
    */
   priority: 'Priority',
-  /**
-   *@description Text for the duration of a network request
-   */
-  duration: 'Duration',
   /**
    *@description Text that refers to the queueing and connecting time of a network request
    */
@@ -51,54 +39,78 @@ const UIStrings = {
    *@description Text that refers to a network request is render blocking
    */
   renderBlocking: 'Render blocking',
-} as const;
-const str_ = i18n.i18n.registerUIStrings('panels/timeline/components/NetworkRequestTooltip.ts', UIStrings);
-const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-
-export interface NetworkTooltipData {
-  networkRequest: Trace.Types.Events.SyntheticNetworkRequest|null;
-  entityMapper: TimelineUtils.EntityMapper.EntityMapper|null;
-}
+};
 
 export class NetworkRequestTooltip extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-performance-network-request-tooltip`;
   readonly #shadow = this.attachShadow({mode: 'open'});
 
-  #data: NetworkTooltipData = {networkRequest: null, entityMapper: null};
+  #networkRequest?: TraceEngine.Types.TraceEvents.SyntheticNetworkRequest|null;
 
   connectedCallback(): void {
     this.#shadow.adoptedStyleSheets = [networkRequestTooltipStyles];
     this.#render();
   }
 
-  set data(data: NetworkTooltipData) {
-    if (this.#data.networkRequest === data.networkRequest) {
+  set networkRequest(networkRequest: TraceEngine.Types.TraceEvents.SyntheticNetworkRequest) {
+    if (this.#networkRequest === networkRequest) {
       return;
     }
-    if (this.#data.entityMapper === data.entityMapper) {
-      return;
-    }
-    this.#data = {networkRequest: data.networkRequest, entityMapper: data.entityMapper};
+    this.#networkRequest = networkRequest;
     this.#render();
   }
 
-  static renderPriorityValue(networkRequest: Trace.Types.Events.SyntheticNetworkRequest): Lit.TemplateResult {
-    if (networkRequest.args.data.priority === networkRequest.args.data.initialPriority) {
-      return html`${PerfUI.NetworkPriorities.uiLabelForNetworkPriority(networkRequest.args.data.priority)}`;
+  #renderPriority(): LitHtml.TemplateResult|null {
+    if (!this.#networkRequest) {
+      return null;
     }
-    return html`${PerfUI.NetworkPriorities.uiLabelForNetworkPriority(networkRequest.args.data.initialPriority)}
-        <devtools-icon name=${'arrow-forward'} class="priority"></devtools-icon>
-        ${PerfUI.NetworkPriorities.uiLabelForNetworkPriority(networkRequest.args.data.priority)}`;
+    if (this.#networkRequest.args.data.priority === this.#networkRequest.args.data.initialPriority) {
+      return LitHtml.html`
+        <div class="priority">${UIStrings.priority}: ${
+          PerfUI.NetworkPriorities.uiLabelForNetworkPriority(this.#networkRequest.args.data.priority)}</div>
+      `;
+    }
+    return LitHtml.html`
+      <div class="priority">
+        ${UIStrings.priority}:
+        ${PerfUI.NetworkPriorities.uiLabelForNetworkPriority(this.#networkRequest.args.data.initialPriority)}
+        <${IconButton.Icon.Icon.litTagName} name=${'arrow-forward'}></${IconButton.Icon.Icon.litTagName}>
+        ${PerfUI.NetworkPriorities.uiLabelForNetworkPriority(this.#networkRequest.args.data.priority)}
+      </div>
+    `;
   }
 
-  static renderTimings(networkRequest: Trace.Types.Events.SyntheticNetworkRequest): Lit.TemplateResult|null {
-    const syntheticData = networkRequest.args.data.syntheticData;
-    const queueing = (syntheticData.sendStartTime - networkRequest.ts) as Trace.Types.Timing.Micro;
-    const requestPlusWaiting = (syntheticData.downloadStart - syntheticData.sendStartTime) as Trace.Types.Timing.Micro;
-    const download = (syntheticData.finishTime - syntheticData.downloadStart) as Trace.Types.Timing.Micro;
-    const waitingOnMainThread =
-        (networkRequest.ts + networkRequest.dur - syntheticData.finishTime) as Trace.Types.Timing.Micro;
+  #renderLeftWhisker(): LitHtml.TemplateResult {
+    // So the outside span will be a transparent rectangle with a left border.
+    // The inside span is just a rectangle with background color, and it is vertical centered.
+    // |
+    // |----
+    // |
+    return LitHtml.html`<span class="whisker-left"> <span class="horizontal"></span> </span>`;
+  }
 
-    const color = colorForNetworkRequest(networkRequest);
+  #renderRightWhisker(): LitHtml.TemplateResult {
+    // So the outside span will be a transparent rectangle with a right border.
+    // The inside span is just a rectangle with background color, and it is vertical centered.
+    //      |
+    //  ----|
+    //      |
+    return LitHtml.html`<span class="whisker-right"> <span class="horizontal"></span> </span>`;
+  }
+
+  #renderTimings(): LitHtml.TemplateResult|null {
+    if (!this.#networkRequest) {
+      return null;
+    }
+    const syntheticData = this.#networkRequest.args.data.syntheticData;
+    const queueing = (syntheticData.sendStartTime - this.#networkRequest.ts) as TraceEngine.Types.Timing.MicroSeconds;
+    const requestPlusWaiting =
+        (syntheticData.downloadStart - syntheticData.sendStartTime) as TraceEngine.Types.Timing.MicroSeconds;
+    const download = (syntheticData.finishTime - syntheticData.downloadStart) as TraceEngine.Types.Timing.MicroSeconds;
+    const waitingOnMainThread = (this.#networkRequest.ts + this.#networkRequest.dur - syntheticData.finishTime) as
+        TraceEngine.Types.Timing.MicroSeconds;
+
+    const color = colorForNetworkRequest(this.#networkRequest);
     const styleForWaiting = {
       backgroundColor: `color-mix(in srgb, ${color}, hsla(0, 100%, 100%, 0.8))`,
     };
@@ -106,73 +118,55 @@ export class NetworkRequestTooltip extends HTMLElement {
       backgroundColor: color,
     };
 
-    // The outside spans are transparent with a border on the outside edge.
-    // The inside spans are 1px tall rectangles, vertically centered, with background color.
-    //                   |
-    //                   |----
-    //   whisker-left->  |  ^ horizontal
-    const leftWhisker = html`<span class="whisker-left"> <span class="horizontal"></span> </span>`;
-    const rightWhisker = html`<span class="whisker-right"> <span class="horizontal"></span> </span>`;
-
-    return html`
-      <div class="timings-row timings-row--duration">
-        <span class="indicator"></span>
-        ${i18nString(UIStrings.duration)}
-         <span class="time">${i18n.TimeUtilities.formatMicroSecondsTime(networkRequest.dur)}</span>
-      </div>
-      <div class="timings-row">
-        ${leftWhisker}
-        ${i18nString(UIStrings.queuingAndConnecting)}
-        <span class="time">${i18n.TimeUtilities.formatMicroSecondsTime(queueing)}</span>
-      </div>
-      <div class="timings-row">
-        <span class="indicator" style=${Lit.Directives.styleMap(styleForWaiting)}></span>
-        ${i18nString(UIStrings.requestSentAndWaiting)}
-        <span class="time">${i18n.TimeUtilities.formatMicroSecondsTime(requestPlusWaiting)}</span>
-      </div>
-      <div class="timings-row">
-        <span class="indicator" style=${Lit.Directives.styleMap(styleForDownloading)}></span>
-        ${i18nString(UIStrings.contentDownloading)}
-        <span class="time">${i18n.TimeUtilities.formatMicroSecondsTime(download)}</span>
-      </div>
-      <div class="timings-row">
-        ${rightWhisker}
-        ${i18nString(UIStrings.waitingOnMainThread)}
-        <span class="time">${i18n.TimeUtilities.formatMicroSecondsTime(waitingOnMainThread)}</span>
-      </div>
+    return LitHtml.html`
+      <ul>
+        <li>
+          ${this.#renderLeftWhisker()}
+          ${UIStrings.queuingAndConnecting}
+          <span class="time">${i18n.TimeUtilities.formatMicroSecondsTime(queueing)}</span>
+        </li>
+        <li>
+          <span class="indicator" style=${LitHtml.Directives.styleMap(styleForWaiting)}></span>
+          ${UIStrings.requestSentAndWaiting}
+          <span class="time">${i18n.TimeUtilities.formatMicroSecondsTime(requestPlusWaiting)}</span>
+        </li>
+        <li>
+          <span class="indicator" style=${LitHtml.Directives.styleMap(styleForDownloading)}></span>
+          ${UIStrings.contentDownloading}
+          <span class="time">${i18n.TimeUtilities.formatMicroSecondsTime(download)}</span>
+        </li>
+        <li>
+          ${this.#renderRightWhisker()}
+          ${UIStrings.waitingOnMainThread}
+          <span class="time">${i18n.TimeUtilities.formatMicroSecondsTime(waitingOnMainThread)}</span>
+        </li>
+      </ul>
     `;
   }
 
   #render(): void {
-    if (!this.#data.networkRequest) {
+    if (!this.#networkRequest) {
       return;
     }
-    const chipStyle = {
-      backgroundColor: `${colorForNetworkRequest(this.#data.networkRequest)}`,
-    };
-    const url = new URL(this.#data.networkRequest.args.data.url);
-    const entity = (this.#data.entityMapper) ? this.#data.entityMapper.entityForEvent(this.#data.networkRequest) : null;
-    const originWithEntity = TimelineUtils.Helpers.formatOriginWithEntity(url, entity, true);
-
+    const networkData = this.#networkRequest.args.data;
     // clang-format off
-    const output = html`
+    const output = LitHtml.html`
       <div class="performance-card">
-        <div class="url">${Platform.StringUtilities.trimMiddle(url.href.replace(url.origin, ''), MAX_URL_LENGTH)}</div>
-        <div class="url url--host">${originWithEntity}</div>
+        <span class="url">${Platform.StringUtilities.trimMiddle(networkData.url, MAX_URL_LENGTH)}</span>
+        <span class="time bold">${i18n.TimeUtilities.formatMicroSecondsTime(this.#networkRequest.dur)}</span>
 
         <div class="divider"></div>
-        <div class="network-category"><span class="network-category-chip" style=${Lit.Directives.styleMap(chipStyle)}></span>${networkResourceCategory(this.#data.networkRequest)}</div>
-        <div class="priority-row">${i18nString(UIStrings.priority)}: ${NetworkRequestTooltip.renderPriorityValue(this.#data.networkRequest)}</div>
-        ${Trace.Helpers.Network.isSyntheticNetworkRequestEventRenderBlocking(this.#data.networkRequest) ?
-          html`<div class="render-blocking"> ${i18nString(UIStrings.renderBlocking)} </div>` :  Lit.nothing
+        ${this.#renderPriority()}
+        ${TraceEngine.Helpers.Network.isSyntheticNetworkRequestEventRenderBlocking(this.#networkRequest) ?
+          LitHtml.html`<div class="render-blocking"> ${UIStrings.renderBlocking} </div>` :  LitHtml.nothing
         }
         <div class="divider"></div>
 
-        ${NetworkRequestTooltip.renderTimings(this.#data.networkRequest)}
+        ${this.#renderTimings()}
       </div>
     `;
     // clang-format on
-    Lit.render(output, this.#shadow, {host: this});
+    LitHtml.render(output, this.#shadow, {host: this});
   }
 }
 

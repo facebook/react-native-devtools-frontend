@@ -6,7 +6,6 @@ import * as Platform from '../../../../core/platform/platform.js';
 import * as SDK from '../../../../core/sdk/sdk.js';
 import * as Formatter from '../../../../models/formatter/formatter.js';
 import * as SourceMapScopes from '../../../../models/source_map_scopes/source_map_scopes.js';
-import * as Acorn from '../../../../third_party/acorn/acorn.js';
 import * as UI from '../../legacy.js';
 
 import {RemoteObjectPreviewFormatter} from './RemoteObjectPreviewFormatter.js';
@@ -28,9 +27,7 @@ export class JavaScriptREPL {
       }
     }
 
-    const parse = (expression: string): void => void Acorn.parse(
-        expression,
-        {ecmaVersion: 2022, allowAwaitOutsideFunction: true, ranges: false, allowReturnOutsideFunction: true});
+    const parse = (async () => 0).constructor;
     try {
       // Check if the body can be interpreted as an expression.
       parse('return {' + body + '};');
@@ -40,14 +37,14 @@ export class JavaScriptREPL {
       parse(wrappedCode);
 
       return wrappedCode;
-    } catch {
+    } catch (e) {
       return code;
     }
   }
 
   static async evaluateAndBuildPreview(
       text: string, throwOnSideEffect: boolean, replMode: boolean, timeout?: number, allowErrors?: boolean,
-      objectGroup?: string, awaitPromise = false, silent = false): Promise<{
+      objectGroup?: string, awaitPromise: boolean = false, silent: boolean = false): Promise<{
     preview: DocumentFragment,
     result: SDK.RuntimeModel.EvaluationResult|null,
   }> {
@@ -59,7 +56,7 @@ export class JavaScriptREPL {
 
     let expression = text;
     const callFrame = executionContext.debuggerModel.selectedCallFrame();
-    if (callFrame?.script.isJavaScript()) {
+    if (callFrame && callFrame.script.isJavaScript()) {
       const nameMap = await SourceMapScopes.NamesResolver.allVariablesInCallFrame(callFrame);
       try {
         expression =
@@ -92,7 +89,7 @@ export class JavaScriptREPL {
       return fragment;
     }
 
-    if (result.exceptionDetails?.exception?.description) {
+    if (result.exceptionDetails && result.exceptionDetails.exception && result.exceptionDetails.exception.description) {
       const exception = result.exceptionDetails.exception.description;
       if (exception.startsWith('TypeError: ') || allowErrors) {
         fragment.createChild('span').textContent = result.exceptionDetails.text + ' ' + exception;
@@ -113,4 +110,12 @@ export class JavaScriptREPL {
   }
 }
 
-const maxLengthForEvaluation = 2000;
+let maxLengthForEvaluation: number = 2000;
+
+export function setMaxLengthForEvaluation(value: number): void {
+  maxLengthForEvaluation = value;
+}
+
+export function getMaxLengthForEvaluation(): number {
+  return maxLengthForEvaluation;
+}

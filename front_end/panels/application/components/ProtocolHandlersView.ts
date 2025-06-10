@@ -2,23 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../../ui/components/icon_button/icon_button.js';
-
 import * as Host from '../../../core/host/host.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Platform from '../../../core/platform/platform.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
+import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
 import * as Input from '../../../ui/components/input/input.js';
-// inspectorCommonStyles is imported for the <select> styling that is used for the dropdown
-// eslint-disable-next-line rulesdir/es-modules-import
+// inspectorCommonStyles is imported for the chrome-select class that is used for the dropdown
+// eslint-disable-next-line rulesdir/es_modules_import
 import inspectorCommonStyles from '../../../ui/legacy/inspectorCommon.css.js';
 import * as UI from '../../../ui/legacy/legacy.js';
-import * as Lit from '../../../ui/lit/lit.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
 import protocolHandlersViewStyles from './protocolHandlersView.css.js';
-
-const {html} = Lit;
 
 const PROTOCOL_DOCUMENT_URL = 'https://web.dev/url-protocol-handler/';
 const UIStrings = {
@@ -63,7 +60,7 @@ const UIStrings = {
    * @description Placeholder for textbox input field, rest of the URL of protocol to test.
    */
   textboxPlaceholder: 'Enter URL',
-} as const;
+};
 
 const str_ = i18n.i18n.registerUIStrings('panels/application/components/ProtocolHandlersView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -87,11 +84,12 @@ export interface ProtocolHandlersData {
 }
 
 export class ProtocolHandlersView extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-protocol-handlers-view`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   #protocolHandlers: ProtocolHandler[] = [];
   #manifestLink: Platform.DevToolsPath.UrlString = Platform.DevToolsPath.EmptyUrlString;
-  #selectedProtocolState = '';
-  #queryInputState = '';
+  #selectedProtocolState: string = '';
+  #queryInputState: string = '';
 
   set data(data: ProtocolHandlersData) {
     const isNewManifest = this.#manifestLink !== data.manifestLink;
@@ -108,16 +106,16 @@ export class ProtocolHandlersView extends HTMLElement {
     this.#render();
   }
 
-  #renderStatusMessage(): Lit.TemplateResult {
+  #renderStatusMessage(): LitHtml.TemplateResult {
     const manifestInTextLink =
         UI.XLink.XLink.create(this.#manifestLink, i18nString(UIStrings.manifest), undefined, undefined, 'manifest');
     const statusString = this.#protocolHandlers.length > 0 ? UIStrings.protocolDetected : UIStrings.protocolNotDetected;
     // clang-format off
-    return html`
+    return LitHtml.html`
     <div class="protocol-handlers-row status">
-            <devtools-icon class="inline-icon"
+            <${IconButton.Icon.Icon.litTagName} class="inline-icon"
                                                 name=${this.#protocolHandlers.length > 0 ? 'check-circle' : 'info'}>
-            </devtools-icon>
+            </${IconButton.Icon.Icon.litTagName}>
             ${i18n.i18n.getFormatLocalizedString(str_, statusString, {
       PH1: manifestInTextLink,
     })}
@@ -126,27 +124,28 @@ export class ProtocolHandlersView extends HTMLElement {
     // clang-format on
   }
 
-  #renderProtocolTest(): Lit.LitTemplate {
+  #renderProtocolTest(): LitHtml.LitTemplate {
     if (this.#protocolHandlers.length === 0) {
-      return Lit.nothing;
+      return LitHtml.nothing;
     }
     const protocolOptions =
         this.#protocolHandlers.filter(p => p.protocol)
-            .map(p => html`<option value=${p.protocol} jslog=${VisualLogging.item(p.protocol).track({
-                   click: true,
-                 })}>${p.protocol}://</option>`);
-    return html`
+            .map(p => LitHtml.html`<option value=${p.protocol} jslog=${VisualLogging.item(p.protocol).track({
+              click: true,
+            })}>${p.protocol}://</option>`);
+    return LitHtml.html`
        <div class="protocol-handlers-row">
-        <select class="protocol-select" @change=${this.#handleProtocolSelect} aria-label=${
+        <select class="chrome-select protocol-select" @change=${this.#handleProtocolSelect} aria-label=${
         i18nString(UIStrings.dropdownLabel)}>
            ${protocolOptions}
         </select>
         <input .value=${this.#queryInputState} class="devtools-text-input" type="text" @change=${
         this.#handleQueryInputChange} aria-label=${i18nString(UIStrings.textboxLabel)}
-        placeholder=${i18nString(UIStrings.textboxPlaceholder)} />
-        <devtools-button .variant=${Buttons.Button.Variant.PRIMARY} @click=${this.#handleTestProtocolClick}>
+        placeholder=${i18nString(UIStrings.textboxPlaceholder)}/>
+        <${Buttons.Button.Button.litTagName} .variant=${Buttons.Button.Variant.PRIMARY} @click=${
+        this.#handleTestProtocolClick}>
             ${i18nString(UIStrings.testProtocol)}
-        </devtools-button>
+        </${Buttons.Button.Button.litTagName}>
         </div>
       `;
   }
@@ -166,14 +165,19 @@ export class ProtocolHandlersView extends HTMLElement {
     Host.userMetrics.actionTaken(Host.UserMetrics.Action.CaptureTestProtocolClicked);
   };
 
+  connectedCallback(): void {
+    this.#shadow.adoptedStyleSheets = [
+      protocolHandlersViewStyles,
+      inspectorCommonStyles,
+      Input.textInputStyles,
+    ];
+  }
+
   #render(): void {
     const protocolDocLink = UI.XLink.XLink.create(
         PROTOCOL_DOCUMENT_URL, i18nString(UIStrings.protocolHandlerRegistrations), undefined, undefined, 'learn-more');
     // clang-format off
-    Lit.render(html`
-      <style>${protocolHandlersViewStyles.cssText}</style>
-      <style>${inspectorCommonStyles.cssText}</style>
-      <style>${Input.textInputStylesRaw.cssText}</style>
+    LitHtml.render(LitHtml.html`
       ${this.#renderStatusMessage()}
       <div class="protocol-handlers-row">
           ${i18n.i18n.getFormatLocalizedString(str_, UIStrings.needHelpReadOur, {PH1: protocolDocLink})}

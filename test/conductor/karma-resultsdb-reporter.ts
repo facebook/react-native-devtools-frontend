@@ -5,9 +5,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import * as ResultsDb from './resultsdb.js';
-
-const chalk = require('chalk');
 const diff = require('diff');
+const chalk = require('chalk');
 
 type DiffCallback = (line: string) => string;
 function*
@@ -55,7 +54,7 @@ export const ResultsDBReporter = function(
 
   this.USE_COLORS = true;
 
-  const capturedLog: Array<{log: string, type: string}> = [];
+  const capturedLog: {log: string, type: string}[] = [];
   this.onBrowserLog = (browser: any, log: string, type: string) => {
     capturedLog.push({log, type});
   };
@@ -65,9 +64,9 @@ export const ResultsDBReporter = function(
     const testId = ResultsDb.sanitizedTestId([...suite, description].join('/'));
     const expected = success || skipped;
     const status = skipped ? 'SKIP' : success ? 'PASS' : 'FAIL';
-    let duration = '.001s';
+    let duration = '1ms';
     if (startTime < endTime) {
-      duration = ((endTime - startTime) * .001).toFixed(3) + 's';
+      duration = (endTime - startTime).toString() + 'ms';
     }
 
     const consoleLog = capturedLog.map(({type, log}) => `${type.toUpperCase()}: ${log}`);

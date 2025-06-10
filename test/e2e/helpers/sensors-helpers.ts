@@ -2,9 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {ElementHandle} from 'puppeteer-core';
-
 import {selectOption, waitFor, waitForMany} from '../../shared/helper.js';
+import {type ElementHandle} from 'puppeteer-core';
 
 export async function setCustomOrientation() {
   const dropDown = await waitFor('.orientation-fields select');
@@ -12,14 +11,14 @@ export async function setCustomOrientation() {
 }
 
 export async function getInputFieldValue(field: ElementHandle<Element>): Promise<string> {
-  return await field.evaluate(input => (input as HTMLInputElement).value);
+  return field.evaluate(input => (input as HTMLInputElement).value);
 }
 
 export async function getOrientationInputs() {
-  return await waitForMany('.orientation-axis-input-container input', 3);
+  return waitForMany('.orientation-axis-input-container input', 3);
 }
 
 export async function getOrientationValues() {
-  return await Promise.all(
+  return Promise.all(
       (await getOrientationInputs()).map(i => i.evaluate(i => parseInt((i as HTMLInputElement).value, 10))));
 }

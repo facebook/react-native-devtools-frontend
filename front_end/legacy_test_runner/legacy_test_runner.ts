@@ -5,10 +5,10 @@
 import '../entrypoints/devtools_app/devtools_app.js';
 import './test_runner/test_runner.js';
 
-// @ts-expect-error
+// @ts-ignore
 if (self.testRunner) {
-  // @ts-expect-error
+  // @ts-ignore
   testRunner.dumpAsText();
-  // @ts-expect-error
+  // @ts-ignore
   testRunner.waitUntilDone();
 }

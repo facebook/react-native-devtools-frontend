@@ -2,7 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 import {unregisterAllServiceWorkers} from '../../conductor/hooks.js';
-import {click, step} from '../../shared/helper.js';
+import {click, getBrowserAndPages, step} from '../../shared/helper.js';
+import {beforeEach, describe, it} from '../../shared/mocha-extensions.js';
 import {
   navigateToApplicationTab,
   navigateToServiceWorkers,
@@ -17,7 +18,8 @@ const SERVICE_WORKER_NETWORK_SELECTOR = '[title="Network requests"]';
 
 describe('The Application Tab', () => {
   beforeEach(async () => {
-    await navigateToApplicationTab(TEST_HTML_FILE);
+    const {target} = getBrowserAndPages();
+    await navigateToApplicationTab(target, TEST_HTML_FILE);
     await navigateToServiceWorkers();
   });
 

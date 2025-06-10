@@ -8,13 +8,14 @@ import type {Protocol} from 'devtools-protocol';
 
 import type {Browser} from '../api/Browser.js';
 import type {BrowserContext} from '../api/BrowserContext.js';
+import type {CDPSession} from '../api/CDPSession.js';
 import {PageEvent, type Page} from '../api/Page.js';
 import {Target, TargetType} from '../api/Target.js';
 import {debugError} from '../common/util.js';
 import type {Viewport} from '../common/Viewport.js';
 import {Deferred} from '../util/Deferred.js';
 
-import type {CdpCDPSession} from './CdpSession.js';
+import {CdpCDPSession} from './CDPSession.js';
 import {CdpPage} from './Page.js';
 import type {TargetManager} from './TargetManager.js';
 import {CdpWebWorker} from './WebWorker.js';
@@ -32,11 +33,11 @@ export enum InitializationStatus {
  */
 export class CdpTarget extends Target {
   #browserContext?: BrowserContext;
-  #session?: CdpCDPSession;
+  #session?: CDPSession;
   #targetInfo: Protocol.Target.TargetInfo;
   #targetManager?: TargetManager;
   #sessionFactory:
-    | ((isAutoAttachEmulated: boolean) => Promise<CdpCDPSession>)
+    | ((isAutoAttachEmulated: boolean) => Promise<CDPSession>)
     | undefined;
   #childTargets = new Set<CdpTarget>();
   _initializedDeferred = Deferred.create<InitializationStatus>();
@@ -50,12 +51,12 @@ export class CdpTarget extends Target {
    */
   constructor(
     targetInfo: Protocol.Target.TargetInfo,
-    session: CdpCDPSession | undefined,
+    session: CDPSession | undefined,
     browserContext: BrowserContext | undefined,
     targetManager: TargetManager | undefined,
     sessionFactory:
-      | ((isAutoAttachEmulated: boolean) => Promise<CdpCDPSession>)
-      | undefined,
+      | ((isAutoAttachEmulated: boolean) => Promise<CDPSession>)
+      | undefined
   ) {
     super();
     this.#session = session;
@@ -64,8 +65,8 @@ export class CdpTarget extends Target {
     this.#browserContext = browserContext;
     this._targetId = targetInfo.targetId;
     this.#sessionFactory = sessionFactory;
-    if (this.#session) {
-      this.#session.setTarget(this);
+    if (this.#session && this.#session instanceof CdpCDPSession) {
+      this.#session._setTarget(this);
     }
   }
 
@@ -83,7 +84,7 @@ export class CdpTarget extends Target {
     return this.#targetInfo.subtype;
   }
 
-  _session(): CdpCDPSession | undefined {
+  _session(): CDPSession | undefined {
     return this.#session;
   }
 
@@ -100,20 +101,20 @@ export class CdpTarget extends Target {
   }
 
   protected _sessionFactory(): (
-    isAutoAttachEmulated: boolean,
-  ) => Promise<CdpCDPSession> {
+    isAutoAttachEmulated: boolean
+  ) => Promise<CDPSession> {
     if (!this.#sessionFactory) {
       throw new Error('sessionFactory is not initialized');
     }
     return this.#sessionFactory;
   }
 
-  override createCDPSession(): Promise<CdpCDPSession> {
+  override createCDPSession(): Promise<CDPSession> {
     if (!this.#sessionFactory) {
       throw new Error('sessionFactory is not initialized');
     }
     return this.#sessionFactory(false).then(session => {
-      session.setTarget(this);
+      (session as CdpCDPSession)._setTarget(this);
       return session;
     });
   }
@@ -210,11 +211,11 @@ export class PageTarget extends CdpTarget {
 
   constructor(
     targetInfo: Protocol.Target.TargetInfo,
-    session: CdpCDPSession | undefined,
+    session: CDPSession | undefined,
     browserContext: BrowserContext,
     targetManager: TargetManager,
-    sessionFactory: (isAutoAttachEmulated: boolean) => Promise<CdpCDPSession>,
-    defaultViewport: Viewport | null,
+    sessionFactory: (isAutoAttachEmulated: boolean) => Promise<CDPSession>,
+    defaultViewport: Viewport | null
   ) {
     super(targetInfo, session, browserContext, targetManager, sessionFactory);
     this.#defaultViewport = defaultViewport ?? undefined;
@@ -296,7 +297,7 @@ export class WorkerTarget extends CdpTarget {
           this._targetId,
           this.type(),
           () => {} /* consoleAPICalled */,
-          () => {} /* exceptionThrown */,
+          () => {} /* exceptionThrown */
         );
       });
     }

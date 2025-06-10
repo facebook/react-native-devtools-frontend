@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * @license
  * Copyright 2018 Google Inc.

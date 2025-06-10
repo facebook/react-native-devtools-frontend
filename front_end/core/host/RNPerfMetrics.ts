@@ -3,9 +3,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {ParsedURL} from '../common/ParsedURL.js';
+import {type ParsedURL} from '../common/ParsedURL.js';
 
-import type {DeveloperResourceLoaded} from './UserMetrics.js';
+import {type DeveloperResourceLoaded} from './UserMetrics.js';
 
 export type RNReliabilityEventListener = (event: DecoratedReactNativeChromeDevToolsEvent) => void;
 
@@ -22,13 +22,13 @@ type PanelLocation = 'main'|'drawer';
 type UnsubscribeFn = () => void;
 class RNPerfMetrics {
   readonly #consoleErrorMethod = 'error';
-  #listeners = new Set<RNReliabilityEventListener>();
+  #listeners: Set<RNReliabilityEventListener> = new Set();
   #launchId: string|null = null;
   #appId: string|null = null;
   #entryPoint: EntryPoint = 'rn_inspector';
   #telemetryInfo: Object = {};
   // map of panel location to panel name
-  #currentPanels = new Map<PanelLocation, string>();
+  #currentPanels: Map<PanelLocation, string> = new Map();
 
   addEventListener(listener: RNReliabilityEventListener): UnsubscribeFn {
     this.#listeners.add(listener);
@@ -295,9 +295,7 @@ function getPerfTimestamp(): DOMHighResTimeStamp {
 
 function maybeTruncateDeveloperResourceUrl(parsedURL: ParsedURL): string {
   const {url} = parsedURL;
-  return parsedURL.scheme === 'http' || parsedURL.scheme === 'https' ?
-      url :
-      `${url.slice(0, 100)} …(omitted ${url.length - 100} characters)`;
+  return parsedURL.isHttpOrHttps() ? url : `${url.slice(0, 100)} …(omitted ${url.length - 100} characters)`;
 }
 
 function maybeWrapError(baseMessage: string, error: unknown): [string, Error] {

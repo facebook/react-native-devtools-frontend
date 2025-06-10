@@ -15,7 +15,7 @@ describeWithMockConnection('CSSOverviewPanel', () => {
   let target: SDK.Target.Target;
 
   beforeEach(async () => {
-    const tabTaget = createTarget({type: SDK.Target.Type.TAB});
+    const tabTaget = createTarget({type: SDK.Target.Type.Tab});
     createTarget({parentTarget: tabTaget, subtype: 'prerender'});
     target = createTarget({parentTarget: tabTaget});
   });
@@ -23,7 +23,7 @@ describeWithMockConnection('CSSOverviewPanel', () => {
   it('reacts to start event and sends completion event', async () => {
     const controller = new CSSOverview.CSSOverviewController.OverviewController();
     new CSSOverview.CSSOverviewPanel.CSSOverviewPanel(controller);
-    const overviewCompleted = controller.once(CSSOverview.CSSOverviewController.Events.OVERVIEW_COMPLETED);
+    const overviewCompleted = controller.once(CSSOverview.CSSOverviewController.Events.OverviewCompleted);
     sinon.stub(target.runtimeAgent(), 'invoke_evaluate').resolves({
       result: {},
     } as unknown as Protocol.Runtime.EvaluateResponse);
@@ -34,7 +34,7 @@ describeWithMockConnection('CSSOverviewPanel', () => {
       medias: [],
     } as unknown as Protocol.CSS.GetMediaQueriesResponse);
 
-    controller.dispatchEventToListeners(CSSOverview.CSSOverviewController.Events.REQUEST_OVERVIEW_START);
+    controller.dispatchEventToListeners(CSSOverview.CSSOverviewController.Events.RequestOverviewStart);
     await overviewCompleted;
   });
 });

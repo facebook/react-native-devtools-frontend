@@ -26,13 +26,11 @@ interface Replacement {
 // if the substitution target is 'this' within a function, it would become bound there).
 function computeSubstitution(expression: string, nameMap: Map<string, string|null>): Replacement[] {
   // Parse the expression and find variables and scopes.
-  const root = Acorn.parse(expression, {
-    ecmaVersion: ECMA_VERSION,
-    allowAwaitOutsideFunction: true,
-    allowImportExportEverywhere: true,
-    checkPrivateFields: false,
-    ranges: false,
-  } as acorn.Options) as Acorn.ESTree.Node;
+  const root =
+      Acorn.parse(
+          expression,
+          {ecmaVersion: ECMA_VERSION, allowAwaitOutsideFunction: true, ranges: false, checkPrivateFields: false} as
+              acorn.Options) as Acorn.ESTree.Node;
   const scopeVariables = new ScopeVariableAnalysis(root);
   scopeVariables.run();
   const freeVariables = scopeVariables.getFreeVariables();
@@ -78,7 +76,7 @@ function computeSubstitution(expression: string, nameMap: Map<string, string|nul
     }
     // If there is a capturing binder, rename the bound variable.
     for (const binder of binders) {
-      if (binder.definitionKind === DefinitionKind.FIXED) {
+      if (binder.definitionKind === DefinitionKind.Fixed) {
         // If the identifier is bound to a fixed name, such as 'this',
         // then refuse to do the substitution.
         throw new Error(`Cannot avoid capture of '${rename}'`);

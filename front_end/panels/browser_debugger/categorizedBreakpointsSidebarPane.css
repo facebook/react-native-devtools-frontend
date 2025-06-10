@@ -44,6 +44,6 @@
   z-index: -1;
 }
 
-dt-checkbox.source-code {
+.source-code[is="dt-checkbox"] {
   max-width: 100%;
 }

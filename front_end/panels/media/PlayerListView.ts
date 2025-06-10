@@ -8,8 +8,8 @@ import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
-import type {MainView, TriggerDispatcher} from './MainView.js';
-import type {PlayerEvent} from './MediaModel.js';
+import {type MainView, type TriggerDispatcher} from './MainView.js';
+import {type PlayerEvent} from './MediaModel.js';
 import playerListViewStyles from './playerListView.css.js';
 import {PlayerPropertyKeys} from './PlayerPropertiesView.js';
 
@@ -30,7 +30,7 @@ const UIStrings = {
    *@description Side-panel entry title text for the players section.
    */
   players: 'Players',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/media/PlayerListView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export interface PlayerStatus {
@@ -53,7 +53,6 @@ export class PlayerListView extends UI.Widget.VBox implements TriggerDispatcher 
 
   constructor(mainContainer: MainView) {
     super(true);
-    this.registerRequiredCSS(playerListViewStyles);
 
     this.playerEntryFragments = new Map();
     this.playerEntriesWithHostnameFrameTitle = new Set();
@@ -127,7 +126,7 @@ export class PlayerListView extends UI.Widget.VBox implements TriggerDispatcher 
       return;
     }
     const fragment = this.playerEntryFragments.get(playerID);
-    if (fragment?.element() === undefined) {
+    if (fragment === undefined || fragment.element() === undefined) {
       return;
     }
     fragment.$('frame-title').textContent = frameTitle;
@@ -160,8 +159,7 @@ export class PlayerListView extends UI.Widget.VBox implements TriggerDispatcher 
     icon.appendChild(IconButton.Icon.create(iconName, 'media-player'));
   }
 
-  private formatAndEvaluate(
-      playerID: string, func: (...args: any[]) => unknown, candidate: string, min: number, max: number): void {
+  private formatAndEvaluate(playerID: string, func: Function, candidate: string, min: number, max: number): void {
     if (candidate.length <= min) {
       return;
     }
@@ -183,7 +181,7 @@ export class PlayerListView extends UI.Widget.VBox implements TriggerDispatcher 
       return;
     }
     const fragment = this.playerEntryFragments.get(playerID);
-    if (fragment?.element() === undefined) {
+    if (fragment === undefined || fragment.element() === undefined) {
       return;
     }
     this.contentElement.removeChild(fragment.element());
@@ -227,7 +225,7 @@ export class PlayerListView extends UI.Widget.VBox implements TriggerDispatcher 
     // title from the FrameUrl though, since the page location itself might not
     // have any relevance to the video being played, and would be shared by all
     // videos on the page.
-    if (property.name === PlayerPropertyKeys.FRAME_URL) {
+    if (property.name === PlayerPropertyKeys.FrameUrl) {
       const frameTitle = new URL(property.value).hostname;
       this.formatAndEvaluate(playerID, this.setMediaElementFrameTitle, frameTitle, 1, 20);
       return;
@@ -239,7 +237,7 @@ export class PlayerListView extends UI.Widget.VBox implements TriggerDispatcher 
     // junk, or it might be super long. If it's empty, or 1 character, It's
     // preferable to just drop it. Titles longer than 20 will have the first
     // 17 characters kept and an elipsis appended.
-    if (property.name === PlayerPropertyKeys.FRAME_TITLE && property.value) {
+    if (property.name === PlayerPropertyKeys.FrameTitle && property.value) {
       this.formatAndEvaluate(playerID, this.setMediaElementFrameTitle, property.value, 1, 20);
       return;
     }
@@ -251,5 +249,10 @@ export class PlayerListView extends UI.Widget.VBox implements TriggerDispatcher 
 
   onMessage(_playerID: string, _message: Protocol.Media.PlayerMessage): void {
     // TODO(tmathmeyer) show a message count number next to the player name.
+  }
+
+  override wasShown(): void {
+    super.wasShown();
+    this.registerCSSFiles([playerListViewStyles]);
   }
 }

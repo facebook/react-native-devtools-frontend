@@ -36,22 +36,21 @@ import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
+import * as Protocol from '../../generated/protocol.js';
 import * as IssuesManager from '../../models/issues_manager/issues_manager.js';
 import * as Adorners from '../../ui/components/adorners/adorners.js';
 import * as CodeHighlighter from '../../ui/components/code_highlighter/code_highlighter.js';
 import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as IssueCounter from '../../ui/components/issue_counter/issue_counter.js';
 import * as UI from '../../ui/legacy/legacy.js';
-import {html, nothing, render} from '../../ui/lit/lit.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import * as ElementsComponents from './components/components.js';
-import {getElementIssueDetails} from './ElementIssueUtils.js';
 import {ElementsPanel} from './ElementsPanel.js';
-import {ElementsTreeElement, InitialChildrenLimit, isOpeningTag} from './ElementsTreeElement.js';
+import {ElementsTreeElement, InitialChildrenLimit} from './ElementsTreeElement.js';
 import elementsTreeOutlineStyles from './elementsTreeOutline.css.js';
 import {ImagePreviewPopover} from './ImagePreviewPopover.js';
-import type {MarkerDecoratorRegistration} from './MarkerDecorator.js';
+import {type MarkerDecoratorRegistration} from './MarkerDecorator.js';
 import {TopLayerContainer} from './TopLayerContainer.js';
 
 const UIStrings = {
@@ -73,10 +72,10 @@ const UIStrings = {
    */
   reveal: 'reveal',
   /**
-   * @description Text for popover that directs to Issues panel
+   * @description A context menu item to open the badge settings pane
    */
-  viewIssue: 'View Issue:',
-} as const;
+  adornerSettings: 'Badge settings\u2026',
+};
 const str_ = i18n.i18n.registerUIStrings('panels/elements/ElementsTreeOutline.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 const elementsTreeOutlineByDOMModel = new WeakMap<SDK.DOMModel.DOMModel, ElementsTreeOutline>();
@@ -103,28 +102,36 @@ export class ElementsTreeOutline extends
   private visibleWidthInternal?: number;
   private clipboardNodeData?: ClipboardData;
   private isXMLMimeTypeInternal?: boolean|null;
-  suppressRevealAndSelect = false;
+  suppressRevealAndSelect: boolean = false;
   private previousHoveredElement?: UI.TreeOutline.TreeElement;
   private treeElementBeingDragged?: ElementsTreeElement;
   private dragOverTreeElement?: ElementsTreeElement;
   private updateModifiedNodesTimeout?: number;
-  #topLayerContainerByParent = new Map<UI.TreeOutline.TreeElement, TopLayerContainer>();
+  #genericIssues: Array<IssuesManager.GenericIssue.GenericIssue> = [];
+  #topLayerContainerByParent: Map<UI.TreeOutline.TreeElement, TopLayerContainer> = new Map();
   #issuesManager?: IssuesManager.IssuesManager.IssuesManager;
   #popupHelper?: UI.PopoverHelper.PopoverHelper;
-  #nodeElementToIssues = new Map<Element, IssuesManager.Issue.Issue[]>();
+  #nodeElementToIssue: Map<Element, IssuesManager.GenericIssue.GenericIssue> = new Map();
 
   constructor(omitRootDOMNode?: boolean, selectEnabled?: boolean, hideGutter?: boolean) {
     super();
 
     if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.HIGHLIGHT_ERRORS_ELEMENTS_PANEL)) {
       this.#issuesManager = IssuesManager.IssuesManager.IssuesManager.instance();
-      this.#issuesManager.addEventListener(IssuesManager.IssuesManager.Events.ISSUE_ADDED, this.#onIssueAdded, this);
+      this.#issuesManager.addEventListener(
+          IssuesManager.IssuesManager.Events.IssueAdded, this.#onIssueEventReceived, this);
+      for (const issue of this.#issuesManager.issues()) {
+        if (issue instanceof IssuesManager.GenericIssue.GenericIssue) {
+          this.#onIssueAdded(issue);
+        }
+      }
     }
 
     this.treeElementByNode = new WeakMap();
     const shadowContainer = document.createElement('div');
     this.shadowRoot = UI.UIUtils.createShadowRootWithCoreStyles(
-        shadowContainer, {cssFile: [elementsTreeOutlineStyles, CodeHighlighter.codeHighlighterStyles]});
+        shadowContainer,
+        {cssFile: [elementsTreeOutlineStyles, CodeHighlighter.Style.default], delegatesFocus: undefined});
     const outlineDisclosureElement = this.shadowRoot.createChild('div', 'elements-disclosure');
 
     this.elementInternal = this.element;
@@ -192,46 +199,78 @@ export class ElementsTreeOutline extends
     this.showHTMLCommentsSetting.addChangeListener(this.onShowHTMLCommentsChange.bind(this));
     this.setUseLightSelectionColor(true);
     if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.HIGHLIGHT_ERRORS_ELEMENTS_PANEL)) {
-      // TODO(changhaohan): refactor the popover to use tooltip component.
       this.#popupHelper = new UI.PopoverHelper.PopoverHelper(this.elementInternal, event => {
         const hoveredNode = event.composedPath()[0] as Element;
-        if (!hoveredNode?.matches('.violating-element')) {
+        if (!hoveredNode || !hoveredNode.matches('.violating-element')) {
           return null;
         }
 
-        const issues = this.#nodeElementToIssues.get(hoveredNode);
-        if (!issues) {
+        const issue = this.#nodeElementToIssue.get(hoveredNode);
+        if (!issue) {
           return null;
         }
+        const issueDetails = issue.details();
+
+        const tooltipTitle = this.#issueCodeToTooltipTitle(issueDetails.errorType);
+        const issueKindIcon = new IconButton.Icon.Icon();
+        issueKindIcon.data = IssueCounter.IssueCounter.getIssueKindIconData(issue.getKind());
+        issueKindIcon.style.cursor = 'pointer';
+        const viewIssueElement = document.createElement('a');
+        viewIssueElement.href = '#';
+        viewIssueElement.textContent = 'View issue:';
+
+        const issueTitle = document.createElement('span');
+        issueTitle.textContent = tooltipTitle;
+
+        const element = document.createElement('div');
+        element.appendChild(issueKindIcon);
+        element.appendChild(viewIssueElement);
+        element.appendChild(issueTitle);
+        element.style.display = 'flex';
+        element.style.alignItems = 'center';
+        element.style.gap = '5px';
 
         return {
           box: hoveredNode.boxInWindow(),
           show: async (popover: UI.GlassPane.GlassPane) => {
             popover.setIgnoreLeftMargin(true);
-            // clang-format off
-            render(html`
-              <div class="squiggles-content">
-                ${issues.map(issue => {
-                  const elementIssueDetails = getElementIssueDetails(issue);
-                  if (!elementIssueDetails) {
-                    // This shouldn't happen, but add this if check to pass ts check.
-                    return nothing;
-                  }
-                  const issueKindIconData = IssueCounter.IssueCounter.getIssueKindIconData(issue.getKind());
-                  const openIssueEvent = (): Promise<void> => Common.Revealer.reveal(issue);
-                  return html`
-                    <div class="squiggles-content-item">
-                    <devtools-icon .data=${issueKindIconData} @click=${openIssueEvent}></devtools-icon>
-                    <x-link class="link" @click=${openIssueEvent}>${i18nString(UIStrings.viewIssue)}</x-link>
-                    <span>${elementIssueDetails.tooltip}</span>
-                    </div>`;})}
-              </div>`, popover.contentElement);
-            // clang-format on
+            const openIssueEvent = (): Promise<void> => Common.Revealer.reveal(issue);
+            viewIssueElement.addEventListener('click', () => openIssueEvent());
+            issueKindIcon.addEventListener('click', () => openIssueEvent());
+            popover.contentElement.appendChild(element);
             return true;
           },
         };
       }, 'elements.issue');
       this.#popupHelper.setTimeout(300);
+      this.#popupHelper.setHasPadding(true);
+    }
+  }
+
+  #issueCodeToTooltipTitle(errorType: Protocol.Audits.GenericIssueErrorType): string {
+    switch (errorType) {
+      case Protocol.Audits.GenericIssueErrorType.FormLabelForNameError:
+        return 'Incorrect use of <label for=FORM_ELEMENT>';
+      case Protocol.Audits.GenericIssueErrorType.FormDuplicateIdForInputError:
+        return 'Duplicate form field id in the same form';
+      case Protocol.Audits.GenericIssueErrorType.FormInputWithNoLabelError:
+        return 'Form field without valid aria-labelledby attribute or associated label';
+      case Protocol.Audits.GenericIssueErrorType.FormAutocompleteAttributeEmptyError:
+        return 'Incorrect use of autocomplete attribute';
+      case Protocol.Audits.GenericIssueErrorType.FormEmptyIdAndNameAttributesForInputError:
+        return 'A form field element should have an id or name attribute';
+      case Protocol.Audits.GenericIssueErrorType.FormAriaLabelledByToNonExistingId:
+        return 'An aria-labelledby attribute doesn\'t match any element id';
+      case Protocol.Audits.GenericIssueErrorType.FormInputAssignedAutocompleteValueToIdOrNameAttributeError:
+        return 'An element doesn\'t have an autocomplete attribute';
+      case Protocol.Audits.GenericIssueErrorType.FormLabelHasNeitherForNorNestedInput:
+        return 'No label associated with a form field';
+      case Protocol.Audits.GenericIssueErrorType.FormLabelForMatchesNonExistingIdError:
+        return 'Incorrect use of <label for=FORM_ELEMENT>';
+      case Protocol.Audits.GenericIssueErrorType.FormInputHasWrongButWellIntendedAutocompleteValueError:
+        return 'Non-standard autocomplete attribute value';
+      default:
+        return '';
     }
   }
 
@@ -239,29 +278,36 @@ export class ElementsTreeOutline extends
     return elementsTreeOutlineByDOMModel.get(domModel) || null;
   }
 
-  #onIssueAdded(event: Common.EventTarget.EventTargetEvent<IssuesManager.IssuesManager.IssueAddedEvent>): void {
-    void this.#addTreeElementIssue(event.data.issue);
+  async #onIssueEventReceived(event: Common.EventTarget.EventTargetEvent<IssuesManager.IssuesManager.IssueAddedEvent>):
+      Promise<void> {
+    if (event.data.issue instanceof IssuesManager.GenericIssue.GenericIssue) {
+      this.#onIssueAdded(event.data.issue);
+      await this.#addTreeElementIssue(event.data.issue);
+    }
+  }
+
+  #onIssueAdded(issue: IssuesManager.GenericIssue.GenericIssue): void {
+    this.#genericIssues.push(issue);
   }
 
   #addAllElementIssues(): void {
-    if (!this.#issuesManager) {
-      return;
-    }
-    for (const issue of this.#issuesManager.issues()) {
+    for (const issue of this.#genericIssues) {
       void this.#addTreeElementIssue(issue);
     }
   }
 
-  async #addTreeElementIssue(issue: IssuesManager.Issue.Issue): Promise<void> {
-    const elementIssueDetails = getElementIssueDetails(issue);
-    if (!elementIssueDetails) {
+  async #addTreeElementIssue(issue: IssuesManager.GenericIssue.GenericIssue): Promise<void> {
+    const issueDetails = issue.details();
+
+    const tooltipTitle = this.#issueCodeToTooltipTitle(issueDetails.errorType);
+    if (!tooltipTitle) {
       return;
     }
-    const {nodeId} = elementIssueDetails;
-    if (!this.rootDOMNode || !nodeId) {
+    if (!this.rootDOMNode || !issueDetails.violatingNodeId) {
       return;
     }
-    const deferredDOMNode = new SDK.DOMModel.DeferredDOMNode(this.rootDOMNode.domModel().target(), nodeId);
+    const deferredDOMNode =
+        new SDK.DOMModel.DeferredDOMNode(this.rootDOMNode.domModel().target(), issueDetails.violatingNodeId);
     const node = await deferredDOMNode.resolvePromise();
 
     if (!node) {
@@ -274,7 +320,7 @@ export class ElementsTreeOutline extends
       const treeElementNodeElementsToIssue = treeElement.issuesByNodeElement;
       // This element could be the treeElement tags name or an attribute.
       for (const [element, issue] of treeElementNodeElementsToIssue) {
-        this.#nodeElementToIssues.set(element, issue);
+        this.#nodeElementToIssue.set(element, issue);
       }
     }
   }
@@ -336,10 +382,10 @@ export class ElementsTreeOutline extends
 
   private onCopyOrCut(isCut: boolean, event: Event): void {
     this.setClipboardData(null);
-    // @ts-expect-error this bound in the main entry point
+    // @ts-ignore this bound in the main entry point
     const originalEvent = event['original'];
 
-    if (!originalEvent?.target) {
+    if (!originalEvent || !originalEvent.target) {
       return;
     }
 
@@ -376,7 +422,7 @@ export class ElementsTreeOutline extends
     }
 
     void node.copyNode();
-    this.setClipboardData({node, isCut});
+    this.setClipboardData({node: node, isCut: isCut});
   }
 
   canPaste(targetNode: SDK.DOMModel.DOMNode): boolean {
@@ -487,7 +533,7 @@ export class ElementsTreeOutline extends
 
     this.rootDOMNodeInternal = x;
 
-    this.isXMLMimeTypeInternal = x?.isXMLNode();
+    this.isXMLMimeTypeInternal = x && x.isXMLNode();
 
     this.update();
   }
@@ -559,7 +605,7 @@ export class ElementsTreeOutline extends
 
   selectedNodeChanged(focus: boolean): void {
     this.dispatchEventToListeners(
-        ElementsTreeOutline.Events.SelectedNodeChanged, {node: this.selectedDOMNodeInternal, focus});
+        ElementsTreeOutline.Events.SelectedNodeChanged, {node: this.selectedDOMNodeInternal, focus: focus});
   }
 
   private fireElementsTreeUpdated(nodes: SDK.DOMModel.DOMNode[]): void {
@@ -798,7 +844,7 @@ export class ElementsTreeOutline extends
     if (!(treeElement instanceof ElementsTreeElement)) {
       return null;
     }
-    const elementsTreeElement = (treeElement);
+    const elementsTreeElement = (treeElement as ElementsTreeElement);
 
     const node = elementsTreeElement.node();
     if (!node.parentNode || node.parentNode.nodeType() !== Node.ELEMENT_NODE) {
@@ -877,7 +923,7 @@ export class ElementsTreeOutline extends
       return;
     }
     let textNode: Element|null = node.enclosingNodeOrSelfWithClass('webkit-html-text-node');
-    if (textNode?.classList.contains('bogus')) {
+    if (textNode && textNode.classList.contains('bogus')) {
       textNode = null;
     }
     const commentNode = node.enclosingNodeOrSelfWithClass('webkit-html-comment');
@@ -894,7 +940,9 @@ export class ElementsTreeOutline extends
       treeElement.populatePseudoElementContextMenu(contextMenu);
     }
 
-    ElementsPanel.instance().populateAdornerSettingsContextMenu(contextMenu);
+    contextMenu.viewSection().appendItem(i18nString(UIStrings.adornerSettings), () => {
+      ElementsPanel.instance().showAdornerSettingsPane();
+    }, {jslogContext: 'show-adorner-settings'});
 
     contextMenu.appendApplicableItems(treeElement.node());
     void contextMenu.show();
@@ -942,7 +990,7 @@ export class ElementsTreeOutline extends
 
   toggleEditAsHTML(node: SDK.DOMModel.DOMNode, startEditing?: boolean, callback?: (() => void)): void {
     const treeElement = this.treeElementByNode.get(node);
-    if (!treeElement?.hasEditableNode()) {
+    if (!treeElement || !treeElement.hasEditableNode()) {
       return;
     }
 
@@ -971,7 +1019,7 @@ export class ElementsTreeOutline extends
         return;
       }
 
-      const children = parentNode?.children();
+      const children = parentNode && parentNode.children();
       const newNode = children ? children[index] || parentNode : parentNode;
       if (!newNode) {
         return;
@@ -1099,7 +1147,6 @@ export class ElementsTreeOutline extends
     domModel.addEventListener(SDK.DOMModel.Events.ChildNodeCountUpdated, this.childNodeCountUpdated, this);
     domModel.addEventListener(SDK.DOMModel.Events.DistributedNodesChanged, this.distributedNodesChanged, this);
     domModel.addEventListener(SDK.DOMModel.Events.TopLayerElementsChanged, this.topLayerElementsChanged, this);
-    domModel.addEventListener(SDK.DOMModel.Events.ScrollableFlagUpdated, this.scrollableFlagUpdated, this);
   }
 
   unwireFromDOMModel(domModel: SDK.DOMModel.DOMModel): void {
@@ -1113,7 +1160,6 @@ export class ElementsTreeOutline extends
     domModel.removeEventListener(SDK.DOMModel.Events.ChildNodeCountUpdated, this.childNodeCountUpdated, this);
     domModel.removeEventListener(SDK.DOMModel.Events.DistributedNodesChanged, this.distributedNodesChanged, this);
     domModel.removeEventListener(SDK.DOMModel.Events.TopLayerElementsChanged, this.topLayerElementsChanged, this);
-    domModel.removeEventListener(SDK.DOMModel.Events.ScrollableFlagUpdated, this.scrollableFlagUpdated, this);
     elementsTreeOutlineByDOMModel.delete(domModel);
   }
 
@@ -1221,15 +1267,15 @@ export class ElementsTreeOutline extends
       this.elementInternal.classList.add('hidden');
     }
     const rootNodeUpdateRecords = this.rootDOMNodeInternal && this.updateRecords.get(this.rootDOMNodeInternal);
-    if (rootNodeUpdateRecords?.hasChangedChildren()) {
+    if (rootNodeUpdateRecords && rootNodeUpdateRecords.hasChangedChildren()) {
       // Document's children have changed, perform total update.
       this.update();
     } else {
       for (const [node, record] of this.updateRecords) {
         if (record.hasChangedChildren()) {
-          this.updateModifiedParentNode((node));
+          this.updateModifiedParentNode((node as SDK.DOMModel.DOMNode));
         } else {
-          this.updateModifiedNode((node));
+          this.updateModifiedNode((node as SDK.DOMModel.DOMNode));
         }
       }
     }
@@ -1341,17 +1387,10 @@ export class ElementsTreeOutline extends
       visibleChildren.push(markerPseudoElement);
     }
 
-    const checkmarkPseudoElement = node.checkmarkPseudoElement();
-    if (checkmarkPseudoElement) {
-      visibleChildren.push(checkmarkPseudoElement);
-    }
-
     const beforePseudoElement = node.beforePseudoElement();
     if (beforePseudoElement) {
       visibleChildren.push(beforePseudoElement);
     }
-
-    visibleChildren.push(...node.carouselPseudoElements());
 
     if (node.childNodeCount()) {
       // Children may be stale when the outline is not wired to receive DOMModel updates.
@@ -1365,11 +1404,6 @@ export class ElementsTreeOutline extends
     const afterPseudoElement = node.afterPseudoElement();
     if (afterPseudoElement) {
       visibleChildren.push(afterPseudoElement);
-    }
-
-    const pickerIconPseudoElement = node.pickerIconPseudoElement();
-    if (pickerIconPseudoElement) {
-      visibleChildren.push(pickerIconPseudoElement);
     }
 
     const backdropPseudoElement = node.backdropPseudoElement();
@@ -1435,7 +1469,7 @@ export class ElementsTreeOutline extends
         return;
       }
       const selectedTreeElement = treeElement.treeOutline.selectedTreeElement;
-      if (selectedTreeElement?.hasAncestor(treeElement)) {
+      if (selectedTreeElement && selectedTreeElement.hasAncestor(treeElement)) {
         treeElement.select(true);
       }
       treeElement.removeChildren();
@@ -1493,7 +1527,7 @@ export class ElementsTreeOutline extends
         treeElement.removeChildAtIndex(i);
         continue;
       }
-      const elementsTreeElement = (existingTreeElement);
+      const elementsTreeElement = (existingTreeElement as ElementsTreeElement);
       const existingNode = elementsTreeElement.node();
 
       if (visibleChildrenSet.has(existingNode)) {
@@ -1570,36 +1604,19 @@ export class ElementsTreeOutline extends
     }
   }
 
-  private scrollableFlagUpdated(event: Common.EventTarget.EventTargetEvent<{node: SDK.DOMModel.DOMNode}>): void {
-    let {node} = event.data;
-    if (node.nodeName() === '#document') {
-      // We show the scroll badge of the document on the <html> element.
-      if (!node.ownerDocument?.documentElement) {
-        return;
-      }
-      node = node.ownerDocument.documentElement;
-    }
-    const treeElement = this.treeElementByNode.get(node);
-    if (treeElement && isOpeningTag(treeElement.tagTypeContext)) {
-      void treeElement.tagTypeContext.adornersThrottler.schedule(async () => treeElement.updateScrollAdorner());
-    }
-  }
-
   private static treeOutlineSymbol = Symbol('treeOutline');
 }
 
 export namespace ElementsTreeOutline {
   export enum Events {
-    /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
     SelectedNodeChanged = 'SelectedNodeChanged',
     ElementsTreeUpdated = 'ElementsTreeUpdated',
-    /* eslint-enable @typescript-eslint/naming-convention */
   }
 
-  export interface EventTypes {
-    [Events.SelectedNodeChanged]: {node: SDK.DOMModel.DOMNode|null, focus: boolean};
-    [Events.ElementsTreeUpdated]: SDK.DOMModel.DOMNode[];
-  }
+  export type EventTypes = {
+    [Events.SelectedNodeChanged]: {node: SDK.DOMModel.DOMNode|null, focus: boolean},
+    [Events.ElementsTreeUpdated]: SDK.DOMModel.DOMNode[],
+  };
 }
 
 // clang-format off
@@ -1633,21 +1650,21 @@ export class UpdateRecord {
   private charDataModifiedInternal?: boolean;
 
   attributeModified(attrName: string): void {
-    if (this.removedAttributes?.has(attrName)) {
+    if (this.removedAttributes && this.removedAttributes.has(attrName)) {
       this.removedAttributes.delete(attrName);
     }
     if (!this.modifiedAttributes) {
-      this.modifiedAttributes = (new Set());
+      this.modifiedAttributes = (new Set() as Set<string>);
     }
     this.modifiedAttributes.add(attrName);
   }
 
   attributeRemoved(attrName: string): void {
-    if (this.modifiedAttributes?.has(attrName)) {
+    if (this.modifiedAttributes && this.modifiedAttributes.has(attrName)) {
       this.modifiedAttributes.delete(attrName);
     }
     if (!this.removedAttributes) {
-      this.removedAttributes = (new Set());
+      this.removedAttributes = (new Set() as Set<string>);
     }
     this.removedAttributes.add(attrName);
   }
@@ -1670,7 +1687,8 @@ export class UpdateRecord {
   }
 
   isAttributeModified(attributeName: string): boolean {
-    return this.modifiedAttributes?.has(attributeName) ?? false;
+    return this.modifiedAttributes !== null && this.modifiedAttributes !== undefined &&
+        this.modifiedAttributes.has(attributeName);
   }
 
   hasRemovedAttributes(): boolean {
@@ -1711,9 +1729,9 @@ export class Renderer implements UI.UIUtils.Renderer {
     let node: SDK.DOMModel.DOMNode|(SDK.DOMModel.DOMNode | null)|null = null;
 
     if (object instanceof SDK.DOMModel.DOMNode) {
-      node = (object);
+      node = (object as SDK.DOMModel.DOMNode);
     } else if (object instanceof SDK.DOMModel.DeferredDOMNode) {
-      node = await (object).resolvePromise();
+      node = await (object as SDK.DOMModel.DeferredDOMNode).resolvePromise();
     }
 
     if (!node) {
@@ -1729,7 +1747,7 @@ export class Renderer implements UI.UIUtils.Renderer {
       treeOutline.element.classList.add('single-node');
     }
     treeOutline.setVisible(true);
-    // @ts-expect-error used in console_test_runner
+    // @ts-ignore used in console_test_runner
     treeOutline.element.treeElementForTest = firstChild;
     treeOutline.setShowSelectionOnKeyboardFocus(/* show: */ true, /* preventTabOrder: */ true);
     return {node: treeOutline.element, tree: treeOutline};
@@ -1759,7 +1777,8 @@ export class ShortcutTreeElement extends UI.TreeOutline.TreeElement {
         ElementsComponents.AdornerManager.RegisteredAdorners.REVEAL);
     const name = config.name;
     const adornerContent = document.createElement('span');
-    const linkIcon = IconButton.Icon.create('select-element');
+    const linkIcon = new IconButton.Icon.Icon();
+    linkIcon.name = 'select-element';
     const slotText = document.createElement('span');
     slotText.textContent = name;
     adornerContent.append(linkIcon);

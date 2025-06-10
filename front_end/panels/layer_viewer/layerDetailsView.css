@@ -4,26 +4,12 @@
  * found in the LICENSE file.
  */
 
-.layer-details-container:has(.empty-view-scroller) {
-  display: flex;
-}
-
-table {
-  border-spacing: 0;
-}
-
 table td {
-  font: var(--sys-typescale-body4-regular);
-  line-height: 18px;
-  padding: var(--sys-size-3) var(--sys-size-5);
-  vertical-align: top;
+  padding-left: 8px;
 }
 
 table td:first-child {
-  color: var(--sys-color-on-surface-subtle);
-  font: var(--sys-typescale-body5-medium);
-  line-height:  18px;
-  white-space: nowrap;
+  font-weight: bold;
 }
 
 .scroll-rect.active {
@@ -33,7 +19,8 @@ table td:first-child {
 ul {
   list-style: none;
   padding-inline-start: 0;
-  margin-block: 0;
+  margin-block-start: 0;
+  margin-block-end: 0;
 }
 
 .devtools-link.link-margin {

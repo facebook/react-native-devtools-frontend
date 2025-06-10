@@ -25,7 +25,7 @@ const UIStrings = {
    * @description Menu entry for hiding all current Page Errors.
    */
   hideAllCurrentImprovements: 'Hide all current Improvements',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/issues/IssueKindView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -37,11 +37,11 @@ export function issueKindViewSortPriority(a: IssueKindView, b: IssueKindView): n
   if (a.getKind() === b.getKind()) {
     return 0;
   }
-  if (a.getKind() === IssuesManager.Issue.IssueKind.PAGE_ERROR) {
+  if (a.getKind() === IssuesManager.Issue.IssueKind.PageError) {
     return -1;
   }
-  if (a.getKind() === IssuesManager.Issue.IssueKind.BREAKING_CHANGE &&
-      b.getKind() === IssuesManager.Issue.IssueKind.IMPROVEMENT) {
+  if (a.getKind() === IssuesManager.Issue.IssueKind.BreakingChange &&
+      b.getKind() === IssuesManager.Issue.IssueKind.Improvement) {
     return -1;
   }
   return 1;
@@ -49,11 +49,11 @@ export function issueKindViewSortPriority(a: IssueKindView, b: IssueKindView): n
 
 export function getClassNameFromKind(kind: IssuesManager.Issue.IssueKind): string {
   switch (kind) {
-    case IssuesManager.Issue.IssueKind.BREAKING_CHANGE:
+    case IssuesManager.Issue.IssueKind.BreakingChange:
       return 'breaking-changes';
-    case IssuesManager.Issue.IssueKind.IMPROVEMENT:
+    case IssuesManager.Issue.IssueKind.Improvement:
       return 'improvements';
-    case IssuesManager.Issue.IssueKind.PAGE_ERROR:
+    case IssuesManager.Issue.IssueKind.PageError:
       return 'page-errors';
   }
 }
@@ -79,11 +79,11 @@ export class IssueKindView extends UI.TreeOutline.TreeElement {
 
   getHideAllCurrentKindString(): Common.UIString.LocalizedString {
     switch (this.#kind) {
-      case IssuesManager.Issue.IssueKind.PAGE_ERROR:
+      case IssuesManager.Issue.IssueKind.PageError:
         return i18nString(UIStrings.hideAllCurrentPageErrors);
-      case IssuesManager.Issue.IssueKind.IMPROVEMENT:
+      case IssuesManager.Issue.IssueKind.Improvement:
         return i18nString(UIStrings.hideAllCurrentImprovements);
-      case IssuesManager.Issue.IssueKind.BREAKING_CHANGE:
+      case IssuesManager.Issue.IssueKind.BreakingChange:
         return i18nString(UIStrings.hideAllCurrentBreakingChanges);
     }
   }
@@ -117,7 +117,7 @@ export class IssueKindView extends UI.TreeOutline.TreeElement {
         const values = setting.get();
         for (const issue of IssuesManager.IssuesManager.IssuesManager.instance().issues()) {
           if (issue.getKind() === this.#kind) {
-            values[issue.code()] = IssuesManager.IssuesManager.IssueStatus.HIDDEN;
+            values[issue.code()] = IssuesManager.IssuesManager.IssueStatus.Hidden;
           }
         }
         setting.set(values);

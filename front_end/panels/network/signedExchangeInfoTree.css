@@ -81,8 +81,7 @@
 
 .tree-outline .hex-data {
   display: block;
-  word-break: normal;
-  overflow-wrap: anywhere;
+  word-break: break-word;
   margin-left: 20px;
 }
 

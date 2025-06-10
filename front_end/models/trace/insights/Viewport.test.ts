@@ -2,28 +2,46 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
-import {
-  createContextForNavigation,
-  getFirstOrError,
-  getInsightOrError,
-  processTrace,
-} from '../../../testing/InsightHelpers.js';
-import * as Trace from '../trace.js';
+import {TraceLoader} from '../../../testing/TraceLoader.js';
+import * as TraceModel from '../trace.js';
 
-describeWithEnvironment('Viewport', function() {
+export async function processTrace(testContext: Mocha.Suite|Mocha.Context|null, traceFile: string) {
+  const {traceData, insights} = await TraceLoader.traceEngine(testContext, traceFile);
+  if (!insights) {
+    throw new Error('No insights');
+  }
+
+  return {data: traceData, insights};
+}
+
+function getInsight(insights: TraceModel.Insights.Types.TraceInsightData, navigationId: string) {
+  const navInsights = insights.get(navigationId);
+  if (!navInsights) {
+    throw new Error('missing navInsights');
+  }
+  const insight = navInsights.Viewport;
+  if (insight instanceof Error) {
+    throw insight;
+  }
+  return insight;
+}
+
+describe('Viewport', function() {
   it('detects mobile optimized viewport', async () => {
     const {data, insights} = await processTrace(this, 'lcp-images.json.gz');
-    const insight =
-        getInsightOrError('Viewport', insights, getFirstOrError(data.Meta.navigationsByNavigationId.values()));
+    const insight = getInsight(insights, data.Meta.navigationsByNavigationId.keys().next().value);
 
-    assert.isTrue(insight.mobileOptimized);
+    assert.strictEqual(insight.mobileOptimized, true);
   });
 
   it('detects mobile unoptimized viewport', async () => {
     const {data} = await processTrace(this, 'lcp-images.json.gz');
-    const navigation = getFirstOrError(data.Meta.navigationsByNavigationId.values());
-    const context = createContextForNavigation(data, navigation, data.Meta.mainFrameId);
+
+    const context = {
+      frameId: data.Meta.mainFrameId,
+      navigationId: data.Meta.navigationsByNavigationId.keys().next().value,
+    };
+
     const events =
         data.UserInteractions.beginCommitCompositorFrameEvents.filter(event => event.args.frame === context.frameId);
     assert.isNotEmpty(events);
@@ -31,7 +49,7 @@ describeWithEnvironment('Viewport', function() {
       event.args.is_mobile_optimized = false;
     }
 
-    const insight = Trace.Insights.Models.Viewport.generateInsight(data, context);
-    assert.isFalse(insight.mobileOptimized);
+    const insight = TraceModel.Insights.InsightRunners.Viewport.generateInsight(data, context);
+    assert.strictEqual(insight.mobileOptimized, false);
   });
 });

@@ -34,7 +34,6 @@
  * http://ejohn.org/files/jsdiff.js (released under the MIT license).
  */
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck This file is not checked by TypeScript Compiler as it has a lot of legacy code.
 
 import * as Platform from '../platform/platform.js';
@@ -44,7 +43,7 @@ Node.prototype.traverseNextTextNode = function(stayWithin?: Node): Node|null {
   if (!node) {
     return null;
   }
-  const nonTextTags = {STYLE: 1, SCRIPT: 1, '#document-fragment': 1};
+  const nonTextTags = {'STYLE': 1, 'SCRIPT': 1, '#document-fragment': 1};
   while (node && (node.nodeType !== Node.TEXT_NODE || nonTextTags[node.parentNode ? node.parentNode.nodeName : ''])) {
     node = node.traverseNextNode(stayWithin);
   }
@@ -176,17 +175,16 @@ self.createDocumentFragment = function(): DocumentFragment {
   return document.createDocumentFragment();
 };
 
-DocumentFragment.prototype.createChild = Element.prototype.createChild = function(
-    elementName: string,
-    className?: string,
-    ): Element {
-  const element = document.createElement(elementName);
+Element.prototype.createChild = function(elementName: string, className?: string, customElementType?: string): Element {
+  const element = document.createElement(elementName, {is: customElementType});
   if (className) {
     element.className = className;
   }
   this.appendChild(element);
   return element;
 };
+
+DocumentFragment.prototype.createChild = Element.prototype.createChild;
 
 self.AnchorBox = class {
   constructor(x?: number, y?: number, width?: number, height?: number) {
@@ -254,7 +252,7 @@ Node.prototype.deepTextContent = function(): string {
 Node.prototype.childTextNodes = function(): Node[] {
   let node = this.traverseNextTextNode(this);
   const result = [];
-  const nonTextTags = {STYLE: 1, SCRIPT: 1, '#document-fragment': 1};
+  const nonTextTags = {'STYLE': 1, 'SCRIPT': 1, '#document-fragment': 1};
   while (node) {
     if (!nonTextTags[node.parentNode ? node.parentNode.nodeName : '']) {
       result.push(node);
@@ -291,7 +289,7 @@ Node.prototype.isSelfOrDescendant = function(node: Node|null): boolean {
   return Boolean(node) && (node === this || this.isDescendant(node));
 };
 
-Node.prototype.traverseNextNode = function(stayWithin?: Node, skipShadowRoot = false): Node|null {
+Node.prototype.traverseNextNode = function(stayWithin?: Node, skipShadowRoot: boolean = false): Node|null {
   if (!skipShadowRoot && this.shadowRoot) {
     return this.shadowRoot;
   }
@@ -341,7 +339,7 @@ Node.prototype.traversePreviousNode = function(stayWithin?: Node): Node|null {
     return null;
   }
   let node: ChildNode|(ChildNode | null) = this.previousSibling;
-  while (node?.lastChild) {
+  while (node && node.lastChild) {
     node = node.lastChild;
   }
   if (node) {

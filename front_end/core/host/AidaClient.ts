@@ -3,104 +3,26 @@
 // found in the LICENSE file.
 
 import * as Common from '../common/common.js';
-import * as Root from '../root/root.js';
+import * as Platform from '../platform/platform.js';
 
 import {InspectorFrontendHostInstance} from './InspectorFrontendHost.js';
-import type {AidaClientResult, SyncInformation} from './InspectorFrontendHostAPI.js';
+import {type AidaClientResult, type SyncInformation} from './InspectorFrontendHostAPI.js';
 import {bindOutputStream} from './ResourceLoader.js';
 
-export enum Role {
-  /** Provide this role when giving a function call response  */
-  ROLE_UNSPECIFIED = 0,
-  /** Tags the content came from the user */
+export enum Entity {
+  UNKNOWN = 0,
   USER = 1,
-  /** Tags the content came from the LLM */
-  MODEL = 2,
+  SYSTEM = 2,
 }
 
 export const enum Rating {
-  // Resets the vote to null in the logs
-  SENTIMENT_UNSPECIFIED = 'SENTIMENT_UNSPECIFIED',
   POSITIVE = 'POSITIVE',
   NEGATIVE = 'NEGATIVE',
 }
 
-/**
- * A `Content` represents a single turn message.
- */
-export interface Content {
-  parts: Part[];
-  /** The producer of the content. */
-  role: Role;
-}
-
-export type Part = {
-  text: string,
-}|{
-  functionCall: {
-    name: string,
-    args: Record<string, unknown>,
-  },
-}|{
-  functionResponse: {
-    name: string,
-    response: Record<string, unknown>,
-  },
-}|{
-  /** Inline media bytes. */
-  inlineData: MediaBlob,
-};
-
-export const enum ParametersTypes {
-  STRING = 1,
-  NUMBER = 2,
-  INTEGER = 3,
-  BOOLEAN = 4,
-  ARRAY = 5,
-  OBJECT = 6,
-}
-
-interface BaseFunctionParam {
-  description: string;
-  nullable?: boolean;
-}
-
-export interface FunctionPrimitiveParams extends BaseFunctionParam {
-  type: ParametersTypes.BOOLEAN|ParametersTypes.INTEGER|ParametersTypes.STRING|ParametersTypes.BOOLEAN;
-}
-
-interface FunctionArrayParam extends BaseFunctionParam {
-  type: ParametersTypes.ARRAY;
-  items: FunctionPrimitiveParams;
-}
-
-export interface FunctionObjectParam<T extends string|number|symbol = string> extends BaseFunctionParam {
-  type: ParametersTypes.OBJECT;
-  // TODO: this can be also be ObjectParams
-  properties: Record<T, FunctionPrimitiveParams|FunctionArrayParam>;
-}
-
-/**
- * More about function declaration can be read at
- * https://ai.google.dev/gemini-api/docs/function-calling
- */
-export interface FunctionDeclaration<T extends string|number|symbol = string> {
-  name: string;
-  /**
-   * A description for the LLM to understand what the specific function will do once called.
-   */
-  description: string;
-  parameters: FunctionObjectParam<T>;
-}
-
-// Raw media bytes.
-export interface MediaBlob {
-  // The IANA standard MIME type of the source data.
-  // Currently supported types are: image/png, image/jpeg.
-  // Format: base64-encoded
-  // For reference: google3/google/x/pitchfork/aida/v1/content.proto
-  mimeType: string;
-  data: string;
+export interface Chunk {
+  text: string;
+  entity: Entity;
 }
 
 export enum FunctionalityType {
@@ -110,7 +32,6 @@ export enum FunctionalityType {
   CHAT = 1,
   // The explain error functionality.
   EXPLAIN_ERROR = 2,
-  AGENTIC_CHAT = 5,
 }
 
 export enum ClientFeature {
@@ -118,58 +39,26 @@ export enum ClientFeature {
   CLIENT_FEATURE_UNSPECIFIED = 0,
   // Chrome console insights feature.
   CHROME_CONSOLE_INSIGHTS = 1,
-  // Chrome AI Assistance Styling Agent.
-  CHROME_STYLING_AGENT = 2,
-  // Chrome AI Assistance Network Agent.
-  CHROME_NETWORK_AGENT = 7,
-  // Chrome AI Assistance Performance Agent.
-  CHROME_PERFORMANCE_AGENT = 8,
-  // Chrome AI Annotations Performance Agent
-  CHROME_PERFORMANCE_ANNOTATIONS_AGENT = 20,
-  // Chrome AI Assistance File Agent.
-  CHROME_FILE_AGENT = 9,
-  // Chrome AI Patch Agent.
-  CHROME_PATCH_AGENT = 12,
-  // Chrome AI Assistance Performance Insights Agent.
-  CHROME_PERFORMANCE_INSIGHTS_AGENT = 14,
+  // Chrome freestyler.
+  CHROME_FREESTYLER = 2,
 }
-
-export enum UserTier {
-  // Unspecified user tier.
-  USER_TIER_UNSPECIFIED = 0,
-  // Users who are internal testers.
-  TESTERS = 1,
-  // Users who are early adopters.
-  BETA = 2,
-  // Users in the general public.
-  PUBLIC = 3,
-}
-
-export type RpcGlobalId = string|number;
 
 export interface AidaRequest {
-  client: string;
-  // eslint-disable-next-line @typescript-eslint/naming-convention
-  current_message: Content;
+  input: string;
   preamble?: string;
   // eslint-disable-next-line @typescript-eslint/naming-convention
-  historical_contexts?: Content[];
-  // eslint-disable-next-line @typescript-eslint/naming-convention
-  function_declarations?: FunctionDeclaration[];
+  chat_history?: Chunk[];
+  client: string;
   options?: {
-    temperature?: number,
+    temperature?: Number,
     // eslint-disable-next-line @typescript-eslint/naming-convention
     model_id?: string,
   };
-  metadata: {
+  metadata?: {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     disable_user_content_logging: boolean,
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    client_version: string,
-    // eslint-disable-next-line @typescript-eslint/naming-convention
     string_session_id?: string,
-    // eslint-disable-next-line @typescript-eslint/naming-convention
-    user_tier?: UserTier,
   };
   // eslint-disable-next-line @typescript-eslint/naming-convention
   functionality_type?: FunctionalityType;
@@ -179,9 +68,9 @@ export interface AidaRequest {
 
 export interface AidaDoConversationClientEvent {
   // eslint-disable-next-line @typescript-eslint/naming-convention
-  corresponding_aida_rpc_global_id: RpcGlobalId;
+  corresponding_aida_rpc_global_id: number;
   // eslint-disable-next-line @typescript-eslint/naming-convention
-  disable_user_content_logging: boolean;
+  disable_user_content_logging?: boolean;
   // eslint-disable-next-line @typescript-eslint/naming-convention
   do_conversation_client_event: {
     // eslint-disable-next-line @typescript-eslint/naming-convention
@@ -203,20 +92,10 @@ export enum RecitationAction {
   EXEMPT_FOUND_IN_PROMPT = 'EXEMPT_FOUND_IN_PROMPT',
 }
 
-export enum CitationSourceType {
-  CITATION_SOURCE_TYPE_UNSPECIFIED = 'CITATION_SOURCE_TYPE_UNSPECIFIED',
-  TRAINING_DATA = 'TRAINING_DATA',
-  WORLD_FACTS = 'WORLD_FACTS',
-  LOCAL_FACTS = 'LOCAL_FACTS',
-  INDIRECT = 'INDERECT',
-}
-
 export interface Citation {
-  startIndex?: number;
-  endIndex?: number;
-  uri?: string;
-  sourceType?: CitationSourceType;
-  repository?: string;
+  startIndex: number;
+  endIndex: number;
+  url: string;
 }
 
 export interface AttributionMetadata {
@@ -224,73 +103,44 @@ export interface AttributionMetadata {
   citations: Citation[];
 }
 
-export interface AidaFunctionCallResponse {
-  name: string;
-  args: Record<string, unknown>;
-}
-
-export interface FactualityFact {
-  sourceUri?: string;
-}
-
-export interface FactualityMetadata {
-  facts: FactualityFact[];
-}
-
 export interface AidaResponseMetadata {
-  rpcGlobalId?: RpcGlobalId;
-  attributionMetadata?: AttributionMetadata;
-  factualityMetadata?: FactualityMetadata;
+  rpcGlobalId?: number;
+  attributionMetadata?: AttributionMetadata[];
 }
 
 export interface AidaResponse {
   explanation: string;
   metadata: AidaResponseMetadata;
-  functionCalls?: [AidaFunctionCallResponse, ...AidaFunctionCallResponse[]];
-  completed: boolean;
 }
 
-export const enum AidaAccessPreconditions {
+export enum AidaAvailability {
   AVAILABLE = 'available',
   NO_ACCOUNT_EMAIL = 'no-account-email',
+  NO_ACTIVE_SYNC = 'no-active-sync',
   NO_INTERNET = 'no-internet',
-  // This is the state (mostly enterprise) users are in, when they are automatically logged out from
-  // Chrome after a certain time period. For making AIDA requests, they need to log in again.
-  SYNC_IS_PAUSED = 'sync-is-paused',
 }
 
 export const CLIENT_NAME = 'CHROME_DEVTOOLS';
 
-const CODE_CHUNK_SEPARATOR = '\n`````\n';
-
-export class AidaAbortError extends Error {}
-export class AidaBlockError extends Error {}
-
 export class AidaClient {
   static buildConsoleInsightsRequest(input: string): AidaRequest {
-    const disallowLogging = Root.Runtime.hostConfig.aidaAvailability?.disallowLogging ?? true;
-    const chromeVersion = Root.Runtime.getChromeVersion();
-    if (!chromeVersion) {
-      throw new Error('Cannot determine Chrome version');
-    }
     const request: AidaRequest = {
-      current_message: {parts: [{text: input}], role: Role.USER},
+      input,
       client: CLIENT_NAME,
       functionality_type: FunctionalityType.EXPLAIN_ERROR,
       client_feature: ClientFeature.CHROME_CONSOLE_INSIGHTS,
-      metadata: {
-        disable_user_content_logging: disallowLogging,
-        client_version: chromeVersion,
-      },
     };
-
-    let temperature = -1;
-    let modelId;
-    if (Root.Runtime.hostConfig.devToolsConsoleInsights?.enabled) {
-      temperature = Root.Runtime.hostConfig.devToolsConsoleInsights.temperature ?? -1;
-      modelId = Root.Runtime.hostConfig.devToolsConsoleInsights.modelId;
+    const config = Common.Settings.Settings.instance().getHostConfig();
+    let temperature = NaN;
+    let modelId = null;
+    let disallowLogging = false;
+    if (config?.devToolsConsoleInsights.enabled) {
+      temperature = config.devToolsConsoleInsights.aidaTemperature;
+      modelId = config.devToolsConsoleInsights.aidaModelId;
+      disallowLogging = config.devToolsConsoleInsights.disallowLogging;
     }
-    if (temperature >= 0) {
+
+    if (!isNaN(temperature)) {
       request.options ??= {};
       request.options.temperature = temperature;
     }
@@ -298,40 +148,42 @@ export class AidaClient {
       request.options ??= {};
       request.options.model_id = modelId;
     }
+    if (disallowLogging) {
+      request.metadata = {
+        disable_user_content_logging: true,
+      };
+    }
     return request;
   }
 
-  static async checkAccessPreconditions(): Promise<AidaAccessPreconditions> {
+  static async getAidaClientAvailability(): Promise<AidaAvailability> {
     if (!navigator.onLine) {
-      return AidaAccessPreconditions.NO_INTERNET;
+      return AidaAvailability.NO_INTERNET;
     }
 
     const syncInfo = await new Promise<SyncInformation>(
         resolve => InspectorFrontendHostInstance.getSyncInformation(syncInfo => resolve(syncInfo)));
     if (!syncInfo.accountEmail) {
-      return AidaAccessPreconditions.NO_ACCOUNT_EMAIL;
+      return AidaAvailability.NO_ACCOUNT_EMAIL;
     }
 
-    if (syncInfo.isSyncPaused) {
-      return AidaAccessPreconditions.SYNC_IS_PAUSED;
+    if (!syncInfo.isSyncActive) {
+      return AidaAvailability.NO_ACTIVE_SYNC;
     }
 
-    return AidaAccessPreconditions.AVAILABLE;
+    return AidaAvailability.AVAILABLE;
   }
 
-  async * fetch(request: AidaRequest, options?: {signal?: AbortSignal}): AsyncGenerator<AidaResponse, void, void> {
+  async * fetch(request: AidaRequest): AsyncGenerator<AidaResponse, void, void> {
     if (!InspectorFrontendHostInstance.doAidaConversation) {
       throw new Error('doAidaConversation is not available');
     }
     const stream = (() => {
-      let {promise, resolve, reject} = Promise.withResolvers<string|null>();
-      options?.signal?.addEventListener('abort', () => {
-        reject(new AidaAbortError());
-      }, {once: true});
+      let {promise, resolve, reject} = Platform.PromiseUtilities.promiseWithResolvers<string|null>();
       return {
         write: async(data: string): Promise<void> => {
           resolve(data);
-          ({promise, resolve, reject} = Promise.withResolvers<string|null>());
+          ({promise, resolve, reject} = Platform.PromiseUtilities.promiseWithResolvers<string|null>());
         },
         close: async(): Promise<void> => {
           resolve(null);
@@ -348,8 +200,6 @@ export class AidaClient {
         stream.fail(new Error('Server responded: permission denied'));
       } else if (result.error) {
         stream.fail(new Error(`Cannot send request: ${result.error} ${result.detail || ''}`));
-      } else if (result.netErrorName === 'net::ERR_TIMED_OUT') {
-        stream.fail(new Error('doAidaConversation timed out'));
       } else if (result.statusCode !== 200) {
         stream.fail(new Error(`Request failed: ${JSON.stringify(result)}`));
       } else {
@@ -359,8 +209,7 @@ export class AidaClient {
     let chunk;
     const text = [];
     let inCodeChunk = false;
-    const functionCalls: AidaFunctionCallResponse[] = [];
-    let metadata: AidaResponseMetadata = {rpcGlobalId: 0};
+    const metadata: AidaResponseMetadata = {rpcGlobalId: 0};
     while ((chunk = await stream.read())) {
       let textUpdated = false;
       // The AIDA response is a JSON array of objects, split at the object
@@ -386,12 +235,15 @@ export class AidaClient {
       } catch (error) {
         throw new Error('Cannot parse chunk: ' + chunk, {cause: error});
       }
-
+      const CODE_CHUNK_SEPARATOR = '\n`````\n';
       for (const result of results) {
         if ('metadata' in result) {
-          metadata = result.metadata;
-          if (metadata?.attributionMetadata?.attributionAction === RecitationAction.BLOCK) {
-            throw new AidaBlockError();
+          metadata.rpcGlobalId = result.metadata.rpcGlobalId;
+          if ('attributionMetadata' in result.metadata) {
+            if (!metadata.attributionMetadata) {
+              metadata.attributionMetadata = [];
+            }
+            metadata.attributionMetadata.push(result.metadata.attributionMetadata);
           }
         }
         if ('textChunk' in result) {
@@ -408,11 +260,6 @@ export class AidaClient {
           }
           text.push(result.codeChunk.code);
           textUpdated = true;
-        } else if ('functionCallChunk' in result) {
-          functionCalls.push({
-            name: result.functionCallChunk.functionCall.name,
-            args: result.functionCallChunk.functionCall.args,
-          });
         } else if ('error' in result) {
           throw new Error(`Server responded: ${JSON.stringify(result)}`);
         } else {
@@ -423,21 +270,13 @@ export class AidaClient {
         yield {
           explanation: text.join('') + (inCodeChunk ? CODE_CHUNK_SEPARATOR : ''),
           metadata,
-          completed: false,
         };
       }
     }
-    yield {
-      explanation: text.join('') + (inCodeChunk ? CODE_CHUNK_SEPARATOR : ''),
-      metadata,
-      functionCalls: functionCalls.length ? functionCalls as [AidaFunctionCallResponse, ...AidaFunctionCallResponse[]] :
-                                            undefined,
-      completed: true,
-    };
   }
 
   registerClientEvent(clientEvent: AidaDoConversationClientEvent): Promise<AidaClientResult> {
-    const {promise, resolve} = Promise.withResolvers<AidaClientResult>();
+    const {promise, resolve} = Platform.PromiseUtilities.promiseWithResolvers<AidaClientResult>();
     InspectorFrontendHostInstance.registerAidaClientEvent(
         JSON.stringify({
           client: CLIENT_NAME,
@@ -449,75 +288,4 @@ export class AidaClient {
 
     return promise;
   }
-}
-
-export function convertToUserTierEnum(userTier: string|undefined): UserTier {
-  if (userTier) {
-    switch (userTier) {
-      case 'TESTERS':
-        return UserTier.TESTERS;
-      case 'BETA':
-        return UserTier.BETA;
-      case 'PUBLIC':
-        return UserTier.PUBLIC;
-    }
-  }
-  return UserTier.BETA;
-}
-
-let hostConfigTrackerInstance: HostConfigTracker|undefined;
-
-export class HostConfigTracker extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
-  #pollTimer?: number;
-  #aidaAvailability?: AidaAccessPreconditions;
-
-  private constructor() {
-    super();
-  }
-
-  static instance(): HostConfigTracker {
-    if (!hostConfigTrackerInstance) {
-      hostConfigTrackerInstance = new HostConfigTracker();
-    }
-    return hostConfigTrackerInstance;
-  }
-
-  override addEventListener(eventType: Events, listener: Common.EventTarget.EventListener<EventTypes, Events>):
-      Common.EventTarget.EventDescriptor<EventTypes> {
-    const isFirst = !this.hasEventListeners(eventType);
-    const eventDescriptor = super.addEventListener(eventType, listener);
-    if (isFirst) {
-      window.clearTimeout(this.#pollTimer);
-      void this.pollAidaAvailability();
-    }
-    return eventDescriptor;
-  }
-
-  override removeEventListener(eventType: Events, listener: Common.EventTarget.EventListener<EventTypes, Events>):
-      void {
-    super.removeEventListener(eventType, listener);
-    if (!this.hasEventListeners(eventType)) {
-      window.clearTimeout(this.#pollTimer);
-    }
-  }
-
-  private async pollAidaAvailability(): Promise<void> {
-    this.#pollTimer = window.setTimeout(() => this.pollAidaAvailability(), 2000);
-    const currentAidaAvailability = await AidaClient.checkAccessPreconditions();
-    if (currentAidaAvailability !== this.#aidaAvailability) {
-      this.#aidaAvailability = currentAidaAvailability;
-      const config =
-          await new Promise<Root.Runtime.HostConfig>(resolve => InspectorFrontendHostInstance.getHostConfig(resolve));
-      Object.assign(Root.Runtime.hostConfig, config);
-      this.dispatchEventToListeners(Events.AIDA_AVAILABILITY_CHANGED);
-    }
-  }
-}
-
-export const enum Events {
-  AIDA_AVAILABILITY_CHANGED = 'aidaAvailabilityChanged',
-}
-
-export interface EventTypes {
-  [Events.AIDA_AVAILABILITY_CHANGED]: void;
 }

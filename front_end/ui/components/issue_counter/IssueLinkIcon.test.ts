@@ -10,9 +10,11 @@ import {
 } from '../../../testing/DOMHelpers.js';
 import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
 import * as IconButton from '../icon_button/icon_button.js';
-import * as RenderCoordinator from '../render_coordinator/render_coordinator.js';
+import * as Coordinator from '../render_coordinator/render_coordinator.js';
 
 import * as IssueCounter from './issue_counter.js';
+
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 const renderIssueLinkIcon = async(data: IssueCounter.IssueLinkIcon.IssueLinkIconData): Promise<{
   component: IssueCounter.IssueLinkIcon.IssueLinkIcon,
@@ -22,7 +24,7 @@ const renderIssueLinkIcon = async(data: IssueCounter.IssueLinkIcon.IssueLinkIcon
   component.data = data;
   renderElementIntoDOM(component);
   assert.isNotNull(component.shadowRoot);
-  await RenderCoordinator.done();
+  await coordinator.done();
   return {component, shadowRoot: component.shadowRoot};
 };
 
@@ -43,7 +45,7 @@ interface MockIssueResolverEntry {
 }
 
 class MockIssueResolver {
-  #promiseMap = new Map<string, MockIssueResolverEntry>();
+  #promiseMap: Map<string, MockIssueResolverEntry> = new Map();
 
   waitFor(issueId?: string) {
     if (!issueId) {
@@ -57,7 +59,10 @@ class MockIssueResolver {
     if (entry) {
       return entry.promise;
     }
-    const {resolve, promise} = Promise.withResolvers<IssuesManager.Issue.Issue|null>();
+    let resolve: (issue: IssuesManager.Issue.Issue|null) => void = () => {};
+    const promise = new Promise<IssuesManager.Issue.Issue|null>(r => {
+      resolve = r;
+    });
     this.#promiseMap.set(issueId, {resolve, promise});
     return promise;
   }
@@ -80,7 +85,7 @@ describeWithLocale('IssueLinkIcon', () => {
   const issueId = 'issue1' as Protocol.Audits.IssueId;
   const mockIssue = {
     getKind() {
-      return IssuesManager.Issue.IssueKind.PAGE_ERROR;
+      return IssuesManager.Issue.IssueKind.PageError;
     },
     getIssueId() {
       return issueId;
@@ -145,7 +150,7 @@ describeWithLocale('IssueLinkIcon', () => {
       });
 
       resolver.resolve(mockIssue as unknown as IssuesManager.Issue.Issue);
-      await RenderCoordinator.done({waitForWork: true});
+      await coordinator.done({waitForWork: true});
 
       assert.isTrue(extractElements(shadowRoot).button.classList.contains('link'));
     });
@@ -157,14 +162,14 @@ describeWithLocale('IssueLinkIcon', () => {
 
       const mockIssue2 = {
         getKind() {
-          return IssuesManager.Issue.IssueKind.BREAKING_CHANGE;
+          return IssuesManager.Issue.IssueKind.BreakingChange;
         },
       };
 
       component.data = {
         issue: mockIssue2 as unknown as IssuesManager.Issue.Issue,
       };
-      await RenderCoordinator.done({waitForWork: true});
+      await coordinator.done({waitForWork: true});
 
       const {icon} = extractElements(shadowRoot);
       assert.strictEqual(icon.name, 'issue-exclamation-filled');

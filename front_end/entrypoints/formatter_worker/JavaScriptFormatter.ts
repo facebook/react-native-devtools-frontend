@@ -32,7 +32,7 @@ import * as Acorn from '../../third_party/acorn/acorn.js';
 
 import {AcornTokenizer, ECMA_VERSION, type TokenOrComment} from './AcornTokenizer.js';
 import {ESTreeWalker} from './ESTreeWalker.js';
-import type {FormattedContentBuilder} from './FormattedContentBuilder.js';
+import {type FormattedContentBuilder} from './FormattedContentBuilder.js';
 
 export class JavaScriptFormatter {
   readonly #builder: FormattedContentBuilder;
@@ -50,7 +50,7 @@ export class JavaScriptFormatter {
     this.#toOffset = toOffset;
     this.#content = text.substring(this.#fromOffset, this.#toOffset);
     this.#lastLineNumber = 0;
-    const tokens: Array<Acorn.Token|Acorn.Comment> = [];
+    const tokens: (Acorn.Token|Acorn.Comment)[] = [];
     const ast = Acorn.parse(this.#content, {
       ranges: false,
       preserveParens: true,
@@ -63,7 +63,7 @@ export class JavaScriptFormatter {
     });
     this.#tokenizer = new AcornTokenizer(this.#content, tokens);
     const walker = new ESTreeWalker(this.#beforeVisit.bind(this), this.#afterVisit.bind(this));
-    // @ts-expect-error Technically, the acorn Node type is a subclass of Acorn.ESTree.Node.
+    // @ts-ignore Technically, the acorn Node type is a subclass of Acorn.ESTree.Node.
     // However, the acorn package currently exports its type without specifying
     // this relationship. So while this is allowed on runtime, we can't properly
     // typecheck it.
@@ -104,15 +104,13 @@ export class JavaScriptFormatter {
     let token;
     while ((token = this.#tokenizer.peekToken()) && token.start < node.start) {
       const token = (this.#tokenizer.nextToken() as TokenOrComment);
-      // @ts-expect-error Same reason as above about Acorn types and ESTree types
+      // @ts-ignore Same reason as above about Acorn types and ESTree types
       const format = this.#formatToken(node.parent, token);
       this.#push(token, format);
     }
   }
 
   #afterVisit(node: Acorn.ESTree.Node): void {
-    // ${expressions} within a template literal need space enforced.
-    const restore = this.#builder.setEnforceSpaceBetweenWords(node.type !== 'TemplateElement');
     let token;
     while ((token = this.#tokenizer.peekToken()) && token.start < node.end) {
       const token = (this.#tokenizer.nextToken() as TokenOrComment);
@@ -120,7 +118,9 @@ export class JavaScriptFormatter {
       this.#push(token, format);
     }
     this.#push(null, this.#finishNode(node));
-    this.#builder.setEnforceSpaceBetweenWords(restore || node.type === 'TemplateLiteral');
+    if (node.type === 'TemplateLiteral') {
+      this.#builder.setEnforceSpaceBetweenWords(true);
+    }
   }
 
   #inForLoopHeader(node: Acorn.ESTree.Node): boolean {
@@ -256,7 +256,7 @@ export class JavaScriptFormatter {
         let allVariablesInitialized = true;
         const declarations = (node.declarations as Acorn.ESTree.Node[]);
         for (let i = 0; i < declarations.length; ++i) {
-          // @ts-expect-error We are doing a subtype check, without properly checking whether
+          // @ts-ignore We are doing a subtype check, without properly checking whether
           // it exists. We can't fix that, unless we use proper typechecking
           allVariablesInitialized = allVariablesInitialized && Boolean(declarations[i].init);
         }
@@ -419,9 +419,9 @@ export class JavaScriptFormatter {
       }
       if (node.parent && node.parent.type === 'CatchClause') {
         const parentNode = (node.parent as Acorn.ESTree.CatchClause);
-        // @ts-expect-error We are doing a subtype check, without properly checking whether
+        // @ts-ignore We are doing a subtype check, without properly checking whether
         // it exists. We can't fix that, unless we use proper typechecking
-        if (parentNode.parent?.finalizer) {
+        if (parentNode.parent && parentNode.parent.finalizer) {
           return 's';
         }
       }

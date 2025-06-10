@@ -5,7 +5,7 @@
 import("../../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../../scripts/build/ninja/devtools_module.gni")
 import("../../../../scripts/build/ninja/devtools_pre_built.gni")
-import("../../../../scripts/build/typescript/typescript.gni")
+import("../../../../third_party/typescript/typescript.gni")
 import("../visibility.gni")
 
 devtools_module("helpers") {
@@ -21,7 +21,7 @@ devtools_module("helpers") {
     "../../../core/platform:bundle",
     "../../../core/root:bundle",
     "../../../ui/legacy/theme_support:bundle",
-    "../../../ui/lit:bundle",
+    "../../../ui/lit-html:bundle",
     "../render_coordinator:bundle",
   ]
 }
@@ -49,7 +49,7 @@ ts_library("unittests") {
     ":bundle",
     "../../../testing",
     "../../legacy/theme_support:bundle",
-    "../../lit:bundle",
+    "../../lit-html:bundle",
     "../render_coordinator:bundle",
   ]
 }

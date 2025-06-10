@@ -5,7 +5,6 @@
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
-import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Workspace from '../../models/workspace/workspace.js';
 import * as Components from '../../ui/legacy/components/utils/utils.js';
@@ -74,11 +73,11 @@ const UIStrings = {
   /**
    *@description Title of a setting under the Appearance category that can be invoked through the Command Menu
    */
-  switchToBrowserPreferredTheme: 'Switch to browser\'s preferred theme',
+  switchToBrowserPreferredColor: 'Switch to browser\'s preferred color theme',
   /**
-   *@description A drop-down menu option to switch to the same (light or dark) theme as the browser
+   *@description A drop-down menu option to switch to the browser's preferred color theme
    */
-  autoTheme: 'Auto',
+  browserPreference: 'Browser preference',
   /**
    *@description Title of a setting under the Appearance category that can be invoked through the Command Menu
    */
@@ -206,24 +205,7 @@ const UIStrings = {
    * elements panel, only when the user presses Enter.
    */
   searchOnEnterCommand: 'Disable search as you type (press Enter to search)',
-  /**
-   * @description Label of a checkbox under the Appearance category in Settings. Allows developers
-   * to opt-in / opt-out of syncing DevTools' color theme with Chrome's color theme.
-   */
-  matchChromeColorScheme: 'Match Chrome color scheme',
-  /**
-   * @description Tooltip for the learn more link of the Match Chrome color scheme Setting.
-   */
-  matchChromeColorSchemeDocumentation: 'Match DevTools colors to your customized Chrome theme (when enabled)',
-  /**
-   * @description Command to turn the browser color scheme matching on through the command menu.
-   */
-  matchChromeColorSchemeCommand: 'Match Chrome color scheme',
-  /**
-   * @description Command to turn the browser color scheme matching off through the command menu.
-   */
-  dontMatchChromeColorSchemeCommand: 'Don\'t match Chrome color scheme',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('entrypoints/main/main-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 let loadedMainModule: (typeof Main|undefined);
@@ -283,11 +265,11 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+]',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+]',
     },
   ],
@@ -302,11 +284,11 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+[',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+[',
     },
   ],
@@ -336,11 +318,11 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+Shift+D',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Shift+D',
     },
   ],
@@ -363,7 +345,7 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+Plus',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.DEVTOOLS_DEFAULT,
@@ -371,19 +353,19 @@ UI.ActionRegistration.registerActionExtension({
       ],
     },
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+Shift+Plus',
     },
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+NumpadPlus',
     },
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+Shift+NumpadPlus',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Plus',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.DEVTOOLS_DEFAULT,
@@ -391,15 +373,15 @@ UI.ActionRegistration.registerActionExtension({
       ],
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Shift+Plus',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+NumpadPlus',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Shift+NumpadPlus',
     },
   ],
@@ -416,7 +398,7 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+Minus',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.DEVTOOLS_DEFAULT,
@@ -424,19 +406,19 @@ UI.ActionRegistration.registerActionExtension({
       ],
     },
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+Shift+Minus',
     },
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+NumpadMinus',
     },
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+Shift+NumpadMinus',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Minus',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.DEVTOOLS_DEFAULT,
@@ -444,15 +426,15 @@ UI.ActionRegistration.registerActionExtension({
       ],
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Shift+Minus',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+NumpadMinus',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Shift+NumpadMinus',
     },
   ],
@@ -469,19 +451,19 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+0',
     },
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+Numpad0',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Numpad0',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+0',
     },
   ],
@@ -498,7 +480,7 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+F',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.DEVTOOLS_DEFAULT,
@@ -506,7 +488,7 @@ UI.ActionRegistration.registerActionExtension({
       ],
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+F',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.DEVTOOLS_DEFAULT,
@@ -514,7 +496,7 @@ UI.ActionRegistration.registerActionExtension({
       ],
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'F3',
     },
   ],
@@ -546,7 +528,7 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+G',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.DEVTOOLS_DEFAULT,
@@ -554,11 +536,11 @@ UI.ActionRegistration.registerActionExtension({
       ],
     },
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+G',
     },
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'F3',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.DEVTOOLS_DEFAULT,
@@ -578,7 +560,7 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Shift+G',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.DEVTOOLS_DEFAULT,
@@ -586,11 +568,11 @@ UI.ActionRegistration.registerActionExtension({
       ],
     },
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+Shift+G',
     },
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Shift+F3',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.DEVTOOLS_DEFAULT,
@@ -602,7 +584,7 @@ UI.ActionRegistration.registerActionExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.APPEARANCE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   title: i18nLazyString(UIStrings.theme),
   settingName: 'ui-theme',
   settingType: Common.Settings.SettingType.ENUM,
@@ -610,8 +592,8 @@ Common.Settings.registerSettingExtension({
   reloadRequired: false,
   options: [
     {
-      title: i18nLazyString(UIStrings.switchToBrowserPreferredTheme),
-      text: i18nLazyString(UIStrings.autoTheme),
+      title: i18nLazyString(UIStrings.switchToBrowserPreferredColor),
+      text: i18nLazyString(UIStrings.browserPreference),
       value: 'systemPreferred',
     },
     {
@@ -633,31 +615,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.APPEARANCE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
-  title: i18nLazyString(UIStrings.matchChromeColorScheme),
-  settingName: 'chrome-theme-colors',
-  settingType: Common.Settings.SettingType.BOOLEAN,
-  defaultValue: true,
-  options: [
-    {
-      value: true,
-      title: i18nLazyString(UIStrings.matchChromeColorSchemeCommand),
-    },
-    {
-      value: false,
-      title: i18nLazyString(UIStrings.dontMatchChromeColorSchemeCommand),
-    },
-  ],
-  reloadRequired: true,
-  learnMore: {
-    url: 'https://goo.gle/devtools-customize-theme' as Platform.DevToolsPath.UrlString,
-    tooltip: i18nLazyString(UIStrings.matchChromeColorSchemeDocumentation),
-  },
-});
-
-Common.Settings.registerSettingExtension({
-  category: Common.Settings.SettingCategory.APPEARANCE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   title: i18nLazyString(UIStrings.panelLayout),
   settingName: 'sidebar-position',
   settingType: Common.Settings.SettingType.ENUM,
@@ -683,7 +641,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.APPEARANCE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   settingName: 'language',
   settingType: Common.Settings.SettingType.ENUM,
   title: i18nLazyString(UIStrings.language),
@@ -701,7 +659,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.APPEARANCE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   title: Host.Platform.platform() === 'mac' ? i18nLazyString(UIStrings.enableShortcutToSwitchPanels) :
                                               i18nLazyString(UIStrings.enableCtrlShortcutToSwitchPanels),
   settingName: 'shortcut-panel-switch',
@@ -739,7 +697,7 @@ Common.Settings.registerSettingExtension({
 });
 
 Common.Settings.registerSettingExtension({
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   settingName: 'active-keybind-set',
   settingType: Common.Settings.SettingType.ENUM,
   defaultValue: 'devToolsDefault',
@@ -781,7 +739,7 @@ Common.Settings.registerSettingExtension({
 });
 
 Common.Settings.registerSettingExtension({
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   settingName: 'user-shortcuts',
   settingType: Common.Settings.SettingType.ARRAY,
   defaultValue: [],
@@ -789,7 +747,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.GLOBAL,
-  storageType: Common.Settings.SettingStorageType.LOCAL,
+  storageType: Common.Settings.SettingStorageType.Local,
   title: i18nLazyString(UIStrings.searchAsYouTypeSetting),
   settingName: 'search-as-you-type',
   settingType: Common.Settings.SettingType.BOOLEAN,

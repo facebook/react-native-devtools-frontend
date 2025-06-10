@@ -6,15 +6,15 @@ import * as Platform from '../../../core/platform/platform.js';
 import * as Helpers from '../helpers/helpers.js';
 import * as Types from '../types/types.js';
 
-import type {HandlerName} from './types.js';
+import {type TraceEventHandlerName} from './types.js';
 import {data as userInteractionsHandlerData} from './UserInteractionsHandler.js';
 
 export interface WarningsData {
   // Tracks warnings keyed by the event.
-  perEvent: Map<Types.Events.Event, Warning[]>;
+  perEvent: Map<Types.TraceEvents.TraceEventData, Warning[]>;
   // The same data in reverse: for each type of warning, track the events.
   // Useful if we need to enumerate events by type of issue
-  perWarning: Map<Warning, Types.Events.Event[]>;
+  perWarning: Map<Warning, Types.TraceEvents.TraceEventData[]>;
 }
 
 export type Warning = 'LONG_TASK'|'IDLE_CALLBACK_OVER_TIME'|'FORCED_REFLOW'|'LONG_INTERACTION';
@@ -25,21 +25,21 @@ const eventsPerWarning: WarningsData['perWarning'] = new Map();
 /**
  * Tracks the stack formed by nested trace events up to a given point
  */
-const allEventsStack: Types.Events.Event[] = [];
+const allEventsStack: Types.TraceEvents.TraceEventData[] = [];
 /**
  * Tracks the stack formed by JS invocation trace events up to a given point.
  * F.e. FunctionCall, EvaluateScript, V8Execute.
  * Not to be confused with ProfileCalls.
  */
-const jsInvokeStack: Types.Events.Event[] = [];
+const jsInvokeStack: Types.TraceEvents.TraceEventData[] = [];
 /**
  * Tracks reflow events in a task.
  */
-const taskReflowEvents: Types.Events.Event[] = [];
+const taskReflowEvents: Types.TraceEvents.TraceEventData[] = [];
 
-export const FORCED_REFLOW_THRESHOLD = Helpers.Timing.milliToMicro(Types.Timing.Milli(30));
+export const FORCED_REFLOW_THRESHOLD = Helpers.Timing.millisecondsToMicroseconds(Types.Timing.MilliSeconds(30));
 
-export const LONG_MAIN_THREAD_TASK_THRESHOLD = Helpers.Timing.milliToMicro(Types.Timing.Milli(50));
+export const LONG_MAIN_THREAD_TASK_THRESHOLD = Helpers.Timing.millisecondsToMicroseconds(Types.Timing.MilliSeconds(50));
 
 export function reset(): void {
   warningsPerEvent.clear();
@@ -49,7 +49,7 @@ export function reset(): void {
   taskReflowEvents.length = 0;
 }
 
-function storeWarning(event: Types.Events.Event, warning: Warning): void {
+function storeWarning(event: Types.TraceEvents.TraceEventData, warning: Warning): void {
   const existingWarnings = Platform.MapUtilities.getWithDefault(warningsPerEvent, event, () => []);
   existingWarnings.push(warning);
   warningsPerEvent.set(event, existingWarnings);
@@ -59,9 +59,9 @@ function storeWarning(event: Types.Events.Event, warning: Warning): void {
   eventsPerWarning.set(warning, existingEvents);
 }
 
-export function handleEvent(event: Types.Events.Event): void {
+export function handleEvent(event: Types.TraceEvents.TraceEventData): void {
   processForcedReflowWarning(event);
-  if (event.name === Types.Events.Name.RUN_TASK) {
+  if (event.name === Types.TraceEvents.KnownEventName.RunTask) {
     const {duration} = Helpers.Timing.eventTimingsMicroSeconds(event);
     if (duration > LONG_MAIN_THREAD_TASK_THRESHOLD) {
       storeWarning(event, 'LONG_TASK');
@@ -69,7 +69,7 @@ export function handleEvent(event: Types.Events.Event): void {
     return;
   }
 
-  if (Types.Events.isFireIdleCallback(event)) {
+  if (Types.TraceEvents.isTraceEventFireIdleCallback(event)) {
     const {duration} = Helpers.Timing.eventTimingsMilliSeconds(event);
     if (duration > event.args.data.allottedMilliseconds) {
       storeWarning(event, 'IDLE_CALLBACK_OVER_TIME');
@@ -85,13 +85,14 @@ export function handleEvent(event: Types.Events.Event): void {
  * 2. Their duration exceeds a threshold.
  * - *Reflow: The style recalculation and layout steps in a render task.
  */
-function processForcedReflowWarning(event: Types.Events.Event): void {
+function processForcedReflowWarning(event: Types.TraceEvents.TraceEventData): void {
   // Update the event and the JS invocation stacks.
   accomodateEventInStack(event, allEventsStack);
-  accomodateEventInStack(event, jsInvokeStack, /* pushEventToStack */ Types.Events.isJSInvocationEvent(event));
+  accomodateEventInStack(event, jsInvokeStack, /* pushEventToStack */ Types.TraceEvents.isJSInvocationEvent(event));
   if (jsInvokeStack.length) {
     // Current event falls inside a JS call.
-    if (event.name === Types.Events.Name.LAYOUT || event.name === Types.Events.Name.UPDATE_LAYOUT_TREE) {
+    if (event.name === Types.TraceEvents.KnownEventName.Layout ||
+        event.name === Types.TraceEvents.KnownEventName.UpdateLayoutTree) {
       // A forced reflow happened. However we need to check if
       // the threshold is surpassed to add a warning. Accumulate the
       // event to check for this after the current Task is over.
@@ -113,7 +114,8 @@ function processForcedReflowWarning(event: Types.Events.Event): void {
 /**
  * Updates a given trace event stack given a new event.
  */
-function accomodateEventInStack(event: Types.Events.Event, stack: Types.Events.Event[], pushEventToStack = true): void {
+function accomodateEventInStack(
+    event: Types.TraceEvents.TraceEventData, stack: Types.TraceEvents.TraceEventData[], pushEventToStack = true): void {
   let nextItem = stack.at(-1);
   while (nextItem && event.ts > nextItem.ts + (nextItem.dur || 0)) {
     stack.pop();
@@ -125,7 +127,7 @@ function accomodateEventInStack(event: Types.Events.Event, stack: Types.Events.E
   stack.push(event);
 }
 
-export function deps(): HandlerName[] {
+export function deps(): TraceEventHandlerName[] {
   return ['UserInteractions'];
 }
 

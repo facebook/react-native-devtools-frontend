@@ -19,7 +19,7 @@ describeWithEnvironment('RecorderSettings', () => {
   it('should have correct default values', async () => {
     assert.isTrue(recorderSettings.selectorAttribute === '');
     assert.isTrue(
-        recorderSettings.speed === Models.RecordingPlayer.PlayRecordingSpeed.NORMAL,
+        recorderSettings.speed === Models.RecordingPlayer.PlayRecordingSpeed.Normal,
     );
     Object.values(Models.Schema.SelectorType).forEach(type => {
       assert.isTrue(recorderSettings.getSelectorByType(type));
@@ -47,10 +47,10 @@ describeWithEnvironment('RecorderSettings', () => {
   });
 
   it('should save speed attribute change', () => {
-    recorderSettings.speed = Models.RecordingPlayer.PlayRecordingSpeed.EXTREMELY_SLOW;
+    recorderSettings.speed = Models.RecordingPlayer.PlayRecordingSpeed.ExtremelySlow;
     assert.strictEqual(
         Common.Settings.Settings.instance().settingForTest('recorder-panel-replay-speed').get(),
-        Models.RecordingPlayer.PlayRecordingSpeed.EXTREMELY_SLOW,
+        Models.RecordingPlayer.PlayRecordingSpeed.ExtremelySlow,
     );
   });
 

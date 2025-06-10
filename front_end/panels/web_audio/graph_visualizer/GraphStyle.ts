@@ -27,9 +27,9 @@ export const ParamLabelFontStyle = '12px Segoe UI, Arial';
  * Supported port types.
  */
 export const enum PortTypes {
-  IN = 'In',
-  OUT = 'Out',
-  PARAM = 'Param',
+  In = 'In',
+  Out = 'Out',
+  Param = 'Param',
 }
 
 export interface Size {

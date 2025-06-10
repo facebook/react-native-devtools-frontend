@@ -2,13 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+/* eslint-disable rulesdir/check_component_naming, rulesdir/custom_element_definitions_location, rulesdir/no_underscored_properties, rulesdir/ban_style_tags_in_lit_html, rulesdir/ban_a_tags_in_lit_html, rulesdir/lit_html_host_this */
 import {html, render} from 'lit-html';
 
-export interface CreditsItemData {
-  title: string;
-  homepage: string;
-  license: string;
-}
+export type CreditsItemData = {
+  title: string,
+  homepage: string,
+  license: string,
+};
 
 function onClick(e: KeyboardEvent): void {
   const {target} = e;

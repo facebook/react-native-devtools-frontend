@@ -3,7 +3,7 @@
  * Copyright 2022 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
-import * as Bidi from 'chromium-bidi/lib/cjs/protocol/protocol.js';
+/// <reference types="node" />
 import type Protocol from 'devtools-protocol';
 import type { CDPSession } from '../api/CDPSession.js';
 import type { WaitForOptions } from '../api/Frame.js';
@@ -13,7 +13,7 @@ import { Page, type NewDocumentScriptEvaluation, type ScreenshotOptions } from '
 import { Coverage } from '../cdp/Coverage.js';
 import type { NetworkConditions } from '../cdp/NetworkManager.js';
 import { Tracing } from '../cdp/Tracing.js';
-import type { CookiePartitionKey, Cookie, CookieParam, CookieSameSite, DeleteCookiesRequest } from '../common/Cookie.js';
+import type { Cookie, CookieParam, DeleteCookiesRequest } from '../common/Cookie.js';
 import { EventEmitter } from '../common/EventEmitter.js';
 import type { PDFOptions } from '../common/PDFOptions.js';
 import type { Awaitable } from '../common/types.js';
@@ -63,7 +63,6 @@ export declare class BidiPage extends Page {
     setDefaultNavigationTimeout(timeout: number): void;
     setDefaultTimeout(timeout: number): void;
     getDefaultTimeout(): number;
-    getDefaultNavigationTimeout(): number;
     isJavaScriptEnabled(): boolean;
     setGeolocation(options: GeolocationOptions): Promise<void>;
     setJavaScriptEnabled(enabled: boolean): Promise<void>;
@@ -78,7 +77,7 @@ export declare class BidiPage extends Page {
     emulateVisionDeficiency(type?: Protocol.Emulation.SetEmulatedVisionDeficiencyRequest['type']): Promise<void>;
     setViewport(viewport: Viewport | null): Promise<void>;
     viewport(): Viewport | null;
-    pdf(options?: PDFOptions): Promise<Uint8Array>;
+    pdf(options?: PDFOptions): Promise<Buffer>;
     createPDFStream(options?: PDFOptions | undefined): Promise<ReadableStream<Uint8Array>>;
     _screenshot(options: Readonly<ScreenshotOptions>): Promise<string>;
     createCDPSession(): Promise<CDPSession>;
@@ -118,13 +117,4 @@ export declare class BidiPage extends Page {
     goForward(options?: WaitForOptions): Promise<HTTPResponse | null>;
     waitForDevicePrompt(): never;
 }
-export declare function bidiToPuppeteerCookie(bidiCookie: Bidi.Network.Cookie, returnCompositePartitionKey?: boolean): Cookie;
-/**
- * Gets CDP-specific properties from the cookie, adds CDP-specific prefixes and returns
- * them as a new object which can be used in BiDi.
- */
-export declare function cdpSpecificCookiePropertiesFromPuppeteerToBidi(cookieParam: CookieParam, ...propertyNames: Array<keyof CookieParam>): Record<string, unknown>;
-export declare function convertCookiesSameSiteCdpToBiDi(sameSite: CookieSameSite | undefined): Bidi.Network.SameSite;
-export declare function convertCookiesExpiryCdpToBiDi(expiry: number | undefined): number | undefined;
-export declare function convertCookiesPartitionKeyFromPuppeteerToBiDi(partitionKey: CookiePartitionKey | string | undefined): string | undefined;
 //# sourceMappingURL=Page.d.ts.map

@@ -4,14 +4,14 @@
 
 import * as Types from '../types/types.js';
 
-const frames = new Map<string, Types.Events.TraceFrame>();
+const frames = new Map<string, Types.TraceEvents.TraceFrame>();
 
 export function reset(): void {
   frames.clear();
 }
 
-export function handleEvent(event: Types.Events.Event): void {
-  if (Types.Events.isTracingStartedInBrowser(event)) {
+export function handleEvent(event: Types.TraceEvents.TraceEventData): void {
+  if (Types.TraceEvents.isTraceEventTracingStartedInBrowser(event)) {
     for (const frame of event.args.data?.frames ?? []) {
       // The ID of a frame is stored under the `frame` key.
       frames.set(frame.frame, frame);
@@ -20,7 +20,7 @@ export function handleEvent(event: Types.Events.Event): void {
   }
 
   // CommitLoad events can contain an updated URL or Name for a frame.
-  if (Types.Events.isCommitLoad(event)) {
+  if (Types.TraceEvents.isTraceEventCommitLoad(event)) {
     const frameData = event.args.data;
     if (!frameData) {
       return;
@@ -39,11 +39,8 @@ export function handleEvent(event: Types.Events.Event): void {
   }
 }
 
-export async function finalize(): Promise<void> {
-}
-
 export interface PageFrameData {
-  frames: Map<string, Types.Events.TraceFrame>;
+  frames: Map<string, Types.TraceEvents.TraceFrame>;
 }
 export function data(): PageFrameData {
   return {

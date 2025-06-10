@@ -3,7 +3,8 @@
  * Copyright 2023 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
-import { PassThrough } from 'node:stream';
+/// <reference types="node" />
+import { PassThrough } from 'stream';
 import type { BoundingBox } from '../api/ElementHandle.js';
 import type { Page } from '../api/Page.js';
 import { asyncDisposeSymbol } from '../util/disposable.js';

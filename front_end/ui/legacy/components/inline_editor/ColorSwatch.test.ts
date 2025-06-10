@@ -94,12 +94,12 @@ describeWithLocale('ColorSwatch', () => {
     dispatchClickEvent(target);
     dispatchClickEvent(target);
     dispatchClickEvent(target);
-    assert.lengthOf(swatchClickEventsReceived, 3, 'The right click events were received');
+    assert.strictEqual(swatchClickEventsReceived.length, 3, 'The right click events were received');
 
     swatch.removeEventListener(InlineEditor.ColorSwatch.ClickEvent.eventName, onClick);
 
     dispatchClickEvent(target);
-    assert.lengthOf(swatchClickEventsReceived, 3, 'No more click events received after removing listener');
+    assert.strictEqual(swatchClickEventsReceived.length, 3, 'No more click events received after removing listener');
   });
 
   it('does not dispatch an event on click when it is readonly', () => {
@@ -116,7 +116,7 @@ describeWithLocale('ColorSwatch', () => {
     dispatchClickEvent(target);
     dispatchClickEvent(target);
     dispatchClickEvent(target);
-    assert.lengthOf(swatchClickEventsReceived, 0, 'No click events received for readonly color swatch');
+    assert.strictEqual(swatchClickEventsReceived.length, 0, 'No click events received for readonly color swatch');
   });
 
   it('does not dispatch a swatch-click event on shift-click', () => {
@@ -131,7 +131,7 @@ describeWithLocale('ColorSwatch', () => {
 
     const contextMenu = getMenuForShiftClick(target);
 
-    assert.lengthOf(swatchClickEventsReceived, 0, 'No swatch-click events are received on shift-click');
+    assert.strictEqual(swatchClickEventsReceived.length, 0, 'No swatch-click events are received on shift-click');
 
     swatch.removeEventListener(InlineEditor.ColorSwatch.ClickEvent.eventName, onClick);
     assert.exists(contextMenu);
@@ -151,7 +151,7 @@ describeWithLocale('ColorSwatch', () => {
     dispatchClickEvent(target);
     dispatchClickEvent(target);
 
-    assert.lengthOf(formatChangedEventsReceived, 0, 'No formatchanged events are received on click');
+    assert.strictEqual(formatChangedEventsReceived.length, 0, 'No formatchanged events are received on click');
 
     swatch.removeEventListener(InlineEditor.ColorSwatch.ColorChangedEvent.eventName, onClick);
   });

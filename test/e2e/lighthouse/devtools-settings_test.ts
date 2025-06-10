@@ -12,6 +12,7 @@ import {
   waitForAria,
   waitForElementWithTextContent,
 } from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {openDeviceToolbar, reloadDockableFrontEnd, selectDevice} from '../helpers/emulation-helpers.js';
 import {
   clickStartButton,
@@ -92,12 +93,10 @@ describe('DevTools', function() {
           statusCode: item.statusCode,
         };
       });
-
-      // An extra basic.css request with status code -1 appears, but only in e2e tests
-      // This test is made more lenient since this only happens in the e2e environment
-      // b/359984292
-      assert.deepEqual(trimmedRequests[0], {url: 'hello.html', statusCode: 200});
-      assert.deepEqual(trimmedRequests[1], {url: 'basic.css', statusCode: -1});
+      assert.deepEqual(trimmedRequests, [
+        {url: 'hello.html', statusCode: 200},
+        {url: 'basic.css', statusCode: -1},  // statuCode === -1 means the request failed
+      ]);
     });
   });
 
@@ -118,14 +117,14 @@ describe('DevTools', function() {
       const zoom75 = await waitForElementWithTextContent('75%');
       await zoom75.click();
 
-      assert.deepEqual(await getTargetViewport(), IPAD_MINI_LANDSCAPE_VIEWPORT_DIMENSIONS);
+      assert.deepStrictEqual(await getTargetViewport(), IPAD_MINI_LANDSCAPE_VIEWPORT_DIMENSIONS);
 
       await navigateToLighthouseTab('lighthouse/hello.html');
       await selectCategories(['performance']);
       await clickStartButton();
 
       const {artifacts} = await waitForResult();
-      assert.deepEqual(artifacts.ViewportDimensions, {
+      assert.deepStrictEqual(artifacts.ViewportDimensions, {
         innerHeight: 823,
         innerWidth: 412,
         outerHeight: 823,
@@ -135,7 +134,7 @@ describe('DevTools', function() {
 
       const zoomText = await zoomButton.evaluate(zoomButtonEl => zoomButtonEl.textContent);
       assert.strictEqual(zoomText, '75%');
-      assert.deepEqual(await getTargetViewport(), IPAD_MINI_LANDSCAPE_VIEWPORT_DIMENSIONS);
+      assert.deepStrictEqual(await getTargetViewport(), IPAD_MINI_LANDSCAPE_VIEWPORT_DIMENSIONS);
     });
   });
 });

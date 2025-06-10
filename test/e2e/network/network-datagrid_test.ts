@@ -5,26 +5,23 @@
 import {assert} from 'chai';
 
 import {unregisterAllServiceWorkers} from '../../conductor/hooks.js';
-import type {BrowserAndPages} from '../../conductor/puppeteer-state.js';
+import {type BrowserAndPages} from '../../conductor/puppeteer-state.js';
 import {
   click,
   getBrowserAndPages,
-  hasClass,
   pressKey,
   step,
   waitFor,
   waitForElementWithTextContent,
   waitForFunction,
 } from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
-  clearTextFilter,
   getAllRequestNames,
   navigateToNetworkTab,
   selectRequestByName,
   setCacheDisabled,
-  setInvert,
   setPersistLog,
-  setTextFilter,
   waitForSelectedRequestChange,
   waitForSomeRequestsToAppear,
 } from '../helpers/network-helpers.js';
@@ -51,27 +48,18 @@ describe('The Network Tab', function() {
     // These tests take some time on slow windows machines.
     this.timeout(10000);
   }
-
-  // See byte formatting in front_end/core/i18n/ByteUtilities.ts
-  const formatKbSize = (value: number) => {
-    const kilobytes = value / 1000;
-    if (kilobytes < 100) {
-      return `${kilobytes.toFixed(1)}\xA0kB`;
-    }
-    return `${kilobytes}\xA0kB`;
+  const formatByteSize = (value: number) => {
+    return `${value}\xA0B`;
   };
 
   beforeEach(async () => {
     await navigateToNetworkTab('empty.html');
-    await setTextFilter('favicon.ico');
-    await setInvert(true);
     await setCacheDisabled(true);
     await setPersistLog(false);
   });
 
   afterEach(async () => {
     await unregisterAllServiceWorkers();
-    await clearTextFilter();
   });
 
   it('can click on checkbox label to toggle checkbox', async () => {
@@ -83,7 +71,7 @@ describe('The Network Tab', function() {
     const checkbox = await waitFor('[title^="Disable cache"]');
     const checked = await checkbox.evaluate(box => (box as HTMLInputElement).checked);
 
-    assert.isFalse(checked, 'The disable cache checkbox should be unchecked');
+    assert.strictEqual(checked, false, 'The disable cache checkbox should be unchecked');
   });
 
   it('shows Last-Modified', async () => {
@@ -135,7 +123,7 @@ describe('The Network Tab', function() {
     });
 
     assert.deepEqual(await getNetworkRequestSize(), [
-      `${formatKbSize(210)}${formatKbSize(25)}`,
+      `${formatByteSize(210)}${formatByteSize(25)}`,
     ]);
   });
 
@@ -153,8 +141,8 @@ describe('The Network Tab', function() {
     });
 
     assert.deepEqual(await getNetworkRequestSize(), [
-      `${formatKbSize(313)}${formatKbSize(128)}`,
-      `${formatKbSize(210)}${formatKbSize(25)}`,
+      `${formatByteSize(313)}${formatByteSize(128)}`,
+      `${formatByteSize(210)}${formatByteSize(25)}`,
     ]);
   });
 
@@ -173,20 +161,19 @@ describe('The Network Tab', function() {
     // Open the raw response HTML
     await click('[aria-label="Response"]');
     // Disable pretty printing
-    const prettyPrintButton = await waitFor('[title="Pretty print"]');
-    if (await hasClass(prettyPrintButton, 'toggled')) {
-      await click('[title="Pretty print"]');
-    }
-    // await new Promise<void>(resolve => setTimeout(resolve, 25000));
-    assert.isFalse(await hasClass(prettyPrintButton, 'toggled'));
+    await waitFor('[aria-label="Pretty print"]');
+    await Promise.all([
+      click('[aria-label="Pretty print"]'),
+      waitFor('[aria-label="Pretty print"][aria-pressed="true"]'),
+    ]);
     // Wait for the raw response editor to show up
     const codeMirrorEditor = await waitFor('[aria-label="Code editor"]');
 
     const htmlRawResponse = await codeMirrorEditor.evaluate(editor => editor.textContent);
 
-    assert.include(
+    assert.strictEqual(
         htmlRawResponse,
-        '<body>The following word is written using cyrillic letters and should look like "SUCCESS": SU\u0421\u0421\u0415SS.</body>');
+        '<html>    <body>The following word is written using cyrillic letters and should look like "SUCCESS": SU\u0421\u0421\u0415SS.</body></html>');
   });
 
   it('the correct MIME type when resources came from HTTP cache', async () => {
@@ -210,8 +197,8 @@ describe('The Network Tab', function() {
     });
 
     assert.deepEqual(await getNetworkRequestSize(), [
-      `${formatKbSize(404)}${formatKbSize(219)}`,
-      `${formatKbSize(376)}${formatKbSize(28)}`,
+      `${formatByteSize(404)}${formatByteSize(219)}`,
+      `${formatByteSize(376)}${formatByteSize(28)}`,
     ]);
     assert.deepEqual(await getNetworkRequestMimeTypes(), [
       'document',
@@ -225,8 +212,8 @@ describe('The Network Tab', function() {
     await waitForSomeRequestsToAppear(2);
 
     assert.deepEqual(await getNetworkRequestSize(), [
-      `${formatKbSize(404)}${formatKbSize(219)}`,
-      `(memory cache)${formatKbSize(28)}`,
+      `${formatByteSize(404)}${formatByteSize(219)}`,
+      `(memory cache)${formatByteSize(28)}`,
     ]);
 
     assert.deepEqual(await getNetworkRequestMimeTypes(), [
@@ -303,15 +290,15 @@ describe('The Network Tab', function() {
     await target.reload({waitUntil: 'networkidle0'});
 
     await waitForSomeRequestsToAppear(3);
-    await waitForElementWithTextContent(`(Web Bundle)${formatKbSize(27)}`);
+    await waitForElementWithTextContent(`(Web Bundle)${formatByteSize(27)}`);
 
     const getNetworkRequestSize = () => frontend.evaluate(() => {
       return Array.from(document.querySelectorAll('.size-column')).slice(2, 4).map(node => node.textContent);
     });
 
     assert.sameMembers(await getNetworkRequestSize(), [
-      `${formatKbSize(653)}${formatKbSize(0)}`,
-      `(Web Bundle)${formatKbSize(27)}`,
+      `${formatByteSize(653)}${formatByteSize(0)}`,
+      `(Web Bundle)${formatByteSize(27)}`,
     ]);
   });
 
@@ -426,7 +413,7 @@ describe('The Network Tab', function() {
     await waitForSomeRequestsToAppear(3);
 
     const updatedRequestNames = await getAllRequestNames();
-    assert.deepEqual(updatedRequestNames, ['xhr.html', 'image.svg', 'image.svg']);
+    assert.deepStrictEqual(updatedRequestNames, ['xhr.html', 'image.svg', 'image.svg']);
   });
 
   it('displays focused background color when request is selected via keyboard navigation', async () => {
@@ -442,7 +429,7 @@ describe('The Network Tab', function() {
       return document.querySelector('.network-log-grid tbody tr.selected')?.getAttribute('style');
     });
 
-    assert.deepEqual(await getSelectedRequestBgColor(), 'background-color: var(--color-grid-focus-selected);');
+    assert.deepStrictEqual(await getSelectedRequestBgColor(), 'background-color: var(--color-grid-focus-selected);');
   });
 
   it('shows the request panel when clicked during a websocket message (https://crbug.com/1222382)', async () => {

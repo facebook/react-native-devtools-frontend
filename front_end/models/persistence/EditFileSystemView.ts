@@ -35,21 +35,17 @@ import * as UI from '../../ui/legacy/legacy.js';
 
 import editFileSystemViewStyles from './editFileSystemView.css.js';
 import {Events, IsolatedFileSystemManager} from './IsolatedFileSystemManager.js';
-import type {PlatformFileSystem} from './PlatformFileSystem.js';
+import {type PlatformFileSystem} from './PlatformFileSystem.js';
 
 const UIStrings = {
   /**
-   *@description Text in Edit File System View of the Workspace settings in Settings to indicate that the following string is a folder URL
-   */
-  url: 'URL',
-  /**
    *@description Text in Edit File System View of the Workspace settings in Settings
    */
-  excludedFolders: 'Excluded sub-folders',
+  excludedFolders: 'Excluded folders',
   /**
    *@description Text to add something
    */
-  add: 'Add folder',
+  add: 'Add',
   /**
    * @description Placeholder text for an area of the UI that shows which folders have been excluded
    * from being show in DevTools. When the user has not yet chosen any folders to exclude, this text
@@ -73,7 +69,7 @@ const UIStrings = {
    *@description Error message when a file system path is identical to an existing path.
    */
   enterAUniquePath: 'Enter a unique path',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('models/persistence/EditFileSystemView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class EditFileSystemView extends UI.Widget.VBox implements UI.ListWidget.Delegate<string> {
@@ -85,7 +81,6 @@ export class EditFileSystemView extends UI.Widget.VBox implements UI.ListWidget.
   private excludedFolderEditor?: UI.ListWidget.Editor<string>;
   constructor(fileSystemPath: Platform.DevToolsPath.UrlString) {
     super(true);
-    this.registerRequiredCSS(editFileSystemViewStyles);
 
     this.fileSystemPath = fileSystemPath;
 
@@ -96,28 +91,21 @@ export class EditFileSystemView extends UI.Widget.VBox implements UI.ListWidget.
       IsolatedFileSystemManager.instance().addEventListener(Events.ExcludedFolderRemoved, this.update, this),
     ];
 
-    const excludedFoldersHeader = this.contentElement.createChild('div', 'excluded-folder-header');
-    excludedFoldersHeader.createChild('span').textContent = i18nString(UIStrings.url);
-    excludedFoldersHeader.createChild('span', 'excluded-folder-url').textContent = fileSystemPath;
-
-    const excludeSubFoldersText = this.contentElement.createChild('span', 'exclude-subfolders-text');
-    excludeSubFoldersText.textContent = i18nString(UIStrings.excludedFolders);
-
+    const excludedFoldersHeader = this.contentElement.createChild('div', 'file-system-header');
+    excludedFoldersHeader.createChild('div', 'file-system-header-text').textContent =
+        i18nString(UIStrings.excludedFolders);
+    const addButton = UI.UIUtils.createTextButton(
+        i18nString(UIStrings.add), this.addExcludedFolderButtonClicked.bind(this),
+        {className: 'add-button', jslogContext: 'settings.add-excluded-folder'});
+    excludedFoldersHeader.appendChild(addButton);
     this.excludedFoldersList = new UI.ListWidget.ListWidget(this);
     this.excludedFoldersList.element.classList.add('file-system-list');
-    this.excludedFoldersList.registerRequiredCSS(editFileSystemViewStyles);
 
     const excludedFoldersPlaceholder = document.createElement('div');
     excludedFoldersPlaceholder.classList.add('file-system-list-empty');
     excludedFoldersPlaceholder.textContent = i18nString(UIStrings.none);
     this.excludedFoldersList.setEmptyPlaceholder(excludedFoldersPlaceholder);
     this.excludedFoldersList.show(this.contentElement);
-
-    const addButton = UI.UIUtils.createTextButton(
-        i18nString(UIStrings.add), this.addExcludedFolderButtonClicked.bind(this),
-        {className: 'add-button', jslogContext: 'settings.add-excluded-folder'});
-
-    this.contentElement.appendChild(addButton);
 
     this.update();
   }
@@ -130,7 +118,7 @@ export class EditFileSystemView extends UI.Widget.VBox implements UI.ListWidget.
     return IsolatedFileSystemManager.instance().fileSystem(this.fileSystemPath) as PlatformFileSystem;
   }
 
-  update(): void {
+  private update(): void {
     if (this.muteUpdate) {
       return;
     }
@@ -221,5 +209,10 @@ export class EditFileSystemView extends UI.Widget.VBox implements UI.ListWidget.
       return '';
     }
     return prefix + (prefix[prefix.length - 1] === '/' ? '' : '/');
+  }
+  override wasShown(): void {
+    super.wasShown();
+    this.excludedFoldersList.registerCSSFiles([editFileSystemViewStyles]);
+    this.registerCSSFiles([editFileSystemViewStyles]);
   }
 }

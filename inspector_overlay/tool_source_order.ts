@@ -28,7 +28,8 @@
 //  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 //  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import {type Bounds, createChild, Overlay, type ResetData} from './common.js';
+import {createChild, Overlay, type Bounds, type ResetData} from './common.js';
+
 import {buildPath, emptyBounds, type PathBounds} from './highlight_common.js';
 
 interface Path {
@@ -96,7 +97,7 @@ export class SourceOrderOverlay extends Overlay {
     }
     this.context.restore();
 
-    return {bounds};
+    return {bounds: bounds};
   }
 
   private drawSourceOrderLabel(sourceOrder: number, color: string, bounds: PathBounds) {
@@ -158,7 +159,7 @@ const MAX_CHILD_ELEMENTS_THRESHOLD = 300;
  * bottomCornerTaller: |  L   |_____
  *                     |______|__E__|
  */
-
+// eslint-disable-next-line @typescript-eslint/naming-convention
 export const LabelTypes = {
   topCorner: 'top-corner',
   aboveElement: 'above-element',
@@ -249,12 +250,14 @@ export function getLabelType(
       labelType = LabelTypes.belowElementWider;
     }
     // Label goes in the bottom left corner of the element if putting it below the element would make it go off the screen
-  } else if (widerThanElement && tallerThanElement) {
-    labelType = LabelTypes.bottomCornerWiderTaller;
-  } else if (widerThanElement) {
-    labelType = LabelTypes.bottomCornerWider;
   } else {
-    labelType = LabelTypes.bottomCornerTaller;
+    if (widerThanElement && tallerThanElement) {
+      labelType = LabelTypes.bottomCornerWiderTaller;
+    } else if (widerThanElement) {
+      labelType = LabelTypes.bottomCornerWider;
+    } else {
+      labelType = LabelTypes.bottomCornerTaller;
+    }
   }
   return labelType;
 }

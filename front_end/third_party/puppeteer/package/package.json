@@ -1,6 +1,6 @@
 {
   "name": "puppeteer-core",
-  "version": "24.4.0",
+  "version": "22.13.1",
   "description": "A high-level API to control headless Chrome over the DevTools Protocol",
   "keywords": [
     "puppeteer",
@@ -37,20 +37,14 @@
   "scripts": {
     "build:docs": "wireit",
     "build": "wireit",
-    "check": "wireit",
+    "check": "tsx tools/ensure-correct-devtools-protocol-package",
     "clean": "../../tools/clean.mjs",
     "prepack": "wireit",
     "unit": "wireit"
   },
   "wireit": {
-    "check": {
-      "command": "node --experimental-strip-types tools/ensure-correct-devtools-protocol-package.mts",
-      "dependencies": [
-        "build"
-      ]
-    },
     "prepack": {
-      "command": "node --experimental-strip-types ../../tools/cp.ts ../../README.md README.md",
+      "command": "tsx ../../tools/cp.ts ../../README.md README.md",
       "files": [
         "../../README.md"
       ],
@@ -61,8 +55,7 @@
     "build": {
       "dependencies": [
         "build:tsc",
-        "build:types",
-        "build:es5"
+        "build:types"
       ]
     },
     "build:docs": {
@@ -92,23 +85,10 @@
         "lib/{cjs,esm}/**"
       ]
     },
-    "build:es5": {
-      "command": "rollup -c rollup.config.mjs && node ../../tools/patch.mjs lib/es5-iife/puppeteer-core-browser.js lib/es5-iife/puppeteer-core-browser.d.ts lib/types.d.ts",
-      "files": [
-        "rollup.config.mjs"
-      ],
-      "output": [
-        "lib/es5-iife/puppeteer-core-browser.js"
-      ],
-      "dependencies": [
-        "build:tsc",
-        "build:types"
-      ]
-    },
     "build:types": {
-      "command": "api-extractor run --local && eslint --cache-location .eslintcache --cache --no-ignore --no-config-lookup -c=../../eslint.types.config.mjs --fix lib/types.d.ts",
+      "command": "api-extractor run --local && eslint --cache-location .eslintcache --cache --ext=ts --no-ignore --no-eslintrc -c=../../.eslintrc.types.cjs --fix lib/types.d.ts",
       "files": [
-        "../../eslint.types.config.mjs",
+        "../../.eslintrc.types.cjs",
         "api-extractor.json",
         "lib/esm/puppeteer/types.d.ts",
         "tsconfig.json"
@@ -121,7 +101,7 @@
       ]
     },
     "unit": {
-      "command": "node --test --test-reporter=spec \"lib/cjs/**/*.test.js\"",
+      "command": "node --test --test-reporter spec lib/cjs",
       "dependencies": [
         "build"
       ]
@@ -140,20 +120,19 @@
   "author": "The Chromium Authors",
   "license": "Apache-2.0",
   "dependencies": {
-    "@puppeteer/browsers": "2.8.0",
-    "debug": "^4.4.0",
-    "chromium-bidi": "2.1.2",
-    "devtools-protocol": "0.0.1413902",
-    "typed-query-selector": "^2.12.0",
-    "ws": "^8.18.1"
+    "@puppeteer/browsers": "2.2.4",
+    "chromium-bidi": "0.6.1",
+    "debug": "^4.3.5",
+    "devtools-protocol": "0.0.1299070",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/chrome": "0.0.306",
     "@types/debug": "4.1.12",
-    "@types/node": "^18.17.15",
-    "@types/ws": "8.5.14",
+    "@types/node": "18.17.15",
+    "@types/chrome": "0.0.268",
+    "@types/ws": "8.5.11",
     "mitt": "3.0.1",
-    "parsel-js": "1.2.1",
-    "rxjs": "7.8.2"
+    "parsel-js": "1.1.2",
+    "rxjs": "7.8.1"
   }
 }

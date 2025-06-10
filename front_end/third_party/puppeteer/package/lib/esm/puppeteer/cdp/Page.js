@@ -6,7 +6,7 @@
 var __addDisposableResource = (this && this.__addDisposableResource) || function (env, value, async) {
     if (value !== null && value !== void 0) {
         if (typeof value !== "object" && typeof value !== "function") throw new TypeError("Object expected.");
-        var dispose, inner;
+        var dispose;
         if (async) {
             if (!Symbol.asyncDispose) throw new TypeError("Symbol.asyncDispose is not defined.");
             dispose = value[Symbol.asyncDispose];
@@ -14,10 +14,8 @@ var __addDisposableResource = (this && this.__addDisposableResource) || function
         if (dispose === void 0) {
             if (!Symbol.dispose) throw new TypeError("Symbol.dispose is not defined.");
             dispose = value[Symbol.dispose];
-            if (async) inner = dispose;
         }
         if (typeof dispose !== "function") throw new TypeError("Object not disposable.");
-        if (inner) dispose = function() { try { inner.call(this); } catch (e) { return Promise.reject(e); } };
         env.stack.push({ value: value, dispose: dispose, async: async });
     }
     else if (async) {
@@ -31,22 +29,17 @@ var __disposeResources = (this && this.__disposeResources) || (function (Suppres
             env.error = env.hasError ? new SuppressedError(e, env.error, "An error was suppressed during disposal.") : e;
             env.hasError = true;
         }
-        var r, s = 0;
         function next() {
-            while (r = env.stack.pop()) {
+            while (env.stack.length) {
+                var rec = env.stack.pop();
                 try {
-                    if (!r.async && s === 1) return s = 0, env.stack.push(r), Promise.resolve().then(next);
-                    if (r.dispose) {
-                        var result = r.dispose.call(r.value);
-                        if (r.async) return s |= 2, Promise.resolve(result).then(next, function(e) { fail(e); return next(); });
-                    }
-                    else s |= 1;
+                    var result = rec.dispose && rec.dispose.call(rec.value);
+                    if (rec.async) return Promise.resolve(result).then(next, function(e) { fail(e); return next(); });
                 }
                 catch (e) {
                     fail(e);
                 }
             }
-            if (s === 1) return env.hasError ? Promise.reject(env.error) : Promise.resolve();
             if (env.hasError) throw env.error;
         }
         return next();
@@ -60,20 +53,20 @@ import { CDPSessionEvent } from '../api/CDPSession.js';
 import { Page, } from '../api/Page.js';
 import { ConsoleMessage, } from '../common/ConsoleMessage.js';
 import { TargetCloseError } from '../common/Errors.js';
-import { EventEmitter } from '../common/EventEmitter.js';
 import { FileChooser } from '../common/FileChooser.js';
 import { NetworkManagerEvent } from '../common/NetworkManagerEvents.js';
-import { debugError, evaluationString, getReadableAsTypedArray, getReadableFromProtocolStream, parsePDFOptions, timeout, validateDialogType, } from '../common/util.js';
+import { debugError, evaluationString, getReadableAsBuffer, getReadableFromProtocolStream, parsePDFOptions, timeout, validateDialogType, } from '../common/util.js';
 import { assert } from '../util/assert.js';
 import { Deferred } from '../util/Deferred.js';
 import { AsyncDisposableStack } from '../util/disposable.js';
 import { isErrorLike } from '../util/ErrorLike.js';
 import { Binding } from './Binding.js';
-import { CdpCDPSession } from './CdpSession.js';
+import { CdpCDPSession } from './CDPSession.js';
 import { isTargetClosedError } from './Connection.js';
 import { Coverage } from './Coverage.js';
 import { CdpDialog } from './Dialog.js';
 import { EmulationManager } from './EmulationManager.js';
+import { FirefoxTargetManager } from './FirefoxTargetManager.js';
 import { FrameManager } from './FrameManager.js';
 import { FrameManagerEvent } from './FrameManagerEvents.js';
 import { CdpKeyboard, CdpMouse, CdpTouchscreen } from './Input.js';
@@ -133,12 +126,90 @@ export class CdpPage extends Page {
     #sessionCloseDeferred = Deferred.create();
     #serviceWorkerBypassed = false;
     #userDragInterceptionEnabled = false;
+    #frameManagerHandlers = [
+        [
+            FrameManagerEvent.FrameAttached,
+            (frame) => {
+                this.emit("frameattached" /* PageEvent.FrameAttached */, frame);
+            },
+        ],
+        [
+            FrameManagerEvent.FrameDetached,
+            (frame) => {
+                this.emit("framedetached" /* PageEvent.FrameDetached */, frame);
+            },
+        ],
+        [
+            FrameManagerEvent.FrameNavigated,
+            (frame) => {
+                this.emit("framenavigated" /* PageEvent.FrameNavigated */, frame);
+            },
+        ],
+    ];
+    #networkManagerHandlers = [
+        [
+            NetworkManagerEvent.Request,
+            (request) => {
+                this.emit("request" /* PageEvent.Request */, request);
+            },
+        ],
+        [
+            NetworkManagerEvent.RequestServedFromCache,
+            (request) => {
+                this.emit("requestservedfromcache" /* PageEvent.RequestServedFromCache */, request);
+            },
+        ],
+        [
+            NetworkManagerEvent.Response,
+            (response) => {
+                this.emit("response" /* PageEvent.Response */, response);
+            },
+        ],
+        [
+            NetworkManagerEvent.RequestFailed,
+            (request) => {
+                this.emit("requestfailed" /* PageEvent.RequestFailed */, request);
+            },
+        ],
+        [
+            NetworkManagerEvent.RequestFinished,
+            (request) => {
+                this.emit("requestfinished" /* PageEvent.RequestFinished */, request);
+            },
+        ],
+    ];
+    #sessionHandlers = [
+        [
+            CDPSessionEvent.Disconnected,
+            () => {
+                this.#sessionCloseDeferred.reject(new TargetCloseError('Target closed'));
+            },
+        ],
+        [
+            'Page.domContentEventFired',
+            () => {
+                return this.emit("domcontentloaded" /* PageEvent.DOMContentLoaded */, undefined);
+            },
+        ],
+        [
+            'Page.loadEventFired',
+            () => {
+                return this.emit("load" /* PageEvent.Load */, undefined);
+            },
+        ],
+        ['Page.javascriptDialogOpening', this.#onDialog.bind(this)],
+        ['Runtime.exceptionThrown', this.#handleException.bind(this)],
+        ['Inspector.targetCrashed', this.#onTargetCrashed.bind(this)],
+        ['Performance.metrics', this.#emitMetrics.bind(this)],
+        ['Log.entryAdded', this.#onLogEntryAdded.bind(this)],
+        ['Page.fileChooserOpened', this.#onFileChooser.bind(this)],
+    ];
     constructor(client, target) {
         super();
         this.#primaryTargetClient = client;
         this.#tabTargetClient = client.parentSession();
         assert(this.#tabTargetClient, 'Tab target session is not defined.');
-        this.#tabTarget = this.#tabTargetClient.target();
+        this.#tabTarget = this.#tabTargetClient._target();
         assert(this.#tabTarget, 'Tab target is not defined.');
         this.#primaryTarget = target;
         this.#targetManager = target._targetManager();
@@ -150,38 +221,19 @@ export class CdpPage extends Page {
         this.#tracing = new Tracing(client);
         this.#coverage = new Coverage(client);
         this.#viewport = null;
-        const frameManagerEmitter = new EventEmitter(this.#frameManager);
-        frameManagerEmitter.on(FrameManagerEvent.FrameAttached, frame => {
-            this.emit("frameattached" /* PageEvent.FrameAttached */, frame);
-        });
-        frameManagerEmitter.on(FrameManagerEvent.FrameDetached, frame => {
-            this.emit("framedetached" /* PageEvent.FrameDetached */, frame);
-        });
-        frameManagerEmitter.on(FrameManagerEvent.FrameNavigated, frame => {
-            this.emit("framenavigated" /* PageEvent.FrameNavigated */, frame);
-        });
-        frameManagerEmitter.on(FrameManagerEvent.ConsoleApiCalled, ([world, event]) => {
+        for (const [eventName, handler] of this.#frameManagerHandlers) {
+            this.#frameManager.on(eventName, handler);
+        }
+        this.#frameManager.on(FrameManagerEvent.ConsoleApiCalled, ([world, event]) => {
             this.#onConsoleAPI(world, event);
         });
-        frameManagerEmitter.on(FrameManagerEvent.BindingCalled, ([world, event]) => {
+        this.#frameManager.on(FrameManagerEvent.BindingCalled, ([world, event]) => {
             void this.#onBindingCalled(world, event);
         });
-        const networkManagerEmitter = new EventEmitter(this.#frameManager.networkManager);
-        networkManagerEmitter.on(NetworkManagerEvent.Request, request => {
-            this.emit("request" /* PageEvent.Request */, request);
-        });
-        networkManagerEmitter.on(NetworkManagerEvent.RequestServedFromCache, request => {
-            this.emit("requestservedfromcache" /* PageEvent.RequestServedFromCache */, request);
-        });
-        networkManagerEmitter.on(NetworkManagerEvent.Response, response => {
-            this.emit("response" /* PageEvent.Response */, response);
-        });
-        networkManagerEmitter.on(NetworkManagerEvent.RequestFailed, request => {
-            this.emit("requestfailed" /* PageEvent.RequestFailed */, request);
-        });
-        networkManagerEmitter.on(NetworkManagerEvent.RequestFinished, request => {
-            this.emit("requestfinished" /* PageEvent.RequestFinished */, request);
-        });
+        for (const [eventName, handler] of this.#networkManagerHandlers) {
+            // TODO: Remove any.
+            this.#frameManager.networkManager.on(eventName, handler);
+        }
         this.#tabTargetClient.on(CDPSessionEvent.Swapped, this.#onActivation.bind(this));
         this.#tabTargetClient.on(CDPSessionEvent.Ready, this.#onSecondaryTarget.bind(this));
         this.#targetManager.on("targetGone" /* TargetManagerEvent.TargetGone */, this.#onDetachedFromTarget);
@@ -215,10 +267,9 @@ export class CdpPage extends Page {
         }
     }
     async #onActivation(newSession) {
-        // TODO: Remove assert once we have separate Event type for CdpCDPSession.
-        assert(newSession instanceof CdpCDPSession, 'CDPSession is not instance of CdpCDPSession');
         this.#primaryTargetClient = newSession;
-        this.#primaryTarget = newSession.target();
+        assert(this.#primaryTargetClient instanceof CdpCDPSession, 'CDPSession is not instance of CDPSessionImpl');
+        this.#primaryTarget = this.#primaryTargetClient._target();
         assert(this.#primaryTarget, 'Missing target on swap');
         this.#keyboard.updateClient(newSession);
         this.#mouse.updateClient(newSession);
@@ -231,7 +282,7 @@ export class CdpPage extends Page {
     }
     async #onSecondaryTarget(session) {
         assert(session instanceof CdpCDPSession);
-        if (session.target()._subtype() !== 'prerender') {
+        if (session._target()._subtype() !== 'prerender') {
             return;
         }
         this.#frameManager.registerSpeculativeSession(session).catch(debugError);
@@ -244,23 +295,11 @@ export class CdpPage extends Page {
      * during a navigation to a prerended page.
      */
     #setupPrimaryTargetListeners() {
-        const clientEmitter = new EventEmitter(this.#primaryTargetClient);
-        clientEmitter.on(CDPSessionEvent.Ready, this.#onAttachedToTarget);
-        clientEmitter.on(CDPSessionEvent.Disconnected, () => {
-            this.#sessionCloseDeferred.reject(new TargetCloseError('Target closed'));
-        });
-        clientEmitter.on('Page.domContentEventFired', () => {
-            this.emit("domcontentloaded" /* PageEvent.DOMContentLoaded */, undefined);
-        });
-        clientEmitter.on('Page.loadEventFired', () => {
-            this.emit("load" /* PageEvent.Load */, undefined);
-        });
-        clientEmitter.on('Page.javascriptDialogOpening', this.#onDialog.bind(this));
-        clientEmitter.on('Runtime.exceptionThrown', this.#handleException.bind(this));
-        clientEmitter.on('Inspector.targetCrashed', this.#onTargetCrashed.bind(this));
-        clientEmitter.on('Performance.metrics', this.#emitMetrics.bind(this));
-        clientEmitter.on('Log.entryAdded', this.#onLogEntryAdded.bind(this));
-        clientEmitter.on('Page.fileChooserOpened', this.#onFileChooser.bind(this));
+        this.#primaryTargetClient.on(CDPSessionEvent.Ready, this.#onAttachedToTarget);
+        for (const [eventName, handler] of this.#sessionHandlers) {
+            // TODO: Remove any.
+            this.#primaryTargetClient.on(eventName, handler);
+        }
     }
     #onDetachedFromTarget = (target) => {
         const sessionId = target._session()?.id();
@@ -273,9 +312,9 @@ export class CdpPage extends Page {
     };
     #onAttachedToTarget = (session) => {
         assert(session instanceof CdpCDPSession);
-        this.#frameManager.onAttachedToTarget(session.target());
-        if (session.target()._getTargetInfo().type === 'worker') {
-            const worker = new CdpWebWorker(session, session.target().url(), session.target()._targetId, session.target().type(), this.#addConsoleMessage.bind(this), this.#handleException.bind(this));
+        this.#frameManager.onAttachedToTarget(session._target());
+        if (session._target()._getTargetInfo().type === 'worker') {
+            const worker = new CdpWebWorker(session, session._target().url(), session._target()._targetId, session._target().type(), this.#addConsoleMessage.bind(this), this.#handleException.bind(this));
             this.#workers.set(session.id(), worker);
             this.emit("workercreated" /* PageEvent.WorkerCreated */, worker);
         }
@@ -341,11 +380,6 @@ export class CdpPage extends Page {
             message: `Waiting for \`FileChooser\` failed: ${timeout}ms exceeded`,
             timeout,
         });
-        if (options.signal) {
-            options.signal.addEventListener('abort', () => {
-                deferred.reject(options.signal?.reason);
-            }, { once: true });
-        }
         this.#fileChooserDeferreds.add(deferred);
         let enablePromise;
         if (needsEnable) {
@@ -440,9 +474,6 @@ export class CdpPage extends Page {
     getDefaultTimeout() {
         return this._timeoutSettings.timeout();
     }
-    getDefaultNavigationTimeout() {
-        return this._timeoutSettings.navigationTimeout();
-    }
     async queryObjects(prototypeHandle) {
         assert(!prototypeHandle.disposed, 'Prototype JSHandle is disposed!');
         assert(prototypeHandle.id, 'Prototype JSHandle must not be referencing primitive value');
@@ -464,39 +495,16 @@ export class CdpPage extends Page {
             }
             return cookie;
         };
-        return originalCookies.map(filterUnsupportedAttributes).map(cookie => {
-            return {
-                ...cookie,
-                // TODO: a breaking change is needed in Puppeteer types to support other
-                // partition keys.
-                partitionKey: cookie.partitionKey
-                    ? cookie.partitionKey.topLevelSite
-                    : undefined,
-            };
-        });
+        return originalCookies.map(filterUnsupportedAttributes);
     }
     async deleteCookie(...cookies) {
         const pageURL = this.url();
         for (const cookie of cookies) {
-            const item = {
-                ...cookie,
-                partitionKey: convertCookiesPartitionKeyFromPuppeteerToCdp(cookie.partitionKey),
-            };
+            const item = Object.assign({}, cookie);
             if (!cookie.url && pageURL.startsWith('http')) {
                 item.url = pageURL;
             }
             await this.#primaryTargetClient.send('Network.deleteCookies', item);
-            if (pageURL.startsWith('http') && !item.partitionKey) {
-                const url = new URL(pageURL);
-                // Delete also cookies from the page's partition.
-                await this.#primaryTargetClient.send('Network.deleteCookies', {
-                    ...item,
-                    partitionKey: {
-                        topLevelSite: url.origin.replace(`:${url.port}`, ''),
-                        hasCrossSiteAncestor: false,
-                    },
-                });
-            }
         }
     }
     async setCookie(...cookies) {
@@ -514,18 +522,11 @@ export class CdpPage extends Page {
         await this.deleteCookie(...items);
         if (items.length) {
             await this.#primaryTargetClient.send('Network.setCookies', {
-                cookies: items.map(cookieParam => {
-                    return {
-                        ...cookieParam,
-                        partitionKey: convertCookiesPartitionKeyFromPuppeteerToCdp(cookieParam.partitionKey),
-                    };
-                }),
+                cookies: items,
             });
         }
     }
-    async exposeFunction(name, 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-    pptrFunction) {
+    async exposeFunction(name, pptrFunction) {
         if (this.#bindings.has(name)) {
             throw new Error(`Failed to add page binding with name ${name}: window['${name}'] already exists!`);
         }
@@ -739,8 +740,10 @@ export class CdpPage extends Page {
         const env_2 = { stack: [], error: void 0, hasError: false };
         try {
             const { fromSurface, omitBackground, optimizeForSpeed, quality, clip: userClip, type, captureBeyondViewport, } = options;
+            const isFirefox = this.target()._targetManager() instanceof FirefoxTargetManager;
             const stack = __addDisposableResource(env_2, new AsyncDisposableStack(), true);
-            if (omitBackground && (type === 'png' || type === 'webp')) {
+            // Firefox omits background by default; it's not configurable.
+            if (!isFirefox && omitBackground && (type === 'png' || type === 'webp')) {
                 await this.#emulationManager.setTransparentBackgroundColor();
                 stack.defer(async () => {
                     await this.#emulationManager
@@ -758,12 +761,13 @@ export class CdpPage extends Page {
                 });
                 clip = getIntersectionRect(clip, viewport);
             }
+            // We need to do these spreads because Firefox doesn't allow unknown options.
             const { data } = await this.#primaryTargetClient.send('Page.captureScreenshot', {
                 format: type,
-                optimizeForSpeed,
-                fromSurface,
+                ...(optimizeForSpeed ? { optimizeForSpeed } : {}),
                 ...(quality !== undefined ? { quality: Math.round(quality) } : {}),
                 ...(clip ? { clip: { ...clip, scale: clip.scale ?? 1 } } : {}),
+                ...(!fromSurface ? { fromSurface } : {}),
                 captureBeyondViewport,
             });
             return data;
@@ -820,9 +824,9 @@ export class CdpPage extends Page {
     async pdf(options = {}) {
         const { path = undefined } = options;
         const readable = await this.createPDFStream(options);
-        const typedArray = await getReadableAsTypedArray(readable, path);
-        assert(typedArray, 'Could not create typed array');
-        return typedArray;
+        const buffer = await getReadableAsBuffer(readable, path);
+        assert(buffer, 'Could not create buffer');
+        return buffer;
     }
     async close(options = { runBeforeUnload: undefined }) {
         const env_3 = { stack: [], error: void 0, hasError: false };
@@ -874,7 +878,7 @@ export class CdpPage extends Page {
      *   page.click('#connect-bluetooth'),
      * ]);
      * await devicePrompt.select(
-     *   await devicePrompt.waitForDevice(({name}) => name.includes('My Device')),
+     *   await devicePrompt.waitForDevice(({name}) => name.includes('My Device'))
      * );
      * ```
      */
@@ -907,21 +911,6 @@ function getIntersectionRect(clip, viewport) {
         y,
         width: Math.max(Math.min(clip.x + clip.width, viewport.x + viewport.width) - x, 0),
         height: Math.max(Math.min(clip.y + clip.height, viewport.y + viewport.height) - y, 0),
-    };
-}
-export function convertCookiesPartitionKeyFromPuppeteerToCdp(partitionKey) {
-    if (partitionKey === undefined) {
-        return undefined;
-    }
-    if (typeof partitionKey === 'string') {
-        return {
-            topLevelSite: partitionKey,
-            hasCrossSiteAncestor: false,
-        };
-    }
-    return {
-        topLevelSite: partitionKey.sourceOrigin,
-        hasCrossSiteAncestor: partitionKey.hasCrossSiteAncestor ?? false,
     };
 }
 //# sourceMappingURL=Page.js.map

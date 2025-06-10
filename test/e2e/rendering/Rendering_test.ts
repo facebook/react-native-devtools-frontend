@@ -5,6 +5,7 @@
 import {assert} from 'chai';
 
 import {getBrowserAndPages, waitFor} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {openPanelViaMoreTools} from '../helpers/settings-helpers.js';
 
 describe('Rendering pane', () => {
@@ -55,6 +56,7 @@ describe('Rendering pane', () => {
     });
 
     if (!hasSupport) {
+      // @ts-ignore
       this.skip();
     }
 

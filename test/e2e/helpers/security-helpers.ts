@@ -8,7 +8,6 @@ import {openCommandMenu} from './quick_open-helpers.js';
 import {openPanelViaMoreTools} from './settings-helpers.js';
 import {veImpression} from './visual-logging-helpers.js';
 
-const PRIVACY_AND_SECURITY_PANEL_CONTENT = '.view-container[aria-label="Privacy and security panel"]';
 const SECURITY_PANEL_CONTENT = '.view-container[aria-label="Security panel"]';
 const SECURITY_TAB_SELECTOR = '#tab-security';
 const SECURITY_PANEL_TITLE = 'Security';
@@ -21,13 +20,13 @@ export async function securityTabDoesNotExist() {
   await waitForNone(SECURITY_TAB_SELECTOR);
 }
 
-export async function securityPanelContentIsLoaded(privacyEnabled?: boolean) {
-  await waitFor(privacyEnabled ? PRIVACY_AND_SECURITY_PANEL_CONTENT : SECURITY_PANEL_CONTENT);
+export async function securityPanelContentIsLoaded() {
+  await waitFor(SECURITY_PANEL_CONTENT);
 }
 
-export async function navigateToSecurityTab(privacyEnabled?: boolean) {
+export async function navigateToSecurityTab() {
   await click(SECURITY_TAB_SELECTOR);
-  await securityPanelContentIsLoaded(privacyEnabled);
+  await securityPanelContentIsLoaded();
 }
 
 export async function closeSecurityTab() {
@@ -58,11 +57,8 @@ export function veImpressionForSecurityPanel() {
           veImpression(
               'Tree', undefined,
               [
-                veImpression(
-                    'TreeItem', 'security',
-                    [
-                      veImpression('TreeItem', undefined, [veImpression('TreeItem'), veImpression('Expand')]),
-                    ]),
+                veImpression('TreeItem'),
+                veImpression('TreeItem', undefined, [veImpression('TreeItem'), veImpression('Expand')]),
               ]),
         ]),
     veImpression('Pane', 'security.main-view'),

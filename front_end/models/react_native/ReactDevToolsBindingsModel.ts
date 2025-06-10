@@ -3,8 +3,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Common from '../../core/common/common.js';
 import * as SDK from '../../core/sdk/sdk.js';
+import type * as Common from '../../core/common/common.js';
 
 type JSONValue = null | string | number | boolean | {[key: string]: JSONValue} | JSONValue[];
 type DomainName = 'react-devtools';
@@ -21,24 +21,24 @@ const MAIN_EXECUTION_CONTEXT_NAME = 'main';
 const RUNTIME_GLOBAL = '__FUSEBOX_REACT_DEVTOOLS_DISPATCHER__';
 
 export const enum Events {
-  BACKEND_EXECUTION_CONTEXT_CREATED = 'BackendExecutionContextCreated',
+  BackendExecutionContextCreated = 'BackendExecutionContextCreated',
   // Emitted when execution context was created, but RDT backend is unavailable, possibly failed to re-initialize
-  BACKEND_EXECUTION_CONTEXT_UNAVAILABLE = 'BackendExecutionContextUnavailable',
-  BACKEND_EXECUTION_CONTEXT_DESTROYED = 'BackendExecutionContextDestroyed',
+  BackendExecutionContextUnavailable = 'BackendExecutionContextUnavailable',
+  BackendExecutionContextDestroyed = 'BackendExecutionContextDestroyed',
 }
 
-export interface EventTypes {
-  [Events.BACKEND_EXECUTION_CONTEXT_CREATED]: void;
-  [Events.BACKEND_EXECUTION_CONTEXT_UNAVAILABLE]: string;
-  [Events.BACKEND_EXECUTION_CONTEXT_DESTROYED]: void;
-}
+export type EventTypes = {
+  [Events.BackendExecutionContextCreated]: void,
+  [Events.BackendExecutionContextUnavailable]: string,
+  [Events.BackendExecutionContextDestroyed]: void,
+};
 
 export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
-  private readonly domainToListeners = new Map<DomainName, Set<DomainMessageListener>>();
+  private readonly domainToListeners: Map<DomainName, Set<DomainMessageListener>> = new Map();
   private messagingBindingName: string | null = null;
   private enabled = false;
   private fuseboxDispatcherIsInitialized = false;
-  private readonly domainToMessageQueue = new Map<DomainName, JSONValue[]>();
+  private readonly domainToMessageQueue: Map<DomainName, Array<JSONValue>> = new Map();
 
   override dispose(): void {
     this.domainToListeners.clear();
@@ -247,13 +247,11 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
     }
 
     void this.waitForFuseboxDispatcherToBeInitialized()
-        .then(() => {
-          this.dispatchEventToListeners(Events.BACKEND_EXECUTION_CONTEXT_CREATED);
-          this.flushOutDomainMessagesQueues();
-        })
-        .catch(
-            (error: Error) =>
-                this.dispatchEventToListeners(Events.BACKEND_EXECUTION_CONTEXT_UNAVAILABLE, error.message));
+      .then(() => {
+        this.dispatchEventToListeners(Events.BackendExecutionContextCreated);
+        this.flushOutDomainMessagesQueues();
+      })
+      .catch((error: Error) => this.dispatchEventToListeners(Events.BackendExecutionContextUnavailable, error.message));
   }
 
   private onExecutionContextDestroyed({data: executionContext}: ContextDestroyedEvent): void {
@@ -262,7 +260,7 @@ export class ReactDevToolsBindingsModel extends SDK.SDKModel.SDKModel {
     }
 
     this.fuseboxDispatcherIsInitialized = false;
-    this.dispatchEventToListeners(Events.BACKEND_EXECUTION_CONTEXT_DESTROYED);
+    this.dispatchEventToListeners(Events.BackendExecutionContextDestroyed);
   }
 
   private async waitForFuseboxDispatcherToBeInitialized(attempt = 1): Promise<void> {

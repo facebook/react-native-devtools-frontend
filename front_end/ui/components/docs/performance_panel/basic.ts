@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import * as Common from '../../../../core/common/common.js';
+import * as Root from '../../../../core/root/root.js';
 import * as SDK from '../../../../core/sdk/sdk.js';
 import * as Bindings from '../../../../models/bindings/bindings.js';
 import * as Workspace from '../../../../models/workspace/workspace.js';
@@ -46,11 +47,11 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+Shift+E',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Shift+E',
     },
   ],
@@ -68,7 +69,6 @@ UI.ActionRegistration.registerActionExtension({
 UI.ActionRegistration.registerActionExtension({
   actionId: 'components.collect-garbage',
   category: UI.ActionRegistration.ActionCategory.PERFORMANCE,
-  iconClass: UI.ActionRegistration.IconClass.MOP,
 });
 UI.ActionRegistration.registerActionExtension({
   actionId: 'timeline.toggle-recording',
@@ -81,25 +81,26 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+E',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+E',
     },
   ],
 });
 
 const actionRegistry = UI.ActionRegistry.ActionRegistry.instance();
-UI.ShortcutRegistry.ShortcutRegistry.instance({forceNew: true, actionRegistry});
-Common.Settings.settingForTest('flamechart-selected-navigation').set('classic');
+UI.ShortcutRegistry.ShortcutRegistry.instance({forceNew: true, actionRegistry: actionRegistry});
+Common.Settings.settingForTest('flamechart-mouse-wheel-action').set('zoom');
 const params = new URLSearchParams(window.location.search);
 const traceFileName = params.get('trace');
 const cpuprofileName = params.get('cpuprofile');
 const traceUrl = params.get('loadTimelineFromURL');
 const nodeMode = params.get('isNode');
 const isNodeMode = nodeMode === 'true' ? true : false;
+Root.Runtime.experiments.setEnabled('timeline-invalidation-tracking', params.has('invalidations'));
 
 const timeline = Timeline.TimelinePanel.TimelinePanel.instance({forceNew: true, isNode: isNodeMode});
 const container = document.getElementById('container');

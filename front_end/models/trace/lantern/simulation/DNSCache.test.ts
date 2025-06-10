@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// @ts-nocheck - TODO(crbug.com/348449529) requests need to be whole Lantern.NetworkRequest objects
+
 import * as Lantern from '../lantern.js';
 
 const {DNSCache} = Lantern.Simulation;
@@ -10,7 +12,7 @@ const MULTIPLIER = DNSCache.rttMultiplier;
 
 describe('DNSCache', () => {
   let dns: Lantern.Simulation.DNSCache;
-  let request: Lantern.Types.NetworkRequest;
+  let request: Lantern.NetworkRequest;
 
   beforeEach(() => {
     dns = new DNSCache({rtt: 100});
@@ -20,7 +22,7 @@ describe('DNSCache', () => {
         scheme: 'https',
         securityOrigin: '',
       },
-    } as Lantern.Types.NetworkRequest;
+    } as Lantern.NetworkRequest;
   });
 
   describe('.getTimeUntilResolution', () => {
@@ -48,7 +50,7 @@ describe('DNSCache', () => {
 
     it('should cache by domain', () => {
       dns.getTimeUntilResolution(request, {requestedAt: 0, shouldUpdateCache: true});
-      const otherRequest = {parsedURL: {host: 'other-example.com'}} as Lantern.Types.NetworkRequest;
+      const otherRequest = {parsedURL: {host: 'other-example.com'}};
       const resolutionTime = dns.getTimeUntilResolution(otherRequest, {requestedAt: 1000});
       expect(resolutionTime).to.equal(100 * MULTIPLIER);
     });

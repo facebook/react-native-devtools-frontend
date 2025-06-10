@@ -52,7 +52,7 @@ const UIStrings = {
    * the context menu of a WebAssembly file.
    */
   saveWasmFailed: 'Unable to save WASM module to disk. Most likely the module is too large.',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('models/persistence/PersistenceActions.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -64,7 +64,7 @@ export class ContextMenuProvider implements
       contentProvider: TextUtils.ContentProvider.ContentProvider): void {
     async function saveAs(): Promise<void> {
       if (contentProvider instanceof Workspace.UISourceCode.UISourceCode) {
-        (contentProvider).commitWorkingCopy();
+        (contentProvider as Workspace.UISourceCode.UISourceCode).commitWorkingCopy();
       }
       const url = contentProvider.contentURL();
       let content: TextUtils.ContentProvider.DeferredContent;
@@ -76,7 +76,8 @@ export class ContextMenuProvider implements
           content = {isEncoded: true, content: base64};
         } catch (e) {
           console.error(`Unable to convert WASM byte code for ${url} to base64. Not saving to disk`, e.stack);
-          Common.Console.Console.instance().error(i18nString(UIStrings.saveWasmFailed), /* show=*/ false);
+          Common.Console.Console.instance().addMessage(
+              i18nString(UIStrings.saveWasmFailed), Common.Console.MessageLevel.Error);
           return;
         }
       } else {
@@ -192,10 +193,11 @@ export class ContextMenuProvider implements
     const originalUrl = originalUiSourceCode.url();
     const originalName = Bindings.ResourceUtils.displayNameForURL(originalUrl);
 
+    const warningMessage = i18nString(UIStrings.overrideSourceMappedFileWarning, {PH1: deployedName}) + '\n' +
+        i18nString(UIStrings.overrideSourceMappedFileExplanation, {PH1: originalName});
+
     const shouldJumpToDeployedFile = await UI.UIUtils.ConfirmDialog.show(
-        i18nString(UIStrings.overrideSourceMappedFileExplanation, {PH1: originalName}),
-        i18nString(UIStrings.overrideSourceMappedFileWarning, {PH1: deployedName}), undefined,
-        {jslogContext: 'override-source-mapped-file-warning'});
+        warningMessage, undefined, {jslogContext: 'override-source-mapped-file-warning'});
 
     if (shouldJumpToDeployedFile) {
       Host.userMetrics.actionTaken(Host.UserMetrics.Action.OverrideContentContextMenuRedirectToDeployed);

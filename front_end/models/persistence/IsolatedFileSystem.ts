@@ -35,7 +35,7 @@ import * as Platform from '../../core/platform/platform.js';
 import * as TextUtils from '../text_utils/text_utils.js';
 
 import {Events, type IsolatedFileSystemManager} from './IsolatedFileSystemManager.js';
-import {PlatformFileSystem, PlatformFileSystemType} from './PlatformFileSystem.js';
+import {PlatformFileSystem} from './PlatformFileSystem.js';
 
 const UIStrings = {
   /**
@@ -58,7 +58,7 @@ const UIStrings = {
    *@example {example.url} PH1
    */
   linkedToS: 'Linked to {PH1}',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('models/persistence/IsolatedFileSystem.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class IsolatedFileSystem extends PlatformFileSystem {
@@ -75,9 +75,8 @@ export class IsolatedFileSystem extends PlatformFileSystem {
 
   constructor(
       manager: IsolatedFileSystemManager, path: Platform.DevToolsPath.UrlString,
-      embedderPath: Platform.DevToolsPath.RawPathString, domFileSystem: FileSystem, type: PlatformFileSystemType,
-      automatic: boolean) {
-    super(path, type, automatic);
+      embedderPath: Platform.DevToolsPath.RawPathString, domFileSystem: FileSystem, type: string) {
+    super(path, type);
     this.manager = manager;
     this.embedderPathInternal = embedderPath;
     this.domFileSystem = domFileSystem;
@@ -88,15 +87,15 @@ export class IsolatedFileSystem extends PlatformFileSystem {
 
   static async create(
       manager: IsolatedFileSystemManager, path: Platform.DevToolsPath.UrlString,
-      embedderPath: Platform.DevToolsPath.RawPathString, type: PlatformFileSystemType, name: string, rootURL: string,
-      automatic: boolean): Promise<IsolatedFileSystem|null> {
+      embedderPath: Platform.DevToolsPath.RawPathString, type: string, name: string,
+      rootURL: string): Promise<IsolatedFileSystem|null> {
     const domFileSystem = Host.InspectorFrontendHost.InspectorFrontendHostInstance.isolatedFileSystem(name, rootURL);
     if (!domFileSystem) {
       return null;
     }
 
-    const fileSystem = new IsolatedFileSystem(manager, path, embedderPath, domFileSystem, type, automatic);
-    return await fileSystem.initializeFilePaths().then(() => fileSystem).catch(error => {
+    const fileSystem = new IsolatedFileSystem(manager, path, embedderPath, domFileSystem, type);
+    return fileSystem.initializeFilePaths().then(() => fileSystem).catch(error => {
       console.error(error);
       return null;
     });
@@ -114,7 +113,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
   }
 
   override getMetadata(path: Platform.DevToolsPath.EncodedPathString): Promise<Metadata|null> {
-    const {promise, resolve} = Promise.withResolvers<Metadata|null>();
+    const {promise, resolve} = Platform.PromiseUtilities.promiseWithResolvers<Metadata|null>();
     this.domFileSystem.root.getFile(
         Common.ParsedURL.ParsedURL.encodedPathToRawPathString(path), undefined, fileEntryLoaded, errorHandler);
     return promise;
@@ -217,15 +216,17 @@ export class IsolatedFileSystem extends PlatformFileSystem {
     });
   }
 
-  override async createFile(
-      path: Platform.DevToolsPath.EncodedPathString,
-      name: Platform.DevToolsPath.RawPathString|null): Promise<Platform.DevToolsPath.EncodedPathString|null> {
+  override async createFile(path: Platform.DevToolsPath.EncodedPathString, name: Platform.DevToolsPath.RawPathString|null):
+      Promise<Platform.DevToolsPath.EncodedPathString|null> {
     const dirEntry = await this.createFoldersIfNotExist(Common.ParsedURL.ParsedURL.encodedPathToRawPathString(path));
     if (!dirEntry) {
       return null;
     }
-    const fileEntry = await this.serializedFileOperation(
-        path, createFileCandidate.bind(this, name || 'NewFile' as Platform.DevToolsPath.RawPathString));
+    const fileEntry =
+        await this.serializedFileOperation(
+            path, createFileCandidate.bind(this, name || 'NewFile' as Platform.DevToolsPath.RawPathString)) as
+            FileEntry |
+        null;
     if (!fileEntry) {
       return null;
     }
@@ -253,7 +254,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
   }
 
   override deleteFile(path: Platform.DevToolsPath.EncodedPathString): Promise<boolean> {
-    const {promise, resolve} = Promise.withResolvers<boolean>();
+    const {promise, resolve} = Platform.PromiseUtilities.promiseWithResolvers<boolean>();
     this.domFileSystem.root.getFile(
         Common.ParsedURL.ParsedURL.encodedPathToRawPathString(path), undefined, fileEntryLoaded.bind(this),
         errorHandler.bind(this));
@@ -278,7 +279,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
   }
 
   override deleteDirectoryRecursively(path: Platform.DevToolsPath.EncodedPathString): Promise<boolean> {
-    const {promise, resolve} = Promise.withResolvers<boolean>();
+    const {promise, resolve} = Platform.PromiseUtilities.promiseWithResolvers<boolean>();
     this.domFileSystem.root.getDirectory(
         Common.ParsedURL.ParsedURL.encodedPathToRawPathString(path), undefined, dirEntryLoaded.bind(this),
         errorHandler.bind(this));
@@ -382,7 +383,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
     }
 
     function errorHandler(this: IsolatedFileSystem, error: DOMError|ProgressEvent<EventTarget>): void {
-      // @ts-expect-error TODO(crbug.com/1172300) Properly type this after jsdoc to ts migration
+      // @ts-ignore TODO(crbug.com/1172300) Properly type this after jsdoc to ts migration
       const errorMessage = IsolatedFileSystem.errorMessage(error);
       console.error(errorMessage + ' when setting content for file \'' + (this.path() + '/' + path) + '\'');
       resolve(undefined);
@@ -442,7 +443,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
     }
   }
 
-  private readDirectory(dirEntry: DirectoryEntry, callback: (arg0: FileEntry[]) => void): void {
+  private readDirectory(dirEntry: DirectoryEntry, callback: (arg0: Array<FileEntry>) => void): void {
     const dirReader = dirEntry.createReader();
     let entries: FileEntry[] = [];
 
@@ -468,7 +469,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
     }
   }
 
-  private requestEntries(path: Platform.DevToolsPath.RawPathString, callback: (arg0: FileEntry[]) => void): void {
+  private requestEntries(path: Platform.DevToolsPath.RawPathString, callback: (arg0: Array<FileEntry>) => void): void {
     this.domFileSystem.root.getDirectory(path, undefined, innerCallback.bind(this), errorHandler);
 
     function innerCallback(this: IsolatedFileSystem, dirEntry: DirectoryEntry): void {
@@ -511,7 +512,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
       return true;
     }
     const regex = (this.manager.workspaceFolderExcludePatternSetting()).asRegExp();
-    return Boolean(regex?.test(Common.ParsedURL.ParsedURL.encodedPathToRawPathString(folderPath)));
+    return Boolean(regex && regex.test(Common.ParsedURL.ParsedURL.encodedPathToRawPathString(folderPath)));
   }
 
   override excludedFolders(): Set<Platform.DevToolsPath.EncodedPathString> {
@@ -543,7 +544,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
   }
 
   override canExcludeFolder(path: Platform.DevToolsPath.EncodedPathString): boolean {
-    return Boolean(path) && this.type() !== PlatformFileSystemType.OVERRIDES;
+    return Boolean(path) && this.type() !== 'overrides';
   }
 
   // path not typed as Branded Types as here we are interested in extention only
@@ -572,7 +573,7 @@ export class IsolatedFileSystem extends PlatformFileSystem {
   }
 
   override supportsAutomapping(): boolean {
-    return this.type() !== PlatformFileSystemType.OVERRIDES;
+    return this.type() !== 'overrides';
   }
 }
 

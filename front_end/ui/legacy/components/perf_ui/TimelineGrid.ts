@@ -35,7 +35,7 @@
 import * as ThemeSupport from '../../theme_support/theme_support.js';
 
 import {DEFAULT_FONT_SIZE, getFontFamilyForCanvas} from './Font.js';
-import timelineGridStyles from './timelineGrid.css.js';
+import timelineGridStyles from './timelineGrid.css.legacy.js';
 
 const labelMap = new Map<HTMLDivElement|HTMLElement, HTMLDivElement>();
 
@@ -106,10 +106,10 @@ export class TimelineGrid {
       if (positionFromTime < (freeZoneAtLeft || 0)) {
         continue;
       }
-      offsets.push({position: Math.floor(positionFromTime), time});
+      offsets.push({position: Math.floor(positionFromTime), time: time});
     }
 
-    return {offsets, precision: Math.max(0, -Math.floor(Math.log(gridSliceTime * 1.01) / Math.LN10))};
+    return {offsets: offsets, precision: Math.max(0, -Math.floor(Math.log(gridSliceTime * 1.01) / Math.LN10))};
   }
 
   static drawCanvasGrid(context: CanvasRenderingContext2D, dividersData: DividersData): void {
@@ -162,6 +162,11 @@ export class TimelineGrid {
 
   get dividersLabelBarElement(): HTMLElement {
     return this.dividersLabelBarElementInternal;
+  }
+
+  removeDividers(): void {
+    this.dividersElementInternal.removeChildren();
+    this.dividersLabelBarElementInternal.removeChildren();
   }
 
   updateDividers(calculator: Calculator, freeZoneAtLeft?: number): boolean {
@@ -256,17 +261,23 @@ export class TimelineGrid {
     this.eventDividersElement.classList.remove('hidden');
   }
 
+  hideDividers(): void {
+    this.dividersElementInternal.classList.add('hidden');
+  }
+
+  showDividers(): void {
+    this.dividersElementInternal.classList.remove('hidden');
+  }
+
   setScrollTop(scrollTop: number): void {
     this.dividersLabelBarElementInternal.style.top = scrollTop + 'px';
     this.eventDividersElement.style.top = scrollTop + 'px';
   }
 }
 
-// The TimelineGrid is used in the Performance panel and Memory panel -> Allocating sampling, so the value can be either
-// milliseconds or bytes
 export interface Calculator {
-  computePosition(value: number): number;
-  formatValue(value: number, precision?: number): string;
+  computePosition(time: number): number;
+  formatValue(time: number, precision?: number): string;
   minimumBoundary(): number;
   zeroTime(): number;
   maximumBoundary(): number;
@@ -274,9 +285,9 @@ export interface Calculator {
 }
 
 export interface DividersData {
-  offsets: Array<{
+  offsets: {
     position: number,
     time: number,
-  }>;
+  }[];
   precision: number;
 }

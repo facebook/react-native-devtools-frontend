@@ -2,10 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
-import * as UI from '../../ui/legacy/legacy.js';
 import type * as Timeline from '../timeline/timeline.js';
+import * as UI from '../../ui/legacy/legacy.js';
 
 const UIStrings = {
   /**
@@ -32,7 +31,7 @@ const UIStrings = {
    *@description Title of an action in the timeline tool to record a reload of the current page
    */
   recordAndReload: 'Record and reload',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/js_timeline/js_timeline-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
@@ -80,11 +79,11 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+H',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Y',
     },
   ],
@@ -116,11 +115,11 @@ UI.ActionRegistration.registerActionExtension({
   ],
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+E',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+E',
     },
   ],
@@ -140,22 +139,12 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+Shift+E',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+Shift+E',
     },
   ],
-});
-
-// IMPORTANT: if you are updating this, you should also update the setting in
-// timeline-meta.
-Common.Settings.registerSettingExtension({
-  category: Common.Settings.SettingCategory.PERFORMANCE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
-  settingName: 'annotations-hidden',
-  settingType: Common.Settings.SettingType.BOOLEAN,
-  defaultValue: true,
 });

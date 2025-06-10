@@ -18,7 +18,7 @@
 
 #container {
   list-style-type: none;
-  margin-top: var(--sys-size-4);
+  margin: 0;
   padding: 0;
   width: fit-content;
   display: block;

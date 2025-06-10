@@ -14,7 +14,7 @@ describe('View', () => {
     before(async () => {
       ['first', 'second', 'third', 'fourth'].forEach(title => {
         UI.ViewManager.registerViewExtension({
-          // @ts-expect-error
+          // @ts-ignore
           location: 'mock-location',
           id: title as Lowercase<string>,
           title: () => title as Platform.UIString.LocalizedString,

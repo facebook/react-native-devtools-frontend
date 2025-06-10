@@ -24,7 +24,7 @@ import {
   type PopulateNodesEventNodeTypes,
 } from './CSSOverviewController.js';
 import {CSSOverviewSidebarPanel, type ItemSelectedEvent, SidebarEvents} from './CSSOverviewSidebarPanel.js';
-import type {UnusedDeclaration} from './CSSOverviewUnusedDeclarations.js';
+import {type UnusedDeclaration} from './CSSOverviewUnusedDeclarations.js';
 
 const UIStrings = {
   /**
@@ -175,7 +175,7 @@ const UIStrings = {
    *@description Title of the button to show the element in the CSS overview panel
    */
   showElement: 'Show element',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/css_overview/CSSOverviewCompletedView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -241,7 +241,6 @@ export class CSSOverviewCompletedView extends UI.Widget.VBox {
 
   constructor(controller: OverviewController) {
     super();
-    this.registerRequiredCSS(cssOverviewCompletedViewStyles);
 
     this.#controller = controller;
     this.#formatter = new Intl.NumberFormat('en-US');
@@ -254,7 +253,7 @@ export class CSSOverviewCompletedView extends UI.Widget.VBox {
     this.#elementContainer = new DetailsView();
 
     // If closing the last tab, collapse the sidebar.
-    this.#elementContainer.addEventListener(Events.TAB_CLOSED, evt => {
+    this.#elementContainer.addEventListener(Events.TabClosed, evt => {
       if (evt.data === 0) {
         this.#mainContainer.setSidebarMinimized(true);
       }
@@ -267,7 +266,6 @@ export class CSSOverviewCompletedView extends UI.Widget.VBox {
     this.#mainContainer.setVertical(false);
     this.#mainContainer.setSecondIsSidebar(true);
     this.#mainContainer.setSidebarMinimized(true);
-    this.#mainContainer.registerRequiredCSS(cssOverviewCompletedViewStyles);
 
     this.#sideBar = new CSSOverviewSidebarPanel();
     this.#sideBar.setMinimumSize(100, 25);
@@ -285,13 +283,21 @@ export class CSSOverviewCompletedView extends UI.Widget.VBox {
     this.#sideBar.addItem(i18nString(UIStrings.mediaQueries), 'media-queries');
     this.#sideBar.select('summary', false);
 
-    this.#sideBar.addEventListener(SidebarEvents.ITEM_SELECTED, this.#sideBarItemSelected, this);
-    this.#sideBar.addEventListener(SidebarEvents.RESET, this.#sideBarReset, this);
-    this.#controller.addEventListener(CSSOverViewControllerEvents.RESET, this.#reset, this);
-    this.#controller.addEventListener(CSSOverViewControllerEvents.POPULATE_NODES, this.#createElementsView, this);
+    this.#sideBar.addEventListener(SidebarEvents.ItemSelected, this.#sideBarItemSelected, this);
+    this.#sideBar.addEventListener(SidebarEvents.Reset, this.#sideBarReset, this);
+    this.#controller.addEventListener(CSSOverViewControllerEvents.Reset, this.#reset, this);
+    this.#controller.addEventListener(CSSOverViewControllerEvents.PopulateNodes, this.#createElementsView, this);
     this.#resultsContainer.element.addEventListener('click', this.#onClick.bind(this));
 
     this.#data = null;
+  }
+
+  override wasShown(): void {
+    super.wasShown();
+    this.#mainContainer.registerCSSFiles([cssOverviewCompletedViewStyles]);
+    this.registerCSSFiles([cssOverviewCompletedViewStyles]);
+
+    // TODO(paullewis): update the links in the panels in case source has been .
   }
 
   initializeModels(target: SDK.Target.Target): void {
@@ -320,7 +326,7 @@ export class CSSOverviewCompletedView extends UI.Widget.VBox {
   }
 
   #sideBarReset(): void {
-    this.#controller.dispatchEventToListeners(CSSOverViewControllerEvents.RESET);
+    this.#controller.dispatchEventToListeners(CSSOverViewControllerEvents.Reset);
   }
 
   #reset(): void {
@@ -460,7 +466,7 @@ export class CSSOverviewCompletedView extends UI.Widget.VBox {
     }
 
     evt.consume();
-    this.#controller.dispatchEventToListeners(CSSOverViewControllerEvents.POPULATE_NODES, {payload});
+    this.#controller.dispatchEventToListeners(CSSOverViewControllerEvents.PopulateNodes, {payload});
     this.#mainContainer.setSidebarMinimized(false);
   }
 
@@ -685,8 +691,8 @@ export class CSSOverviewCompletedView extends UI.Widget.VBox {
   }
 
   #groupToFragment(
-      items: Map<string, Array<number|UnusedDeclaration|Protocol.CSS.CSSMedia>>, type: string, dataLabel: string,
-      path = ''): UI.Fragment.Fragment {
+      items: Map<string, (number | UnusedDeclaration | Protocol.CSS.CSSMedia)[]>, type: string, dataLabel: string,
+      path: string = ''): UI.Fragment.Fragment {
     // Sort by number of items descending.
     const values = Array.from(items.entries()).sort((d1, d2) => {
       const v1Nodes = d1[1];
@@ -696,7 +702,7 @@ export class CSSOverviewCompletedView extends UI.Widget.VBox {
 
     const total = values.reduce((prev, curr) => prev + curr[1].length, 0);
 
-    return UI.Fragment.Fragment.build`<ul aria-label="${type}">
+    return UI.Fragment.Fragment.build`<ul>
     ${values.map(([title, nodes]) => {
       const width = 100 * nodes.length / total;
       const itemLabel = i18nString(UIStrings.nOccurrences, {n: nodes.length});
@@ -704,8 +710,7 @@ export class CSSOverviewCompletedView extends UI.Widget.VBox {
       return UI.Fragment.Fragment.build`<li>
         <div class="title">${title}</div>
         <button data-type="${type}" data-path="${path}" data-${dataLabel}="${title}"
-        jslog="${VisualLogging.action().track({click: true}).context(`css-overview.${type}`)}"
-        aria-label="${title}: ${itemLabel}">
+        jslog="${VisualLogging.action().track({click: true}).context(`css-overview.${type}`)}">
           <div class="details">${itemLabel}</div>
           <div class="bar-container">
             <div class="bar" style="width: ${width}%;"></div>
@@ -740,8 +745,8 @@ export class CSSOverviewCompletedView extends UI.Widget.VBox {
       }
     }
 
-    const color = (minContrastIssue.textColor.asString(Common.Color.Format.HEXA));
-    const backgroundColor = (minContrastIssue.backgroundColor.asString(Common.Color.Format.HEXA));
+    const color = (minContrastIssue.textColor.asString(Common.Color.Format.HEXA) as string);
+    const backgroundColor = (minContrastIssue.backgroundColor.asString(Common.Color.Format.HEXA) as string);
 
     const showAPCA = Root.Runtime.experiments.isEnabled('apca');
 
@@ -850,7 +855,7 @@ export class DetailsView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
     this.#tabbedPane = new UI.TabbedPane.TabbedPane();
     this.#tabbedPane.show(this.element);
     this.#tabbedPane.addEventListener(UI.TabbedPane.Events.TabClosed, () => {
-      this.dispatchEventToListeners(Events.TAB_CLOSED, this.#tabbedPane.tabIds().length);
+      this.dispatchEventToListeners(Events.TabClosed, this.#tabbedPane.tabIds().length);
     });
   }
 
@@ -869,12 +874,12 @@ export class DetailsView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
 }
 
 export const enum Events {
-  TAB_CLOSED = 'TabClosed',
+  TabClosed = 'TabClosed',
 }
 
-export interface EventTypes {
-  [Events.TAB_CLOSED]: number;
-}
+export type EventTypes = {
+  [Events.TabClosed]: number,
+};
 
 export class ElementDetailsView extends UI.Widget.Widget {
   readonly #controller: OverviewController;
@@ -972,6 +977,7 @@ export class ElementDetailsView extends UI.Widget.Widget {
     this.#elementGrid = new DataGrid.SortableDataGrid.SortableDataGrid({
       displayName: i18nString(UIStrings.cssOverviewElements),
       columns: this.#elementGridColumns,
+      editCallback: undefined,
       deleteCallback: undefined,
       refreshCallback: undefined,
     });
@@ -979,7 +985,7 @@ export class ElementDetailsView extends UI.Widget.Widget {
     this.#elementGrid.element.addEventListener('mouseover', this.#onMouseOver.bind(this));
     this.#elementGrid.setStriped(true);
     this.#elementGrid.addEventListener(
-        DataGrid.DataGrid.Events.SORTING_CHANGED, this.#sortMediaQueryDataGrid.bind(this));
+        DataGrid.DataGrid.Events.SortingChanged, this.#sortMediaQueryDataGrid.bind(this));
 
     this.#elementGrid.asWidget().show(this.element);
   }
@@ -997,13 +1003,13 @@ export class ElementDetailsView extends UI.Widget.Widget {
   #onMouseOver(evt: Event): void {
     // Traverse the event path on the grid to find the nearest element with a backend node ID attached. Use
     // that for the highlighting.
-    const node = (evt.composedPath() as HTMLElement[]).find(el => el.dataset?.backendNodeId);
+    const node = (evt.composedPath() as HTMLElement[]).find(el => el.dataset && el.dataset.backendNodeId);
     if (!node) {
       return;
     }
 
     const backendNodeId = Number(node.dataset.backendNodeId);
-    this.#controller.dispatchEventToListeners(CSSOverViewControllerEvents.REQUEST_NODE_HIGHLIGHT, backendNodeId);
+    this.#controller.dispatchEventToListeners(CSSOverViewControllerEvents.RequestNodeHighlight, backendNodeId);
   }
 
   async populateNodes(data: PopulateNodesEventNodes): Promise<void> {
@@ -1024,7 +1030,7 @@ export class ElementDetailsView extends UI.Widget.Widget {
     if ('nodeId' in firstItem && visibility.has('node-id')) {
       // Grab the nodes from the frontend, but only those that have not been
       // retrieved already.
-      const nodeIds = (data as Array<{nodeId: Protocol.DOM.BackendNodeId}>).reduce((prev, curr) => {
+      const nodeIds = (data as {nodeId: Protocol.DOM.BackendNodeId}[]).reduce((prev, curr) => {
         const nodeId = curr.nodeId;
         if (CSSOverviewCompletedView.pushedNodes.has(nodeId)) {
           return prev;

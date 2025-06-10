@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
@@ -21,6 +22,7 @@ describeWithMockConnection('AutofillManager', () => {
     model = target.model(SDK.AutofillModel.AutofillModel)!;
     showViewStub = sinon.stub(UI.ViewManager.ViewManager.instance(), 'showView').resolves();
     autofillManager = AutofillManager.AutofillManager.AutofillManager.instance({forceNew: true});
+    Root.Runtime.experiments.enableForTest(Root.Runtime.ExperimentName.AUTOFILL_VIEW);
   });
 
   afterEach(() => {
@@ -33,13 +35,12 @@ describeWithMockConnection('AutofillManager', () => {
         outEvent: AutofillManager.AutofillManager.AddressFormFilledEvent) => {
       const dispatchedAutofillEvents: AutofillManager.AutofillManager.AddressFormFilledEvent[] = [];
       autofillManager.addEventListener(
-          AutofillManager.AutofillManager.Events.ADDRESS_FORM_FILLED,
-          event => dispatchedAutofillEvents.push(event.data));
+          AutofillManager.AutofillManager.Events.AddressFormFilled, event => dispatchedAutofillEvents.push(event.data));
       model.dispatchEventToListeners(
-          SDK.AutofillModel.Events.ADDRESS_FORM_FILLED, {autofillModel: model, event: inEvent});
+          SDK.AutofillModel.Events.AddressFormFilled, {autofillModel: model, event: inEvent});
       await new Promise(resolve => setTimeout(resolve, 0));
       assert.isTrue(showViewStub.calledOnceWithExactly('autofill-view'));
-      assert.deepEqual(dispatchedAutofillEvents, [outEvent]);
+      assert.deepStrictEqual(dispatchedAutofillEvents, [outEvent]);
     };
 
     it('with a single match', async () => {

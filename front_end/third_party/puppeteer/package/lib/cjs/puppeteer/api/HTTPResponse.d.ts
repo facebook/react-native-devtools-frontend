@@ -3,6 +3,7 @@
  * Copyright 2023 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
+/// <reference types="node" />
 import type Protocol from 'devtools-protocol';
 import type { SecurityDetails } from '../common/SecurityDetails.js';
 import type { Frame } from './Frame.js';
@@ -71,11 +72,7 @@ export declare abstract class HTTPResponse {
      * failed to detect the correct encoding, the buffer might
      * be encoded incorrectly. See https://github.com/puppeteer/puppeteer/issues/6478.
      */
-    abstract content(): Promise<Uint8Array>;
-    /**
-     * {@inheritDoc HTTPResponse.content}
-     */
-    buffer(): Promise<Buffer>;
+    abstract buffer(): Promise<Buffer>;
     /**
      * Promise which resolves to a text (utf8) representation of response body.
      */

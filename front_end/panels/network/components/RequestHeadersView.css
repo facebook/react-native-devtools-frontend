@@ -39,11 +39,10 @@ details summary input {
 
 .row {
   display: flex;
-  line-height: 18px;
+  line-height: 20px;
   padding-left: 8px;
-  gap: var(--sys-size-6);
+  gap: 12px;
   user-select: text;
-  margin: var(--sys-size-3) 0;
 }
 
 div.raw-headers-row {
@@ -51,16 +50,16 @@ div.raw-headers-row {
 }
 
 .row:first-of-type {
-  margin-top: var(--sys-size-5);
+  margin-top: 2px;
 }
 
 .row:last-child {
-  margin-bottom: var(--sys-size-5);
+  margin-bottom: 10px;
 }
 
 .header-name {
-  color: var(--sys-color-on-surface-subtle);
-  font: var(--sys-typescale-body5-medium);
+  color: var(--sys-color-on-surface);
+  font-weight: 400;
   width: 30%;
   min-width: 160px;
   max-width: 240px;
@@ -73,7 +72,6 @@ div.raw-headers-row {
   display: flex;
   align-items: center;
   gap: 2px;
-  font: var(--sys-typescale-body4-regular);
 }
 
 .header-name,
@@ -147,11 +145,11 @@ div.raw-headers-row {
   color: var(--sys-color-on-surface);
 }
 
-x-link {
+x-link { /* stylelint-disable-line selector-type-no-unknown */
   position: relative;
 }
 
-x-link .inline-icon {
+x-link .inline-icon { /* stylelint-disable-line selector-type-no-unknown */
   padding-right: 3px;
 }
 
@@ -166,13 +164,6 @@ x-link .inline-icon {
   position: absolute;
   top: 11px;
   z-index: 1;
-}
-
-summary label {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
-  gap: var(--sys-size-3);
 }
 
 summary label input[type="checkbox"] {

@@ -29,9 +29,10 @@
 
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
-import type * as CPUProfile from '../../models/cpu_profile/cpu_profile.js';
 import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as DataGrid from '../../ui/legacy/components/data_grid/data_grid.js';
+import type * as CPUProfile from '../../models/cpu_profile/cpu_profile.js';
+
 import * as UI from '../../ui/legacy/legacy.js';
 
 const UIStrings = {
@@ -49,7 +50,7 @@ const UIStrings = {
    *@example {44 %} PH2
    */
   genericTextTwoPlaceholders: '{PH1}, {PH2}',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/profiler/ProfileDataGrid.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class ProfileDataGridNode extends DataGrid.DataGrid.DataGridNode<unknown> {
@@ -70,7 +71,7 @@ export class ProfileDataGridNode extends DataGrid.DataGrid.DataGridNode<unknown>
   populated: boolean;
   savedSelf?: number;
   savedTotal?: number;
-  savedChildren?: Array<DataGrid.DataGrid.DataGridNode<unknown>>;
+  savedChildren?: DataGrid.DataGrid.DataGridNode<unknown>[];
 
   constructor(
       profileNode: CPUProfile.ProfileTreeModel.ProfileNode, owningTree: ProfileDataGridTree, hasChildren: boolean) {
@@ -161,7 +162,7 @@ export class ProfileDataGridNode extends DataGrid.DataGrid.DataGridNode<unknown>
       const existingChild = container.childrenByCallUID.get(orphanedChild.callUID);
 
       if (existingChild) {
-        existingChild.merge((orphanedChild), false);
+        existingChild.merge((orphanedChild as ProfileDataGridNode), false);
       } else {
         container.appendChild(orphanedChild);
       }
@@ -251,7 +252,7 @@ export class ProfileDataGridNode extends DataGrid.DataGrid.DataGridNode<unknown>
   override insertChild(child: DataGrid.DataGrid.DataGridNode<unknown>, index: number): void {
     const profileDataGridNode = (child as ProfileDataGridNode);
     super.insertChild(profileDataGridNode, index);
-    this.childrenByCallUID.set(profileDataGridNode.callUID, (profileDataGridNode));
+    this.childrenByCallUID.set(profileDataGridNode.callUID, (profileDataGridNode as ProfileDataGridNode));
   }
 
   override removeChild(profileDataGridNode: DataGrid.DataGrid.DataGridNode<unknown>): void {
@@ -343,12 +344,12 @@ export class ProfileDataGridTree implements UI.SearchableView.Searchable {
   childrenByCallUID: Map<string, ProfileDataGridNode>;
   deepSearch: boolean;
   populated: boolean;
-  searchResults!: Array<{
+  searchResults!: {
     profileNode: ProfileDataGridNode,
-  }>;
+  }[];
   savedTotal?: number;
   savedChildren?: ProfileDataGridNode[]|null;
-  searchResultIndex = -1;
+  searchResultIndex: number = -1;
 
   constructor(formatter: Formatter, searchableView: UI.SearchableView.SearchableView, total: number) {
     this.tree = this;
@@ -447,7 +448,7 @@ export class ProfileDataGridTree implements UI.SearchableView.Searchable {
   }
 
   insertChild(child: ProfileDataGridNode, index: number): void {
-    const childToInsert = (child);
+    const childToInsert = (child as ProfileDataGridNode);
     this.children.splice(index, 0, childToInsert);
     this.childrenByCallUID.set(childToInsert.callUID, child);
   }
@@ -497,7 +498,7 @@ export class ProfileDataGridTree implements UI.SearchableView.Searchable {
     const count = children.length;
 
     for (let index = 0; index < count; ++index) {
-      (children[index]).restore();
+      (children[index] as ProfileDataGridNode).restore();
     }
 
     this.savedChildren = null;
@@ -648,7 +649,7 @@ export class ProfileDataGridTree implements UI.SearchableView.Searchable {
   }
 
   jumpToNextSearchResult(): void {
-    if (!this.searchResults?.length) {
+    if (!this.searchResults || !this.searchResults.length) {
       return;
     }
     this.searchResultIndex = (this.searchResultIndex + 1) % this.searchResults.length;
@@ -656,7 +657,7 @@ export class ProfileDataGridTree implements UI.SearchableView.Searchable {
   }
 
   jumpToPreviousSearchResult(): void {
-    if (!this.searchResults?.length) {
+    if (!this.searchResults || !this.searchResults.length) {
       return;
     }
     this.searchResultIndex = (this.searchResultIndex - 1 + this.searchResults.length) % this.searchResults.length;
@@ -682,7 +683,7 @@ export class ProfileDataGridTree implements UI.SearchableView.Searchable {
   }
 }
 
-const propertyComparators: Array<{[key: string]: unknown}> = [{}, {}];
+const propertyComparators: {[key: string]: unknown}[] = [{}, {}];
 
 export interface Formatter {
   formatValue(value: number, node: ProfileDataGridNode): string;

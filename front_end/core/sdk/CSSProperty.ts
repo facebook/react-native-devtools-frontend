@@ -7,30 +7,13 @@ import * as TextUtils from '../../models/text_utils/text_utils.js';
 import * as Common from '../common/common.js';
 import * as HostModule from '../host/host.js';
 import * as Platform from '../platform/platform.js';
-import * as Root from '../root/root.js';
 
-import type {CSSMatchedStyles} from './CSSMatchedStyles.js';
 import {cssMetadata, GridAreaRowRegex} from './CSSMetadata.js';
-import type {Edit} from './CSSModel.js';
-import {
-  type BottomUpTreeMatching,
-  type Match,
-  matchDeclaration,
-  type Matcher,
-  stripComments
-} from './CSSPropertyParser.js';
-import {CSSWideKeywordMatcher, FontMatcher} from './CSSPropertyParserMatchers.js';
-import type {CSSStyleDeclaration} from './CSSStyleDeclaration.js';
+import {type Edit} from './CSSModel.js';
+import {stripComments} from './CSSPropertyParser.js';
+import {type CSSStyleDeclaration} from './CSSStyleDeclaration.js';
 
-export const enum Events {
-  LOCAL_VALUE_UPDATED = 'localValueUpdated',
-}
-
-export interface EventTypes {
-  [Events.LOCAL_VALUE_UPDATED]: void;
-}
-
-export class CSSProperty extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
+export class CSSProperty {
   ownerStyle: CSSStyleDeclaration;
   index: number;
   name: string;
@@ -51,7 +34,6 @@ export class CSSProperty extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
       ownerStyle: CSSStyleDeclaration, index: number, name: string, value: string, important: boolean,
       disabled: boolean, parsedOk: boolean, implicit: boolean, text?: string|null, range?: Protocol.CSS.SourceRange,
       longhandProperties?: Protocol.CSS.CSSProperty[]) {
-    super();
     this.ownerStyle = ownerStyle;
     this.index = index;
     this.name = name;
@@ -95,33 +77,6 @@ export class CSSProperty extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
         ('parsedOk' in payload) ? Boolean(payload.parsedOk) : true, Boolean(payload.implicit), payload.text,
         payload.range, payload.longhandProperties);
     return result;
-  }
-
-  parseExpression(expression: string, matchedStyles: CSSMatchedStyles, computedStyles: Map<string, string>|null):
-      BottomUpTreeMatching|null {
-    if (!this.parsedOk) {
-      return null;
-    }
-
-    return matchDeclaration(this.name, expression, this.#matchers(matchedStyles, computedStyles));
-  }
-
-  parseValue(matchedStyles: CSSMatchedStyles, computedStyles: Map<string, string>|null): BottomUpTreeMatching|null {
-    if (!this.parsedOk) {
-      return null;
-    }
-
-    return matchDeclaration(this.name, this.value, this.#matchers(matchedStyles, computedStyles));
-  }
-
-  #matchers(matchedStyles: CSSMatchedStyles, computedStyles: Map<string, string>|null): Array<Matcher<Match>> {
-    const matchers = matchedStyles.propertyMatchers(this.ownerStyle, computedStyles);
-
-    matchers.push(new CSSWideKeywordMatcher(this, matchedStyles));
-    if (Root.Runtime.experiments.isEnabled('font-editor')) {
-      matchers.push(new FontMatcher());
-    }
-    return matchers;
   }
 
   private ensureRanges(): void {
@@ -196,6 +151,11 @@ export class CSSProperty extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
     return this.#active;
   }
 
+  trimmedValueWithoutImportant(): string {
+    const important = '!important';
+    return this.value.endsWith(important) ? this.value.slice(0, -important.length).trim() : this.value.trim();
+  }
+
   async setText(propertyText: string, majorChange: boolean, overwrite?: boolean): Promise<boolean> {
     if (!this.ownerStyle) {
       throw new Error('No ownerStyle for property');
@@ -233,7 +193,7 @@ export class CSSProperty extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
     const text = new TextUtils.Text.Text(this.ownerStyle.cssText || '');
     const newStyleText = text.replaceRange(range, Platform.StringUtilities.sprintf(';%s;', propertyText));
     const styleText = await CSSProperty.formatStyle(newStyleText, indentation, endIndentation);
-    return await this.ownerStyle.setText(styleText, majorChange);
+    return this.ownerStyle.setText(styleText, majorChange);
   }
 
   static async formatStyle(styleText: string, indentation: string, endIndentation: string): Promise<string> {
@@ -328,12 +288,6 @@ export class CSSProperty extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
     void this.setText(text, majorChange, overwrite).then(userCallback);
   }
 
-  // Updates the value stored locally and emits an event to signal its update.
-  setLocalValue(value: string): void {
-    this.value = value;
-    this.dispatchEventToListeners(Events.LOCAL_VALUE_UPDATED);
-  }
-
   async setDisabled(disabled: boolean): Promise<boolean> {
     if (!this.ownerStyle) {
       return false;
@@ -361,7 +315,7 @@ export class CSSProperty extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
     } else {
       text = appendSemicolonIfMissing(this.text.substring(2, propertyText.length - 2).trim());
     }
-    return await this.setText(text, true, true);
+    return this.setText(text, true, true);
   }
 
   /**

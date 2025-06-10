@@ -2,14 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {html, render} from '../../../ui/lit/lit.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import computedStylePropertyStylesRaw from './computedStyleProperty.css.js';
+import computedStylePropertyStyles from './computedStyleProperty.css.js';
 
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const computedStylePropertyStyles = new CSSStyleSheet();
-computedStylePropertyStyles.replaceSync(computedStylePropertyStylesRaw.cssText);
+const {render, html} = LitHtml;
 
 export class NavigateToSourceEvent extends Event {
   static readonly eventName = 'onnavigatetosource';
@@ -19,6 +17,7 @@ export class NavigateToSourceEvent extends Event {
 }
 
 export class ComputedStyleProperty extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-computed-style-property`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   #inherited = false;
   #traceable = false;

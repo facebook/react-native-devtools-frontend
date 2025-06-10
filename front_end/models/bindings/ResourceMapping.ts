@@ -395,10 +395,10 @@ class Binding implements TextUtils.ContentProvider.ContentProvider {
   readonly resources: Set<SDK.Resource.Resource>;
   readonly #project: ContentProviderBasedProject;
   readonly #uiSourceCode: Workspace.UISourceCode.UISourceCode;
-  #edits: Array<{
+  #edits: {
     stylesheet: SDK.CSSStyleSheetHeader.CSSStyleSheetHeader,
     edit: SDK.CSSModel.Edit|null,
-  }>;
+  }[];
   constructor(project: ContentProviderBasedProject, resource: SDK.Resource.Resource) {
     this.resources = new Set([resource]);
     this.#project = project;
@@ -521,7 +521,7 @@ class Binding implements TextUtils.ContentProvider.ContentProvider {
 
   private firstResource(): SDK.Resource.Resource {
     console.assert(this.resources.size > 0);
-    return this.resources.values().next().value as SDK.Resource.Resource;
+    return this.resources.values().next().value;
   }
 
   contentURL(): Platform.DevToolsPath.UrlString {

@@ -3,6 +3,7 @@
  * Copyright 2022 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
+/// <reference types="node" />
 import type { ProtocolError } from '../common/Errors.js';
 /**
  * @internal

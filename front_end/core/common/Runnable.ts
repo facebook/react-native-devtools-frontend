@@ -26,16 +26,16 @@ export function maybeRemoveLateInitializationRunnable(runnableId: string): boole
   return registeredLateInitializationRunnables.delete(runnableId);
 }
 
-export function lateInitializationRunnables(): LateInitializationLoader[] {
+export function lateInitializationRunnables(): Array<LateInitializationLoader> {
   return [...registeredLateInitializationRunnables.values()];
 }
 
-const registeredEarlyInitializationRunnables: Array<() => Runnable> = [];
+const registeredEarlyInitializationRunnables: (() => Runnable)[] = [];
 
 export function registerEarlyInitializationRunnable(runnable: () => Runnable): void {
   registeredEarlyInitializationRunnables.push(runnable);
 }
 
-export function earlyInitializationRunnables(): Array<() => Runnable> {
+export function earlyInitializationRunnables(): (() => Runnable)[] {
   return registeredEarlyInitializationRunnables;
 }

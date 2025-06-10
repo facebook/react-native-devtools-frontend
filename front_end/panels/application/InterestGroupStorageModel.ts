@@ -29,8 +29,8 @@
  */
 
 import * as SDK from '../../core/sdk/sdk.js';
-import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 import type * as Protocol from '../../generated/protocol.js';
+import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 
 export class InterestGroupStorageModel extends SDK.SDKModel.SDKModel<EventTypes> implements
     ProtocolProxyApi.StorageDispatcher {
@@ -59,7 +59,7 @@ export class InterestGroupStorageModel extends SDK.SDKModel.SDKModel<EventTypes>
   }
 
   interestGroupAccessed(event: Protocol.Storage.InterestGroupAccessedEvent): void {
-    this.dispatchEventToListeners(Events.INTEREST_GROUP_ACCESS, event);
+    this.dispatchEventToListeners(Events.InterestGroupAccess, event);
   }
 
   attributionReportingTriggerRegistered(_event: Protocol.Storage.AttributionReportingTriggerRegisteredEvent): void {
@@ -98,12 +98,12 @@ export class InterestGroupStorageModel extends SDK.SDKModel.SDKModel<EventTypes>
 }
 
 SDK.SDKModel.SDKModel.register(
-    InterestGroupStorageModel, {capabilities: SDK.Target.Capability.STORAGE, autostart: false});
+    InterestGroupStorageModel, {capabilities: SDK.Target.Capability.Storage, autostart: false});
 
 export const enum Events {
-  INTEREST_GROUP_ACCESS = 'InterestGroupAccess',
+  InterestGroupAccess = 'InterestGroupAccess',
 }
 
-export interface EventTypes {
-  [Events.INTEREST_GROUP_ACCESS]: Protocol.Storage.InterestGroupAccessedEvent;
-}
+export type EventTypes = {
+  [Events.InterestGroupAccess]: Protocol.Storage.InterestGroupAccessedEvent,
+};

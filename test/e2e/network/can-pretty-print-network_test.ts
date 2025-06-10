@@ -8,7 +8,6 @@ import {
   click,
   step,
   waitFor,
-  waitForFunction,
 } from '../../shared/helper.js';
 import {
   elementContainsTextWithSelector,
@@ -61,11 +60,11 @@ describe('The Network Tab', function() {
         '}',
       ];
 
-      assert.deepEqual(textFromResponse, expectedTextFromResponse);
+      assert.deepStrictEqual(textFromResponse, expectedTextFromResponse);
     });
 
     await step('can highlight the pretty-printed text', async () => {
-      await waitForFunction(isPrettyPrinted);
+      assert.isTrue(await isPrettyPrinted());
       assert.isTrue(await elementContainsTextWithSelector(editor, '"Value1"', '.token-string'));
 
       assert.isTrue(await elementContainsTextWithSelector(editor, 'true', '.token-atom'));
@@ -82,7 +81,7 @@ describe('The Network Tab', function() {
     });
 
     await step('can highlight the un-pretty-printed text', async () => {
-      await waitForFunction(async () => !(await isPrettyPrinted()));
+      assert.isFalse(await isPrettyPrinted());
       assert.isTrue(await elementContainsTextWithSelector(editor, '"Value1"', '.token-string'));
 
       assert.isTrue(await elementContainsTextWithSelector(editor, 'true', '.token-atom'));
@@ -126,11 +125,11 @@ describe('The Network Tab', function() {
         '}',
       ];
 
-      assert.deepEqual(textFromResponse, expectedTextFromResponse);
+      assert.deepStrictEqual(textFromResponse, expectedTextFromResponse);
     });
 
     await step('can highlight the pretty-printed text', async () => {
-      await waitForFunction(isPrettyPrinted);
+      assert.isTrue(await isPrettyPrinted());
       assert.isTrue(await elementContainsTextWithSelector(editor, '"Value1"', '.token-string'));
 
       assert.isTrue(await elementContainsTextWithSelector(editor, 'true', '.token-atom'));

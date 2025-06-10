@@ -2,18 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 import type * as Protocol from '../../generated/protocol.js';
+import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 
 import {DeferredDOMNode, type DOMNode} from './DOMModel.js';
-import {SDKModel} from './SDKModel.js';
+
 import {Capability, type Target} from './Target.js';
+import {SDKModel} from './SDKModel.js';
 
 export const enum CoreAxPropertyName {
-  NAME = 'name',
-  DESCRIPTION = 'description',
-  VALUE = 'value',
-  ROLE = 'role',
+  Name = 'name',
+  Description = 'description',
+  Value = 'value',
+  Role = 'role',
 }
 
 export interface CoreOrProtocolAxProperty {
@@ -60,7 +61,7 @@ export class AccessibilityNode {
     this.#descriptionInternal = payload.description || null;
     this.#valueInternal = payload.value || null;
     this.#propertiesInternal = payload.properties || null;
-    this.#childIds = [...new Set(payload.childIds)];
+    this.#childIds = [...new Set(payload.childIds)] || null;
     this.#parentId = payload.parentId || null;
     if (payload.frameId && !payload.parentId) {
       this.#frameId = payload.frameId;
@@ -94,13 +95,13 @@ export class AccessibilityNode {
     const properties: CoreOrProtocolAxProperty[] = [];
 
     if (this.#nameInternal) {
-      properties.push({name: CoreAxPropertyName.NAME, value: this.#nameInternal});
+      properties.push({name: CoreAxPropertyName.Name, value: this.#nameInternal});
     }
     if (this.#descriptionInternal) {
-      properties.push({name: CoreAxPropertyName.DESCRIPTION, value: this.#descriptionInternal});
+      properties.push({name: CoreAxPropertyName.Description, value: this.#descriptionInternal});
     }
     if (this.#valueInternal) {
-      properties.push({name: CoreAxPropertyName.VALUE, value: this.#valueInternal});
+      properties.push({name: CoreAxPropertyName.Value, value: this.#valueInternal});
     }
 
     return properties;
@@ -193,26 +194,32 @@ export class AccessibilityNode {
 }
 
 export const enum Events {
-  TREE_UPDATED = 'TreeUpdated',
+  TreeUpdated = 'TreeUpdated',
 }
 
-export interface EventTypes {
-  [Events.TREE_UPDATED]: {root?: AccessibilityNode};
-}
+export type EventTypes = {
+  [Events.TreeUpdated]: {root?: AccessibilityNode},
+};
 
 export class AccessibilityModel extends SDKModel<EventTypes> implements ProtocolProxyApi.AccessibilityDispatcher {
   agent: ProtocolProxyApi.AccessibilityApi;
-  #axIdToAXNode = new Map<string, AccessibilityNode>();
-  #backendDOMNodeIdToAXNode = new Map<Protocol.DOM.BackendNodeId, AccessibilityNode>();
-  #frameIdToAXNode = new Map<Protocol.Page.FrameId, AccessibilityNode>();
-  #pendingChildRequests = new Map<string, Promise<Protocol.Accessibility.GetChildAXNodesResponse>>();
-  #root: AccessibilityNode|null = null;
+  #axIdToAXNode: Map<string, AccessibilityNode>;
+  #backendDOMNodeIdToAXNode: Map<Protocol.DOM.BackendNodeId, AccessibilityNode>;
+  #frameIdToAXNode: Map<Protocol.Page.FrameId, AccessibilityNode>;
+  #pendingChildRequests: Map<string, Promise<Protocol.Accessibility.GetChildAXNodesResponse>>;
+  #root: AccessibilityNode|null;
 
   constructor(target: Target) {
     super(target);
     target.registerAccessibilityDispatcher(this);
     this.agent = target.accessibilityAgent();
     void this.resumeModel();
+
+    this.#axIdToAXNode = new Map();
+    this.#backendDOMNodeIdToAXNode = new Map();
+    this.#frameIdToAXNode = new Map();
+    this.#pendingChildRequests = new Map();
+    this.#root = null;
   }
 
   clear(): void {
@@ -244,12 +251,12 @@ export class AccessibilityModel extends SDKModel<EventTypes> implements Protocol
   loadComplete({root}: Protocol.Accessibility.LoadCompleteEvent): void {
     this.clear();
     this.#root = new AccessibilityNode(this, root);
-    this.dispatchEventToListeners(Events.TREE_UPDATED, {root: this.#root});
+    this.dispatchEventToListeners(Events.TreeUpdated, {root: this.#root});
   }
 
   nodesUpdated({nodes}: Protocol.Accessibility.NodesUpdatedEvent): void {
     this.createNodesFromPayload(nodes);
-    this.dispatchEventToListeners(Events.TREE_UPDATED, {});
+    this.dispatchEventToListeners(Events.TreeUpdated, {});
     return;
   }
 
@@ -280,7 +287,7 @@ export class AccessibilityModel extends SDKModel<EventTypes> implements Protocol
       Promise<AccessibilityNode[]> {
     const parent = this.#axIdToAXNode.get(nodeId);
     if (!parent) {
-      throw new Error('Cannot request children before parent');
+      throw Error('Cannot request children before parent');
     }
     if (!parent.hasUnloadedChildren()) {
       return parent.children();
@@ -328,6 +335,10 @@ export class AccessibilityModel extends SDKModel<EventTypes> implements Protocol
 
   setRootAXNodeForFrameId(frameId: Protocol.Page.FrameId, axNode: AccessibilityNode): void {
     this.#frameIdToAXNode.set(frameId, axNode);
+  }
+
+  axNodeForFrameId(frameId: Protocol.Page.FrameId): AccessibilityNode|null {
+    return this.#frameIdToAXNode.get(frameId) ?? null;
   }
 
   setAXNodeForAXId(axId: string, axNode: AccessibilityNode): void {

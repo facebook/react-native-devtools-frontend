@@ -38,7 +38,7 @@ export class NetworkPersistenceManager extends Common.ObjectWrapper.ObjectWrappe
   private activeInternal: boolean;
   private enabled: boolean;
   private eventDescriptors: Common.EventTarget.EventDescriptor[];
-  #headerOverridesMap = new Map<Platform.DevToolsPath.EncodedPathString, HeaderOverrideWithRegex[]>();
+  #headerOverridesMap: Map<Platform.DevToolsPath.EncodedPathString, HeaderOverrideWithRegex[]> = new Map();
   readonly #sourceCodeToBindProcessMutex = new WeakMap<Workspace.UISourceCode.UISourceCode, Common.Mutex.Mutex>();
   readonly #eventDispatchThrottler: Common.Throttler.Throttler;
   #headerOverridesForEventDispatch: Set<Workspace.UISourceCode.UISourceCode>;
@@ -156,7 +156,7 @@ export class NetworkPersistenceManager extends Common.ObjectWrapper.ObjectWrappe
       Common.EventTarget.removeEventListeners(this.eventDescriptors);
       await this.updateActiveProject();
     }
-    this.dispatchEventToListeners(Events.LOCAL_OVERRIDES_PROJECT_UPDATED, this.enabled);
+    this.dispatchEventToListeners(Events.LocalOverridesProjectUpdated, this.enabled);
   }
 
   private async uiSourceCodeRenamedListener(
@@ -321,7 +321,7 @@ export class NetworkPersistenceManager extends Common.ObjectWrapper.ObjectWrappe
       const mutex = this.#getOrCreateMutex(binding.network);
       await mutex.run(this.#innerUnbind.bind(this, binding));
     } else if (headerBinding) {
-      this.dispatchEventToListeners(Events.REQUEST_FOR_HEADER_OVERRIDES_FILE_CHANGED, uiSourceCode);
+      this.dispatchEventToListeners(Events.RequestsForHeaderOverridesFileChanged, uiSourceCode);
     }
   }
 
@@ -430,14 +430,14 @@ export class NetworkPersistenceManager extends Common.ObjectWrapper.ObjectWrappe
     if (!this.enabledSetting.get()) {
       Host.userMetrics.actionTaken(Host.UserMetrics.Action.OverrideContentContextMenuActivateDisabled);
       this.enabledSetting.set(true);
-      await this.once(Events.LOCAL_OVERRIDES_PROJECT_UPDATED);
+      await this.once(Events.LocalOverridesProjectUpdated);
     }
 
     // Save new file
     if (!this.#isUISourceCodeAlreadyOverridden(uiSourceCode)) {
       Host.userMetrics.actionTaken(Host.UserMetrics.Action.OverrideContentContextMenuSaveNewFile);
       uiSourceCode.commitWorkingCopy();
-      await this.saveUISourceCodeForOverrides(uiSourceCode);
+      await this.saveUISourceCodeForOverrides(uiSourceCode as Workspace.UISourceCode.UISourceCode);
     } else {
       Host.userMetrics.actionTaken(Host.UserMetrics.Action.OverrideContentContextMenuOpenExistingFile);
     }
@@ -552,9 +552,9 @@ export class NetworkPersistenceManager extends Common.ObjectWrapper.ObjectWrappe
     try {
       headerOverrides = JSON.parse(content) as HeaderOverride[];
       if (!headerOverrides.every(isHeaderOverride)) {
-        throw new Error('Type mismatch after parsing');
+        throw 'Type mismatch after parsing';
       }
-    } catch {
+    } catch (e) {
       console.error('Failed to parse', uiSourceCode.url(), 'for locally overriding headers.');
       return [];
     }
@@ -700,7 +700,7 @@ export class NetworkPersistenceManager extends Common.ObjectWrapper.ObjectWrappe
   async #innerUpdateInterceptionPatterns(): Promise<void> {
     this.#headerOverridesMap.clear();
     if (!this.activeInternal || !this.projectInternal) {
-      return await SDK.NetworkManager.MultitargetNetworkManager.instance().setInterceptionHandlerForPatterns(
+      return SDK.NetworkManager.MultitargetNetworkManager.instance().setInterceptionHandlerForPatterns(
           [], this.interceptionHandlerBound);
     }
     let patterns = new Set<string>();
@@ -730,7 +730,7 @@ export class NetworkPersistenceManager extends Common.ObjectWrapper.ObjectWrappe
       }
     }
 
-    return await SDK.NetworkManager.MultitargetNetworkManager.instance().setInterceptionHandlerForPatterns(
+    return SDK.NetworkManager.MultitargetNetworkManager.instance().setInterceptionHandlerForPatterns(
         Array.from(patterns).map(
             pattern => ({urlPattern: pattern, requestStage: Protocol.Fetch.RequestStage.Response})),
         this.interceptionHandlerBound);
@@ -784,7 +784,7 @@ export class NetworkPersistenceManager extends Common.ObjectWrapper.ObjectWrappe
 
   #dispatchRequestsForHeaderOverridesFileChanged(): Promise<void> {
     for (const headersFileUiSourceCode of this.#headerOverridesForEventDispatch) {
-      this.dispatchEventToListeners(Events.REQUEST_FOR_HEADER_OVERRIDES_FILE_CHANGED, headersFileUiSourceCode);
+      this.dispatchEventToListeners(Events.RequestsForHeaderOverridesFileChanged, headersFileUiSourceCode);
     }
     this.#headerOverridesForEventDispatch.clear();
     return Promise.resolve();
@@ -830,7 +830,7 @@ export class NetworkPersistenceManager extends Common.ObjectWrapper.ObjectWrappe
     }
 
     await this.updateActiveProject();
-    this.dispatchEventToListeners(Events.PROJECT_CHANGED, this.projectInternal);
+    this.dispatchEventToListeners(Events.ProjectChanged, this.projectInternal);
   }
 
   private async onProjectAdded(project: Workspace.Workspace.Project): Promise<void> {
@@ -990,16 +990,16 @@ const RESERVED_FILENAMES = new Set<string>([
 export const HEADERS_FILENAME = '.headers';
 
 export const enum Events {
-  PROJECT_CHANGED = 'ProjectChanged',
-  REQUEST_FOR_HEADER_OVERRIDES_FILE_CHANGED = 'RequestsForHeaderOverridesFileChanged',
-  LOCAL_OVERRIDES_PROJECT_UPDATED = 'LocalOverridesProjectUpdated',
+  ProjectChanged = 'ProjectChanged',
+  RequestsForHeaderOverridesFileChanged = 'RequestsForHeaderOverridesFileChanged',
+  LocalOverridesProjectUpdated = 'LocalOverridesProjectUpdated',
 }
 
-export interface EventTypes {
-  [Events.PROJECT_CHANGED]: Workspace.Workspace.Project|null;
-  [Events.REQUEST_FOR_HEADER_OVERRIDES_FILE_CHANGED]: Workspace.UISourceCode.UISourceCode;
-  [Events.LOCAL_OVERRIDES_PROJECT_UPDATED]: boolean;
-}
+export type EventTypes = {
+  [Events.ProjectChanged]: Workspace.Workspace.Project|null,
+  [Events.RequestsForHeaderOverridesFileChanged]: Workspace.UISourceCode.UISourceCode,
+  [Events.LocalOverridesProjectUpdated]: boolean,
+};
 
 export interface HeaderOverride {
   applyTo: string;
@@ -1013,7 +1013,7 @@ interface HeaderOverrideWithRegex {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function isHeaderOverride(arg: any): arg is HeaderOverride {
-  if (!(arg && typeof arg.applyTo === 'string' && arg.headers?.length && Array.isArray(arg.headers))) {
+  if (!(arg && typeof arg.applyTo === 'string' && arg.headers && arg.headers.length && Array.isArray(arg.headers))) {
     return false;
   }
   return arg.headers.every(

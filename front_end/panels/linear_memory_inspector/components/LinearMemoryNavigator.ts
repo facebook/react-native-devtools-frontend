@@ -2,17 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../../ui/components/icon_button/icon_button.js';
-
 import * as i18n from '../../../core/i18n/i18n.js';
-import * as Lit from '../../../ui/lit/lit.js';
+import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import linearMemoryNavigatorStylesRaw from './linearMemoryNavigator.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const linearMemoryNavigatorStyles = new CSSStyleSheet();
-linearMemoryNavigatorStyles.replaceSync(linearMemoryNavigatorStylesRaw.cssText);
+import linearMemoryNavigatorStyles from './linearMemoryNavigator.css.js';
 
 const UIStrings = {
   /**
@@ -39,15 +34,15 @@ const UIStrings = {
    *@description Text to refresh the page
    */
   refresh: 'Refresh',
-} as const;
+};
 const str_ =
     i18n.i18n.registerUIStrings('panels/linear_memory_inspector/components/LinearMemoryNavigator.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-const {render, html, Directives: {ifDefined}} = Lit;
+const {render, html} = LitHtml;
 
 export const enum Navigation {
-  BACKWARD = 'Backward',
-  FORWARD = 'Forward',
+  Backward = 'Backward',
+  Forward = 'Forward',
 }
 
 export class AddressInputChangedEvent extends Event {
@@ -97,12 +92,13 @@ export interface LinearMemoryNavigatorData {
 }
 
 export const enum Mode {
-  EDIT = 'Edit',
-  SUBMITTED = 'Submitted',
-  INVALID_SUBMIT = 'InvalidSubmit',
+  Edit = 'Edit',
+  Submitted = 'Submitted',
+  InvalidSubmit = 'InvalidSubmit',
 }
 
 export class LinearMemoryNavigator extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-linear-memory-inspector-navigator`;
 
   readonly #shadow = this.attachShadow({mode: 'open'});
   #address = '0';
@@ -125,9 +121,9 @@ export class LinearMemoryNavigator extends HTMLElement {
 
     const addressInput = this.#shadow.querySelector<HTMLInputElement>('.address-input');
     if (addressInput) {
-      if (data.mode === Mode.SUBMITTED) {
+      if (data.mode === Mode.Submitted) {
         addressInput.blur();
-      } else if (data.mode === Mode.INVALID_SUBMIT) {
+      } else if (data.mode === Mode.InvalidSubmit) {
         addressInput.select();
       }
     }
@@ -140,19 +136,19 @@ export class LinearMemoryNavigator extends HTMLElement {
       <div class="navigator">
         <div class="navigator-item">
           ${this.#createButton({icon: 'undo', title: i18nString(UIStrings.goBackInAddressHistory),
-              event: new HistoryNavigationEvent(Navigation.BACKWARD), enabled: this.#canGoBackInHistory,
+              event: new HistoryNavigationEvent(Navigation.Backward), enabled: this.#canGoBackInHistory,
               jslogContext:'linear-memory-inspector.history-back'})}
           ${this.#createButton({icon: 'redo', title: i18nString(UIStrings.goForwardInAddressHistory),
-              event: new HistoryNavigationEvent(Navigation.FORWARD), enabled: this.#canGoForwardInHistory,
+              event: new HistoryNavigationEvent(Navigation.Forward), enabled: this.#canGoForwardInHistory,
               jslogContext:'linear-memory-inspector.history-forward'})}
         </div>
         <div class="navigator-item">
           ${this.#createButton({icon: 'chevron-left', title: i18nString(UIStrings.previousPage),
-              event: new PageNavigationEvent(Navigation.BACKWARD), enabled: true,
+              event: new PageNavigationEvent(Navigation.Backward), enabled: true,
               jslogContext:'linear-memory-inspector.previous-page'})}
           ${this.#createAddressInput()}
           ${this.#createButton({icon: 'chevron-right', title: i18nString(UIStrings.nextPage),
-              event: new PageNavigationEvent(Navigation.FORWARD), enabled: true,
+              event: new PageNavigationEvent(Navigation.Forward), enabled: true,
               jslogContext:'linear-memory-inspector.next-page'})}
         </div>
         ${this.#createButton({icon: 'refresh', title: i18nString(UIStrings.refresh),
@@ -164,18 +160,18 @@ export class LinearMemoryNavigator extends HTMLElement {
     // clang-format on
   }
 
-  #createAddressInput(): Lit.TemplateResult {
+  #createAddressInput(): LitHtml.TemplateResult {
     const classMap = {
       'address-input': true,
       invalid: !this.#valid,
     };
     return html`
-      <input class=${Lit.Directives.classMap(classMap)} data-input="true" .value=${this.#address}
+      <input class=${LitHtml.Directives.classMap(classMap)} data-input="true" .value=${this.#address}
         jslog=${VisualLogging.textField('linear-memory-inspector.address').track({
       change: true,
     })}
-        title=${ifDefined(this.#valid ? i18nString(UIStrings.enterAddress) : this.#error)} @change=${
-        this.#onAddressChange.bind(this, Mode.SUBMITTED)} @input=${this.#onAddressChange.bind(this, Mode.EDIT)}/>`;
+        title=${this.#valid ? i18nString(UIStrings.enterAddress) : this.#error} @change=${
+        this.#onAddressChange.bind(this, Mode.Submitted)} @input=${this.#onAddressChange.bind(this, Mode.Edit)}/>`;
   }
 
   #onAddressChange(mode: Mode, event: Event): void {
@@ -184,13 +180,13 @@ export class LinearMemoryNavigator extends HTMLElement {
   }
 
   #createButton(data: {icon: string, title: string, event: Event, enabled: boolean, jslogContext: string}):
-      Lit.TemplateResult {
+      LitHtml.TemplateResult {
     return html`
       <button class="navigator-button" ?disabled=${!data.enabled}
         jslog=${VisualLogging.action().track({click: true, keydown: 'Enter'}).context(data.jslogContext)}
         data-button=${data.event.type} title=${data.title}
         @click=${this.dispatchEvent.bind(this, data.event)}>
-        <devtools-icon name=${data.icon}></devtools-icon>
+        <${IconButton.Icon.Icon.litTagName} name=${data.icon}></${IconButton.Icon.Icon.litTagName}>
       </button>`;
   }
 }

@@ -2,7 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as puppeteer from 'puppeteer-core';
+// use require here due to
+// https://github.com/evanw/esbuild/issues/587#issuecomment-901397213
+import puppeteer = require('puppeteer-core');
 
 import {DevToolsFrontendTab} from './frontend_tab.js';
 import {TargetTab} from './target_tab.js';
@@ -70,7 +72,7 @@ export class FrontendTargetPool {
     // used to resolve the `pair` promise of the `takeTabPair` call.
     void this.addTabPairToPool();
 
-    return await pair;
+    return pair;
   }
 }
 

@@ -37,9 +37,7 @@ import * as Common from '../common/common.js';
 import * as Platform from '../platform/platform.js';
 import * as Root from '../root/root.js';
 
-import type {CallFrame, ScopeChainEntry} from './DebuggerModel.js';
-import {buildOriginalScopes, decodePastaRanges, type NamedFunctionRange} from './SourceMapFunctionRanges.js';
-import {decodeScopes, type OriginalScope, type Position as GeneratedPosition} from './SourceMapScopes.js';
+import {type CallFrame} from './DebuggerModel.js';
 import {SourceMapScopesInfo} from './SourceMapScopesInfo.js';
 
 /**
@@ -49,25 +47,25 @@ import {SourceMapScopesInfo} from './SourceMapScopesInfo.js';
  * @see {@link SourceMapV3}
  * @see {@link https://docs.google.com/document/d/1U1RGAehQwRypUTovF1KRlpiOFze0b-_2gc6fAH0KY0k Source Map Revision 3 Proposal}
  */
-export interface SourceMapV3Object {
+export type SourceMapV3Object = {
   /* eslint-disable @typescript-eslint/naming-convention */
-  version: number;
-  sources: string[];
-  mappings: string;
+  'version': number,
+  'sources': string[],
+  'mappings': string,
 
-  file?: string;
-  sourceRoot?: string;
-  sourcesContent?: Array<string|null>;
+  'file'?: string,
+  'sourceRoot'?: string,
+  'sourcesContent'?: (string|null)[],
 
-  names?: string[];
-  ignoreList?: number[];
-  originalScopes?: string[];
-  generatedRanges?: string;
-  x_google_linecount?: number;
-  x_google_ignoreList?: number[];
-  x_com_bloomberg_sourcesFunctionMappings?: string[];
+  'names'?: string[],
+  'ignoreList'?: number[],
+  'originalScopes'?: string[],
+  'generatedRanges'?: string,
+  'x_google_linecount'?: number,
+  'x_google_ignoreList'?: number[],
+  'x_com_bloomberg_sourcesFunctionMappings'?: string[],
   /* eslint-enable @typescript-eslint/naming-convention */
-}
+};
 
 /**
  * Type of JSON objects that classify as valid sourcemaps per version 3 of the specification.
@@ -81,15 +79,15 @@ export interface SourceMapV3Object {
  */
 export type SourceMapV3 = SourceMapV3Object|{
   // clang-format off
-  version: number,
-  file?: string,
-  sections: Array<{
-    offset: {line: number, column: number},
-    map: SourceMapV3Object,
+  'version': number,
+  'file'?: string,
+  'sections': ({
+    'offset': {line: number, column: number},
+    'map': SourceMapV3Object,
   } | {
-    offset: {line: number, column: number},
-    url: string,
-  }>,
+    'offset': {line: number, column: number},
+    'url': string,
+  })[],
   // clang-format on
 };
 
@@ -112,20 +110,18 @@ export function parseSourceMap(content: string): SourceMapV3 {
 }
 
 export class SourceMapEntry {
-  readonly lineNumber: number;
-  readonly columnNumber: number;
-  readonly sourceIndex?: number;
-  readonly sourceURL: Platform.DevToolsPath.UrlString|undefined;
-  readonly sourceLineNumber: number;
-  readonly sourceColumnNumber: number;
-  readonly name: string|undefined;
+  lineNumber: number;
+  columnNumber: number;
+  sourceURL: Platform.DevToolsPath.UrlString|undefined;
+  sourceLineNumber: number;
+  sourceColumnNumber: number;
+  name: string|undefined;
 
   constructor(
-      lineNumber: number, columnNumber: number, sourceIndex?: number, sourceURL?: Platform.DevToolsPath.UrlString,
-      sourceLineNumber?: number, sourceColumnNumber?: number, name?: string) {
+      lineNumber: number, columnNumber: number, sourceURL?: Platform.DevToolsPath.UrlString, sourceLineNumber?: number,
+      sourceColumnNumber?: number, name?: string) {
     this.lineNumber = lineNumber;
     this.columnNumber = columnNumber;
-    this.sourceIndex = sourceIndex;
     this.sourceURL = sourceURL;
     this.sourceLineNumber = (sourceLineNumber as number);
     this.sourceColumnNumber = (sourceColumnNumber as number);
@@ -140,25 +136,60 @@ export class SourceMapEntry {
   }
 }
 
+interface Position {
+  lineNumber: number;
+  columnNumber: number;
+}
+
+function comparePositions(a: Position, b: Position): number {
+  return a.lineNumber - b.lineNumber || a.columnNumber - b.columnNumber;
+}
+
+export interface ScopeEntry {
+  scopeName(): string;
+  start(): Position;
+  end(): Position;
+}
+
+class ScopeTreeEntry implements ScopeEntry {
+  children: ScopeTreeEntry[] = [];
+
+  constructor(
+      readonly startLineNumber: number, readonly startColumnNumber: number, readonly endLineNumber: number,
+      readonly endColumnNumber: number, readonly name: string) {
+  }
+
+  scopeName(): string {
+    return this.name;
+  }
+
+  start(): Position {
+    return {lineNumber: this.startLineNumber, columnNumber: this.startColumnNumber};
+  }
+
+  end(): Position {
+    return {lineNumber: this.endLineNumber, columnNumber: this.endColumnNumber};
+  }
+}
+
+const sourceMapToSourceList = new WeakMap<SourceMapV3, Platform.DevToolsPath.UrlString[]>();
+
 interface SourceInfo {
-  sourceURL: Platform.DevToolsPath.UrlString;
   content: string|null;
   ignoreListHint: boolean;
   reverseMappings: number[]|null;
+  scopeTree: ScopeTreeEntry[]|null;
 }
 
 export class SourceMap {
-  static retainRawSourceMaps = false;
-
   #json: SourceMapV3|null;
   readonly #compiledURLInternal: Platform.DevToolsPath.UrlString;
   readonly #sourceMappingURL: Platform.DevToolsPath.UrlString;
   readonly #baseURL: Platform.DevToolsPath.UrlString;
   #mappingsInternal: SourceMapEntry[]|null;
+  readonly #sourceInfos: Map<Platform.DevToolsPath.UrlString, SourceInfo>;
 
-  readonly #sourceInfos: SourceInfo[] = [];
-  readonly #sourceInfoByURL = new Map<Platform.DevToolsPath.UrlString, SourceInfo>();
-
+  /* eslint-disable-next-line no-unused-private-class-members */
   #scopesInfo: SourceMapScopesInfo|null = null;
 
   /**
@@ -174,6 +205,7 @@ export class SourceMap {
     this.#baseURL = (Common.ParsedURL.schemeIs(sourceMappingURL, 'data:')) ? compiledURL : sourceMappingURL;
 
     this.#mappingsInternal = null;
+    this.#sourceInfos = new Map();
     if ('sections' in this.#json) {
       if (this.#json.sections.find(section => 'url' in section)) {
         Common.Console.Console.instance().warn(
@@ -181,35 +213,6 @@ export class SourceMap {
       }
     }
     this.eachSection(this.parseSources.bind(this));
-  }
-
-  json(): SourceMapV3|null {
-    return this.#json;
-  }
-
-  augmentWithScopes(scriptUrl: Platform.DevToolsPath.UrlString, ranges: NamedFunctionRange[]): void {
-    this.#ensureMappingsProcessed();
-    if (this.#json && this.#json.version > 3) {
-      throw new Error('Only support augmenting source maps up to version 3.');
-    }
-    // Ensure scriptUrl is associated with sourceMap sources
-    const sourceIdx = this.#sourceIndex(scriptUrl);
-    if (sourceIdx >= 0) {
-      if (!this.#scopesInfo) {
-        // First time seeing this sourcemap, create an new empty scopesInfo object
-        this.#scopesInfo = new SourceMapScopesInfo(this, [], []);
-      }
-      if (!this.#scopesInfo.hasOriginalScopes(sourceIdx)) {
-        const originalScopes = buildOriginalScopes(ranges);
-        this.#scopesInfo.addOriginalScopesAtIndex(sourceIdx, originalScopes);
-      }
-    } else {
-      throw new Error(`Could not find sourceURL ${scriptUrl} in sourceMap`);
-    }
-  }
-
-  #sourceIndex(sourceURL: Platform.DevToolsPath.UrlString): number {
-    return this.#sourceInfos.findIndex(info => info.sourceURL === sourceURL);
   }
 
   compiledURL(): Platform.DevToolsPath.UrlString {
@@ -221,11 +224,11 @@ export class SourceMap {
   }
 
   sourceURLs(): Platform.DevToolsPath.UrlString[] {
-    return [...this.#sourceInfoByURL.keys()];
+    return [...this.#sourceInfos.keys()];
   }
 
   embeddedContentByURL(sourceURL: Platform.DevToolsPath.UrlString): string|null {
-    const entry = this.#sourceInfoByURL.get(sourceURL);
+    const entry = this.#sourceInfos.get(sourceURL);
     if (!entry) {
       return null;
     }
@@ -242,8 +245,8 @@ export class SourceMap {
     if (inlineFrameIndex && this.#scopesInfo !== null) {
       // For inlineFrameIndex != 0 we use the callsite info for the corresponding inlining site.
       // Note that the callsite for "inlineFrameIndex" is actually in the previous frame.
-      const {inlinedFunctions} = this.#scopesInfo.findInlinedFunctions(lineNumber, columnNumber);
-      const {callsite} = inlinedFunctions[inlineFrameIndex - 1];
+      const functions = this.#scopesInfo.findInlinedFunctions(lineNumber, columnNumber);
+      const {callsite} = functions[inlineFrameIndex - 1];
       if (!callsite) {
         console.error('Malformed source map. Expected to have a callsite info for index', inlineFrameIndex);
         return null;
@@ -251,7 +254,6 @@ export class SourceMap {
       return {
         lineNumber,
         columnNumber,
-        sourceIndex: callsite.sourceIndex,
         sourceURL: this.sourceURLs()[callsite.sourceIndex],
         sourceLineNumber: callsite.line,
         sourceColumnNumber: callsite.column,
@@ -400,7 +402,7 @@ export class SourceMap {
 
   private reversedMappings(sourceURL: Platform.DevToolsPath.UrlString): number[] {
     this.#ensureMappingsProcessed();
-    return this.#sourceInfoByURL.get(sourceURL)?.reverseMappings ?? [];
+    return this.#sourceInfos.get(sourceURL)?.reverseMappings ?? [];
   }
 
   #ensureMappingsProcessed(): void {
@@ -417,9 +419,6 @@ export class SourceMap {
       this.mappings().sort(SourceMapEntry.compare);
 
       this.#computeReverseMappings(this.#mappingsInternal);
-    }
-
-    if (!SourceMap.retainRawSourceMaps) {
       this.#json = null;
     }
   }
@@ -440,7 +439,7 @@ export class SourceMap {
     }
 
     for (const [url, reverseMap] of reverseMappingsPerUrl.entries()) {
-      const info = this.#sourceInfoByURL.get(url);
+      const info = this.#sourceInfos.get(url);
       if (!info) {
         continue;
       }
@@ -456,24 +455,23 @@ export class SourceMap {
     }
   }
 
-  private eachSection(callback: (arg0: SourceMapV3Object, arg1: number, arg2: number, arg3: number) => void): void {
+  private eachSection(callback: (arg0: SourceMapV3Object, arg1: number, arg2: number) => void): void {
     if (!this.#json) {
       return;
     }
     if ('sections' in this.#json) {
-      let sourcesIndex = 0;
       for (const section of this.#json.sections) {
         if ('map' in section) {
-          callback(section.map, sourcesIndex, section.offset.line, section.offset.column);
-          sourcesIndex += section.map.sources.length;
+          callback(section.map, section.offset.line, section.offset.column);
         }
       }
     } else {
-      callback(this.#json, 0, 0, 0);
+      callback(this.#json, 0, 0);
     }
   }
 
   private parseSources(sourceMap: SourceMapV3Object): void {
+    const sourcesList = [];
     const sourceRoot = sourceMap.sourceRoot ?? '';
     const ignoreList = new Set(sourceMap.ignoreList ?? sourceMap.x_google_ignoreList);
     for (let i = 0; i < sourceMap.sources.length; ++i) {
@@ -492,31 +490,32 @@ export class SourceMap {
       }
       const url =
           Common.ParsedURL.ParsedURL.completeURL(this.#baseURL, href) || (href as Platform.DevToolsPath.UrlString);
-      const source = sourceMap.sourcesContent?.[i];
-      const sourceInfo: SourceInfo = {
-        sourceURL: url,
-        content: source ?? null,
-        ignoreListHint: ignoreList.has(i),
-        reverseMappings: null,
-      };
-      this.#sourceInfos.push(sourceInfo);
-      if (!this.#sourceInfoByURL.has(url)) {
-        this.#sourceInfoByURL.set(url, sourceInfo);
+      const source = sourceMap.sourcesContent && sourceMap.sourcesContent[i];
+      sourcesList.push(url);
+      if (!this.#sourceInfos.has(url)) {
+        const content = source ?? null;
+        const ignoreListHint = ignoreList.has(i);
+        this.#sourceInfos.set(url, {content, ignoreListHint, reverseMappings: null, scopeTree: null});
       }
     }
+    sourceMapToSourceList.set(sourceMap, sourcesList);
   }
 
-  private parseMap(map: SourceMapV3Object, baseSourceIndex: number, baseLineNumber: number, baseColumnNumber: number):
-      void {
-    let sourceIndex = baseSourceIndex;
-    let lineNumber = baseLineNumber;
-    let columnNumber = baseColumnNumber;
+  private parseMap(map: SourceMapV3Object, lineNumber: number, columnNumber: number): void {
+    let sourceIndex = 0;
     let sourceLineNumber = 0;
     let sourceColumnNumber = 0;
     let nameIndex = 0;
+    // TODO(crbug.com/1011811): refactor away map.
+    // `sources` can be undefined if it wasn't previously
+    // processed and added to the list. However, that
+    // is not WAI and we should make sure that we can
+    // only reach this point when we are certain
+    // we have the list available.
+    const sources = sourceMapToSourceList.get(map);
     const names = map.names ?? [];
     const tokenIter = new TokenIterator(map.mappings);
-    let sourceURL: Platform.DevToolsPath.UrlString|undefined = this.#sourceInfos[sourceIndex]?.sourceURL;
+    let sourceURL: Platform.DevToolsPath.UrlString|undefined = sources && sources[sourceIndex];
 
     while (true) {
       if (tokenIter.peek() === ',') {
@@ -541,56 +540,133 @@ export class SourceMap {
       const sourceIndexDelta = tokenIter.nextVLQ();
       if (sourceIndexDelta) {
         sourceIndex += sourceIndexDelta;
-        sourceURL = this.#sourceInfos[sourceIndex]?.sourceURL;
+        if (sources) {
+          sourceURL = sources[sourceIndex];
+        }
       }
       sourceLineNumber += tokenIter.nextVLQ();
       sourceColumnNumber += tokenIter.nextVLQ();
 
       if (!tokenIter.hasNext() || this.isSeparator(tokenIter.peek())) {
         this.mappings().push(
-            new SourceMapEntry(lineNumber, columnNumber, sourceIndex, sourceURL, sourceLineNumber, sourceColumnNumber));
+            new SourceMapEntry(lineNumber, columnNumber, sourceURL, sourceLineNumber, sourceColumnNumber));
         continue;
       }
 
       nameIndex += tokenIter.nextVLQ();
       this.mappings().push(new SourceMapEntry(
-          lineNumber, columnNumber, sourceIndex, sourceURL, sourceLineNumber, sourceColumnNumber, names[nameIndex]));
+          lineNumber, columnNumber, sourceURL, sourceLineNumber, sourceColumnNumber, names[nameIndex]));
     }
 
     if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.USE_SOURCE_MAP_SCOPES)) {
-      if (!this.#scopesInfo) {
-        this.#scopesInfo = new SourceMapScopesInfo(this, [], []);
-      }
-      if (map.originalScopes && map.generatedRanges) {
-        const {originalScopes, generatedRanges} = decodeScopes(map, {line: baseLineNumber, column: baseColumnNumber});
-        this.#scopesInfo.addOriginalScopes(originalScopes);
-        this.#scopesInfo.addGeneratedRanges(generatedRanges);
-      } else if (map.x_com_bloomberg_sourcesFunctionMappings) {
-        const originalScopes = this.parseBloombergScopes(map);
-        this.#scopesInfo.addOriginalScopes(originalScopes);
-      } else {
-        // Keep the OriginalScope[] tree array consistent with sources.
-        this.#scopesInfo.addOriginalScopes(new Array(map.sources.length));
-      }
+      this.parseBloombergScopes(map);
+      this.#parseScopes(map);
     }
   }
 
-  private parseBloombergScopes(map: SourceMapV3Object): Array<OriginalScope|undefined> {
-    const scopeList = map.x_com_bloomberg_sourcesFunctionMappings;
-    if (!scopeList) {
-      throw new Error('Cant decode pasta scopes without x_com_bloomberg_sourcesFunctionMappings field');
-    } else if (scopeList.length !== map.sources.length) {
-      throw new Error(`x_com_bloomberg_sourcesFunctionMappings must have ${map.sources.length} scope trees`);
+  private parseBloombergScopes(map: SourceMapV3Object): void {
+    if (!map.x_com_bloomberg_sourcesFunctionMappings) {
+      return;
+    }
+    const sources = sourceMapToSourceList.get(map);
+    if (!sources) {
+      return;
     }
     const names = map.names ?? [];
+    const scopeList = map.x_com_bloomberg_sourcesFunctionMappings;
 
-    return scopeList.map(rawScopes => {
-      if (!rawScopes) {
-        return undefined;
+    for (let i = 0; i < sources?.length; i++) {
+      if (!scopeList[i] || !sources[i]) {
+        continue;
       }
-      const ranges = decodePastaRanges(rawScopes, names);
-      return buildOriginalScopes(ranges);
-    });
+      const sourceInfo = this.#sourceInfos.get(sources[i]);
+      if (!sourceInfo) {
+        continue;
+      }
+      const scopes = scopeList[i];
+
+      let nameIndex = 0;
+      let startLineNumber = 0;
+      let startColumnNumber = 0;
+      let endLineNumber = 0;
+      let endColumnNumber = 0;
+
+      const tokenIter = new TokenIterator(scopes);
+      const entries: ScopeTreeEntry[] = [];
+      let atStart = true;
+      while (tokenIter.hasNext()) {
+        if (atStart) {
+          atStart = false;
+        } else if (tokenIter.peek() === ',') {
+          tokenIter.next();
+        } else {
+          // Unexpected character.
+          return;
+        }
+        nameIndex += tokenIter.nextVLQ();
+        startLineNumber += tokenIter.nextVLQ();
+        startColumnNumber += tokenIter.nextVLQ();
+        endLineNumber += tokenIter.nextVLQ();
+        endColumnNumber += tokenIter.nextVLQ();
+        entries.push(new ScopeTreeEntry(
+            startLineNumber, startColumnNumber, endLineNumber, endColumnNumber, names[nameIndex] ?? '<invalid>'));
+      }
+      sourceInfo.scopeTree = this.buildScopeTree(entries);
+    }
+  }
+
+  private buildScopeTree(entries: ScopeTreeEntry[]): ScopeTreeEntry[] {
+    const toplevel: ScopeTreeEntry[] = [];
+    entries.sort((l, r) => comparePositions(l.start(), r.start()));
+
+    const stack: ScopeTreeEntry[] = [];
+
+    for (const entry of entries) {
+      const start = entry.start();
+      // Pop all the scopes that precede the current entry.
+      while (stack.length > 0) {
+        const top = stack[stack.length - 1];
+        if (comparePositions(top.end(), start) < 0) {
+          stack.pop();
+        } else {
+          break;
+        }
+      }
+
+      if (stack.length > 0) {
+        stack[stack.length - 1].children.push(entry);
+      } else {
+        toplevel.push(entry);
+      }
+      stack.push(entry);
+    }
+    return toplevel;
+  }
+
+  #parseScopes(map: SourceMapV3Object): void {
+    if (map.originalScopes && map.generatedRanges) {
+      this.#scopesInfo = SourceMapScopesInfo.parseFromMap(map);
+    }
+  }
+
+  findScopeEntry(sourceURL: Platform.DevToolsPath.UrlString, sourceLineNumber: number, sourceColumnNumber: number):
+      ScopeEntry|null {
+    const sourceInfo = this.#sourceInfos.get(sourceURL);
+    if (!sourceInfo || !sourceInfo.scopeTree) {
+      return null;
+    }
+    const position: Position = {lineNumber: sourceLineNumber, columnNumber: sourceColumnNumber};
+
+    let current: ScopeTreeEntry|null = null;
+    while (true) {
+      const children: ScopeTreeEntry[] = current?.children ?? sourceInfo.scopeTree;
+      const match = children.find(
+          child => comparePositions(child.start(), position) <= 0 && comparePositions(position, child.end()) <= 0);
+      if (!match) {
+        return current;
+      }
+      current = match;
+    }
   }
 
   private isSeparator(char: string): boolean {
@@ -685,7 +761,7 @@ export class SourceMap {
   }
 
   hasIgnoreListHint(sourceURL: Platform.DevToolsPath.UrlString): boolean {
-    return this.#sourceInfoByURL.get(sourceURL)?.ignoreListHint ?? false;
+    return this.#sourceInfos.get(sourceURL)?.ignoreListHint ?? false;
   }
 
   /**
@@ -753,21 +829,13 @@ export class SourceMap {
       return [frame];
     }
 
-    return this.#scopesInfo.expandCallFrame(frame);
-  }
-
-  resolveScopeChain(frame: CallFrame): ScopeChainEntry[]|null {
-    this.#ensureMappingsProcessed();
-    if (this.#scopesInfo === null) {
-      return null;
+    const functionNames =
+        this.#scopesInfo.findInlinedFunctions(frame.location().lineNumber, frame.location().columnNumber);
+    const result: CallFrame[] = [];
+    for (const [index, fn] of functionNames.entries()) {
+      result.push(frame.createVirtualCallFrame(index, fn.name));
     }
-
-    return this.#scopesInfo.resolveMappedScopeChain(frame);
-  }
-
-  findOriginalFunctionName(position: GeneratedPosition): string|null {
-    this.#ensureMappingsProcessed();
-    return this.#scopesInfo?.findOriginalFunctionName(position) ?? null;
+    return result;
   }
 }
 

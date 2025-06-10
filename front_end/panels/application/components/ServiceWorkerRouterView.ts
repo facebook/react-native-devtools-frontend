@@ -4,15 +4,20 @@
 
 import type * as SDK from '../../../core/sdk/sdk.js';
 import * as LegacyWrapper from '../../../ui/components/legacy_wrapper/legacy_wrapper.js';
-import * as Lit from '../../../ui/lit/lit.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 
-import serviceWorkerRouterViewStyles from './serviceWorkerRouterView.css.js';
+import styles from './serviceWorkerRouterView.css.js';
 
-const {html, render} = Lit;
+const {html, render} = LitHtml;
 
 export class ServiceWorkerRouterView extends LegacyWrapper.LegacyWrapper.WrappableComponent {
+  static readonly litTagName = LitHtml.literal`devtools-service-worker-router-view`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   #rules: SDK.ServiceWorkerManager.ServiceWorkerRouterRule[] = [];
+
+  connectedCallback(): void {
+    this.#shadow.adoptedStyleSheets = [styles];
+  }
 
   update(rules: SDK.ServiceWorkerManager.ServiceWorkerRouterRule[]): void {
     this.#rules = rules;
@@ -24,7 +29,6 @@ export class ServiceWorkerRouterView extends LegacyWrapper.LegacyWrapper.Wrappab
   #render(): void {
     // clang-format off
     render(html`
-      <style>${serviceWorkerRouterViewStyles.cssText}</style>
       <ul class="router-rules">
         ${this.#rules.map(this.#renderRouterRule)}
       </ul>
@@ -32,7 +36,7 @@ export class ServiceWorkerRouterView extends LegacyWrapper.LegacyWrapper.Wrappab
     // clang-format on
   }
 
-  #renderRouterRule(rule: SDK.ServiceWorkerManager.ServiceWorkerRouterRule): Lit.TemplateResult {
+  #renderRouterRule(rule: SDK.ServiceWorkerManager.ServiceWorkerRouterRule): LitHtml.TemplateResult {
     return html`
       <li class="router-rule">
         <div class="rule-id">Rule ${rule.id}</div>

@@ -6,15 +6,17 @@ import {
   renderElementIntoDOM,
 } from '../../../testing/DOMHelpers.js';
 import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
-import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
+import * as Coordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 
 import * as ApplicationComponents from './components.js';
+
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 async function renderServiceWorkerRouterView():
     Promise<ApplicationComponents.ServiceWorkerRouterView.ServiceWorkerRouterView> {
   const component = new ApplicationComponents.ServiceWorkerRouterView.ServiceWorkerRouterView();
   renderElementIntoDOM(component);
-  await RenderCoordinator.done();
+  await coordinator.done();
 
   return component;
 }
@@ -45,7 +47,7 @@ describeWithLocale('ServiceWorkerRouterView', () => {
     assert.isTrue(component.shadowRoot!.hasChildNodes());
 
     const rules = Array.from(component.shadowRoot!.querySelectorAll('.router-rule'));
-    assert.lengthOf(rules, 2);
+    assert.strictEqual(rules.length, 2);
 
     rules.map((rule, idx) => {
       const condition = rule.querySelector('.condition');

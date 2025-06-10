@@ -318,7 +318,7 @@ export class TickingFlameChart extends UI.Widget.VBox {
     this.ticking = true;
   }
 
-  private stop(permanently = false): void {
+  private stop(permanently: boolean = false): void {
     window.clearInterval(this.intervalTimer);
     this.intervalTimer = 0;
     if (permanently) {
@@ -396,7 +396,7 @@ class TickingFlameChartDataProvider implements PerfUI.FlameChart.FlameChartDataP
   addGroup(name: Common.UIString.LocalizedString, depth: number): void {
     if (this.timelineDataInternal.groups) {
       const newGroup = {
-        name,
+        name: name,
         startLevel: this.maxLevel,
         expanded: true,
         selectable: false,
@@ -417,7 +417,7 @@ class TickingFlameChartDataProvider implements PerfUI.FlameChart.FlameChartDataP
   startEvent(properties: EventProperties): Event {
     properties['level'] = properties['level'] || 0;
     if (properties['level'] > this.maxLevel) {
-      throw new Error(`level ${properties['level']} is above the maximum allowed of ${this.maxLevel}`);
+      throw `level ${properties['level']} is above the maximum allowed of ${this.maxLevel}`;
     }
 
     const event = new Event(
@@ -493,7 +493,7 @@ class TickingFlameChartDataProvider implements PerfUI.FlameChart.FlameChartDataP
     return false;
   }
 
-  preparePopoverElement(index: number): Element|null {
+  prepareHighlightedEntryInfo(index: number): Element|null {
     const element = document.createElement('div');
     (this.eventMap.get(index) as Event).decorate(element);
     return element;

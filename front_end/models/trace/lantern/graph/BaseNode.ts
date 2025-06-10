@@ -5,8 +5,8 @@
 import * as Core from '../core/core.js';
 import type * as Lantern from '../types/types.js';
 
-import type {CPUNode} from './CPUNode.js';
-import type {NetworkNode} from './NetworkNode.js';
+import {type CPUNode} from './CPUNode.js';
+import {type NetworkNode} from './NetworkNode.js';
 
 /**
  * A union of all types derived from BaseNode, allowing type check discrimination
@@ -35,14 +35,14 @@ class BaseNode<T = Lantern.AnyNetworkObject> {
 
   _id: string;
   _isMainDocument: boolean;
-  dependents: Node[];
-  dependencies: Node[];
+  _dependents: Node[];
+  _dependencies: Node[];
 
   constructor(id: string) {
     this._id = id;
     this._isMainDocument = false;
-    this.dependents = [];
-    this.dependencies = [];
+    this._dependents = [];
+    this._dependencies = [];
   }
 
   get id(): string {
@@ -76,25 +76,25 @@ class BaseNode<T = Lantern.AnyNetworkObject> {
   }
 
   getDependents(): Node[] {
-    return this.dependents.slice();
+    return this._dependents.slice();
   }
 
   getNumberOfDependents(): number {
-    return this.dependents.length;
+    return this._dependents.length;
   }
 
   getDependencies(): Node[] {
-    return this.dependencies.slice();
+    return this._dependencies.slice();
   }
 
   getNumberOfDependencies(): number {
-    return this.dependencies.length;
+    return this._dependencies.length;
   }
 
   getRootNode(): Node<T> {
     let rootNode = this as BaseNode as Node;
-    while (rootNode.dependencies.length) {
-      rootNode = rootNode.dependencies[0];
+    while (rootNode._dependencies.length) {
+      rootNode = rootNode._dependencies[0];
     }
 
     return rootNode;
@@ -110,12 +110,12 @@ class BaseNode<T = Lantern.AnyNetworkObject> {
       throw new Core.LanternError('Cannot add dependency on itself');
     }
 
-    if (this.dependencies.includes(node)) {
+    if (this._dependencies.includes(node)) {
       return;
     }
 
-    node.dependents.push(this as BaseNode as Node);
-    this.dependencies.push(node);
+    node._dependents.push(this as BaseNode as Node);
+    this._dependencies.push(node);
   }
 
   removeDependent(node: Node): void {
@@ -123,18 +123,17 @@ class BaseNode<T = Lantern.AnyNetworkObject> {
   }
 
   removeDependency(node: Node): void {
-    if (!this.dependencies.includes(node)) {
+    if (!this._dependencies.includes(node)) {
       return;
     }
 
-    const thisIndex = node.dependents.indexOf(this as BaseNode as Node);
-    node.dependents.splice(thisIndex, 1);
-    this.dependencies.splice(this.dependencies.indexOf(node), 1);
+    const thisIndex = node._dependents.indexOf(this as BaseNode as Node);
+    node._dependents.splice(thisIndex, 1);
+    this._dependencies.splice(this._dependencies.indexOf(node), 1);
   }
 
-  // Unused in devtools, but used in LH.
   removeAllDependencies(): void {
-    for (const node of this.dependencies.slice()) {
+    for (const node of this._dependencies.slice()) {
       this.removeDependency(node);
     }
   }
@@ -180,7 +179,7 @@ class BaseNode<T = Lantern.AnyNetworkObject> {
    * node this was called on is not included in the resulting filtered graph, the method will throw.
    *
    * This does not clone NetworkNode's `record` or `rawRecord` fields. It may be reasonable to clone the former,
-   * to assist in graph construction, but the latter should never be cloned as one constraint of Lantern is that
+   * to assist in graph construction, but the latter should never be cloned as one contraint of Lantern is that
    * the underlying data records are accessible for plain object reference equality checks.
    */
   cloneWithRelationships(predicate?: (arg0: Node) => boolean): Node {
@@ -205,7 +204,7 @@ class BaseNode<T = Lantern.AnyNetworkObject> {
         node.traverse(
             node => idsToIncludedClones.set(node.id, node.cloneWithoutRelationships()),
             // Dependencies already cloned have already cloned ancestors, so no need to visit again.
-            node => node.dependencies.filter(parent => !idsToIncludedClones.has(parent.id)),
+            node => node._dependencies.filter(parent => !idsToIncludedClones.has(parent.id)),
         );
       }
     });
@@ -217,7 +216,7 @@ class BaseNode<T = Lantern.AnyNetworkObject> {
         return;
       }
 
-      for (const dependency of originalNode.dependencies) {
+      for (const dependency of originalNode._dependencies) {
         const clonedDependency = idsToIncludedClones.get(dependency.id);
         if (!clonedDependency) {
           throw new Core.LanternError('Dependency somehow not cloned');
@@ -241,9 +240,8 @@ class BaseNode<T = Lantern.AnyNetworkObject> {
    * The `getNextNodes` function takes a visited node and returns which nodes to
    * visit next. It defaults to returning the node's dependents.
    */
-  traverse(
-      callback: (node: Node<T>, traversalPath: Array<Node<T>>) => void,
-      getNextNodes?: (arg0: Node<T>) => Array<Node<T>>): void {
+  traverse(callback: (node: Node<T>, traversalPath: Node<T>[]) => void, getNextNodes?: (arg0: Node<T>) => Node<T>[]):
+      void {
     for (const {node, traversalPath} of this.traverseGenerator(getNextNodes)) {
       callback(node, traversalPath);
     }
@@ -321,7 +319,7 @@ class BaseNode<T = Lantern.AnyNetworkObject> {
       currentPath.push(currentNode);
 
       // Add all of its dependents to our toVisit stack
-      const nodesToExplore = direction === 'dependents' ? currentNode.dependents : currentNode.dependencies;
+      const nodesToExplore = direction === 'dependents' ? currentNode._dependents : currentNode._dependencies;
       for (const nextNode of nodesToExplore) {
         if (toVisit.includes(nextNode)) {
           continue;

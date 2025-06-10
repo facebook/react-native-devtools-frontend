@@ -37,7 +37,6 @@ import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as ProtocolClient from '../../core/protocol_client/protocol_client.js';
-import * as RNExperiments from '../../core/rn_experiments/rn_experiments.js';
 import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as AutofillManager from '../../models/autofill_manager/autofill_manager.js';
@@ -49,18 +48,19 @@ import * as IssuesManager from '../../models/issues_manager/issues_manager.js';
 import * as LiveMetrics from '../../models/live-metrics/live-metrics.js';
 import * as Logs from '../../models/logs/logs.js';
 import * as Persistence from '../../models/persistence/persistence.js';
-import * as ProjectSettings from '../../models/project_settings/project_settings.js';
 import * as Workspace from '../../models/workspace/workspace.js';
 import * as Snippets from '../../panels/snippets/snippets.js';
-import * as Buttons from '../../ui/components/buttons/buttons.js';
+import * as Timeline from '../../panels/timeline/timeline.js';
 import * as IconButton from '../../ui/components/icon_button/icon_button.js';
+import * as PerfUI from '../../ui/legacy/components/perf_ui/perf_ui.js';
 import * as Components from '../../ui/legacy/components/utils/utils.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as ThemeSupport from '../../ui/legacy/theme_support/theme_support.js';
-import {html, render} from '../../ui/lit/lit.js';
+import * as RNExperiments from '../../core/rn_experiments/rn_experiments.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import {ExecutionContextSelector} from './ExecutionContextSelector.js';
+import {SettingTracker} from './SettingTracker.js';
 
 const UIStrings = {
   /**
@@ -116,15 +116,20 @@ const UIStrings = {
    *@description Text describing how to navigate the dock side menu
    */
   dockSideNaviation: 'Use left and right arrow keys to navigate the options',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('entrypoints/main/MainImpl.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class MainImpl {
-  #readyForTestPromise = Promise.withResolvers<void>();
+  #lateInitDonePromise!: Promise<void>;
+  #readyForTestPromise: Promise<void>;
+  #resolveReadyForTestPromise!: () => void;
 
   constructor() {
     MainImpl.instanceForTest = this;
+    this.#readyForTestPromise = new Promise(resolve => {
+      this.#resolveReadyForTestPromise = resolve;
+    });
     void this.#loaded();
   }
 
@@ -145,30 +150,29 @@ export class MainImpl {
   async #loaded(): Promise<void> {
     console.timeStamp('Main._loaded');
     Root.Runtime.Runtime.setPlatform(Host.Platform.platform());
-    const [config, prefs] = await Promise.all([
-      new Promise<Root.Runtime.HostConfig>(resolve => {
-        Host.InspectorFrontendHost.InspectorFrontendHostInstance.getHostConfig(resolve);
-      }),
-      new Promise<{[key: string]: string}>(
-          resolve => Host.InspectorFrontendHost.InspectorFrontendHostInstance.getPreferences(resolve)),
-    ]);
+    const prefsPromise = new Promise<{[key: string]: string}>(resolve => {
+      Host.InspectorFrontendHost.InspectorFrontendHostInstance.getPreferences(resolve);
+    });
+    const configPromise = new Promise<Root.Runtime.HostConfig>(resolve => {
+      Host.InspectorFrontendHost.InspectorFrontendHostInstance.getHostConfig(resolve);
+    });
+    const [prefs, config] = await Promise.all([prefsPromise, configPromise]);
 
     console.timeStamp('Main._gotPreferences');
     this.#initializeGlobalsForLayoutTests();
-    Object.assign(Root.Runtime.hostConfig, config);
-    this.createSettings(prefs);
+    this.createSettings(prefs, config);
     await this.requestAndRegisterLocaleData();
 
     Host.userMetrics.syncSetting(Common.Settings.Settings.instance().moduleSetting<boolean>('sync-preferences').get());
-    const veLogging = config.devToolsVeLogging;
+    const veLogging = Common.Settings.Settings.instance().getHostConfig()?.devToolsVeLogging;
     if (veLogging?.enabled) {
       if (veLogging?.testing) {
-        VisualLogging.setVeDebugLoggingEnabled(true, VisualLogging.DebugLoggingFormat.TEST);
+        VisualLogging.setVeDebugLoggingEnabled(true, VisualLogging.DebugLoggingFormat.Test);
         const options = {
-          processingThrottler: new Common.Throttler.Throttler(0),
+          processingThrottler: new Common.Throttler.Throttler(10),
           keyboardLogThrottler: new Common.Throttler.Throttler(10),
-          hoverLogThrottler: new Common.Throttler.Throttler(50),
-          dragLogThrottler: new Common.Throttler.Throttler(50),
+          hoverLogThrottler: new Common.Throttler.Throttler(10),
+          dragLogThrottler: new Common.Throttler.Throttler(10),
           clickLogThrottler: new Common.Throttler.Throttler(10),
           resizeLogThrottler: new Common.Throttler.Throttler(10),
         };
@@ -181,17 +185,17 @@ export class MainImpl {
   }
 
   #initializeGlobalsForLayoutTests(): void {
-    // @ts-expect-error e2e test global
+    // @ts-ignore e2e test global
     self.Extensions ||= {};
-    // @ts-expect-error e2e test global
+    // @ts-ignore e2e test global
     self.Host ||= {};
-    // @ts-expect-error e2e test global
+    // @ts-ignore e2e test global
     self.Host.userMetrics ||= Host.userMetrics;
-    // @ts-expect-error e2e test global
+    // @ts-ignore e2e test global
     self.Host.UserMetrics ||= Host.UserMetrics;
-    // @ts-expect-error e2e test global
+    // @ts-ignore e2e test global
     self.ProtocolClient ||= {};
-    // @ts-expect-error e2e test global
+    // @ts-ignore e2e test global
     self.ProtocolClient.test ||= ProtocolClient.InspectorBackend.test;
   }
 
@@ -226,7 +230,11 @@ export class MainImpl {
     }
   }
 
-  createSettings(prefs: {[x: string]: string}): void {
+  createSettings(
+      prefs: {
+        [x: string]: string,
+      },
+      config: Root.Runtime.HostConfig): void {
     this.#initializeExperiments();
     let storagePrefix = '';
     if (Host.Platform.isCustomDevtoolsFrontend()) {
@@ -270,8 +278,10 @@ export class MainImpl {
     // setting can't change storage buckets during a single DevTools session.
     const syncedStorage = new Common.Settings.SettingsStorage(prefs, hostSyncedStorage, storagePrefix);
     const globalStorage = new Common.Settings.SettingsStorage(prefs, hostUnsyncedStorage, storagePrefix);
-    Common.Settings.Settings.instance(
-        {forceNew: true, syncedStorage, globalStorage, localStorage, logSettingAccess: VisualLogging.logSettingAccess});
+    Common.Settings.Settings.instance({forceNew: true, syncedStorage, globalStorage, localStorage, config});
+
+    // Needs to be created after Settings are available.
+    new SettingTracker();
 
     if (!Host.InspectorFrontendHost.isUnderTest()) {
       new Common.Settings.VersionController().updateVersion();
@@ -279,6 +289,7 @@ export class MainImpl {
   }
 
   #initializeExperiments(): void {
+    Root.Runtime.experiments.register('apply-custom-stylesheet', 'Allow extensions to load custom stylesheets');
     Root.Runtime.experiments.register('capture-node-creation-stacks', 'Capture node creation stacks');
     Root.Runtime.experiments.register('live-heap-profile', 'Live heap profile', true);
     Root.Runtime.experiments.register(
@@ -301,6 +312,12 @@ export class MainImpl {
     Root.Runtime.experiments.register(
         Root.Runtime.ExperimentName.TIMELINE_DEBUG_MODE,
         'Performance panel: Enable debug mode (trace event details, etc)', true);
+
+    // Sources
+    Root.Runtime.experiments.register(
+        Root.Runtime.ExperimentName.INDENTATION_MARKERS_TEMP_DISABLE, 'Disable indentation markers temporarily',
+        /* unstable= */ false, 'https://developer.chrome.com/blog/new-in-devtools-121/#indentation',
+        'https://crbug.com/1479986');
 
     // Debugging
     Root.Runtime.experiments.register('instrumentation-breakpoints', 'Enable instrumentation breakpoints', true);
@@ -331,7 +348,17 @@ export class MainImpl {
     // New cookie features.
     Root.Runtime.experiments.register('experimental-cookie-features', 'Enable experimental cookie features');
 
+    // CSS <length> authoring tool.
+    Root.Runtime.experiments.register(
+        'css-type-component-length-deprecate', 'Deprecate CSS <length> authoring tool in the Styles tab', undefined,
+        'https://goo.gle/devtools-deprecate-length-tools', 'https://crbug.com/1522657');
+
+    // Integrate CSS changes in the Styles pane.
+    Root.Runtime.experiments.register(
+        Root.Runtime.ExperimentName.STYLES_PANE_CSS_CHANGES, 'Sync CSS changes in the Styles tab');
+
     // Highlights a violating node or attribute by rendering a squiggly line under it and adding a tooltip linking to the issues panel.
+    // Right now violating nodes are exclusively form fields that contain an HTML issue, for example, and <input /> whose id is duplicate inside the form.
     Root.Runtime.experiments.register(
         Root.Runtime.ExperimentName.HIGHLIGHT_ERRORS_ELEMENTS_PANEL,
         'Highlights a violating node or attribute in the Elements panel DOM tree');
@@ -345,6 +372,19 @@ export class MainImpl {
     Root.Runtime.experiments.register(
         Root.Runtime.ExperimentName.JUST_MY_CODE, 'Hide ignore-listed code in Sources tree view');
 
+    // Highlight important DOM properties in the Object Properties viewer.
+    Root.Runtime.experiments.register(
+        Root.Runtime.ExperimentName.IMPORTANT_DOM_PROPERTIES,
+        'Highlight important DOM properties in the Properties tab');
+
+    Root.Runtime.experiments.register(
+        Root.Runtime.ExperimentName.PRELOADING_STATUS_PANEL, 'Enable speculative loads panel in Application panel',
+        true);
+
+    Root.Runtime.experiments.register(
+        Root.Runtime.ExperimentName.OUTERMOST_TARGET_SELECTOR, 'Enable background page selector (for prerendering)',
+        false);
+
     Root.Runtime.experiments.register(
         Root.Runtime.ExperimentName.NETWORK_PANEL_FILTER_BAR_REDESIGN,
         'Redesign of the filter bar in the Network panel',
@@ -354,23 +394,33 @@ export class MainImpl {
     );
 
     Root.Runtime.experiments.register(
+        Root.Runtime.ExperimentName.AUTOFILL_VIEW,
+        'Autofill panel',
+        false,
+        'https://goo.gle/devtools-autofill-panel',
+        'https://crbug.com/329106326',
+    );
+
+    Root.Runtime.experiments.register(
         Root.Runtime.ExperimentName.TIMELINE_SHOW_POST_MESSAGE_EVENTS,
         'Performance panel: show postMessage dispatch and handling flows',
     );
 
     Root.Runtime.experiments.register(
-        Root.Runtime.ExperimentName.TIMELINE_EXPERIMENTAL_INSIGHTS,
-        'Performance panel: enable experimental performance insights',
+        Root.Runtime.ExperimentName.TIMELINE_ANNOTATIONS_OVERLAYS,
+        'Performance panel: enable annotations',
+        true,
     );
 
     Root.Runtime.experiments.register(
-        Root.Runtime.ExperimentName.TIMELINE_DIM_UNRELATED_EVENTS,
-        'Performance panel: enable dimming unrelated events in performance insights and search results',
+        Root.Runtime.ExperimentName.TIMELINE_SIDEBAR,
+        'Performance panel: enable sidebar',
+        true,
     );
 
     Root.Runtime.experiments.register(
-        Root.Runtime.ExperimentName.TIMELINE_ALTERNATIVE_NAVIGATION,
-        'Performance panel: enable a switch to an alternative timeline navigation option',
+        Root.Runtime.ExperimentName.TIMELINE_OBSERVATIONS,
+        'Performance panel: enable live metrics landing page',
     );
 
     // React Native experiments need to be registered for all entry points so
@@ -378,10 +428,10 @@ export class MainImpl {
     RNExperiments.RNExperimentsImpl.Instance.copyInto(Root.Runtime.experiments, '[React Native] ');
 
     Root.Runtime.experiments.enableExperimentsByDefault([
-      Root.Runtime.ExperimentName.NETWORK_PANEL_FILTER_BAR_REDESIGN,
-      Root.Runtime.ExperimentName.TIMELINE_ALTERNATIVE_NAVIGATION,
-      Root.Runtime.ExperimentName.TIMELINE_DIM_UNRELATED_EVENTS,
-      Root.Runtime.ExperimentName.FULL_ACCESSIBILITY_TREE,
+      'css-type-component-length-deprecate',
+      Root.Runtime.ExperimentName.OUTERMOST_TARGET_SELECTOR,
+      Root.Runtime.ExperimentName.PRELOADING_STATUS_PANEL,
+      Root.Runtime.ExperimentName.AUTOFILL_VIEW,
       ...(Root.Runtime.Runtime.queryParam('isChromeForTesting') ? ['protocol-monitor'] : []),
     ]);
 
@@ -394,7 +444,7 @@ export class MainImpl {
 
     if (Host.InspectorFrontendHost.isUnderTest()) {
       const testParam = Root.Runtime.Runtime.queryParam('test');
-      if (testParam?.includes('live-line-level-heap-profile.js')) {
+      if (testParam && testParam.includes('live-line-level-heap-profile.js')) {
         Root.Runtime.experiments.enableForTest('live-heap-profile');
       }
     }
@@ -422,8 +472,7 @@ export class MainImpl {
       ThemeSupport.ThemeSupport.instance({forceNew: true, setting: themeSetting});
     }
 
-    UI.UIUtils.addPlatformClass(document.documentElement);
-    UI.UIUtils.installComponentRootStyles(document.body);
+    UI.UIUtils.installComponentRootStyles((document.body as Element));
 
     this.#addMainEventListeners(document);
 
@@ -448,41 +497,41 @@ export class MainImpl {
     UI.DockController.DockController.instance({forceNew: true, canDock});
     SDK.NetworkManager.MultitargetNetworkManager.instance({forceNew: true});
     SDK.DOMDebuggerModel.DOMDebuggerManager.instance({forceNew: true});
-    const targetManager = SDK.TargetManager.TargetManager.instance();
-    targetManager.addEventListener(
-        SDK.TargetManager.Events.SUSPEND_STATE_CHANGED, this.#onSuspendStateChanged.bind(this));
+    SDK.TargetManager.TargetManager.instance().addEventListener(
+        SDK.TargetManager.Events.SuspendStateChanged, this.#onSuspendStateChanged.bind(this));
 
     Workspace.FileManager.FileManager.instance({forceNew: true});
     Workspace.Workspace.WorkspaceImpl.instance();
 
     Bindings.NetworkProject.NetworkProjectManager.instance();
     const resourceMapping = new Bindings.ResourceMapping.ResourceMapping(
-        targetManager,
+        SDK.TargetManager.TargetManager.instance(),
         Workspace.Workspace.WorkspaceImpl.instance(),
     );
     new Bindings.PresentationConsoleMessageHelper.PresentationConsoleMessageManager();
     Bindings.CSSWorkspaceBinding.CSSWorkspaceBinding.instance({
       forceNew: true,
       resourceMapping,
-      targetManager,
+      targetManager: SDK.TargetManager.TargetManager.instance(),
     });
     Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance({
       forceNew: true,
       resourceMapping,
-      targetManager,
+      targetManager: SDK.TargetManager.TargetManager.instance(),
     });
-    targetManager.setScopeTarget(targetManager.primaryPageTarget());
+    SDK.TargetManager.TargetManager.instance().setScopeTarget(
+        SDK.TargetManager.TargetManager.instance().primaryPageTarget());
     UI.Context.Context.instance().addFlavorChangeListener(SDK.Target.Target, ({data}) => {
       const outermostTarget = data?.outermostTarget();
-      targetManager.setScopeTarget(outermostTarget);
+      SDK.TargetManager.TargetManager.instance().setScopeTarget(outermostTarget);
     });
     Breakpoints.BreakpointManager.BreakpointManager.instance({
       forceNew: true,
       workspace: Workspace.Workspace.WorkspaceImpl.instance(),
-      targetManager,
+      targetManager: SDK.TargetManager.TargetManager.instance(),
       debuggerWorkspaceBinding: Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance(),
     });
-    // @ts-expect-error e2e test global
+    // @ts-ignore e2e test global
     self.Extensions.extensionServer = Extensions.ExtensionServer.ExtensionServer.instance({forceNew: true});
 
     new Persistence.FileSystemWorkspaceBinding.FileSystemWorkspaceBinding(
@@ -499,30 +548,18 @@ export class MainImpl {
     Persistence.NetworkPersistenceManager.NetworkPersistenceManager.instance(
         {forceNew: true, workspace: Workspace.Workspace.WorkspaceImpl.instance()});
 
-    new ExecutionContextSelector(targetManager, UI.Context.Context.instance());
+    new ExecutionContextSelector(SDK.TargetManager.TargetManager.instance(), UI.Context.Context.instance());
     Bindings.IgnoreListManager.IgnoreListManager.instance({
       forceNew: true,
       debuggerWorkspaceBinding: Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance(),
     });
 
-    const projectSettingsModel = ProjectSettings.ProjectSettingsModel.ProjectSettingsModel.instance({
-      forceNew: true,
-      hostConfig: Root.Runtime.hostConfig,
-      pageResourceLoader: SDK.PageResourceLoader.PageResourceLoader.instance(),
-      targetManager,
-    });
-
-    Persistence.AutomaticFileSystemManager.AutomaticFileSystemManager.instance({
-      forceNew: true,
-      hostConfig: Root.Runtime.hostConfig,
-      inspectorFrontendHost: Host.InspectorFrontendHost.InspectorFrontendHostInstance,
-      projectSettingsModel,
-    });
-
     AutofillManager.AutofillManager.AutofillManager.instance();
 
-    LiveMetrics.LiveMetrics.instance();
-    CrUXManager.CrUXManager.instance();
+    if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.TIMELINE_OBSERVATIONS)) {
+      LiveMetrics.LiveMetrics.instance({forceNew: true});
+      CrUXManager.CrUXManager.instance({forceNew: true});
+    }
 
     new PauseListener();
 
@@ -565,9 +602,6 @@ export class MainImpl {
 
     const value = Root.Runtime.Runtime.queryParam('loadTimelineFromURL');
     if (value !== null) {
-      // Only import Timeline if neeeded. If this was a static import, every load of devtools
-      // would request and evaluate the Timeline panel dep tree, slowing down the UI's load.
-      const Timeline = await import('../../panels/timeline/timeline.js');
       Timeline.TimelinePanel.LoadTimelineHandler.instance().handleQueryParam(value);
     }
 
@@ -591,53 +625,21 @@ export class MainImpl {
     }
     // Used for browser tests.
     Host.InspectorFrontendHost.InspectorFrontendHostInstance.readyForTest();
-    this.#readyForTestPromise.resolve();
+    this.#resolveReadyForTestPromise();
     // Asynchronously run the extensions.
     window.setTimeout(this.#lateInitialization.bind(this), 100);
-    await this.#maybeInstallVeInspectionBinding();
-
     MainImpl.timeEnd('Main._initializeTarget');
   }
 
-  async #maybeInstallVeInspectionBinding(): Promise<void> {
-    const primaryPageTarget = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
-    const url = primaryPageTarget?.targetInfo()?.url;
-    const origin = url ? Common.ParsedURL.ParsedURL.extractOrigin(url as Platform.DevToolsPath.UrlString) : undefined;
-
-    const binding = '__devtools_ve_inspection_binding__';
-    if (primaryPageTarget && await VisualLogging.isUnderInspection(origin)) {
-      const runtimeModel = primaryPageTarget.model(SDK.RuntimeModel.RuntimeModel);
-      await runtimeModel?.addBinding({name: binding});
-      runtimeModel?.addEventListener(SDK.RuntimeModel.Events.BindingCalled, event => {
-        if (event.data.name === binding) {
-          VisualLogging.setVeDebuggingEnabled(event.data.payload === 'true', (query: string) => {
-            VisualLogging.setVeDebuggingEnabled(false);
-            void runtimeModel?.defaultExecutionContext()?.evaluate(
-                {
-                  expression: `window.inspect(${JSON.stringify(query)})`,
-                  includeCommandLineAPI: false,
-                  silent: true,
-                  returnByValue: false,
-                  generatePreview: false,
-                },
-                /* userGesture */ false,
-                /* awaitPromise */ false);
-          });
-        }
-      });
-    }
-  }
-
-  async #lateInitialization(): Promise<void> {
+  #lateInitialization(): void {
     MainImpl.time('Main._lateInitialization');
     Extensions.ExtensionServer.ExtensionServer.instance().initializeExtensions();
-    const promises: Array<Promise<void>> =
+    const promises: Promise<void>[] =
         Common.Runnable.lateInitializationRunnables().map(async lateInitializationLoader => {
           const runnable = await lateInitializationLoader();
-          return await runnable.run();
+          return runnable.run();
         });
     if (Root.Runtime.experiments.isEnabled('live-heap-profile')) {
-      const PerfUI = await import('../../ui/legacy/components/perf_ui/perf_ui.js');
       const setting = 'memory-live-heap-profile';
       if (Common.Settings.Settings.instance().moduleSetting(setting).get()) {
         promises.push(PerfUI.LiveHeapProfile.LiveHeapProfile.instance().run());
@@ -652,16 +654,20 @@ export class MainImpl {
         Common.Settings.Settings.instance().moduleSetting(setting).addChangeListener(changeListener);
       }
     }
-
+    this.#lateInitDonePromise = Promise.all(promises).then(() => undefined);
     MainImpl.timeEnd('Main._lateInitialization');
   }
 
+  lateInitDonePromiseForTest(): Promise<void>|null {
+    return this.#lateInitDonePromise;
+  }
+
   readyForTest(): Promise<void> {
-    return this.#readyForTestPromise.promise;
+    return this.#readyForTestPromise;
   }
 
   #registerMessageSinkListener(): void {
-    Common.Console.Console.instance().addEventListener(Common.Console.Events.MESSAGE_ADDED, messageAdded);
+    Common.Console.Console.instance().addEventListener(Common.Console.Events.MessageAdded, messageAdded);
 
     function messageAdded({data: message}: Common.EventTarget.EventTargetEvent<Common.Console.Message>): void {
       if (message.show) {
@@ -700,7 +706,7 @@ export class MainImpl {
 
   #redispatchClipboardEvent(event: Event): void {
     const eventCopy = new CustomEvent('clipboard-' + event.type, {bubbles: true});
-    // @ts-expect-error Used in ElementsTreeOutline
+    // @ts-ignore Used in ElementsTreeOutline
     eventCopy['original'] = event;
     const document = event.target && (event.target as HTMLElement).ownerDocument;
     const target = document ? Platform.DOMUtilities.deepActiveElement(document) : null;
@@ -735,9 +741,9 @@ export class MainImpl {
   static instanceForTest: MainImpl|null = null;
 }
 
-// @ts-expect-error Exported for Tests.js
+// @ts-ignore Exported for Tests.js
 globalThis.Main = globalThis.Main || {};
-// @ts-expect-error Exported for Tests.js
+// @ts-ignore Exported for Tests.js
 globalThis.Main.Main = MainImpl;
 
 export class ZoomActionDelegate implements UI.ActionRegistration.ActionDelegate {
@@ -768,7 +774,7 @@ export class SearchActionDelegate implements UI.ActionRegistration.ActionDelegat
     );
     if (!searchableView) {
       const currentPanel = (UI.InspectorView.InspectorView.instance().currentPanelDeprecated() as UI.Panel.Panel);
-      if (currentPanel?.searchableView) {
+      if (currentPanel && currentPanel.searchableView) {
         searchableView = currentPanel.searchableView();
       }
       if (!searchableView) {
@@ -794,8 +800,8 @@ export class MainMenuItem implements UI.Toolbar.Provider {
   readonly #itemInternal: UI.Toolbar.ToolbarMenuButton;
   constructor() {
     this.#itemInternal = new UI.Toolbar.ToolbarMenuButton(
-        this.#handleContextMenu.bind(this), /* isIconDropdown */ true, /* useSoftMenu */ true, 'main-menu',
-        'dots-vertical');
+        this.#handleContextMenu.bind(this), /* isIconDropdown */ true, /* useSoftMenu */ true, 'main-menu');
+    this.#itemInternal.setGlyph('dots-vertical');
     this.#itemInternal.element.classList.add('main-menu');
     this.#itemInternal.setTitle(i18nString(UIStrings.customizeAndControlDevtools));
   }
@@ -816,68 +822,54 @@ export class MainMenuItem implements UI.Toolbar.Provider {
   }
 
   #handleContextMenu(contextMenu: UI.ContextMenu.ContextMenu): void {
-    const dockController = UI.DockController.DockController.instance();
-    if (dockController.canDock()) {
+    if (UI.DockController.DockController.instance().canDock()) {
       const dockItemElement = document.createElement('div');
-      dockItemElement.classList.add('flex-auto', 'flex-centered', 'location-menu');
-      dockItemElement.setAttribute(
-          'jslog', `${VisualLogging.item('dock-side').track({keydown: 'ArrowDown|ArrowLeft|ArrowRight'})}`);
+      dockItemElement.classList.add('flex-centered');
+      dockItemElement.classList.add('flex-auto');
+      dockItemElement.classList.add('location-menu');
       dockItemElement.tabIndex = -1;
       UI.ARIAUtils.setLabel(dockItemElement, UIStrings.dockSide + UIStrings.dockSideNaviation);
-      const [toggleDockSideShorcut] =
+      const titleElement = dockItemElement.createChild('span', 'dockside-title');
+      titleElement.textContent = i18nString(UIStrings.dockSide);
+      const toggleDockSideShorcuts =
           UI.ShortcutRegistry.ShortcutRegistry.instance().shortcutsForAction('main.toggle-dock');
-
-      // clang-format off
-      render(html`
-        <span class="dockside-title"
-              title=${i18nString(UIStrings.placementOfDevtoolsRelativeToThe, {PH1: toggleDockSideShorcut.title()})}>
-          ${i18nString(UIStrings.dockSide)}
-        </span>
-        <devtools-toolbar @mousedown=${(event: Event) => event.consume()}>
-          <devtools-button class="toolbar-button"
-                           jslog=${VisualLogging.toggle().track({click: true}).context('current-dock-state-undock')}
-                           title=${i18nString(UIStrings.undockIntoSeparateWindow)}
-                           aria-label=${i18nString(UIStrings.undockIntoSeparateWindow)}
-                           .iconName=${'dock-window'}
-                           .toggled=${dockController.dockSide() === UI.DockController.DockState.UNDOCKED}
-                           .toggledIconName=${'dock-window'}
-                           .toggleType=${Buttons.Button.ToggleType.PRIMARY}
-                           .variant=${Buttons.Button.Variant.ICON_TOGGLE}
-                           @click=${setDockSide.bind(null, UI.DockController.DockState.UNDOCKED)}></devtools-button>
-          <devtools-button class="toolbar-button"
-                           jslog=${VisualLogging.toggle().track({click: true}).context('current-dock-state-left')}
-                           title=${i18nString(UIStrings.dockToLeft)}
-                           aria-label=${i18nString(UIStrings.dockToLeft)}
-                           .iconName=${'dock-left'}
-                           .toggled=${dockController.dockSide() === UI.DockController.DockState.LEFT}
-                           .toggledIconName=${'dock-left'}
-                           .toggleType=${Buttons.Button.ToggleType.PRIMARY}
-                           .variant=${Buttons.Button.Variant.ICON_TOGGLE}
-                           @click=${setDockSide.bind(null, UI.DockController.DockState.LEFT)}></devtools-button>
-          <devtools-button class="toolbar-button"
-                           jslog=${VisualLogging.toggle().track({click: true}).context('current-dock-state-bottom')}
-                           title=${i18nString(UIStrings.dockToBottom)}
-                           aria-label=${i18nString(UIStrings.dockToBottom)}
-                           .iconName=${'dock-bottom'}
-                           .toggled=${dockController.dockSide() === UI.DockController.DockState.BOTTOM}
-                           .toggledIconName=${'dock-bottom'}
-                           .toggleType=${Buttons.Button.ToggleType.PRIMARY}
-                           .variant=${Buttons.Button.Variant.ICON_TOGGLE}
-                           @click=${setDockSide.bind(null, UI.DockController.DockState.BOTTOM)}></devtools-button>
-          <devtools-button class="toolbar-button"
-                           jslog=${VisualLogging.toggle().track({click: true}).context('current-dock-state-right')}
-                           title=${i18nString(UIStrings.dockToRight)}
-                           aria-label=${i18nString(UIStrings.dockToRight)}
-                           .iconName=${'dock-right'}
-                           .toggled=${dockController.dockSide() === UI.DockController.DockState.RIGHT}
-                           .toggledIconName=${'dock-right'}
-                           .toggleType=${Buttons.Button.ToggleType.PRIMARY}
-                           .variant=${Buttons.Button.Variant.ICON_TOGGLE}
-                           @click=${setDockSide.bind(null, UI.DockController.DockState.RIGHT)}></devtools-button>
-        </devtools-toolbar>
-      `, dockItemElement, {host: this});
-      // clang-format on
-
+      UI.Tooltip.Tooltip.install(
+          titleElement,
+          i18nString(UIStrings.placementOfDevtoolsRelativeToThe, {PH1: toggleDockSideShorcuts[0].title()}));
+      dockItemElement.appendChild(titleElement);
+      const dockItemToolbar = new UI.Toolbar.Toolbar('', dockItemElement);
+      dockItemElement.setAttribute(
+          'jslog', `${VisualLogging.item('dock-side').track({keydown: 'ArrowDown|ArrowLeft|ArrowRight'})}`);
+      dockItemToolbar.makeBlueOnHover();
+      const undock = new UI.Toolbar.ToolbarToggle(
+          i18nString(UIStrings.undockIntoSeparateWindow), 'dock-window', undefined, 'current-dock-state-undock');
+      const bottom = new UI.Toolbar.ToolbarToggle(
+          i18nString(UIStrings.dockToBottom), 'dock-bottom', undefined, 'current-dock-state-bottom');
+      const right = new UI.Toolbar.ToolbarToggle(
+          i18nString(UIStrings.dockToRight), 'dock-right', undefined, 'current-dock-state-right');
+      const left = new UI.Toolbar.ToolbarToggle(
+          i18nString(UIStrings.dockToLeft), 'dock-left', undefined, 'current-dock-state-left');
+      undock.addEventListener(UI.Toolbar.ToolbarButton.Events.MouseDown, event => event.data.consume());
+      bottom.addEventListener(UI.Toolbar.ToolbarButton.Events.MouseDown, event => event.data.consume());
+      right.addEventListener(UI.Toolbar.ToolbarButton.Events.MouseDown, event => event.data.consume());
+      left.addEventListener(UI.Toolbar.ToolbarButton.Events.MouseDown, event => event.data.consume());
+      undock.addEventListener(
+          UI.Toolbar.ToolbarButton.Events.Click, setDockSide.bind(null, UI.DockController.DockState.UNDOCKED));
+      bottom.addEventListener(
+          UI.Toolbar.ToolbarButton.Events.Click, setDockSide.bind(null, UI.DockController.DockState.BOTTOM));
+      right.addEventListener(
+          UI.Toolbar.ToolbarButton.Events.Click, setDockSide.bind(null, UI.DockController.DockState.RIGHT));
+      left.addEventListener(
+          UI.Toolbar.ToolbarButton.Events.Click, setDockSide.bind(null, UI.DockController.DockState.LEFT));
+      undock.setToggled(
+          UI.DockController.DockController.instance().dockSide() === UI.DockController.DockState.UNDOCKED);
+      bottom.setToggled(UI.DockController.DockController.instance().dockSide() === UI.DockController.DockState.BOTTOM);
+      right.setToggled(UI.DockController.DockController.instance().dockSide() === UI.DockController.DockState.RIGHT);
+      left.setToggled(UI.DockController.DockController.instance().dockSide() === UI.DockController.DockState.LEFT);
+      dockItemToolbar.appendToolbarItem(undock);
+      dockItemToolbar.appendToolbarItem(left);
+      dockItemToolbar.appendToolbarItem(bottom);
+      dockItemToolbar.appendToolbarItem(right);
       dockItemElement.addEventListener('keydown', event => {
         let dir = 0;
         if (event.key === 'ArrowLeft') {
@@ -892,26 +884,29 @@ export class MainMenuItem implements UI.Toolbar.Provider {
           return;
         }
 
-        const buttons = Array.from(dockItemElement.querySelectorAll('devtools-button'));
-        let index = buttons.findIndex(button => button.hasFocus());
+        const buttons = [undock, left, bottom, right];
+        let index = buttons.findIndex(button => button.element.hasFocus());
         index = Platform.NumberUtilities.clamp(index + dir, 0, buttons.length - 1);
-        buttons[index].focus();
+
+        buttons[index].element.focus();
         event.consume(true);
       });
       contextMenu.headerSection().appendCustomItem(dockItemElement, 'dock-side');
     }
 
-    const button = this.#itemInternal.element;
+    const button = (this.#itemInternal.element as HTMLButtonElement);
 
     function setDockSide(side: UI.DockController.DockState): void {
-      void dockController.once(UI.DockController.Events.AFTER_DOCK_SIDE_CHANGED).then(() => button.focus());
-      dockController.setDockSide(side);
+      void UI.DockController.DockController.instance().once(UI.DockController.Events.AfterDockSideChanged).then(() => {
+        button.focus();
+      });
+      UI.DockController.DockController.instance().setDockSide(side);
       contextMenu.discard();
     }
 
-    if (dockController.dockSide() === UI.DockController.DockState.UNDOCKED) {
+    if (UI.DockController.DockController.instance().dockSide() === UI.DockController.DockState.UNDOCKED) {
       const mainTarget = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
-      if (mainTarget && mainTarget.type() === SDK.Target.Type.FRAME) {
+      if (mainTarget && mainTarget.type() === SDK.Target.Type.Frame) {
         contextMenu.defaultSection().appendAction('inspector-main.focus-debuggee', i18nString(UIStrings.focusDebuggee));
       }
     }
@@ -923,7 +918,8 @@ export class MainMenuItem implements UI.Toolbar.Provider {
     contextMenu.appendItemsAtLocation('mainMenu');
     const moreTools =
         contextMenu.defaultSection().appendSubMenuItem(i18nString(UIStrings.moreTools), false, 'more-tools');
-    const viewExtensions = UI.ViewManager.getRegisteredViewExtensions();
+    const viewExtensions =
+        UI.ViewManager.getRegisteredViewExtensions(Common.Settings.Settings.instance().getHostConfig());
     viewExtensions.sort((extension1, extension2) => {
       const title1 = extension1.title();
       const title2 = extension2.title();
@@ -938,7 +934,7 @@ export class MainMenuItem implements UI.Toolbar.Provider {
 
       if (id === 'issues-pane') {
         moreTools.defaultSection().appendItem(title, () => {
-          Host.userMetrics.issuesPanelOpenedFrom(Host.UserMetrics.IssueOpener.HAMBURGER_MENU);
+          Host.userMetrics.issuesPanelOpenedFrom(Host.UserMetrics.IssueOpener.HamburgerMenu);
           void UI.ViewManager.ViewManager.instance().showView('issues-pane', /* userGesture */ true);
         }, {jslogContext: id});
         continue;
@@ -974,7 +970,9 @@ let settingsButtonProviderInstance: SettingsButtonProvider;
 export class SettingsButtonProvider implements UI.Toolbar.Provider {
   readonly #settingsButton: UI.Toolbar.ToolbarButton;
   private constructor() {
-    this.#settingsButton = UI.Toolbar.Toolbar.createActionButton('settings.show');
+    const settingsActionId = 'settings.show';
+    this.#settingsButton =
+        UI.Toolbar.Toolbar.createActionButtonForId(settingsActionId, {showLabel: false, userActionCode: undefined});
   }
 
   static instance(opts: {
@@ -1009,7 +1007,6 @@ export class PauseListener {
   }
 }
 
-// Unused but mentioned at https://chromedevtools.github.io/devtools-protocol/#:~:text=use%20Main.MainImpl.-,sendOverProtocol,-()%20in%20the
 export function sendOverProtocol(
     method: ProtocolClient.InspectorBackend.QualifiedName, params: Object|null): Promise<unknown[]|null> {
   return new Promise((resolve, reject) => {
@@ -1031,7 +1028,6 @@ export class ReloadActionDelegate implements UI.ActionRegistration.ActionDelegat
     switch (actionId) {
       case 'main.debug-reload':
         Components.Reload.reload();
-
         return true;
     }
     return false;

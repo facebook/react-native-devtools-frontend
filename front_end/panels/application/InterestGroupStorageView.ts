@@ -4,6 +4,7 @@
 
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Protocol from '../../generated/protocol.js';
+import type * as DataGrid from '../../ui/components/data_grid/data_grid.js';
 import * as SourceFrame from '../../ui/legacy/components/source_frame/source_frame.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
@@ -13,35 +14,16 @@ import interestGroupStorageViewStyles from './interestGroupStorageView.css.js';
 
 const UIStrings = {
   /**
-   *@description Placeholder text shown when nothing has been selected for display
-   *details.
-   * An interest group is an ad targeting group stored on the browser that can
-   * be used to show a certain set of advertisements in the future as the
-   * outcome of a FLEDGE auction.
-   */
-  noValueSelected: 'No interest group selected',
-  /**
    *@description Placeholder text instructing the user how to display interest group
    *details.
-   * An interest group is an ad targeting group stored on the browser that can
-   * be used to show a certain set of advertisements in the future as the
-   * outcome of a FLEDGE auction.
    */
-  clickToDisplayBody: 'Select any interest group event to display the group\'s current state',
+  clickToDisplayBody: 'Click on any interest group event to display the group\'s current state',
   /**
    *@description Placeholder text telling the user no details are available for
    *the selected interest group.
    */
-  noDataAvailable: 'No details available',
-  /**
-   *@description Placeholder text explaining to the user a potential reason for not having details on
-   * the interest groups.
-   * An interest group is an ad targeting group stored on the browser that can
-   * be used to show a certain set of advertisements in the future as the
-   * outcome of a FLEDGE auction.
-   */
-  noDataDescription: 'The browser may have left the group.',
-} as const;
+  noDataAvailable: 'No details available for the selected interest group. The browser may have left the group.',
+};
 const str_ = i18n.i18n.registerUIStrings('panels/application/InterestGroupStorageView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -67,36 +49,38 @@ export class InterestGroupStorageView extends UI.SplitWidget.SplitWidget {
     this.detailsGetter = detailsGetter;
 
     const topPanel = new UI.Widget.VBox();
-    this.noDisplayView =
-        new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.noValueSelected), i18nString(UIStrings.clickToDisplayBody));
-    this.noDataView =
-        new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.noDataAvailable), i18nString(UIStrings.noDataDescription));
+    this.noDisplayView = new UI.Widget.VBox();
+    this.noDataView = new UI.Widget.VBox();
 
-    topPanel.setMinimumSize(0, 120);
+    topPanel.setMinimumSize(0, 80);
     this.setMainWidget(topPanel);
-    this.noDisplayView.setMinimumSize(0, 80);
+    this.noDisplayView.setMinimumSize(0, 40);
     this.setSidebarWidget(this.noDisplayView);
-    this.noDataView.setMinimumSize(0, 80);
-    this.noDisplayView.contentElement.setAttribute('jslog', `${VisualLogging.pane('details').track({resize: true})}`);
-    this.noDataView.contentElement.setAttribute('jslog', `${VisualLogging.pane('details').track({resize: true})}`);
-    this.hideSidebar();
+    this.noDataView.setMinimumSize(0, 40);
 
     topPanel.contentElement.appendChild(this.interestGroupGrid);
-    this.interestGroupGrid.addEventListener('select', this.onFocus.bind(this));
+    this.interestGroupGrid.addEventListener('cellfocused', this.onFocus.bind(this));
+
+    this.noDisplayView.contentElement.classList.add('placeholder');
+    this.noDisplayView.contentElement.setAttribute('jslog', `${VisualLogging.pane('details').track({resize: true})}`);
+    const noDisplayDiv = this.noDisplayView.contentElement.createChild('div');
+    noDisplayDiv.textContent = i18nString(UIStrings.clickToDisplayBody);
+
+    this.noDataView.contentElement.classList.add('placeholder');
+    this.noDataView.contentElement.setAttribute('jslog', `${VisualLogging.pane('details').track({resize: true})}`);
+    const noDataDiv = this.noDataView.contentElement.createChild('div');
+    noDataDiv.textContent = i18nString(UIStrings.noDataAvailable);
   }
 
   override wasShown(): void {
     super.wasShown();
-    const mainWidget = this.mainWidget();
-    if (mainWidget) {
-      mainWidget.registerRequiredCSS(interestGroupStorageViewStyles);
+    const sbw = this.sidebarWidget();
+    if (sbw) {
+      sbw.registerCSSFiles([interestGroupStorageViewStyles]);
     }
   }
 
   addEvent(event: Protocol.Storage.InterestGroupAccessedEvent): void {
-    if (this.showMode() !== UI.SplitWidget.ShowMode.BOTH) {
-      this.showBoth();
-    }
     // Only add if not already present.
     const foundEvent = this.events.find(t => eventEquals(t, event));
     if (!foundEvent) {
@@ -113,8 +97,19 @@ export class InterestGroupStorageView extends UI.SplitWidget.SplitWidget {
   }
 
   private async onFocus(event: Event): Promise<void> {
-    const focusedEvent = event as CustomEvent<Protocol.Storage.InterestGroupAccessedEvent>;
-    const {ownerOrigin, name, type: eventType} = focusedEvent.detail;
+    const focusedEvent = event as DataGrid.DataGridEvents.BodyCellFocusedEvent;
+    const row = focusedEvent.data.row;
+    if (!row) {
+      return;
+    }
+
+    const ownerOrigin = row.cells.find(cell => cell.columnId === 'event-group-owner')?.value as string;
+    const name = row.cells.find(cell => cell.columnId === 'event-group-name')?.value as string;
+    const eventType =
+        row.cells.find(cell => cell.columnId === 'event-type')?.value as Protocol.Storage.InterestGroupAccessType;
+    if (!ownerOrigin || !name) {
+      return;
+    }
 
     let details = null;
     // Details of additional bids can't be looked up like regular bids,
@@ -137,7 +132,7 @@ export class InterestGroupStorageView extends UI.SplitWidget.SplitWidget {
     this.sidebarUpdatedForTesting();
   }
 
-  getEventsForTesting(): Protocol.Storage.InterestGroupAccessedEvent[] {
+  getEventsForTesting(): Array<Protocol.Storage.InterestGroupAccessedEvent> {
     return this.events;
   }
 

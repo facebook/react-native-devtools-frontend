@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Platform from '../platform/platform.js';
-
 export abstract class Linkifier {
   abstract linkify(object: Object, options?: Options): Node;
 
@@ -48,8 +46,7 @@ export function getApplicableRegisteredlinkifiers(object: Object): LinkifierRegi
     return false;
   }
 }
-
 export interface LinkifierRegistration {
   loadLinkifier: () => Promise<Linkifier>;
-  contextTypes?: () => Array<Platform.Constructor.Constructor<unknown>>;
+  contextTypes?: (() => Array<Function>);
 }

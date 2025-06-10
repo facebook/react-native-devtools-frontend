@@ -3,9 +3,12 @@
 // found in the LICENSE file.
 
 import {renderElementIntoDOM} from '../../../testing/DOMHelpers.js';
-import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
+import * as Menus from '../../../ui/components/menus/menus.js';
+import * as Coordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 
 import * as RecorderComponents from './components.js';
+
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 describe('SelectButton', () => {
   it('should emit selectbuttonclick event on button click', async () => {
@@ -16,7 +19,7 @@ describe('SelectButton', () => {
       {value: 'item2', label: () => 'item2-label'},
     ];
     renderElementIntoDOM(component);
-    await RenderCoordinator.done();
+    await coordinator.done();
     const onceClicked = new Promise<RecorderComponents.SelectButton.SelectButtonClickEvent>(
         resolve => {
           component.addEventListener('selectbuttonclick', resolve, {
@@ -41,14 +44,15 @@ describe('SelectButton', () => {
       {value: 'item2', label: () => 'item2-label'},
     ];
     component.connectedCallback();
-    await RenderCoordinator.done();
+    await coordinator.done();
     const dispatcherSpy = sinon.spy(component, 'dispatchEvent');
     const selectMenu = component.shadowRoot?.querySelector(
-        'select',
+        'devtools-select-menu',
     );
     assert.exists(selectMenu);
-    selectMenu.value = 'item1';
-    selectMenu.dispatchEvent(new Event('change'));
+    selectMenu.dispatchEvent(
+        new Menus.SelectMenu.SelectMenuItemSelectedEvent('item1'),
+    );
 
     dispatcherSpy.calledOnceWithExactly(
         RecorderComponents.SelectButton.SelectMenuSelectedEvent as unknown as sinon.SinonMatcher);

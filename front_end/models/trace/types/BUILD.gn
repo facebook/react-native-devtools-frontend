@@ -4,7 +4,7 @@
 
 import("../../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../../scripts/build/ninja/devtools_module.gni")
-import("../../../../scripts/build/typescript/typescript.gni")
+import("../../../../third_party/typescript/typescript.gni")
 import("../../visibility.gni")
 
 devtools_module("types") {
@@ -16,12 +16,7 @@ devtools_module("types") {
     "TraceEvents.ts",
   ]
 
-  deps = [
-    "../../../core/sdk:bundle",
-    "../../../generated",
-    "../../crux-manager:bundle",
-    "../lantern:bundle",
-  ]
+  deps = [ "../../../generated" ]
 }
 
 devtools_entrypoint("bundle") {
@@ -38,10 +33,7 @@ devtools_entrypoint("bundle") {
 ts_library("unittests") {
   testonly = true
 
-  sources = [
-    "File.test.ts",
-    "TraceEvents.test.ts",
-  ]
+  sources = [ "TraceEvents.test.ts" ]
 
   deps = [
     "../../../core/platform:bundle",

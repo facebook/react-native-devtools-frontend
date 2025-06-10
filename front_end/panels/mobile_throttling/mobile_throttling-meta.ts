@@ -43,7 +43,7 @@ const UIStrings = {
    *@description Title of an action in the network conditions tool to network online
    */
   goOnline: 'Go online',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/mobile_throttling/mobile_throttling-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
@@ -68,7 +68,6 @@ UI.ViewManager.registerViewExtension({
   },
   settings: [
     'custom-network-conditions',
-    'calibrated-cpu-throttling',
   ],
   iconName: 'performance',
 });
@@ -130,7 +129,7 @@ UI.ActionRegistration.registerActionExtension({
 });
 
 Common.Settings.registerSettingExtension({
-  storageType: Common.Settings.SettingStorageType.SYNCED,
+  storageType: Common.Settings.SettingStorageType.Synced,
   settingName: 'custom-network-conditions',
   settingType: Common.Settings.SettingType.ARRAY,
   defaultValue: [],

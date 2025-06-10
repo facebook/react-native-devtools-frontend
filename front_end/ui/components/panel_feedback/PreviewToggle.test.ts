@@ -8,9 +8,11 @@ import {
   renderElementIntoDOM,
 } from '../../../testing/DOMHelpers.js';
 import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
-import * as RenderCoordinator from '../render_coordinator/render_coordinator.js';
+import * as Coordinator from '../render_coordinator/render_coordinator.js';
 
 import * as PanelFeedback from './panel_feedback.js';
+
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 describeWithLocale('Preview toggle', () => {
   it('calls out correctly to enable experiment', async () => {
@@ -30,7 +32,7 @@ describeWithLocale('Preview toggle', () => {
     };
 
     renderElementIntoDOM(component);
-    await RenderCoordinator.done();
+    await coordinator.done();
 
     assert.isNotNull(component.shadowRoot);
     const input = component.shadowRoot.querySelector('input');
@@ -41,7 +43,7 @@ describeWithLocale('Preview toggle', () => {
         setEnabledStub.firstCall.calledWith('testExperiment', true),
         'experiments.setEnabled was not called with the correct experiment');
     assert.strictEqual(spy.callCount, 1);
-    assert.isTrue(spy.firstCall.firstArg);
+    assert.strictEqual(spy.firstCall.firstArg, true);
   });
 
   it('calls out correctly to disable experiment', async () => {
@@ -61,7 +63,7 @@ describeWithLocale('Preview toggle', () => {
     };
 
     renderElementIntoDOM(component);
-    await RenderCoordinator.done();
+    await coordinator.done();
 
     const input = component.shadowRoot!.querySelector('input');
     assert.instanceOf(input, HTMLElement);
@@ -71,6 +73,6 @@ describeWithLocale('Preview toggle', () => {
         setEnabledStub.firstCall.calledWith('testExperiment', false),
         'experiments.setEnabled was not called with the correct experiment');
     assert.strictEqual(spy.callCount, 1);
-    assert.isFalse(spy.firstCall.firstArg);
+    assert.strictEqual(spy.firstCall.firstArg, false);
   });
 });

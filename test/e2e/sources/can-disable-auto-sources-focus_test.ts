@@ -30,7 +30,7 @@ async function breakAndCheckFocusedPanel(expectedPanel: string) {
   });
 
   await step('trigger a Debugger.paused event', async () => {
-    void target.evaluate('f2();');
+    target.evaluate('f2();');
   });
 
   await step('wait for Debugger.paused event', async () => {
@@ -45,7 +45,7 @@ async function breakAndCheckFocusedPanel(expectedPanel: string) {
 describe('Sources Panel', () => {
   beforeEach(async () => {
     const {frontend} = getBrowserAndPages();
-    await installEventListener(frontend, DEBUGGER_PAUSED_EVENT);
+    installEventListener(frontend, DEBUGGER_PAUSED_EVENT);
   });
 
   it('is not opened on Debugger.paused if autoFocusOnDebuggerPausedEnabled is false', async () => {

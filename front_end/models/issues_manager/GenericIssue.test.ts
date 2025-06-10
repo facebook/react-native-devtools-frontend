@@ -42,14 +42,14 @@ describeWithLocale('GenericIssue', () => {
     const issue = createProtocolIssueWithDetails(issueDetails);
 
     const genericIssues = IssuesManager.GenericIssue.GenericIssue.fromInspectorIssue(mockModel, issue);
-    assert.lengthOf(genericIssues, 1);
+    assert.strictEqual(genericIssues.length, 1);
     const genericIssue = genericIssues[0];
 
-    assert.strictEqual(genericIssue.getCategory(), IssuesManager.Issue.IssueCategory.GENERIC);
+    assert.strictEqual(genericIssue.getCategory(), IssuesManager.Issue.IssueCategory.Generic);
     assert.strictEqual(
         genericIssue.primaryKey(),
         `GenericIssue::FormLabelForNameError-(${'main' as Protocol.Page.FrameId})-(1)-(attribute)-(no-request)`);
-    assert.strictEqual(genericIssue.getKind(), IssuesManager.Issue.IssueKind.PAGE_ERROR);
+    assert.strictEqual(genericIssue.getKind(), IssuesManager.Issue.IssueKind.PageError);
     assert.isNotNull(genericIssue.getDescription());
   });
 
@@ -69,14 +69,14 @@ describeWithLocale('GenericIssue', () => {
     const issue = createProtocolIssueWithDetails(issueDetails);
 
     const genericIssues = IssuesManager.GenericIssue.GenericIssue.fromInspectorIssue(mockModel, issue);
-    assert.lengthOf(genericIssues, 1);
+    assert.strictEqual(genericIssues.length, 1);
     const genericIssue = genericIssues[0];
 
-    assert.strictEqual(genericIssue.getCategory(), IssuesManager.Issue.IssueCategory.GENERIC);
+    assert.strictEqual(genericIssue.getCategory(), IssuesManager.Issue.IssueCategory.Generic);
     assert.strictEqual(
         genericIssue.primaryKey(),
         'GenericIssue::ResponseWasBlockedByORB-(undefined)-(undefined)-(undefined)-(blabla)');
-    assert.strictEqual(genericIssue.getKind(), IssuesManager.Issue.IssueKind.IMPROVEMENT);
+    assert.strictEqual(genericIssue.getKind(), IssuesManager.Issue.IssueKind.Improvement);
     assert.isNotNull(genericIssue.getDescription());
   });
 });

@@ -5,12 +5,16 @@
 import * as Protocol from '../../../generated/protocol.js';
 import {getValuesOfAllBodyRows} from '../../../testing/DataGridHelpers.js';
 import {
+  getElementWithinComponent,
   renderElementIntoDOM,
 } from '../../../testing/DOMHelpers.js';
 import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
-import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
+import * as DataGrid from '../../../ui/components/data_grid/data_grid.js';
+import * as Coordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 
 import * as ApplicationComponents from './components.js';
+
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 async function renderInterestGroupAccessGrid(events: Protocol.Storage.InterestGroupAccessedEvent[]):
     Promise<ApplicationComponents.InterestGroupAccessGrid.InterestGroupAccessGrid> {
@@ -20,14 +24,16 @@ async function renderInterestGroupAccessGrid(events: Protocol.Storage.InterestGr
 
   // The data-grid's renderer is scheduled, so we need to wait until the coordinator
   // is done before we can test against it.
-  await RenderCoordinator.done();
+  await coordinator.done();
 
   return component;
 }
 
 function getInternalDataGridShadowRoot(
     component: ApplicationComponents.InterestGroupAccessGrid.InterestGroupAccessGrid): ShadowRoot {
-  const dataGrid = component.shadowRoot!.querySelector('devtools-data-grid')!;
+  const dataGridController = getElementWithinComponent(
+      component, 'devtools-data-grid-controller', DataGrid.DataGridController.DataGridController);
+  const dataGrid = getElementWithinComponent(dataGridController, 'devtools-data-grid', DataGrid.DataGrid.DataGrid);
   assert.isNotNull(dataGrid.shadowRoot);
   return dataGrid.shadowRoot;
 }
@@ -61,10 +67,10 @@ describeWithLocale('InterestGroupAccessGrid', () => {
   it('hides interest group event table when there are no events', async () => {
     const component = await renderInterestGroupAccessGrid([]);
 
-    const nullGridElement = component.shadowRoot!.querySelector('devtools-data-grid');
+    const nullGridElement = component.shadowRoot!.querySelector('devtools-data-grid-controller');
     assert.isNull(nullGridElement);
 
-    const noEventsElement = component.shadowRoot!.querySelector('.empty-state');
+    const noEventsElement = component.shadowRoot!.querySelector('div.no-events-message');
     assert.instanceOf(noEventsElement, HTMLDivElement);
   });
 });

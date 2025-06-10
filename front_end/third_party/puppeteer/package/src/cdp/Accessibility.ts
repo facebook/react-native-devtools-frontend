@@ -100,13 +100,6 @@ export interface SnapshotOptions {
    */
   interestingOnly?: boolean;
   /**
-   * If true, gets accessibility trees for each of the iframes in the frame
-   * subtree.
-   *
-   * @defaultValue `false`
-   */
-  includeIframes?: boolean;
-  /**
    * Root node to get the accessibility tree for
    * @defaultValue The root node of the entire page.
    */
@@ -137,14 +130,12 @@ export interface SnapshotOptions {
  */
 export class Accessibility {
   #realm: Realm;
-  #frameId: string;
 
   /**
    * @internal
    */
-  constructor(realm: Realm, frameId = '') {
+  constructor(realm: Realm) {
     this.#realm = realm;
-    this.#frameId = frameId;
   }
 
   /**
@@ -187,18 +178,11 @@ export class Accessibility {
    * @returns An AXNode object representing the snapshot.
    */
   public async snapshot(
-    options: SnapshotOptions = {},
+    options: SnapshotOptions = {}
   ): Promise<SerializedAXNode | null> {
-    const {
-      interestingOnly = true,
-      root = null,
-      includeIframes = false,
-    } = options;
+    const {interestingOnly = true, root = null} = options;
     const {nodes} = await this.#realm.environment.client.send(
-      'Accessibility.getFullAXTree',
-      {
-        frameId: this.#frameId,
-      },
+      'Accessibility.getFullAXTree'
     );
     let backendNodeId: number | undefined;
     if (root) {
@@ -206,53 +190,20 @@ export class Accessibility {
         'DOM.describeNode',
         {
           objectId: root.id,
-        },
+        }
       );
       backendNodeId = node.backendNodeId;
     }
     const defaultRoot = AXNode.createTree(this.#realm, nodes);
-    const populateIframes = async (root: AXNode): Promise<void> => {
-      if (root.payload.role?.value === 'Iframe') {
-        if (!root.payload.backendDOMNodeId) {
-          return;
-        }
-        using handle = (await this.#realm.adoptBackendNode(
-          root.payload.backendDOMNodeId,
-        )) as ElementHandle<Element>;
-        if (!handle || !('contentFrame' in handle)) {
-          return;
-        }
-        const frame = await handle.contentFrame();
-        if (!frame) {
-          return;
-        }
-        const iframeSnapshot = await frame.accessibility.snapshot(options);
-        root.iframeSnapshot = iframeSnapshot ?? undefined;
-      }
-      for (const child of root.children) {
-        await populateIframes(child);
-      }
-    };
-
     let needle: AXNode | null = defaultRoot;
-    if (!defaultRoot) {
-      return null;
-    }
-
-    if (includeIframes) {
-      await populateIframes(defaultRoot);
-    }
-
     if (backendNodeId) {
       needle = defaultRoot.find(node => {
         return node.payload.backendDOMNodeId === backendNodeId;
       });
+      if (!needle) {
+        return null;
+      }
     }
-
-    if (!needle) {
-      return null;
-    }
-
     if (!interestingOnly) {
       return this.serializeTree(needle)[0] ?? null;
     }
@@ -267,7 +218,7 @@ export class Accessibility {
 
   private serializeTree(
     node: AXNode,
-    interestingNodes?: Set<AXNode>,
+    interestingNodes?: Set<AXNode>
   ): SerializedAXNode[] {
     const children: SerializedAXNode[] = [];
     for (const child of node.children) {
@@ -282,21 +233,15 @@ export class Accessibility {
     if (children.length) {
       serializedNode.children = children;
     }
-    if (node.iframeSnapshot) {
-      if (!serializedNode.children) {
-        serializedNode.children = [];
-      }
-      serializedNode.children.push(node.iframeSnapshot);
-    }
     return [serializedNode];
   }
 
   private collectInterestingNodes(
     collection: Set<AXNode>,
     node: AXNode,
-    insideControl: boolean,
+    insideControl: boolean
   ): void {
-    if (node.isInteresting(insideControl) || node.iframeSnapshot) {
+    if (node.isInteresting(insideControl)) {
       collection.add(node);
     }
     if (node.isLeafNode()) {
@@ -312,7 +257,6 @@ export class Accessibility {
 class AXNode {
   public payload: Protocol.Accessibility.AXNode;
   public children: AXNode[] = [];
-  public iframeSnapshot?: SerializedAXNode;
 
   #richlyEditable = false;
   #editable = false;
@@ -509,7 +453,7 @@ class AXNode {
           return null;
         }
         return (await this.#realm.adoptBackendNode(
-          this.payload.backendDOMNodeId,
+          this.payload.backendDOMNodeId
         )) as ElementHandle<Element>;
       },
     };
@@ -634,8 +578,8 @@ class AXNode {
 
   public static createTree(
     realm: Realm,
-    payloads: Protocol.Accessibility.AXNode[],
-  ): AXNode | null {
+    payloads: Protocol.Accessibility.AXNode[]
+  ): AXNode {
     const nodeById = new Map<string, AXNode>();
     for (const payload of payloads) {
       nodeById.set(payload.nodeId, new AXNode(realm, payload));
@@ -648,6 +592,6 @@ class AXNode {
         }
       }
     }
-    return nodeById.values().next().value ?? null;
+    return nodeById.values().next().value;
   }
 }

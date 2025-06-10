@@ -12,7 +12,6 @@ import {
   Mouse,
   MouseButton,
   Touchscreen,
-  type TouchHandle,
   type KeyboardTypeOptions,
   type KeyDownOptions,
   type KeyPressOptions,
@@ -22,7 +21,6 @@ import {
   type MouseWheelOptions,
 } from '../api/Input.js';
 import {UnsupportedOperation} from '../common/Errors.js';
-import {TouchError} from '../common/Errors.js';
 import type {KeyInput} from '../common/USKeyboardLayout.js';
 
 import type {BidiPage} from './Page.js';
@@ -287,7 +285,7 @@ export class BidiKeyboard extends Keyboard {
 
   override async down(
     key: KeyInput,
-    _options?: Readonly<KeyDownOptions>,
+    _options?: Readonly<KeyDownOptions>
   ): Promise<void> {
     await this.#page.mainFrame().browsingContext.performActions([
       {
@@ -320,7 +318,7 @@ export class BidiKeyboard extends Keyboard {
 
   override async press(
     key: KeyInput,
-    options: Readonly<KeyPressOptions> = {},
+    options: Readonly<KeyPressOptions> = {}
   ): Promise<void> {
     const {delay = 0} = options;
     const actions: Bidi.Input.KeySourceAction[] = [
@@ -350,7 +348,7 @@ export class BidiKeyboard extends Keyboard {
 
   override async type(
     text: string,
-    options: Readonly<KeyboardTypeOptions> = {},
+    options: Readonly<KeyboardTypeOptions> = {}
   ): Promise<void> {
     const {delay = 0} = options;
     // This spread separates the characters into code points rather than UTF-16
@@ -367,7 +365,7 @@ export class BidiKeyboard extends Keyboard {
           {
             type: ActionType.KeyUp,
             value,
-          },
+          }
         );
       }
     } else {
@@ -384,7 +382,7 @@ export class BidiKeyboard extends Keyboard {
           {
             type: ActionType.KeyUp,
             value,
-          },
+          }
         );
       }
     }
@@ -465,7 +463,7 @@ export class BidiMouse extends Mouse {
   override async move(
     x: number,
     y: number,
-    options: Readonly<BidiMouseMoveOptions> = {},
+    options: Readonly<BidiMouseMoveOptions> = {}
   ): Promise<void> {
     const from = this.#lastMovePoint;
     const to = {
@@ -531,7 +529,7 @@ export class BidiMouse extends Mouse {
   override async click(
     x: number,
     y: number,
-    options: Readonly<BidiMouseClickOptions> = {},
+    options: Readonly<BidiMouseClickOptions> = {}
   ): Promise<void> {
     const actions: Bidi.Input.PointerSourceAction[] = [
       {
@@ -570,7 +568,7 @@ export class BidiMouse extends Mouse {
   }
 
   override async wheel(
-    options: Readonly<MouseWheelOptions> = {},
+    options: Readonly<MouseWheelOptions> = {}
   ): Promise<void> {
     await this.#page.mainFrame().browsingContext.performActions([
       {
@@ -615,87 +613,79 @@ export class BidiMouse extends Mouse {
 /**
  * @internal
  */
-class BidiTouchHandle implements TouchHandle {
-  #started = false;
-  #x: number;
-  #y: number;
-  #bidiId: string;
+export class BidiTouchscreen extends Touchscreen {
   #page: BidiPage;
-  #touchScreen: BidiTouchscreen;
-  #properties: Bidi.Input.PointerCommonProperties;
 
-  constructor(
-    page: BidiPage,
-    touchScreen: BidiTouchscreen,
-    id: number,
-    x: number,
-    y: number,
-    properties: Bidi.Input.PointerCommonProperties,
-  ) {
+  constructor(page: BidiPage) {
+    super();
     this.#page = page;
-    this.#touchScreen = touchScreen;
-    this.#x = Math.round(x);
-    this.#y = Math.round(y);
-    this.#properties = properties;
-    this.#bidiId = `${InputId.Finger}_${id}`;
   }
 
-  async start(options: BidiTouchMoveOptions = {}): Promise<void> {
-    if (this.#started) {
-      throw new TouchError('Touch has already started');
-    }
+  override async touchStart(
+    x: number,
+    y: number,
+    options: BidiTouchMoveOptions = {}
+  ): Promise<void> {
     await this.#page.mainFrame().browsingContext.performActions([
       {
         type: SourceActionsType.Pointer,
-        id: this.#bidiId,
+        id: InputId.Finger,
         parameters: {
           pointerType: Bidi.Input.PointerType.Touch,
         },
         actions: [
           {
             type: ActionType.PointerMove,
-            x: this.#x,
-            y: this.#y,
+            x: Math.round(x),
+            y: Math.round(y),
             origin: options.origin,
           },
           {
-            ...this.#properties,
             type: ActionType.PointerDown,
             button: 0,
+            width: 0.5 * 2, // 2 times default touch radius.
+            height: 0.5 * 2, // 2 times default touch radius.
+            pressure: 0.5,
+            altitudeAngle: Math.PI / 2,
           },
         ],
       },
     ]);
-    this.#started = true;
   }
 
-  move(x: number, y: number): Promise<void> {
-    const newX = Math.round(x);
-    const newY = Math.round(y);
-    return this.#page.mainFrame().browsingContext.performActions([
+  override async touchMove(
+    x: number,
+    y: number,
+    options: BidiTouchMoveOptions = {}
+  ): Promise<void> {
+    await this.#page.mainFrame().browsingContext.performActions([
       {
         type: SourceActionsType.Pointer,
-        id: this.#bidiId,
+        id: InputId.Finger,
         parameters: {
           pointerType: Bidi.Input.PointerType.Touch,
         },
         actions: [
           {
-            ...this.#properties,
             type: ActionType.PointerMove,
-            x: newX,
-            y: newY,
+            x: Math.round(x),
+            y: Math.round(y),
+            origin: options.origin,
+            width: 0.5 * 2, // 2 times default touch radius.
+            height: 0.5 * 2, // 2 times default touch radius.
+            pressure: 0.5,
+            altitudeAngle: Math.PI / 2,
           },
         ],
       },
     ]);
   }
 
-  async end(): Promise<void> {
+  override async touchEnd(): Promise<void> {
     await this.#page.mainFrame().browsingContext.performActions([
       {
         type: SourceActionsType.Pointer,
-        id: this.#bidiId,
+        id: InputId.Finger,
         parameters: {
           pointerType: Bidi.Input.PointerType.Touch,
         },
@@ -707,36 +697,5 @@ class BidiTouchHandle implements TouchHandle {
         ],
       },
     ]);
-    this.#touchScreen.removeHandle(this);
-  }
-}
-/**
- * @internal
- */
-export class BidiTouchscreen extends Touchscreen {
-  #page: BidiPage;
-  declare touches: BidiTouchHandle[];
-
-  constructor(page: BidiPage) {
-    super();
-    this.#page = page;
-  }
-
-  override async touchStart(
-    x: number,
-    y: number,
-    options: BidiTouchMoveOptions = {},
-  ): Promise<TouchHandle> {
-    const id = this.idGenerator();
-    const properties: Bidi.Input.PointerCommonProperties = {
-      width: 0.5 * 2, // 2 times default touch radius.
-      height: 0.5 * 2, // 2 times default touch radius.
-      pressure: 0.5,
-      altitudeAngle: Math.PI / 2,
-    };
-    const touch = new BidiTouchHandle(this.#page, this, id, x, y, properties);
-    await touch.start(options);
-    this.touches.push(touch);
-    return touch;
   }
 }

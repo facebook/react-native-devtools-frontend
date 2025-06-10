@@ -3,23 +3,22 @@
 // found in the LICENSE file.
 
 import * as ComponentHelpers from '../../../ui/components/helpers/helpers.js';
-import {html, render} from '../../../ui/lit/lit.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import editableSpanStylesRaw from './EditableSpan.css.js';
+import editableSpanStyles from './EditableSpan.css.js';
 
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const editableSpanStyles = new CSSStyleSheet();
-editableSpanStyles.replaceSync(editableSpanStylesRaw.cssText);
+const {render, html} = LitHtml;
 
 export interface EditableSpanData {
   value: string;
 }
 
 export class EditableSpan extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-editable-span`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   readonly #boundRender = this.#render.bind(this);
-  #value = '';
+  #value: string = '';
 
   connectedCallback(): void {
     this.#shadow.adoptedStyleSheets = [editableSpanStyles];

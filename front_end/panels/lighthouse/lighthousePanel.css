@@ -4,6 +4,11 @@
  * found in the LICENSE file.
  */
 
+.toolbar {
+  background-color: var(--sys-color-cdt-base-container);
+  border-bottom: 1px solid var(--sys-color-divider);
+}
+
 .lh-root {
   --report-menu-width: 0;
 
@@ -33,18 +38,13 @@ button.view-trace {
   flex: none;
 }
 
-.lighthouse-settings-pane devtools-toolbar {
+.lighthouse-settings-pane .toolbar {
   flex: 1 1;
 }
 
 .lighthouse-toolbar-container {
   display: flex;
   flex: none;
-}
-
-.lighthouse-toolbar-container > devtools-toolbar {
-  background-color: var(--sys-color-cdt-base-container);
-  border-bottom: 1px solid var(--sys-color-divider);
 }
 
 .lighthouse-toolbar-container > :first-child {

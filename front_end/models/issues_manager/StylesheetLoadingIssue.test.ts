@@ -39,11 +39,11 @@ describeWithLocale('StylesheetLoadingIssue', () => {
     assert.lengthOf(stylesheetIssues, 1);
     const stylesheetIssue = stylesheetIssues[0];
 
-    assert.strictEqual(stylesheetIssue.getCategory(), IssuesManager.Issue.IssueCategory.OTHER);
-    assert.deepEqual(stylesheetIssue.sources(), [issueDetails.sourceCodeLocation]);
+    assert.strictEqual(stylesheetIssue.getCategory(), IssuesManager.Issue.IssueCategory.Other);
+    assert.deepStrictEqual(stylesheetIssue.sources(), [issueDetails.sourceCodeLocation]);
     const {url, requestId} = issueDetails.failedRequestInfo;
-    assert.deepEqual(stylesheetIssue.requests(), [{url, requestId}]);
-    assert.strictEqual(stylesheetIssue.getKind(), IssuesManager.Issue.IssueKind.PAGE_ERROR);
+    assert.deepStrictEqual(stylesheetIssue.requests(), [{url, requestId}]);
+    assert.strictEqual(stylesheetIssue.getKind(), IssuesManager.Issue.IssueKind.PageError);
     assert.isNotNull(stylesheetIssue.getDescription());
   });
 
@@ -62,9 +62,9 @@ describeWithLocale('StylesheetLoadingIssue', () => {
     assert.lengthOf(stylesheetIssues, 1);
     const stylesheetIssue = stylesheetIssues[0];
 
-    assert.strictEqual(stylesheetIssue.getCategory(), IssuesManager.Issue.IssueCategory.OTHER);
-    assert.deepEqual(stylesheetIssue.sources(), [issueDetails.sourceCodeLocation]);
-    assert.strictEqual(stylesheetIssue.getKind(), IssuesManager.Issue.IssueKind.PAGE_ERROR);
+    assert.strictEqual(stylesheetIssue.getCategory(), IssuesManager.Issue.IssueCategory.Other);
+    assert.deepStrictEqual(stylesheetIssue.sources(), [issueDetails.sourceCodeLocation]);
+    assert.strictEqual(stylesheetIssue.getKind(), IssuesManager.Issue.IssueKind.PageError);
     assert.isNotNull(stylesheetIssue.getDescription());
   });
 
@@ -118,21 +118,21 @@ describeWithLocale('StylesheetLoadingIssue', () => {
     const aggregator = new Issues.IssueAggregator.IssueAggregator(mockManager);
     for (const issue of issues) {
       mockManager.dispatchEventToListeners(
-          IssuesManager.IssuesManager.Events.ISSUE_ADDED, {issuesModel: mockModel, issue});
+          IssuesManager.IssuesManager.Events.IssueAdded, {issuesModel: mockModel, issue});
     }
 
     const aggregatedIssues = Array.from(aggregator.aggregatedIssues());
     assert.lengthOf(aggregatedIssues, 2);
 
-    assert.deepEqual(
+    assert.deepStrictEqual(
         Array.from(aggregatedIssues[0].sources()),
         [issueDetails[0].sourceCodeLocation, issueDetails[1].sourceCodeLocation]);
-    assert.deepEqual(
+    assert.deepStrictEqual(
         Array.from(aggregatedIssues[1].sources()),
         [issueDetails[2].sourceCodeLocation, issueDetails[3].sourceCodeLocation]);
-    assert.deepEqual(Array.from(aggregatedIssues[0].requests()), []);
+    assert.deepStrictEqual(Array.from(aggregatedIssues[0].requests()), []);
     const {url, requestId} = issueDetails[3].failedRequestInfo as Protocol.Audits.FailedRequestInfo;
     assert.exists(requestId);
-    assert.deepEqual(Array.from(aggregatedIssues[1].requests()), [{url, requestId}]);
+    assert.deepStrictEqual(Array.from(aggregatedIssues[1].requests()), [{url, requestId}]);
   });
 });

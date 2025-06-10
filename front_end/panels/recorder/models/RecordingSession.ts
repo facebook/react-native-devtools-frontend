@@ -5,25 +5,26 @@
 import * as Common from '../../../core/common/common.js';
 import * as Platform from '../../../core/platform/platform.js';
 import * as SDK from '../../../core/sdk/sdk.js';
+import * as UI from '../../../ui/legacy/legacy.js';
+import * as Util from '../util/util.js';
+
 import type * as ProtocolProxyApi from '../../../generated/protocol-proxy-api.js';
 import type * as Protocol from '../../../generated/protocol.js';
-import * as UI from '../../../ui/legacy/legacy.js';
 import type * as Injected from '../injected/injected.js';
-import * as Util from '../util/util.js';
 
 import {
   AssertedEventType,
+  StepType,
+  type Key,
   type ChangeStep,
   type ClickStep,
   type DoubleClickStep,
   type FrameSelector,
-  type Key,
   type KeyDownStep,
   type KeyUpStep,
   type NavigationEvent,
   type SelectorType,
   type Step,
-  StepType,
   type Target,
   type UserFlow,
 } from './Schema.js';
@@ -32,30 +33,30 @@ import {evaluateInAllFrames, getTargetFrameContext} from './SDKUtils.js';
 
 const formatAsJSLiteral = Platform.StringUtilities.formatAsJSLiteral;
 
-interface TargetInfoChangedEvent {
-  type: 'targetInfoChanged';
-  event: Common.EventTarget.EventTargetEvent<Protocol.Target.TargetInfo>;
-  target: SDK.Target.Target;
-}
+type TargetInfoChangedEvent = {
+  type: 'targetInfoChanged',
+  event: Common.EventTarget.EventTargetEvent<Protocol.Target.TargetInfo>,
+  target: SDK.Target.Target,
+};
 
-interface TargerCreatedRecorderEvent {
-  type: 'targetCreated';
-  event: Common.EventTarget.EventTargetEvent<Protocol.Target.TargetInfo>;
-  target: SDK.Target.Target;
-}
+type TargerCreatedRecorderEvent = {
+  type: 'targetCreated',
+  event: Common.EventTarget.EventTargetEvent<Protocol.Target.TargetInfo>,
+  target: SDK.Target.Target,
+};
 
-interface TargetClosedRecorderEvent {
-  type: 'targetClosed';
-  event: Common.EventTarget.EventTargetEvent<Protocol.Target.TargetID>;
-  target: SDK.Target.Target;
-}
+type TargetClosedRecorderEvent = {
+  type: 'targetClosed',
+  event: Common.EventTarget.EventTargetEvent<Protocol.Target.TargetID>,
+  target: SDK.Target.Target,
+};
 
-interface BindingCalledRecorderEvent {
-  type: 'bindingCalled';
-  event: Common.EventTarget.EventTargetEvent<Protocol.Runtime.BindingCalledEvent>;
-  target: SDK.Target.Target;
-  frameId: Protocol.Page.FrameId;
-}
+type BindingCalledRecorderEvent = {
+  type: 'bindingCalled',
+  event: Common.EventTarget.EventTargetEvent<Protocol.Runtime.BindingCalledEvent>,
+  target: SDK.Target.Target,
+  frameId: Protocol.Page.FrameId,
+};
 
 type RecorderEvent =
     |TargetInfoChangedEvent|TargerCreatedRecorderEvent|TargetClosedRecorderEvent|BindingCalledRecorderEvent;
@@ -91,10 +92,10 @@ const createShortcuts = (descriptors: number[][]): Shortcut[] => {
       shortcutBase.keyCode = keyCode;
       const modifiersMap = UI.KeyboardShortcut.Modifiers;
 
-      shortcutBase.ctrl = Boolean(modifiers & modifiersMap.Ctrl.value);
-      shortcutBase.meta = Boolean(modifiers & modifiersMap.Meta.value);
-      shortcutBase.shift = Boolean(modifiers & modifiersMap.Shift.value);
-      shortcutBase.shift = Boolean(modifiers & modifiersMap.Alt.value);
+      shortcutBase.ctrl = Boolean(modifiers & modifiersMap.Ctrl);
+      shortcutBase.meta = Boolean(modifiers & modifiersMap.Meta);
+      shortcutBase.shift = Boolean(modifiers & modifiersMap.Shift);
+      shortcutBase.shift = Boolean(modifiers & modifiersMap.Alt);
 
       if (shortcutBase.keyCode !== -1) {
         shortcuts.push(shortcutBase);
@@ -123,18 +124,17 @@ export class RecordingSession extends Common.ObjectWrapper.ObjectWrapper<EventTy
   readonly #resourceTreeModel: SDK.ResourceTreeModel.ResourceTreeModel;
   readonly #targets = new Map<string, SDK.Target.Target>();
   readonly #lastNavigationEntryIdByTarget = new Map<string, number>();
-  readonly #lastNavigationHistoryByTarget = new Map<string, number[]>();
+  readonly #lastNavigationHistoryByTarget = new Map<string, Array<number>>();
   readonly #scriptIdentifiers = new Map<string, Protocol.Page.ScriptIdentifier>();
   readonly #runtimeEventDescriptors = new Map<
-      SDK.Target.Target,
-      Array<Common.EventTarget.EventDescriptor<SDK.RuntimeModel.EventTypes, SDK.RuntimeModel.Events>>>();
+      SDK.Target.Target, Common.EventTarget.EventDescriptor<SDK.RuntimeModel.EventTypes, SDK.RuntimeModel.Events>[]>();
   readonly #childTargetEventDescriptors = new Map<
       SDK.Target.Target,
-      Array<Common.EventTarget.EventDescriptor<SDK.ChildTargetManager.EventTypes, SDK.ChildTargetManager.Events>>>();
+      Common.EventTarget.EventDescriptor<SDK.ChildTargetManager.EventTypes, SDK.ChildTargetManager.Events>[]>();
   readonly #mutex = new Common.Mutex.Mutex();
 
   #userFlow: UserFlow;
-  #stepsPendingNavigationByTargetId = new Map<string, Step>();
+  #stepsPendingNavigationByTargetId: Map<string, Step> = new Map();
   #started = false;
   #selectorTypesToRecord: SelectorType[] = [];
 
@@ -181,7 +181,7 @@ export class RecordingSession extends Common.ObjectWrapper.ObjectWrapper<EventTy
     this.#started = true;
 
     this.#networkManager.addEventListener(
-        SDK.NetworkManager.MultitargetNetworkManager.Events.CONDITIONS_CHANGED, this.#appendCurrentNetworkStep, this);
+        SDK.NetworkManager.MultitargetNetworkManager.Events.ConditionsChanged, this.#appendCurrentNetworkStep, this);
 
     await this.#appendInitialSteps();
 
@@ -201,7 +201,7 @@ export class RecordingSession extends Common.ObjectWrapper.ObjectWrapper<EventTy
     await Promise.all([...this.#targets.values()].map(this.#tearDownTarget));
 
     this.#networkManager.removeEventListener(
-        SDK.NetworkManager.MultitargetNetworkManager.Events.CONDITIONS_CHANGED, this.#appendCurrentNetworkStep, this);
+        SDK.NetworkManager.MultitargetNetworkManager.Events.ConditionsChanged, this.#appendCurrentNetworkStep, this);
   }
 
   async #appendInitialSteps(): Promise<void> {
@@ -263,7 +263,7 @@ export class RecordingSession extends Common.ObjectWrapper.ObjectWrapper<EventTy
     }
     this.#updateTimeout = setTimeout(() => {
                             // Making a copy to prevent mutations of this.userFlow by event consumers.
-                            this.dispatchEventToListeners(Events.RECORDING_UPDATED, structuredClone(this.#userFlow));
+                            this.dispatchEventToListeners(Events.RecordingUpdated, structuredClone(this.#userFlow));
                             this.#updateTimeout = undefined;
                             for (const resolve of this.#updateListeners) {
                               resolve();
@@ -384,7 +384,7 @@ export class RecordingSession extends Common.ObjectWrapper.ObjectWrapper<EventTy
       this.#userFlow.steps.pop();
     }
 
-    this.dispatchEventToListeners(Events.RECORDING_STOPPED, structuredClone(this.#userFlow));
+    this.dispatchEventToListeners(Events.RecordingStopped, structuredClone(this.#userFlow));
   }
 
   #receiveBindingCalled(
@@ -517,7 +517,7 @@ export class RecordingSession extends Common.ObjectWrapper.ObjectWrapper<EventTy
   }
 
   #setUpTarget = async(target: SDK.Target.Target): Promise<void> => {
-    if (target.type() !== SDK.Target.Type.FRAME) {
+    if (target.type() !== SDK.Target.Type.Frame) {
       return;
     }
     this.#targets.set(target.id(), target);
@@ -533,11 +533,11 @@ export class RecordingSession extends Common.ObjectWrapper.ObjectWrapper<EventTy
     Platform.assertNotNullOrUndefined(childTargetManager);
     this.#childTargetEventDescriptors.set(target, [
       childTargetManager.addEventListener(
-          SDK.ChildTargetManager.Events.TARGET_CREATED, this.#receiveTargetCreated.bind(this, target)),
+          SDK.ChildTargetManager.Events.TargetCreated, this.#receiveTargetCreated.bind(this, target)),
       childTargetManager.addEventListener(
-          SDK.ChildTargetManager.Events.TARGET_DESTROYED, this.#receiveTargetClosed.bind(this, target)),
+          SDK.ChildTargetManager.Events.TargetDestroyed, this.#receiveTargetClosed.bind(this, target)),
       childTargetManager.addEventListener(
-          SDK.ChildTargetManager.Events.TARGET_INFO_CHANGED, this.#receiveTargetInfoChanged.bind(this, target)),
+          SDK.ChildTargetManager.Events.TargetInfoChanged, this.#receiveTargetInfoChanged.bind(this, target)),
     ]);
 
     await Promise.all(childTargetManager.childTargets().map(this.#setUpTarget));
@@ -745,8 +745,10 @@ export class RecordingSession extends Common.ObjectWrapper.ObjectWrapper<EventTy
 
   async #waitForDOMContentLoadedWithTimeout(
       resourceTreeModel: SDK.ResourceTreeModel.ResourceTreeModel, timeout: number): Promise<void> {
-    const {resolve: resolver, promise: contentLoadedPromise} = Promise.withResolvers<void>();
-
+    let resolver: (value: void|Promise<void>) => void = () => Promise.resolve();
+    const contentLoadedPromise = new Promise<void>(resolve => {
+      resolver = resolve;
+    });
     const onDomContentLoaded = (): void => {
       resourceTreeModel.removeEventListener(SDK.ResourceTreeModel.Events.DOMContentLoaded, onDomContentLoaded);
       resolver();
@@ -767,11 +769,11 @@ export class RecordingSession extends Common.ObjectWrapper.ObjectWrapper<EventTy
 }
 
 export const enum Events {
-  RECORDING_UPDATED = 'recordingupdated',
-  RECORDING_STOPPED = 'recordingstopped',
+  RecordingUpdated = 'recordingupdated',
+  RecordingStopped = 'recordingstopped',
 }
 
-interface EventTypes {
-  [Events.RECORDING_UPDATED]: UserFlow;
-  [Events.RECORDING_STOPPED]: UserFlow;
-}
+type EventTypes = {
+  [Events.RecordingUpdated]: UserFlow,
+  [Events.RecordingStopped]: UserFlow,
+};

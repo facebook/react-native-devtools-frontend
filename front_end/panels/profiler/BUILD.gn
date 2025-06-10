@@ -5,7 +5,7 @@
 import("../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../scripts/build/ninja/devtools_module.gni")
 import("../../../scripts/build/ninja/generate_css.gni")
-import("../../../scripts/build/typescript/typescript.gni")
+import("../../../third_party/typescript/typescript.gni")
 import("../visibility.gni")
 
 generate_css("css_files") {
@@ -22,8 +22,6 @@ devtools_module("profiler") {
   sources = [
     "BottomUpProfileDataGrid.ts",
     "ChildrenProvider.ts",
-    "HeapDetachedElementsDataGrid.ts",
-    "HeapDetachedElementsView.ts",
     "HeapProfileView.ts",
     "HeapProfilerPanel.ts",
     "HeapSnapshotDataGrids.ts",
@@ -55,7 +53,6 @@ devtools_module("profiler") {
     "../../models/cpu_profile:bundle",
     "../../models/heap_snapshot_model:bundle",
     "../../models/workspace:bundle",
-    "../../panels/elements:bundle",
     "../../panels/settings:bundle",
     "../../ui/legacy:bundle",
     "../../ui/legacy/components/data_grid:bundle",
@@ -95,19 +92,4 @@ devtools_entrypoint("meta") {
   ]
 
   visibility = [ "../../entrypoints/*" ]
-}
-
-ts_library("unittests") {
-  testonly = true
-
-  sources = [
-    "HeapDetachedElementsView.test.ts",
-    "HeapProfileView.test.ts",
-    "HeapSnapshotView.test.ts",
-  ]
-
-  deps = [
-    ":bundle",
-    "../../testing",
-  ]
 }

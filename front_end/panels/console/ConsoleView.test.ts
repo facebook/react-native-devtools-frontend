@@ -3,8 +3,7 @@
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
-import * as Host from '../../core/host/host.js';
-import * as Platform from '../../core/platform/platform.js';
+import type * as Platform from '../../core/platform/platform.js';
 import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
@@ -12,13 +11,11 @@ import * as IssuesManager from '../../models/issues_manager/issues_manager.js';
 import {findMenuItemWithLabel, getContextMenuForElement} from '../../testing/ContextMenuHelpers.js';
 import {dispatchPasteEvent} from '../../testing/DOMHelpers.js';
 import {createTarget, registerNoopActions} from '../../testing/EnvironmentHelpers.js';
-import {expectCall, expectCalled} from '../../testing/ExpectStubCall.js';
+import {expectCall} from '../../testing/ExpectStubCall.js';
 import {stubFileManager} from '../../testing/FileManagerHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
 
 import * as Console from './console.js';
-
-const {urlString} = Platform.DevToolsPath;
 
 describeWithMockConnection('ConsoleView', () => {
   let consoleView: Console.ConsoleView.ConsoleView;
@@ -34,7 +31,7 @@ describeWithMockConnection('ConsoleView', () => {
 
   it('adds a title to every checkbox label in the settings view', async () => {
     const consoleSettingsCheckboxes =
-        consoleView.element.querySelector('devtools-toolbar')!.querySelectorAll('dt-checkbox');
+        consoleView.element.querySelector('.toolbar')?.shadowRoot?.querySelectorAll('.toolbar-item.checkbox');
     if (!consoleSettingsCheckboxes) {
       assert.fail('No checkbox found in console settings');
       return;
@@ -56,7 +53,7 @@ describeWithMockConnection('ConsoleView', () => {
   }
 
   it('can save to file', async () => {
-    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
+    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
     createTarget({parentTarget: tabTarget, subtype: 'prerender'});
     const target = createTarget({parentTarget: tabTarget});
 
@@ -74,7 +71,7 @@ describeWithMockConnection('ConsoleView', () => {
     const TIMESTAMP = 42;
     const URL_HOST = 'example.com';
     sinon.stub(Date, 'now').returns(TIMESTAMP);
-    target.setInspectedURL(urlString`${`http://${URL_HOST}/foo`}`);
+    target.setInspectedURL(`http://${URL_HOST}/foo` as Platform.DevToolsPath.UrlString);
     const FILENAME = `${URL_HOST}-${TIMESTAMP}.log` as Platform.DevToolsPath.RawPathString;
     const fileManager = stubFileManager();
     const fileManagerCloseCall = expectCall(fileManager.close);
@@ -82,30 +79,6 @@ describeWithMockConnection('ConsoleView', () => {
     assert.isTrue(fileManager.save.calledOnceWith(FILENAME, '', true, false));
     await fileManagerCloseCall;
     assert.isTrue(fileManager.append.calledOnceWith(FILENAME, sinon.match('message 1\nmessage 2\n')));
-  });
-
-  it('can copy to clipboard', async () => {
-    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
-    createTarget({parentTarget: tabTarget, subtype: 'prerender'});
-    const target = createTarget({parentTarget: tabTarget});
-
-    const consoleModel = target.model(SDK.ConsoleModel.ConsoleModel);
-    assert.exists(consoleModel);
-    consoleModel.addMessage(createConsoleMessage(target, 'message 1'));
-    consoleModel.addMessage(createConsoleMessage(target, 'message 2'));
-    const messagesElement = consoleView.element.querySelector('#console-messages');
-    assert.exists(messagesElement);
-
-    const contextMenu = getContextMenuForElement(messagesElement);
-    const copy = findMenuItemWithLabel(contextMenu.saveSection(), 'Copy console');
-    assert.exists(copy);
-
-    const copyText = sinon.stub(Host.InspectorFrontendHost.InspectorFrontendHostInstance, 'copyText').resolves();
-    contextMenu.invokeHandler(copy.id());
-    await expectCalled(copyText);
-    assert.strictEqual(copyText.callCount, 1);
-    assert.deepEqual(copyText.lastCall.args, ['message 1\nmessage 2\n']);
-    copyText.resetHistory();
   });
 
   async function getConsoleMessages() {
@@ -213,7 +186,7 @@ describeWithMockConnection('ConsoleView', () => {
       SDK.ConsoleModel.ConsoleModel.requestClearMessages();
 
       const selfXssWarningDisabledSetting = Common.Settings.Settings.instance().createSetting(
-          'disable-self-xss-warning', false, Common.Settings.SettingStorageType.SYNCED);
+          'disable-self-xss-warning', false, Common.Settings.SettingStorageType.Synced);
 
       for (let i = 0; i < 5; i++) {
         assert.isFalse(selfXssWarningDisabledSetting.get());
@@ -235,7 +208,7 @@ describeWithMockConnection('ConsoleView', () => {
       assert.instanceOf(messagesElement, HTMLElement);
       dispatchPasteEvent(messagesElement, {clipboardData: dt, bubbles: true});
 
-      assert.lengthOf(Common.Console.Console.instance().messages(), 0);
+      assert.strictEqual(Common.Console.Console.instance().messages().length, 0);
       stub.restore();
     });
   });
@@ -254,24 +227,24 @@ describeWithMockConnection('ConsoleView', () => {
         SDK.ConsoleModel.Events.MessageAdded,
         createConsoleMessage(target, 'await new Promise(() => ())', SDK.ConsoleModel.FrontendMessageType.Command));
 
-    assert.deepEqual(consoleHistorySetting.get(), ['await new Promise(() => ())']);
+    assert.deepStrictEqual(consoleHistorySetting.get(), ['await new Promise(() => ())']);
   });
 
   it('keeps updating the issue counter when re-attached after detaching', async () => {
     consoleView.markAsRoot();
     const spy = sinon.spy(consoleView, 'issuesCountUpdatedForTest');
     const issuesManager = IssuesManager.IssuesManager.IssuesManager.instance();
-    issuesManager.dispatchEventToListeners(IssuesManager.IssuesManager.Events.ISSUES_COUNT_UPDATED);
+    issuesManager.dispatchEventToListeners(IssuesManager.IssuesManager.Events.IssuesCountUpdated);
     assert.isTrue(spy.calledOnce);
 
     // Pauses updating the issue counter
     consoleView.onDetach();
-    issuesManager.dispatchEventToListeners(IssuesManager.IssuesManager.Events.ISSUES_COUNT_UPDATED);
+    issuesManager.dispatchEventToListeners(IssuesManager.IssuesManager.Events.IssuesCountUpdated);
     assert.isTrue(spy.calledOnce);
 
     // Continues updating the issue counter
     consoleView.show(document.body);
-    issuesManager.dispatchEventToListeners(IssuesManager.IssuesManager.Events.ISSUES_COUNT_UPDATED);
+    issuesManager.dispatchEventToListeners(IssuesManager.IssuesManager.Events.IssuesCountUpdated);
     assert.isTrue(spy.calledTwice);
   });
 });

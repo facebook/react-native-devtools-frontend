@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Protocol from '../../../../generated/protocol.js';
-import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
+// @ts-nocheck TODO(crbug.com/348449529)
+
 import {TraceLoader} from '../../../../testing/TraceLoader.js';
-import * as Trace from '../../trace.js';
+import * as TraceModel from '../../trace.js';
 import * as Lantern from '../lantern.js';
-import {runTrace, toLanternTrace} from '../testing/testing.js';
+import {loadTrace, runTraceEngine} from '../testing/testing.js';
 
 const {NetworkNode, CPUNode} = Lantern.Graph;
 const {Simulator, DNSCache} = Lantern.Simulation;
@@ -15,73 +15,48 @@ const {Simulator, DNSCache} = Lantern.Simulation;
 let nextRequestId = 1;
 let nextTid = 1;
 
-async function createGraph(trace: Lantern.Types.Trace) {
-  const parsedTrace = await runTrace(trace);
-  const requests = Trace.LanternComputationData.createNetworkRequests(trace, parsedTrace);
-  return Trace.LanternComputationData.createGraph(requests, trace, parsedTrace);
+async function createGraph(trace: Lantern.Trace) {
+  const traceEngineData = await runTraceEngine(trace);
+  const requests = TraceModel.LanternComputationData.createNetworkRequests(trace, traceEngineData);
+  return TraceModel.LanternComputationData.createGraph(requests, trace, traceEngineData);
 }
 
-interface FakeRequestOpts {
-  startTime?: number;
-  endTime?: number;
-  requestId?: number;
-  transferSize?: number;
-  scheme?: number;
-  timing?: Protocol.Network.ResourceTiming;
-  fromDiskCache?: boolean;
-  url?: string;
-  parsedURL?: {scheme?: string, host?: string, securityOrigin?: string};
-  protocol?: string;
-  networkRequestTime?: number;
-  connectionId?: number;
-  priority?: Lantern.Types.ResourcePriority;
-  resourceSize?: number;
-}
-// Instantiating a Simulator instance requires this value, but it isn't really
-// needed for the sake of these tests, so we hardcode a reasonable value here
-// to use throughout.
-const observedThroughput = 240000;
-
-function request(opts: FakeRequestOpts): Lantern.Types.NetworkRequest {
+function request(opts) {
   const scheme = opts.scheme || 'http';
   const url = `${scheme}://example.com`;
-  const rendererStartTime = opts.startTime ?? 0;
-  const networkEndTime = opts.endTime ?? 0;
+  const rendererStartTime = opts.startTime;
+  const networkEndTime = opts.endTime;
   delete opts.startTime;
   delete opts.endTime;
 
   return Object.assign(
-             {
-               requestId: opts.requestId || nextRequestId++,
-               url,
-               transferSize: opts.transferSize || 1000,
-               protocol: scheme,
-               parsedURL: {scheme, host: 'example.com', securityOrigin: url},
-               timing: opts.timing,
-               rendererStartTime,
-               networkEndTime,
-             },
-             opts) as unknown as Lantern.Types.NetworkRequest;
+      {
+        requestId: opts.requestId || nextRequestId++,
+        url,
+        transferSize: opts.transferSize || 1000,
+        protocol: scheme,
+        parsedURL: {scheme, host: 'example.com', securityOrigin: url},
+        timing: opts.timing,
+        rendererStartTime,
+        networkEndTime,
+      },
+      opts);
 }
 
-function cpuTask({tid, ts, duration}: {
-  tid?: number,
-  ts?: number,
-  duration?: number,
-}): Trace.Lantern.Types.TraceEvent {
+function cpuTask({tid, ts, duration}) {
   tid = tid || nextTid++;
   ts = ts || 0;
   const dur = ((duration || 0) * 1000) / 5;
-  return {tid, ts, dur} as Trace.Lantern.Types.TraceEvent;
+  return {tid, ts, dur};
 }
 
-describeWithEnvironment('DependencyGraph/Simulator', () => {
+describe('DependencyGraph/Simulator', () => {
   // Insulate the simulator tests from DNS multiplier changes
-  let originalDNSMultiplier = 1;
-  let trace: Lantern.Types.Trace;
+  let originalDNSMultiplier;
+  let trace: Lantern.Trace;
 
   before(async function() {
-    trace = toLanternTrace(await TraceLoader.rawEvents(this, 'lantern/progressive-app/trace.json.gz'));
+    trace = await loadTrace(this, 'lantern/progressive-app/trace.json.gz');
     originalDNSMultiplier = DNSCache.rttMultiplier;
     DNSCache.rttMultiplier = 1;
   });
@@ -93,20 +68,17 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
   describe('.simulate', () => {
     const serverResponseTimeByOrigin = new Map([['http://example.com', 500]]);
 
-    function assertNodeTiming(
-        result: Lantern.Simulation.Result, node: Lantern.Graph.NetworkNode|Lantern.Graph.CPUNode,
-        assertions: Partial<Trace.Lantern.Types.Simulation.NodeTiming>) {
+    function assertNodeTiming(result, node, assertions) {
       const timing = result.nodeTimings.get(node);
-      assert.isOk(timing, 'missing node timing information');
-      Object.keys(assertions).forEach(k => {
-        const key = k as keyof Trace.Lantern.Types.Simulation.NodeTiming;
+      assert.ok(timing, 'missing node timing information');
+      Object.keys(assertions).forEach(key => {
         assert.strictEqual(timing[key], assertions[key]);
       });
     }
 
     it('should simulate basic network graphs', () => {
       const rootNode = new NetworkNode(request({}));
-      const simulator = new Simulator({serverResponseTimeByOrigin, observedThroughput: 1});
+      const simulator = new Simulator({serverResponseTimeByOrigin});
       const result = simulator.simulate(rootNode);
       // should be 3 RTTs and 500ms for the server response time
       assert.strictEqual(result.timeInMs, 450 + 500);
@@ -121,7 +93,6 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
       const simulator = new Simulator({
         serverResponseTimeByOrigin,
         cpuSlowdownMultiplier: 5,
-        observedThroughput: 1,
       });
       const result = simulator.simulate(rootNode);
       // should be 3 RTTs and 500ms for the server response time + 200 CPU
@@ -140,7 +111,7 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
       nodeB.addDependent(nodeC);
       nodeC.addDependent(nodeD);
 
-      const simulator = new Simulator({serverResponseTimeByOrigin, observedThroughput: 1});
+      const simulator = new Simulator({serverResponseTimeByOrigin});
       const result = simulator.simulate(nodeA);
       // should be 950ms for A, 650ms each for B, C, D (no DNS and one-way connection)
       assert.strictEqual(result.timeInMs, 2900);
@@ -155,7 +126,7 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
       const nodeB = new NetworkNode(request({startTime: 0, endTime: 3, fromDiskCache: true}));
       nodeA.addDependent(nodeB);
 
-      const simulator = new Simulator({serverResponseTimeByOrigin, observedThroughput: 1});
+      const simulator = new Simulator({serverResponseTimeByOrigin});
       const result = simulator.simulate(nodeA);
       // should be ~8ms each for A, B
       assert.strictEqual(result.timeInMs, 16);
@@ -172,7 +143,7 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
           new NetworkNode(request({startTime: 0, endTime: 3, url, parsedURL, protocol, resourceSize: 1024 * 1024}));
       nodeA.addDependent(nodeB);
 
-      const simulator = new Simulator({serverResponseTimeByOrigin, observedThroughput: 1});
+      const simulator = new Simulator({serverResponseTimeByOrigin});
       const result = simulator.simulate(nodeA);
 
       // should be ~2ms for A (resourceSize 0), ~12ms for B (resourceSize 1MB)
@@ -194,7 +165,6 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
       const simulator = new Simulator({
         serverResponseTimeByOrigin,
         cpuSlowdownMultiplier: 5,
-        observedThroughput: 1,
       });
       const result = simulator.simulate(nodeA);
       // should be 800ms A, then 1000 ms total for B, C, D in serial
@@ -222,7 +192,6 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
       const simulator = new Simulator({
         serverResponseTimeByOrigin,
         cpuSlowdownMultiplier: 5,
-        observedThroughput: 1,
       });
       const result = simulator.simulate(nodeA);
       // should be 950ms for A, 650ms each for B, C, D, with F finishing 700 ms after D
@@ -239,7 +208,7 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
       nodeA.addDependent(nodeC);
       nodeA.addDependent(nodeD);
 
-      const simulator = new Simulator({serverResponseTimeByOrigin, observedThroughput: 1});
+      const simulator = new Simulator({serverResponseTimeByOrigin});
       const result = simulator.simulate(nodeA);
       // should be 950ms for A and 950ms for C (2 round trips of downloading, but no DNS)
       assert.strictEqual(result.timeInMs, 950 + 950);
@@ -255,7 +224,7 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
       nodeA.addDependent(nodeC);
       nodeA.addDependent(nodeD);
 
-      const simulator = new Simulator({serverResponseTimeByOrigin, observedThroughput: 1});
+      const simulator = new Simulator({serverResponseTimeByOrigin});
       const result = simulator.simulate(nodeA);
       // should be 950ms for A, 650ms for B reusing connection, 800ms for C and D in parallel.
       assert.strictEqual(result.timeInMs, 950 + 800);
@@ -282,7 +251,7 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
       // 1 RT 80 kbps b/c it needs to grow congestion window from being shared
       // 1 RT 160 kbps b/c TCP
       // 2 RT 240 kbps b/c throughput cap
-      const simulator = new Simulator({serverResponseTimeByOrigin, throughput: 240000, observedThroughput: 240000});
+      const simulator = new Simulator({serverResponseTimeByOrigin, throughput: 240000});
       const result = simulator.simulate(nodeA);
       // should be 950ms for A and 1400ms for C (5 round trips of downloading)
       assert.strictEqual(result.timeInMs, 950 + (150 + 750 + 500));
@@ -304,8 +273,7 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
         rootNode.addDependent(imageNode);
       }
 
-      const simulator =
-          new Simulator({serverResponseTimeByOrigin, maximumConcurrentRequests: 1, observedThroughput: 1});
+      const simulator = new Simulator({serverResponseTimeByOrigin, maximumConcurrentRequests: 1});
       const result = simulator.simulate(rootNode);
 
       // should be 3 RTs + SRT for rootNode (950ms)
@@ -334,7 +302,7 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
         rootNode.addDependent(imageNode);
       }
 
-      const simulator = new Simulator({serverResponseTimeByOrigin, maximumConcurrentRequests: 1, observedThroughput});
+      const simulator = new Simulator({serverResponseTimeByOrigin, maximumConcurrentRequests: 1});
       const result = simulator.simulate(rootNode);
 
       // should be 3 RTs + SRT for rootNode (950ms)
@@ -348,7 +316,7 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
     });
 
     it('should simulate two graphs in a row', () => {
-      const simulator = new Simulator({serverResponseTimeByOrigin, observedThroughput});
+      const simulator = new Simulator({serverResponseTimeByOrigin});
 
       const nodeA = new NetworkNode(request({}));
       const nodeB = new NetworkNode(request({}));
@@ -376,7 +344,7 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
     });
 
     it('should maximize throughput with H2', () => {
-      const simulator = new Simulator({serverResponseTimeByOrigin, observedThroughput});
+      const simulator = new Simulator({serverResponseTimeByOrigin});
       const connectionDefaults = {protocol: 'h2', connectionId: 1};
       const nodeA = new NetworkNode(request({startTime: 0, endTime: 1, ...connectionDefaults}));
       const nodeB = new NetworkNode(request({startTime: 1, endTime: 2, ...connectionDefaults}));
@@ -404,7 +372,7 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
       rootNode.addDependency(depNode);
       depNode.addDependency(rootNode);
 
-      const simulator = new Simulator({serverResponseTimeByOrigin, observedThroughput});
+      const simulator = new Simulator({serverResponseTimeByOrigin});
       assert.throws(() => simulator.simulate(rootNode), /cycle/);
     });
 
@@ -413,14 +381,14 @@ describeWithEnvironment('DependencyGraph/Simulator', () => {
 
       it('should compute a timeInMs', async function() {
         const graph = await createGraph(trace);
-        const simulator = new Simulator({serverResponseTimeByOrigin, observedThroughput});
+        const simulator = new Simulator({serverResponseTimeByOrigin});
         const result = simulator.simulate(graph);
         expect(result.timeInMs).to.be.greaterThan(100);
       });
 
       it('should sort the task event times', async () => {
         const graph = await createGraph(trace);
-        const simulator = new Simulator({serverResponseTimeByOrigin, observedThroughput});
+        const simulator = new Simulator({serverResponseTimeByOrigin});
         const result = simulator.simulate(graph);
         const nodeTimings = Array.from(result.nodeTimings.entries());
 

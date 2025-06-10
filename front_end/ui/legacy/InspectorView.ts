@@ -32,28 +32,25 @@ import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Root from '../../core/root/root.js';
-import * as SDK from '../../core/sdk/sdk.js';
-import * as Buttons from '../../ui/components/buttons/buttons.js';
 import * as IconButton from '../components/icon_button/icon_button.js';
 import * as VisualLogging from '../visual_logging/visual_logging.js';
 
-import type {ActionDelegate as ActionDelegateInterface} from './ActionRegistration.js';
-import {ActionRegistry} from './ActionRegistry.js';
+import {type ActionDelegate as ActionDelegateInterface} from './ActionRegistration.js';
 import * as ARIAUtils from './ARIAUtils.js';
-import type {Context} from './Context.js';
-import type {ContextMenu} from './ContextMenu.js';
+import {type Context} from './Context.js';
+import {type ContextMenu} from './ContextMenu.js';
 import {Dialog} from './Dialog.js';
 import {DockController, DockState} from './DockController.js';
 import {GlassPane} from './GlassPane.js';
 import {Infobar, Type as InfobarType} from './Infobar.js';
-import inspectorViewTabbedPaneStyles from './inspectorViewTabbedPane.css.js';
+import inspectorViewTabbedPaneStyles from './inspectorViewTabbedPane.css.legacy.js';
 import {KeyboardShortcut} from './KeyboardShortcut.js';
-import type {Panel} from './Panel.js';
+import {type Panel} from './Panel.js';
 import {ShowMode, SplitWidget} from './SplitWidget.js';
 import {type EventData, Events as TabbedPaneEvents, type TabbedPane, type TabbedPaneTabDelegate} from './TabbedPane.js';
 import {ToolbarButton} from './Toolbar.js';
 import {Tooltip} from './Tooltip.js';
-import type {TabbedViewLocation, View, ViewLocation, ViewLocationResolver} from './View.js';
+import {type TabbedViewLocation, type View, type ViewLocation, type ViewLocationResolver} from './View.js';
 import {ViewManager} from './ViewManager.js';
 import {VBox, type Widget, WidgetFocusRestorer} from './Widget.js';
 
@@ -70,10 +67,6 @@ const UIStrings = {
    *@description The aria label for main tabbed pane that contains Panels
    */
   panels: 'Panels',
-  /**
-   *@description Title of an action that reloads the tab currently being debugged by DevTools
-   */
-  reloadDebuggedTab: 'Reload page',
   /**
    *@description Title of an action that reloads the DevTools
    */
@@ -92,7 +85,7 @@ const UIStrings = {
    * The placeholder is the current Chrome language.
    * @example {German} PH1
    */
-  devToolsLanguageMissmatch: 'DevTools is now available in {PH1}',
+  devToolsLanguageMissmatch: 'DevTools is now available in {PH1}!',
   /**
    * @description An option the user can select when we notice that DevTools
    * is configured with a different locale than Chrome. This option means DevTools will
@@ -126,12 +119,12 @@ const UIStrings = {
    * @description Request for the user to select a local file system folder for DevTools
    * to store local overrides in.
    */
-  selectOverrideFolder: 'Select a folder to store override files in',
+  selectOverrideFolder: 'Select a folder to store override files in.',
   /**
    *@description Label for a button which opens a file picker.
    */
   selectFolder: 'Select folder',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/InspectorView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 let inspectorViewInstance: InspectorView|null = null;
@@ -179,12 +172,12 @@ export class InspectorView extends VBox implements ViewLocationResolver {
     this.drawerTabbedPane.element.setAttribute('jslog', `${VisualLogging.drawer()}`);
     const closeDrawerButton = new ToolbarButton(i18nString(UIStrings.closeDrawer), 'cross');
     closeDrawerButton.element.setAttribute('jslog', `${VisualLogging.close().track({click: true})}`);
-    closeDrawerButton.addEventListener(ToolbarButton.Events.CLICK, this.closeDrawer, this);
+    closeDrawerButton.addEventListener(ToolbarButton.Events.Click, this.closeDrawer, this);
     this.drawerTabbedPane.addEventListener(
         TabbedPaneEvents.TabSelected,
         (event: Common.EventTarget.EventTargetEvent<EventData>) => this.tabSelected(event.data.tabId, 'drawer'), this);
     const selectedDrawerTab = this.drawerTabbedPane.selectedTabId;
-    if (this.drawerSplitWidget.showMode() !== ShowMode.ONLY_MAIN && selectedDrawerTab) {
+    if (this.drawerSplitWidget.showMode() !== ShowMode.OnlyMain && selectedDrawerTab) {
       Host.userMetrics.panelShown(selectedDrawerTab, true);
       Host.userMetrics.panelShownInLocation(selectedDrawerTab, 'drawer');
     }
@@ -215,7 +208,7 @@ export class InspectorView extends VBox implements ViewLocationResolver {
     // to prevent to prevent a shift in the tab layout. Note that when DevTools cannot be docked,
     // the Device mode button is not added and so the allocated space is smaller.
     const allocatedSpace = Root.Runtime.conditions.canDock() ? '69px' : '41px';
-    this.tabbedPane.leftToolbar().style.minWidth = allocatedSpace;
+    this.tabbedPane.leftToolbar().element.style.minWidth = allocatedSpace;
     this.tabbedPane.registerRequiredCSS(inspectorViewTabbedPaneStyles);
     this.tabbedPane.addEventListener(
         TabbedPaneEvents.TabSelected,
@@ -314,7 +307,7 @@ export class InspectorView extends VBox implements ViewLocationResolver {
     if (!view) {
       throw new Error(`Expected view for panel '${panelName}'`);
     }
-    return await (view.widget() as Promise<Panel>);
+    return view.widget() as Promise<Panel>;
   }
 
   onSuspendStateChanged(allTargetsSuspended: boolean): void {
@@ -339,15 +332,15 @@ export class InspectorView extends VBox implements ViewLocationResolver {
       let icon: IconButton.Icon.Icon|null = null;
       if (warnings.length !== 0) {
         const warning = warnings.length === 1 ? warnings[0] : '· ' + warnings.join('\n· ');
-        icon = IconButton.Icon.create('warning-filled', 'warning');
+        icon = IconButton.Icon.create('warning-filled');
         Tooltip.install(icon, warning);
       }
-      tabbedPane.setTrailingTabIcon(tabId, icon);
+      tabbedPane.setTabIcon(tabId, icon);
     }
   }
 
   private emitDrawerChangeEvent(isDrawerOpen: boolean): void {
-    const evt = new CustomEvent(Events.DRAWER_CHANGE, {bubbles: true, cancelable: true, detail: {isDrawerOpen}});
+    const evt = new CustomEvent(Events.DrawerChange, {bubbles: true, cancelable: true, detail: {isDrawerOpen}});
     document.body.dispatchEvent(evt);
   }
 
@@ -367,7 +360,7 @@ export class InspectorView extends VBox implements ViewLocationResolver {
   }
 
   currentPanelDeprecated(): Widget|null {
-    return (ViewManager.instance().materializedWidget(this.tabbedPane.selectedTabId || ''));
+    return (ViewManager.instance().materializedWidget(this.tabbedPane.selectedTabId || '') as Widget | null);
   }
 
   showDrawer({focus, hasTargetDrawer}: {focus: boolean, hasTargetDrawer: boolean}): void {
@@ -410,6 +403,10 @@ export class InspectorView extends VBox implements ViewLocationResolver {
 
   isDrawerMinimized(): boolean {
     return this.drawerSplitWidget.isSidebarMinimized();
+  }
+
+  closeDrawerTab(id: string, userGesture?: boolean): void {
+    this.drawerTabbedPane.closeTab(id, userGesture);
   }
 
   private keyDown(event: Event): void {
@@ -479,59 +476,20 @@ export class InspectorView extends VBox implements ViewLocationResolver {
     }
   }
 
-  displayDebuggedTabReloadRequiredWarning(message: string): void {
-    if (!this.reloadRequiredInfobar) {
-      const infobar = new Infobar(
-          InfobarType.INFO, message,
-          [
-            {
-              text: i18nString(UIStrings.reloadDebuggedTab),
-              delegate: () => {
-                reloadDebuggedTab();
-                this.removeDebuggedTabReloadRequiredWarning();
-              },
-              dismiss: false,
-              buttonVariant: Buttons.Button.Variant.PRIMARY,
-              jslogContext: 'main.debug-reload',
-            },
-          ],
-          undefined, 'reload-required');
-      infobar.setParentView(this);
-      this.attachInfobar(infobar);
-      this.reloadRequiredInfobar = infobar;
-      infobar.setCloseCallback(() => {
-        delete this.reloadRequiredInfobar;
-      });
-
-      SDK.TargetManager.TargetManager.instance().addModelListener(
-          SDK.ResourceTreeModel.ResourceTreeModel, SDK.ResourceTreeModel.Events.PrimaryPageChanged,
-          this.removeDebuggedTabReloadRequiredWarning, this);
-    }
-  }
-
-  removeDebuggedTabReloadRequiredWarning(): void {
-    if (this.reloadRequiredInfobar) {
-      this.reloadRequiredInfobar.dispose();
-      SDK.TargetManager.TargetManager.instance().removeModelListener(
-          SDK.ResourceTreeModel.ResourceTreeModel, SDK.ResourceTreeModel.Events.PrimaryPageChanged,
-          this.removeDebuggedTabReloadRequiredWarning, this);
-    }
-  }
-
   displayReloadRequiredWarning(message: string): void {
     if (!this.reloadRequiredInfobar) {
       const infobar = new Infobar(
-          InfobarType.INFO, message,
+          InfobarType.Info, message,
           [
             {
               text: i18nString(UIStrings.reloadDevtools),
+              highlight: true,
               delegate: () => reloadDevTools(),
               dismiss: false,
-              buttonVariant: Buttons.Button.Variant.PRIMARY,
               jslogContext: 'main.debug-reload',
             },
           ],
-          undefined, 'reload-required');
+          undefined, undefined, 'reload-required');
       infobar.setParentView(this);
       this.attachInfobar(infobar);
       this.reloadRequiredInfobar = infobar;
@@ -544,17 +502,17 @@ export class InspectorView extends VBox implements ViewLocationResolver {
   displaySelectOverrideFolderInfobar(callback: () => void): void {
     if (!this.#selectOverrideFolderInfobar) {
       const infobar = new Infobar(
-          InfobarType.INFO, i18nString(UIStrings.selectOverrideFolder),
+          InfobarType.Info, i18nString(UIStrings.selectOverrideFolder),
           [
             {
               text: i18nString(UIStrings.selectFolder),
+              highlight: true,
               delegate: () => callback(),
               dismiss: true,
-              buttonVariant: Buttons.Button.Variant.TONAL,
               jslogContext: 'select-folder',
             },
           ],
-          undefined, 'select-override-folder');
+          undefined, undefined, 'select-override-folder');
       infobar.setParentView(this);
       this.attachInfobar(infobar);
       this.#selectOverrideFolderInfobar = infobar;
@@ -609,10 +567,11 @@ function createLocaleInfobar(): Infobar {
 
   const languageSetting = Common.Settings.Settings.instance().moduleSetting<string>('language');
   return new Infobar(
-      InfobarType.INFO, i18nString(UIStrings.devToolsLanguageMissmatch, {PH1: closestSupportedLanguageInCurrentLocale}),
+      InfobarType.Info, i18nString(UIStrings.devToolsLanguageMissmatch, {PH1: closestSupportedLanguageInCurrentLocale}),
       [
         {
           text: i18nString(UIStrings.setToBrowserLanguage),
+          highlight: true,
           delegate: () => {
             languageSetting.set('browserLanguage');
             getDisableLocaleInfoBarSetting().set(true);
@@ -623,6 +582,7 @@ function createLocaleInfobar(): Infobar {
         },
         {
           text: i18nString(UIStrings.setToSpecificLanguage, {PH1: closestSupportedLanguageInCurrentLocale}),
+          highlight: true,
           delegate: () => {
             languageSetting.set(closestSupportedLocale);
             getDisableLocaleInfoBarSetting().set(true);
@@ -632,7 +592,7 @@ function createLocaleInfobar(): Infobar {
           jslogContext: 'set-to-specific-language',
         },
       ],
-      getDisableLocaleInfoBarSetting(), 'language-mismatch');
+      getDisableLocaleInfoBarSetting(), undefined, 'language-mismatch');
 }
 
 function reloadDevTools(): void {
@@ -640,10 +600,6 @@ function reloadDevTools(): void {
     Host.InspectorFrontendHost.InspectorFrontendHostInstance.setIsDocked(true, function() {});
   }
   Host.InspectorFrontendHost.InspectorFrontendHostInstance.reattach(() => window.location.reload());
-}
-
-function reloadDebuggedTab(): void {
-  void ActionRegistry.instance().getAction('inspector-main.reload').execute();
 }
 
 export class ActionDelegate implements ActionDelegateInterface {
@@ -705,5 +661,5 @@ export class InspectorViewTabDelegate implements TabbedPaneTabDelegate {
 }
 
 export const enum Events {
-  DRAWER_CHANGE = 'drawerchange',
+  DrawerChange = 'drawerchange',
 }

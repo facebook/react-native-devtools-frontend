@@ -2,22 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// eslint-disable-next-line rulesdir/es-modules-import
-import inspectorCommonStylesRaw from '../../../ui/legacy/inspectorCommon.css.js';
-import * as Lit from '../../../ui/lit/lit.js';
+// eslint-disable-next-line rulesdir/es_modules_import
+import inspectorCommonStyles from '../../../ui/legacy/inspectorCommon.css.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import cssQueryStylesRaw from './cssQuery.css.js';
+import cssQueryStyles from './cssQuery.css.js';
 
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const inspectorCommonStyles = new CSSStyleSheet();
-inspectorCommonStyles.replaceSync(inspectorCommonStylesRaw.cssText);
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const cssQueryStyles = new CSSStyleSheet();
-cssQueryStyles.replaceSync(cssQueryStylesRaw.cssText);
-
-const {render, html} = Lit;
+const {render, html} = LitHtml;
 
 export interface CSSQueryData {
   queryPrefix: string;
@@ -28,11 +20,12 @@ export interface CSSQueryData {
 }
 
 export class CSSQuery extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-css-query`;
 
   readonly #shadow = this.attachShadow({mode: 'open'});
-  #queryPrefix = '';
+  #queryPrefix: string = '';
   #queryName?: string;
-  #queryText = '';
+  #queryText: string = '';
   #onQueryTextClick?: (event: Event) => void;
   #jslogContext?: string;
 
@@ -53,7 +46,7 @@ export class CSSQuery extends HTMLElement {
   }
 
   #render(): void {
-    const queryClasses = Lit.Directives.classMap({
+    const queryClasses = LitHtml.Directives.classMap({
       query: true,
       editable: Boolean(this.#onQueryTextClick),
     });
@@ -66,7 +59,7 @@ export class CSSQuery extends HTMLElement {
 
     render(html`
       <div class=${queryClasses} jslog=${VisualLogging.cssRuleHeader(this.#jslogContext).track({click:true, change: true})}>
-        <slot name="indent"></slot>${this.#queryPrefix ? html`<span>${this.#queryPrefix + ' '}</span>` : Lit.nothing}${this.#queryName ? html`<span>${this.#queryName + ' '}</span>` : Lit.nothing}${queryText} {
+        <slot name="indent"></slot>${this.#queryPrefix ? html`<span>${this.#queryPrefix + ' '}</span>` : LitHtml.nothing}${this.#queryName ? html`<span>${this.#queryName + ' '}</span>` : LitHtml.nothing}${queryText} {
       </div>
     `, this.#shadow, {
       host: this,

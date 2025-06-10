@@ -56,12 +56,10 @@ export class HeapSnapshotWorkerDispatcher {
   }
 
   sendEvent(name: string, data: unknown): void {
-    this.#postMessage({eventName: name, data});
+    this.#postMessage({eventName: name, data: data});
   }
 
-  async dispatchMessage({data, ports}:
-                            {data: HeapSnapshotModel.HeapSnapshotModel.WorkerCommand, ports: readonly MessagePort[]}):
-      Promise<void> {
+  dispatchMessage({data}: {data: HeapSnapshotModel.HeapSnapshotModel.WorkerCommand}): void {
     const response: DispatcherResponse =
         {callId: data.callId, result: null, error: undefined, errorCallStack: undefined, errorMethodName: undefined};
     try {
@@ -81,9 +79,7 @@ export class HeapSnapshotWorkerDispatcher {
         }
         case 'factory': {
           const object = this.#objects[data.objectId];
-          const args = data.methodArguments.slice();
-          args.push(...ports);
-          const result = await object[data.methodName].apply(object, args);
+          const result = object[data.methodName].apply(object, data.methodArguments);
           if (result) {
             this.#objects[data.newObjectId] = result;
           }
@@ -98,22 +94,19 @@ export class HeapSnapshotWorkerDispatcher {
         case 'evaluateForTest': {
           try {
             // Make 'HeapSnapshotWorker' and 'HeapSnapshotModel' available to web tests. 'eval' can't use 'import'.
-            // @ts-expect-error
+            // @ts-ignore
             globalThis.HeapSnapshotWorker = {
               AllocationProfile,
               HeapSnapshot,
               HeapSnapshotLoader,
             };
-            // @ts-expect-error
+            // @ts-ignore
             globalThis.HeapSnapshotModel = HeapSnapshotModel;
-            response.result = await self.eval(data.source);
+            response.result = self.eval(data.source);
           } catch (error) {
             response.result = error.toString();
           }
           break;
-        }
-        case 'setupForSecondaryInit': {
-          this.#objects[data.objectId] = new HeapSnapshot.SecondaryInitManager(ports[0]);
         }
       }
     } catch (error) {

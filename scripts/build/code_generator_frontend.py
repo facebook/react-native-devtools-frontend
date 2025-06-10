@@ -198,7 +198,7 @@ class Templates:
  *  ): void,
  * }}
  */
-// @ts-expect-error typedef
+// @ts-ignore typedef
 export let InspectorBackendAPI;
 
 /**

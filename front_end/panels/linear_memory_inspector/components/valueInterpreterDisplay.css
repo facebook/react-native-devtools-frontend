@@ -65,5 +65,4 @@
 
 .selectable-text::selection {
   background-color: var(--sys-color-tonal-container);
-  color: currentcolor;
 }

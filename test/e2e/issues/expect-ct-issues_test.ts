@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import {assertNotNullOrUndefined, getBrowserAndPages} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   ensureResourceSectionIsExpanded,
   expandIssue,
@@ -16,7 +17,7 @@ describe('Expect-CT Issue', () => {
   it('should display deprecation issue for Expect-CT header', async () => {
     await navigateToIssuesTab();
     const {frontend} = getBrowserAndPages();
-    await frontend.evaluate(() => {
+    frontend.evaluate(() => {
       const issue = {
         code: 'DeprecationIssue',
         details: {
@@ -30,7 +31,7 @@ describe('Expect-CT Issue', () => {
           },
         },
       };
-      // @ts-expect-error
+      // @ts-ignore
       window.addIssueForTest(issue);
     });
 

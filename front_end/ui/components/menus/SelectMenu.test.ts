@@ -2,15 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Helpers from '../../../testing/DOMHelpers.js';  // eslint-disable-line rulesdir/es-modules-import
+import * as Helpers from '../../../testing/DOMHelpers.js';  // eslint-disable-line rulesdir/es_modules_import
 import {
   describeWithLocale,
 } from '../../../testing/EnvironmentHelpers.js';
-import {html} from '../../lit/lit.js';
+import * as LitHtml from '../../lit-html/lit-html.js';
 import * as Dialogs from '../dialogs/dialogs.js';
-import * as RenderCoordinator from '../render_coordinator/render_coordinator.js';
+import * as Coordinator from '../render_coordinator/render_coordinator.js';
 
 import * as Menus from './menus.js';
+
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 async function createMenu(): Promise<Menus.SelectMenu.SelectMenu> {
   const menuItems = [
@@ -45,7 +47,7 @@ async function createMenu(): Promise<Menus.SelectMenu.SelectMenu> {
     menu.appendChild(selectMenuItem);
   });
 
-  await RenderCoordinator.done();
+  await coordinator.done();
   return menu;
 }
 
@@ -59,7 +61,7 @@ describeWithLocale('SelectMenu', () => {
     }
     menu.buttonTitle = 'Override Title';
     Helpers.renderElementIntoDOM(menu);
-    await RenderCoordinator.done();
+    await coordinator.done();
     assert.isNotNull(menu.shadowRoot);
     const button = menu.shadowRoot.querySelector('devtools-select-menu-button');
     if (!button) {
@@ -78,9 +80,9 @@ describeWithLocale('SelectMenu', () => {
       return;
     }
     firsItem.selected = true;
-    menu.buttonTitle = () => html`Override Title`;
+    menu.buttonTitle = () => LitHtml.html`Override Title`;
     Helpers.renderElementIntoDOM(menu);
-    await RenderCoordinator.done();
+    await coordinator.done();
     assert.isNotNull(menu.shadowRoot);
     const button = menu.shadowRoot.querySelector('devtools-select-menu-button');
     if (!button) {

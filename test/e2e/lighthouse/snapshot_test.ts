@@ -6,6 +6,7 @@ import {assert} from 'chai';
 
 import {expectError} from '../../conductor/events.js';
 import {$textContent, getBrowserAndPages} from '../../shared/helper.js';
+import {describe} from '../../shared/mocha-extensions.js';
 import {
   clickStartButton,
   getAuditsBreakdown,
@@ -64,7 +65,7 @@ describe('Snapshot', function() {
 
     assert.strictEqual(lhr.gatherMode, 'snapshot');
 
-    assert.deepEqual(artifacts.ViewportDimensions, {
+    assert.deepStrictEqual(artifacts.ViewportDimensions, {
       innerHeight: 823,
       innerWidth: 412,
       outerHeight: 823,
@@ -73,9 +74,9 @@ describe('Snapshot', function() {
     });
 
     const {auditResults, erroredAudits, failedAudits} = getAuditsBreakdown(lhr);
-    assert.lengthOf(auditResults, 88);
-    assert.deepEqual(erroredAudits, []);
-    assert.deepEqual(failedAudits.map(audit => audit.id), [
+    assert.strictEqual(auditResults.length, 88);
+    assert.deepStrictEqual(erroredAudits, []);
+    assert.deepStrictEqual(failedAudits.map(audit => audit.id), [
       'document-title',
       'html-has-lang',
       'label',
@@ -84,13 +85,13 @@ describe('Snapshot', function() {
     ]);
 
     // These a11y violations are not present on initial page load.
-    assert.lengthOf(lhr.audits['label'].details.items, 3);
+    assert.strictEqual(lhr.audits['label'].details.items.length, 3);
 
     // No trace was collected in snapshot mode.
     const viewTrace = await $textContent('View Trace', reportEl);
-    assert.isNull(viewTrace);
+    assert.strictEqual(viewTrace, null);
     const viewOriginalTrace = await $textContent('View Original Trace', reportEl);
-    assert.isNull(viewOriginalTrace);
+    assert.strictEqual(viewOriginalTrace, null);
 
     // Ensure service worker is not cleared in snapshot mode.
     assert.strictEqual(await getServiceWorkerCount(), 1);

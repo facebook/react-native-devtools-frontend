@@ -97,7 +97,7 @@ let CdpFrame = (() => {
                 [MAIN_WORLD]: new IsolatedWorld(this, this._frameManager.timeoutSettings),
                 [PUPPETEER_WORLD]: new IsolatedWorld(this, this._frameManager.timeoutSettings),
             };
-            this.accessibility = new Accessibility(this.worlds[MAIN_WORLD], frameId);
+            this.accessibility = new Accessibility(this.worlds[MAIN_WORLD]);
             this.on(FrameEvent.FrameSwappedByActivation, () => {
                 // Emulate loading process for swapped frames.
                 this._onLoadingStarted();
@@ -138,6 +138,9 @@ let CdpFrame = (() => {
         }
         page() {
             return this._frameManager.page();
+        }
+        isOOPFrame() {
+            return this.#client !== this._frameManager.client;
         }
         async goto(url, options = {}) {
             const { referer = this._frameManager.networkManager.extraHTTPHeaders()['referer'], referrerPolicy = this._frameManager.networkManager.extraHTTPHeaders()['referer-policy'], waitUntil = ['load'], timeout = this._frameManager.timeoutSettings.navigationTimeout(), } = options;
@@ -189,8 +192,8 @@ let CdpFrame = (() => {
             }
         }
         async waitForNavigation(options = {}) {
-            const { waitUntil = ['load'], timeout = this._frameManager.timeoutSettings.navigationTimeout(), signal, } = options;
-            const watcher = new LifecycleWatcher(this._frameManager.networkManager, this, waitUntil, timeout, signal);
+            const { waitUntil = ['load'], timeout = this._frameManager.timeoutSettings.navigationTimeout(), } = options;
+            const watcher = new LifecycleWatcher(this._frameManager.networkManager, this, waitUntil, timeout);
             const error = await Deferred.race([
                 watcher.terminationPromise(),
                 ...(options.ignoreSameDocumentNavigation
@@ -246,11 +249,16 @@ let CdpFrame = (() => {
             return this._frameManager._frameTree.childFrames(this._id);
         }
         #deviceRequestPromptManager() {
-            return this._frameManager._deviceRequestPromptManager(this.#client);
+            const rootFrame = this.page().mainFrame();
+            if (this.isOOPFrame() || rootFrame === null) {
+                return this._frameManager._deviceRequestPromptManager(this.#client);
+            }
+            else {
+                return rootFrame._frameManager._deviceRequestPromptManager(this.#client);
+            }
         }
         async addPreloadScript(preloadScript) {
-            const parentFrame = this.parentFrame();
-            if (parentFrame && this.#client === parentFrame.client) {
+            if (!this.isOOPFrame() && this !== this._frameManager.mainFrame()) {
                 return;
             }
             if (preloadScript.getIdForFrame(this)) {
@@ -328,18 +336,6 @@ let CdpFrame = (() => {
         }
         exposeFunction() {
             throw new UnsupportedOperation();
-        }
-        async frameElement() {
-            const parent = this.parentFrame();
-            if (!parent) {
-                return null;
-            }
-            const { backendNodeId } = await parent.client.send('DOM.getFrameOwner', {
-                frameId: this._id,
-            });
-            return (await parent
-                .mainRealm()
-                .adoptBackendNode(backendNodeId));
         }
     };
 })();

@@ -2,42 +2,33 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Common from '../../core/common/common.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
-import * as EmulationModel from '../../models/emulation/emulation.js';
-import {createTarget, updateHostConfig} from '../../testing/EnvironmentHelpers.js';
+import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
 
 import * as CrUXManager from './crux-manager.js';
 
-const {urlString} = Platform.DevToolsPath;
-
-function mockResponse(scopes: {pageScope: CrUXManager.PageScope, deviceScope: CrUXManager.DeviceScope}|null = null):
-    CrUXManager.CrUXResponse {
+function mockResponse(): CrUXManager.CrUXResponse {
   return {
     record: {
       key: {},
       metrics: {
-        largest_contentful_paint: {
+        'largest_contentful_paint': {
           histogram: [
             {start: 0, end: 2500, density: 0.5},
             {start: 2500, end: 4000, density: 0.3},
             {start: 4000, density: 0.2},
           ],
           percentiles: {p75: 1000},
-          // @ts-expect-error
-          testScopes: scopes,
         },
-        cumulative_layout_shift: {
+        'cumulative_layout_shift': {
           histogram: [
             {start: 0, end: 0.1, density: 0.1},
             {start: 0.1, end: 0.25, density: 0.1},
             {start: 0.25, density: 0.8},
           ],
           percentiles: {p75: 0.25},
-          // @ts-expect-error
-          testScopes: scopes,
         },
       },
       collectionPeriod: {
@@ -60,66 +51,19 @@ describeWithMockConnection('CrUXManager', () => {
   let mockConsoleError: sinon.SinonStub;
 
   beforeEach(async () => {
-    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
+    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
     target = createTarget({parentTarget: tabTarget});
     resourceTreeModel =
         target.model(SDK.ResourceTreeModel.ResourceTreeModel) as SDK.ResourceTreeModel.ResourceTreeModel;
     cruxManager = CrUXManager.CrUXManager.instance({forceNew: true});
     mockFetch = sinon.stub(window, 'fetch');
     mockConsoleError = sinon.stub(console, 'error');
-    EmulationModel.DeviceModeModel.DeviceModeModel.instance({forceNew: true});
   });
 
   afterEach(() => {
     mockFetch.restore();
     mockConsoleError.restore();
-    cruxManager.getConfigSetting().set({enabled: false});
-  });
-
-  describe('storing the user consent', () => {
-    it('uses global storage if the user is not in an OffTheRecord profile', async () => {
-      updateHostConfig({isOffTheRecord: false});
-      const dummyStorage = new Common.Settings.SettingsStorage({});
-      const globalStorage = new Common.Settings.SettingsStorage({});
-
-      Common.Settings.Settings.instance({
-        forceNew: true,
-        syncedStorage: dummyStorage,
-        globalStorage,
-        localStorage: dummyStorage,
-      });
-      const manager = CrUXManager.CrUXManager.instance({forceNew: true});
-      manager.getConfigSetting().set({enabled: true});
-      assert.isTrue(globalStorage.has(manager.getConfigSetting().name));
-    });
-
-    it('uses session storage if the user is in an OffTheRecord profile', async () => {
-      updateHostConfig({isOffTheRecord: true});
-      const dummyStorage = new Common.Settings.SettingsStorage({});
-
-      Common.Settings.Settings.instance({
-        forceNew: true,
-        syncedStorage: dummyStorage,
-        globalStorage: dummyStorage,
-        localStorage: dummyStorage,
-      });
-      const manager = CrUXManager.CrUXManager.instance({forceNew: true});
-      manager.getConfigSetting().set({enabled: true});
-      // SessionStorage is created and managed internally to the Settings
-      // class, and is a private instance variable, so we cannot actually
-      // assert that it contains the value. Best we can do here is to assert
-      // that it did not use the dummy storage, which means that it must have
-      // used session storage as those are the 4 available storage types.
-      assert.isFalse(dummyStorage.has(manager.getConfigSetting().name));
-    });
-  });
-
-  it('isEnabled() returns if the user has consented)', async () => {
-    const manager = CrUXManager.CrUXManager.instance({forceNew: true});
-    manager.getConfigSetting().set({enabled: true});
-    assert.isTrue(manager.isEnabled());
-    manager.getConfigSetting().set({enabled: false});
-    assert.isFalse(manager.isEnabled());
+    cruxManager.getConfigSetting().set({enabled: false, override: ''});
   });
 
   describe('getFieldDataForPage', () => {
@@ -134,7 +78,7 @@ describeWithMockConnection('CrUXManager', () => {
                               .sort()
                               .map(body => JSON.parse(body) as CrUXManager.CrUXRequest);
 
-      assert.deepEqual(pageResult, {
+      assert.deepStrictEqual(pageResult, {
         'origin-ALL': mockResponse(),
         'origin-DESKTOP': mockResponse(),
         'origin-PHONE': mockResponse(),
@@ -143,101 +87,64 @@ describeWithMockConnection('CrUXManager', () => {
         'url-DESKTOP': mockResponse(),
         'url-PHONE': mockResponse(),
         'url-TABLET': null,
-        warnings: [],
       });
 
-      assert.deepEqual(fetchBodies, [
+      assert.deepStrictEqual(fetchBodies, [
         {
           formFactor: 'DESKTOP',
           metrics: [
-            'first_contentful_paint',
             'largest_contentful_paint',
             'cumulative_layout_shift',
             'interaction_to_next_paint',
             'round_trip_time',
-            'form_factors',
-            'largest_contentful_paint_image_time_to_first_byte',
-            'largest_contentful_paint_image_resource_load_delay',
-            'largest_contentful_paint_image_resource_load_duration',
-            'largest_contentful_paint_image_element_render_delay',
           ],
           origin: 'https://example.com',
         },
         {
           formFactor: 'PHONE',
           metrics: [
-            'first_contentful_paint',
             'largest_contentful_paint',
             'cumulative_layout_shift',
             'interaction_to_next_paint',
             'round_trip_time',
-            'form_factors',
-            'largest_contentful_paint_image_time_to_first_byte',
-            'largest_contentful_paint_image_resource_load_delay',
-            'largest_contentful_paint_image_resource_load_duration',
-            'largest_contentful_paint_image_element_render_delay',
           ],
           origin: 'https://example.com',
         },
         {
           metrics: [
-            'first_contentful_paint',
             'largest_contentful_paint',
             'cumulative_layout_shift',
             'interaction_to_next_paint',
             'round_trip_time',
-            'form_factors',
-            'largest_contentful_paint_image_time_to_first_byte',
-            'largest_contentful_paint_image_resource_load_delay',
-            'largest_contentful_paint_image_resource_load_duration',
-            'largest_contentful_paint_image_element_render_delay',
           ],
           origin: 'https://example.com',
         },
         {
           formFactor: 'DESKTOP',
           metrics: [
-            'first_contentful_paint',
             'largest_contentful_paint',
             'cumulative_layout_shift',
             'interaction_to_next_paint',
             'round_trip_time',
-            'form_factors',
-            'largest_contentful_paint_image_time_to_first_byte',
-            'largest_contentful_paint_image_resource_load_delay',
-            'largest_contentful_paint_image_resource_load_duration',
-            'largest_contentful_paint_image_element_render_delay',
           ],
           url: 'https://example.com/',
         },
         {
           formFactor: 'PHONE',
           metrics: [
-            'first_contentful_paint',
             'largest_contentful_paint',
             'cumulative_layout_shift',
             'interaction_to_next_paint',
             'round_trip_time',
-            'form_factors',
-            'largest_contentful_paint_image_time_to_first_byte',
-            'largest_contentful_paint_image_resource_load_delay',
-            'largest_contentful_paint_image_resource_load_duration',
-            'largest_contentful_paint_image_element_render_delay',
           ],
           url: 'https://example.com/',
         },
         {
           metrics: [
-            'first_contentful_paint',
             'largest_contentful_paint',
             'cumulative_layout_shift',
             'interaction_to_next_paint',
             'round_trip_time',
-            'form_factors',
-            'largest_contentful_paint_image_time_to_first_byte',
-            'largest_contentful_paint_image_resource_load_delay',
-            'largest_contentful_paint_image_resource_load_duration',
-            'largest_contentful_paint_image_element_render_delay',
           ],
           url: 'https://example.com/',
         },
@@ -249,7 +156,7 @@ describeWithMockConnection('CrUXManager', () => {
                             status: 404,
                           }));
       const pageResult = await cruxManager.getFieldDataForPage('https://example.com');
-      assert.deepEqual(pageResult, {
+      assert.deepStrictEqual(pageResult, {
         'origin-ALL': null,
         'origin-DESKTOP': null,
         'origin-PHONE': null,
@@ -258,7 +165,6 @@ describeWithMockConnection('CrUXManager', () => {
         'url-DESKTOP': null,
         'url-PHONE': null,
         'url-TABLET': null,
-        warnings: [],
       });
     });
 
@@ -319,20 +225,6 @@ describeWithMockConnection('CrUXManager', () => {
 
       assert.strictEqual(mockFetch.callCount, 6);
     });
-
-    it('should exit early for localhost and non-public URLs', async () => {
-      mockFetch.callsFake(async () => new Response(JSON.stringify(mockResponse()), {
-                            status: 200,
-                          }));
-
-      await cruxManager.getFieldDataForPage('https://localhost:8080/');
-      await cruxManager.getFieldDataForPage('https://127.0.0.1:8000/');
-      await cruxManager.getFieldDataForPage('about:blank');
-      await cruxManager.getFieldDataForPage('chrome://tracing');
-      await cruxManager.getFieldDataForPage('chrome-extension://sdkfsddsdsisdof/dashboard.html');
-
-      assert.strictEqual(mockFetch.callCount, 0);
-    });
   });
 
   describe('getFieldDataForCurrentPage', () => {
@@ -340,17 +232,6 @@ describeWithMockConnection('CrUXManager', () => {
 
     beforeEach(() => {
       getFieldDataMock = sinon.stub(cruxManager, 'getFieldDataForPage');
-      getFieldDataMock.resolves({
-        'origin-ALL': mockResponse({pageScope: 'origin', deviceScope: 'ALL'}),
-        'origin-DESKTOP': mockResponse({pageScope: 'origin', deviceScope: 'DESKTOP'}),
-        'origin-PHONE': mockResponse({pageScope: 'origin', deviceScope: 'PHONE'}),
-        'origin-TABLET': null,
-        'url-ALL': mockResponse({pageScope: 'url', deviceScope: 'ALL'}),
-        'url-DESKTOP': mockResponse({pageScope: 'url', deviceScope: 'DESKTOP'}),
-        'url-PHONE': mockResponse({pageScope: 'url', deviceScope: 'PHONE'}),
-        'url-TABLET': null,
-        warnings: [],
-      });
     });
 
     afterEach(() => {
@@ -367,67 +248,27 @@ describeWithMockConnection('CrUXManager', () => {
         isPrimaryFrame: () => false,
       } as SDK.ResourceTreeModel.ResourceTreeFrame);
 
-      const result = await cruxManager.getFieldDataForCurrentPageForTesting();
+      await cruxManager.getFieldDataForCurrentPage();
 
-      assert.deepEqual(result.warnings, []);
       assert.strictEqual(getFieldDataMock.callCount, 1);
       assert.strictEqual(getFieldDataMock.firstCall.args[0], 'https://example.com/main/');
     });
 
     it('should use URL override if set', async () => {
-      target.setInspectedURL(urlString`https://example.com/inspected`);
-      cruxManager.getConfigSetting().set(
-          {enabled: false, override: 'https://example.com/override', overrideEnabled: true});
+      target.setInspectedURL('https://example.com/inspected' as Platform.DevToolsPath.UrlString);
+      cruxManager.getConfigSetting().set({enabled: false, override: 'https://example.com/override'});
 
-      const result = await cruxManager.getFieldDataForCurrentPageForTesting();
+      await cruxManager.getFieldDataForCurrentPage();
 
-      assert.deepEqual(result.warnings, ['Field data is configured for a different URL than the current page.']);
       assert.strictEqual(getFieldDataMock.callCount, 1);
       assert.strictEqual(getFieldDataMock.firstCall.args[0], 'https://example.com/override');
     });
 
-    it('should use origin map if set', async () => {
-      target.setInspectedURL(urlString`http://localhost:8080/inspected?param`);
-      cruxManager.getConfigSetting().set({
-        enabled: false,
-        originMappings: [{
-          developmentOrigin: 'http://localhost:8080',
-          productionOrigin: 'https://example.com',
-        }],
-      });
-
-      const result = await cruxManager.getFieldDataForCurrentPageForTesting();
-
-      assert.deepEqual(result.warnings, ['Field data is configured for a different URL than the current page.']);
-      assert.strictEqual(getFieldDataMock.callCount, 1);
-      assert.strictEqual(getFieldDataMock.firstCall.args[0], 'https://example.com/inspected');
-    });
-
-    it('should not use origin map if URL override is set', async () => {
-      target.setInspectedURL(urlString`http://localhost:8080/inspected?param`);
-      cruxManager.getConfigSetting().set({
-        enabled: false,
-        override: 'https://google.com',
-        overrideEnabled: true,
-        originMappings: [{
-          developmentOrigin: 'http://localhost:8080',
-          productionOrigin: 'https://example.com',
-        }],
-      });
-
-      const result = await cruxManager.getFieldDataForCurrentPageForTesting();
-
-      assert.deepEqual(result.warnings, ['Field data is configured for a different URL than the current page.']);
-      assert.strictEqual(getFieldDataMock.callCount, 1);
-      assert.strictEqual(getFieldDataMock.firstCall.args[0], 'https://google.com');
-    });
-
     it('should use inspected URL if main document is unavailable', async () => {
-      target.setInspectedURL(urlString`https://example.com/inspected`);
+      target.setInspectedURL('https://example.com/inspected' as Platform.DevToolsPath.UrlString);
 
-      const result = await cruxManager.getFieldDataForCurrentPageForTesting();
+      await cruxManager.getFieldDataForCurrentPage();
 
-      assert.deepEqual(result.warnings, []);
       assert.strictEqual(getFieldDataMock.callCount, 1);
       assert.strictEqual(getFieldDataMock.firstCall.args[0], 'https://example.com/inspected');
     });
@@ -435,74 +276,16 @@ describeWithMockConnection('CrUXManager', () => {
     it('should wait for inspected URL if main document and inspected URL are unavailable', async () => {
       target.setInspectedURL(Platform.DevToolsPath.EmptyUrlString);
 
-      const finishPromise = cruxManager.getFieldDataForCurrentPageForTesting();
+      const finishPromise = cruxManager.getFieldDataForCurrentPage();
 
       await triggerMicroTaskQueue();
 
-      target.setInspectedURL(urlString`https://example.com/awaitInspected`);
+      target.setInspectedURL('https://example.com/awaitInspected' as Platform.DevToolsPath.UrlString);
 
-      const result = await finishPromise;
+      await finishPromise;
 
-      assert.deepEqual(result.warnings, []);
       assert.strictEqual(getFieldDataMock.callCount, 1);
       assert.strictEqual(getFieldDataMock.firstCall.args[0], 'https://example.com/awaitInspected');
-    });
-
-    it('getSelectedFieldMetricData - should take from selected page scope', async () => {
-      cruxManager.getConfigSetting().set({enabled: true});
-      await cruxManager.refresh();
-
-      let data: CrUXManager.MetricResponse|undefined;
-
-      cruxManager.fieldPageScope = 'origin';
-      data = cruxManager.getSelectedFieldMetricData('largest_contentful_paint');
-      assert.strictEqual(data?.percentiles?.p75, 1000);
-      // @ts-expect-error
-      assert.strictEqual(data?.testScopes.pageScope, 'origin');
-
-      cruxManager.fieldPageScope = 'url';
-      data = cruxManager.getSelectedFieldMetricData('largest_contentful_paint');
-      assert.strictEqual(data?.percentiles?.p75, 1000);
-      // @ts-expect-error
-      assert.strictEqual(data?.testScopes.pageScope, 'url');
-    });
-
-    it('should take from selected device scope', async () => {
-      cruxManager.getConfigSetting().set({enabled: true});
-      await cruxManager.refresh();
-      cruxManager.fieldPageScope = 'url';
-
-      let data: CrUXManager.MetricResponse|undefined;
-
-      cruxManager.fieldDeviceOption = 'ALL';
-      data = cruxManager.getSelectedFieldMetricData('largest_contentful_paint');
-      assert.strictEqual(data?.percentiles?.p75, 1000);
-      // @ts-expect-error
-      assert.strictEqual(data?.testScopes?.deviceScope, 'ALL');
-
-      cruxManager.fieldDeviceOption = 'PHONE';
-      data = cruxManager.getSelectedFieldMetricData('largest_contentful_paint');
-      assert.strictEqual(data?.percentiles?.p75, 1000);
-      // @ts-expect-error
-      assert.strictEqual(data?.testScopes?.deviceScope, 'PHONE');
-    });
-
-    it('auto device option should chose based on emulation', async () => {
-      cruxManager.fieldDeviceOption = 'AUTO';
-      assert.strictEqual(cruxManager.getSelectedDeviceScope(), 'ALL');
-
-      cruxManager.getConfigSetting().set({enabled: true});
-      await cruxManager.refresh();
-      assert.strictEqual(cruxManager.getSelectedDeviceScope(), 'DESKTOP');
-
-      for (const device of EmulationModel.EmulatedDevices.EmulatedDevicesList.instance().standard()) {
-        if (device.title === 'Moto G Power') {
-          EmulationModel.DeviceModeModel.DeviceModeModel.instance().emulate(
-              EmulationModel.DeviceModeModel.Type.Device, device, device.modes[0], 1);
-        }
-      }
-
-      assert.strictEqual(cruxManager.getSelectedDeviceScope(), 'PHONE');
     });
   });
 
@@ -512,10 +295,10 @@ describeWithMockConnection('CrUXManager', () => {
 
     beforeEach(() => {
       eventBodies = [];
-      cruxManager.addEventListener(CrUXManager.Events.FIELD_DATA_CHANGED, event => {
+      cruxManager.addEventListener(CrUXManager.Events.FieldDataChanged, event => {
         eventBodies.push(event.data);
       });
-      getFieldDataMock = sinon.stub(cruxManager, 'getFieldDataForPage');
+      getFieldDataMock = sinon.stub(cruxManager, 'getFieldDataForCurrentPage');
       getFieldDataMock.resolves({
         'origin-ALL': null,
         'origin-DESKTOP': null,
@@ -525,7 +308,6 @@ describeWithMockConnection('CrUXManager', () => {
         'url-DESKTOP': null,
         'url-PHONE': null,
         'url-TABLET': null,
-        warnings: [],
       });
     });
 
@@ -536,7 +318,7 @@ describeWithMockConnection('CrUXManager', () => {
     it('should update when enabled setting changes', async () => {
       const setting = cruxManager.getConfigSetting();
 
-      setting.set({enabled: true});
+      setting.set({enabled: true, override: ''});
       await triggerMicroTaskQueue();
 
       assert.strictEqual(getFieldDataMock.callCount, 1);
@@ -544,7 +326,7 @@ describeWithMockConnection('CrUXManager', () => {
       assert.isUndefined(eventBodies[0]);
       assert.isObject(eventBodies[1]);
 
-      setting.set({enabled: false});
+      setting.set({enabled: false, override: ''});
       await triggerMicroTaskQueue();
 
       assert.strictEqual(getFieldDataMock.callCount, 1);
@@ -556,7 +338,7 @@ describeWithMockConnection('CrUXManager', () => {
 
     it('should trigger on frame navigation if enabled', async () => {
       const setting = cruxManager.getConfigSetting();
-      setting.set({enabled: true});
+      setting.set({enabled: true, override: ''});
 
       await triggerMicroTaskQueue();
 
@@ -577,11 +359,11 @@ describeWithMockConnection('CrUXManager', () => {
 
     it('should trigger when URL override set', async () => {
       const setting = cruxManager.getConfigSetting();
-      setting.set({enabled: true});
+      setting.set({enabled: true, override: ''});
 
       await triggerMicroTaskQueue();
 
-      setting.set({enabled: true, override: 'https://example.com/override', overrideEnabled: true});
+      setting.set({enabled: true, override: 'https://example.com/override'});
 
       await triggerMicroTaskQueue();
 
@@ -595,7 +377,7 @@ describeWithMockConnection('CrUXManager', () => {
 
     it('should not trigger on frame navigation if disabled', async () => {
       const setting = cruxManager.getConfigSetting();
-      setting.set({enabled: false});
+      setting.set({enabled: false, override: ''});
 
       resourceTreeModel.dispatchEventToListeners(SDK.ResourceTreeModel.Events.FrameNavigated, {
         url: 'https://example.com/main/',

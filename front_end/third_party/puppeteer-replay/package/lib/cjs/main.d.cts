@@ -594,10 +594,8 @@ declare class PuppeteerRunnerOwningBrowserExtension extends PuppeteerRunnerExten
     limitations under the License.
  */
 
-type TargetBrowser = 'chrome' | 'firefox';
 declare class PuppeteerStringifyExtension extends StringifyExtension {
     #private;
-    constructor(targetBrowser?: TargetBrowser);
     beforeAllSteps(out: LineWriter, flow: UserFlow): Promise<void>;
     afterAllSteps(out: LineWriter, flow: UserFlow): Promise<void>;
     stringifyStep(out: LineWriter, step: Step, flow: UserFlow): Promise<void>;

@@ -13,20 +13,20 @@ export interface PlayerEvent extends Protocol.Media.PlayerEvent {
 }
 
 export const enum Events {
-  PLAYER_PROPERTIES_CHANGED = 'PlayerPropertiesChanged',
-  PLAYER_EVENTS_ADDED = 'PlayerEventsAdded',
-  PLAYER_MESSAGES_LOGGED = 'PlayerMessagesLogged',
-  PLAYER_ERRORS_RAISED = 'PlayerErrorsRaised',
-  PLAYERS_CREATED = 'PlayersCreated',
+  PlayerPropertiesChanged = 'PlayerPropertiesChanged',
+  PlayerEventsAdded = 'PlayerEventsAdded',
+  PlayerMessagesLogged = 'PlayerMessagesLogged',
+  PlayerErrorsRaised = 'PlayerErrorsRaised',
+  PlayersCreated = 'PlayersCreated',
 }
 
-export interface EventTypes {
-  [Events.PLAYER_PROPERTIES_CHANGED]: Protocol.Media.PlayerPropertiesChangedEvent;
-  [Events.PLAYER_EVENTS_ADDED]: Protocol.Media.PlayerEventsAddedEvent;
-  [Events.PLAYER_MESSAGES_LOGGED]: Protocol.Media.PlayerMessagesLoggedEvent;
-  [Events.PLAYER_ERRORS_RAISED]: Protocol.Media.PlayerErrorsRaisedEvent;
-  [Events.PLAYERS_CREATED]: Protocol.Media.PlayerId[];
-}
+export type EventTypes = {
+  [Events.PlayerPropertiesChanged]: Protocol.Media.PlayerPropertiesChangedEvent,
+  [Events.PlayerEventsAdded]: Protocol.Media.PlayerEventsAddedEvent,
+  [Events.PlayerMessagesLogged]: Protocol.Media.PlayerMessagesLoggedEvent,
+  [Events.PlayerErrorsRaised]: Protocol.Media.PlayerErrorsRaisedEvent,
+  [Events.PlayersCreated]: Protocol.Media.PlayerId[],
+};
 
 export class MediaModel extends SDK.SDKModel.SDKModel<EventTypes> implements ProtocolProxyApi.MediaDispatcher {
   private enabled: boolean;
@@ -43,7 +43,7 @@ export class MediaModel extends SDK.SDKModel.SDKModel<EventTypes> implements Pro
 
   override async resumeModel(): Promise<void> {
     if (!this.enabled) {
-      return await Promise.resolve();
+      return Promise.resolve();
     }
     await this.agent.invoke_enable();
   }
@@ -54,23 +54,23 @@ export class MediaModel extends SDK.SDKModel.SDKModel<EventTypes> implements Pro
   }
 
   playerPropertiesChanged(event: Protocol.Media.PlayerPropertiesChangedEvent): void {
-    this.dispatchEventToListeners(Events.PLAYER_PROPERTIES_CHANGED, event);
+    this.dispatchEventToListeners(Events.PlayerPropertiesChanged, event);
   }
 
   playerEventsAdded(event: Protocol.Media.PlayerEventsAddedEvent): void {
-    this.dispatchEventToListeners(Events.PLAYER_EVENTS_ADDED, event);
+    this.dispatchEventToListeners(Events.PlayerEventsAdded, event);
   }
 
   playerMessagesLogged(event: Protocol.Media.PlayerMessagesLoggedEvent): void {
-    this.dispatchEventToListeners(Events.PLAYER_MESSAGES_LOGGED, event);
+    this.dispatchEventToListeners(Events.PlayerMessagesLogged, event);
   }
 
   playerErrorsRaised(event: Protocol.Media.PlayerErrorsRaisedEvent): void {
-    this.dispatchEventToListeners(Events.PLAYER_ERRORS_RAISED, event);
+    this.dispatchEventToListeners(Events.PlayerErrorsRaised, event);
   }
 
   playersCreated({players}: Protocol.Media.PlayersCreatedEvent): void {
-    this.dispatchEventToListeners(Events.PLAYERS_CREATED, players);
+    this.dispatchEventToListeners(Events.PlayersCreated, players);
   }
 }
-SDK.SDKModel.SDKModel.register(MediaModel, {capabilities: SDK.Target.Capability.MEDIA, autostart: false});
+SDK.SDKModel.SDKModel.register(MediaModel, {capabilities: SDK.Target.Capability.Media, autostart: false});

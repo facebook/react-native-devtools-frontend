@@ -35,6 +35,7 @@ const menu = new Menus.Menu.Menu();
 menu.origin = button;
 menu.open = false;
 menu.showDivider = true;
+menu.showConnector = true;
 
 menuItems.forEach(item => {
   const menuItem = new Menus.Menu.MenuItem();

@@ -39,14 +39,14 @@ export interface FormatResult {
 }
 
 export const enum DefinitionKind {
-  NONE = 0,
-  LET = 1,
-  VAR = 2,
-  FIXED = 3,
+  None = 0,
+  Let = 1,
+  Var = 2,
+  Fixed = 3,
 }
 
 export interface ScopeTreeNode {
-  variables: Array<{name: string, kind: DefinitionKind, offsets: number[]}>;
+  variables: {name: string, kind: DefinitionKind, offsets: number[]}[];
   start: number;
   end: number;
   children: ScopeTreeNode[];

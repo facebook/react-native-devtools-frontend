@@ -5,6 +5,7 @@
 import {assert} from 'chai';
 
 import {getBrowserAndPages, goToResource, raf} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   getPlayerButtonText,
   getPlayerErrors,
@@ -20,7 +21,7 @@ describe.skip('[crbug.com/1501768] Media Tab', () => {
     await openPanelViaMoreTools('Media');
     await playMediaFile('fisch.webm');
     const entryName = await getPlayerButtonText();
-    assert.lengthOf(entryName, 11, `Unexpected name ${entryName}, expected length 11`);
+    assert.strictEqual(entryName.length, 11, `Unexpected name ${entryName}, expected length 11`);
   });
 
   // TODO: there is a dependency between tests here. The order of tests affects

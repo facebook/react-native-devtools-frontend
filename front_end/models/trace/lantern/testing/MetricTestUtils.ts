@@ -2,22 +2,26 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Trace from '../../trace.js';
+// Why can other tests import this directly but we get yelled at here?
+// eslint-disable-next-line rulesdir/es_modules_import
+import {TraceLoader} from '../../../../testing/TraceLoader.js';
+import * as TraceModel from '../../trace.js';
 import * as Lantern from '../lantern.js';
 
-function toLanternTrace(traceEvents: readonly Trace.Types.Events.Event[]): Lantern.Types.Trace {
+async function loadTrace(context: Mocha.Context|Mocha.Suite|null, name: string): Promise<Lantern.Types.Trace> {
+  const traceEvents = await TraceLoader.rawEvents(context, name);
   return {
     traceEvents: traceEvents as unknown as Lantern.Types.TraceEvent[],
   };
 }
 
-async function runTrace(trace: Lantern.Types.Trace) {
-  const processor = Trace.Processor.TraceProcessor.createWithAllHandlers();
-  await processor.parse(trace.traceEvents as Trace.Types.Events.Event[], {isCPUProfile: false, isFreshRecording: true});
-  if (!processor.parsedTrace) {
+async function runTraceEngine(trace: Lantern.Types.Trace) {
+  const processor = TraceModel.Processor.TraceProcessor.createWithAllHandlers();
+  await processor.parse(trace.traceEvents as TraceModel.Types.TraceEvents.TraceEventData[]);
+  if (!processor.traceParsedData) {
     throw new Error('No data');
   }
-  return processor.parsedTrace;
+  return processor.traceParsedData;
 }
 
 async function getComputationDataFromFixture({trace, settings, url}: {
@@ -29,28 +33,19 @@ async function getComputationDataFromFixture({trace, settings, url}: {
   if (!settings.throttlingMethod) {
     settings.throttlingMethod = 'simulate';
   }
-  const parsedTrace = await runTrace(trace);
-  const requests = Trace.LanternComputationData.createNetworkRequests(trace, parsedTrace);
+  const traceEngineData = await runTraceEngine(trace);
+  const requests = TraceModel.LanternComputationData.createNetworkRequests(trace, traceEngineData);
   const networkAnalysis = Lantern.Core.NetworkAnalyzer.analyze(requests);
-  if (!networkAnalysis) {
-    throw new Error('no networkAnalysis');
-  }
-
-  const frameId = parsedTrace.Meta.mainFrameId;
-  const navigationId = parsedTrace.Meta.mainFrameNavigations[0].args.data?.navigationId;
-  if (!navigationId) {
-    throw new Error('no navigation id found');
-  }
 
   return {
     simulator: Lantern.Simulation.Simulator.createSimulator({...settings, networkAnalysis}),
-    graph: Trace.LanternComputationData.createGraph(requests, trace, parsedTrace, url),
-    processedNavigation: Trace.LanternComputationData.createProcessedNavigation(parsedTrace, frameId, navigationId),
+    graph: TraceModel.LanternComputationData.createGraph(requests, trace, traceEngineData, url),
+    processedNavigation: TraceModel.LanternComputationData.createProcessedNavigation(traceEngineData),
   };
 }
 
 export {
+  loadTrace,
+  runTraceEngine,
   getComputationDataFromFixture,
-  runTrace,
-  toLanternTrace,
 };

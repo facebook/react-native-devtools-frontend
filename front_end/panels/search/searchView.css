@@ -53,10 +53,6 @@
       height: var(--sys-size-8);
       margin-right: var(--sys-size-3);
     }
-
-    & > devtools-button:last-child {
-      margin-right: var(--sys-size-4);
-    }
   }
 
   .search-toolbar-input {
@@ -93,10 +89,6 @@
   flex: 0 0 19px;
   display: flex;
   padding-right: 5px;
-}
-
-.search-results:has(.empty-state) + .search-toolbar-summary {
-  display: none;
 }
 
 .search-toolbar-summary .search-message {

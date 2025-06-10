@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {Chrome} from '../../../extension-api/ExtensionAPI.js';
+import {type Chrome} from '../../../extension-api/ExtensionAPI.js';
 import * as Common from '../../core/common/common.js';
-import * as Platform from '../../core/platform/platform.js';
+import type * as Platform from '../../core/platform/platform.js';
 import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
@@ -32,10 +32,8 @@ import * as Persistence from '../persistence/persistence.js';
 import * as TextUtils from '../text_utils/text_utils.js';
 import * as Workspace from '../workspace/workspace.js';
 
-const {urlString} = Platform.DevToolsPath;
-
 describeWithMockConnection('BreakpointManager', () => {
-  const URL_HTML = urlString`http://site/index.html`;
+  const URL_HTML = 'http://site/index.html' as Platform.DevToolsPath.UrlString;
   const INLINE_SCRIPT_START = 41;
   const BREAKPOINT_SCRIPT_LINE = 1;
   const INLINE_BREAKPOINT_RAW_LINE = BREAKPOINT_SCRIPT_LINE + INLINE_SCRIPT_START;
@@ -49,7 +47,7 @@ describeWithMockConnection('BreakpointManager', () => {
     embedderName: URL_HTML,
   };
 
-  const URL = urlString`http://site/script.js`;
+  const URL = 'http://site/script.js' as Platform.DevToolsPath.UrlString;
   const scriptDescription = {
     url: URL,
     content: 'console.log(1);\nconsole.log(2);\n',
@@ -70,16 +68,16 @@ describeWithMockConnection('BreakpointManager', () => {
   // For tests with source maps.
   const ORIGINAL_SCRIPT_SOURCES_CONTENT = 'function foo() {\n  console.log(\'Hello\');\n}\n';
   const COMPILED_SCRIPT_SOURCES_CONTENT = 'function foo(){console.log("Hello")}';
-  const SOURCE_MAP_URL = urlString`https://site/script.js.map`;
-  const ORIGINAL_SCRIPT_SOURCE_URL = urlString`https://site/original-script.js`;
+  const SOURCE_MAP_URL = 'https://site/script.js.map' as Platform.DevToolsPath.UrlString;
+  const ORIGINAL_SCRIPT_SOURCE_URL = 'https://site/original-script.js' as Platform.DevToolsPath.UrlString;
 
   // Created with `terser -m -o script.min.js --source-map "includeSources;url=script.min.js.map" original-script.js`
   const sourceMapContent = JSON.stringify({
-    version: 3,
-    names: ['foo', 'console', 'log'],
-    sources: ['/original-script.js'],
-    sourcesContent: [ORIGINAL_SCRIPT_SOURCES_CONTENT],
-    mappings: 'AAAA,SAASA,MACPC,QAAQC,IAAI,QACd',
+    'version': 3,
+    'names': ['foo', 'console', 'log'],
+    'sources': ['/original-script.js'],
+    'sourcesContent': [ORIGINAL_SCRIPT_SOURCES_CONTENT],
+    'mappings': 'AAAA,SAASA,MACPC,QAAQC,IAAI,QACd',
   });
 
   let target: SDK.Target.Target;
@@ -277,12 +275,12 @@ describeWithMockConnection('BreakpointManager', () => {
       const scriptInfo = {url: URL, content: 'function adder(n,r){const t=n+r;return t}'};
       // Created with `terser -m -o script.min.js --source-map "includeSources;url=script.min.js.map" original-script.js`
       const sourceMapContent = JSON.stringify({
-        version: 3,
-        names: ['adder', 'param1', 'param2', 'result'],
-        sources: ['/original-script.js'],
-        sourcesContent:
+        'version': 3,
+        'names': ['adder', 'param1', 'param2', 'result'],
+        'sources': ['/original-script.js'],
+        'sourcesContent':
             ['function adder(param1, param2) {\n  const result = param1 + param2;\n  return result;\n}\n\n'],
-        mappings: 'AAAA,SAASA,MAAMC,EAAQC,GACrB,MAAMC,EAASF,EAASC,EACxB,OAAOC,CACT',
+        'mappings': 'AAAA,SAASA,MAAMC,EAAQC,GACrB,MAAMC,EAASF,EAASC,EACxB,OAAOC,CACT',
       });
       const sourceMapInfo = {url: SOURCE_MAP_URL, content: sourceMapContent};
       const script = await backend.addScript(target, scriptInfo, sourceMapInfo);
@@ -323,19 +321,20 @@ describeWithMockConnection('BreakpointManager', () => {
     assert.exists(debuggerModel);
 
     // Create two 'bundles' that are identical modulo variable names.
-    const url1 = urlString`http://site/script1.js`;
-    const url2 = urlString`http://site/script2.js`;
+    const url1 = 'http://site/script1.js' as Platform.DevToolsPath.UrlString;
+    const url2 = 'http://site/script2.js' as Platform.DevToolsPath.UrlString;
     const scriptInfo1 = {url: url1, content: 'function adder(n,r){const t=n+r;return t}'};
     const scriptInfo2 = {url: url2, content: 'function adder(o,p){const t=o+p;return t}'};
 
     // The source map is the same for both 'bundles'.
     // Created with `terser -m -o script.min.js --source-map "includeSources;url=script.min.js.map" original-script.js`
     const sourceMapContent = JSON.stringify({
-      version: 3,
-      names: ['adder', 'param1', 'param2', 'result'],
-      sources: ['/original-script.js'],
-      sourcesContent: ['function adder(param1, param2) {\n  const result = param1 + param2;\n  return result;\n}\n\n'],
-      mappings: 'AAAA,SAASA,MAAMC,EAAQC,GACrB,MAAMC,EAASF,EAASC,EACxB,OAAOC,CACT',
+      'version': 3,
+      'names': ['adder', 'param1', 'param2', 'result'],
+      'sources': ['/original-script.js'],
+      'sourcesContent':
+          ['function adder(param1, param2) {\n  const result = param1 + param2;\n  return result;\n}\n\n'],
+      'mappings': 'AAAA,SAASA,MAAMC,EAAQC,GACrB,MAAMC,EAASF,EAASC,EACxB,OAAOC,CACT',
     });
     const sourceMapInfo = {url: SOURCE_MAP_URL, content: sourceMapContent};
     await Promise.all([
@@ -412,7 +411,6 @@ describeWithMockConnection('BreakpointManager', () => {
     assert.exists(modelBreakpoint);
 
     // Make sure that we do not have a linked script yet.
-    // eslint-disable-next-line rulesdir/no-assert-equal-boolean-null-undefined
     assert.strictEqual(modelBreakpoint.currentState, null);
 
     // Now await restoring the breakpoint.
@@ -512,8 +510,8 @@ describeWithMockConnection('BreakpointManager', () => {
   it('removes ui source code from breakpoint even after breakpoint live location update', async () => {
     const BREAKPOINT_TS_LINE = 10;
 
-    const {uiSourceCode: uiSourceCodeTs} =
-        createContentProviderUISourceCode({url: urlString`http://example.com/source.ts`, mimeType: 'text/typescript'});
+    const {uiSourceCode: uiSourceCodeTs} = createContentProviderUISourceCode(
+        {url: 'http://example.com/source.ts' as Platform.DevToolsPath.UrlString, mimeType: 'text/typescript'});
 
     const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel);
     assert.exists(debuggerModel);
@@ -549,7 +547,7 @@ describeWithMockConnection('BreakpointManager', () => {
     await breakpointManager.debuggerWorkspaceBinding.updateLocations(script);
 
     // Verify that the location of the breakpoint was updated.
-    assert.lengthOf(breakpointManager.breakpointLocationsForUISourceCode(uiSourceCodeTs), 1);
+    assert.strictEqual(breakpointManager.breakpointLocationsForUISourceCode(uiSourceCodeTs).length, 1);
     assert.strictEqual(breakpointManager.breakpointLocationsForUISourceCode(uiSourceCodeTs)[0].breakpoint, breakpoint);
     assert.strictEqual(
         breakpointManager.breakpointLocationsForUISourceCode(uiSourceCodeTs)[0].uiLocation.lineNumber,
@@ -558,7 +556,7 @@ describeWithMockConnection('BreakpointManager', () => {
     // Remove the target and verify that the UI source codes were removed from the breakpoint.
     breakpointManager.targetManager.removeTarget(target);
     assert.strictEqual(breakpoint.getUiSourceCodes().size, 0);
-    assert.lengthOf(breakpointManager.breakpointLocationsForUISourceCode(uiSourceCodeTs), 0);
+    assert.strictEqual(breakpointManager.breakpointLocationsForUISourceCode(uiSourceCodeTs).length, 0);
 
     Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance().removeSourceMapping(mapping);
     await breakpoint.remove(false);
@@ -599,7 +597,7 @@ describeWithMockConnection('BreakpointManager', () => {
 
     // Check that the breakpoint was set at the correct location?
     const locations = breakpointManager.breakpointLocationsForUISourceCode(uiSourceCode);
-    assert.lengthOf(locations, 1);
+    assert.strictEqual(1, locations.length);
     assert.strictEqual(1, locations[0].uiLocation.lineNumber);
     assert.strictEqual(5, locations[0].uiLocation.columnNumber);
   });
@@ -662,7 +660,7 @@ describeWithMockConnection('BreakpointManager', () => {
 
     // Verify the breakpoint was restored at the oriignal unbound location (before the backend binds it).
     const unboundLocations = breakpointManager.breakpointLocationsForUISourceCode(reloadedUiSourceCode);
-    assert.lengthOf(unboundLocations, 1);
+    assert.strictEqual(1, unboundLocations.length);
     assert.strictEqual(1, unboundLocations[0].uiLocation.lineNumber);
     assert.strictEqual(2, unboundLocations[0].uiLocation.columnNumber);
 
@@ -681,7 +679,7 @@ describeWithMockConnection('BreakpointManager', () => {
 
     // Verify the restored position.
     const boundLocations = breakpointManager.breakpointLocationsForUISourceCode(reloadedUiSourceCode);
-    assert.lengthOf(boundLocations, 1);
+    assert.strictEqual(1, boundLocations.length);
     assert.strictEqual(1, boundLocations[0].uiLocation.lineNumber);
     assert.strictEqual(5, boundLocations[0].uiLocation.columnNumber);
   });
@@ -693,7 +691,7 @@ describeWithMockConnection('BreakpointManager', () => {
     // Set the breakpoint storage to contain a breakpoint and re-initialize
     // the breakpoint manager from that storage. This should create a breakpoint instance
     // in the breakpoint manager.
-    const url = urlString`http://example.com/script.js`;
+    const url = 'http://example.com/script.js' as Platform.DevToolsPath.UrlString;
     const lineNumber = 1;
     const breakpoints: Breakpoints.BreakpointManager.BreakpointStorageState[] = [{
       url,
@@ -724,10 +722,10 @@ describeWithMockConnection('BreakpointManager', () => {
     // Set the breakpoint storage to contain a source-mapped breakpoint and re-initialize
     // the breakpoint manager from that storage. This should create a breakpoint instance
     // in the breakpoint manager (for the resolved location!).
-    const compiledUrl = urlString`http://example.com/compiled.js`;
+    const compiledUrl = 'http://example.com/compiled.js' as Platform.DevToolsPath.UrlString;
     const compiledLineNumber = 2;
     const breakpoints: Breakpoints.BreakpointManager.BreakpointStorageState[] = [{
-      url: urlString`http://example.com/src/script.ts`,
+      url: 'http://example.com/src/script.ts' as Platform.DevToolsPath.UrlString,
       resourceTypeName: 'sm-script',
       lineNumber: 1,
       condition: '' as Breakpoints.BreakpointManager.UserCondition,
@@ -752,6 +750,7 @@ describeWithMockConnection('BreakpointManager', () => {
     });
     SDK.TargetManager.TargetManager.instance().setScopeTarget(createTarget());
     await breakpointSetPromise;
+
   });
 
   it('saves generated location into storage', async () => {
@@ -805,6 +804,7 @@ describeWithMockConnection('BreakpointManager', () => {
                        columnNumber: 15,
                        condition: '' as SDK.DebuggerModel.BackendCondition,
                      }]);
+
   });
 
   it('restores latest breakpoints from storage', async () => {
@@ -883,12 +883,12 @@ describeWithMockConnection('BreakpointManager', () => {
 
     async function testBreakpointMovedOnInstrumentationBreak(
         fileSystemPath: Platform.DevToolsPath.UrlString, fileSystemFileUrl: Platform.DevToolsPath.UrlString,
-        content: string, type?: Persistence.PlatformFileSystem.PlatformFileSystemType) {
+        content: string, type?: string) {
       const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel);
       assert.exists(debuggerModel);
 
       const {uiSourceCode: fileSystemUiSourceCode, project} = createFileSystemFileForPersistenceTests(
-          {fileSystemFileUrl, fileSystemPath, type}, scriptDescription.url, content, target);
+          {fileSystemFileUrl, fileSystemPath, type: type}, scriptDescription.url, content, target);
 
       const breakpointLine = 0;
       const resolvedBreakpointLine = 1;
@@ -927,7 +927,7 @@ describeWithMockConnection('BreakpointManager', () => {
       // Verify that the network uiSourceCode has the breakpoint that we originally set
       // on the file system uiSourceCode.
       const reloadedBoundLocations = breakpointManager.breakpointLocationsForUISourceCode(uiSourceCode);
-      assert.lengthOf(reloadedBoundLocations, 1);
+      assert.strictEqual(1, reloadedBoundLocations.length);
       assert.strictEqual(resolvedBreakpointLine, reloadedBoundLocations[0].uiLocation.lineNumber);
       assert.strictEqual(0, reloadedBoundLocations[0].uiLocation.columnNumber);
 
@@ -969,7 +969,7 @@ describeWithMockConnection('BreakpointManager', () => {
 
       // Verify the restored position.
       const boundLocations = breakpointManager.breakpointLocationsForUISourceCode(uiSourceCode);
-      assert.lengthOf(boundLocations, 1);
+      assert.strictEqual(1, boundLocations.length);
       assert.strictEqual(resolvedBreakpointLine, boundLocations[0].uiLocation.lineNumber);
       assert.strictEqual(0, boundLocations[0].uiLocation.columnNumber);
 
@@ -1020,7 +1020,7 @@ describeWithMockConnection('BreakpointManager', () => {
 
       // Verify the restored position.
       const reloadedBoundLocations = breakpointManager.breakpointLocationsForUISourceCode(reloadedUiSourceCode);
-      assert.lengthOf(reloadedBoundLocations, 1);
+      assert.strictEqual(1, reloadedBoundLocations.length);
       assert.strictEqual(resolvedBreakpointLine, reloadedBoundLocations[0].uiLocation.lineNumber);
       assert.strictEqual(0, reloadedBoundLocations[0].uiLocation.columnNumber);
     });
@@ -1059,7 +1059,7 @@ describeWithMockConnection('BreakpointManager', () => {
 
       // Verify the position.
       const boundLocations = breakpointManager.breakpointLocationsForUISourceCode(uiSourceCode);
-      assert.lengthOf(boundLocations, 1);
+      assert.strictEqual(1, boundLocations.length);
       assert.strictEqual(BREAKPOINT_SCRIPT_LINE, boundLocations[0].uiLocation.lineNumber);
       assert.strictEqual(0, boundLocations[0].uiLocation.columnNumber);
 
@@ -1112,7 +1112,7 @@ describeWithMockConnection('BreakpointManager', () => {
 
       // Verify the restored position.
       const reloadedBoundLocations = breakpointManager.breakpointLocationsForUISourceCode(reloadedUiSourceCode);
-      assert.lengthOf(reloadedBoundLocations, 1);
+      assert.strictEqual(1, reloadedBoundLocations.length);
       assert.deepEqual(reloadedBoundLocations[0].uiLocation.uiSourceCode, reloadedUiSourceCode);
       assert.strictEqual(BREAKPOINT_SCRIPT_LINE, reloadedBoundLocations[0].uiLocation.lineNumber);
       assert.strictEqual(0, reloadedBoundLocations[0].uiLocation.columnNumber);
@@ -1168,7 +1168,7 @@ describeWithMockConnection('BreakpointManager', () => {
 
       // Verify the position.
       const boundLocations = breakpointManager.breakpointLocationsForUISourceCode(uiSourceCode);
-      assert.lengthOf(boundLocations, 1);
+      assert.strictEqual(1, boundLocations.length);
       assert.strictEqual(INLINE_BREAKPOINT_RAW_LINE, boundLocations[0].uiLocation.lineNumber);
       assert.strictEqual(0, boundLocations[0].uiLocation.columnNumber);
 
@@ -1222,7 +1222,7 @@ describeWithMockConnection('BreakpointManager', () => {
 
       // Verify the restored position.
       const reloadedBoundLocations = breakpointManager.breakpointLocationsForUISourceCode(reloadedUiSourceCode);
-      assert.lengthOf(reloadedBoundLocations, 1);
+      assert.strictEqual(1, reloadedBoundLocations.length);
       assert.deepEqual(reloadedBoundLocations[0].uiLocation.uiSourceCode, reloadedUiSourceCode);
       assert.strictEqual(INLINE_BREAKPOINT_RAW_LINE, reloadedBoundLocations[0].uiLocation.lineNumber);
       assert.strictEqual(0, reloadedBoundLocations[0].uiLocation.columnNumber);
@@ -1264,7 +1264,7 @@ describeWithMockConnection('BreakpointManager', () => {
 
       // Verify the restored position.
       const boundLocations = breakpointManager.breakpointLocationsForUISourceCode(uiSourceCode);
-      assert.lengthOf(boundLocations, 1);
+      assert.strictEqual(1, boundLocations.length);
       assert.strictEqual(0, boundLocations[0].uiLocation.lineNumber);
       assert.strictEqual(9, boundLocations[0].uiLocation.columnNumber);
 
@@ -1293,7 +1293,7 @@ describeWithMockConnection('BreakpointManager', () => {
       assert.exists(uiSourceCode);
 
       const unboundLocation = breakpointManager.breakpointLocationsForUISourceCode(reloadedUiSourceCode);
-      assert.lengthOf(unboundLocation, 1);
+      assert.strictEqual(1, unboundLocation.length);
       assert.strictEqual(0, unboundLocation[0].uiLocation.lineNumber);
       assert.strictEqual(0, unboundLocation[0].uiLocation.columnNumber);
 
@@ -1319,7 +1319,7 @@ describeWithMockConnection('BreakpointManager', () => {
 
       // Verify the restored position.
       const reloadedBoundLocations = breakpointManager.breakpointLocationsForUISourceCode(reloadedUiSourceCode);
-      assert.lengthOf(reloadedBoundLocations, 1);
+      assert.strictEqual(1, reloadedBoundLocations.length);
       assert.strictEqual(0, reloadedBoundLocations[0].uiLocation.lineNumber);
       assert.strictEqual(9, reloadedBoundLocations[0].uiLocation.columnNumber);
     });
@@ -1405,7 +1405,7 @@ describeWithMockConnection('BreakpointManager', () => {
 
       // Verify the bound position.
       const boundLocations = breakpointManager.breakpointLocationsForUISourceCode(uiSourceCode);
-      assert.lengthOf(boundLocations, 1);
+      assert.strictEqual(1, boundLocations.length);
       assert.strictEqual(0, boundLocations[0].uiLocation.lineNumber);
       assert.strictEqual(0, boundLocations[0].uiLocation.columnNumber);
 
@@ -1455,7 +1455,7 @@ describeWithMockConnection('BreakpointManager', () => {
 
       // Verify the restored position.
       const reloadedBoundLocations = breakpointManager.breakpointLocationsForUISourceCode(reloadedUiSourceCode);
-      assert.lengthOf(reloadedBoundLocations, 1);
+      assert.strictEqual(1, reloadedBoundLocations.length);
       assert.strictEqual(0, reloadedBoundLocations[0].uiLocation.lineNumber);
       assert.strictEqual(0, reloadedBoundLocations[0].uiLocation.columnNumber);
     });
@@ -1465,8 +1465,8 @@ describeWithMockConnection('BreakpointManager', () => {
       Persistence.Persistence.PersistenceImpl.instance({forceNew: true, workspace, breakpointManager});
       const fileName = Common.ParsedURL.ParsedURL.extractName(scriptDescription.url);
 
-      const fileSystemPath = urlString`file://path/to/filesystem`;
-      const fileSystemFileUrl = urlString`${fileSystemPath + '/' + fileName}`;
+      const fileSystemPath = 'file://path/to/filesystem' as Platform.DevToolsPath.UrlString;
+      const fileSystemFileUrl = fileSystemPath + '/' + fileName as Platform.DevToolsPath.UrlString;
 
       await testBreakpointMovedOnInstrumentationBreak(fileSystemPath, fileSystemFileUrl, scriptDescription.content);
     });
@@ -1478,12 +1478,12 @@ describeWithMockConnection('BreakpointManager', () => {
       Persistence.NetworkPersistenceManager.NetworkPersistenceManager.instance(
           {forceNew: true, workspace: Workspace.Workspace.WorkspaceImpl.instance()});
 
-      const fileSystemPath = urlString`file://path/to/overrides`;
-      const fielSystemFileUrl = urlString`${fileSystemPath + '/site/script.js'}`;
+      const fileSystemPath = 'file://path/to/overrides' as Platform.DevToolsPath.UrlString;
+      const fielSystemFileUrl = fileSystemPath + '/site/script.js' as Platform.DevToolsPath.UrlString;
+      const type = 'overrides';
       const content = '';
 
-      await testBreakpointMovedOnInstrumentationBreak(
-          fileSystemPath, fielSystemFileUrl, content, Persistence.PlatformFileSystem.PlatformFileSystemType.OVERRIDES);
+      await testBreakpointMovedOnInstrumentationBreak(fileSystemPath, fielSystemFileUrl, content, type);
     });
   });
 
@@ -1548,8 +1548,8 @@ describeWithMockConnection('BreakpointManager', () => {
 
     // Create a file system project and source code.
     const fileName = Common.ParsedURL.ParsedURL.extractName(scriptDescription.url);
-    const fileSystemPath = urlString`file://path/to/filesystem`;
-    const fileSystemFileUrl = urlString`${fileSystemPath + '/' + fileName}`;
+    const fileSystemPath = 'file://path/to/filesystem' as Platform.DevToolsPath.UrlString;
+    const fileSystemFileUrl = fileSystemPath + '/' + fileName as Platform.DevToolsPath.UrlString;
     const {uiSourceCode: fileSystemUiSourceCode, project} = createFileSystemFileForPersistenceTests(
         {fileSystemFileUrl, fileSystemPath}, scriptDescription.url, scriptDescription.content, target);
 
@@ -1585,7 +1585,7 @@ describeWithMockConnection('BreakpointManager', () => {
     // After this, the breakpoint manager should not refer to the file system source code anymore, but
     // the file system breakpoint location should be in the storage.
     assert.isEmpty(breakpointManager.breakpointLocationsForUISourceCode(fileSystemUiSourceCode));
-    assert.lengthOf(breakpointManager.storage.breakpointItems(fileSystemUiSourceCode.url()), 1);
+    assert.strictEqual(breakpointManager.storage.breakpointItems(fileSystemUiSourceCode.url()).length, 1);
 
     Root.Runtime.experiments.disableForTest(Root.Runtime.ExperimentName.INSTRUMENTATION_BREAKPOINTS);
   });
@@ -1600,8 +1600,8 @@ describeWithMockConnection('BreakpointManager', () => {
 
     // Create a file system project and source code.
     const fileName = Common.ParsedURL.ParsedURL.extractName(scriptDescription.url);
-    const fileSystemPath = urlString`file://path/to/filesystem`;
-    const fileSystemFileUrl = urlString`${fileSystemPath + '/' + fileName}`;
+    const fileSystemPath = 'file://path/to/filesystem' as Platform.DevToolsPath.UrlString;
+    const fileSystemFileUrl = fileSystemPath + '/' + fileName as Platform.DevToolsPath.UrlString;
     createFileSystemFileForPersistenceTests(
         {fileSystemFileUrl, fileSystemPath}, scriptDescription.url, scriptDescription.content, target);
 
@@ -1639,7 +1639,7 @@ describeWithMockConnection('BreakpointManager', () => {
 
     // Expect that the breakpoint is only added to the network UI source code.
     assert.strictEqual(breakpoint, addedBreakpoint);
-    assert.deepEqual(Array.from(breakpoint.getUiSourceCodes()), [uiSourceCode]);
+    assert.deepStrictEqual(Array.from(breakpoint.getUiSourceCodes()), [uiSourceCode]);
   });
 
   it('updates a breakpoint after live editing the underlying script', async () => {
@@ -1784,10 +1784,10 @@ describeWithMockConnection('BreakpointManager', () => {
       assert.deepEqual(Array.from(breakpoint.getUiSourceCodes()), [mainUiSourceCode, workerUiSourceCode]);
 
       const mainBoundLocations = breakpointManager.breakpointLocationsForUISourceCode(mainUiSourceCode);
-      assert.lengthOf(mainBoundLocations, 1);
+      assert.strictEqual(1, mainBoundLocations.length);
 
       const workerBoundLocations = breakpointManager.breakpointLocationsForUISourceCode(workerUiSourceCode);
-      assert.lengthOf(workerBoundLocations, 1);
+      assert.strictEqual(1, workerBoundLocations.length);
     });
 
     it('if the target whose uiSourceCode was used for breakpoint setting is handled first', async () => {
@@ -1822,10 +1822,10 @@ describeWithMockConnection('BreakpointManager', () => {
       assert.deepEqual(Array.from(breakpoint.getUiSourceCodes()), [mainUiSourceCode, workerUiSourceCode]);
 
       const mainBoundLocations = breakpointManager.breakpointLocationsForUISourceCode(mainUiSourceCode);
-      assert.lengthOf(mainBoundLocations, 1);
+      assert.strictEqual(1, mainBoundLocations.length);
 
       const workerBoundLocations = breakpointManager.breakpointLocationsForUISourceCode(workerUiSourceCode);
-      assert.lengthOf(workerBoundLocations, 1);
+      assert.strictEqual(1, workerBoundLocations.length);
     });
   });
 
@@ -1849,7 +1849,8 @@ describeWithMockConnection('BreakpointManager', () => {
         content: encodeSourceMap(['0:0 => shared.ts:0:0', '1:0 => route1.ts:0:0'], sourceRoot),
       };
       const [firstSharedUISourceCode, route1Script] = await Promise.all([
-        debuggerWorkspaceBinding.waitForUISourceCodeAdded(urlString`${`${sourceRoot}/shared.ts`}`, target),
+        debuggerWorkspaceBinding.waitForUISourceCodeAdded(
+            `${sourceRoot}/shared.ts` as Platform.DevToolsPath.UrlString, target),
         backend.addScript(target, route1ScriptInfo, route1SourceMapInfo),
       ]);
 

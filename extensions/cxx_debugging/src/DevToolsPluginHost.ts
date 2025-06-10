@@ -2,16 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {Chrome} from '../../../extension-api/ExtensionAPI.js';
-
 import {DEFAULT_MODULE_CONFIGURATIONS, type ModuleConfigurations} from './ModuleConfiguration.js';
-import type {WasmValue} from './WasmTypes.js';
-import {type AsyncHostInterface, type WorkerInterface, WorkerRPC} from './WorkerRPC.js';
+import {type Chrome} from '../../../extension-api/ExtensionAPI.js';
+
+import {WorkerRPC, type AsyncHostInterface, type WorkerInterface} from './WorkerRPC.js';
+import {type WasmValue} from './WasmTypes.js';
 
 export class WorkerPlugin implements Chrome.DevTools.LanguageExtensionPlugin, AsyncHostInterface {
-  private readonly worker = new Worker('DevToolsPluginWorkerMain.bundle.js', {type: 'module'});
-  private readonly rpc = new WorkerRPC<AsyncHostInterface, WorkerInterface>(this.worker, this);
+  private readonly worker: Worker;
+  private readonly rpc: WorkerRPC<AsyncHostInterface, WorkerInterface>;
 
+  constructor() {
+    this.worker = new Worker('DevToolsPluginWorkerMain.bundle.js', {type: 'module'});
+    this.rpc = new WorkerRPC<AsyncHostInterface, WorkerInterface>(this.worker, this);
+  }
   getWasmLinearMemory(offset: number, length: number, stopId: unknown): Promise<ArrayBuffer> {
     return chrome.devtools.languageServices.getWasmLinearMemory(offset, length, stopId);
   }
@@ -31,7 +35,7 @@ export class WorkerPlugin implements Chrome.DevTools.LanguageExtensionPlugin, As
 
   static async create(
       moduleConfigurations: ModuleConfigurations = DEFAULT_MODULE_CONFIGURATIONS,
-      logPluginApiCalls = false): Promise<WorkerPlugin> {
+      logPluginApiCalls: boolean = false): Promise<WorkerPlugin> {
     const plugin = new WorkerPlugin();
     await plugin.rpc.sendMessage('hello', moduleConfigurations, logPluginApiCalls);
     return plugin;
@@ -105,7 +109,7 @@ export interface Storage {
 
 export declare const chrome: Chrome.DevTools.Chrome&{storage?: Storage};
 
-if (typeof chrome?.storage !== 'undefined') {
+if (typeof chrome !== 'undefined' && typeof chrome.storage !== 'undefined') {
   const {storage} = chrome;
   const {languageServices} = chrome.devtools;
 
@@ -123,8 +127,8 @@ if (typeof chrome?.storage !== 'undefined') {
   }
 
   const defaultConfig = {
-    moduleConfigurations: DEFAULT_MODULE_CONFIGURATIONS,
-    logPluginApiCalls: false,
+    'moduleConfigurations': DEFAULT_MODULE_CONFIGURATIONS,
+    'logPluginApiCalls': false,
   };
   chrome.storage.local.get(defaultConfig, ({moduleConfigurations, logPluginApiCalls}) => {
     let pluginPromise = registerPlugin(moduleConfigurations, logPluginApiCalls);

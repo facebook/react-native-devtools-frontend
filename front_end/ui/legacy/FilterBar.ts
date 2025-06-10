@@ -28,8 +28,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import './Toolbar.js';
-
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -37,11 +35,11 @@ import * as Platform from '../../core/platform/platform.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import * as ARIAUtils from './ARIAUtils.js';
-import filterStyles from './filter.css.js';
+import filterStyles from './filter.css.legacy.js';
 import {KeyboardShortcut, Modifiers} from './KeyboardShortcut.js';
 import {bindCheckbox} from './SettingsUI.js';
-import type {Suggestions} from './SuggestBox.js';
-import {type ToolbarButton, ToolbarFilter, ToolbarInput, ToolbarSettingToggle} from './Toolbar.js';
+import {type Suggestions} from './SuggestBox.js';
+import {Toolbar, type ToolbarButton, ToolbarFilter, ToolbarInput, ToolbarSettingToggle} from './Toolbar.js';
 import {Tooltip} from './Tooltip.js';
 import {CheckboxLabel, createTextChild} from './UIUtils.js';
 import {HBox} from './Widget.js';
@@ -64,7 +62,7 @@ const UIStrings = {
    *@description Text for everything
    */
   allStrings: 'All',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/FilterBar.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class FilterBar extends Common.ObjectWrapper.eventMixin<FilterBarEventTypes, typeof HBox>(HBox) {
@@ -86,8 +84,6 @@ export class FilterBar extends Common.ObjectWrapper.eventMixin<FilterBarEventTyp
         Common.Settings.Settings.instance().createSetting('filter-bar-' + name + '-toggled', Boolean(visibleByDefault));
     this.filterButtonInternal =
         new ToolbarSettingToggle(this.stateSetting, 'filter', i18nString(UIStrings.filter), 'filter-filled', 'filter');
-    this.filterButtonInternal.element.style.setProperty('--dot-toggle-top', '13px');
-    this.filterButtonInternal.element.style.setProperty('--dot-toggle-left', '14px');
 
     this.filters = [];
 
@@ -108,7 +104,7 @@ export class FilterBar extends Common.ObjectWrapper.eventMixin<FilterBarEventTyp
   addFilter(filter: FilterUI): void {
     this.filters.push(filter);
     this.element.appendChild(filter.element());
-    filter.addEventListener(FilterUIEvents.FILTER_CHANGED, this.filterChanged, this);
+    filter.addEventListener(FilterUIEvents.FilterChanged, this.filterChanged, this);
     this.updateFilterButton();
   }
 
@@ -118,9 +114,18 @@ export class FilterBar extends Common.ObjectWrapper.eventMixin<FilterBarEventTyp
     this.updateFilterBar();
   }
 
+  forceShowFilterBar(): void {
+    this.alwaysShowFilters = true;
+    this.updateFilterBar();
+  }
+
+  showOnce(): void {
+    this.stateSetting.set(true);
+  }
+
   private filterChanged(): void {
     this.updateFilterButton();
-    this.dispatchEventToListeners(FilterBarEvents.CHANGED);
+    this.dispatchEventToListeners(FilterBarEvents.Changed);
   }
 
   override wasShown(): void {
@@ -162,7 +167,8 @@ export class FilterBar extends Common.ObjectWrapper.eventMixin<FilterBarEventTyp
 
   private updateFilterButton(): void {
     const isActive = this.hasActiveFilter();
-    this.filterButtonInternal.setChecked(isActive);
+    this.filterButtonInternal.setDefaultWithRedColor(isActive);
+    this.filterButtonInternal.setToggleWithRedColor(isActive);
   }
 
   clear(): void {
@@ -181,12 +187,12 @@ export class FilterBar extends Common.ObjectWrapper.eventMixin<FilterBarEventTyp
 }
 
 export const enum FilterBarEvents {
-  CHANGED = 'Changed',
+  Changed = 'Changed',
 }
 
-export interface FilterBarEventTypes {
-  [FilterBarEvents.CHANGED]: void;
-}
+export type FilterBarEventTypes = {
+  [FilterBarEvents.Changed]: void,
+};
 
 export interface FilterUI extends Common.EventTarget.EventTarget<FilterUIEventTypes> {
   isActive(): boolean;
@@ -194,12 +200,12 @@ export interface FilterUI extends Common.EventTarget.EventTarget<FilterUIEventTy
 }
 
 export const enum FilterUIEvents {
-  FILTER_CHANGED = 'FilterChanged',
+  FilterChanged = 'FilterChanged',
 }
 
-export interface FilterUIEventTypes {
-  [FilterUIEvents.FILTER_CHANGED]: void;
-}
+export type FilterUIEventTypes = {
+  [FilterUIEvents.FilterChanged]: void,
+};
 
 export class TextFilterUI extends Common.ObjectWrapper.ObjectWrapper<FilterUIEventTypes> implements FilterUI {
   private readonly filterElement: HTMLDivElement;
@@ -208,14 +214,12 @@ export class TextFilterUI extends Common.ObjectWrapper.ObjectWrapper<FilterUIEve
   constructor() {
     super();
     this.filterElement = document.createElement('div');
-    this.filterElement.classList.add('text-filter');
-    const filterToolbar = this.filterElement.createChild('devtools-toolbar');
+    const filterToolbar = new Toolbar('text-filter', this.filterElement);
     // Set the style directly on the element to overwrite parent css styling.
-    filterToolbar.style.borderBottom = 'none';
-    this.#filter =
-        new ToolbarFilter(undefined, 1, 1, i18nString(UIStrings.egSmalldUrlacomb), this.completions.bind(this));
+    filterToolbar.element.style.borderBottom = 'none';
+    this.#filter = new ToolbarFilter(undefined, 1, 1, UIStrings.egSmalldUrlacomb, this.completions.bind(this));
     filterToolbar.appendToolbarItem(this.#filter);
-    this.#filter.addEventListener(ToolbarInput.Event.TEXT_CHANGED, () => this.valueChanged());
+    this.#filter.addEventListener(ToolbarInput.Event.TextChanged, () => this.valueChanged());
     this.suggestionProvider = null;
   }
 
@@ -254,7 +258,7 @@ export class TextFilterUI extends Common.ObjectWrapper.ObjectWrapper<FilterUIEve
   }
 
   private valueChanged(): void {
-    this.dispatchEventToListeners(FilterUIEvents.FILTER_CHANGED);
+    this.dispatchEventToListeners(FilterUIEvents.FilterChanged);
   }
 
   clear(): void {
@@ -262,63 +266,11 @@ export class TextFilterUI extends Common.ObjectWrapper.ObjectWrapper<FilterUIEve
   }
 }
 
-interface NamedBitSetFilterUIOptions {
-  items: Item[];
-  setting?: Common.Settings.Setting<{[key: string]: boolean}>;
-}
-
-export class NamedBitSetFilterUIElement extends HTMLElement {
-  #options: NamedBitSetFilterUIOptions = {items: []};
-  readonly #shadow = this.attachShadow({mode: 'open'});
-  #namedBitSetFilterUI?: NamedBitSetFilterUI;
-
-  set options(options: NamedBitSetFilterUIOptions) {
-    // return if they are the same
-    if (this.#options.items.toString() === options.items.toString() && this.#options.setting === options.setting) {
-      return;
-    }
-
-    this.#options = options;
-    // When options are updated, clear the UI so that a new one is created with the new options
-    this.#shadow.innerHTML = '';
-    this.#namedBitSetFilterUI = undefined;
-  }
-
-  getOrCreateNamedBitSetFilterUI(): NamedBitSetFilterUI {
-    if (this.#namedBitSetFilterUI) {
-      return this.#namedBitSetFilterUI;
-    }
-
-    const namedBitSetFilterUI = new NamedBitSetFilterUI(this.#options.items, this.#options.setting);
-    namedBitSetFilterUI.element().classList.add('named-bitset-filter');
-
-    const styleElement = this.#shadow.createChild('style');
-    styleElement.textContent = filterStyles.cssText;
-
-    const disclosureElement = this.#shadow.createChild('div', 'named-bit-set-filter-disclosure');
-    disclosureElement.appendChild(namedBitSetFilterUI.element());
-
-    // Translate existing filter ("ObjectWrapper") events to DOM CustomEvents so clients can
-    // use lit templates to bind listeners.
-    namedBitSetFilterUI.addEventListener(FilterUIEvents.FILTER_CHANGED, this.#filterChanged.bind(this));
-
-    this.#namedBitSetFilterUI = namedBitSetFilterUI;
-    return this.#namedBitSetFilterUI;
-  }
-
-  #filterChanged(): void {
-    const domEvent = new CustomEvent('filterChanged');
-    this.dispatchEvent(domEvent);
-  }
-}
-
-customElements.define('devtools-named-bit-set-filter', NamedBitSetFilterUIElement);
-
 export class NamedBitSetFilterUI extends Common.ObjectWrapper.ObjectWrapper<FilterUIEventTypes> implements FilterUI {
   private readonly filtersElement: HTMLDivElement;
-  private readonly typeFilterElementTypeNames = new WeakMap<HTMLElement, string>();
-  private allowedTypes = new Set<string>();
-  private readonly typeFilterElements: HTMLElement[] = [];
+  private readonly typeFilterElementTypeNames: WeakMap<HTMLElement, string>;
+  private allowedTypes: Set<string>;
+  private readonly typeFilterElements: HTMLElement[];
   private readonly setting: Common.Settings.Setting<{[key: string]: boolean}>|undefined;
 
   constructor(items: Item[], setting?: Common.Settings.Setting<{[key: string]: boolean}>) {
@@ -329,15 +281,18 @@ export class NamedBitSetFilterUI extends Common.ObjectWrapper.ObjectWrapper<Filt
     ARIAUtils.markAsListBox(this.filtersElement);
     ARIAUtils.markAsMultiSelectable(this.filtersElement);
     Tooltip.install(this.filtersElement, i18nString(UIStrings.sclickToSelectMultipleTypes, {
-                      PH1: KeyboardShortcut.shortcutToString('', Modifiers.CtrlOrMeta.value),
+                      PH1: KeyboardShortcut.shortcutToString('', Modifiers.CtrlOrMeta),
                     }));
 
-    this.addBit(NamedBitSetFilterUI.ALL_TYPES, i18nString(UIStrings.allStrings), NamedBitSetFilterUI.ALL_TYPES);
+    this.typeFilterElementTypeNames = new WeakMap();
+    this.allowedTypes = new Set();
+    this.typeFilterElements = [];
+    this.addBit(NamedBitSetFilterUI.ALL_TYPES, i18nString(UIStrings.allStrings));
     this.typeFilterElements[0].tabIndex = 0;
     this.filtersElement.createChild('div', 'filter-bitset-filter-divider');
 
     for (let i = 0; i < items.length; ++i) {
-      this.addBit(items[i].name, items[i].label(), items[i].jslogContext, items[i].title);
+      this.addBit(items[i].name, items[i].label(), items[i].title);
     }
 
     if (setting) {
@@ -388,11 +343,11 @@ export class NamedBitSetFilterUI extends Common.ObjectWrapper.ObjectWrapper<Filt
       element.classList.toggle('selected', active);
       ARIAUtils.setSelected(element, active);
     }
-    this.dispatchEventToListeners(FilterUIEvents.FILTER_CHANGED);
+    this.dispatchEventToListeners(FilterUIEvents.FilterChanged);
   }
 
-  private addBit(name: string, label: string, jslogContext: string, title?: string): void {
-    const typeFilterElement = this.filtersElement.createChild('span', name);
+  private addBit(name: string, label: string, title?: string): void {
+    const typeFilterElement = (this.filtersElement.createChild('span', name) as HTMLElement);
     typeFilterElement.tabIndex = -1;
     this.typeFilterElementTypeNames.set(typeFilterElement, name);
     createTextChild(typeFilterElement, label);
@@ -402,7 +357,7 @@ export class NamedBitSetFilterUI extends Common.ObjectWrapper.ObjectWrapper<Filt
     }
     typeFilterElement.addEventListener('click', this.onTypeFilterClicked.bind(this), false);
     typeFilterElement.addEventListener('keydown', this.onTypeFilterKeydown.bind(this), false);
-    typeFilterElement.setAttribute('jslog', `${VisualLogging.item(jslogContext).track({click: true})}`);
+    typeFilterElement.setAttribute('jslog', `${VisualLogging.item(name).track({click: true})}`);
     this.typeFilterElements.push(typeFilterElement);
   }
 
@@ -469,11 +424,13 @@ export class NamedBitSetFilterUI extends Common.ObjectWrapper.ObjectWrapper<Filt
       this.allowedTypes.delete(typeName);
     } else {
       this.allowedTypes.add(typeName);
+      Host.userMetrics.legacyResourceTypeFilterItemSelected(typeName);
     }
 
     if (this.allowedTypes.size === 0) {
       this.allowedTypes.add(NamedBitSetFilterUI.ALL_TYPES);
     }
+    Host.userMetrics.legacyResourceTypeFilterNumberOfSelectedChanged(this.allowedTypes.size);
 
     if (this.setting) {
       // Settings do not support `Sets` so convert it back to the Map-like object.
@@ -496,8 +453,8 @@ export class CheckboxFilterUI extends Common.ObjectWrapper.ObjectWrapper<FilterU
   private label: CheckboxLabel;
   private checkboxElement: HTMLInputElement;
   constructor(
-      className: string, title: Common.UIString.LocalizedString, activeWhenChecked?: boolean,
-      setting?: Common.Settings.Setting<boolean>, jslogContext?: string) {
+      className: string, title: string, activeWhenChecked?: boolean, setting?: Common.Settings.Setting<boolean>,
+      jslogContext?: string) {
     super();
     this.filterElement = document.createElement('div');
     this.filterElement.classList.add('filter-checkbox-filter');
@@ -538,7 +495,7 @@ export class CheckboxFilterUI extends Common.ObjectWrapper.ObjectWrapper<FilterU
   }
 
   private fireUpdated(): void {
-    this.dispatchEventToListeners(FilterUIEvents.FILTER_CHANGED);
+    this.dispatchEventToListeners(FilterUIEvents.FilterChanged);
   }
 }
 

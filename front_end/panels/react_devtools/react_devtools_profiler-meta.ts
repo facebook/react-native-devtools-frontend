@@ -18,7 +18,7 @@ const UIStrings = {
    * @description Command for showing the React DevTools panel
    */
   command: 'Show React DevTools Profiler panel',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/react_devtools/react_devtools_profiler-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 

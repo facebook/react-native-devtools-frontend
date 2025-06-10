@@ -18,87 +18,87 @@ const UIStrings = {
    *@description Title for Compression Dictionary Transport specification url link
    */
   compressionDictionaryTransport: 'Compression Dictionary Transport',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/SharedDictionaryIssue.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
 export const enum IssueCode {
-  USE_ERROR_CROSS_ORIGIN_NO_CORS_REQUEST = 'SharedDictionaryIssue::UseErrorCrossOriginNoCorsRequest',
-  USE_ERROR_DICTIONARY_LOAD_FAILURE = 'SharedDictionaryIssue::UseErrorDictionaryLoadFailure',
-  USE_ERROR_MATCHING_DICTIONARY_NOT_USED = 'SharedDictionaryIssue::UseErrorMatchingDictionaryNotUsed',
-  USE_ERROR_UNEXPECTED_CONTENT_DICTIONARY_HEADER = 'SharedDictionaryIssue::UseErrorUnexpectedContentDictionaryHeader',
-  WRITE_ERROR_CROSS_ORIGIN_NO_CORS_REQUEST = 'SharedDictionaryIssue::WriteErrorCossOriginNoCorsRequest',
-  WRITE_ERROR_DISALLOWED_BY_SETTINGS = 'SharedDictionaryIssue::WriteErrorDisallowedBySettings',
-  WRITE_ERROR_EXPIRED_RESPONSE = 'SharedDictionaryIssue::WriteErrorExpiredResponse',
-  WRITE_ERROR_FEATURE_DISABLED = 'SharedDictionaryIssue::WriteErrorFeatureDisabled',
-  WRITE_ERROR_INSUFFICIENT_RESOURCES = 'SharedDictionaryIssue::WriteErrorInsufficientResources',
-  WRITE_ERROR_INVALID_MATCH_FIELD = 'SharedDictionaryIssue::WriteErrorInvalidMatchField',
-  WRITE_ERROR_INVALID_STRUCTURED_HEADER = 'SharedDictionaryIssue::WriteErrorInvalidStructuredHeader',
-  WRITE_ERROR_NAVIGATION_REQUEST = 'SharedDictionaryIssue::WriteErrorNavigationRequest',
-  WRITE_ERROR_NO_MATCH_FIELD = 'SharedDictionaryIssue::WriteErrorNoMatchField',
-  WRITE_ERROR_NON_LIST_MATCH_DEST_FIELD = 'SharedDictionaryIssue::WriteErrorNonListMatchDestField',
-  WRITE_ERROR_NON_SECURE_CONTEXT = 'SharedDictionaryIssue::WriteErrorNonSecureContext',
-  WRITE_ERROR_NON_STRING_ID_FIELD = 'SharedDictionaryIssue::WriteErrorNonStringIdField',
-  WRITE_ERROR_NON_STRING_IN_MATCH_DEST_LIST = 'SharedDictionaryIssue::WriteErrorNonStringInMatchDestList',
-  WRITE_ERROR_NON_STRING_MATCH_FIELD = 'SharedDictionaryIssue::WriteErrorNonStringMatchField',
-  WRITE_ERROR_NON_TOKEN_TYPE_FIELD = 'SharedDictionaryIssue::WriteErrorNonTokenTypeField',
-  WRITE_ERROR_REQUEST_ABORTED = 'SharedDictionaryIssue::WriteErrorRequestAborted',
-  WRITE_ERROR_SHUTTING_DOWN = 'SharedDictionaryIssue::WriteErrorShuttingDown',
-  WRITE_ERROR_TOO_LONG_ID_FIELD = 'SharedDictionaryIssue::WriteErrorTooLongIdField',
-  WRITE_ERROR_UNSUPPORTED_TYPE = 'SharedDictionaryIssue::WriteErrorUnsupportedType',
-  UNKNOWN = 'SharedDictionaryIssue::WriteErrorUnknown',
+  UseErrorCrossOriginNoCorsRequest = 'SharedDictionaryIssue::UseErrorCrossOriginNoCorsRequest',
+  UseErrorDictionaryLoadFailure = 'SharedDictionaryIssue::UseErrorDictionaryLoadFailure',
+  UseErrorMatchingDictionaryNotUsed = 'SharedDictionaryIssue::UseErrorMatchingDictionaryNotUsed',
+  UseErrorUnexpectedContentDictionaryHeader = 'SharedDictionaryIssue::UseErrorUnexpectedContentDictionaryHeader',
+  WriteErrorCossOriginNoCorsRequest = 'SharedDictionaryIssue::WriteErrorCossOriginNoCorsRequest',
+  WriteErrorDisallowedBySettings = 'SharedDictionaryIssue::WriteErrorDisallowedBySettings',
+  WriteErrorExpiredResponse = 'SharedDictionaryIssue::WriteErrorExpiredResponse',
+  WriteErrorFeatureDisabled = 'SharedDictionaryIssue::WriteErrorFeatureDisabled',
+  WriteErrorInsufficientResources = 'SharedDictionaryIssue::WriteErrorInsufficientResources',
+  WriteErrorInvalidMatchField = 'SharedDictionaryIssue::WriteErrorInvalidMatchField',
+  WriteErrorInvalidStructuredHeader = 'SharedDictionaryIssue::WriteErrorInvalidStructuredHeader',
+  WriteErrorNavigationRequest = 'SharedDictionaryIssue::WriteErrorNavigationRequest',
+  WriteErrorNoMatchField = 'SharedDictionaryIssue::WriteErrorNoMatchField',
+  WriteErrorNonListMatchDestField = 'SharedDictionaryIssue::WriteErrorNonListMatchDestField',
+  WriteErrorNonSecureContext = 'SharedDictionaryIssue::WriteErrorNonSecureContext',
+  WriteErrorNonStringIdField = 'SharedDictionaryIssue::WriteErrorNonStringIdField',
+  WriteErrorNonStringInMatchDestList = 'SharedDictionaryIssue::WriteErrorNonStringInMatchDestList',
+  WriteErrorNonStringMatchField = 'SharedDictionaryIssue::WriteErrorNonStringMatchField',
+  WriteErrorNonTokenTypeField = 'SharedDictionaryIssue::WriteErrorNonTokenTypeField',
+  WriteErrorRequestAborted = 'SharedDictionaryIssue::WriteErrorRequestAborted',
+  WriteErrorShuttingDown = 'SharedDictionaryIssue::WriteErrorShuttingDown',
+  WriteErrorTooLongIdField = 'SharedDictionaryIssue::WriteErrorTooLongIdField',
+  WriteErrorUnsupportedType = 'SharedDictionaryIssue::WriteErrorUnsupportedType',
+  Unknown = 'SharedDictionaryIssue::WriteErrorUnknown',
 }
 
 function getIssueCode(details: Protocol.Audits.SharedDictionaryIssueDetails): IssueCode {
   switch (details.sharedDictionaryError) {
     case Protocol.Audits.SharedDictionaryError.UseErrorCrossOriginNoCorsRequest:
-      return IssueCode.USE_ERROR_CROSS_ORIGIN_NO_CORS_REQUEST;
+      return IssueCode.UseErrorCrossOriginNoCorsRequest;
     case Protocol.Audits.SharedDictionaryError.UseErrorDictionaryLoadFailure:
-      return IssueCode.USE_ERROR_DICTIONARY_LOAD_FAILURE;
+      return IssueCode.UseErrorDictionaryLoadFailure;
     case Protocol.Audits.SharedDictionaryError.UseErrorMatchingDictionaryNotUsed:
-      return IssueCode.USE_ERROR_MATCHING_DICTIONARY_NOT_USED;
+      return IssueCode.UseErrorMatchingDictionaryNotUsed;
     case Protocol.Audits.SharedDictionaryError.UseErrorUnexpectedContentDictionaryHeader:
-      return IssueCode.USE_ERROR_UNEXPECTED_CONTENT_DICTIONARY_HEADER;
+      return IssueCode.UseErrorUnexpectedContentDictionaryHeader;
     case Protocol.Audits.SharedDictionaryError.WriteErrorCossOriginNoCorsRequest:
-      return IssueCode.WRITE_ERROR_CROSS_ORIGIN_NO_CORS_REQUEST;
+      return IssueCode.WriteErrorCossOriginNoCorsRequest;
     case Protocol.Audits.SharedDictionaryError.WriteErrorDisallowedBySettings:
-      return IssueCode.WRITE_ERROR_DISALLOWED_BY_SETTINGS;
+      return IssueCode.WriteErrorDisallowedBySettings;
     case Protocol.Audits.SharedDictionaryError.WriteErrorExpiredResponse:
-      return IssueCode.WRITE_ERROR_EXPIRED_RESPONSE;
+      return IssueCode.WriteErrorExpiredResponse;
     case Protocol.Audits.SharedDictionaryError.WriteErrorFeatureDisabled:
-      return IssueCode.WRITE_ERROR_FEATURE_DISABLED;
+      return IssueCode.WriteErrorFeatureDisabled;
     case Protocol.Audits.SharedDictionaryError.WriteErrorInsufficientResources:
-      return IssueCode.WRITE_ERROR_INSUFFICIENT_RESOURCES;
+      return IssueCode.WriteErrorInsufficientResources;
     case Protocol.Audits.SharedDictionaryError.WriteErrorInvalidMatchField:
-      return IssueCode.WRITE_ERROR_INVALID_MATCH_FIELD;
+      return IssueCode.WriteErrorInvalidMatchField;
     case Protocol.Audits.SharedDictionaryError.WriteErrorInvalidStructuredHeader:
-      return IssueCode.WRITE_ERROR_INVALID_STRUCTURED_HEADER;
+      return IssueCode.WriteErrorInvalidStructuredHeader;
     case Protocol.Audits.SharedDictionaryError.WriteErrorNavigationRequest:
-      return IssueCode.WRITE_ERROR_NAVIGATION_REQUEST;
+      return IssueCode.WriteErrorNavigationRequest;
     case Protocol.Audits.SharedDictionaryError.WriteErrorNoMatchField:
-      return IssueCode.WRITE_ERROR_NO_MATCH_FIELD;
+      return IssueCode.WriteErrorNoMatchField;
     case Protocol.Audits.SharedDictionaryError.WriteErrorNonListMatchDestField:
-      return IssueCode.WRITE_ERROR_NON_LIST_MATCH_DEST_FIELD;
+      return IssueCode.WriteErrorNonListMatchDestField;
     case Protocol.Audits.SharedDictionaryError.WriteErrorNonSecureContext:
-      return IssueCode.WRITE_ERROR_NON_SECURE_CONTEXT;
+      return IssueCode.WriteErrorNonSecureContext;
     case Protocol.Audits.SharedDictionaryError.WriteErrorNonStringIdField:
-      return IssueCode.WRITE_ERROR_NON_STRING_ID_FIELD;
+      return IssueCode.WriteErrorNonStringIdField;
     case Protocol.Audits.SharedDictionaryError.WriteErrorNonStringInMatchDestList:
-      return IssueCode.WRITE_ERROR_NON_STRING_IN_MATCH_DEST_LIST;
+      return IssueCode.WriteErrorNonStringInMatchDestList;
     case Protocol.Audits.SharedDictionaryError.WriteErrorNonStringMatchField:
-      return IssueCode.WRITE_ERROR_NON_STRING_MATCH_FIELD;
+      return IssueCode.WriteErrorNonStringMatchField;
     case Protocol.Audits.SharedDictionaryError.WriteErrorNonTokenTypeField:
-      return IssueCode.WRITE_ERROR_NON_TOKEN_TYPE_FIELD;
+      return IssueCode.WriteErrorNonTokenTypeField;
     case Protocol.Audits.SharedDictionaryError.WriteErrorRequestAborted:
-      return IssueCode.WRITE_ERROR_REQUEST_ABORTED;
+      return IssueCode.WriteErrorRequestAborted;
     case Protocol.Audits.SharedDictionaryError.WriteErrorShuttingDown:
-      return IssueCode.WRITE_ERROR_SHUTTING_DOWN;
+      return IssueCode.WriteErrorShuttingDown;
     case Protocol.Audits.SharedDictionaryError.WriteErrorTooLongIdField:
-      return IssueCode.WRITE_ERROR_TOO_LONG_ID_FIELD;
+      return IssueCode.WriteErrorTooLongIdField;
     case Protocol.Audits.SharedDictionaryError.WriteErrorUnsupportedType:
-      return IssueCode.WRITE_ERROR_UNSUPPORTED_TYPE;
+      return IssueCode.WriteErrorUnsupportedType;
     default:
-      return IssueCode.UNKNOWN;
+      return IssueCode.Unknown;
   }
 }
 
@@ -126,7 +126,7 @@ export class SharedDictionaryIssue extends Issue {
   }
 
   getCategory(): IssueCategory {
-    return IssueCategory.OTHER;
+    return IssueCategory.Other;
   }
 
   details(): Protocol.Audits.SharedDictionaryIssueDetails {
@@ -146,7 +146,7 @@ export class SharedDictionaryIssue extends Issue {
   }
 
   getKind(): IssueKind {
-    return IssueKind.PAGE_ERROR;
+    return IssueKind.PageError;
   }
 
   static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):
@@ -164,7 +164,7 @@ const specLinks = [{
   linkTitle: i18nLazyString(UIStrings.compressionDictionaryTransport),
 }];
 
-const issueDescriptions = new Map<Protocol.Audits.SharedDictionaryError, LazyMarkdownIssueDescription>([
+const issueDescriptions: Map<Protocol.Audits.SharedDictionaryError, LazyMarkdownIssueDescription> = new Map([
 
   [
     Protocol.Audits.SharedDictionaryError.UseErrorCrossOriginNoCorsRequest,

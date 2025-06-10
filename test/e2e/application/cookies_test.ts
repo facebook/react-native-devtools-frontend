@@ -12,6 +12,8 @@ import {
   waitFor,
   waitForFunction,
 } from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
+import {assertMatchesJSONSnapshot} from '../../shared/snapshots.js';
 import {
   clearStorageItems,
   clearStorageItemsFilter,
@@ -28,7 +30,6 @@ describe('The Application Tab', () => {
     expectError('Request CacheStorage.requestCacheNames failed. {"code":-32602,"message":"Invalid security origin"}');
     const {target} = getBrowserAndPages();
     const cookies = await target.cookies();
-
     await target.deleteCookie(...cookies);
   });
 
@@ -36,25 +37,22 @@ describe('The Application Tab', () => {
   it.skip(
       '[crbug.com/1443434]: shows cookies even when navigating to an unreachable page (crbug.com/1047348)',
       async () => {
+        const {target} = getBrowserAndPages();
         // This sets a new cookie foo=bar
-        await navigateToApplicationTab('cookies');
+        await navigateToApplicationTab(target, 'cookies');
 
         await goToResource('network/unreachable.rawresponse');
 
         await navigateToCookiesForTopDomain();
 
         const dataGridRowValues = await getStorageItemsData(['name', 'value']);
-        assert.deepEqual(dataGridRowValues, [
-          {name: 'urlencoded', value: 'Hello%2BWorld!'},
-          {name: '__Host-foo3', value: 'bar'},
-          {name: 'foo2', value: 'bar'},
-          {name: 'foo', value: 'bar'},
-        ]);
+        assertMatchesJSONSnapshot(dataGridRowValues);
       });
 
   it('shows a preview of the cookie value (crbug.com/462370)', async () => {
+    const {target} = getBrowserAndPages();
     // This sets a new cookie foo=bar
-    await navigateToApplicationTab('cookies');
+    await navigateToApplicationTab(target, 'cookies');
 
     await navigateToCookiesForTopDomain();
 
@@ -71,8 +69,9 @@ describe('The Application Tab', () => {
   // reflect the change from the partitionKey column to the partition key site and
   // cross-site columns.
   it.skip('[crbug.com/345285378]shows cookie partition key site and has cross site ancestor', async () => {
+    const {target} = getBrowserAndPages();
     // This sets a new cookie foo=bar
-    await navigateToApplicationTab('cookies');
+    await navigateToApplicationTab(target, 'cookies');
 
     await navigateToCookiesForTopDomain();
 
@@ -110,12 +109,13 @@ describe('The Application Tab', () => {
   });
 
   it('can also show the urldecoded value (crbug.com/997625)', async () => {
+    const {target} = getBrowserAndPages();
     // This sets a new cookie foo=bar
-    await navigateToApplicationTab('cookies');
+    await navigateToApplicationTab(target, 'cookies');
 
     await navigateToCookiesForTopDomain();
 
-    await click('.cookies-table devtools-data-grid');
+    await click('.cookies-table .data-grid-data-grid-node');
 
     await selectCookieByName('urlencoded');
 
@@ -135,8 +135,9 @@ describe('The Application Tab', () => {
   });
 
   it('clears the preview value when clearing cookies (crbug.com/1086462)', async () => {
+    const {target} = getBrowserAndPages();
     // This sets a new cookie foo=bar
-    await navigateToApplicationTab('cookies');
+    await navigateToApplicationTab(target, 'cookies');
 
     await navigateToCookiesForTopDomain();
 
@@ -153,7 +154,7 @@ describe('The Application Tab', () => {
 
     // Make sure that the preview resets
     await waitForFunction(async () => {
-      const previewValueNode2 = await waitFor('.empty-state');
+      const previewValueNode2 = await waitFor('.empty-view');
       const previewValue2 = await previewValueNode2.evaluate(e => e.textContent as string);
 
       return previewValue2.match(/Select a cookie to preview its value/);
@@ -162,8 +163,9 @@ describe('The Application Tab', () => {
 
   it('only clear currently visible cookies (crbug.com/978059)', async () => {
     expectError('Request CacheStorage.requestCacheNames failed. {"code":-32602,"message":"Invalid security origin"}');
+    const {target} = getBrowserAndPages();
     // This sets a new cookie foo=bar
-    await navigateToApplicationTab('cookies');
+    await navigateToApplicationTab(target, 'cookies');
 
     await navigateToCookiesForTopDomain();
 
@@ -205,34 +207,6 @@ describe('The Application Tab', () => {
       },
       {
         name: 'urlencoded',
-      },
-    ]);
-  });
-
-  it('can sort cookies', async () => {
-    expectError('Request CacheStorage.requestCacheNames failed. {"code":-32602,"message":"Invalid security origin"}');
-    await navigateToApplicationTab('cookies');
-
-    await navigateToCookiesForTopDomain();
-    const dataGrid = await waitFor('devtools-data-grid');
-    await click('th.name-column', {root: dataGrid});
-    await click('th.name-column', {root: dataGrid});
-    const dataGridRowValues = await waitForFunction(async () => {
-      const values = await getDataGridData('.storage-view table', ['name']);
-      return values.length === 4 && values[0].name === 'urlencoded' ? values : undefined;
-    });
-    assert.deepEqual(dataGridRowValues, [
-      {
-        name: 'urlencoded',
-      },
-      {
-        name: 'foo2',
-      },
-      {
-        name: 'foo',
-      },
-      {
-        name: '__Host-foo3',
       },
     ]);
   });

@@ -3,13 +3,13 @@
 // found in the LICENSE file.
 
 import * as i18n from '../../core/i18n/i18n.js';
-import * as Trace from '../../models/trace/trace.js';
-import * as PerfUI from '../../ui/legacy/components/perf_ui/perf_ui.js';
+import type * as TraceEngine from '../../models/trace/trace.js';
 import * as ThemeSupport from '../../ui/legacy/theme_support/theme_support.js';
 
-import {addDecorationToEvent, buildGroupStyle, buildTrackHeader} from './AppenderUtils.js';
+import {buildGroupStyle, buildTrackHeader, getFormattedTime} from './AppenderUtils.js';
 import {
   type CompatibilityTracksAppender,
+  type HighlightedEntryInfo,
   type TrackAppender,
   type TrackAppenderName,
   VisualLoggingTrackName,
@@ -20,7 +20,7 @@ const UIStrings = {
    *@description Text in Timeline Flame Chart Data Provider of the Performance panel
    */
   animations: 'Animations',
-} as const;
+};
 
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/AnimationsTrackAppender.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -29,22 +29,21 @@ export class AnimationsTrackAppender implements TrackAppender {
   readonly appenderName: TrackAppenderName = 'Animations';
 
   #compatibilityBuilder: CompatibilityTracksAppender;
-  #parsedTrace: Readonly<Trace.Handlers.Types.ParsedTrace>;
-  #eventAppendedCallback = this.#eventAppendedCallbackFunction.bind(this);
+  #traceParsedData: Readonly<TraceEngine.Handlers.Types.TraceParseData>;
 
-  constructor(compatibilityBuilder: CompatibilityTracksAppender, parsedTrace: Trace.Handlers.Types.ParsedTrace) {
+  constructor(
+      compatibilityBuilder: CompatibilityTracksAppender, traceParsedData: TraceEngine.Handlers.Types.TraceParseData) {
     this.#compatibilityBuilder = compatibilityBuilder;
-    this.#parsedTrace = parsedTrace;
+    this.#traceParsedData = traceParsedData;
   }
 
   appendTrackAtLevel(trackStartLevel: number, expanded?: boolean|undefined): number {
-    const animations = this.#parsedTrace.Animations.animations;
+    const animations = this.#traceParsedData.Animations.animations;
     if (animations.length === 0) {
       return trackStartLevel;
     }
     this.#appendTrackHeaderAtLevel(trackStartLevel, expanded);
-    return this.#compatibilityBuilder.appendEventsAtLevel(
-        animations, trackStartLevel, this, this.#eventAppendedCallback);
+    return this.#compatibilityBuilder.appendEventsAtLevel(animations, trackStartLevel, this);
   }
 
   #appendTrackHeaderAtLevel(currentLevel: number, expanded?: boolean): void {
@@ -55,18 +54,16 @@ export class AnimationsTrackAppender implements TrackAppender {
     this.#compatibilityBuilder.registerTrackForGroup(group, this);
   }
 
-  #eventAppendedCallbackFunction(event: Trace.Types.Events.Event, index: number): void {
-    if (event && Trace.Types.Events.isSyntheticAnimation(event)) {
-      const failures = Trace.Insights.Models.CLSCulprits.getNonCompositedFailure(event);
-      if (failures.length) {
-        addDecorationToEvent(this.#compatibilityBuilder.getFlameChartTimelineData(), index, {
-          type: PerfUI.FlameChart.FlameChartDecorationType.WARNING_TRIANGLE,
-        });
-      }
-    }
-  }
-
   colorForEvent(): string {
     return ThemeSupport.ThemeSupport.instance().getComputedValue('--app-color-rendering');
+  }
+
+  titleForEvent(event: TraceEngine.Types.TraceEvents.TraceEventData): string {
+    return event.name;
+  }
+
+  highlightedEntryInfo(event: TraceEngine.Types.TraceEvents.TraceEventData): HighlightedEntryInfo {
+    const title = this.titleForEvent(event);
+    return {title, formattedTime: getFormattedTime(event.dur)};
   }
 }

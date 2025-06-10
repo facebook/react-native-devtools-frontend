@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 import * as UI from '../ui/legacy/legacy.js';
 
-export function getMenu(action: () => void): UI.ContextMenu.ContextMenu {
+function getMenu(action: () => void): UI.ContextMenu.ContextMenu {
   const sandbox = sinon.createSandbox();
 
   const contextMenuShow = sandbox.stub(UI.ContextMenu.ContextMenu.prototype, 'show').resolves();

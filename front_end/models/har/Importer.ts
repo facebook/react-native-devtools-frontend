@@ -8,7 +8,7 @@ import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import * as TextUtils from '../text_utils/text_utils.js';
 
-import type {HAREntry, HARLog, HARPage, HARTimings} from './HARFormat.js';
+import {type HAREntry, type HARLog, type HARPage, type HARTimings} from './HARFormat.js';
 
 export class Importer {
   static requestsFromHARLog(log: HARLog): SDK.NetworkRequest.NetworkRequest[] {
@@ -31,7 +31,7 @@ export class Importer {
       const initiatorEntry = entry.customInitiator();
       if (initiatorEntry) {
         initiator = {
-          type: (initiatorEntry.type),
+          type: (initiatorEntry.type as Protocol.Network.InitiatorType),
           url: initiatorEntry.url,
           lineNumber: initiatorEntry.lineNumber,
           requestId: initiatorEntry.requestId,
@@ -70,7 +70,7 @@ export class Importer {
     } else {
       request.setRequestFormData(false, null);
     }
-    request.connectionId = entry.customAsString('connectionId') || '';
+    request.connectionId = entry.connection || '';
     request.requestMethod = entry.request.method;
     request.setRequestHeaders(entry.request.headers);
 
@@ -121,7 +121,7 @@ export class Importer {
     Importer.setupTiming(request, issueTime, entry.time, entry.timings);
 
     // Meta data.
-    request.setRemoteAddress(entry.serverIPAddress || '', Number(entry.connection) || 80);
+    request.setRemoteAddress(entry.serverIPAddress || '', 80);  // Har does not support port numbers.
     request.setResourceType(Importer.getResourceType(request, entry, pageLoad));
 
     const priority = entry.customAsString('priority');
@@ -147,7 +147,8 @@ export class Importer {
         }
 
         const mask = message.type === SDK.NetworkRequest.WebSocketFrameType.Send;
-        request.addFrame({time: message.time, text: message.data, opCode: message.opcode, mask, type: message.type});
+        request.addFrame(
+            {time: message.time, text: message.data, opCode: message.opcode, mask: mask, type: message.type});
       }
     }
 
@@ -170,20 +171,6 @@ export class Importer {
     const responseCacheStorageCacheName = entry.response.customAsString('responseCacheStorageCacheName');
     if (responseCacheStorageCacheName) {
       request.setResponseCacheStorageCacheName(responseCacheStorageCacheName);
-    }
-
-    const ruleIdMatched = entry.response.customAsNumber('serviceWorkerRouterRuleIdMatched');
-    // The router rule ID is 1-indexed. We add router related optional fields
-    // only when there is a matched router rule.
-    if (ruleIdMatched !== undefined) {
-      const routerInfo: Protocol.Network.ServiceWorkerRouterInfo = {
-        ruleIdMatched,
-        matchedSourceType: entry.response.customAsString('serviceWorkerRouterMatchedSourceType') as
-            Protocol.Network.ServiceWorkerRouterSource,
-        actualSourceType: entry.response.customAsString('serviceWorkerRouterActualSourceType') as
-            Protocol.Network.ServiceWorkerRouterSource,
-      };
-      request.serviceWorkerRouterInfo = routerInfo;
     }
 
     request.finished = true;
@@ -264,8 +251,6 @@ export class Importer {
       workerReady: timings.customAsNumber('workerReady') || -1,
       workerFetchStart: timings.customAsNumber('workerFetchStart') || -1,
       workerRespondWithSettled: timings.customAsNumber('workerRespondWithSettled') || -1,
-      workerRouterEvaluationStart: timings.customAsNumber('workerRouterEvaluationStart'),
-      workerCacheLookupStart: timings.customAsNumber('workerCacheLookupStart'),
 
       sendStart: timings.send >= 0 ? lastEntry : -1,
       sendEnd: accumulateTime(timings.send),

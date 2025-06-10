@@ -22,7 +22,7 @@ export class BidiHTTPResponse extends HTTPResponse {
   static from(
     data: Bidi.Network.ResponseData,
     request: BidiHTTPRequest,
-    cdpSupported: boolean,
+    cdpSupported: boolean
   ): BidiHTTPResponse {
     const response = new BidiHTTPResponse(data, request, cdpSupported);
     response.#initialize();
@@ -37,7 +37,7 @@ export class BidiHTTPResponse extends HTTPResponse {
   private constructor(
     data: Bidi.Network.ResponseData,
     request: BidiHTTPRequest,
-    cdpSupported: boolean,
+    cdpSupported: boolean
   ) {
     super();
     this.#data = data;
@@ -48,14 +48,13 @@ export class BidiHTTPResponse extends HTTPResponse {
     const securityDetails = data['goog:securityDetails'];
     if (cdpSupported && securityDetails) {
       this.#securityDetails = new SecurityDetails(
-        securityDetails as Protocol.Network.SecurityDetails,
+        securityDetails as Protocol.Network.SecurityDetails
       );
     }
   }
 
   #initialize() {
     if (this.#data.fromCache) {
-      this.#request._fromMemoryCache = true;
       this.#request
         .frame()
         ?.page()
@@ -86,7 +85,8 @@ export class BidiHTTPResponse extends HTTPResponse {
 
   override headers(): Record<string, string> {
     const headers: Record<string, string> = {};
-    for (const header of this.#data.headers) {
+    // TODO: Remove once the Firefox implementation is compliant with https://w3c.github.io/webdriver-bidi/#get-the-response-data.
+    for (const header of this.#data.headers || []) {
       // TODO: How to handle Binary Headers
       // https://w3c.github.io/webdriver-bidi/#type-network-Header
       if (header.value.type === 'string') {
@@ -105,30 +105,7 @@ export class BidiHTTPResponse extends HTTPResponse {
   }
 
   override timing(): Protocol.Network.ResourceTiming | null {
-    const bidiTiming = this.#request.timing();
-    return {
-      requestTime: bidiTiming.requestTime,
-      proxyStart: -1,
-      proxyEnd: -1,
-      dnsStart: bidiTiming.dnsStart,
-      dnsEnd: bidiTiming.dnsEnd,
-      connectStart: bidiTiming.connectStart,
-      connectEnd: bidiTiming.connectEnd,
-      sslStart: bidiTiming.tlsStart,
-      sslEnd: -1,
-      workerStart: -1,
-      workerReady: -1,
-      workerFetchStart: -1,
-      workerRespondWithSettled: -1,
-      workerRouterEvaluationStart: -1,
-      workerCacheLookupStart: -1,
-      sendStart: bidiTiming.requestStart,
-      sendEnd: -1,
-      pushStart: -1,
-      pushEnd: -1,
-      receiveHeadersStart: bidiTiming.responseStart,
-      receiveHeadersEnd: bidiTiming.responseEnd,
-    };
+    throw new UnsupportedOperation();
   }
 
   override frame(): Frame | null {
@@ -146,7 +123,7 @@ export class BidiHTTPResponse extends HTTPResponse {
     return this.#securityDetails ?? null;
   }
 
-  override content(): never {
+  override buffer(): never {
     throw new UnsupportedOperation();
   }
 }

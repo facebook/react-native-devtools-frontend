@@ -13,24 +13,11 @@
   margin-right: 5px;
 }
 
-.url--host {
-  color: var(--sys-color-token-subtle);
-}
-
-.priority-row {
+.priority {
   margin-left: 15px;
 }
 
-.network-category-chip {
-  box-sizing: border-box;
-  width: 10px;
-  height: 10px;
-  border: 1px solid var(--sys-color-divider);
-  display: inline-block;
-  margin-right: 4px;
-}
-
-devtools-icon.priority {
+.priority > devtools-icon {
   height: 13px;
   width: 13px;
   color: var(--sys-color-on-surface-subtle);
@@ -46,8 +33,13 @@ devtools-icon.priority {
   margin: 5px 0;
 }
 
-.timings-row {
-  align-self: start;
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+li {
   display: flex;
   align-items: center;
 }
@@ -61,8 +53,7 @@ devtools-icon.priority {
 }
 
 .whisker-left {
-  align-self: center;
-  display: inline-flex;
+  display: flex;
   width: 10px;
   height: 6px;
   margin-right: 5px;
@@ -70,8 +61,7 @@ devtools-icon.priority {
 }
 
 .whisker-right {
-  align-self: center;
-  display: inline-flex;
+  display: flex;
   width: 10px;
   height: 6px;
   margin-right: 5px;
@@ -88,16 +78,4 @@ devtools-icon.priority {
 .time {
   /* Push the time to right. */
   margin-left: auto;
-  display: inline-block;
-  padding-left: 10px;
-}
-
-.timings-row--duration {
-  .indicator {
-    border-color: transparent;
-  }
-
-  .time {
-    font-weight: var(--ref-typeface-weight-medium);
-  }
 }

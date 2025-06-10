@@ -2,15 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Platform from '../platform/platform.js';
+import type * as Platform from '../platform/platform.js';
 
 import * as Common from './common.js';
 
-const {urlString} = Platform.DevToolsPath;
 const ParsedURL = Common.ParsedURL.ParsedURL;
 
 function assertEqualUrlStringString(actual: Platform.DevToolsPath.UrlString|null, expected: string, message?: string) {
-  assert.strictEqual(actual, urlString`${expected}`, message);
+  assert.strictEqual(actual, expected as Platform.DevToolsPath.UrlString, message);
 }
 
 describe('Parsed URL', () => {
@@ -107,39 +106,7 @@ describe('Parsed URL', () => {
   it('parses a data URL', () => {
     const parsedUrl = new ParsedURL('data:test');
     assert.isFalse(parsedUrl.isValid, 'the URL should not be valid');
-    assert.strictEqual(parsedUrl.scheme, 'data', 'the URL scheme is data');
-  });
-
-  it('parses a data URL and its MIME types', () => {
-    const parsedUrl1 = new ParsedURL('data:image/jpeg,YQ==');
-    assert.isFalse(parsedUrl1.isValid, 'the URL should not be valid');
-    assert.strictEqual(parsedUrl1.scheme, 'data', 'the URL scheme is data');
-    assert.isTrue(parsedUrl1.isDataURL());
-    assert.deepEqual(parsedUrl1.extractDataUrlMimeType(), {type: 'image', subtype: 'jpeg'});
-
-    const parsedUrl2 = new ParsedURL('data:image/jpeg');
-    assert.isFalse(parsedUrl2.isValid, 'the URL should not be valid');
-    assert.strictEqual(parsedUrl2.scheme, 'data', 'the URL scheme is data');
-    assert.isTrue(parsedUrl2.isDataURL());
-    assert.deepEqual(parsedUrl2.extractDataUrlMimeType(), {type: undefined, subtype: undefined});
-
-    const parsedUrl3 = new ParsedURL('data:image');
-    assert.isFalse(parsedUrl3.isValid, 'the URL should not be valid');
-    assert.strictEqual(parsedUrl3.scheme, 'data', 'the URL scheme is data');
-    assert.isTrue(parsedUrl3.isDataURL());
-    assert.deepEqual(parsedUrl3.extractDataUrlMimeType(), {type: undefined, subtype: undefined});
-
-    const parsedUrl4 = new ParsedURL('data:;base64,YQ==');
-    assert.isFalse(parsedUrl4.isValid, 'the URL should not be valid');
-    assert.strictEqual(parsedUrl4.scheme, 'data', 'the URL scheme is data');
-    assert.isTrue(parsedUrl4.isDataURL());
-    assert.deepEqual(parsedUrl4.extractDataUrlMimeType(), {type: undefined, subtype: undefined});
-
-    const parsedUrl5 = new ParsedURL('data:,image/jpeg');
-    assert.isFalse(parsedUrl5.isValid, 'the URL should not be valid');
-    assert.strictEqual(parsedUrl5.scheme, 'data', 'the URL scheme is data');
-    assert.isTrue(parsedUrl5.isDataURL());
-    assert.deepEqual(parsedUrl5.extractDataUrlMimeType(), {type: undefined, subtype: undefined});
+    assert.strictEqual(parsedUrl.scheme, 'data', 'the URL scheme is not data');
   });
 
   it('recognizes an invalid blob URL', () => {
@@ -179,30 +146,30 @@ describe('Parsed URL', () => {
   });
 
   it('converts path that starts with "file://" to a platform path', () => {
-    const pathTest = urlString`file://usr/lib`;
+    const pathTest = 'file://usr/lib' as Platform.DevToolsPath.UrlString;
     const convertedPath = ParsedURL.urlToRawPathString(pathTest);
     assert.strictEqual(convertedPath, 'usr/lib', 'URL was not converted successfully');
   });
 
   it('converts path that starts with "file:///" to a platform path on Windows', () => {
-    const pathTest = urlString`file:///usr/lib`;
+    const pathTest = 'file:///usr/lib' as Platform.DevToolsPath.UrlString;
     const convertedPath = ParsedURL.urlToRawPathString(pathTest, true);
     assert.strictEqual(convertedPath, 'usr\\lib', 'URL was not converted successfully');
   });
 
   it('checks that URL is valid', () => {
     const urlTest = 'http://www.example.com#?test';
-    assert.isTrue(ParsedURL.isValidUrlString(urlTest), 'URL validation was incorrect');
+    assert.strictEqual(ParsedURL.isValidUrlString(urlTest), true, 'URL validation was incorrect');
   });
 
   it('checks that file:// URL is valid', () => {
     const urlTest = 'file:///usr/lib';
-    assert.isTrue(ParsedURL.isValidUrlString(urlTest), 'URL validation was incorrect');
+    assert.strictEqual(ParsedURL.isValidUrlString(urlTest), true, 'URL validation was incorrect');
   });
 
   it('checks that "://" is not a valid URL', () => {
     const urlTest = '://';
-    assert.isFalse(ParsedURL.isValidUrlString(urlTest), 'URL validation was incorrect');
+    assert.strictEqual(ParsedURL.isValidUrlString(urlTest), false, 'URL validation was incorrect');
   });
 
   it('converts URL with a hash to a URL without a hash', () => {
@@ -224,26 +191,26 @@ describe('Parsed URL', () => {
   });
 
   it('extracts the path from a valid URL', () => {
-    const urlTest = urlString`http://www.example.com/test/path`;
+    const urlTest = 'http://www.example.com/test/path' as Platform.DevToolsPath.UrlString;
     const extractedPath = ParsedURL.extractPath(urlTest);
     assert.strictEqual(extractedPath, '/test/path', 'path extracted incorrectly');
   });
 
   it('returns an empty string as a path if the URL is not valid', () => {
-    const urlTest = urlString`www.example.com/test/path`;
+    const urlTest = 'www.example.com/test/path' as Platform.DevToolsPath.UrlString;
     const extractedPath = ParsedURL.extractPath(urlTest);
     assert.strictEqual(extractedPath, '', 'did not return an empty path');
   });
 
   it('extracts the origin from a valid URL', () => {
-    const urlTest = urlString`http://www.example.com/test/path`;
+    const urlTest = 'http://www.example.com/test/path' as Platform.DevToolsPath.UrlString;
     const extractedOrigin = ParsedURL.extractOrigin(urlTest);
     assert.strictEqual(extractedOrigin, 'http://www.example.com', 'origin extracted incorrectly');
   });
 
   it('returns an empty string as a origin if the URL is not valid', () => {
     const urlTest = 'www.example.com/test/path';
-    const extractedOrigin = ParsedURL.extractOrigin(urlString`${urlTest}`);
+    const extractedOrigin = ParsedURL.extractOrigin(urlTest as Platform.DevToolsPath.UrlString);
     assert.strictEqual(extractedOrigin, '', 'did not return an empty path');
   });
 
@@ -303,28 +270,28 @@ describe('Parsed URL', () => {
 
   it('uses the completeURL function to return a data URL as it is', () => {
     const hrefTest = 'data:http://www.example.com';
-    const baseUrlTest = urlString`www.example.com`;
+    const baseUrlTest = 'www.example.com' as Platform.DevToolsPath.UrlString;
     const completeUrl = ParsedURL.completeURL(baseUrlTest, hrefTest);
     assertEqualUrlStringString(completeUrl, hrefTest, 'complete URL is not returned correctly');
   });
 
   it('uses the completeURL function to return a blob URL as it is', () => {
     const hrefTest = 'blob:http://www.example.com';
-    const baseUrlTest = urlString`www.example.com`;
+    const baseUrlTest = 'www.example.com' as Platform.DevToolsPath.UrlString;
     const completeUrl = ParsedURL.completeURL(baseUrlTest, hrefTest);
     assertEqualUrlStringString(completeUrl, hrefTest, 'complete URL is not returned correctly');
   });
 
   it('uses the completeURL function to return a javascript URL as it is', () => {
     const hrefTest = 'javascript:http://www.example.com';
-    const baseUrlTest = urlString`www.example.com`;
+    const baseUrlTest = 'www.example.com' as Platform.DevToolsPath.UrlString;
     const completeUrl = ParsedURL.completeURL(baseUrlTest, hrefTest);
     assertEqualUrlStringString(completeUrl, hrefTest, 'complete URL is not returned correctly');
   });
 
   it('uses the completeURL function to return a mailto URL as it is', () => {
     const hrefTest = 'mailto:http://www.example.com';
-    const baseUrlTest = urlString`www.example.com`;
+    const baseUrlTest = 'www.example.com' as Platform.DevToolsPath.UrlString;
     const completeUrl = ParsedURL.completeURL(baseUrlTest, hrefTest);
     assertEqualUrlStringString(completeUrl, hrefTest, 'complete URL is not returned correctly');
   });
@@ -380,7 +347,7 @@ describe('Parsed URL', () => {
 
     for (const {href, expected} of cases) {
       it(`can use completeURL to normalize "${href}"`, () => {
-        const baseUrlTest = urlString`www.example.com`;
+        const baseUrlTest = 'www.example.com' as Platform.DevToolsPath.UrlString;
         const completeUrl = ParsedURL.completeURL(baseUrlTest, href);
         assertEqualUrlStringString(completeUrl, expected, 'complete URL is not returned correctly');
       });
@@ -389,14 +356,14 @@ describe('Parsed URL', () => {
 
   it('uses the completeURL function to return null for invalid href and invalid base URL', () => {
     const hrefTest = 'www.example.com';
-    const baseUrlTest = urlString`www.example.com`;
+    const baseUrlTest = 'www.example.com' as Platform.DevToolsPath.UrlString;
     const completeUrl = ParsedURL.completeURL(baseUrlTest, hrefTest);
-    assert.isNull(completeUrl, 'complete URL is not returned correctly');
+    assert.strictEqual(completeUrl, null, 'complete URL is not returned correctly');
   });
 
   it('uses the completeURL function to return the href if the base URL is a data URL', () => {
     const hrefTest = 'www.example.com';
-    const baseUrlTest = urlString`data://www.example.com`;
+    const baseUrlTest = 'data://www.example.com' as Platform.DevToolsPath.UrlString;
     const completeUrl = ParsedURL.completeURL(baseUrlTest, hrefTest);
     assertEqualUrlStringString(completeUrl, hrefTest, 'complete URL is not returned correctly');
   });
@@ -404,21 +371,21 @@ describe('Parsed URL', () => {
   it('uses the completeURL function to return the href with scheme if the base URL was valid and the href scheme was dropped',
      () => {
        const hrefTest = '//www.example.com';
-       const baseUrlTest = urlString`http://www.example.com/`;
+       const baseUrlTest = 'http://www.example.com/' as Platform.DevToolsPath.UrlString;
        const completeUrl = ParsedURL.completeURL(baseUrlTest, hrefTest);
        assertEqualUrlStringString(completeUrl, 'http:' + hrefTest, 'complete URL is not returned correctly');
      });
 
   it('uses the completeURL function to resolve an empty href to a base URL without fragment', () => {
     const hrefTest = '';
-    const baseUrlTest = urlString`http://www.example.com/?testParam=t`;
+    const baseUrlTest = 'http://www.example.com/?testParam=t' as Platform.DevToolsPath.UrlString;
     const completeUrl = ParsedURL.completeURL(baseUrlTest, hrefTest);
     assertEqualUrlStringString(completeUrl, baseUrlTest, 'complete URL is not returned correctly');
   });
 
   it('uses the completeURL function to resolve a fragment href to a base URL with fragment', () => {
     const hrefTest = '#testFragment';
-    const baseUrlTest = urlString`http://www.example.com/?testParam=t`;
+    const baseUrlTest = 'http://www.example.com/?testParam=t' as Platform.DevToolsPath.UrlString;
     const completeUrl = ParsedURL.completeURL(baseUrlTest, hrefTest);
     assertEqualUrlStringString(completeUrl, baseUrlTest + hrefTest, 'complete URL is not returned correctly');
   });
@@ -426,7 +393,7 @@ describe('Parsed URL', () => {
   it('uses the completeURL function to resolve a parameters href to a base URL with the parameters from the href while the base URL has parameters',
      () => {
        const hrefTest = '?hrefParams=t';
-       const baseUrlTest = urlString`http://www.example.com/?testParam=t`;
+       const baseUrlTest = 'http://www.example.com/?testParam=t' as Platform.DevToolsPath.UrlString;
        const completeUrl = ParsedURL.completeURL(baseUrlTest, hrefTest);
        assertEqualUrlStringString(
            completeUrl, 'http://www.example.com/' + hrefTest, 'complete URL is not returned correctly');
@@ -435,7 +402,7 @@ describe('Parsed URL', () => {
   it('uses the completeURL function to resolve a parameters href to a base URL with the parameters from the href while the base URL does not have parameters',
      () => {
        const hrefTest = '?hrefParams=t';
-       const baseUrlTest = urlString`http://www.example.com/`;
+       const baseUrlTest = 'http://www.example.com/' as Platform.DevToolsPath.UrlString;
        const completeUrl = ParsedURL.completeURL(baseUrlTest, hrefTest);
        assertEqualUrlStringString(completeUrl, baseUrlTest + hrefTest, 'complete URL is not returned correctly');
      });
@@ -454,7 +421,7 @@ describe('Parsed URL', () => {
     const splitResult = ParsedURL.splitLineAndColumn(stringTest);
     assert.strictEqual(splitResult.url, 'http://www.example.com/foo.js', 'URL is not correct');
     assert.strictEqual(splitResult.lineNumber, 14, 'line number is incorrect');
-    assert.isUndefined(splitResult.columnNumber, 'column number is incorrect');
+    assert.strictEqual(splitResult.columnNumber, undefined, 'column number is incorrect');
   });
 
   it('uses the splitLineAndColumn function to return the line and column numbers if the URL contains them', () => {
@@ -623,15 +590,18 @@ describe('Parsed URL', () => {
 
   it('returns the correct results for all ported web_tests unit tests', () => {
     assertEqualUrlStringString(
-        ParsedURL.completeURL(urlString`http://example.com/script.js`, 'http://example.com/map.json'),
+        ParsedURL.completeURL(
+            'http://example.com/script.js' as Platform.DevToolsPath.UrlString, 'http://example.com/map.json'),
         'http://example.com/map.json');
     assertEqualUrlStringString(
-        ParsedURL.completeURL(urlString`http://example.com/script.js`, '/map.json'), 'http://example.com/map.json');
+        ParsedURL.completeURL('http://example.com/script.js' as Platform.DevToolsPath.UrlString, '/map.json'),
+        'http://example.com/map.json');
     assertEqualUrlStringString(
-        ParsedURL.completeURL(urlString`http://example.com/scripts/script.js`, '../maps/map.json'),
+        ParsedURL.completeURL(
+            'http://example.com/scripts/script.js' as Platform.DevToolsPath.UrlString, '../maps/map.json'),
         'http://example.com/maps/map.json');
 
-    const baseURL = urlString`http://a/b/c/d;p?q`;
+    const baseURL = 'http://a/b/c/d;p?q' as Platform.DevToolsPath.UrlString;
 
     assertEqualUrlStringString(ParsedURL.completeURL(baseURL, 'http://h'),
                                'http://h/');  // modified from RFC3986
@@ -656,11 +626,13 @@ describe('Parsed URL', () => {
     assertEqualUrlStringString(ParsedURL.completeURL(baseURL, 'g#s/../x'), 'http://a/b/c/g#s/../x');
 
     assertEqualUrlStringString(
-        ParsedURL.completeURL(urlString`http://a/b/c/d;p?q`, '//secure.com/moo'), 'http://secure.com/moo');
+        ParsedURL.completeURL('http://a/b/c/d;p?q' as Platform.DevToolsPath.UrlString, '//secure.com/moo'),
+        'http://secure.com/moo');
     assertEqualUrlStringString(
-        ParsedURL.completeURL(urlString`http://a/b/c/d;p?q`, 'cat.jpeg'), 'http://a/b/c/cat.jpeg');
+        ParsedURL.completeURL('http://a/b/c/d;p?q' as Platform.DevToolsPath.UrlString, 'cat.jpeg'),
+        'http://a/b/c/cat.jpeg');
     assertEqualUrlStringString(
-        ParsedURL.completeURL(urlString`http://example.com/path.css?query#fragment`, ''),
+        ParsedURL.completeURL('http://example.com/path.css?query#fragment' as Platform.DevToolsPath.UrlString, ''),
         'http://example.com/path.css?query');
   });
 
@@ -715,20 +687,20 @@ describe('Parsed URL', () => {
   });
 
   it('converts relative platform path and base URL to URL', () => {
-    const baseUrl = urlString`http://localhost:8080/my%20folder/old%20path`;
+    const baseUrl = 'http://localhost:8080/my%20folder/old%20path' as Platform.DevToolsPath.UrlString;
     const relativePath = 'new spaced%20name' as Platform.DevToolsPath.RawPathString;
     const convertedUrl = ParsedURL.relativePathToUrlString(relativePath, baseUrl);
     assert.strictEqual(convertedUrl, 'http://localhost:8080/my%20folder/new%20spaced%2520name');
   });
 
   it('converts URL to a platform path that includes drive letter and spaces on Windows', () => {
-    const urlTest = urlString`file:///C:/Program%20Files/Google`;
+    const urlTest = 'file:///C:/Program%20Files/Google' as Platform.DevToolsPath.UrlString;
     const convertedUrl = ParsedURL.urlToRawPathString(urlTest, true);
     assert.strictEqual(convertedUrl, 'C:\\Program Files\\Google', 'URL was not converted successfully');
   });
 
   it('converts URL to a platform path that includes spaces and percents', () => {
-    const urlTest = urlString`file:///home/user/with%20space/with%2520escape`;
+    const urlTest = 'file:///home/user/with%20space/with%2520escape' as Platform.DevToolsPath.UrlString;
     const convertedUrl = ParsedURL.urlToRawPathString(urlTest, false);
     assert.strictEqual(convertedUrl, '/home/user/with space/with%20escape', 'URL was not converted successfully');
   });
@@ -743,8 +715,8 @@ describe('Parsed URL', () => {
   it('converts platform path with variety of special characters to URL and back consistently with Chrome', () => {
     const platformPathTest =
         '/home/a:b@c(d, e+f)=&g;#h$' as Platform.DevToolsPath.RawPathString;  // Valid filename on unix
-    const urlTest =
-        urlString`file:///home/a:b@c(d,%20e+f)=&g%3B%23h\$`;  // URL in Chrome address bar if you open that file
+    const urlTest = 'file:///home/a:b@c(d,%20e+f)=&g%3B%23h$' as
+        Platform.DevToolsPath.UrlString;  // URL in Chrome address bar if you open that file
     assert.strictEqual(ParsedURL.rawPathToUrlString(platformPathTest), urlTest);
     assert.strictEqual(ParsedURL.urlToRawPathString(urlTest), platformPathTest);
   });

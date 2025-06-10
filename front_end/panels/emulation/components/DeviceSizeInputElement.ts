@@ -5,7 +5,7 @@
 import type * as Platform from '../../../core/platform/platform.js';
 import * as EmulationModel from '../../../models/emulation/emulation.js';
 import * as UILegacy from '../../../ui/legacy/legacy.js';
-import {html, render} from '../../../ui/lit/lit.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
 class SizeChangedEvent extends Event {
@@ -26,6 +26,8 @@ export class SizeInputElement extends HTMLElement {
   #placeholder = '';
   #title: Platform.UIString.LocalizedString;
   #jslogContext: string;
+
+  static readonly litTagName = LitHtml.literal`device-mode-emulation-size-input`;
 
   constructor(title: Platform.UIString.LocalizedString, {jslogContext}: {jslogContext: string}) {
     super();
@@ -53,13 +55,14 @@ export class SizeInputElement extends HTMLElement {
   }
 
   render(): void {
-    render(
+    LitHtml.render(
         // Since the emulation code runs in a different frame, we can't
         // use constructed stylesheets (they are disallowed cross-frame).
         // For now, use an inline style tag and later we can refactor this
         // to use proper constructed stylesheets, when the code runs
         // in the correct frame context.
-        html`
+        // eslint-disable-next-line rulesdir/ban_style_tags_in_lit_html
+        LitHtml.html`
       <style>
         input {
           /*
@@ -127,6 +130,6 @@ declare global {
     'device-mode-emulation-size-input': SizeInputElement;
   }
   interface HTMLElementEventMap {
-    sizechanged: SizeChangedEvent;
+    'sizechanged': SizeChangedEvent;
   }
 }

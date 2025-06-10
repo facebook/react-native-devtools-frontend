@@ -2,19 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../legacy/legacy.js';
-
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Platform from '../../../core/platform/platform.js';
 import * as ComponentHelpers from '../../components/helpers/helpers.js';
-import {html, render} from '../../lit/lit.js';
+import * as LitHtml from '../../lit-html/lit-html.js';
 import * as VisualLogging from '../../visual_logging/visual_logging.js';
+import * as IconButton from '../icon_button/icon_button.js';
 
-import panelFeedbackStylesRaw from './panelFeedback.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const panelFeedbackStyles = new CSSStyleSheet();
-panelFeedbackStyles.replaceSync(panelFeedbackStylesRaw.cssText);
+import panelFeedbackStyles from './panelFeedback.css.js';
 
 const UIStrings = {
   /**
@@ -33,7 +28,7 @@ const UIStrings = {
    *@description Title of the section to the quick start video and documentation on experimental panels.
    */
   videoAndDocumentation: 'Video and documentation',
-} as const;
+};
 
 const str_ = i18n.i18n.registerUIStrings('ui/components/panel_feedback/PanelFeedback.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -47,6 +42,7 @@ export interface PanelFeedbackData {
   quickStartLinkText: string;
 }
 export class PanelFeedback extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-panel-feedback`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   readonly #boundRender = this.#render.bind(this);
 
@@ -71,15 +67,15 @@ export class PanelFeedback extends HTMLElement {
     }
 
     // clang-format off
-    render(html`
+    LitHtml.render(LitHtml.html`
       <div class="preview">
         <h2 class="flex">
-          <devtools-icon .data=${{
+          <${IconButton.Icon.Icon.litTagName} .data=${{
             iconPath: previewFeatureUrl,
             width: '20px',
             height: '20px',
             color: 'var(--icon-primary)',
-          }}></devtools-icon> ${i18nString(UIStrings.previewFeature)}
+          } as IconButton.Icon.IconData}></${IconButton.Icon.Icon.litTagName}> ${i18nString(UIStrings.previewFeature)}
         </h2>
         <p>${i18nString(UIStrings.previewText)} <x-link href=${this.#props.feedbackUrl} jslog=${VisualLogging.link('feedback').track({click: true})}>${i18nString(UIStrings.previewTextFeedbackLink)}</x-link></p>
         <div class="video">

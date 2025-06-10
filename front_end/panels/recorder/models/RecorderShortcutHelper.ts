@@ -6,7 +6,7 @@ import * as UI from '../../../ui/legacy/legacy.js';
 
 export class RecorderShortcutHelper {
   #abortController: AbortController;
-  #timeoutId: ReturnType<typeof setTimeout>|null = null;
+  #timeoutId: NodeJS.Timeout|null = null;
   #timeout: number;
 
   constructor(timeout = 200) {

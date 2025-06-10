@@ -5,13 +5,11 @@
 import("../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../scripts/build/ninja/devtools_module.gni")
 import("../../../scripts/build/ninja/generate_css.gni")
-import("../../../scripts/build/typescript/typescript.gni")
+import("../../../third_party/typescript/typescript.gni")
 import("../visibility.gni")
 
 generate_css("css_files") {
   sources = [
-    "cookieControlsView.css",
-    "cookieReportView.css",
     "lockIcon.css",
     "mainView.css",
     "originView.css",
@@ -21,32 +19,18 @@ generate_css("css_files") {
 
 devtools_module("security") {
   sources = [
-    "CookieControlsTreeElement.ts",
-    "CookieControlsView.ts",
-    "CookieReportTreeElement.ts",
-    "CookieReportView.ts",
-    "OriginTreeElement.ts",
     "SecurityModel.ts",
     "SecurityPanel.ts",
-    "SecurityPanelSidebar.ts",
-    "SecurityPanelSidebarTreeElement.ts",
   ]
 
   deps = [
     "../../core/common:bundle",
     "../../core/host:bundle",
     "../../core/i18n:bundle",
-    "../../core/root:bundle",
     "../../core/sdk:bundle",
     "../../generated:protocol",
-    "../../models/issues_manager:bundle",
     "../../panels/network/forward:bundle",
-    "../../ui/components/buttons:bundle",
-    "../../ui/components/cards:bundle",
-    "../../ui/components/chrome_link:bundle",
-    "../../ui/components/switch:bundle",
     "../../ui/legacy:bundle",
-    "../../ui/legacy/components/data_grid:bundle",
   ]
 }
 
@@ -61,7 +45,6 @@ devtools_entrypoint("bundle") {
   visibility = [
     ":*",
     "../../entrypoints/*",
-    "../console/*",
   ]
 
   visibility += devtools_panels_visibility
@@ -72,9 +55,7 @@ devtools_entrypoint("meta") {
 
   deps = [
     ":bundle",
-    "../../core/common:bundle",
     "../../core/i18n:bundle",
-    "../../core/root:bundle",
     "../../ui/legacy:bundle",
   ]
 
@@ -85,8 +66,6 @@ ts_library("unittests") {
   testonly = true
 
   sources = [
-    "CookieControlsView.test.ts",
-    "CookieReportView.test.ts",
     "SecurityModel.test.ts",
     "SecurityPanel.test.ts",
   ]
@@ -94,7 +73,6 @@ ts_library("unittests") {
   deps = [
     ":bundle",
     "../../core/platform:bundle",
-    "../../core/root:bundle",
     "../../core/sdk:bundle",
     "../../generated:protocol",
     "../../testing",

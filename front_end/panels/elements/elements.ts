@@ -37,7 +37,6 @@ import * as ColorSwatchPopoverIcon from './ColorSwatchPopoverIcon.js';
 import * as ComputedStyleModel from './ComputedStyleModel.js';
 import * as ComputedStyleWidget from './ComputedStyleWidget.js';
 import * as CSSRuleValidator from './CSSRuleValidator.js';
-import * as CSSValueTraceView from './CSSValueTraceView.js';
 import * as DOMLinkifier from './DOMLinkifier.js';
 import * as DOMPath from './DOMPath.js';
 import * as ElementsPanel from './ElementsPanel.js';
@@ -54,6 +53,7 @@ import * as MetricsSidebarPane from './MetricsSidebarPane.js';
 import * as NodeStackTraceWidget from './NodeStackTraceWidget.js';
 import * as PlatformFontsWidget from './PlatformFontsWidget.js';
 import * as PropertiesWidget from './PropertiesWidget.js';
+import * as PropertyMatchers from './PropertyMatchers.js';
 import * as PropertyRenderer from './PropertyRenderer.js';
 import * as StyleEditorWidget from './StyleEditorWidget.js';
 import * as StylePropertiesSection from './StylePropertiesSection.js';
@@ -72,7 +72,6 @@ export {
   ComputedStyleModel,
   ComputedStyleWidget,
   CSSRuleValidator,
-  CSSValueTraceView,
   DOMLinkifier,
   DOMPath,
   ElementsPanel,
@@ -89,6 +88,7 @@ export {
   NodeStackTraceWidget,
   PlatformFontsWidget,
   PropertiesWidget,
+  PropertyMatchers,
   PropertyRenderer,
   StyleEditorWidget,
   StylePropertiesSection,

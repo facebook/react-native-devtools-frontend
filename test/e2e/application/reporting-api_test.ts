@@ -5,11 +5,14 @@
 import {assert} from 'chai';
 
 import {
+  $,
   click,
+  getBrowserAndPages,
   getTestServerPort,
   goToResource,
   waitFor,
 } from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {navigateToApplicationTab} from '../helpers/application-helpers.js';
 import {getDataGrid, getDataGridRows, getInnerTextOfDataGridCells} from '../helpers/datagrid-helpers.js';
 
@@ -17,12 +20,14 @@ const REPORTING_API_SELECTOR = '[aria-label="Reporting API"]';
 
 describe('The Reporting API Page', () => {
   beforeEach(async () => {
-    await navigateToApplicationTab('empty');
+    const {target} = getBrowserAndPages();
+    await navigateToApplicationTab(target, 'empty');
   });
 
   // Flaky on mac
   it.skipOnPlatforms(['mac'], '[crbug.com/1482688] shows reports', async () => {
-    await navigateToApplicationTab('reporting-api');
+    const {target} = getBrowserAndPages();
+    await navigateToApplicationTab(target, 'reporting-api');
     await click(REPORTING_API_SELECTOR);
     const dataGrid = await getDataGrid();
     const innerText = await getInnerTextOfDataGridCells(dataGrid, 1, false);
@@ -51,10 +56,12 @@ describe('The Reporting API Page', () => {
     await click('#tab-resources');
     await waitFor('.storage-group-list-item');  // Make sure the application navigation list is shown
     await click(REPORTING_API_SELECTOR);
-
-    const endpointsGrid = await waitFor('devtools-resources-endpoints-grid');
-
-    const innerText = await getInnerTextOfDataGridCells(endpointsGrid, 2, true);
+    const endpointsGrid = await $('devtools-resources-endpoints-grid');
+    if (!endpointsGrid) {
+      assert.fail('Could not find data-grid');
+    }
+    const dataGrid = await getDataGrid(endpointsGrid);
+    const innerText = await getInnerTextOfDataGridCells(dataGrid, 2, true);
     assert.strictEqual(innerText[0][0], `https://localhost:${getTestServerPort()}`);
     assert.strictEqual(innerText[0][1], 'default');
     assert.strictEqual(innerText[0][2], 'https://reports.example/default');

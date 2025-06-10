@@ -3,7 +3,7 @@
 # found in the LICENSE file.
 
 import("../../scripts/build/ninja/copy.gni")
-import("../../scripts/build/typescript/typescript.gni")
+import("../../third_party/typescript/typescript.gni")
 
 group("perf") {
   deps = [

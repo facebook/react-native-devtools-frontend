@@ -3,6 +3,10 @@
  * Copyright 2017 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
+/// <reference types="node" />
+/// <reference types="node" />
+/// <reference types="node" />
+import type FS from 'fs/promises';
 import type { OperatorFunction } from '../../third_party/rxjs/rxjs.js';
 import { Observable } from '../../third_party/rxjs/rxjs.js';
 import type { CDPSession } from '../api/CDPSession.js';
@@ -35,11 +39,11 @@ export declare class PuppeteerURL {
 /**
  * @internal
  */
-export declare const withSourcePuppeteerURLIfNone: <T extends NonNullable<unknown>>(functionName: string, object: T) => T;
+export declare const withSourcePuppeteerURLIfNone: <T extends {}>(functionName: string, object: T) => T;
 /**
  * @internal
  */
-export declare const getSourcePuppeteerURLIfAvailable: <T extends NonNullable<unknown>>(object: T) => PuppeteerURL | undefined;
+export declare const getSourcePuppeteerURLIfAvailable: <T extends {}>(object: T) => PuppeteerURL | undefined;
 /**
  * @internal
  */
@@ -67,7 +71,11 @@ export declare function evaluationString(fun: Function | string, ...args: unknow
 /**
  * @internal
  */
-export declare function getReadableAsTypedArray(readable: ReadableStream<Uint8Array>, path?: string): Promise<Uint8Array | null>;
+export declare function importFSPromises(): Promise<typeof FS>;
+/**
+ * @internal
+ */
+export declare function getReadableAsBuffer(readable: ReadableStream<Uint8Array>, path?: string): Promise<Buffer | null>;
 /**
  * @internal
  */

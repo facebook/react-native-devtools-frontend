@@ -11,15 +11,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type * as puppeteer from 'puppeteer-core';
 
-import {platform} from '../conductor/mocha-interface-helpers.js';
 import {SOURCE_ROOT} from '../conductor/paths.js';
-import {ScreenshotError} from '../conductor/screenshot-error.js';
 import {TestConfig} from '../conductor/test_config.js';
 import {
   getBrowserAndPages,
+  platform,
   timeout,
   waitFor,
 } from '../shared/helper.js';
+import {ScreenshotError} from '../shared/screenshot-error.js';
 
 /**
  * The goldens screenshot folder is always taken from the source directory (NOT
@@ -60,15 +60,17 @@ const defaultScreenshotOpts: puppeteer.ScreenshotOptions = {
   captureBeyondViewport: false,
 };
 
-const DEFAULT_RETRIES_COUNT = 1;
+const DEFAULT_RETRIES_COUNT = 5;
 const DEFAULT_MS_BETWEEN_RETRIES = 150;
 
 // Percentage difference when comparing golden vs new screenshot that is
 // acceptable and will not fail the test.
-const DEFAULT_SCREENSHOT_THRESHOLD_PERCENT = 0.1;
+const DEFAULT_SCREENSHOT_THRESHOLD_PERCENT = 4;
 
 export const assertElementScreenshotUnchanged = async (
-    element: puppeteer.ElementHandle|null, fileName: string, options: Partial<puppeteer.ScreenshotOptions> = {}) => {
+    element: puppeteer.ElementHandle|null, fileName: string,
+    maximumDiffThreshold = DEFAULT_SCREENSHOT_THRESHOLD_PERCENT,
+    options: Partial<puppeteer.ScreenshotOptions> = {}) => {
   if (!element) {
     assert.fail(`Given element for test ${fileName} was not found.`);
   }
@@ -77,26 +79,15 @@ export const assertElementScreenshotUnchanged = async (
   if (platform !== 'linux') {
     return;
   }
-  return await assertScreenshotUnchangedWithRetries(
-      element, fileName, DEFAULT_SCREENSHOT_THRESHOLD_PERCENT, DEFAULT_RETRIES_COUNT, options);
+  return assertScreenshotUnchangedWithRetries(element, fileName, maximumDiffThreshold, DEFAULT_RETRIES_COUNT, options);
 };
-
-function getFrontend() {
-  // Outside e2e or interaction tests the frontend can be undefined.
-  try {
-    const {frontend} = getBrowserAndPages();
-    return frontend;
-  } catch {
-    return;
-  }
-}
 
 const assertScreenshotUnchangedWithRetries = async (
     elementOrPage: puppeteer.ElementHandle|puppeteer.Page, fileName: string, maximumDiffThreshold: number,
     maximumRetries: number, options: Partial<puppeteer.ScreenshotOptions> = {}) => {
-  const frontend = getFrontend();
+  const {frontend} = getBrowserAndPages();
   try {
-    await frontend?.evaluate(() => window.dispatchEvent(new Event('hidecomponentdocsui')));
+    await frontend.evaluate(() => window.dispatchEvent(new Event('hidecomponentdocsui')));
     /**
      * You can call the helper with a path for the golden - e.g.
      * accordion/basic.png. So we split on `/` and then join on path.sep to
@@ -133,7 +124,7 @@ const assertScreenshotUnchangedWithRetries = async (
       maximumRetries,
     });
   } finally {
-    await frontend?.evaluate(() => window.dispatchEvent(new Event('showcomponentdocsui')));
+    await frontend.evaluate(() => window.dispatchEvent(new Event('showcomponentdocsui')));
   }
 };
 
@@ -198,7 +189,7 @@ const assertScreenshotUnchanged = async (options: ScreenshotAssertionOptions) =>
   }
 
   try {
-    await compare(goldenScreenshotPath, generatedScreenshotPath, maximumDiffThreshold, shouldUpdate);
+    await compare(goldenScreenshotPath, generatedScreenshotPath, maximumDiffThreshold);
   } catch (compareError) {
     if (!onBotAndImageNotFound) {
       console.log(`=> Test failed. Retrying (retry ${retryCount} of ${maximumRetries} maximum).`);
@@ -239,7 +230,7 @@ interface ImageDiff {
 }
 
 async function imageDiff(golden: string, generated: string) {
-  return await new Promise<ImageDiff>(async (resolve, reject) => {
+  return new Promise<ImageDiff>(async (resolve, reject) => {
     try {
       const imageDiff: ImageDiff = {rawMisMatchPercentage: 0, diffPath: ''};
       const diffText = await execImageDiffCommand(`${IMAGE_DIFF_BINARY} --histogram ${golden} ${generated}`);
@@ -265,7 +256,7 @@ async function imageDiff(golden: string, generated: string) {
 }
 
 async function execImageDiffCommand(cmd: string) {
-  return await new Promise<string>((resolve, reject) => {
+  return new Promise<string>((resolve, reject) => {
     let commandOutput = '';
     try {
       commandOutput = childProcess.execSync(cmd, {encoding: 'utf8'});
@@ -284,7 +275,7 @@ async function execImageDiffCommand(cmd: string) {
   });
 }
 
-async function compare(golden: string, generated: string, maximumDiffThreshold: number, isInDiffUpdateMode: boolean) {
+async function compare(golden: string, generated: string, maximumDiffThreshold: number) {
   const isOnBot = process.env.LUCI_CONTEXT !== undefined;
   if (!isOnBot && process.env.SKIP_SCREENSHOT_COMPARISONS_FOR_FAST_COVERAGE) {
     // When checking test coverage locally the tests get sped up significantly
@@ -313,8 +304,8 @@ async function compare(golden: string, generated: string, maximumDiffThreshold: 
   let debugInfo = '';
   if (isOnBot) {
     debugInfo = `${base64TestGeneratedImageLog}\n${base64DiffImageLog}\n`;
-  } else if (!isInDiffUpdateMode) {
-    debugInfo = `Run the tests again with --on-diff=update to update all tests that fail.
+  } else {
+    debugInfo = `Run the tests again with FORCE_UPDATE_ALL_GOLDENS to update all tests that fail.
   Only do this if you expected this screenshot to have changed!
 
   Diff image generated at:

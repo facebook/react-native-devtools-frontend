@@ -3,7 +3,6 @@
  * Copyright 2020 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { Frame } from '../api/Frame.js';
 import type { JSHandle } from '../api/JSHandle.js';
 /**
  * @public
@@ -36,7 +35,7 @@ export declare class ConsoleMessage {
     /**
      * @internal
      */
-    constructor(type: ConsoleMessageType, text: string, args: JSHandle[], stackTraceLocations: ConsoleMessageLocation[], frame?: Frame);
+    constructor(type: ConsoleMessageType, text: string, args: JSHandle[], stackTraceLocations: ConsoleMessageLocation[]);
     /**
      * The type of the console message.
      */

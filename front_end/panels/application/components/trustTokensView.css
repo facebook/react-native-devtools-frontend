@@ -6,15 +6,14 @@
 
 :host {
   padding: 20px;
-  height: 100%;
-  display: flex;
 }
 
 .heading {
   font-size: 15px;
 }
 
-devtools-data-grid {
+devtools-data-grid-controller {
+  border: 1px solid var(--sys-color-divider);
   margin-top: 20px;
 
   & devtools-button {

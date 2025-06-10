@@ -35,8 +35,8 @@ import * as TextUtils from '../../models/text_utils/text_utils.js';
 import * as Common from '../common/common.js';
 import * as Platform from '../platform/platform.js';
 
-import type {NetworkRequest} from './NetworkRequest.js';
-import type {ResourceTreeFrame, ResourceTreeModel} from './ResourceTreeModel.js';
+import {type NetworkRequest} from './NetworkRequest.js';
+import {type ResourceTreeFrame, type ResourceTreeModel} from './ResourceTreeModel.js';
 
 export class Resource implements TextUtils.ContentProvider.ContentProvider {
   readonly #resourceTreeModel: ResourceTreeModel;
@@ -173,7 +173,7 @@ export class Resource implements TextUtils.ContentProvider.ContentProvider {
       return this.#contentData;
     }
     if (this.#pendingContentData) {
-      return await this.#pendingContentData;
+      return this.#pendingContentData;
     }
     this.#pendingContentData = this.innerRequestContent().then(contentData => {
       // If an error happended we don't set `this.#contentData` so future `requestContentData` will
@@ -184,7 +184,7 @@ export class Resource implements TextUtils.ContentProvider.ContentProvider {
       this.#pendingContentData = null;
       return contentData;
     });
-    return await this.#pendingContentData;
+    return this.#pendingContentData;
   }
 
   canonicalMimeType(): string {
@@ -197,7 +197,7 @@ export class Resource implements TextUtils.ContentProvider.ContentProvider {
       return [];
     }
     if (this.request) {
-      return await this.request.searchInContent(query, caseSensitive, isRegex);
+      return this.request.searchInContent(query, caseSensitive, isRegex);
     }
     const result = await this.#resourceTreeModel.target().pageAgent().invoke_searchInResource(
         {frameId: this.frameId, url: this.url, query, caseSensitive, isRegex});
@@ -215,7 +215,7 @@ export class Resource implements TextUtils.ContentProvider.ContentProvider {
   private async innerRequestContent(): Promise<TextUtils.ContentData.ContentDataOrError> {
     if (this.request) {
       // The `contentData` promise only resolves once the request is done.
-      return await this.request.requestContentData();
+      return this.request.requestContentData();
     }
 
     const response = await this.#resourceTreeModel.target().pageAgent().invoke_getResourceContent(
@@ -225,6 +225,13 @@ export class Resource implements TextUtils.ContentProvider.ContentProvider {
       return {error};
     }
     return new TextUtils.ContentData.ContentData(response.content, response.base64Encoded, this.mimeType);
+  }
+
+  hasTextContent(): boolean {
+    if (this.#contentData?.isTextContent) {
+      return true;
+    }
+    return this.#type.isTextType() || Platform.MimeType.isTextType(this.mimeType);
   }
 
   frame(): ResourceTreeFrame|null {

@@ -8,7 +8,6 @@ import type {Protocol} from 'devtools-protocol';
 import type {ProtocolError} from '../common/Errors.js';
 import {debugError, isString} from '../common/util.js';
 import {assert} from '../util/assert.js';
-import {typedArrayToBase64} from '../util/encoding.js';
 
 import type {CDPSession} from './CDPSession.js';
 import type {Frame} from './Frame.js';
@@ -43,14 +42,9 @@ export interface InterceptResolutionState {
 export interface ResponseForRequest {
   status: number;
   /**
-   * Optional response headers.
-   *
-   * The record values will be converted to string following:
-   * Arrays' values will be mapped to String
-   * (Used when you need multiple headers with the same name).
-   * Non-arrays will be converted to String.
+   * Optional response headers. All values are converted to strings.
    */
-  headers: Record<string, string | string[] | unknown>;
+  headers: Record<string, unknown>;
   contentType: string;
   body: string | Uint8Array;
 }
@@ -77,7 +71,6 @@ export const DEFAULT_INTERCEPT_RESOLUTION_PRIORITY = 0;
  * following events are emitted by Puppeteer's `page`:
  *
  * - `request`: emitted when the request is issued by the page.
- *
  * - `requestfinished` - emitted when the response body is downloaded and the
  *   request is complete.
  *
@@ -231,7 +224,7 @@ export abstract class HTTPRequest {
    * is finalized.
    */
   enqueueInterceptAction(
-    pendingHandler: () => void | PromiseLike<unknown>,
+    pendingHandler: () => void | PromiseLike<unknown>
   ): void {
     this.interception.handlers.push(pendingHandler);
   }
@@ -240,7 +233,7 @@ export abstract class HTTPRequest {
    * @internal
    */
   abstract _abort(
-    errorReason: Protocol.Network.ErrorReason | null,
+    errorReason: Protocol.Network.ErrorReason | null
   ): Promise<void>;
 
   /**
@@ -261,7 +254,7 @@ export abstract class HTTPRequest {
     await this.interception.handlers.reduce((promiseChain, interceptAction) => {
       return promiseChain.then(interceptAction);
     }, Promise.resolve());
-    this.interception.handlers = [];
+    this.interception.handlers = []; // TODO: verify this is correct top let gc run
     const {action} = this.interceptResolutionState();
     switch (action) {
       case 'abort':
@@ -384,10 +377,6 @@ export abstract class HTTPRequest {
    */
   abstract failure(): {errorText: string} | null;
 
-  #canBeIntercepted(): boolean {
-    return !this.url().startsWith('data:') && !this._fromMemoryCache;
-  }
-
   /**
    * Continues request with optional request overrides.
    *
@@ -418,9 +407,10 @@ export abstract class HTTPRequest {
    */
   async continue(
     overrides: ContinueRequestOverrides = {},
-    priority?: number,
+    priority?: number
   ): Promise<void> {
-    if (!this.#canBeIntercepted()) {
+    // Request interception is not supported for data: urls.
+    if (this.url().startsWith('data:')) {
       return;
     }
     assert(this.interception.enabled, 'Request Interception is not enabled!');
@@ -486,9 +476,10 @@ export abstract class HTTPRequest {
    */
   async respond(
     response: Partial<ResponseForRequest>,
-    priority?: number,
+    priority?: number
   ): Promise<void> {
-    if (!this.#canBeIntercepted()) {
+    // Mocking responses for dataURL requests is not currently supported.
+    if (this.url().startsWith('data:')) {
       return;
     }
     assert(this.interception.enabled, 'Request Interception is not enabled!');
@@ -532,9 +523,10 @@ export abstract class HTTPRequest {
    */
   async abort(
     errorCode: ErrorCode = 'failed',
-    priority?: number,
+    priority?: number
   ): Promise<void> {
-    if (!this.#canBeIntercepted()) {
+    // Request interception is not supported for data: urls.
+    if (this.url().startsWith('data:')) {
       return;
     }
     const errorReason = errorReasons[errorCode];
@@ -569,9 +561,14 @@ export abstract class HTTPRequest {
       ? new TextEncoder().encode(body)
       : body;
 
+    const bytes = [];
+    for (const byte of byteBody) {
+      bytes.push(String.fromCharCode(byte));
+    }
+
     return {
       contentLength: byteBody.byteLength,
-      base64: typedArrayToBase64(byteBody),
+      base64: btoa(bytes.join('')),
     };
   }
 }
@@ -616,7 +613,7 @@ export type ActionResult = 'continue' | 'abort' | 'respond';
  * @internal
  */
 export function headersArray(
-  headers: Record<string, string | string[]>,
+  headers: Record<string, string | string[]>
 ): Array<{name: string; value: string}> {
   const result = [];
   for (const name in headers) {
@@ -628,7 +625,7 @@ export function headersArray(
       result.push(
         ...values.map(value => {
           return {name, value: value + ''};
-        }),
+        })
       );
     }
   }
@@ -733,7 +730,6 @@ export function handleError(error: ProtocolError): void {
   // 'Expected "header" [...]'.
   if (
     error.originalMessage.includes('Invalid header') ||
-    error.originalMessage.includes('Unsafe header') ||
     error.originalMessage.includes('Expected "header"') ||
     // WebDriver BiDi error for invalid values, for example, headers.
     error.originalMessage.includes('invalid argument')

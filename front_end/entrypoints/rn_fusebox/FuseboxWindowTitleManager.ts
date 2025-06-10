@@ -3,7 +3,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-export class FuseboxWindowTitleManager {
+export default class FuseboxWindowTitleManager {
   static #instance: FuseboxWindowTitleManager;
   #appDisplayName?: string;
   #deviceName?: string;

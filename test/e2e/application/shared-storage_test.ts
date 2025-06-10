@@ -8,11 +8,16 @@ import {expectError} from '../../conductor/events.js';
 import {
   $$,
   clickElement,
+  getBrowserAndPages,
   getTestServerPort,
   goToResource,
   step,
   waitFor,
 } from '../../shared/helper.js';
+import {
+  describe,
+  it,
+} from '../../shared/mocha-extensions.js';
 import {
   getStorageItemsData,
   getTrimmedTextContent,
@@ -26,10 +31,7 @@ import {
   getInnerTextOfDataGridCells,
 } from '../helpers/datagrid-helpers.js';
 
-// eslint-disable-next-line @typescript-eslint/naming-convention
 let DOMAIN: string;
-
-const SITE = 'https://localhost';
 
 describe('The Application Tab', () => {
   before(async () => {
@@ -42,9 +44,11 @@ describe('The Application Tab', () => {
 
   // Failing test.
   it.skip('[crbug.com/1485830]: shows Shared Storage events', async () => {
+    const {target} = getBrowserAndPages();
+
     await step('navigate to shared-storage resource and open Application tab', async () => {
       // Events are not recorded because tracking is not yet enabled.
-      await navigateToApplicationTab('shared-storage');
+      await navigateToApplicationTab(target, 'shared-storage');
     });
 
     await step('open the events view', async () => {
@@ -60,40 +64,34 @@ describe('The Application Tab', () => {
       const dataGrid = await getDataGrid();
       const innerText = await getInnerTextOfDataGridCells(dataGrid, 3, false);
 
-      assert.strictEqual(innerText[0][1], 'window');
-      assert.strictEqual(innerText[0][2], 'clear');
-      assert.strictEqual(innerText[0][3], DOMAIN);
-      assert.strictEqual(innerText[0][4], SITE);
-      assert.strictEqual(innerText[0][5], '{}');
-      assert.strictEqual(innerText[1][1], 'window');
-      assert.strictEqual(innerText[1][2], 'set');
-      assert.strictEqual(innerText[1][3], DOMAIN);
-      assert.strictEqual(innerText[1][4], SITE);
-      assert.strictEqual(innerText[1][5], '{"key":"firstKey","value":"firstValue"}');
-      assert.strictEqual(innerText[2][1], 'window');
-      assert.strictEqual(innerText[2][2], 'append');
-      assert.strictEqual(innerText[2][3], DOMAIN);
-      assert.strictEqual(innerText[2][4], SITE);
+      assert.strictEqual(innerText[0][1], 'documentClear');
+      assert.strictEqual(innerText[0][2], DOMAIN);
+      assert.strictEqual(innerText[0][3], '{}');
+      assert.strictEqual(innerText[1][1], 'documentSet');
+      assert.strictEqual(innerText[1][2], DOMAIN);
+      assert.strictEqual(innerText[1][3], '{"key":"firstKey","value":"firstValue"}');
+      assert.strictEqual(innerText[2][1], 'documentAppend');
+      assert.strictEqual(innerText[2][2], DOMAIN);
       assert.strictEqual(
-          innerText[2][5], '{"key":"secondKey","value":"{\\"field\\":\\"complexValue\\",\\"primitive\\":2}"}');
+          innerText[2][3], '{"key":"secondKey","value":"{\\"field\\":\\"complexValue\\",\\"primitive\\":2}"}');
 
       const rows = await getDataGridRows(3, dataGrid, false);
       await clickElement(rows[rows.length - 1][0]);
 
       const jsonView = await waitFor('.json-view');
       const jsonViewText = await jsonView.evaluate(el => (el as HTMLElement).innerText);
-      const accessTimeString = jsonViewText.substring('{accessTime: '.length, jsonViewText.indexOf(', scope:'));
+      const accessTimeString = jsonViewText.substring('{accessTime: '.length, jsonViewText.indexOf(', accessType:'));
       assert.strictEqual(
-          jsonViewText,
-          `{accessTime: ${accessTimeString}, scope: "window", method: "append", ownerOrigin: "${DOMAIN}", ownerSite: "${
-              SITE}",…}`);
+          jsonViewText, `{accessTime: ${accessTimeString}, accessType: "documentAppend", ownerOrigin: "${DOMAIN}",…}`);
     });
   });
 
   // Failing test.
   it.skip('[crbug.com/1485830]: shows Shared Storage metadata', async () => {
+    const {target} = getBrowserAndPages();
+
     await step('navigate to shared-storage resource and open Application tab', async () => {
-      await navigateToApplicationTab('shared-storage');
+      await navigateToApplicationTab(target, 'shared-storage');
     });
 
     await step('open the domain storage', async () => {
@@ -109,8 +107,10 @@ describe('The Application Tab', () => {
 
   // Failing test.
   it.skip('[crbug.com/1485830]: shows Shared Storage keys and values', async () => {
+    const {target} = getBrowserAndPages();
+
     await step('navigate to shared-storage resource and open Application tab', async () => {
-      await navigateToApplicationTab('shared-storage');
+      await navigateToApplicationTab(target, 'shared-storage');
     });
 
     await step('open the domain storage', async () => {

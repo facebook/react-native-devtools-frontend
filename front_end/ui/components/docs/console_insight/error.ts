@@ -29,5 +29,5 @@ const component = new ConsoleInsight(
           },
       registerClientEvent: () => Promise.resolve({}),
     },
-    Host.AidaClient.AidaAccessPreconditions.AVAILABLE);
+    Host.AidaClient.AidaAvailability.AVAILABLE);
 document.getElementById('container')?.appendChild(component);

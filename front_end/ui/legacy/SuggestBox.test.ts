@@ -7,7 +7,7 @@ import {describeWithLocale} from '../../testing/EnvironmentHelpers.js';
 import * as UI from './legacy.js';
 
 class MockSuggestBoxDelegate implements UI.SuggestBox.SuggestBoxDelegate {
-  readonly appliedSuggestions: Array<{suggestion: string, isIntermediateSuggestion?: boolean}> = [];
+  readonly appliedSuggestions: {suggestion: string, isIntermediateSuggestion?: boolean}[] = [];
   readonly accceptedSuggestions: string[] = [];
 
   private lastAppliedSuggestion!: UI.SuggestBox.Suggestion;
@@ -64,7 +64,7 @@ describeWithLocale('SuggestBox', () => {
     suggestBox.updateSuggestions(
         anchorBox, [{text: 'First'}, {text: 'Hello'}, {text: 'The best suggestion'}], true, true, 'e');
 
-    assert.deepEqual(delegate.appliedSuggestions, [{suggestion: 'First', isIntermediateSuggestion: true}]);
+    assert.deepStrictEqual(delegate.appliedSuggestions, [{suggestion: 'First', isIntermediateSuggestion: true}]);
   });
 
   it('selects no item when "canShowForSingleItem" is false', () => {
@@ -72,7 +72,7 @@ describeWithLocale('SuggestBox', () => {
         anchorBox, [{text: 'First'}, {text: 'Hello', priority: 2}, {text: 'The best suggestion', priority: 5}], false,
         true, 'e');
 
-    assert.deepEqual(delegate.appliedSuggestions, []);
+    assert.deepStrictEqual(delegate.appliedSuggestions, []);
   });
 
   it('selects the highest priority item', () => {
@@ -80,7 +80,7 @@ describeWithLocale('SuggestBox', () => {
         anchorBox, [{text: 'First'}, {text: 'Hello', priority: 2}, {text: 'The best suggestion', priority: 5}], true,
         true, 'e');
 
-    assert.deepEqual(
+    assert.deepStrictEqual(
         delegate.appliedSuggestions, [{suggestion: 'The best suggestion', isIntermediateSuggestion: true}]);
   });
 
@@ -95,7 +95,7 @@ describeWithLocale('SuggestBox', () => {
     suggestBox.keyPressed(createKeyEvent('ArrowDown'));
     suggestBox.keyPressed(createKeyEvent('ArrowDown'));
 
-    assert.deepEqual(delegate.appliedSuggestions, [
+    assert.deepStrictEqual(delegate.appliedSuggestions, [
       {suggestion: 'The best suggestion', isIntermediateSuggestion: true},
       {suggestion: 'Hello', isIntermediateSuggestion: true},
       {suggestion: 'First', isIntermediateSuggestion: true},
@@ -111,7 +111,7 @@ describeWithLocale('SuggestBox', () => {
         true, 'e');
 
     suggestBox.keyPressed(createKeyEvent('Enter'));
-    assert.deepEqual(delegate.accceptedSuggestions, ['The best suggestion']);
+    assert.deepStrictEqual(delegate.accceptedSuggestions, ['The best suggestion']);
   });
 
   it('closes the controller element after accepting a suggestion', () => {

@@ -166,13 +166,6 @@ let BrowsingContext = (() => {
                 }
                 this.dispose('Browsing context already closed.');
             });
-            sessionEmitter.on('browsingContext.historyUpdated', info => {
-                if (info.context !== this.id) {
-                    return;
-                }
-                this.#url = info.url;
-                this.emit('historyUpdated', undefined);
-            });
             sessionEmitter.on('browsingContext.domContentLoaded', info => {
                 if (info.context !== this.id) {
                     return;
@@ -280,9 +273,6 @@ let BrowsingContext = (() => {
         }
         dispose(reason) {
             this.#reason = reason;
-            for (const context of this.#children.values()) {
-                context.dispose('Parent browsing context was disposed');
-            }
             this[disposable_js_1.disposeSymbol]();
         }
         async activate() {

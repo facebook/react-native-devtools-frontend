@@ -1,11 +1,8 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.STATUS_TEXTS = exports.InterceptResolutionAction = exports.HTTPRequest = exports.DEFAULT_INTERCEPT_RESOLUTION_PRIORITY = void 0;
-exports.headersArray = headersArray;
-exports.handleError = handleError;
+exports.handleError = exports.STATUS_TEXTS = exports.headersArray = exports.InterceptResolutionAction = exports.HTTPRequest = exports.DEFAULT_INTERCEPT_RESOLUTION_PRIORITY = void 0;
 const util_js_1 = require("../common/util.js");
 const assert_js_1 = require("../util/assert.js");
-const encoding_js_1 = require("../util/encoding.js");
 /**
  * The default cooperative request interception resolution priority
  *
@@ -20,7 +17,6 @@ exports.DEFAULT_INTERCEPT_RESOLUTION_PRIORITY = 0;
  * following events are emitted by Puppeteer's `page`:
  *
  * - `request`: emitted when the request is issued by the page.
- *
  * - `requestfinished` - emitted when the response body is downloaded and the
  *   request is complete.
  *
@@ -151,7 +147,7 @@ class HTTPRequest {
         await this.interception.handlers.reduce((promiseChain, interceptAction) => {
             return promiseChain.then(interceptAction);
         }, Promise.resolve());
-        this.interception.handlers = [];
+        this.interception.handlers = []; // TODO: verify this is correct top let gc run
         const { action } = this.interceptResolutionState();
         switch (action) {
             case 'abort':
@@ -164,9 +160,6 @@ class HTTPRequest {
             case 'continue':
                 return await this._continue(this.interception.requestOverrides);
         }
-    }
-    #canBeIntercepted() {
-        return !this.url().startsWith('data:') && !this._fromMemoryCache;
     }
     /**
      * Continues request with optional request overrides.
@@ -197,7 +190,8 @@ class HTTPRequest {
      * Exception is immediately thrown if the request interception is not enabled.
      */
     async continue(overrides = {}, priority) {
-        if (!this.#canBeIntercepted()) {
+        // Request interception is not supported for data: urls.
+        if (this.url().startsWith('data:')) {
             return;
         }
         (0, assert_js_1.assert)(this.interception.enabled, 'Request Interception is not enabled!');
@@ -257,7 +251,8 @@ class HTTPRequest {
      * Exception is immediately thrown if the request interception is not enabled.
      */
     async respond(response, priority) {
-        if (!this.#canBeIntercepted()) {
+        // Mocking responses for dataURL requests is not currently supported.
+        if (this.url().startsWith('data:')) {
             return;
         }
         (0, assert_js_1.assert)(this.interception.enabled, 'Request Interception is not enabled!');
@@ -297,7 +292,8 @@ class HTTPRequest {
      * throw an exception immediately.
      */
     async abort(errorCode = 'failed', priority) {
-        if (!this.#canBeIntercepted()) {
+        // Request interception is not supported for data: urls.
+        if (this.url().startsWith('data:')) {
             return;
         }
         const errorReason = errorReasons[errorCode];
@@ -325,9 +321,13 @@ class HTTPRequest {
         const byteBody = (0, util_js_1.isString)(body)
             ? new TextEncoder().encode(body)
             : body;
+        const bytes = [];
+        for (const byte of byteBody) {
+            bytes.push(String.fromCharCode(byte));
+        }
         return {
             contentLength: byteBody.byteLength,
-            base64: (0, encoding_js_1.typedArrayToBase64)(byteBody),
+            base64: btoa(bytes.join('')),
         };
     }
 }
@@ -360,6 +360,7 @@ function headersArray(headers) {
     }
     return result;
 }
+exports.headersArray = headersArray;
 /**
  * @internal
  *
@@ -455,7 +456,6 @@ function handleError(error) {
     // Firefox throws an invalid argument error with a message starting with
     // 'Expected "header" [...]'.
     if (error.originalMessage.includes('Invalid header') ||
-        error.originalMessage.includes('Unsafe header') ||
         error.originalMessage.includes('Expected "header"') ||
         // WebDriver BiDi error for invalid values, for example, headers.
         error.originalMessage.includes('invalid argument')) {
@@ -466,4 +466,5 @@ function handleError(error) {
     // errors.
     (0, util_js_1.debugError)(error);
 }
+exports.handleError = handleError;
 //# sourceMappingURL=HTTPRequest.js.map

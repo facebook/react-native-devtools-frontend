@@ -2,22 +2,22 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as SDK from '../../core/sdk/sdk.js';
 import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
+import {type AnimationGroup} from './AnimationModel.js';
 import {AnimationUI} from './AnimationUI.js';
 
 export class AnimationGroupPreviewUI {
-  #model: SDK.AnimationModel.AnimationGroup;
+  #model: AnimationGroup;
   element: HTMLButtonElement;
   readonly #removeButtonInternal: HTMLElement;
   readonly #replayOverlayElement: HTMLElement;
   readonly #svg: Element;
   readonly #viewBoxHeight: number;
 
-  constructor(model: SDK.AnimationModel.AnimationGroup) {
+  constructor(model: AnimationGroup) {
     this.#model = model;
     this.element = document.createElement('button');
     this.element.setAttribute(

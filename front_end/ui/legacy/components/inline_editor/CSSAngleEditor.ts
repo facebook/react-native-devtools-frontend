@@ -3,10 +3,10 @@
 // found in the LICENSE file.
 
 import * as Common from '../../../../core/common/common.js';
-import * as Lit from '../../../lit/lit.js';
+import * as LitHtml from '../../../lit-html/lit-html.js';
 import * as VisualLogging from '../../../visual_logging/visual_logging.js';
 
-import cssAngleEditorStylesRaw from './cssAngleEditor.css.js';
+import cssAngleEditorStyles from './cssAngleEditor.css.js';
 import {
   type Angle,
   AngleUnit,
@@ -16,12 +16,8 @@ import {
   getRadiansFromAngle,
 } from './CSSAngleUtils.js';
 
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const cssAngleEditorStyles = new CSSStyleSheet();
-cssAngleEditorStyles.replaceSync(cssAngleEditorStylesRaw.cssText);
-
-const {render, html} = Lit;
-const styleMap = Lit.Directives.styleMap;
+const {render, html} = LitHtml;
+const styleMap = LitHtml.Directives.styleMap;
 
 const CLOCK_DIAL_LENGTH = 6;
 
@@ -32,15 +28,16 @@ export interface CSSAngleEditorData {
 }
 
 export class CSSAngleEditor extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-css-angle-editor`;
   private readonly shadow = this.attachShadow({mode: 'open'});
   private angle: Angle = {
     value: 0,
-    unit: AngleUnit.RAD,
+    unit: AngleUnit.Rad,
   };
   private onAngleUpdate?: (angle: Angle) => void;
   private background = '';
   private clockRadius = 77 / 2;  // By default the clock is 77 * 77.
-  private dialTemplates?: Lit.TemplateResult[];
+  private dialTemplates?: LitHtml.TemplateResult[];
   private mousemoveThrottler = new Common.Throttler.Throttler(16.67 /* 60fps */);
   private mousemoveListener = this.onMousemove.bind(this);
 
@@ -69,7 +66,7 @@ export class CSSAngleEditor extends HTMLElement {
     if (shouldSnapToMultipleOf15Degrees) {
       const multipleInRadian = getRadiansFromAngle({
         value: 15,
-        unit: AngleUnit.DEG,
+        unit: AngleUnit.Deg,
       });
       const closestMultipleOf15Degrees = Math.round(radian / multipleInRadian) * multipleInRadian;
       this.onAngleUpdate(getAngleFromRadians(closestMultipleOf15Degrees, this.angle.unit));
@@ -151,7 +148,7 @@ export class CSSAngleEditor extends HTMLElement {
     // clang-format on
   }
 
-  private renderDials(): Lit.TemplateResult[] {
+  private renderDials(): LitHtml.TemplateResult[] {
     if (!this.dialTemplates) {
       // Disabled until https://crbug.com/1079231 is fixed.
       // clang-format off
@@ -159,7 +156,7 @@ export class CSSAngleEditor extends HTMLElement {
         const radius = this.clockRadius - CLOCK_DIAL_LENGTH - 3 /* clock border */;
         const {translateX, translateY} = get2DTranslationsForAngle({
           value: deg,
-          unit: AngleUnit.DEG,
+          unit: AngleUnit.Deg,
         }, radius);
         const dialStyles = {
           transform: `translate(${translateX}px, ${translateY}px) rotate(${deg}deg)`,

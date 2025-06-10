@@ -65,7 +65,7 @@ const UIStrings = {
    *@example {20ms latency} PH1
    */
   sFromCache: '{PH1} (from cache)',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/network/NetworkTimeCalculator.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -109,6 +109,11 @@ export class NetworkTimeCalculator extends Common.ObjectWrapper.ObjectWrapper<Ev
   setWindow(window: NetworkTimeBoundary|null): void {
     this.window = window;
     this.boundaryChanged();
+  }
+
+  setInitialUserFriendlyBoundaries(): void {
+    this.minimumBoundaryInternal = 0;
+    this.maximumBoundaryInternal = 1;
   }
 
   computePosition(time: number): number {
@@ -185,12 +190,27 @@ export class NetworkTimeCalculator extends Common.ObjectWrapper.ObjectWrapper<Ev
       start = 0;
     }
 
-    return {start, middle, end};
+    return {start: start, middle: middle, end: end};
+  }
+
+  computePercentageFromEventTime(eventTime: number): number {
+    // This function computes a percentage in terms of the total loading time
+    // of a specific event. If startAtZero is set, then this is useless, and we
+    // want to return 0.
+    if (eventTime !== -1 && !this.startAtZero) {
+      return ((eventTime - this.minimumBoundary()) / this.boundarySpan()) * 100;
+    }
+
+    return 0;
+  }
+
+  percentageToTime(percentage: number): number {
+    return percentage * this.boundarySpan() / 100 + this.minimumBoundary();
   }
 
   boundaryChanged(): void {
     void this.boundryChangedEventThrottler.schedule(async () => {
-      this.dispatchEventToListeners(Events.BOUNDARIES_CHANGED);
+      this.dispatchEventToListeners(Events.BoundariesChanged);
     });
   }
 
@@ -233,7 +253,7 @@ export class NetworkTimeCalculator extends Common.ObjectWrapper.ObjectWrapper<Ev
     } else if (request.cached()) {
       tooltip = i18nString(UIStrings.sFromCache, {PH1: String(tooltip)});
     }
-    return {left: leftLabel, right: rightLabel, tooltip};
+    return {left: leftLabel, right: rightLabel, tooltip: tooltip};
   }
 
   updateBoundaries(request: SDK.NetworkRequest.NetworkRequest): void {
@@ -279,12 +299,12 @@ export class NetworkTimeCalculator extends Common.ObjectWrapper.ObjectWrapper<Ev
 const MINIMUM_SPREAD = 0.1;
 
 export const enum Events {
-  BOUNDARIES_CHANGED = 'BoundariesChanged',
+  BoundariesChanged = 'BoundariesChanged',
 }
 
-export interface EventTypes {
-  [Events.BOUNDARIES_CHANGED]: void;
-}
+export type EventTypes = {
+  [Events.BoundariesChanged]: void,
+};
 
 export class NetworkTransferTimeCalculator extends NetworkTimeCalculator {
   constructor() {

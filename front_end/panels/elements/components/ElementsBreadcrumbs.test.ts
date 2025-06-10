@@ -15,9 +15,11 @@ import {
   initializeGlobalVars,
 } from '../../../testing/EnvironmentHelpers.js';
 import {withNoMutations} from '../../../testing/MutationHelpers.js';
-import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
+import * as Coordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 
 import * as ElementsComponents from './components.js';
+
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 interface MakeCrumbOptions extends Partial<ElementsComponents.Helper.DOMNode> {
   attributes?: {[x: string]: string};
@@ -198,7 +200,7 @@ describe('ElementsBreadcrumbs', () => {
       renderElementIntoDOM(component);
       component.data = data;
 
-      await RenderCoordinator.done();
+      await coordinator.done();
       assert.isNotNull(component.shadowRoot);
       return {
         component,
@@ -255,7 +257,7 @@ describe('ElementsBreadcrumbs', () => {
           selectedNode: bodyCrumb,
         };
 
-        await RenderCoordinator.done();
+        await coordinator.done();
 
         const renderedTextForUpdatedCrumb = shadowRoot.querySelector('.crumb:last-child devtools-node-text');
         assert.instanceOf(renderedTextForUpdatedCrumb, HTMLElement);
@@ -295,13 +297,13 @@ describe('ElementsBreadcrumbs', () => {
           crumbs: [divCrumb, bodyCrumb],
           selectedNode: bodyCrumb,
         };
-        await RenderCoordinator.done();
+        await coordinator.done();
         assert.isNotNull(component.shadowRoot);
 
         const scrollButtons = component.shadowRoot.querySelectorAll('button.overflow');
         assertElements(scrollButtons, HTMLButtonElement);
 
-        assert.lengthOf(scrollButtons, 2, 'there are two scroll buttons');
+        assert.strictEqual(scrollButtons.length, 2, 'there are two scroll buttons');
         const leftButton = scrollButtons[0];
         const rightButton = scrollButtons[1];
 
@@ -319,7 +321,7 @@ describe('ElementsBreadcrumbs', () => {
           crumbs: [divCrumb, bodyCrumb],
           selectedNode: bodyCrumb,
         };
-        await RenderCoordinator.done();
+        await coordinator.done();
 
         assert.isNotNull(component.shadowRoot);
 
@@ -332,7 +334,7 @@ describe('ElementsBreadcrumbs', () => {
           const scrollWrapper = shadowRoot.querySelector('.crumbs-window');
           assert.instanceOf(scrollWrapper, HTMLDivElement);
           await waitForScrollLeft(scrollWrapper, 100);
-          await RenderCoordinator.done();
+          await coordinator.done();
           assert.isTrue(rightButton.disabled);
         });
       });
@@ -347,7 +349,7 @@ describe('ElementsBreadcrumbs', () => {
           crumbs: [divCrumb, bodyCrumb],
           selectedNode: bodyCrumb,
         };
-        await RenderCoordinator.done();
+        await coordinator.done();
 
         assert.isNotNull(component.shadowRoot);
 
@@ -362,7 +364,7 @@ describe('ElementsBreadcrumbs', () => {
         thinWrapper.style.width = '800px';
         // Changing the width should trigger the resize observer, so we need to wait for that to happen.
         await doubleRaf();
-        await RenderCoordinator.done();
+        await coordinator.done();
 
         assert.isTrue(leftButton.classList.contains('hidden'));
         assert.isTrue(rightButton.classList.contains('hidden'));
@@ -379,7 +381,7 @@ describe('ElementsBreadcrumbs', () => {
           crumbs: [divCrumb, bodyCrumb],
           selectedNode: bodyCrumb,
         };
-        await RenderCoordinator.done();
+        await coordinator.done();
         assert.isNotNull(component.shadowRoot);
         const leftButton = component.shadowRoot.querySelector('button.overflow.left');
         assert.instanceOf(leftButton, HTMLButtonElement);
@@ -394,7 +396,7 @@ describe('ElementsBreadcrumbs', () => {
           crumbs: [bodyCrumb],
           selectedNode: bodyCrumb,
         };
-        await RenderCoordinator.done();
+        await coordinator.done();
         // The buttons are hidden now the list is no longer overflowing
         assert.isTrue(leftButton.classList.contains('hidden'));
         assert.isTrue(rightButton.classList.contains('hidden'));
@@ -411,7 +413,7 @@ describe('ElementsBreadcrumbs', () => {
           crumbs: [divCrumb, bodyCrumb],
           selectedNode: bodyCrumb,
         };
-        await RenderCoordinator.done();
+        await coordinator.done();
         assert.isNotNull(component.shadowRoot);
 
         const leftButton = component.shadowRoot.querySelector('button.overflow.left');
@@ -425,7 +427,7 @@ describe('ElementsBreadcrumbs', () => {
         thinWrapper.style.width = '400px';
         // Give the resize observer time to fire.
         await doubleRaf();
-        await RenderCoordinator.done();
+        await coordinator.done();
 
         assert.isFalse(leftButton.classList.contains('hidden'));
         assert.isFalse(rightButton.classList.contains('hidden'));

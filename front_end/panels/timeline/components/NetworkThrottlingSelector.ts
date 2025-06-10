@@ -2,47 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../../ui/components/menus/menus.js';
-
 import * as Common from '../../../core/common/common.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Platform from '../../../core/platform/platform.js';
 import * as SDK from '../../../core/sdk/sdk.js';
-import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as ComponentHelpers from '../../../ui/components/helpers/helpers.js';
-import type * as Menus from '../../../ui/components/menus/menus.js';
-import * as Lit from '../../../ui/lit/lit.js';
+import * as Menus from '../../../ui/components/menus/menus.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 import * as MobileThrottling from '../../mobile_throttling/mobile_throttling.js';
 
-import networkThrottlingSelectorStylesRaw from './networkThrottlingSelector.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const networkThrottlingSelectorStyles = new CSSStyleSheet();
-networkThrottlingSelectorStyles.replaceSync(networkThrottlingSelectorStylesRaw.cssText);
-
-const {html, nothing} = Lit;
+const {html, nothing} = LitHtml;
 
 const UIStrings = {
-  /**
-   * @description Text label for a selection box showing which network throttling option is applied.
-   * @example {No throttling} PH1
-   */
-  network: 'Network: {PH1}',
-  /**
-   * @description Text label for a selection box showing which network throttling option is applied.
-   * @example {No throttling} PH1
-   */
-  networkThrottling: 'Network throttling: {PH1}',
-  /**
-   * @description Text label for a selection box showing that a specific option is recommended for network throttling.
-   * @example {Fast 4G} PH1
-   */
-  recommendedThrottling: '{PH1} – recommended',
-  /**
-   * @description Text for why user should change a throttling setting.
-   */
-  recommendedThrottlingReason: 'Consider changing setting to simulate real user environments',
   /**
    * @description Text label for a menu group that disables network throttling.
    */
@@ -59,7 +31,7 @@ const UIStrings = {
    * @description Text label for a menu option to add a new custom throttling preset.
    */
   add: 'Add…',
-} as const;
+};
 
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/components/NetworkThrottlingSelector.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -68,16 +40,15 @@ interface ConditionsGroup {
   name: string;
   items: SDK.NetworkManager.Conditions[];
   showCustomAddOption?: boolean;
-  jslogContext?: string;
 }
 
 export class NetworkThrottlingSelector extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-network-throttling-selector`;
   readonly #shadow = this.attachShadow({mode: 'open'});
 
   #customNetworkConditionsSetting: Common.Settings.Setting<SDK.NetworkManager.Conditions[]>;
   #groups: ConditionsGroup[] = [];
   #currentConditions: SDK.NetworkManager.Conditions;
-  #recommendedConditions: SDK.NetworkManager.Conditions|null = null;
 
   constructor() {
     super();
@@ -88,27 +59,15 @@ export class NetworkThrottlingSelector extends HTMLElement {
     this.#render();
   }
 
-  set recommendedConditions(recommendedConditions: SDK.NetworkManager.Conditions|null) {
-    this.#recommendedConditions = recommendedConditions;
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
-  }
-
   connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [networkThrottlingSelectorStyles];
     SDK.NetworkManager.MultitargetNetworkManager.instance().addEventListener(
-        SDK.NetworkManager.MultitargetNetworkManager.Events.CONDITIONS_CHANGED, this.#onConditionsChanged, this);
-
-    // Also call onConditionsChanged immediately to make sure we get the
-    // latest snapshot. Otherwise if another panel updated this value and this
-    // component wasn't in the DOM, this component will not update itself
-    // when it is put into the page
-    this.#onConditionsChanged();
+        SDK.NetworkManager.MultitargetNetworkManager.Events.ConditionsChanged, this.#onConditionsChanged, this);
     this.#customNetworkConditionsSetting.addChangeListener(this.#onSettingChanged, this);
   }
 
   disconnectedCallback(): void {
     SDK.NetworkManager.MultitargetNetworkManager.instance().removeEventListener(
-        SDK.NetworkManager.MultitargetNetworkManager.Events.CONDITIONS_CHANGED, this.#onConditionsChanged, this);
+        SDK.NetworkManager.MultitargetNetworkManager.Events.ConditionsChanged, this.#onConditionsChanged, this);
     this.#customNetworkConditionsSetting.removeChangeListener(this.#onSettingChanged, this);
   }
 
@@ -128,7 +87,6 @@ export class NetworkThrottlingSelector extends HTMLElement {
         name: i18nString(UIStrings.custom),
         items: this.#customNetworkConditionsSetting.get(),
         showCustomAddOption: true,
-        jslogContext: 'custom-network-throttling-item',
       },
     ];
   }
@@ -139,10 +97,7 @@ export class NetworkThrottlingSelector extends HTMLElement {
   }
 
   #onMenuItemSelected(event: Menus.SelectMenu.SelectMenuItemSelectedEvent): void {
-    const newConditions = this.#groups.flatMap(g => g.items).find(item => {
-      const keyForItem = this.#keyForNetworkConditions(item);
-      return keyForItem === event.itemValue;
-    });
+    const newConditions = this.#groups.flatMap(g => g.items).find(item => item.i18nTitleKey === event.itemValue);
     if (newConditions) {
       SDK.NetworkManager.MultitargetNetworkManager.instance().setNetworkConditions(newConditions);
     }
@@ -161,81 +116,49 @@ export class NetworkThrottlingSelector extends HTMLElement {
     void Common.Revealer.reveal(this.#customNetworkConditionsSetting);
   }
 
-  /**
-   * The key that uniquely identifies the condition setting. All the DevTools
-   * presets have the i18nKey, so we rely on that, but for custom user added
-   * ones we fallback to using the title (it wouldn't make sense for a user to
-   * add presets with the same title)
-   */
-  #keyForNetworkConditions(conditions: SDK.NetworkManager.Conditions): string {
-    return conditions.i18nTitleKey || this.#getConditionsTitle(conditions);
-  }
-
   #render = (): void => {
-    const selectionTitle = this.#getConditionsTitle(this.#currentConditions);
-    const selectedConditionsKey = this.#keyForNetworkConditions(this.#currentConditions);
-
-    let recommendedInfoEl;
-    if (this.#recommendedConditions && this.#currentConditions === SDK.NetworkManager.NoThrottlingConditions) {
-      recommendedInfoEl = html`<devtools-button
-        title=${i18nString(UIStrings.recommendedThrottlingReason)}
-        .iconName=${'info'}
-        .variant=${Buttons.Button.Variant.ICON}
-      ></devtools-button>`;
-    }
-
     // clang-format off
     const output = html`
-      <devtools-select-menu
+      <${Menus.SelectMenu.SelectMenu.litTagName}
         @selectmenuselected=${this.#onMenuItemSelected}
         .showDivider=${true}
         .showArrow=${true}
         .sideButton=${false}
         .showSelectedItem=${true}
+        .showConnector=${false}
         .jslogContext=${'network-conditions'}
-        .buttonTitle=${i18nString(UIStrings.network, {PH1: selectionTitle})}
-        .title=${i18nString(UIStrings.networkThrottling, {PH1: selectionTitle})}
+        .buttonTitle=${this.#getConditionsTitle(this.#currentConditions)}
       >
         ${this.#groups.map(group => {
           return html`
-            <devtools-menu-group .name=${group.name} .title=${group.name}>
+            <${Menus.Menu.MenuGroup.litTagName} .name=${group.name}>
               ${group.items.map(conditions => {
-                let title = this.#getConditionsTitle(conditions);
-                if (conditions === this.#recommendedConditions) {
-                  title = i18nString(UIStrings.recommendedThrottling, {PH1: title});
-                }
-
-                const key = this.#keyForNetworkConditions(conditions);
-                const jslogContext = group.jslogContext || Platform.StringUtilities.toKebabCase(conditions.i18nTitleKey || title);
                 return html`
-                  <devtools-menu-item
-                    .value=${key}
-                    .selected=${selectedConditionsKey === key}
-                    .title=${title}
-                    jslog=${VisualLogging.item(jslogContext).track({click: true})}
+                  <${Menus.Menu.MenuItem.litTagName}
+                    .value=${conditions.i18nTitleKey}
+                    .selected=${this.#currentConditions.i18nTitleKey === conditions.i18nTitleKey}
+                    jslog=${VisualLogging.item(Platform.StringUtilities.toKebabCase(conditions.i18nTitleKey || ''))}
                   >
-                    ${title}
-                  </devtools-menu-item>
+                    ${this.#getConditionsTitle(conditions)}
+                  </${Menus.Menu.MenuItem.litTagName}>
                 `;
               })}
               ${group.showCustomAddOption ? html`
-                <devtools-menu-item
+                <${Menus.Menu.MenuItem.litTagName}
                   .value=${1 /* This won't be displayed unless it has some value. */}
-                  .title=${i18nString(UIStrings.add)}
                   jslog=${VisualLogging.action('add').track({click: true})}
                   @click=${this.#onAddClick}
                 >
                   ${i18nString(UIStrings.add)}
-                </devtools-menu-item>
+                </${Menus.Menu.MenuItem.litTagName}>
               ` : nothing}
-            </devtools-menu-group>
+            </${Menus.Menu.MenuGroup.litTagName}>
           `;
         })}
-      </devtools-select-menu>
-      ${recommendedInfoEl}
+      </${Menus.SelectMenu.SelectMenu.litTagName}>
     `;
     // clang-format on
-    Lit.render(output, this.#shadow, {host: this});
+    LitHtml.render(output, this.#shadow, {host: this});
   };
 }
 

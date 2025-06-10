@@ -43,9 +43,7 @@ export declare class Puppeteer {
      * @example
      *
      * ```
-     * import {Puppeteer}, puppeteer from 'puppeteer';
-     *
-     * Puppeteer.registerCustomQueryHandler('text', { … });
+     * puppeteer.registerCustomQueryHandler('text', { … });
      * const aHandle = await page.$('text/…');
      * ```
      *
@@ -76,7 +74,7 @@ export declare class Puppeteer {
     /**
      * @internal
      */
-    protected _changedBrowsers: boolean;
+    protected _changedProduct: boolean;
     /**
      * @internal
      */

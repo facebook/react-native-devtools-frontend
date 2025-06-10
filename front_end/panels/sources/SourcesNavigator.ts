@@ -28,8 +28,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import '../../ui/legacy/legacy.js';
-
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -46,21 +44,17 @@ import sourcesNavigatorStyles from './sourcesNavigator.css.js';
 
 const UIStrings = {
   /**
-   *@description Text to show if no workspaces are set up. https://goo.gle/devtools-workspace
-   */
-  noWorkspace: 'No workspaces set up',
-  /**
    *@description Text to explain the Workspace feature in the Sources panel. https://goo.gle/devtools-workspace
    */
-  explainWorkspace: 'Set up workspaces to sync edits directly to the sources you develop.',
-  /**
-   *@description Text to show if no local overrides are set up. https://goo.gle/devtools-overrides
-   */
-  noLocalOverrides: 'No local overrides set up',
+  explainWorkspace: 'Set up workspace to sync edits directly to the sources you develop',
   /**
    *@description Text to explain the Local Overrides feature. https://goo.gle/devtools-overrides
    */
-  explainLocalOverrides: 'Override network requests and web content locally to mock remote resources.',
+  explainLocalOverrides: 'Override network requests and web content locally to mock remote resources',
+  /**
+   *@description Text that is usually a hyperlink to more documentation
+   */
+  learnMore: 'Learn more',
   /**
    *@description Tooltip text that appears when hovering over the largeicon clear button in the Sources Navigator of the Sources panel
    */
@@ -70,21 +64,13 @@ const UIStrings = {
    */
   selectFolderForOverrides: 'Select folder for overrides',
   /**
-   *@description Text to show if no content scripts can be found in the Sources panel. https://developer.chrome.com/extensions/content_scripts
-   */
-  noContentScripts: 'No content scripts detected',
-  /**
    *@description Text to explain the content scripts pane in the Sources panel
    */
-  explainContentScripts: 'View content scripts served by extensions.',
-  /**
-   *@description Text to show if no snippets were created and saved in the Sources panel https://goo.gle/devtools-snippets
-   */
-  noSnippets: 'No snippets saved',
+  explainContentScripts: 'View content scripts served by extensions',
   /**
    *@description Text to explain the Snippets feature in the Sources panel https://goo.gle/devtools-snippets
    */
-  explainSnippets: 'Save the JavaScript code you run often in a snippet to run it again anytime.',
+  explainSnippets: 'Save the JavaScript code you run often to run it again anytime',
   /**
    *@description Text in Sources Navigator of the Sources panel
    */
@@ -109,18 +95,7 @@ const UIStrings = {
    *@description Text to save content as a specific file type
    */
   saveAs: 'Save as...',
-  /**
-   * @description Text in Workspaces tab in the Sources panel when an automatic
-   *              workspace folder is detected.
-   * @example {/path/to/foo} PH1
-   */
-  automaticWorkspaceFolderDetected: 'Workspace folder {PH1} detected',
-  /**
-   * @description Button description in Workspaces tab in the Sources panel
-   *              to connect to an automatic workspace folder.
-   */
-  automaticWorkspaceFolderConnect: 'Connect',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/sources/SourcesNavigator.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 let networkNavigatorViewInstance: NetworkNavigatorView;
@@ -128,13 +103,17 @@ let networkNavigatorViewInstance: NetworkNavigatorView;
 export class NetworkNavigatorView extends NavigatorView {
   private constructor() {
     super('navigator-network', true);
-    this.registerRequiredCSS(sourcesNavigatorStyles);
     SDK.TargetManager.TargetManager.instance().addEventListener(
-        SDK.TargetManager.Events.INSPECTED_URL_CHANGED, this.inspectedURLChanged, this);
+        SDK.TargetManager.Events.InspectedURLChanged, this.inspectedURLChanged, this);
 
     // Record the sources tool load time after the file navigator has loaded.
     Host.userMetrics.panelLoaded('sources', 'DevTools.Launch.Sources');
     SDK.TargetManager.TargetManager.instance().addScopeChangeListener(this.onScopeChange.bind(this));
+  }
+
+  override wasShown(): void {
+    this.registerCSSFiles([sourcesNavigatorStyles]);
+    super.wasShown();
   }
 
   static instance(opts: {
@@ -193,41 +172,23 @@ export class NetworkNavigatorView extends NavigatorView {
 }
 
 export class FilesNavigatorView extends NavigatorView {
-  #automaticFileSystemManager = Persistence.AutomaticFileSystemManager.AutomaticFileSystemManager.instance();
-  #infobar: UI.Infobar.Infobar|null = null;
-  #eventListeners: Common.EventTarget.EventDescriptor[] = [];
-
   constructor() {
     super('navigator-files');
-    this.registerRequiredCSS(sourcesNavigatorStyles);
-    const placeholder =
-        new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.noWorkspace), i18nString(UIStrings.explainWorkspace));
+    const placeholder = new UI.EmptyWidget.EmptyWidget('');
     this.setPlaceholder(placeholder);
-    placeholder.appendLink('https://developer.chrome.com/docs/devtools/workspaces/' as Platform.DevToolsPath.UrlString);
+    placeholder.appendParagraph().appendChild(UI.Fragment.html`
+  <div>${i18nString(UIStrings.explainWorkspace)}</div><br />
+  ${
+        UI.XLink.XLink.create(
+            'https://goo.gle/devtools-workspace', i18nString(UIStrings.learnMore), undefined, undefined, 'learn-more')}
+  `);
 
-    const toolbar = document.createElement('devtools-toolbar');
-    toolbar.classList.add('navigator-toolbar');
+    const toolbar = new UI.Toolbar.Toolbar('navigator-toolbar');
     void toolbar.appendItemsAtLocation('files-navigator-toolbar').then(() => {
       if (!toolbar.empty()) {
-        this.contentElement.insertBefore(toolbar, this.contentElement.firstChild);
+        this.contentElement.insertBefore(toolbar.element, this.contentElement.firstChild);
       }
     });
-  }
-
-  override wasShown(): void {
-    super.wasShown();
-    this.#eventListeners = [
-      this.#automaticFileSystemManager.addEventListener(
-          Persistence.AutomaticFileSystemManager.Events.AUTOMATIC_FILE_SYSTEM_CHANGED, this.#automaticFileSystemChanged,
-          this),
-    ];
-    this.#automaticFileSystemChanged({data: this.#automaticFileSystemManager.automaticFileSystem});
-  }
-
-  override willHide(): void {
-    Common.EventTarget.removeEventListeners(this.#eventListeners);
-    this.#automaticFileSystemChanged({data: null});
-    super.willHide();
   }
 
   override sourceSelected(uiSourceCode: Workspace.UISourceCode.UISourceCode, focusSource: boolean): void {
@@ -246,33 +207,6 @@ export class FilesNavigatorView extends NavigatorView {
     contextMenu.defaultSection().appendAction('sources.add-folder-to-workspace', undefined, true);
     void contextMenu.show();
   }
-
-  #automaticFileSystemChanged(
-      event: Common.EventTarget.EventTargetEvent<Persistence.AutomaticFileSystemManager.AutomaticFileSystem|null>):
-      void {
-    const automaticFileSystem = event.data;
-    if (automaticFileSystem === null || automaticFileSystem.state !== 'disconnected') {
-      this.#infobar?.dispose();
-      this.#infobar = null;
-    } else {
-      this.#infobar = UI.Infobar.Infobar.create(
-          UI.Infobar.Type.INFO,
-          i18nString(UIStrings.automaticWorkspaceFolderDetected, {PH1: automaticFileSystem.root}),
-          [{
-            text: i18nString(UIStrings.automaticWorkspaceFolderConnect),
-            delegate: () => this.#automaticFileSystemManager.connectAutomaticFileSystem(/* addIfMissing= */ true),
-            dismiss: true,
-            jslogContext: 'automatic-workspace-folders.connect',
-          }],
-          Common.Settings.Settings.instance().moduleSetting('persistence-automatic-workspace-folders'),
-          'automatic-workspace-folders',
-      );
-      if (this.#infobar) {
-        this.#infobar.element.classList.add('automatic-workspace-infobar');
-        this.contentElement.append(this.#infobar.element);
-      }
-    }
-  }
 }
 
 let overridesNavigatorViewInstance: OverridesNavigatorView;
@@ -281,18 +215,21 @@ export class OverridesNavigatorView extends NavigatorView {
   private readonly toolbar: UI.Toolbar.Toolbar;
   private constructor() {
     super('navigator-overrides');
-    const placeholder = new UI.EmptyWidget.EmptyWidget(
-        i18nString(UIStrings.noLocalOverrides), i18nString(UIStrings.explainLocalOverrides));
+    const placeholder = new UI.EmptyWidget.EmptyWidget('');
     this.setPlaceholder(placeholder);
-    placeholder.appendLink('https://developer.chrome.com/docs/devtools/overrides/' as Platform.DevToolsPath.UrlString);
+    placeholder.appendParagraph().appendChild(UI.Fragment.html`
+  <div>${i18nString(UIStrings.explainLocalOverrides)}</div><br />
+  ${
+        UI.XLink.XLink.create(
+            'https://goo.gle/devtools-overrides', i18nString(UIStrings.learnMore), undefined, undefined, 'learn-more')}
+  `);
 
-    this.toolbar = document.createElement('devtools-toolbar');
-    this.toolbar.classList.add('navigator-toolbar');
+    this.toolbar = new UI.Toolbar.Toolbar('navigator-toolbar');
 
-    this.contentElement.insertBefore(this.toolbar, this.contentElement.firstChild);
+    this.contentElement.insertBefore(this.toolbar.element, this.contentElement.firstChild);
 
     Persistence.NetworkPersistenceManager.NetworkPersistenceManager.instance().addEventListener(
-        Persistence.NetworkPersistenceManager.Events.PROJECT_CHANGED, this.updateProjectAndUI, this);
+        Persistence.NetworkPersistenceManager.Events.ProjectChanged, this.updateProjectAndUI, this);
     this.workspace().addEventListener(Workspace.Workspace.Events.ProjectAdded, this.onProjectAddOrRemoved, this);
     this.workspace().addEventListener(Workspace.Workspace.Events.ProjectRemoved, this.onProjectAddOrRemoved, this);
     this.updateProjectAndUI();
@@ -337,7 +274,7 @@ export class OverridesNavigatorView extends NavigatorView {
 
       this.toolbar.appendToolbarItem(new UI.Toolbar.ToolbarSeparator(true));
       const clearButton = new UI.Toolbar.ToolbarButton(i18nString(UIStrings.clearConfiguration), 'clear');
-      clearButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, () => {
+      clearButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, () => {
         Common.Settings.Settings.instance().moduleSetting('persistence-network-overrides-enabled').set(false);
         project.remove();
       });
@@ -346,7 +283,7 @@ export class OverridesNavigatorView extends NavigatorView {
     }
     const title = i18nString(UIStrings.selectFolderForOverrides);
     const setupButton = new UI.Toolbar.ToolbarButton(title, 'plus', title);
-    setupButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, _event => {
+    setupButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, _event => {
       void this.setupNewWorkspace();
     }, this);
     this.toolbar.appendToolbarItem(setupButton);
@@ -374,11 +311,15 @@ export class OverridesNavigatorView extends NavigatorView {
 export class ContentScriptsNavigatorView extends NavigatorView {
   constructor() {
     super('navigator-content-scripts');
-    const placeholder = new UI.EmptyWidget.EmptyWidget(
-        i18nString(UIStrings.noContentScripts), i18nString(UIStrings.explainContentScripts));
+    const placeholder = new UI.EmptyWidget.EmptyWidget('');
     this.setPlaceholder(placeholder);
-    placeholder.appendLink(
-        'https://developer.chrome.com/extensions/content_scripts' as Platform.DevToolsPath.UrlString);
+    placeholder.appendParagraph().appendChild(UI.Fragment.html`
+  <div>${i18nString(UIStrings.explainContentScripts)}</div><br />
+  ${
+        UI.XLink.XLink.create(
+            'https://developer.chrome.com/extensions/content_scripts', i18nString(UIStrings.learnMore), undefined,
+            undefined, 'learn-more')}
+  `);
   }
 
   override acceptProject(project: Workspace.Workspace.Project): boolean {
@@ -389,22 +330,24 @@ export class ContentScriptsNavigatorView extends NavigatorView {
 export class SnippetsNavigatorView extends NavigatorView {
   constructor() {
     super('navigator-snippets');
-    const placeholder =
-        new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.noSnippets), i18nString(UIStrings.explainSnippets));
+    const placeholder = new UI.EmptyWidget.EmptyWidget('');
     this.setPlaceholder(placeholder);
-    placeholder.appendLink(
-        'https://developer.chrome.com/docs/devtools/javascript/snippets/' as Platform.DevToolsPath.UrlString);
+    placeholder.appendParagraph().appendChild(UI.Fragment.html`
+  <div>${i18nString(UIStrings.explainSnippets)}</div><br />
+  ${
+        UI.XLink.XLink.create(
+            'https://goo.gle/devtools-snippets', i18nString(UIStrings.learnMore), undefined, undefined, 'learn-more')}
+  `);
 
-    const toolbar = document.createElement('devtools-toolbar');
-    toolbar.classList.add('navigator-toolbar');
+    const toolbar = new UI.Toolbar.Toolbar('navigator-toolbar');
     const newButton = new UI.Toolbar.ToolbarButton(
         i18nString(UIStrings.newSnippet), 'plus', i18nString(UIStrings.newSnippet), 'sources.new-snippet');
-    newButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, _event => {
+    newButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, _event => {
       void this.create(
           Snippets.ScriptSnippetFileSystem.findSnippetsProject(), '' as Platform.DevToolsPath.EncodedPathString);
     });
     toolbar.appendToolbarItem(newButton);
-    this.contentElement.insertBefore(toolbar, this.contentElement.firstChild);
+    this.contentElement.insertBefore(toolbar.element, this.contentElement.firstChild);
   }
 
   override acceptProject(project: Workspace.Workspace.Project): boolean {

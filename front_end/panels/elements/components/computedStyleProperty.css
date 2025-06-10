@@ -29,8 +29,7 @@
 }
 
 .computed-style-property.inherited {
-  opacity: 75%;
-  font-style: italic;
+  opacity: 50%;
 }
 
 .property-name,

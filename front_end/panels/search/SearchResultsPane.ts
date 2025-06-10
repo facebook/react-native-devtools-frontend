@@ -11,7 +11,8 @@ import * as Components from '../../ui/legacy/components/utils/utils.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import searchResultsPaneStyles from './searchResultsPane.css.js';
-import type {SearchResult} from './SearchScope.js';
+
+import {type SearchResult} from './SearchScope.js';
 
 const UIStrings = {
   /**
@@ -29,7 +30,7 @@ const UIStrings = {
    *@example {2} PH1
    */
   showDMore: 'Show {PH1} more',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/search/SearchResultsPane.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -47,7 +48,6 @@ export class SearchResultsPane extends UI.Widget.VBox {
     this.searchResults = [];
     this.treeElements = [];
     this.treeOutline = new UI.TreeOutline.TreeOutlineInShadow();
-    this.treeOutline.registerRequiredCSS(searchResultsPaneStyles);
     this.treeOutline.hideOverflow();
 
     this.contentElement.appendChild(this.treeOutline.element);
@@ -85,6 +85,10 @@ export class SearchResultsPane extends UI.Widget.VBox {
     }
     this.matchesExpandedCount += searchResult.matchesCount();
     this.treeElements.push(treeElement);
+  }
+  override wasShown(): void {
+    super.wasShown();
+    this.treeOutline.registerCSSFiles([searchResultsPaneStyles]);
   }
 }
 

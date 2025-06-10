@@ -8,7 +8,6 @@ import {
   renderElementIntoDOM,
 } from '../../../testing/DOMHelpers.js';
 import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
-import * as Buttons from '../../../ui/components/buttons/buttons.js';
 
 import * as LinearMemoryInspectorComponents from './components.js';
 
@@ -31,7 +30,7 @@ function assertDisplayRenders(component: HTMLElement) {
 
 function clickSettingsButton(
     component: LinearMemoryInspectorComponents.LinearMemoryValueInterpreter.LinearMemoryValueInterpreter) {
-  const settingsButton = getElementWithinComponent(component, '[data-settings]', Buttons.Button.Button);
+  const settingsButton = getElementWithinComponent(component, '[data-settings]', HTMLButtonElement);
   settingsButton.click();
 }
 
@@ -41,8 +40,8 @@ describeWithLocale('LinearMemoryValueInterpreter', () => {
     const component = new LinearMemoryInspectorComponents.LinearMemoryValueInterpreter.LinearMemoryValueInterpreter();
     component.data = {
       value: buffer,
-      endianness: LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.Endianness.LITTLE,
-      valueTypes: new Set([LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.ValueType.INT8]),
+      endianness: LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.Endianness.Little,
+      valueTypes: new Set([LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.ValueType.Int8]),
       memoryLength: buffer.byteLength,
     };
     renderElementIntoDOM(component);
@@ -79,7 +78,7 @@ describeWithLocale('LinearMemoryValueInterpreter', () => {
     const eventPromise =
         getEventPromise<LinearMemoryInspectorComponents.LinearMemoryValueInterpreter.ValueTypeToggledEvent>(
             component, 'valuetypetoggled');
-    const expectedType = LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.ValueType.FLOAT64;
+    const expectedType = LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.ValueType.Float64;
     const expectedChecked = true;
     const typeToggleEvent =
         new LinearMemoryInspectorComponents.ValueInterpreterSettings.TypeToggleEvent(expectedType, expectedChecked);
@@ -93,12 +92,12 @@ describeWithLocale('LinearMemoryValueInterpreter', () => {
   it('renders the endianness options', () => {
     const component = setUpComponent();
     const input = getElementWithinComponent(component, ENDIANNESS_SELECTOR, HTMLSelectElement);
-    assert.deepEqual(input.value, LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.Endianness.LITTLE);
+    assert.deepEqual(input.value, LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.Endianness.Little);
     const options = input.querySelectorAll('option');
     const endiannessSettings = Array.from(options).map(option => option.value);
     assert.deepEqual(endiannessSettings, [
-      LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.Endianness.LITTLE,
-      LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.Endianness.BIG,
+      LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.Endianness.Little,
+      LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.Endianness.Big,
     ]);
   });
 
@@ -113,6 +112,6 @@ describeWithLocale('LinearMemoryValueInterpreter', () => {
     input.dispatchEvent(changeEvent);
 
     const event = await eventPromise;
-    assert.deepEqual(event.data, LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.Endianness.LITTLE);
+    assert.deepEqual(event.data, LinearMemoryInspectorComponents.ValueInterpreterDisplayUtils.Endianness.Little);
   });
 });

@@ -5,27 +5,61 @@
 import * as Protocol from '../../generated/protocol.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
-import {getMatchedStyles, ruleMatch} from '../../testing/StyleHelpers.js';
 
 import * as SDK from './sdk.js';
+
+function ruleMatch(
+    selector: string, cssProperties: Protocol.CSS.CSSProperty[], range?: Protocol.CSS.SourceRange,
+    styleSheetId = '0' as Protocol.CSS.StyleSheetId): Protocol.CSS.RuleMatch {
+  return {
+    rule: {
+      selectorList: {selectors: [{text: selector}], text: selector},
+      origin: Protocol.CSS.StyleSheetOrigin.Regular,
+      style: {
+        cssProperties,
+        styleSheetId,
+        range,
+        shorthandEntries: [],
+      },
+    },
+    matchingSelectors: [0],
+  };
+}
+
+function createMatchedStyles(payload: Partial<SDK.CSSMatchedStyles.CSSMatchedStylesPayload>) {
+  const node = sinon.createStubInstance(SDK.DOMModel.DOMNode);
+  node.id = 1 as Protocol.DOM.NodeId;
+  return SDK.CSSMatchedStyles.CSSMatchedStyles.create({
+    cssModel: sinon.createStubInstance(SDK.CSSModel.CSSModel),
+    node,
+    inlinePayload: null,
+    attributesPayload: null,
+    matchedPayload: [],
+    pseudoPayload: [],
+    inheritedPayload: [],
+    inheritedPseudoPayload: [],
+    animationsPayload: [],
+    parentLayoutNodeId: undefined,
+    positionTryRules: [],
+    propertyRules: [],
+    cssPropertyRegistrations: [],
+    fontPaletteValuesRule: undefined,
+    ...payload,
+  });
+}
 
 describe('CSSMatchedStyles', () => {
   describe('computeCSSVariable', () => {
     const testCssValueEquals = async (text: string, expectedValue: unknown) => {
-      const matchedStyles = await getMatchedStyles({
+      const matchedStyles = await createMatchedStyles({
         matchedPayload: [
           ruleMatch(
               'div',
               [
-                {name: '--diamond', value: 'var(--diamond-a) var(--diamond-b)'},
-                {name: '--diamond-a', value: 'var(--foo)'},
-                {name: '--diamond-b', value: 'var(--foo)'},
                 {name: '--foo', value: 'active-foo'},
                 {name: '--baz', value: 'active-baz !important', important: true},
                 {name: '--baz', value: 'passive-baz'},
                 {name: '--dark', value: 'darkgrey'},
-                {name: '--empty', value: ''},
-                {name: '--empty2', value: 'var(--empty)'},
                 {name: '--light', value: 'lightgrey'},
                 {name: '--theme', value: 'var(--dark)'},
                 {name: '--shadow', value: '1px var(--theme)'},
@@ -68,9 +102,6 @@ describe('CSSMatchedStyles', () => {
       await testCssValueEquals('--theme', 'darkgrey');
       await testCssValueEquals('--shadow', '1px darkgrey');
       await testCssValueEquals('--width', '1px');
-      await testCssValueEquals('--diamond', 'active-foo active-foo');
-      await testCssValueEquals('--empty', '');
-      await testCssValueEquals('--empty2', '');
     });
 
     it('correctly resolves the declaration', async () => {
@@ -83,7 +114,7 @@ describe('CSSMatchedStyles', () => {
       node.parentNode.parentNode.parentNode = sinon.createStubInstance(SDK.DOMModel.DOMNode);
       node.parentNode.parentNode.parentNode.id = 4 as Protocol.DOM.NodeId;
 
-      const matchedStyles = await getMatchedStyles({
+      const matchedStyles = await createMatchedStyles({
         node,
         matchedPayload: [ruleMatch('div', [{name: '--foo', value: 'foo1'}])],  // styleFoo1
         inheritedPayload: [
@@ -113,7 +144,7 @@ describe('CSSMatchedStyles', () => {
            expectedDeclaration: SDK.CSSProperty.CSSProperty|SDK.CSSMatchedStyles.CSSRegisteredProperty) => {
             const {value, declaration} = matchedStyles.computeCSSVariable(startingCascade, name)!;
             assert.strictEqual(value, expectedValue);
-            assert.strictEqual(declaration.declaration, expectedDeclaration);
+            assert.strictEqual(declaration, expectedDeclaration);
           };
 
       const styles = matchedStyles.nodeStyles();
@@ -182,21 +213,6 @@ describe('CSSMatchedStyles', () => {
       await testCssValueEquals('--non-inherited', 'inherited and overloaded');
     });
 
-    it('resolves vars with css keywords', async () => {
-      const node = sinon.createStubInstance(SDK.DOMModel.DOMNode);
-      node.id = 1 as Protocol.DOM.NodeId;
-      const parent = sinon.createStubInstance(SDK.DOMModel.DOMNode);
-      parent.id = 2 as Protocol.DOM.NodeId;
-      node.parentNode = parent;
-      const matchedStyles = await getMatchedStyles({
-        matchedPayload: [ruleMatch('div', [{name: '--color', value: 'inherit'}])],
-        inheritedPayload: [{matchedCSSRules: [ruleMatch('div', [{name: '--color', value: 'inherited-color'}])]}],
-        node
-      });
-      assert.strictEqual(
-          matchedStyles.computeCSSVariable(matchedStyles.nodeStyles()[0], '--color')?.value, 'inherited-color');
-    });
-
     it('correcty handles cycles', async () => {
       async function compute(name: string, styleRules: string[], inheritedRules: string[][]) {
         const ruleToRuleMatch = (rule: string, index: number) => ruleMatch(
@@ -209,7 +225,7 @@ describe('CSSMatchedStyles', () => {
         const inheritedPayload = inheritedRules.map(
             ruleTexts => ({matchedCSSRules: ruleTexts.map((rule, i) => ruleToRuleMatch(rule, i + styleRules.length))}));
 
-        const matchedStyles = await getMatchedStyles({matchedPayload, inheritedPayload});
+        const matchedStyles = await createMatchedStyles({matchedPayload, inheritedPayload});
         return matchedStyles.computeCSSVariable(matchedStyles.nodeStyles()[0], name)?.value ?? null;
       }
 
@@ -217,8 +233,8 @@ describe('CSSMatchedStyles', () => {
         --a: var(--b);
         --b: var(--a);
         `;
-      assert.isNull(await compute('--a', [simpleCycle], []));
-      assert.isNull(await compute('--b', [simpleCycle], []));
+      assert.strictEqual(await compute('--a', [simpleCycle], []), null);
+      assert.strictEqual(await compute('--b', [simpleCycle], []), null);
 
       const cycleOnUnusedFallback = `
         --a: 2;
@@ -233,46 +249,46 @@ describe('CSSMatchedStyles', () => {
         --a: var(--b, 1);
         --b: var(--a, 2);
         `;
-      assert.isNull(await compute('--a', [simpleCycleWithFallbacks], []));
-      assert.isNull(await compute('--b', [simpleCycleWithFallbacks], []));
+      assert.strictEqual(await compute('--a', [simpleCycleWithFallbacks], []), null);
+      assert.strictEqual(await compute('--b', [simpleCycleWithFallbacks], []), null);
 
       const longerCycle = `
         --a: var(--b);
         --b: var(--c);
         --c: var(--a);
         `;
-      assert.isNull(await compute('--a', [longerCycle], []));
-      assert.isNull(await compute('--b', [longerCycle], []));
-      assert.isNull(await compute('--c', [longerCycle], []));
+      assert.strictEqual(await compute('--a', [longerCycle], []), null);
+      assert.strictEqual(await compute('--b', [longerCycle], []), null);
+      assert.strictEqual(await compute('--c', [longerCycle], []), null);
 
       const longerCycleWithFallbacks = `
         --a: var(--b, 2);
         --b: var(--c, 3);
         --c: var(--a, 4);
         `;
-      assert.isNull(await compute('--a', [longerCycleWithFallbacks], []));
-      assert.isNull(await compute('--b', [longerCycleWithFallbacks], []));
-      assert.isNull(await compute('--c', [longerCycleWithFallbacks], []));
+      assert.strictEqual(await compute('--a', [longerCycleWithFallbacks], []), null);
+      assert.strictEqual(await compute('--b', [longerCycleWithFallbacks], []), null);
+      assert.strictEqual(await compute('--c', [longerCycleWithFallbacks], []), null);
 
       const pointingIntoCycle = `
         ${longerCycle}
         --d: var(--a);
         --e: var(--b);
         `;
-      assert.isNull(await compute('--a', [pointingIntoCycle], []));
-      assert.isNull(await compute('--b', [pointingIntoCycle], []));
-      assert.isNull(await compute('--c', [pointingIntoCycle], []));
-      assert.isNull(await compute('--d', [pointingIntoCycle], []));
-      assert.isNull(await compute('--e', [pointingIntoCycle], []));
+      assert.strictEqual(await compute('--a', [pointingIntoCycle], []), null);
+      assert.strictEqual(await compute('--b', [pointingIntoCycle], []), null);
+      assert.strictEqual(await compute('--c', [pointingIntoCycle], []), null);
+      assert.strictEqual(await compute('--d', [pointingIntoCycle], []), null);
+      assert.strictEqual(await compute('--e', [pointingIntoCycle], []), null);
 
       const pointingIntoCycleWithFallback = `
         ${longerCycle}
         --d: var(--a, 4);
         --e: var(--b, 5);
         `;
-      assert.isNull(await compute('--a', [pointingIntoCycleWithFallback], []));
-      assert.isNull(await compute('--b', [pointingIntoCycleWithFallback], []));
-      assert.isNull(await compute('--c', [pointingIntoCycleWithFallback], []));
+      assert.strictEqual(await compute('--a', [pointingIntoCycleWithFallback], []), null);
+      assert.strictEqual(await compute('--b', [pointingIntoCycleWithFallback], []), null);
+      assert.strictEqual(await compute('--c', [pointingIntoCycleWithFallback], []), null);
       assert.strictEqual(await compute('--d', [pointingIntoCycleWithFallback], []), '4');
       assert.strictEqual(await compute('--e', [pointingIntoCycleWithFallback], []), '5');
 
@@ -282,29 +298,29 @@ describe('CSSMatchedStyles', () => {
         --c: var(--a) var(--b);
         --d: var(--c);
         `;
-      assert.isNull(await compute('--a', [multipleEdges], []));
-      assert.isNull(await compute('--b', [multipleEdges], []));
-      assert.isNull(await compute('--c', [multipleEdges], []));
-      assert.isNull(await compute('--d', [multipleEdges], []));
+      assert.strictEqual(await compute('--a', [multipleEdges], []), null);
+      assert.strictEqual(await compute('--b', [multipleEdges], []), null);
+      assert.strictEqual(await compute('--c', [multipleEdges], []), null);
+      assert.strictEqual(await compute('--d', [multipleEdges], []), null);
 
       const pointingIntoMultipleEdgeCycle = `
         ${multipleEdges}
         --e: var(--c) var(--d);
         `;
-      assert.isNull(await compute('--a', [pointingIntoMultipleEdgeCycle], []));
-      assert.isNull(await compute('--b', [pointingIntoMultipleEdgeCycle], []));
-      assert.isNull(await compute('--c', [pointingIntoMultipleEdgeCycle], []));
-      assert.isNull(await compute('--d', [pointingIntoMultipleEdgeCycle], []));
-      assert.isNull(await compute('--e', [pointingIntoMultipleEdgeCycle], []));
+      assert.strictEqual(await compute('--a', [pointingIntoMultipleEdgeCycle], []), null);
+      assert.strictEqual(await compute('--b', [pointingIntoMultipleEdgeCycle], []), null);
+      assert.strictEqual(await compute('--c', [pointingIntoMultipleEdgeCycle], []), null);
+      assert.strictEqual(await compute('--d', [pointingIntoMultipleEdgeCycle], []), null);
+      assert.strictEqual(await compute('--e', [pointingIntoMultipleEdgeCycle], []), null);
 
       const pointingIntoMultipleEdgeCycleWithFallback = `
         ${multipleEdges}
         --e: var(--c, 4) var(--d, 5);
         `;
-      assert.isNull(await compute('--a', [pointingIntoMultipleEdgeCycleWithFallback], []));
-      assert.isNull(await compute('--b', [pointingIntoMultipleEdgeCycleWithFallback], []));
-      assert.isNull(await compute('--c', [pointingIntoMultipleEdgeCycleWithFallback], []));
-      assert.isNull(await compute('--d', [pointingIntoMultipleEdgeCycleWithFallback], []));
+      assert.strictEqual(await compute('--a', [pointingIntoMultipleEdgeCycleWithFallback], []), null);
+      assert.strictEqual(await compute('--b', [pointingIntoMultipleEdgeCycleWithFallback], []), null);
+      assert.strictEqual(await compute('--c', [pointingIntoMultipleEdgeCycleWithFallback], []), null);
+      assert.strictEqual(await compute('--d', [pointingIntoMultipleEdgeCycleWithFallback], []), null);
       assert.strictEqual(await compute('--e', [pointingIntoMultipleEdgeCycleWithFallback], []), '4 5');
 
       const multipleCyclesWithFallback = `
@@ -314,12 +330,12 @@ describe('CSSMatchedStyles', () => {
         --f: var(--d);
         --g: var(--a, var(--d, 5));
         `;
-      assert.isNull(await compute('--a', [multipleCyclesWithFallback], []));
-      assert.isNull(await compute('--b', [multipleCyclesWithFallback], []));
-      assert.isNull(await compute('--c', [multipleCyclesWithFallback], []));
-      assert.isNull(await compute('--d', [multipleCyclesWithFallback], []));
-      assert.isNull(await compute('--e', [multipleCyclesWithFallback], []));
-      assert.isNull(await compute('--f', [multipleCyclesWithFallback], []));
+      assert.strictEqual(await compute('--a', [multipleCyclesWithFallback], []), null);
+      assert.strictEqual(await compute('--b', [multipleCyclesWithFallback], []), null);
+      assert.strictEqual(await compute('--c', [multipleCyclesWithFallback], []), null);
+      assert.strictEqual(await compute('--d', [multipleCyclesWithFallback], []), null);
+      assert.strictEqual(await compute('--e', [multipleCyclesWithFallback], []), null);
+      assert.strictEqual(await compute('--f', [multipleCyclesWithFallback], []), null);
       assert.strictEqual(await compute('--g', [multipleCyclesWithFallback], []), '5');
 
       const notACycle = `
@@ -330,7 +346,7 @@ describe('CSSMatchedStyles', () => {
         --b: var(--a);
         `;
       assert.strictEqual(await compute('--a', [notACycle], [[inherited]]), '1');
-      assert.isNull(await compute('--b', [notACycle], [[inherited]]));
+      assert.strictEqual(await compute('--b', [notACycle], [[inherited]]), null);
     });
   });
 
@@ -343,359 +359,25 @@ describe('CSSMatchedStyles', () => {
        node.id = 1 as Protocol.DOM.NodeId;
        const startColumn = 0, endColumn = 1;
        const matchedPayload = [
-         ruleMatch(
-             'body', [{name: '--var', value: 'blue'}], {range: {startLine: 0, startColumn, endLine: 0, endColumn}}),
-         ruleMatch(
-             '*', [{name: 'color', value: 'var(--var)'}], {range: {startLine: 1, startColumn, endLine: 1, endColumn}}),
-         ruleMatch('*', [{name: '--var', value: 'red'}], {range: {startLine: 2, startColumn, endLine: 2, endColumn}}),
+         ruleMatch('body', [{name: '--var', value: 'blue'}], {startLine: 0, startColumn, endLine: 0, endColumn}),
+         ruleMatch('*', [{name: 'color', value: 'var(--var)'}], {startLine: 1, startColumn, endLine: 1, endColumn}),
+         ruleMatch('*', [{name: '--var', value: 'red'}], {startLine: 2, startColumn, endLine: 2, endColumn}),
        ];
        const inheritedPayload = [{matchedCSSRules: matchedPayload.slice(1)}];
-       const matchedStyles = await getMatchedStyles({
+       const matchedStyles = await createMatchedStyles({
          node,
          matchedPayload,
          inheritedPayload,
        });
 
-       assert.deepEqual(matchedStyles.nodeStyles().map(style => style.allProperties().map(prop => prop.propertyText)), [
-         ['--var: red;'],
-         ['color: var(--var);'],
-         ['--var: blue;'],
-         ['--var: red;'],
-       ]);
+       assert.deepStrictEqual(
+           matchedStyles.nodeStyles().map(style => style.allProperties().map(prop => prop.propertyText)), [
+             ['--var: red;'],
+             ['color: var(--var);'],
+             ['--var: blue;'],
+             ['--var: red;'],
+           ]);
      });
-
-  describe('resolveGlobalKeyword', () => {
-    const inheritedPayload: Protocol.CSS.InheritedStyleEntry[] = [{
-      matchedCSSRules: [ruleMatch(
-          '.parent',
-          [
-            {name: 'color', value: 'color-inherited'},
-            {name: 'border', value: 'border-inherited'},
-            {name: '--inherited-is-inherited', value: 'inherited-is-inherited'},
-            {name: '--non-inherited-is-inherited', value: 'non-inherited-is-inherited'},
-            {name: '--unregistered-is-inherited', value: 'unregistered-is-inherited'},
-          ])],
-    }];
-    const cssPropertyRegistrations: Protocol.CSS.CSSPropertyRegistration[] = [
-      {
-        propertyName: '--inherited-is-inherited',
-        syntax: '"<color>"',
-        initialValue: {text: 'inherited-is-inherited-initial'},
-        inherits: true,
-      },
-      {
-        propertyName: '--inherited-is-not-inherited',
-        syntax: '"<color>"',
-        initialValue: {text: 'inherited-is-not-inherited-initial'},
-        inherits: true,
-      },
-      {
-        propertyName: '--non-inherited-is-inherited',
-        syntax: '"<color>"',
-        initialValue: {text: 'non-inherited-is-inherited-initial'},
-        inherits: false,
-      },
-      {
-        propertyName: '--non-inherited-is-not-inherited',
-        syntax: '"<color>"',
-        initialValue: {text: 'non-inherited-is-not-inherited-initial'},
-        inherits: false,
-      },
-    ];
-
-    function checkResolution(
-        matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles,
-        properties: Array<Protocol.CSS.CSSProperty&{expectedValue?: string}>): void {
-      const ownProperties = new Map(matchedStyles.nodeStyles()
-                                        .find(style => style.type === SDK.CSSStyleDeclaration.Type.Regular)
-                                        ?.allProperties()
-                                        .map(property => [property.name, property]));
-
-      for (const {name: propertyName, expectedValue} of properties) {
-        const property = ownProperties.get(propertyName);
-        assert.isOk(property);
-
-        let resolvedValue: SDK.CSSMatchedStyles.CSSValueSource|null = new SDK.CSSMatchedStyles.CSSValueSource(property);
-        while (resolvedValue?.value && SDK.CSSMetadata.CSSMetadata.isCSSWideKeyword(resolvedValue?.value)) {
-          const {declaration, value} = resolvedValue;
-          if (!(declaration instanceof SDK.CSSProperty.CSSProperty)) {
-            break;
-          }
-          resolvedValue = matchedStyles.resolveGlobalKeyword(declaration, value);
-        }
-        assert.strictEqual(resolvedValue?.value, expectedValue, propertyName);
-      }
-    }
-
-    let node: sinon.SinonStubbedInstance<SDK.DOMModel.DOMNode>;
-
-    beforeEach(() => {
-      node = sinon.createStubInstance(SDK.DOMModel.DOMNode);
-      node.id = 1 as Protocol.DOM.NodeId;
-      node.nodeType.returns(Node.ELEMENT_NODE);
-      const parent = sinon.createStubInstance(SDK.DOMModel.DOMNode);
-      parent.id = 2 as Protocol.DOM.NodeId;
-      parent.nodeType.returns(Node.ELEMENT_NODE);
-      node.parentNode = parent;
-    });
-
-    it('correctly resolves the keyword `unset`', async () => {
-      const properties = [
-        // Value is undefined
-        {name: 'background-color', value: 'unset', expectedValue: undefined},
-        // Property inherits, Value is inherited
-        {name: 'color', value: 'unset', expectedValue: 'color-inherited'},
-        // Property inherits, Value is not inherited
-        {name: 'font-size', value: 'unset', expectedValue: undefined},
-        // Value is not inherited
-        {name: 'border', value: 'unset', expectedValue: undefined},
-        // Value is not inherited
-        {name: 'margin', value: 'unset', expectedValue: undefined},
-        // Property inherits, Value is inherited
-        {name: '--inherited-is-inherited', value: 'unset', expectedValue: 'inherited-is-inherited'},
-        // Property inherits, Value is not inherited, so fall back to initial
-        {name: '--inherited-is-not-inherited', value: 'unset', expectedValue: 'inherited-is-not-inherited-initial'},
-        // Value is not inherited, so fall back to initial
-        {name: '--non-inherited-is-inherited', value: 'unset', expectedValue: 'non-inherited-is-inherited-initial'},
-        // Value is not inherited, so fall back to initial
-        {
-          name: '--non-inherited-is-not-inherited',
-          value: 'unset',
-          expectedValue: 'non-inherited-is-not-inherited-initial',
-        },
-        // Value is inherited
-        {name: '--unregistered-is-inherited', value: 'unset', expectedValue: 'unregistered-is-inherited'},
-        // Value is undefined
-        {name: '--unregistered-is-not-inherited', value: 'unset', expectedValue: undefined},
-      ];
-      const matchedStyles = await getMatchedStyles(
-          {matchedPayload: [ruleMatch('div', properties)], inheritedPayload, cssPropertyRegistrations, node});
-      checkResolution(matchedStyles, properties);
-    });
-
-    it('correctly resolves the keyword `inherits`', async () => {
-      const properties = [
-        // Value is undefined
-        {name: 'background-color', value: 'inherit', expectedValue: undefined},
-        // Property inherits, Value is inherited
-        {name: 'color', value: 'inherit', expectedValue: 'color-inherited'},
-        // Property inherits, Value is not inherited
-        {name: 'font-size', value: 'inherit', expectedValue: undefined},
-        // Property doesn't inherit, but Value is inherited
-        {name: 'border', value: 'inherit', expectedValue: 'border-inherited'},
-        // Value is not inherited
-        {name: 'margin', value: 'inherit', expectedValue: undefined},
-        // Property inherits, Value is inherited
-        {name: '--inherited-is-inherited', value: 'inherit', expectedValue: 'inherited-is-inherited'},
-        // Property inherits, Value is not inherited, so fall back to initial
-        {name: '--inherited-is-not-inherited', value: 'inherit', expectedValue: 'inherited-is-not-inherited-initial'},
-        // Property doesn't inherit, but Value is inherited
-        {name: '--non-inherited-is-inherited', value: 'inherit', expectedValue: 'non-inherited-is-inherited'},
-        // Value is not inherited, so fall back to initial
-        {
-          name: '--non-inherited-is-not-inherited',
-          value: 'inherit',
-          expectedValue: 'non-inherited-is-not-inherited-initial',
-        },
-        // Value is inherited
-        {name: '--unregistered-is-inherited', value: 'inherit', expectedValue: 'unregistered-is-inherited'},
-        // Value is undefined
-        {name: '--unregistered-is-not-inherited', value: 'inherit', expectedValue: undefined},
-      ];
-      const matchedStyles = await getMatchedStyles(
-          {matchedPayload: [ruleMatch('div', properties)], inheritedPayload, cssPropertyRegistrations, node});
-      checkResolution(matchedStyles, properties);
-    });
-
-    it('correctly resolves the keyword `initial`', async () => {
-      const properties = [
-        // Value is undefined
-        {name: 'background-color', value: 'initial', expectedValue: undefined},
-        // Property inherits, Value is inherited
-        {name: 'color', value: 'initial', expectedValue: undefined},
-        // Property inherits, Value is not inherited
-        {name: 'font-size', value: 'initial', expectedValue: undefined},
-        // Property doesn't inherit
-        {name: 'border', value: 'initial', expectedValue: undefined},
-        // Value is not inherited
-        {name: 'margin', value: 'initial', expectedValue: undefined},
-        // Property inherits, Value is inherited
-        {name: '--inherited-is-inherited', value: 'initial', expectedValue: 'inherited-is-inherited-initial'},
-        // Property inherits, Value is not inherited
-        {name: '--inherited-is-not-inherited', value: 'initial', expectedValue: 'inherited-is-not-inherited-initial'},
-        // Value is not inherited
-        {name: '--non-inherited-is-inherited', value: 'initial', expectedValue: 'non-inherited-is-inherited-initial'},
-        // Value is not inherited
-        {
-          name: '--non-inherited-is-not-inherited',
-          value: 'initial',
-          expectedValue: 'non-inherited-is-not-inherited-initial',
-        },
-        // Value is inherited
-        {name: '--unregistered-is-inherited', value: 'initial', expectedValue: undefined},
-        // Value is undefined
-        {name: '--unregistered-is-not-inherited', value: 'initial', expectedValue: undefined},
-      ];
-      const matchedStyles = await getMatchedStyles(
-          {matchedPayload: [ruleMatch('div', properties)], inheritedPayload, cssPropertyRegistrations, node});
-      checkResolution(matchedStyles, properties);
-    });
-
-    it('correctly resolves the keyword `revert`', async () => {
-      const properties = [
-        // authored -> user
-        {name: 'font-variant', value: 'revert', expectedValue: 'user-font-variant'},
-        // authored -> user -> ua
-        {name: 'font-size', value: 'revert', expectedValue: 'ua-font-size'},
-        // authored -> ua
-        {name: 'font-weight', value: 'revert', expectedValue: 'ua-font-weight'},
-        // authored -> user -> ua -> void
-        {name: 'font-family', value: 'revert', expectedValue: undefined},
-        // authored -> inherited
-        {name: 'color', value: 'revert', expectedValue: 'color-inherited'},
-        {name: '--inherited-is-inherited', value: 'revert', expectedValue: 'inherited-is-inherited'},
-        // authored -> initial
-        {name: '--inherited-is-not-inherited', value: 'revert', expectedValue: 'inherited-is-not-inherited-initial'},
-        {name: '--non-inherited-is-inherited', value: 'revert', expectedValue: 'non-inherited-is-inherited-initial'},
-        {
-          name: '--non-inherited-is-not-inherited',
-          value: 'revert',
-          expectedValue: 'non-inherited-is-not-inherited-initial',
-        },
-      ];
-      const userRule = ruleMatch('div', [
-        {name: 'font-variant', value: 'user-font-variant'},
-        {name: 'font-size', value: 'revert'},
-        {name: 'font-family', value: 'revert'},
-      ]);
-      userRule.rule.origin = Protocol.CSS.StyleSheetOrigin.Injected;
-      const uaRule = ruleMatch('div', [
-        {name: 'font-variant', value: 'ua-font-variant'},
-        {name: 'font-size', value: 'ua-font-size'},
-        {name: 'font-weight', value: 'ua-font-weight'},
-        {name: 'font-family', value: 'revert'},
-      ]);
-      uaRule.rule.origin = Protocol.CSS.StyleSheetOrigin.UserAgent;
-      const matchedStyles = await getMatchedStyles({
-        matchedPayload: [uaRule, userRule, ruleMatch('div', properties)],
-        inheritedPayload,
-        cssPropertyRegistrations,
-        node
-      });
-      checkResolution(matchedStyles, properties);
-    });
-
-    it('correctly resolves the keyword `revert-layer`', async () => {
-      const inlinePayload = ruleMatch('', [{name: '--element-attached', value: 'revert-layer'}]).rule.style;
-      const properties = [
-        {name: '--element-attached', value: 'author-origin', expectedValue: 'author-origin'},
-        {name: 'font-family', value: 'revert-layer', expectedValue: 'next-layer'},
-        {name: 'font-weight', value: 'revert-layer', expectedValue: 'one-more-layer'},
-        // Value is undefined
-        {name: 'background-color', value: 'revert-layer', expectedValue: undefined},
-        // Property inherits, Value is inherited
-        {name: 'color', value: 'revert-layer', expectedValue: 'color-inherited'},
-        // Property inherits, Value is not inherited
-        {name: 'font-size', value: 'revert-layer', expectedValue: undefined},
-        // Property doesn't inherit
-        {name: 'border', value: 'revert-layer', expectedValue: undefined},
-        // Value is not inherited
-        {name: 'margin', value: 'revert-layer', expectedValue: undefined},
-        // Property inherits, Value is inherited
-        {name: '--inherited-is-inherited', value: 'revert-layer', expectedValue: 'inherited-is-inherited'},
-        // Property inherits, Value is not inherited
-        {
-          name: '--inherited-is-not-inherited',
-          value: 'revert-layer',
-          expectedValue: 'inherited-is-not-inherited-initial',
-        },
-        // Value is not inherited
-        {
-          name: '--non-inherited-is-inherited',
-          value: 'revert-layer',
-          expectedValue: 'non-inherited-is-inherited-initial',
-        },
-        // Value is not inherited
-        {
-          name: '--non-inherited-is-not-inherited',
-          value: 'revert-layer',
-          expectedValue: 'non-inherited-is-not-inherited-initial',
-        },
-        // Value is inherited
-        {name: '--unregistered-is-inherited', value: 'revert-layer', expectedValue: 'unregistered-is-inherited'},
-        // Value is undefined
-        {name: '--unregistered-is-not-inherited', value: 'revert-layer', expectedValue: undefined},
-      ];
-
-      const mainRule = ruleMatch('div', properties);
-      mainRule.rule.layers = [{text: 'layer1'}];
-      const sameLayer = ruleMatch('div', [{name: 'font-family', value: 'same-layer'}]);
-      sameLayer.rule.layers = mainRule.rule.layers;
-      const nextLayer = ruleMatch('div', [{name: 'font-family', value: 'next-layer'}]);
-      nextLayer.rule.layers = [{text: 'layer2'}];
-      const oneMoreLayer = ruleMatch('div', [{name: 'font-weight', value: 'one-more-layer'}]);
-      oneMoreLayer.rule.layers = [{text: 'outer'}, {text: 'layer3'}];
-      const uaRule = ruleMatch('div', [{name: 'font-variant', value: 'ua-font-variant'}]);
-      uaRule.rule.origin = Protocol.CSS.StyleSheetOrigin.UserAgent;
-      const matchedStyles = await getMatchedStyles({
-        inlinePayload,
-        matchedPayload: [uaRule, oneMoreLayer, nextLayer, sameLayer, mainRule],
-        inheritedPayload,
-        cssPropertyRegistrations,
-        node,
-      });
-      checkResolution(matchedStyles, properties);
-
-      // Check for inline style
-      const inlineProperty = matchedStyles.nodeStyles()
-                                 .find(style => style.type === SDK.CSSStyleDeclaration.Type.Inline)
-                                 ?.allProperties()
-                                 ?.find(property => property.name === '--element-attached');
-      assert.isOk(inlineProperty);
-      const resolved = matchedStyles.resolveGlobalKeyword(inlineProperty, SDK.CSSMetadata.CSSWideKeyword.REVERT_LAYER);
-      assert.strictEqual(resolved?.value, 'author-origin');
-    });
-  });
-
-  it('can correctly resolve properties by name', async () => {
-    const node = sinon.createStubInstance(SDK.DOMModel.DOMNode);
-    node.id = 1 as Protocol.DOM.NodeId;
-    node.nodeType.returns(Node.ELEMENT_NODE);
-    const parent = sinon.createStubInstance(SDK.DOMModel.DOMNode);
-    parent.id = 2 as Protocol.DOM.NodeId;
-    parent.nodeType.returns(Node.ELEMENT_NODE);
-    node.parentNode = parent;
-    const matchedPayload = [
-      // Property is found in the same rule
-      ruleMatch('div', {'--a': 'A', '--b': 'B'}),
-      // ... in a sibling rule
-      ruleMatch('div', {'--c': 'C', '--d': 'D'}),
-    ];
-    const inheritedPayload = [{
-      matchedCSSRules: [
-        // ... in an inherited rule
-        ruleMatch('div', {'--e': 'E'}),
-        ruleMatch('div', {'--f': 'F'}),
-        ruleMatch('div', {'background-color': 'x'}),
-        ruleMatch('div', {color: 'y'}),
-      ]
-    }];
-    const matchedStyles = await getMatchedStyles({node, matchedPayload, inheritedPayload});
-
-    const styles = matchedStyles.nodeStyles();
-    assert.lengthOf(styles, 5);
-    assert.isNull(matchedStyles.resolveProperty('--z', styles[0]));
-    assert.strictEqual(matchedStyles.resolveProperty('--a', styles[0])?.value, 'A');
-    assert.strictEqual(matchedStyles.resolveProperty('--b', styles[0])?.value, 'B');
-    assert.strictEqual(matchedStyles.resolveProperty('--a', styles[1])?.value, 'A');
-    assert.strictEqual(matchedStyles.resolveProperty('--b', styles[1])?.value, 'B');
-    assert.strictEqual(matchedStyles.resolveProperty('--e', styles[0])?.value, 'E');
-    assert.strictEqual(matchedStyles.resolveProperty('--f', styles[0])?.value, 'F');
-    assert.strictEqual(matchedStyles.resolveProperty('--e', styles[1])?.value, 'E');
-    assert.strictEqual(matchedStyles.resolveProperty('--f', styles[1])?.value, 'F');
-    assert.strictEqual(matchedStyles.resolveProperty('color', styles[0])?.value, 'y');
-    assert.isNull(matchedStyles.resolveProperty('background-color', styles[0]));
-  });
 });
 
 describeWithMockConnection('NodeCascade', () => {
@@ -734,7 +416,7 @@ describeWithMockConnection('NodeCascade', () => {
         syntax: '<color>',
       },
     ];
-    const matchedStyles = await getMatchedStyles({
+    const matchedStyles = await createMatchedStyles({
       cssModel,
       node,
       matchedPayload: [
@@ -748,8 +430,8 @@ describeWithMockConnection('NodeCascade', () => {
     const [inheritableProperty, nonInheritableProperty] = style.allProperties();
 
     assert.strictEqual(
-        matchedStyles.propertyState(nonInheritableProperty), SDK.CSSMatchedStyles.PropertyState.OVERLOADED);
-    assert.strictEqual(matchedStyles.propertyState(inheritableProperty), SDK.CSSMatchedStyles.PropertyState.ACTIVE);
+        matchedStyles.propertyState(nonInheritableProperty), SDK.CSSMatchedStyles.PropertyState.Overloaded);
+    assert.strictEqual(matchedStyles.propertyState(inheritableProperty), SDK.CSSMatchedStyles.PropertyState.Active);
   });
 
   it('correctly computes active properties for nested at-rules', async () => {
@@ -758,11 +440,11 @@ describeWithMockConnection('NodeCascade', () => {
     nestedRule.rule.nestingSelectors = ['a'];
     nestedRule.rule.selectorList = {selectors: [], text: '&'};
     nestedRule.rule.supports = [{
-      text: '(--var:s)',
-      active: true,
+      'text': '(--var:s)',
+      'active': true,
       styleSheetId: nestedRule.rule.styleSheetId,
     }];
-    const matchedStyles = await getMatchedStyles({
+    const matchedStyles = await createMatchedStyles({
       matchedPayload: [outerRule, nestedRule],
     });
 

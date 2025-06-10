@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {DevToolsFrontendReloadOptions} from '../../conductor/frontend_tab.js';
+import {type DevToolsFrontendReloadOptions} from '../../conductor/frontend_tab.js';
 import {getBrowserAndPages} from '../../conductor/puppeteer-state.js';
 import {click, reloadDevTools as baseReloadDevTools, waitFor} from '../../shared/helper.js';
 
@@ -32,8 +32,8 @@ export async function clickOnContextMenuItemFromTab(tabId: string, menuItemSelec
 
 export const MOVE_TO_DRAWER_SELECTOR = '[aria-label="Move to bottom"]';
 export const MOVE_TO_MAIN_PANEL_SELECTOR = '[aria-label="Move to top"]';
-export const MAIN_PANEL_SELECTOR = 'div[class*="main-tabbed-pane"][slot*="main"]';
-export const DRAWER_PANEL_SELECTOR = 'div[class*="drawer-tabbed-pane"][slot*="sidebar"]';
+export const MAIN_PANEL_SELECTOR = 'div[class*="main-tabbed-pane"][slot*="insertion-point-main"]';
+export const DRAWER_PANEL_SELECTOR = 'div[class*="drawer-tabbed-pane"][slot*="insertion-point-sidebar"]';
 export const TAB_HEADER_SELECTOR = 'div[class*="tabbed-pane-header"]';
 
 export async function tabExistsInMainPanel(tabId: string) {
@@ -53,18 +53,10 @@ export const checkIfTabExistsInDrawer = async (tabId: string) => {
   return Boolean(tab);
 };
 
-export async function reloadDevTools(options?: DevToolsFrontendReloadOptions&{
-  expectClosedPanels?: string[],
-  enableExperiments?: string[],
-  disableExperiments?: string[],
-  removeBackendState?: boolean,
-}) {
-  const {frontend, target} = getBrowserAndPages();
-  await frontend.evaluate(() => {
-    // Prevent the Performance panel shortcuts dialog, that is automatically shown the first
-    // time the performance panel is opened, from opening in tests.
-    localStorage.setItem('hide-shortcuts-dialog-for-test', 'true');
-  });
+export async function reloadDevTools(
+    options?: DevToolsFrontendReloadOptions&
+    {expectClosedPanels?: string[], enableExperiments?: string[], disableExperiments?: string[]}) {
+  const {frontend} = getBrowserAndPages();
   const enableExperiments = options?.enableExperiments || [];
   const disableExperiments = options?.disableExperiments || [];
   if (enableExperiments.length || disableExperiments.length) {
@@ -77,10 +69,6 @@ export async function reloadDevTools(options?: DevToolsFrontendReloadOptions&{
         Root.Runtime.experiments.setEnabled(experiment, false);
       }
     })()`);
-  }
-  if (options?.removeBackendState) {
-    // Navigate to a different site to make sure that back-end state will be removed.
-    await target.goto('about:blank');
   }
   await baseReloadDevTools(options);
   const selectedPanel = options?.selectedPanel?.name || options?.queryParams?.panel || 'elements';

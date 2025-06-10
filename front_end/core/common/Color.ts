@@ -65,7 +65,7 @@ function normalizeHue(hue: number): number {
 // and returns the canonicalized `degree`.
 function parseAngle(angleText: string): number|null {
   const angle = angleText.replace(/(deg|g?rad|turn)$/, '');
-  // @ts-expect-error: isNaN can accept strings
+  // @ts-ignore: isNaN can accept strings
   if (isNaN(angle) || angleText.match(/\s+(deg|g?rad|turn)/)) {
     return null;
   }
@@ -337,7 +337,7 @@ function parseAlpha(value: string|undefined): number|null {
  * - 20% in range [0, 1] is 0.5
  */
 function parsePercentOrNumber(value: string, range: [number, number] = [0, 1]): number|null {
-  // @ts-expect-error: isNaN can accept strings
+  // @ts-ignore: isNaN can accept strings
   if (isNaN(value.replace('%', ''))) {
     return null;
   }
@@ -366,7 +366,7 @@ function parseRgbNumeric(value: string): number|null {
 
 export function parseHueNumeric(value: string): number|null {
   const angle = value.replace(/(deg|g?rad|turn)$/, '');
-  // @ts-expect-error: isNaN can accept strings
+  // @ts-ignore: isNaN can accept strings
   if (isNaN(angle) || value.match(/\s+(deg|g?rad|turn)/)) {
     return null;
   }
@@ -385,7 +385,7 @@ export function parseHueNumeric(value: string): number|null {
 }
 
 function parseSatLightNumeric(value: string): number|null {
-  // @ts-expect-error: isNaN can accept strings
+  // @ts-ignore: isNaN can accept strings
   if (value.indexOf('%') !== value.length - 1 || isNaN(value.replace('%', ''))) {
     return null;
   }
@@ -650,11 +650,6 @@ export interface Color {
   as<T extends Format>(format: T): ReturnType<ColorConversions[T]>;
   is<T extends Format>(format: T): this is ReturnType<ColorConversions[T]>;
   asLegacyColor(): Legacy;
-
-  // The authored text is the text that was used to define the color. If set, it may be different from what `asString`
-  // returns, for example if the latter normalizes or clamps color channel values. It is also possible that the authored
-  // text is not a parsable color outside of the context in which the color was produced, e.g., when the color stems
-  // from a custom property, the authored text may look like "var(--color)".
   getAuthoredText(): string|null;
 
   getRawParameters(): Color3D;
@@ -762,7 +757,7 @@ export class Lab implements Color {
 
   #getRGBArray(withAlpha: true): Color4DOr3D;
   #getRGBArray(withAlpha: false): Color3D;
-  #getRGBArray(withAlpha = true): Color3D|Color4DOr3D {
+  #getRGBArray(withAlpha: boolean = true): Color3D|Color4DOr3D {
     const params = ColorConverter.xyzd50ToSrgb(...this.#toXyzd50());
     if (withAlpha) {
       return [...params, this.alpha ?? undefined];
@@ -899,7 +894,7 @@ export class LCH implements Color {
 
   #getRGBArray(withAlpha: true): Color4DOr3D;
   #getRGBArray(withAlpha: false): Color3D;
-  #getRGBArray(withAlpha = true): Color4DOr3D|Color3D {
+  #getRGBArray(withAlpha: boolean = true): Color4DOr3D|Color3D {
     const params = ColorConverter.xyzd50ToSrgb(...this.#toXyzd50());
     if (withAlpha) {
       return [...params, this.alpha ?? undefined];
@@ -1039,7 +1034,7 @@ export class Oklab implements Color {
 
   #getRGBArray(withAlpha: true): Color4DOr3D;
   #getRGBArray(withAlpha: false): Color3D;
-  #getRGBArray(withAlpha = true): Color4DOr3D|Color3D {
+  #getRGBArray(withAlpha: boolean = true): Color4DOr3D|Color3D {
     const params = ColorConverter.xyzd50ToSrgb(...this.#toXyzd50());
     if (withAlpha) {
       return [...params, this.alpha ?? undefined];
@@ -1176,7 +1171,7 @@ export class Oklch implements Color {
 
   #getRGBArray(withAlpha: true): Color4DOr3D;
   #getRGBArray(withAlpha: false): Color3D;
-  #getRGBArray(withAlpha = true): Color4DOr3D|Color3D {
+  #getRGBArray(withAlpha: boolean = true): Color4DOr3D|Color3D {
     const params = ColorConverter.xyzd50ToSrgb(...this.#toXyzd50());
     if (withAlpha) {
       return [...params, this.alpha ?? undefined];
@@ -1336,7 +1331,7 @@ export class ColorFunction implements Color {
 
   #getRGBArray(withAlpha: true): Color4DOr3D;
   #getRGBArray(withAlpha: false): Color3D;
-  #getRGBArray(withAlpha = true): Color4DOr3D|Color3D {
+  #getRGBArray(withAlpha: boolean = true): Color4DOr3D|Color3D {
     // With color(), out-of-gamut inputs are to be used for intermediate computations
     const [p0, p1, p2] = this.#rawParams;
     const params: Color3D =
@@ -1531,7 +1526,7 @@ export class HSL implements Color {
 
   #getRGBArray(withAlpha: true): Color4DOr3D;
   #getRGBArray(withAlpha: false): Color3D;
-  #getRGBArray(withAlpha = true): Color4DOr3D|Color3D {
+  #getRGBArray(withAlpha: boolean = true): Color4DOr3D|Color3D {
     const rgb = hsl2rgb([this.h, this.s, this.l, 0]);
     if (withAlpha) {
       return [rgb[0], rgb[1], rgb[2], this.alpha ?? undefined];
@@ -1682,7 +1677,7 @@ export class HWB implements Color {
 
   #getRGBArray(withAlpha: true): Color4DOr3D;
   #getRGBArray(withAlpha: false): Color3D;
-  #getRGBArray(withAlpha = true): Color4DOr3D|Color3D {
+  #getRGBArray(withAlpha: boolean = true): Color4DOr3D|Color3D {
     const rgb = hwb2rgb([this.h, this.w, this.b, 0]);
     if (withAlpha) {
       return [rgb[0], rgb[1], rgb[2], this.alpha ?? undefined];
@@ -1806,9 +1801,6 @@ abstract class ShortFormatColorBase implements Color {
   }
   get alpha(): number|null {
     return this.color.alpha;
-  }
-  rgba(): Color4D {
-    return this.color.rgba();
   }
   equal(color: Color): boolean {
     return this.color.equal(color);
@@ -2160,16 +2152,6 @@ export class Legacy implements Color {
     return new Legacy(rgba, Format.RGBA);
   }
 
-  /**
-   * Returns a new color using the NTSC formula for making a RGB color grayscale.
-   * Note: We override with an alpha of 50% to enhance the dimming effect.
-   */
-  grayscale(): Legacy {
-    const [r, g, b] = this.#rgbaInternal;
-    const gray = r * 0.299 + g * 0.587 + b * 0.114;
-    return new Legacy([gray, gray, gray, 0.5], Format.RGBA);
-  }
-
   setAlpha(alpha: number): Legacy {
     const rgba: Color4D = [...this.#rgbaInternal];
     rgba[3] = alpha;
@@ -2200,9 +2182,9 @@ export class Legacy implements Color {
   }
 }
 
-export const Regex =
+export const Regex: RegExp =
     /((?:rgba?|hsla?|hwba?|lab|lch|oklab|oklch|color)\([^)]+\)|#[0-9a-fA-F]{8}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3,4}|\b[a-zA-Z]+\b(?!-))/g;
-export const ColorMixRegex = /color-mix\(.*,\s*(?<firstColor>.+)\s*,\s*(?<secondColor>.+)\s*\)/g;
+export const ColorMixRegex: RegExp = /color-mix\(.*,\s*(?<firstColor>.+)\s*,\s*(?<secondColor>.+)\s*\)/g;
 
 const COLOR_TO_RGBA_ENTRIES: Array<readonly[string, number[]]> = [
   ['aliceblue', [240, 248, 255]],
@@ -2414,12 +2396,13 @@ export class Generator {
   readonly #satSpace: Space;
   readonly #lightnessSpace: Space;
   readonly #alphaSpace: Space;
-  readonly #colors = new Map<string, string>();
+  readonly #colors: Map<string, string>;
   constructor(hueSpace?: Space, satSpace?: Space, lightnessSpace?: Space, alphaSpace?: Space) {
     this.#hueSpace = hueSpace || {min: 0, max: 360, count: undefined};
     this.#satSpace = satSpace || 67;
     this.#lightnessSpace = lightnessSpace || 80;
     this.#alphaSpace = alphaSpace || 1;
+    this.#colors = new Map();
   }
 
   setColorForID(id: string, color: string): void {

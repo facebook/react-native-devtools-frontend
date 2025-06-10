@@ -26,32 +26,11 @@ export type CookiePriority = 'Low' | 'Medium' | 'High';
  */
 export type CookieSourceScheme = 'Unset' | 'NonSecure' | 'Secure';
 /**
- * Represents a cookie partition key in Chrome.
- *
- * @public
- */
-export interface CookiePartitionKey {
-    /**
-     * The site of the top-level URL the browser was visiting at the start of the request
-     * to the endpoint that set the cookie.
-     *
-     * In Chrome, maps to the CDP's `topLevelSite` partition key.
-     */
-    sourceOrigin: string;
-    /**
-     * Indicates if the cookie has any ancestors that are cross-site to
-     * the topLevelSite.
-     *
-     * Supported only in Chrome.
-     */
-    hasCrossSiteAncestor?: boolean;
-}
-/**
  * Represents a cookie object.
  *
  * @public
  */
-export interface Cookie extends CookieData {
+export interface Cookie {
     /**
      * Cookie name.
      */
@@ -106,20 +85,17 @@ export interface Cookie extends CookieData {
      */
     sourceScheme?: CookieSourceScheme;
     /**
-     * Cookie partition key. In Chrome, it is the top-level site the
-     * partitioned cookie is available in. In Firefox, it matches the
-     * source origin in the
-     * {@link https://w3c.github.io/webdriver-bidi/#type-storage-PartitionKey | PartitionKey }.
+     * Cookie partition key. The site of the top-level URL the browser was visiting at the
+     * start of the request to the endpoint that set the cookie. Supported only in Chrome.
      */
-    partitionKey?: CookiePartitionKey | string;
+    partitionKey?: string;
     /**
      * True if cookie partition key is opaque. Supported only in Chrome.
      */
     partitionKeyOpaque?: boolean;
 }
 /**
- * Cookie parameter object used to set cookies in the page-level cookies
- * API.
+ * Cookie parameter object
  *
  * @public
  */
@@ -174,71 +150,11 @@ export interface CookieParam {
      */
     sourceScheme?: CookieSourceScheme;
     /**
-     * Cookie partition key. In Chrome, it matches the top-level site the
-     * partitioned cookie is available in. In Firefox, it matches the
-     * source origin in the
-     * {@link https://w3c.github.io/webdriver-bidi/#type-storage-PartitionKey | PartitionKey }.
+     * Cookie partition key. The site of the top-level URL the browser was visiting at the
+     * start of the request to the endpoint that set the cookie. If not set, the cookie will
+     * be set as not partitioned.
      */
-    partitionKey?: CookiePartitionKey | string;
-}
-/**
- * Cookie parameter object used to set cookies in the browser-level cookies
- * API.
- *
- * @public
- */
-export interface CookieData {
-    /**
-     * Cookie name.
-     */
-    name: string;
-    /**
-     * Cookie value.
-     */
-    value: string;
-    /**
-     * Cookie domain.
-     */
-    domain: string;
-    /**
-     * Cookie path.
-     */
-    path?: string;
-    /**
-     * True if cookie is secure.
-     */
-    secure?: boolean;
-    /**
-     * True if cookie is http-only.
-     */
-    httpOnly?: boolean;
-    /**
-     * Cookie SameSite type.
-     */
-    sameSite?: CookieSameSite;
-    /**
-     * Cookie expiration date, session cookie if not set
-     */
-    expires?: number;
-    /**
-     * Cookie Priority. Supported only in Chrome.
-     */
-    priority?: CookiePriority;
-    /**
-     * True if cookie is SameParty. Supported only in Chrome.
-     */
-    sameParty?: boolean;
-    /**
-     * Cookie source scheme type. Supported only in Chrome.
-     */
-    sourceScheme?: CookieSourceScheme;
-    /**
-     * Cookie partition key. In Chrome, it matches the top-level site the
-     * partitioned cookie is available in. In Firefox, it matches the
-     * source origin in the
-     * {@link https://w3c.github.io/webdriver-bidi/#type-storage-PartitionKey | PartitionKey }.
-     */
-    partitionKey?: CookiePartitionKey | string;
+    partitionKey?: string;
 }
 /**
  * @public
@@ -261,13 +177,5 @@ export interface DeleteCookiesRequest {
      * If specified, deletes only cookies with the exact path.
      */
     path?: string;
-    /**
-     * If specified, deletes cookies in the given partition key. In
-     * Chrome, partitionKey matches the top-level site the partitioned
-     * cookie is available in.
-     * In Firefox, it matches the source origin in the
-     * {@link https://w3c.github.io/webdriver-bidi/#type-storage-PartitionKey | PartitionKey }.
-     */
-    partitionKey?: CookiePartitionKey | string;
 }
 //# sourceMappingURL=Cookie.d.ts.map

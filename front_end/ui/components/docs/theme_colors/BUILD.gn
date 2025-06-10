@@ -3,7 +3,7 @@
 # found in the LICENSE file.
 
 import("../../../../../scripts/build/ninja/copy.gni")
-import("../../../../../scripts/build/typescript/typescript.gni")
+import("../../../../../third_party/typescript/typescript.gni")
 
 ts_library("ts") {
   testonly = true
@@ -11,7 +11,7 @@ ts_library("ts") {
 
   deps = [
     "../../../../ui/components/helpers:bundle",
-    "../../../../ui/lit:bundle",
+    "../../../../ui/lit-html:bundle",
   ]
 }
 

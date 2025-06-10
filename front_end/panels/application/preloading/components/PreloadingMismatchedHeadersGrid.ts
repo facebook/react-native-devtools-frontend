@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../../../ui/legacy/components/data_grid/data_grid.js';
-
 import * as i18n from '../../../../core/i18n/i18n.js';
+import {assertNotNullOrUndefined} from '../../../../core/platform/platform.js';
 import type * as SDK from '../../../../core/sdk/sdk.js';
+import * as DataGrid from '../../../../ui/components/data_grid/data_grid.js';
 import * as LegacyWrapper from '../../../../ui/components/legacy_wrapper/legacy_wrapper.js';
 import type * as UI from '../../../../ui/legacy/legacy.js';
-import * as Lit from '../../../../ui/lit/lit.js';
+import * as LitHtml from '../../../../ui/lit-html/lit-html.js';
 
 import preloadingGridStyles from './preloadingGrid.css.js';
 
@@ -29,17 +29,20 @@ const UIStrings = {
    *@description The string to indicate the value of the header is missing.
    */
   missing: '(missing)',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings(
     'panels/application/preloading/components/PreloadingMismatchedHeadersGrid.ts', UIStrings);
 export const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-const {render, html} = Lit;
+const {render, html} = LitHtml;
 
 export class PreloadingMismatchedHeadersGrid extends LegacyWrapper.LegacyWrapper.WrappableComponent<UI.Widget.VBox> {
+  static readonly litTagName = LitHtml.literal`devtools-resources-preloading-mismatched-headers-grid`;
+
   readonly #shadow = this.attachShadow({mode: 'open'});
   #data: SDK.PreloadingModel.PrerenderAttempt|null = null;
   connectedCallback(): void {
+    this.#shadow.adoptedStyleSheets = [preloadingGridStyles];
     this.#render();
   }
 
@@ -52,40 +55,74 @@ export class PreloadingMismatchedHeadersGrid extends LegacyWrapper.LegacyWrapper
   }
 
   #render(): void {
-    if (!this.#data?.mismatchedHeaders) {
+    if (this.#data === null) {
       return;
     }
+
+    const reportsGridData: DataGrid.DataGridController.DataGridControllerData = {
+      columns: [
+        {
+          id: 'header-name',
+          title: i18nString(UIStrings.headerName),
+          widthWeighting: 30,
+          hideable: false,
+          visible: true,
+          sortable: true,
+        },
+        {
+          id: 'initial-value',
+          title: i18nString(UIStrings.initialNavigationValue),
+          widthWeighting: 30,
+          hideable: false,
+          visible: true,
+          sortable: true,
+        },
+        {
+          id: 'activation-value',
+          title: i18nString(UIStrings.activationNavigationValue),
+          widthWeighting: 30,
+          hideable: false,
+          visible: true,
+          sortable: true,
+        },
+      ],
+      rows: this.#buildReportRows(),
+      striped: true,
+    };
 
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
       render(html`
-        <style>${preloadingGridStyles.cssText}</style>
         <div class="preloading-container">
-          <devtools-data-grid striped inline>
-            <table>
-              <tr>
-                <th id="header-name" weight="30" sortable>
-                  ${i18nString(UIStrings.headerName)}
-                </th>
-                <th id="initial-value" weight="30" sortable>
-                  ${i18nString(UIStrings.initialNavigationValue)}
-                </th>
-                <th id="activation-value" weight="30" sortable>
-                  ${i18nString(UIStrings.activationNavigationValue)}
-                </th>
-              </tr>
-              ${this.#data.mismatchedHeaders.map(mismatchedHeaders => html`
-                <tr>
-                  <td>${mismatchedHeaders.headerName}</td>
-                  <td>${mismatchedHeaders.initialValue ?? i18nString(UIStrings.missing)}</td>
-                  <td>${mismatchedHeaders.activationValue ?? i18nString(UIStrings.missing)}</td>
-                </tr>
-              `)}
-            </table>
-          </devtools-data-grid>
+          <${DataGrid.DataGridController.DataGridController.litTagName} .data=${
+              reportsGridData as DataGrid.DataGridController.DataGridControllerData}>
+          </${DataGrid.DataGridController.DataGridController.litTagName}>
         </div>
       `, this.#shadow, {host: this});
     // clang-format on
+  }
+
+  #buildReportRows(): DataGrid.DataGridUtils.Row[] {
+    assertNotNullOrUndefined(this.#data);
+    assertNotNullOrUndefined(this.#data.mismatchedHeaders);
+
+    return this.#data.mismatchedHeaders.map(
+        mismatchedHeaders => ({
+          cells: [
+            {
+              columnId: 'header-name',
+              value: mismatchedHeaders.headerName,
+            },
+            {
+              columnId: 'initial-value',
+              value: mismatchedHeaders.initialValue ?? i18nString(UIStrings.missing),
+            },
+            {
+              columnId: 'activation-value',
+              value: mismatchedHeaders.activationValue ?? i18nString(UIStrings.missing),
+            },
+          ],
+        }));
   }
 }
 

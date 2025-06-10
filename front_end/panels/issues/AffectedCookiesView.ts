@@ -37,7 +37,7 @@ const UIStrings = {
    *@description Title for text button in the Issues panel. Clicking the button navigates the user to the Network Panel. `Set-Cookie` is a specific header line in an HTTP network request and consists of a single line of text.
    */
   filterSetCookieTitle: 'Show network requests that include this `Set-Cookie` header in the network panel',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/issues/AffectedCookiesView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -75,7 +75,7 @@ export class AffectedCookiesView extends AffectedResourcesView {
       link.setAttribute(
           'jslog', `${VisualLogging.link('issues.filter-network-requests-by-cookie').track({click: true})}`);
       link.addEventListener('click', () => {
-        Host.userMetrics.issuesPanelResourceOpened(this.issue.getCategory(), AffectedItem.COOKIE);
+        Host.userMetrics.issuesPanelResourceOpened(this.issue.getCategory(), AffectedItem.Cookie);
         void Common.Revealer.reveal(NetworkForward.UIFilter.UIRequestFilter.filters([
           {
             filterType: NetworkForward.UIFilter.FilterType.CookieDomain,

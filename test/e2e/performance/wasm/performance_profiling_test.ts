@@ -15,10 +15,11 @@ import {
   waitForElementWithTextContent,
   waitForFunction,
 } from '../../../shared/helper.js';
+import {describe, it} from '../../../shared/mocha-extensions.js';
 import {
   BOTTOM_UP_SELECTOR,
   CALL_TREE_SELECTOR,
-  getTotalTimeFromPie,
+  getTotalTimeFromSummary,
   navigateToBottomUpTab,
   navigateToCallTreeTab,
   navigateToPerformanceTab,
@@ -34,7 +35,7 @@ async function expandAndCheckActivityTree(frontend: puppeteer.Page, expectedActi
   do {
     await waitForFunction(async () => {
       if (parentItem) {
-        await parentItem.evaluate(e => e.scrollIntoView());
+        parentItem.evaluate(e => e.scrollIntoView());
       }
       const treeItem = await $<HTMLElement>('.data-grid-data-grid-node.selected.revealed .activity-name');
       if (!treeItem) {
@@ -109,8 +110,8 @@ describe('The Performance panel', function() {
     this.timeout(20000);
   }
 
-  async function setupPerformancePanel() {
-    await step('navigate to the Performance tab and upload performance profile', async () => {
+  beforeEach(async () => {
+    await step('navigate to the Performance tab and uplaod performance profile', async () => {
       await navigateToPerformanceTab('wasm/profiling');
 
       const uploadProfileHandle = await waitFor<HTMLInputElement>('input[type=file]');
@@ -122,13 +123,11 @@ describe('The Performance panel', function() {
     await step('search for "mainWasm"', async () => {
       await searchForWasmCall();
     });
-  }
+  });
 
   it('is able to display the execution time for a wasm function', async () => {
-    await setupPerformancePanel();
-
     await step('check that the Summary tab shows more than zero total time for "mainWasm"', async () => {
-      const totalTime = await getTotalTimeFromPie();
+      const totalTime = await getTotalTimeFromSummary();
       assert.isAbove(totalTime, 0, 'mainWasm function execution time is displayed incorrectly');
     });
   });
@@ -137,12 +136,10 @@ describe('The Performance panel', function() {
   it.skipOnPlatforms(
       ['mac'], '[crbug.com/1510890]: is able to inspect the call stack for a wasm function from the bottom up',
       async () => {
-        await setupPerformancePanel();
-
         const {frontend} = getBrowserAndPages();
-        const expectedActivities = ['mainWasm', 'js-to-wasm::i', '(anonymous)', 'Run microtasks'];
+        const expectedActivities = ['mainWasm', 'js-to-wasm::i', '(anonymous)', 'Run Microtasks'];
 
-        await step('navigate to the Bottom-up tab', async () => {
+        await step('navigate to the Bottom Up tab', async () => {
           await navigateToBottomUpTab();
         });
 
@@ -159,13 +156,12 @@ describe('The Performance panel', function() {
       });
 
   // Flaky test
-  it.skip(
-      '[crbug.com/1510890]: is able to inspect the call stack for a wasm function from the call tree', async () => {
-        await setupPerformancePanel();
-
+  it.skipOnPlatforms(
+      ['mac'], '[crbug.com/1510890]: is able to inspect the call stack for a wasm function from the call tree',
+      async () => {
         const {frontend} = getBrowserAndPages();
         const expectedActivities = [
-          'Run microtasks',
+          'Run Microtasks',
           '(anonymous)',
           'js-to-wasm::i',
           'mainWasm',
@@ -178,7 +174,7 @@ describe('The Performance panel', function() {
         });
 
         await step(
-            'expand the tree for the "Run microtasks" activity and check that it displays the correct values',
+            'expand the tree for the "Run Microtasks" activity and check that it displays the correct values',
             async () => {
               const timelineTree = await $('.timeline-tree-view') as puppeteer.ElementHandle<HTMLSelectElement>;
               const rootActivity = await waitForElementWithTextContent(expectedActivities[0], timelineTree);

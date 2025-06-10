@@ -33,7 +33,7 @@ const UIStrings = {
    * panel. Element is a HTML DOM Element and classes refers to CSS classes.
    */
   elementClasses: 'Element Classes',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/elements/ClassesPaneWidget.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class ClassesPaneWidget extends UI.Widget.Widget {
@@ -47,7 +47,6 @@ export class ClassesPaneWidget extends UI.Widget.Widget {
 
   constructor() {
     super(true);
-    this.registerRequiredCSS(classesPaneWidgetStyles);
     this.contentElement.className = 'styles-element-classes-pane';
     this.contentElement.setAttribute('jslog', `${VisualLogging.pane('elements-classes')}`);
     const container = this.contentElement.createChild('div', 'title-container');
@@ -61,7 +60,7 @@ export class ClassesPaneWidget extends UI.Widget.Widget {
 
     const proxyElement = (this.prompt.attach(this.input) as HTMLElement);
     this.prompt.setPlaceholder(i18nString(UIStrings.addNewClass));
-    this.prompt.addEventListener(UI.TextPrompt.Events.TEXT_CHANGED, this.onTextChanged, this);
+    this.prompt.addEventListener(UI.TextPrompt.Events.TextChanged, this.onTextChanged, this);
     proxyElement.addEventListener('keydown', this.onKeyDown.bind(this), false);
 
     SDK.TargetManager.TargetManager.instance().addModelListener(
@@ -155,9 +154,10 @@ export class ClassesPaneWidget extends UI.Widget.Widget {
   override wasShown(): void {
     super.wasShown();
     this.update();
+    this.registerCSSFiles([classesPaneWidgetStyles]);
   }
 
-  update(): void {
+  private update(): void {
     if (!this.isShowing()) {
       return;
     }
@@ -168,7 +168,7 @@ export class ClassesPaneWidget extends UI.Widget.Widget {
     }
 
     this.classesContainer.removeChildren();
-    // @ts-expect-error this.input is a div, not an input element. So this line makes no sense at all
+    // @ts-ignore this.input is a div, not an input element. So this line makes no sense at all
     this.input.disabled = !node;
 
     if (!node) {
@@ -179,8 +179,8 @@ export class ClassesPaneWidget extends UI.Widget.Widget {
     const keys = [...classes.keys()];
     keys.sort(Platform.StringUtilities.caseInsensetiveComparator);
     for (const className of keys) {
-      const label = UI.UIUtils.CheckboxLabel.createWithStringLiteral(
-          className, classes.get(className), undefined, 'element-class', true);
+      const label =
+          UI.UIUtils.CheckboxLabel.create(className, classes.get(className), undefined, 'element-class', true);
       label.classList.add('monospace');
       label.checkboxElement.addEventListener('click', this.onClick.bind(this, className), false);
       this.classesContainer.appendChild(label);
@@ -218,7 +218,6 @@ export class ClassesPaneWidget extends UI.Widget.Widget {
   private toggleClass(node: SDK.DOMModel.DOMNode, className: string, enabled: boolean): void {
     const classes = this.nodeClasses(node);
     classes.set(className, enabled);
-    ButtonProvider.instance().item().setChecked([...classes.values()].includes(true));
   }
 
   private installNodeClasses(node: SDK.DOMModel.DOMNode): void {
@@ -266,12 +265,12 @@ export class ButtonProvider implements UI.Toolbar.Provider {
   private readonly button: UI.Toolbar.ToolbarToggle;
   private view: ClassesPaneWidget;
   private constructor() {
-    this.button = new UI.Toolbar.ToolbarToggle(i18nString(UIStrings.elementClasses), 'class');
-    this.button.element.style.setProperty('--dot-toggle-top', '12px');
-    this.button.element.style.setProperty('--dot-toggle-left', '18px');
+    this.button = new UI.Toolbar.ToolbarToggle(i18nString(UIStrings.elementClasses), '');
+    this.button.setText('.cls');
+    this.button.element.classList.add('monospace');
     this.button.element.setAttribute(
         'jslog', `${VisualLogging.toggleSubpane('elements-classes').track({click: true})}`);
-    this.button.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.clicked, this);
+    this.button.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, this.clicked, this);
     this.view = new ClassesPaneWidget();
   }
 
@@ -290,7 +289,7 @@ export class ButtonProvider implements UI.Toolbar.Provider {
     ElementsPanel.instance().showToolbarPane(!this.view.isShowing() ? this.view : null, this.button);
   }
 
-  item(): UI.Toolbar.ToolbarToggle {
+  item(): UI.Toolbar.ToolbarItem {
     return this.button;
   }
 }
@@ -355,7 +354,7 @@ export class ClassNamePrompt extends UI.TextPrompt.TextPrompt {
     }
 
     let completions: string[] = await this.classNamesPromise;
-    const classesMap = this.nodeClasses((selectedNode));
+    const classesMap = this.nodeClasses((selectedNode as SDK.DOMModel.DOMNode));
     completions = completions.filter(value => !classesMap.get(value));
 
     if (prefix[0] === '.') {

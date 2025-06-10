@@ -6,9 +6,9 @@ import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
 import * as Root from '../../core/root/root.js';
 
-import type {ViewLocationResolver} from './View.js';
+import {type ViewLocationResolver} from './View.js';
 import {PreRegisteredView} from './ViewManager.js';
-import type {Widget} from './Widget.js';
+import {type Widget} from './Widget.js';
 
 const UIStrings = {
   /**
@@ -39,11 +39,11 @@ const UIStrings = {
    *@description Badge label for an entry in the Quick Open menu. Selecting the entry opens the 'Sources' panel.
    */
   sources: 'Sources',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/ViewRegistration.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-const registeredViewExtensions: PreRegisteredView[] = [];
+const registeredViewExtensions: Array<PreRegisteredView> = [];
 
 export const enum ViewPersistence {
   CLOSEABLE = 'closeable',
@@ -145,7 +145,7 @@ export interface ViewRegistration {
   /**
    * The names of the settings the registered view performs as UI for.
    */
-  settings?: string[];
+  settings?: Array<string>;
   /**
    * Words used to find the view in the Command Menu.
    */
@@ -166,9 +166,10 @@ export function registerViewExtension(registration: ViewRegistration): void {
   registeredViewExtensions.push(new PreRegisteredView(registration));
 }
 
-export function getRegisteredViewExtensions(): PreRegisteredView[] {
+export function getRegisteredViewExtensions(config?: Root.Runtime.HostConfig): Array<PreRegisteredView> {
   return registeredViewExtensions.filter(
-      view => Root.Runtime.Runtime.isDescriptorEnabled({experiment: view.experiment(), condition: view.condition()}));
+      view => Root.Runtime.Runtime.isDescriptorEnabled(
+          {experiment: view.experiment(), condition: view.condition()}, config));
 }
 
 export function maybeRemoveViewExtension(viewId: string): boolean {
@@ -180,7 +181,7 @@ export function maybeRemoveViewExtension(viewId: string): boolean {
   return true;
 }
 
-const registeredLocationResolvers: LocationResolverRegistration[] = [];
+const registeredLocationResolvers: Array<LocationResolverRegistration> = [];
 
 const viewLocationNameSet = new Set<ViewLocationValues>();
 
@@ -193,7 +194,7 @@ export function registerLocationResolver(registration: LocationResolverRegistrat
   registeredLocationResolvers.push(registration);
 }
 
-export function getRegisteredLocationResolvers(): LocationResolverRegistration[] {
+export function getRegisteredLocationResolvers(): Array<LocationResolverRegistration> {
   return registeredLocationResolvers;
 }
 

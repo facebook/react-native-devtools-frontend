@@ -24,6 +24,9 @@ export const loadEventListenersAndSelectButtonNode = async () => {
   await goToResource('elements/sidebar-event-listeners.html');
   await waitForElementsStyleSection();
 
+  // Check to make sure we have the correct node selected after opening a file
+  await waitForContentOfSelectedElementsNode('<body class=\u200B"test-js-loaded">\u200B');
+
   // Wait for element to be expanded
   await waitForSelectedNodeToBeExpanded();
 
@@ -70,7 +73,7 @@ export const getEventListenerProperties = async (selector: string) => {
     return [key, value];
   })));
 
-  return propertiesOutput as string[][];
+  return propertiesOutput as Array<string[]>;
 };
 
 export const getFirstNodeForEventListener = async (listenerTypeSelector: string) => {
@@ -83,7 +86,7 @@ export const getFirstNodeForEventListener = async (listenerTypeSelector: string)
   });
 
   return {
-    firstListenerText,
+    firstListenerText: firstListenerText,
     listenerSelector: listenerNodesSelector,
   };
 };

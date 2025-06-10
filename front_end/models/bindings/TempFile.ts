@@ -38,7 +38,7 @@ export class TempFile {
     this.#lastBlob = null;
   }
 
-  write(pieces: Array<string|Blob>): void {
+  write(pieces: (string|Blob)[]): void {
     if (this.#lastBlob) {
       pieces.unshift(this.#lastBlob);
     }
@@ -84,7 +84,7 @@ export class TempFile {
       return null;
     }
     const reader = new ChunkedFileReader((this.#lastBlob as File), 10 * 1000 * 1000, progress);
-    return await reader.read(outputStream).then(success => success ? null : reader.error());
+    return reader.read(outputStream).then(success => success ? null : reader.error());
   }
 
   remove(): void {

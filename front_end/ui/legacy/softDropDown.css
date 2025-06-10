@@ -11,7 +11,8 @@
 .item-list {
   background-color: var(--sys-color-cdt-base-container);
   box-shadow: var(--drop-shadow);
-  overflow: hidden auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   width: 100%;
 }
 

@@ -33,11 +33,9 @@ const UIStrings = {
    *@description Text in Node Connections Panel of the Sources panel when debugging a Node.js app
    */
   networkAddressEgLocalhost: 'Network address (e.g. localhost:9229)',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('entrypoints/node_app/NodeConnectionsPanel.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-
-const nodejsIconUrl = new URL('../../Images/node-stack-icon.svg', import.meta.url).toString();
 
 export class NodeConnectionsPanel extends UI.Panel.Panel {
   #config!: Adb.Config;
@@ -49,8 +47,8 @@ export class NodeConnectionsPanel extends UI.Panel.Panel {
 
     const container = this.contentElement.createChild('div', 'node-panel-center');
 
-    const image = container.createChild('img', 'node-panel-logo');
-    image.src = nodejsIconUrl;
+    const image = (container.createChild('img', 'node-panel-logo') as HTMLImageElement);
+    image.src = 'https://nodejs.org/static/images/logos/nodejs-new-pantone-black.svg';
 
     Host.InspectorFrontendHost.InspectorFrontendHostInstance.events.addEventListener(
         Host.InspectorFrontendHostAPI.Events.DevicesDiscoveryConfigChanged, this.#devicesDiscoveryConfigChanged, this);
@@ -75,7 +73,7 @@ export class NodeConnectionsPanel extends UI.Panel.Panel {
   }
   override wasShown(): void {
     super.wasShown();
-    this.registerRequiredCSS(nodeConnectionsPanelStyles);
+    this.registerCSSFiles([nodeConnectionsPanelStyles]);
   }
 }
 
@@ -83,9 +81,9 @@ export class NodeConnectionsView extends UI.Widget.VBox implements UI.ListWidget
   readonly #callback: (arg0: Adb.NetworkDiscoveryConfig) => void;
   readonly #list: UI.ListWidget.ListWidget<Adb.PortForwardingRule>;
   #editor: UI.ListWidget.Editor<Adb.PortForwardingRule>|null;
-  #networkDiscoveryConfig: Array<{
+  #networkDiscoveryConfig: {
     address: string,
-  }>;
+  }[];
   constructor(callback: (arg0: Adb.NetworkDiscoveryConfig) => void) {
     super();
     this.#callback = callback;
@@ -99,7 +97,7 @@ export class NodeConnectionsView extends UI.Widget.VBox implements UI.ListWidget
         i18n.i18n.getFormatLocalizedString(str_, UIStrings.specifyNetworkEndpointAnd, {PH1: documentationLink}));
 
     this.#list = new UI.ListWidget.ListWidget(this);
-    this.#list.registerRequiredCSS(nodeConnectionsPanelStyles);
+
     this.#list.element.classList.add('network-discovery-list');
     const placeholder = document.createElement('div');
     placeholder.classList.add('network-discovery-list-empty');
@@ -131,7 +129,7 @@ export class NodeConnectionsView extends UI.Widget.VBox implements UI.ListWidget
     this.#networkDiscoveryConfig = [];
     this.#list.clear();
     for (const address of networkDiscoveryConfig) {
-      const item = {address, port: ''};
+      const item = {address: address, port: ''};
       this.#networkDiscoveryConfig.push(item);
       this.#list.appendItem(item, true);
     }
@@ -193,5 +191,9 @@ export class NodeConnectionsView extends UI.Widget.VBox implements UI.ListWidget
         errorMessage: undefined,
       };
     }
+  }
+  override wasShown(): void {
+    super.wasShown();
+    this.#list.registerCSSFiles([nodeConnectionsPanelStyles]);
   }
 }

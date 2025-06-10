@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../ui/legacy/legacy.js';
-
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
@@ -53,7 +51,7 @@ const UIStrings = {
    *@description A unit
    */
   kb: 'kB',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/profiler/LiveHeapProfileView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 let liveHeapProfileViewInstance: LiveHeapProfileView;
@@ -69,10 +67,9 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
   private constructor() {
     super(true);
     this.gridNodeByUrl = new Map();
-    this.registerRequiredCSS(liveHeapProfileStyles);
 
     this.setting = Common.Settings.Settings.instance().moduleSetting('memory-live-heap-profile');
-    const toolbar = this.contentElement.createChild('devtools-toolbar', 'live-heap-profile-toolbar');
+    const toolbar = new UI.Toolbar.Toolbar('live-heap-profile-toolbar', this.contentElement);
     this.toggleRecordAction =
         UI.ActionRegistry.ActionRegistry.instance().getAction('live-heap-profile.toggle-recording');
     this.toggleRecordButton =
@@ -81,7 +78,7 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
     toolbar.appendToolbarItem(this.toggleRecordButton);
 
     const mainTarget = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
-    if (mainTarget?.model(SDK.ResourceTreeModel.ResourceTreeModel)) {
+    if (mainTarget && mainTarget.model(SDK.ResourceTreeModel.ResourceTreeModel)) {
       const startWithReloadAction =
           UI.ActionRegistry.ActionRegistry.instance().getAction('live-heap-profile.start-with-reload');
       this.startWithReloadButton = UI.Toolbar.Toolbar.createActionButton(startWithReloadAction);
@@ -108,7 +105,7 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
       width: undefined,
       fixedWidth: true,
       sortable: true,
-      align: DataGrid.DataGrid.Align.RIGHT,
+      align: DataGrid.DataGrid.Align.Right,
       sort: DataGrid.DataGrid.Order.Descending,
       titleDOMFragment: undefined,
       editable: undefined,
@@ -128,7 +125,7 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
         width: '72px',
         fixedWidth: true,
         sortable: true,
-        align: DataGrid.DataGrid.Align.RIGHT,
+        align: DataGrid.DataGrid.Align.Right,
         sort: DataGrid.DataGrid.Order.Descending,
         tooltip: i18nString(UIStrings.allocatedJsHeapSizeCurrentlyIn),
       },
@@ -138,7 +135,7 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
         title: i18nString(UIStrings.vms),
         width: '40px',
         fixedWidth: true,
-        align: DataGrid.DataGrid.Align.RIGHT,
+        align: DataGrid.DataGrid.Align.Right,
         tooltip: i18nString(UIStrings.numberOfVmsSharingTheSameScript),
       },
       {
@@ -149,18 +146,19 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
         sortable: true,
         tooltip: i18nString(UIStrings.urlOfTheScriptSource),
       },
-    ] as Array<{tooltip: Common.UIString.LocalizedString}&DataGrid.DataGrid.ColumnDescriptor>;
+    ] as ({tooltip: Common.UIString.LocalizedString} & DataGrid.DataGrid.ColumnDescriptor)[];
     const dataGrid = new DataGrid.SortableDataGrid.SortableDataGrid({
       displayName: i18nString(UIStrings.heapProfile),
       columns,
+      editCallback: undefined,
       deleteCallback: undefined,
       refreshCallback: undefined,
     });
-    dataGrid.setResizeMethod(DataGrid.DataGrid.ResizeMethod.LAST);
+    dataGrid.setResizeMethod(DataGrid.DataGrid.ResizeMethod.Last);
     dataGrid.element.classList.add('flex-auto');
     dataGrid.element.addEventListener('keydown', this.onKeyDown.bind(this), false);
-    dataGrid.addEventListener(DataGrid.DataGrid.Events.OPENED_NODE, this.revealSourceForSelectedNode, this);
-    dataGrid.addEventListener(DataGrid.DataGrid.Events.SORTING_CHANGED, this.sortingChanged, this);
+    dataGrid.addEventListener(DataGrid.DataGrid.Events.OpenedNode, this.revealSourceForSelectedNode, this);
+    dataGrid.addEventListener(DataGrid.DataGrid.Events.SortingChanged, this.sortingChanged, this);
     for (const info of columns) {
       const headerCell = dataGrid.headerTableHeader(info.id);
       if (headerCell) {
@@ -173,6 +171,7 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
   override wasShown(): void {
     super.wasShown();
     void this.poll();
+    this.registerCSSFiles([liveHeapProfileStyles]);
     this.setting.addChangeListener(this.settingChanged, this);
   }
 
@@ -205,9 +204,7 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
     } while (this.currentPollId === pollId);
   }
 
-  update(
-      isolates: SDK.IsolateManager.Isolate[] = [],
-      profiles: Array<Protocol.HeapProfiler.SamplingHeapProfile|null> = []): void {
+  update(isolates: SDK.IsolateManager.Isolate[], profiles: (Protocol.HeapProfiler.SamplingHeapProfile|null)[]): void {
     const dataByUrl = new Map<string, {
       size: number,
       isolates: Set<SDK.IsolateManager.Isolate>,
@@ -221,9 +218,9 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
     const rootNode = this.dataGrid.rootNode();
     const exisitingNodes = new Set<GridNode>();
     for (const pair of dataByUrl) {
-      const url = (pair[0]);
-      const size = (pair[1].size);
-      const isolateCount = (pair[1].isolates.size);
+      const url = (pair[0] as string);
+      const size = (pair[1].size as number);
+      const isolateCount = (pair[1].isolates.size as number);
       if (!url) {
         console.info(`Node with empty URL: ${size} bytes`);  // eslint-disable-line no-console
         continue;
@@ -287,7 +284,7 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
 
   revealSourceForSelectedNode(): void {
     const node = (this.dataGrid.selectedNode as GridNode);
-    if (!node?.url) {
+    if (!node || !node.url) {
       return;
     }
     const sourceCode =
@@ -337,7 +334,8 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
     if (!mainTarget) {
       return;
     }
-    const resourceTreeModel = (mainTarget.model(SDK.ResourceTreeModel.ResourceTreeModel));
+    const resourceTreeModel =
+        (mainTarget.model(SDK.ResourceTreeModel.ResourceTreeModel) as SDK.ResourceTreeModel.ResourceTreeModel | null);
     if (resourceTreeModel) {
       resourceTreeModel.reloadPage();
     }

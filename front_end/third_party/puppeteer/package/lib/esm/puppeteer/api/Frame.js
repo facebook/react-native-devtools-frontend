@@ -40,7 +40,7 @@ var __esDecorate = (this && this.__esDecorate) || function (ctor, descriptorIn, 
 var __addDisposableResource = (this && this.__addDisposableResource) || function (env, value, async) {
     if (value !== null && value !== void 0) {
         if (typeof value !== "object" && typeof value !== "function") throw new TypeError("Object expected.");
-        var dispose, inner;
+        var dispose;
         if (async) {
             if (!Symbol.asyncDispose) throw new TypeError("Symbol.asyncDispose is not defined.");
             dispose = value[Symbol.asyncDispose];
@@ -48,10 +48,8 @@ var __addDisposableResource = (this && this.__addDisposableResource) || function
         if (dispose === void 0) {
             if (!Symbol.dispose) throw new TypeError("Symbol.dispose is not defined.");
             dispose = value[Symbol.dispose];
-            if (async) inner = dispose;
         }
         if (typeof dispose !== "function") throw new TypeError("Object not disposable.");
-        if (inner) dispose = function() { try { inner.call(this); } catch (e) { return Promise.reject(e); } };
         env.stack.push({ value: value, dispose: dispose, async: async });
     }
     else if (async) {
@@ -65,22 +63,17 @@ var __disposeResources = (this && this.__disposeResources) || (function (Suppres
             env.error = env.hasError ? new SuppressedError(e, env.error, "An error was suppressed during disposal.") : e;
             env.hasError = true;
         }
-        var r, s = 0;
         function next() {
-            while (r = env.stack.pop()) {
+            while (env.stack.length) {
+                var rec = env.stack.pop();
                 try {
-                    if (!r.async && s === 1) return s = 0, env.stack.push(r), Promise.resolve().then(next);
-                    if (r.dispose) {
-                        var result = r.dispose.call(r.value);
-                        if (r.async) return s |= 2, Promise.resolve(result).then(next, function(e) { fail(e); return next(); });
-                    }
-                    else s |= 1;
+                    var result = rec.dispose && rec.dispose.call(rec.value);
+                    if (rec.async) return Promise.resolve(result).then(next, function(e) { fail(e); return next(); });
                 }
                 catch (e) {
                     fail(e);
                 }
             }
-            if (s === 1) return env.hasError ? Promise.reject(env.error) : Promise.resolve();
             if (env.hasError) throw env.error;
         }
         return next();
@@ -92,8 +85,7 @@ var __disposeResources = (this && this.__disposeResources) || (function (Suppres
 import { EventEmitter } from '../common/EventEmitter.js';
 import { getQueryHandlerAndSelector } from '../common/GetQueryHandler.js';
 import { transposeIterableHandle } from '../common/HandleIterator.js';
-import { withSourcePuppeteerURLIfNone } from '../common/util.js';
-import { environment } from '../environment.js';
+import { importFSPromises, withSourcePuppeteerURLIfNone, } from '../common/util.js';
 import { assert } from '../util/assert.js';
 import { throwIfDisposed } from '../util/decorators.js';
 import { FunctionLocator, NodeLocator, } from './locators/locators.js';
@@ -301,9 +293,7 @@ let Frame = (() => {
                         const iframe = __addDisposableResource(env_2, iframe_1, false);
                         const frame = await iframe.contentFrame();
                         if (frame?._id === this._id) {
-                            return (await parentFrame
-                                .mainRealm()
-                                .adoptHandle(iframe));
+                            return iframe.move();
                         }
                     }
                     catch (e_1) {
@@ -360,11 +350,11 @@ let Frame = (() => {
          *
          * @param selector -
          * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-         * to query the page for.
+         * to query page for.
          * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
          * can be passed as-is and a
          * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-         * allows querying by
+         * allows quering by
          * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
          * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
          * and
@@ -387,11 +377,11 @@ let Frame = (() => {
          *
          * @param selector -
          * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-         * to query the page for.
+         * to query page for.
          * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
          * can be passed as-is and a
          * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-         * allows querying by
+         * allows quering by
          * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
          * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
          * and
@@ -424,11 +414,11 @@ let Frame = (() => {
          *
          * @param selector -
          * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-         * to query the page for.
+         * to query page for.
          * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
          * can be passed as-is and a
          * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-         * allows querying by
+         * allows quering by
          * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
          * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
          * and
@@ -464,11 +454,11 @@ let Frame = (() => {
          *
          * @param selector -
          * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-         * to query the page for.
+         * to query page for.
          * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
          * can be passed as-is and a
          * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-         * allows querying by
+         * allows quering by
          * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
          * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
          * and
@@ -555,7 +545,7 @@ let Frame = (() => {
          * await frame.waitForFunction(
          *   selector => !!document.querySelector(selector),
          *   {}, // empty options object
-         *   selector,
+         *   selector
          * );
          * ```
          *
@@ -644,7 +634,8 @@ let Frame = (() => {
                 throw new Error('Exactly one of `url`, `path`, or `content` must be specified.');
             }
             if (path) {
-                content = await environment.value.fs.promises.readFile(path, 'utf8');
+                const fs = await importFSPromises();
+                content = await fs.readFile(path, 'utf8');
                 content += `//# sourceURL=${path.replace(/\n/g, '')}`;
             }
             type = type ?? 'text/javascript';
@@ -683,7 +674,8 @@ let Frame = (() => {
                 throw new Error('Exactly one of `url`, `path`, or `content` must be specified.');
             }
             if (path) {
-                content = await environment.value.fs.promises.readFile(path, 'utf8');
+                const fs = await importFSPromises();
+                content = await fs.readFile(path, 'utf8');
                 content += '/*# sourceURL=' + path.replace(/\n/g, '') + '*/';
                 options.content = content;
             }

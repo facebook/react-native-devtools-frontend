@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
-import * as Platform from '../../core/platform/platform.js';
+import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
 import * as Workspace from '../../models/workspace/workspace.js';
@@ -14,7 +14,6 @@ import * as UI from '../../ui/legacy/legacy.js';
 
 import * as Sources from './sources.js';
 
-const {urlString} = Platform.DevToolsPath;
 const {CSSPlugin} = Sources.CSSPlugin;
 
 describe('CSSPlugin', () => {
@@ -40,7 +39,7 @@ describeWithMockConnection('CSSPlugin', () => {
       shortcutsForAction: () => [],
       getShortcutListener: () => {},
     } as unknown as UI.ShortcutRegistry.ShortcutRegistry);
-    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
+    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
     createTarget({parentTarget: tabTarget, subtype: 'prerender'});
     createTarget({parentTarget: tabTarget});
   });
@@ -64,7 +63,7 @@ describeWithMockConnection('CSSPlugin', () => {
   }
 
   it('suggests CSS class names from the stylesheet', async () => {
-    const URL = urlString`http://example.com/styles.css`;
+    const URL = 'http://example.com/styles.css' as Platform.DevToolsPath.UrlString;
     const uiSourceCode = sinon.createStubInstance(Workspace.UISourceCode.UISourceCode);
     uiSourceCode.url.returns(URL);
     const plugin = new CSSPlugin(uiSourceCode);
@@ -78,7 +77,7 @@ describeWithMockConnection('CSSPlugin', () => {
     sinon.stub(SDK.CSSModel.CSSModel.prototype, 'getClassNames').withArgs(STYLESHEET_ID).resolves(CLASS_NAMES);
     const completionResult =
         await autocompletion!({state: {field: () => {}}} as unknown as CodeMirror.CompletionContext);
-    assert.deepEqual(completionResult, {
+    assert.deepStrictEqual(completionResult, {
       from: FROM,
       options: [
         {type: 'constant', label: CLASS_NAMES[0]},

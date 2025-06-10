@@ -28,11 +28,6 @@ export const DiffWrapper = {
     const text1 = lines1.map(line => idMap.toChar(line)).join('');
     const text2 = lines2.map(line => idMap.toChar(line)).join('');
 
-    // If both text are the same don't emit a diff
-    if(text1 === text2){
-      return [];
-    }
-
     const diff = DiffWrapper.charDiff(text1, text2);
     const lineDiff = [];
     for (let i = 0; i < diff.length; i++) {
@@ -99,12 +94,10 @@ export const DiffWrapper = {
 };
 
 export enum Operation {
-  /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   Equal = 0,
   Insert = 1,
   Delete = -1,
   Edit = 2,
-  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
 export type DiffArray = {0: Operation, 1: string[]}[];

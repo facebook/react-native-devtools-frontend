@@ -7,10 +7,12 @@ import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
-import * as RenderCoordinator from '../../ui/components/render_coordinator/render_coordinator.js';
+import * as Coordinator from '../../ui/components/render_coordinator/render_coordinator.js';
 import type * as PerfUI from '../../ui/legacy/components/perf_ui/perf_ui.js';
 
 import * as Network from './network.js';
+
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 describeWithMockConnection('NetworkOverview', () => {
   let target: SDK.Target.Target;
@@ -47,7 +49,7 @@ describeWithMockConnection('NetworkOverview', () => {
     resourceTreeModel.dispatchEventToListeners(
         event,
         ...[{loadTime: 42}] as Common.EventTarget.EventPayloadToRestParameters<SDK.ResourceTreeModel.EventTypes, T>);
-    await RenderCoordinator.done();
+    await coordinator.done();
     assert.strictEqual(calculator.computePosition.called, inScope);
     networkOverview.detach();
   };

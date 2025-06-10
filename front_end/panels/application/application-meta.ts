@@ -39,7 +39,7 @@ const UIStrings = {
    *@description Title of an action under the Background Services category that can be invoked through the Command Menu
    */
   stopRecordingEvents: 'Stop recording events',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/application/application-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 let loadedResourcesModule: (typeof Resources|undefined);
@@ -117,11 +117,11 @@ UI.ActionRegistration.registerActionExtension({
   ],
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+E',
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+E',
     },
   ],

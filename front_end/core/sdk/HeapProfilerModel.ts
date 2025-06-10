@@ -6,11 +6,12 @@ import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 import type * as Protocol from '../../generated/protocol.js';
 import type * as Platform from '../platform/platform.js';
 
-import type {DebuggerModel} from './DebuggerModel.js';
-import type {RemoteObject} from './RemoteObject.js';
+import {type DebuggerModel} from './DebuggerModel.js';
+import {type RemoteObject} from './RemoteObject.js';
 import {RuntimeModel} from './RuntimeModel.js';
-import {SDKModel} from './SDKModel.js';
+
 import {Capability, type Target} from './Target.js';
+import {SDKModel} from './SDKModel.js';
 
 export class HeapProfilerModel extends SDKModel<EventTypes> {
   #enabled: boolean;
@@ -59,7 +60,7 @@ export class HeapProfilerModel extends SDKModel<EventTypes> {
       throw new Error('Sampling profiler is not running.');
     }
     if (--this.#samplingProfilerDepth) {
-      return await this.getSamplingProfile();
+      return this.getSamplingProfile();
     }
     const response = await this.#heapProfilerAgent.invoke_stopSampling();
     if (response.getError()) {
@@ -122,32 +123,32 @@ export class HeapProfilerModel extends SDKModel<EventTypes> {
   }
 
   heapStatsUpdate(samples: number[]): void {
-    this.dispatchEventToListeners(Events.HEAP_STATS_UPDATED, samples);
+    this.dispatchEventToListeners(Events.HeapStatsUpdate, samples);
   }
 
   lastSeenObjectId(lastSeenObjectId: number, timestamp: number): void {
-    this.dispatchEventToListeners(Events.LAST_SEEN_OBJECT_ID, {lastSeenObjectId, timestamp});
+    this.dispatchEventToListeners(Events.LastSeenObjectId, {lastSeenObjectId: lastSeenObjectId, timestamp: timestamp});
   }
 
   addHeapSnapshotChunk(chunk: string): void {
-    this.dispatchEventToListeners(Events.ADD_HEAP_SNAPSHOT_CHUNK, chunk);
+    this.dispatchEventToListeners(Events.AddHeapSnapshotChunk, chunk);
   }
 
   reportHeapSnapshotProgress(done: number, total: number, finished?: boolean): void {
-    this.dispatchEventToListeners(Events.REPORT_HEAP_SNAPSHOT_PROGRESS, {done, total, finished});
+    this.dispatchEventToListeners(Events.ReportHeapSnapshotProgress, {done: done, total: total, finished: finished});
   }
 
   resetProfiles(): void {
-    this.dispatchEventToListeners(Events.RESET_PROFILES, this);
+    this.dispatchEventToListeners(Events.ResetProfiles, this);
   }
 }
 
 export const enum Events {
-  HEAP_STATS_UPDATED = 'HeapStatsUpdate',
-  LAST_SEEN_OBJECT_ID = 'LastSeenObjectId',
-  ADD_HEAP_SNAPSHOT_CHUNK = 'AddHeapSnapshotChunk',
-  REPORT_HEAP_SNAPSHOT_PROGRESS = 'ReportHeapSnapshotProgress',
-  RESET_PROFILES = 'ResetProfiles',
+  HeapStatsUpdate = 'HeapStatsUpdate',
+  LastSeenObjectId = 'LastSeenObjectId',
+  AddHeapSnapshotChunk = 'AddHeapSnapshotChunk',
+  ReportHeapSnapshotProgress = 'ReportHeapSnapshotProgress',
+  ResetProfiles = 'ResetProfiles',
 }
 
 /**
@@ -168,13 +169,13 @@ export interface HeapSnapshotProgress {
   finished?: boolean;
 }
 
-export interface EventTypes {
-  [Events.HEAP_STATS_UPDATED]: HeapStatsUpdateSamples;
-  [Events.LAST_SEEN_OBJECT_ID]: LastSeenObjectId;
-  [Events.ADD_HEAP_SNAPSHOT_CHUNK]: string;
-  [Events.REPORT_HEAP_SNAPSHOT_PROGRESS]: HeapSnapshotProgress;
-  [Events.RESET_PROFILES]: HeapProfilerModel;
-}
+export type EventTypes = {
+  [Events.HeapStatsUpdate]: HeapStatsUpdateSamples,
+  [Events.LastSeenObjectId]: LastSeenObjectId,
+  [Events.AddHeapSnapshotChunk]: string,
+  [Events.ReportHeapSnapshotProgress]: HeapSnapshotProgress,
+  [Events.ResetProfiles]: HeapProfilerModel,
+};
 
 export interface NativeProfilerCallFrame {
   functionName: string;

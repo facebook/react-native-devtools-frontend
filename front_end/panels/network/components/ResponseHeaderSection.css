@@ -9,11 +9,11 @@
 }
 
 devtools-header-section-row:last-of-type {
-  margin-bottom: var(--sys-size-5);
+  margin-bottom: 10px;
 }
 
 devtools-header-section-row:first-of-type {
-  margin-top: var(--sys-size-5);
+  margin-top: 2px;
 }
 
 .add-header-button {

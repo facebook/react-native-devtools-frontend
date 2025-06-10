@@ -3,12 +3,13 @@
  * Copyright 2023 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
+/// <reference types="node" />
 import type { Protocol } from 'devtools-protocol';
 import type { Frame } from '../api/Frame.js';
 import type { AwaitableIterable, ElementFor, EvaluateFuncWith, HandleFor, HandleOr, NodeFor } from '../common/types.js';
 import type { KeyInput } from '../common/USKeyboardLayout.js';
 import { _isElementHandle } from './ElementHandleSymbol.js';
-import type { KeyboardTypeOptions, KeyPressOptions, MouseClickOptions, TouchHandle } from './Input.js';
+import type { KeyboardTypeOptions, KeyPressOptions, MouseClickOptions } from './Input.js';
 import { JSHandle } from './JSHandle.js';
 import type { QueryOptions, ScreenshotOptions, WaitForSelectorOptions } from './Page.js';
 /**
@@ -78,15 +79,6 @@ export interface ElementScreenshotOptions extends ScreenshotOptions {
     scrollIntoView?: boolean;
 }
 /**
- * A given method will have it's `this` replaced with an isolated version of
- * `this` when decorated with this decorator.
- *
- * All changes of isolated `this` are reflected on the actual `this`.
- *
- * @internal
- */
-export declare function bindIsolatedHandle<This extends ElementHandle<Node>>(target: (this: This, ...args: any[]) => Promise<any>, _: unknown): typeof target;
-/**
  * ElementHandle represents an in-page DOM element.
  *
  * @remarks
@@ -131,6 +123,15 @@ export declare abstract class ElementHandle<ElementType extends Node = Element> 
      * trying to adopt it multiple times
      */
     isolatedHandle?: typeof this;
+    /**
+     * A given method will have it's `this` replaced with an isolated version of
+     * `this` when decorated with this decorator.
+     *
+     * All changes of isolated `this` are reflected on the actual `this`.
+     *
+     * @internal
+     */
+    static bindIsolatedHandle<This extends ElementHandle<Node>>(target: (this: This, ...args: any[]) => Promise<any>, _: unknown): typeof target;
     /**
      * @internal
      */
@@ -192,11 +193,11 @@ export declare abstract class ElementHandle<ElementType extends Node = Element> 
      *
      * @param selector -
      * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
+     * to query page for.
      * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
      * can be passed as-is and a
      * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
+     * allows quering by
      * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
      * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
      * and
@@ -214,11 +215,11 @@ export declare abstract class ElementHandle<ElementType extends Node = Element> 
      *
      * @param selector -
      * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
+     * to query page for.
      * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
      * can be passed as-is and a
      * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
+     * allows quering by
      * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
      * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
      * and
@@ -243,20 +244,20 @@ export declare abstract class ElementHandle<ElementType extends Node = Element> 
      * ```ts
      * const tweetHandle = await page.$('.tweet');
      * expect(await tweetHandle.$eval('.like', node => node.innerText)).toBe(
-     *   '100',
+     *   '100'
      * );
      * expect(await tweetHandle.$eval('.retweets', node => node.innerText)).toBe(
-     *   '10',
+     *   '10'
      * );
      * ```
      *
      * @param selector -
      * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
+     * to query page for.
      * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
      * can be passed as-is and a
      * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
+     * allows quering by
      * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
      * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
      * and
@@ -294,17 +295,17 @@ export declare abstract class ElementHandle<ElementType extends Node = Element> 
      * ```ts
      * const feedHandle = await page.$('.feed');
      * expect(
-     *   await feedHandle.$$eval('.tweet', nodes => nodes.map(n => n.innerText)),
+     *   await feedHandle.$$eval('.tweet', nodes => nodes.map(n => n.innerText))
      * ).toEqual(['Hello!', 'Hi!']);
      * ```
      *
      * @param selector -
      * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
+     * to query page for.
      * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
      * can be passed as-is and a
      * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
+     * allows quering by
      * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
      * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
      * and
@@ -392,7 +393,7 @@ export declare abstract class ElementHandle<ElementType extends Node = Element> 
      *
      * ```ts
      * const element: ElementHandle<Element> = await page.$(
-     *   '.class-name-of-anchor',
+     *   '.class-name-of-anchor'
      * );
      * // DO NOT DISPOSE `element`, this will be always be the same handle.
      * const anchor: ElementHandle<HTMLAnchorElement> =
@@ -494,19 +495,8 @@ export declare abstract class ElementHandle<ElementType extends Node = Element> 
      * If the element is detached from DOM, the method throws an error.
      */
     tap(this: ElementHandle<Element>): Promise<void>;
-    /**
-     * This method scrolls the element into view if needed, and then
-     * starts a touch in the center of the element.
-     * @returns A {@link TouchHandle} representing the touch that was started
-     */
-    touchStart(this: ElementHandle<Element>): Promise<TouchHandle>;
-    /**
-     * This method scrolls the element into view if needed, and then
-     * moves the touch to the center of the element.
-     * @param touch - An optional {@link TouchHandle}. If provided, this touch
-     * will be moved. If not provided, the first active touch will be moved.
-     */
-    touchMove(this: ElementHandle<Element>, touch?: TouchHandle): Promise<void>;
+    touchStart(this: ElementHandle<Element>): Promise<void>;
+    touchMove(this: ElementHandle<Element>): Promise<void>;
     touchEnd(this: ElementHandle<Element>): Promise<void>;
     /**
      * Calls {@link https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/focus | focus} on the element.
@@ -578,7 +568,7 @@ export declare abstract class ElementHandle<ElementType extends Node = Element> 
     screenshot(options: Readonly<ScreenshotOptions> & {
         encoding: 'base64';
     }): Promise<string>;
-    screenshot(options?: Readonly<ScreenshotOptions>): Promise<Uint8Array>;
+    screenshot(options?: Readonly<ScreenshotOptions>): Promise<Buffer>;
     /**
      * @internal
      */
@@ -629,19 +619,11 @@ export declare abstract class ElementHandle<ElementType extends Node = Element> 
      * ```
      */
     abstract autofill(data: AutofillData): Promise<void>;
-    /**
-     * When connected using Chrome DevTools Protocol, it returns a
-     * DOM.BackendNodeId for the element.
-     */
-    abstract backendNodeId(): Promise<number>;
 }
 /**
  * @public
  */
 export interface AutofillData {
-    /**
-     * See {@link https://chromedevtools.github.io/devtools-protocol/tot/Autofill/#type-CreditCard | Autofill.CreditCard}.
-     */
     creditCard: {
         number: string;
         name: string;

@@ -21,17 +21,18 @@ const UIStrings = {
    *@description Text in Network Throttling Selector of the Network panel
    */
   custom: 'Custom',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/mobile_throttling/NetworkThrottlingSelector.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class NetworkThrottlingSelector {
-  private populateCallback: (arg0: NetworkThrottlingConditionsGroup[]) => Array<SDK.NetworkManager.Conditions|null>;
+  private populateCallback:
+      (arg0: Array<NetworkThrottlingConditionsGroup>) => Array<SDK.NetworkManager.Conditions|null>;
   private readonly selectCallback: (arg0: number) => void;
   private readonly customNetworkConditionsSetting: Common.Settings.Setting<SDK.NetworkManager.Conditions[]>;
-  private options!: Array<SDK.NetworkManager.Conditions|null>;
+  private options!: (SDK.NetworkManager.Conditions|null)[];
 
   constructor(
-      populateCallback: (arg0: NetworkThrottlingConditionsGroup[]) => Array<SDK.NetworkManager.Conditions|null>,
+      populateCallback: (arg0: Array<NetworkThrottlingConditionsGroup>) => Array<SDK.NetworkManager.Conditions|null>,
       selectCallback: (arg0: number) => void,
       customNetworkConditionsSetting: Common.Settings.Setting<SDK.NetworkManager.Conditions[]>) {
     this.populateCallback = populateCallback;
@@ -39,7 +40,7 @@ export class NetworkThrottlingSelector {
     this.customNetworkConditionsSetting = customNetworkConditionsSetting;
     this.customNetworkConditionsSetting.addChangeListener(this.populateOptions, this);
     SDK.NetworkManager.MultitargetNetworkManager.instance().addEventListener(
-        SDK.NetworkManager.MultitargetNetworkManager.Events.CONDITIONS_CHANGED, () => {
+        SDK.NetworkManager.MultitargetNetworkManager.Events.ConditionsChanged, () => {
           this.networkConditionsChanged();
         }, this);
     this.populateOptions();

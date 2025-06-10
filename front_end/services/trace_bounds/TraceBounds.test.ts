@@ -2,17 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Trace from '../../models/trace/trace.js';
-
+import * as TraceEngine from '../../models/trace/trace.js';
 import * as TraceBounds from './trace_bounds.js';
 
-const baseTraceWindow: Trace.Types.Timing.TraceWindowMicro = {
-  min: Trace.Types.Timing.Micro(0),
-  max: Trace.Types.Timing.Micro(10_000),
-  range: Trace.Types.Timing.Micro(10_000),
+const baseTraceWindow: TraceEngine.Types.Timing.TraceWindowMicroSeconds = {
+  min: TraceEngine.Types.Timing.MicroSeconds(0),
+  max: TraceEngine.Types.Timing.MicroSeconds(10_000),
+  range: TraceEngine.Types.Timing.MicroSeconds(10_000),
 };
-const baseTraceWindowMilli: Trace.Types.Timing.TraceWindowMilli =
-    Trace.Helpers.Timing.traceWindowMilliSeconds(baseTraceWindow);
+const baseTraceWindowMilli: TraceEngine.Types.Timing.TraceWindowMilliSeconds =
+    TraceEngine.Helpers.Timing.traceWindowMilliSeconds(baseTraceWindow);
 
 describe('TraceBounds', () => {
   it('is initialized with the entire trace window and sets the state accordingly', async () => {
@@ -39,9 +38,9 @@ describe('TraceBounds', () => {
     manager.addEventListener(TraceBounds.TraceBounds.StateChangedEvent.eventName, onStateChange);
 
     const newMiniMapBounds = {
-      min: Trace.Types.Timing.Micro(10_000),
-      max: Trace.Types.Timing.Micro(20_000),
-      range: Trace.Types.Timing.Micro(10_000),
+      min: TraceEngine.Types.Timing.MicroSeconds(10_000),
+      max: TraceEngine.Types.Timing.MicroSeconds(20_000),
+      range: TraceEngine.Types.Timing.MicroSeconds(10_000),
     };
 
     manager.setMiniMapBounds(newMiniMapBounds);
@@ -63,11 +62,11 @@ describe('TraceBounds', () => {
     manager.addEventListener(TraceBounds.TraceBounds.StateChangedEvent.eventName, onStateChange);
 
     const newBounds = {
-      min: Trace.Types.Timing.Micro(1_000),
-      max: Trace.Types.Timing.Micro(5_000),
-      range: Trace.Types.Timing.Micro(4_000),
+      min: TraceEngine.Types.Timing.MicroSeconds(1_000),
+      max: TraceEngine.Types.Timing.MicroSeconds(5_000),
+      range: TraceEngine.Types.Timing.MicroSeconds(4_000),
     };
-    const newBoundsMilli = Trace.Helpers.Timing.traceWindowMilliSeconds(newBounds);
+    const newBoundsMilli = TraceEngine.Helpers.Timing.traceWindowMilliSeconds(newBounds);
     manager.resetWithNewBounds(newBounds);
 
     assert.strictEqual(onStateChange.callCount, 1);
@@ -94,9 +93,9 @@ describe('TraceBounds', () => {
     manager.addEventListener(TraceBounds.TraceBounds.StateChangedEvent.eventName, onStateChange);
 
     const newVisibleWindow = {
-      min: Trace.Types.Timing.Micro(10_000),
-      max: Trace.Types.Timing.Micro(20_000),
-      range: Trace.Types.Timing.Micro(10_000),
+      min: TraceEngine.Types.Timing.MicroSeconds(10_000),
+      max: TraceEngine.Types.Timing.MicroSeconds(20_000),
+      range: TraceEngine.Types.Timing.MicroSeconds(10_000),
     };
 
     manager.setTimelineVisibleWindow(newVisibleWindow);
@@ -118,9 +117,9 @@ describe('TraceBounds', () => {
     manager.addEventListener(TraceBounds.TraceBounds.StateChangedEvent.eventName, onStateChange);
 
     const newVisibleWindow = {
-      min: Trace.Types.Timing.Micro(10_000),
-      max: Trace.Types.Timing.Micro(10_500),
-      range: Trace.Types.Timing.Micro(500),
+      min: TraceEngine.Types.Timing.MicroSeconds(10_000),
+      max: TraceEngine.Types.Timing.MicroSeconds(10_500),
+      range: TraceEngine.Types.Timing.MicroSeconds(500),
     };
 
     manager.setTimelineVisibleWindow(newVisibleWindow);
@@ -139,9 +138,9 @@ describe('TraceBounds', () => {
     manager.addEventListener(TraceBounds.TraceBounds.StateChangedEvent.eventName, onStateChange);
 
     const newMiniMapBounds = {
-      min: Trace.Types.Timing.Micro(10_000),
-      max: Trace.Types.Timing.Micro(10_500),
-      range: Trace.Types.Timing.Micro(500),
+      min: TraceEngine.Types.Timing.MicroSeconds(10_000),
+      max: TraceEngine.Types.Timing.MicroSeconds(10_500),
+      range: TraceEngine.Types.Timing.MicroSeconds(500),
     };
 
     manager.setMiniMapBounds(newMiniMapBounds);

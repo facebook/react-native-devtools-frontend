@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import {assert} from 'chai';
+import {describe, it} from '../../shared/mocha-extensions.js';
 
 import {getChangesList, openChangesPanelAndNavigateTo, waitForNewChanges} from '../helpers/changes-helpers.js';
 import {editCSSProperty} from '../helpers/elements-helpers.js';
@@ -14,13 +15,13 @@ describe('The Changes Panel', () => {
     await openChangesPanelAndNavigateTo(TEST_PAGE);
 
     let changes = await getChangesList();
-    assert.lengthOf(changes, 0, 'There should be no changes by default');
+    assert.strictEqual(changes.length, 0, 'There should be no changes by default');
 
     await editCSSProperty('html, body', 'background', 'red');
     await waitForNewChanges(changes);
 
     changes = await getChangesList();
-    assert.lengthOf(changes, 1, 'There should now be 1 change in the list');
+    assert.strictEqual(changes.length, 1, 'There should now be 1 change in the list');
     assert.strictEqual(changes[0], `${TEST_PAGE}.html`);
   });
 });

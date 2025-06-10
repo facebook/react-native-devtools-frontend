@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as Host from '../host/host.js';
 import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 import * as Protocol from '../../generated/protocol.js';
-import * as Host from '../host/host.js';
 
-import {SDKModel} from './SDKModel.js';
 import {Capability, type Target} from './Target.js';
+import {SDKModel} from './SDKModel.js';
 
 export class LogModel extends SDKModel<EventTypes> implements ProtocolProxyApi.LogDispatcher {
   readonly #logAgent: ProtocolProxyApi.LogApi;
@@ -32,7 +32,7 @@ export class LogModel extends SDKModel<EventTypes> implements ProtocolProxyApi.L
   }
 
   entryAdded({entry}: Protocol.Log.EntryAddedEvent): void {
-    this.dispatchEventToListeners(Events.ENTRY_ADDED, {logModel: this, entry});
+    this.dispatchEventToListeners(Events.EntryAdded, {logModel: this, entry});
   }
 
   requestClear(): void {
@@ -41,7 +41,7 @@ export class LogModel extends SDKModel<EventTypes> implements ProtocolProxyApi.L
 }
 
 export const enum Events {
-  ENTRY_ADDED = 'EntryAdded',
+  EntryAdded = 'EntryAdded',
 }
 
 export interface EntryAddedEvent {
@@ -49,8 +49,8 @@ export interface EntryAddedEvent {
   entry: Protocol.Log.LogEntry;
 }
 
-export interface EventTypes {
-  [Events.ENTRY_ADDED]: EntryAddedEvent;
-}
+export type EventTypes = {
+  [Events.EntryAdded]: EntryAddedEvent,
+};
 
-SDKModel.register(LogModel, {capabilities: Capability.LOG, autostart: true});
+SDKModel.register(LogModel, {capabilities: Capability.Log, autostart: true});

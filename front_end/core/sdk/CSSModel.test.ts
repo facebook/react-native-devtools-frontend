@@ -4,13 +4,11 @@
 
 import * as Protocol from '../../generated/protocol.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
-import {describeWithMockConnection, setMockConnectionResponseHandler} from '../../testing/MockConnection.js';
+import {describeWithMockConnection} from '../../testing/MockConnection.js';
 import {activate, getMainFrame, navigate} from '../../testing/ResourceTreeHelpers.js';
-import * as Platform from '../platform/platform.js';
+import type * as Platform from '../platform/platform.js';
 
 import * as SDK from './sdk.js';
-
-const {urlString} = Platform.DevToolsPath;
 
 describeWithMockConnection('CSSModel', () => {
   it('gets the FontFace of a source URL', () => {
@@ -50,7 +48,7 @@ describeWithMockConnection('CSSModel', () => {
 
     const cssModelHeader = await addedPromise;
     assert.deepEqual(cssModelHeader.sourceURL, '');
-    assert.isTrue(cssModelHeader.isConstructed);
+    assert.deepEqual(cssModelHeader.isConstructed, true);
   });
 
   describe('on primary page change', () => {
@@ -83,11 +81,13 @@ describeWithMockConnection('CSSModel', () => {
       assert.exists(cssModel);
 
       cssModel.styleSheetAdded(header);
-      let styleSheetIds = cssModel.getStyleSheetIdsForURL(urlString`http://example.com/styles.css`);
+      let styleSheetIds =
+          cssModel.getStyleSheetIdsForURL('http://example.com/styles.css' as Platform.DevToolsPath.UrlString);
       assert.deepEqual(styleSheetIds, ['stylesheet']);
 
       navigate(getMainFrame(target));
-      styleSheetIds = cssModel.getStyleSheetIdsForURL(urlString`http://example.com/styles.css`);
+      styleSheetIds =
+          cssModel.getStyleSheetIdsForURL('http://example.com/styles.css' as Platform.DevToolsPath.UrlString);
       assert.deepEqual(styleSheetIds, []);
     });
 
@@ -96,25 +96,14 @@ describeWithMockConnection('CSSModel', () => {
 
       getMainFrame(target);
       cssModel.styleSheetAdded(header);
-      let styleSheetIds = cssModel.getStyleSheetIdsForURL(urlString`http://example.com/styles.css`);
+      let styleSheetIds =
+          cssModel.getStyleSheetIdsForURL('http://example.com/styles.css' as Platform.DevToolsPath.UrlString);
       assert.deepEqual(styleSheetIds, ['stylesheet']);
 
       activate(target);
-      styleSheetIds = cssModel.getStyleSheetIdsForURL(urlString`http://example.com/styles.css`);
+      styleSheetIds =
+          cssModel.getStyleSheetIdsForURL('http://example.com/styles.css' as Platform.DevToolsPath.UrlString);
       assert.deepEqual(styleSheetIds, ['stylesheet']);
-    });
-  });
-
-  describe('getStyleSheetText', () => {
-    it('should return null when the backend sends an error', async () => {
-      setMockConnectionResponseHandler('CSS.getStyleSheetText', () => ({
-                                                                  getError: () => 'Some custom error',
-                                                                }));
-
-      const target = createTarget();
-      const cssModel = target.model(SDK.CSSModel.CSSModel)!;
-
-      assert.isNull(await cssModel.getStyleSheetText('id' as Protocol.CSS.StyleSheetId));
     });
   });
 });

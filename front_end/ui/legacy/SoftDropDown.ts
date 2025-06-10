@@ -12,8 +12,8 @@ import {Size} from './Geometry.js';
 import {AnchorBehavior, GlassPane, MarginBehavior, PointerEventsBehavior} from './GlassPane.js';
 import {ListControl, type ListDelegate, ListMode} from './ListControl.js';
 import {Events as ListModelEvents, type ItemsReplacedEvent, type ListModel} from './ListModel.js';
-import softDropDownStyles from './softDropDown.css.js';
-import softDropDownButtonStyles from './softDropDownButton.css.js';
+import softDropDownStyles from './softDropDown.css.legacy.js';
+import softDropDownButtonStyles from './softDropDownButton.css.legacy.js';
 import * as ThemeSupport from './theme_support/theme_support.js';
 import {createShadowRootWithCoreStyles} from './UIUtils.js';
 
@@ -22,7 +22,7 @@ const UIStrings = {
    *@description Placeholder text in Soft Drop Down
    */
   noItemSelected: '(no item selected)',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/SoftDropDown.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -61,16 +61,17 @@ export class SoftDropDown<T> implements ListDelegate<T> {
     ARIAUtils.setExpanded(this.element, false);
 
     this.glassPane = new GlassPane();
-    this.glassPane.setMarginBehavior(MarginBehavior.NO_MARGIN);
-    this.glassPane.setAnchorBehavior(AnchorBehavior.PREFER_BOTTOM);
+    this.glassPane.setMarginBehavior(MarginBehavior.NoMargin);
+    this.glassPane.setAnchorBehavior(AnchorBehavior.PreferBottom);
     this.glassPane.setOutsideClickCallback(this.hide.bind(this));
-    this.glassPane.setPointerEventsBehavior(PointerEventsBehavior.BLOCKED_BY_GLASS_PANE);
+    this.glassPane.setPointerEventsBehavior(PointerEventsBehavior.BlockedByGlassPane);
     this.list = new ListControl(model, this, ListMode.EqualHeightItems);
     this.list.element.classList.add('item-list');
     this.rowHeight = 36;
     this.width = 315;
     createShadowRootWithCoreStyles(this.glassPane.contentElement, {
       cssFile: softDropDownStyles,
+      delegatesFocus: undefined,
     }).appendChild(this.list.element);
     ARIAUtils.markAsMenu(this.list.element);
     VisualLogging.setMappedParent(this.list.element, this.element);
@@ -105,7 +106,7 @@ export class SoftDropDown<T> implements ListDelegate<T> {
       }
       this.hide(event);
     }, false);
-    model.addEventListener(ListModelEvents.ITEMS_REPLACED, this.itemsReplaced, this);
+    model.addEventListener(ListModelEvents.ItemsReplaced, this.itemsReplaced, this);
   }
 
   private show(event: Event): void {
@@ -113,7 +114,7 @@ export class SoftDropDown<T> implements ListDelegate<T> {
       return;
     }
     this.glassPane.setContentAnchorBox(this.element.boxInWindow());
-    this.glassPane.show((this.element.ownerDocument));
+    this.glassPane.show((this.element.ownerDocument as Document));
     this.list.element.focus();
     ARIAUtils.setExpanded(this.element, true);
     this.updateGlasspaneSize();
@@ -305,7 +306,7 @@ export class SoftDropDown<T> implements ListDelegate<T> {
 
     ARIAUtils.setActiveDescendant(this.list.element, toElement);
     this.delegate.highlightedItemChanged(
-        from, to, fromElement?.firstElementChild ?? null, toElement?.firstElementChild ?? null);
+        from, to, fromElement && fromElement.firstElementChild, toElement && toElement.firstElementChild);
   }
 
   updateSelectedItemARIA(_fromElement: Element|null, _toElement: Element|null): boolean {

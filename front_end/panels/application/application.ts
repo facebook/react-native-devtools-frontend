@@ -10,14 +10,11 @@ import * as BounceTrackingMitigationsTreeElement from './BounceTrackingMitigatio
 import * as CookieItemsView from './CookieItemsView.js';
 import * as DOMStorageItemsView from './DOMStorageItemsView.js';
 import * as DOMStorageModel from './DOMStorageModel.js';
-import * as ExtensionStorageItemsView from './ExtensionStorageItemsView.js';
-import * as ExtensionStorageModel from './ExtensionStorageModel.js';
 import * as IndexedDBModel from './IndexedDBModel.js';
 import * as IndexedDBViews from './IndexedDBViews.js';
 import * as InterestGroupStorageModel from './InterestGroupStorageModel.js';
 import * as InterestGroupStorageView from './InterestGroupStorageView.js';
 import * as InterestGroupTreeElement from './InterestGroupTreeElement.js';
-import * as KeyValueStorageItemsView from './KeyValueStorageItemsView.js';
 import * as OpenedWindowDetailsView from './OpenedWindowDetailsView.js';
 import * as PreloadingView from './preloading/PreloadingView.js';
 import * as PreloadingTreeElement from './PreloadingTreeElement.js';
@@ -46,14 +43,11 @@ export {
   CookieItemsView,
   DOMStorageItemsView,
   DOMStorageModel,
-  ExtensionStorageItemsView,
-  ExtensionStorageModel,
   IndexedDBModel,
   IndexedDBViews,
   InterestGroupStorageModel,
   InterestGroupStorageView,
   InterestGroupTreeElement,
-  KeyValueStorageItemsView,
   OpenedWindowDetailsView,
   PreloadingTreeElement,
   PreloadingView,

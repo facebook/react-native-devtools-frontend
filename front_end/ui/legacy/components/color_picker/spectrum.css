@@ -13,7 +13,6 @@
   overflow: hidden;
 }
 
-/* stylelint-disable-next-line selector-pseudo-class-no-unknown */
 :selection {
   background-color: var(--sys-color-tonal-container);
   color: var(--sys-color-on-tonal-container);
@@ -72,16 +71,11 @@
 
 .spectrum-hue {
   top: 16px;
-  /* stylelint-disable-next-line plugin/use_theme_colors, declaration-property-value-no-unknown */
-  background: linear-gradient(to left in hsl longer hue, #f00 0 100%);
+  background: linear-gradient(to left, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%); /* stylelint-disable-line plugin/use_theme_colors */
 }
 
 .spectrum-hue.display-p3 {
-  background: linear-gradient(
-    to left in hsl longer hue,
-    color(display-p3 1 0 0) 0 100%
-      /* stylelint-disable-next-line declaration-property-value-no-unknown */
-  );
+  background: linear-gradient(to left, color(display-p3 1 0 0) 0%, color(display-p3 1 1 0) 17%, color(display-p3 0 1 0) 33%, color(display-p3 0 1 1) 50%, color(display-p3 0 0 1) 67%, color(display-p3 1 0 1) 83%, color(display-p3 1 0 0) 100%); /* stylelint-disable-line plugin/use_theme_colors */
 }
 
 .spectrum-alpha {
@@ -115,14 +109,12 @@
 
 .spectrum-sat,
 .-theme-preserve {
-  /* stylelint-disable-next-line plugin/use_theme_colors */
-  background-image: linear-gradient(to right, #fff, rgb(204 154 129 / 0%));
+  background-image: linear-gradient(to right, #fff, rgb(204 154 129 / 0%)); /* stylelint-disable-line plugin/use_theme_colors */
 }
 
 .spectrum-val,
 .-theme-preserve {
-  /* stylelint-disable-next-line plugin/use_theme_colors */
-  background-image: linear-gradient(to top, #000, rgb(204 154 129 / 0%));
+  background-image: linear-gradient(to top, #000, rgb(204 154 129 / 0%)); /* stylelint-disable-line plugin/use_theme_colors */
 }
 
 .spectrum-contrast-details {
@@ -144,7 +136,7 @@
   flex: none;
 }
 
-.spectrum-contrast-details devtools-toolbar.expand {
+.spectrum-contrast-details div.toolbar.expand {
   position: absolute;
   right: 6px;
   top: 6px;
@@ -202,7 +194,7 @@
 }
 
 .contrast-fix-button::after {
-  content: ' ';
+  content: " ";
   width: 13px;
   height: 13px;
   background-image: var(--image-file-refresh);
@@ -448,17 +440,13 @@ devtools-icon.copy-color-icon {
   height: 11px;
 }
 
-.spectrum-palette-color:hover:not(.spectrum-shades-shown)
-  > .spectrum-palette-color-shadow,
-.spectrum-palette-color:focus:not(.spectrum-shades-shown)
-  > .spectrum-palette-color-shadow {
+.spectrum-palette-color:hover:not(.spectrum-shades-shown) > .spectrum-palette-color-shadow,
+.spectrum-palette-color:focus:not(.spectrum-shades-shown) > .spectrum-palette-color-shadow {
   opacity: 20%;
 }
 
-.spectrum-palette-color:hover:not(.spectrum-shades-shown)
-  > .spectrum-palette-color-shadow:first-child,
-.spectrum-palette-color:focus:not(.spectrum-shades-shown)
-  > .spectrum-palette-color-shadow:first-child {
+.spectrum-palette-color:hover:not(.spectrum-shades-shown) > .spectrum-palette-color-shadow:first-child,
+.spectrum-palette-color:focus:not(.spectrum-shades-shown) > .spectrum-palette-color-shadow:first-child {
   opacity: 60%;
   top: -3px;
   left: 1px;
@@ -507,8 +495,7 @@ devtools-icon.copy-color-icon {
 }
 
 .palette-color-shades > .spectrum-palette-color:not(.empty-color):hover,
-.spectrum-palette
-  > .spectrum-palette-color:not(.empty-color, .has-material-shades):hover {
+.spectrum-palette > .spectrum-palette-color:not(.empty-color):not(.has-material-shades):hover {
   transform: scale(1.15);
 }
 
@@ -543,13 +530,13 @@ devtools-icon.copy-color-icon {
   visibility: visible;
 }
 
-.palette-panel > devtools-toolbar {
+.palette-panel > div.toolbar {
   position: absolute;
   right: 6px;
   top: 6px;
 }
 
-.palette-panel > div {
+.palette-panel > div:not(.toolbar) {
   flex: 0 0 38px;
   border-bottom: 1px solid var(--sys-color-divider);
   padding: 12px;
@@ -581,8 +568,7 @@ div.palette-preview {
 .spectrum-overlay {
   z-index: 13;
   visibility: hidden;
-  /* stylelint-disable-next-line plugin/use_theme_colors */
-  background-color: hsl(0deg 0% 0% / 50%);
+  background-color: hsl(0deg 0% 0% / 50%); /* stylelint-disable-line plugin/use_theme_colors */
   /* See: crbug.com/1152736 for color variable migration. */
   opacity: 0%;
   transition: opacity 100ms cubic-bezier(0, 0, 0.2, 1), visibility 0s 100ms;

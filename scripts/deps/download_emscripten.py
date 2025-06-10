@@ -11,7 +11,6 @@ testing DevTools with emscripten generated Wasm binaries.
 import argparse
 import os
 import platform
-import shutil
 import sys
 import tarfile
 import urllib.request
@@ -22,12 +21,10 @@ STAMP_FILE = 'build-revision'
 DOWNLOAD_URL = "https://storage.googleapis.com/webassembly/emscripten-releases-builds/%s/%s/wasm-binaries%s.%s"
 
 
-# Returns None when files was not found
-# Return boolean if file found depending on version is the same
 def check_stamp_file(options, url):
     file_name = os.path.join(options.dest, STAMP_FILE)
     if not os.path.isfile(file_name):
-        return None
+        return False
     with open(file_name) as f:
         return url == f.read().strip()
 
@@ -67,14 +64,8 @@ def script_main(args):
 
     url = DOWNLOAD_URL % (os_name, options.tag, arch_suffix, file_extension)
 
-    build_revision_same = check_stamp_file(options, url)
-    if build_revision_same:
+    if check_stamp_file(options, url):
         return 0
-    elif build_revision_same is False:
-        try:
-            shutil.rmtree(os.path.join(options.dest, 'install'))
-        except Exception as e:
-            sys.stderr.write('Error while remove old version: {e}'.format(e=e))
 
     try:
         filename, _ = urllib.request.urlretrieve(url)

@@ -4,7 +4,7 @@
 
 import("../../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../../scripts/build/ninja/devtools_module.gni")
-import("../../../../scripts/build/typescript/typescript.gni")
+import("../../../../third_party/typescript/typescript.gni")
 
 devtools_module("theme_support") {
   sources = [ "ThemeSupport.ts" ]
@@ -12,7 +12,6 @@ devtools_module("theme_support") {
   deps = [
     "../../../core/common:bundle",
     "../../../core/host:bundle",
-    "../../../core/root:bundle",
   ]
 }
 
@@ -21,7 +20,7 @@ devtools_entrypoint("bundle") {
 
   deps = [
     ":theme_support",
-    "../:css_files",
+    "../:legacy_css_files",
   ]
 
   visibility = [

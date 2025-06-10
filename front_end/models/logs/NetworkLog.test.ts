@@ -11,10 +11,8 @@ import {describeWithMockConnection} from '../../testing/MockConnection.js';
 import {activate, getMainFrame, LOADER_ID, navigate} from '../../testing/ResourceTreeHelpers.js';
 import * as Logs from '../logs/logs.js';
 
-const {urlString} = Platform.DevToolsPath;
-
 function url(input: string): Platform.DevToolsPath.UrlString {
-  return urlString`${input as unknown}`;
+  return input as unknown as Platform.DevToolsPath.UrlString;
 }
 
 describe('NetworkLog', () => {
@@ -37,7 +35,7 @@ describe('NetworkLog', () => {
       };
       const info = initiatorInfoForRequest(request, existingInfo);
       assert.deepEqual(info, {
-        type: SDK.NetworkRequest.InitiatorType.OTHER,
+        type: SDK.NetworkRequest.InitiatorType.Other,
         url: Platform.DevToolsPath.EmptyUrlString,
         lineNumber: undefined,
         columnNumber: undefined,
@@ -59,7 +57,7 @@ describe('NetworkLog', () => {
       } as unknown as SDK.NetworkRequest.NetworkRequest;
       const info = initiatorInfoForRequest(request);
       assert.deepEqual(info, {
-        type: SDK.NetworkRequest.InitiatorType.OTHER,
+        type: SDK.NetworkRequest.InitiatorType.Other,
         url: Platform.DevToolsPath.EmptyUrlString,
         lineNumber: undefined,
         columnNumber: undefined,
@@ -84,7 +82,7 @@ describe('NetworkLog', () => {
       } as unknown as SDK.NetworkRequest.NetworkRequest;
       const info = initiatorInfoForRequest(request);
       assert.deepEqual(info, {
-        type: SDK.NetworkRequest.InitiatorType.REDIRECT,
+        type: SDK.NetworkRequest.InitiatorType.Redirect,
         url: url('http://localhost:3000/example.js'),
         lineNumber: undefined,
         columnNumber: undefined,
@@ -110,7 +108,7 @@ describe('NetworkLog', () => {
       } as unknown as SDK.NetworkRequest.NetworkRequest;
       const info = initiatorInfoForRequest(request);
       assert.deepEqual(info, {
-        type: SDK.NetworkRequest.InitiatorType.PARSER,
+        type: SDK.NetworkRequest.InitiatorType.Parser,
         url: url('http://localhost:3000/example.js'),
         lineNumber: 5,
         columnNumber: 6,
@@ -143,7 +141,7 @@ describe('NetworkLog', () => {
       } as unknown as SDK.NetworkRequest.NetworkRequest;
       const info = initiatorInfoForRequest(request);
       assert.deepEqual(info, {
-        type: SDK.NetworkRequest.InitiatorType.SCRIPT,
+        type: SDK.NetworkRequest.InitiatorType.Script,
         url: url('http://localhost:3000/example.js'),
         lineNumber: 5,
         columnNumber: 6,
@@ -187,7 +185,7 @@ describe('NetworkLog', () => {
       } as unknown as SDK.NetworkRequest.NetworkRequest;
       const info = initiatorInfoForRequest(request);
       assert.deepEqual(info, {
-        type: SDK.NetworkRequest.InitiatorType.SCRIPT,
+        type: SDK.NetworkRequest.InitiatorType.Script,
         url: url('http://localhost:3000/example.js'),
         lineNumber: 5,
         columnNumber: 6,
@@ -211,7 +209,7 @@ describe('NetworkLog', () => {
       } as unknown as SDK.NetworkRequest.NetworkRequest;
       const info = initiatorInfoForRequest(request);
       assert.deepEqual(info, {
-        type: SDK.NetworkRequest.InitiatorType.SCRIPT,
+        type: SDK.NetworkRequest.InitiatorType.Script,
         url: url('http://localhost:3000/example.js'),
         lineNumber: undefined,
         columnNumber: undefined,
@@ -234,7 +232,7 @@ describe('NetworkLog', () => {
       } as unknown as SDK.NetworkRequest.NetworkRequest;
       const info = initiatorInfoForRequest(request);
       assert.deepEqual(info, {
-        type: SDK.NetworkRequest.InitiatorType.PRELOAD,
+        type: SDK.NetworkRequest.InitiatorType.Preload,
         url: Platform.DevToolsPath.EmptyUrlString,
         lineNumber: undefined,
         columnNumber: undefined,
@@ -261,7 +259,7 @@ describe('NetworkLog', () => {
       } as unknown as SDK.NetworkRequest.NetworkRequest;
       const info = initiatorInfoForRequest(request);
       assert.deepEqual(info, {
-        type: SDK.NetworkRequest.InitiatorType.PREFLIGHT,
+        type: SDK.NetworkRequest.InitiatorType.Preflight,
         url: Platform.DevToolsPath.EmptyUrlString,
         lineNumber: undefined,
         columnNumber: undefined,
@@ -285,7 +283,7 @@ describe('NetworkLog', () => {
       } as unknown as SDK.NetworkRequest.NetworkRequest;
       const info = initiatorInfoForRequest(request);
       assert.deepEqual(info, {
-        type: SDK.NetworkRequest.InitiatorType.SIGNED_EXCHANGE,
+        type: SDK.NetworkRequest.InitiatorType.SignedExchange,
         url: url('http://localhost:3000/example.js'),
         lineNumber: undefined,
         columnNumber: undefined,
@@ -300,7 +298,7 @@ describe('NetworkLog', () => {
 describeWithMockConnection('NetworkLog', () => {
   it('clears on main frame navigation', () => {
     const networkLog = Logs.NetworkLog.NetworkLog.instance();
-    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
+    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
     const mainFrameTarget = createTarget({parentTarget: tabTarget});
     const mainFrame = getMainFrame(mainFrameTarget);
     const subframe = getMainFrame(createTarget({parentTarget: mainFrameTarget}));
@@ -333,7 +331,7 @@ describeWithMockConnection('NetworkLog', () => {
       const requestWillBeSentEvent2 = {requestId: 'mockId2', request: {url: 'foo.com'}, loaderId: 'OTHER_LOADER_ID'} as
           Protocol.Network.RequestWillBeSentEvent;
       networkDispatcher.requestWillBeSent(requestWillBeSentEvent2);
-      assert.lengthOf(networkLog.requests(), 2);
+      assert.strictEqual(networkLog.requests().length, 2);
     });
 
     it('discards requests with mismatched loaderId on navigation', () => {
@@ -367,10 +365,10 @@ describeWithMockConnection('NetworkLog', () => {
       corsErrorStatus: () => ({corsError: Protocol.Network.CorsError.UnexpectedPrivateNetworkAccess}),
     } as SDK.NetworkRequest.NetworkRequest;
     networkManager.dispatchEventToListeners(SDK.NetworkManager.Events.RequestStarted, {request, originalRequest: null});
-    assert.lengthOf(networkLog.requests(), 1);
+    assert.strictEqual(networkLog.requests().length, 1);
 
     networkManager.dispatchEventToListeners(SDK.NetworkManager.Events.RequestUpdated, request);
     assert.strictEqual(request, removedRequest);
-    assert.lengthOf(networkLog.requests(), 0);
+    assert.strictEqual(networkLog.requests().length, 0);
   });
 });

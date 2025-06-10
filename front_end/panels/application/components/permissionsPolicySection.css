@@ -53,7 +53,3 @@ button.link {
 .block-reason {
   width: 215px;
 }
-
-.disabled-features-button {
-  padding-left: var(--sys-size-3);
-}

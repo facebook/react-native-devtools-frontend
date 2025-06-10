@@ -29,36 +29,22 @@ export class Console extends ObjectWrapper<EventTypes> {
     consoleInstance = undefined;
   }
 
-  /**
-   * Add a message to the Console panel.
-   *
-   * @param text the message text.
-   * @param level the message level.
-   * @param show whether to show the Console panel (if it's not already shown).
-   * @param source the message source.
-   */
-  addMessage(text: string, level = MessageLevel.INFO, show = false, source?: FrontendMessageSource): void {
-    const message = new Message(text, level, Date.now(), show, source);
+  addMessage(text: string, level: MessageLevel, show?: boolean, source?: FrontendMessageSource): void {
+    const message = new Message(text, level || MessageLevel.Info, Date.now(), show || false, source);
     this.#messagesInternal.push(message);
-    this.dispatchEventToListeners(Events.MESSAGE_ADDED, message);
+    this.dispatchEventToListeners(Events.MessageAdded, message);
   }
 
   log(text: string): void {
-    this.addMessage(text, MessageLevel.INFO);
+    this.addMessage(text, MessageLevel.Info);
   }
 
   warn(text: string, source?: FrontendMessageSource): void {
-    this.addMessage(text, MessageLevel.WARNING, undefined, source);
+    this.addMessage(text, MessageLevel.Warning, undefined, source);
   }
 
-  /**
-   * Adds an error message to the Console panel.
-   *
-   * @param text the message text.
-   * @param show whether to show the Console panel (if it's not already shown).
-   */
-  error(text: string, show = true): void {
-    this.addMessage(text, MessageLevel.ERROR, show);
+  error(text: string): void {
+    this.addMessage(text, MessageLevel.Error, true);
   }
 
   messages(): Message[] {
@@ -75,25 +61,24 @@ export class Console extends ObjectWrapper<EventTypes> {
 }
 
 export const enum Events {
-  MESSAGE_ADDED = 'messageAdded',
+  MessageAdded = 'messageAdded',
 }
 
-export interface EventTypes {
-  [Events.MESSAGE_ADDED]: Message;
-}
+export type EventTypes = {
+  [Events.MessageAdded]: Message,
+};
 
 export const enum MessageLevel {
-  INFO = 'info',
-  WARNING = 'warning',
-  ERROR = 'error',
+  Info = 'info',
+  Warning = 'warning',
+  Error = 'error',
 }
 
 export enum FrontendMessageSource {
   CSS = 'css',
-  // eslint-disable-next-line @typescript-eslint/naming-convention -- Used by web_tests.
   ConsoleAPI = 'console-api',
-  ISSUE_PANEL = 'issue-panel',
-  SELF_XSS = 'self-xss',
+  IssuePanel = 'issue-panel',
+  SelfXss = 'self-xss',
 }
 
 export class Message {

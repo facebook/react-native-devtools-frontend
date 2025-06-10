@@ -2,23 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../../ui/components/icon_button/icon_button.js';
-
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as ComponentHelpers from '../../../ui/components/helpers/helpers.js';
-import * as Lit from '../../../ui/lit/lit.js';
+import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 import * as Models from '../models/models.js';
 import * as Actions from '../recorder-actions/recorder-actions.js';
 
-import recordingListViewStylesRaw from './recordingListView.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const recordingListViewStyles = new CSSStyleSheet();
-recordingListViewStyles.replaceSync(recordingListViewStylesRaw.cssText);
-
-const {html} = Lit;
+import recordingListViewStyles from './recordingListView.css.js';
 
 const UIStrings = {
   /**
@@ -41,7 +34,7 @@ const UIStrings = {
    * @description The title of the row corresponding to a recording. By clicking on the row, the user open the recording for editing.
    */
   openRecording: 'Open recording',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings(
     'panels/recorder/components/RecordingListView.ts',
     UIStrings,
@@ -93,6 +86,7 @@ interface Recording {
 }
 
 export class RecordingListView extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-recording-list-view`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   readonly #props: {recordings: Recording[], replayAllowed: boolean} = {
     recordings: [],
@@ -150,26 +144,26 @@ export class RecordingListView extends HTMLElement {
 
   #render = (): void => {
     // clang-format off
-    Lit.render(
-      html`
+    LitHtml.render(
+      LitHtml.html`
         <div class="wrapper">
           <div class="header">
             <h1>${i18nString(UIStrings.savedRecordings)}</h1>
-            <devtools-button
+            <${Buttons.Button.Button.litTagName}
               .variant=${Buttons.Button.Variant.PRIMARY}
               @click=${this.#onCreateClick}
               title=${Models.Tooltip.getTooltipForActions(
                 i18nString(UIStrings.createRecording),
-                Actions.RecorderActions.CREATE_RECORDING,
+                Actions.RecorderActions.CreateRecording,
               )}
               .jslogContext=${'create-recording'}
             >
               ${i18nString(UIStrings.createRecording)}
-            </devtools-button>
+            </${Buttons.Button.Button.litTagName}>
           </div>
           <div class="table">
             ${this.#props.recordings.map(recording => {
-              return html`
+              return LitHtml.html`
                   <div
                     role="button"
                     tabindex="0"
@@ -187,15 +181,15 @@ export class RecordingListView extends HTMLElement {
                       .track({ click: true })
                       .context('recording')}>
                     <div class="icon">
-                      <devtools-icon name="flow">
-                      </devtools-icon>
+                      <${IconButton.Icon.Icon.litTagName} name="flow">
+                      </${IconButton.Icon.Icon.litTagName}>
                     </div>
                     <div class="title">${recording.name}</div>
                     <div class="actions">
                       ${
                         this.#props.replayAllowed
-                          ? html`
-                              <devtools-button
+                          ? LitHtml.html`
+                              <${Buttons.Button.Button.litTagName}
                                 title=${i18nString(UIStrings.playRecording)}
                                 .data=${
                                   {
@@ -209,11 +203,11 @@ export class RecordingListView extends HTMLElement {
                                   recording.storageName,
                                 )}
                                 @keydown=${this.#stopPropagation}
-                              ></devtools-button>
+                              ></${Buttons.Button.Button.litTagName}>
                               <div class="divider"></div>`
                           : ''
                       }
-                      <devtools-button
+                      <${Buttons.Button.Button.litTagName}
                         class="delete-recording-button"
                         title=${i18nString(UIStrings.deleteRecording)}
                         .data=${
@@ -228,7 +222,7 @@ export class RecordingListView extends HTMLElement {
                           recording.storageName,
                         )}
                         @keydown=${this.#stopPropagation}
-                      ></devtools-button>
+                      ></${Buttons.Button.Button.litTagName}>
                     </div>
                   </div>
                 `;

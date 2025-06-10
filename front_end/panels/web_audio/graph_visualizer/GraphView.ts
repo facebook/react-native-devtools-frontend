@@ -6,37 +6,52 @@ import * as Common from '../../../core/common/common.js';
 import * as Platform from '../../../core/platform/platform.js';
 
 import {EdgeTypes, EdgeView, generateEdgePortIdsByData} from './EdgeView.js';
-import type {
-  NodeCreationData, NodeParamConnectionData, NodeParamDisconnectionData, NodesConnectionData, NodesDisconnectionData,
-  NodesDisconnectionDataWithDestination, ParamCreationData} from './GraphStyle.js';
+import {
+  type NodeCreationData,
+  type NodeParamConnectionData,
+  type NodeParamDisconnectionData,
+  type NodesConnectionData,
+  type NodesDisconnectionData,
+  type NodesDisconnectionDataWithDestination,
+  type ParamCreationData,
+} from './GraphStyle.js';
 import {NodeLabelGenerator, NodeView} from './NodeView.js';
 
 // A class that tracks all the nodes and edges of an audio graph.
 export class GraphView extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
   contextId: string;
-  private readonly nodes = new Map<string, NodeView>();
-  private readonly edges = new Map<string, EdgeView>();
-  /**
-   * For each node ID, keep a set of all out-bound edge IDs.
-   */
-  private readonly outboundEdgeMap = new Platform.MapUtilities.Multimap<string, string>();
-  /**
-   * For each node ID, keep a set of all in-bound edge IDs.
-   */
-  private readonly inboundEdgeMap = new Platform.MapUtilities.Multimap<string, string>();
-  /**
-   * Use concise node label to replace the long UUID.
-   * Each graph has its own label generator so that the label starts from 0.
-   */
-  private readonly nodeLabelGenerator = new NodeLabelGenerator();
-  /**
-   * For each param ID, save its corresponding node Id.
-   */
-  private readonly paramIdToNodeIdMap = new Map<string, string>();
+  private readonly nodes: Map<string, NodeView>;
+  private readonly edges: Map<string, EdgeView>;
+  private readonly outboundEdgeMap: Platform.MapUtilities.Multimap<string, string>;
+  private readonly inboundEdgeMap: Platform.MapUtilities.Multimap<string, string>;
+  private readonly nodeLabelGenerator: NodeLabelGenerator;
+  private readonly paramIdToNodeIdMap: Map<string, string>;
   constructor(contextId: string) {
     super();
 
     this.contextId = contextId;
+
+    this.nodes = new Map();
+    this.edges = new Map();
+
+    /**
+     * For each node ID, keep a set of all out-bound edge IDs.
+     */
+    this.outboundEdgeMap = new Platform.MapUtilities.Multimap();
+
+    /**
+     * For each node ID, keep a set of all in-bound edge IDs.
+     */
+    this.inboundEdgeMap = new Platform.MapUtilities.Multimap();
+
+    // Use concise node label to replace the long UUID.
+    // Each graph has its own label generator so that the label starts from 0.
+    this.nodeLabelGenerator = new NodeLabelGenerator();
+
+    /**
+     * For each param ID, save its corresponding node Id.
+     */
+    this.paramIdToNodeIdMap = new Map();
   }
 
   /**
@@ -87,7 +102,7 @@ export class GraphView extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
    * Add a Node-to-Node connection to the graph.
    */
   addNodeToNodeConnection(edgeData: NodesConnectionData): void {
-    const edge = new EdgeView(edgeData, EdgeTypes.NODE_TO_NODE);
+    const edge = new EdgeView(edgeData, EdgeTypes.NodeToNode);
     this.addEdge(edge);
   }
 
@@ -98,7 +113,7 @@ export class GraphView extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
     if (edgeData.destinationId) {
       // Remove a single edge if destinationId is specified.
       const edgePortIds =
-          generateEdgePortIdsByData((edgeData as NodesDisconnectionDataWithDestination), EdgeTypes.NODE_TO_NODE);
+          generateEdgePortIdsByData((edgeData as NodesDisconnectionDataWithDestination), EdgeTypes.NodeToNode);
 
       if (!edgePortIds) {
         throw new Error('Unable to generate edge port IDs');
@@ -116,7 +131,7 @@ export class GraphView extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
    * Add a Node-to-Param connection to the graph.
    */
   addNodeToParamConnection(edgeData: NodeParamConnectionData): void {
-    const edge = new EdgeView(edgeData, EdgeTypes.NODE_TO_PARAM);
+    const edge = new EdgeView(edgeData, EdgeTypes.NodeToParam);
     this.addEdge(edge);
   }
 
@@ -124,7 +139,7 @@ export class GraphView extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
    * Remove a Node-to-Param connection from the graph.
    */
   removeNodeToParamConnection(edgeData: NodeParamDisconnectionData): void {
-    const edgePortIds = generateEdgePortIdsByData(edgeData, EdgeTypes.NODE_TO_PARAM);
+    const edgePortIds = generateEdgePortIdsByData(edgeData, EdgeTypes.NodeToParam);
     if (!edgePortIds) {
       throw new Error('Unable to generate edge port IDs');
     }
@@ -184,14 +199,14 @@ export class GraphView extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
   }
 
   private notifyShouldRedraw(): void {
-    this.dispatchEventToListeners(Events.SHOULD_REDRAW, this);
+    this.dispatchEventToListeners(Events.ShouldRedraw, this);
   }
 }
 
 export const enum Events {
-  SHOULD_REDRAW = 'ShouldRedraw',
+  ShouldRedraw = 'ShouldRedraw',
 }
 
-export interface EventTypes {
-  [Events.SHOULD_REDRAW]: GraphView;
-}
+export type EventTypes = {
+  [Events.ShouldRedraw]: GraphView,
+};

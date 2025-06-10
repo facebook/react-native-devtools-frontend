@@ -8,21 +8,16 @@ const path = require('path');
 const parseURL = require('url').parse;
 const {argv} = require('yargs');
 
+const {createInstrumenter} = require('istanbul-lib-instrument');
+const convertSourceMap = require('convert-source-map');
+const defaultIstanbulSchema = require('@istanbuljs/schema');
+
+const {getTestRunnerConfigSetting} = require('../test/test_config_helpers.js');
+
+const match = require('minimatch');
+
 const tracesMode = argv.traces || false;
 const serverPort = parseInt(process.env.PORT, 10) || (tracesMode ? 11010 : 8090);
-
-function getTestRunnerConfig() {
-  try {
-    return JSON.parse(process.env.TEST_RUNNER_JSON_CONFIG);
-  } catch {
-    // Return an empty object so any lookups return undefined
-    return {};
-  }
-}
-function getTestRunnerConfigSetting(settingKey, fallbackValue) {
-  const config = getTestRunnerConfig();
-  return config[settingKey] === undefined ? fallbackValue : config[settingKey];
-}
 
 /**
  * When you run npm run components-server we run the script as is from scripts/,
@@ -71,34 +66,19 @@ while (isRunningInGen && !pathToOutTargetDir.endsWith(`out${path.sep}${target}`)
 const pathToBuiltOutTargetDirectory =
     isRunningInGen ? pathToOutTargetDir : path.resolve(path.join(process.cwd(), 'out', target));
 
-let devtoolsRootFolder = path.resolve(
-    path.join(pathToBuiltOutTargetDirectory, 'gen'),
-);
-const fullCheckoutDevtoolsRootFolder = path.join(
-    devtoolsRootFolder,
-    'third_party',
-    'devtools-frontend',
-    'src',
-);
+let devtoolsRootFolder = path.resolve(path.join(pathToBuiltOutTargetDirectory, 'gen'));
+const fullCheckoutDevtoolsRootFolder = path.join(devtoolsRootFolder, 'third_party', 'devtools-frontend', 'src');
 if (__dirname.startsWith(fullCheckoutDevtoolsRootFolder)) {
   devtoolsRootFolder = fullCheckoutDevtoolsRootFolder;
 }
 
-const componentDocsBaseFolder = path.join(
-    devtoolsRootFolder,
-    componentDocsBaseArg,
-);
+const componentDocsBaseFolder = path.join(devtoolsRootFolder, componentDocsBaseArg);
 
 if (!fs.existsSync(devtoolsRootFolder)) {
-  console.error(
-      `ERROR: Generated front_end folder (${devtoolsRootFolder}) does not exist.`,
-  );
+  console.error(`ERROR: Generated front_end folder (${devtoolsRootFolder}) does not exist.`);
   console.log(
-      'The components server works from the built Ninja output; you may need to run Ninja to update your built DevTools.',
-  );
-  console.log(
-      'If you build to a target other than default, you need to pass --target=X as an argument',
-  );
+      'The components server works from the built Ninja output; you may need to run Ninja to update your built DevTools.');
+  console.log('If you build to a target other than default, you need to pass --target=X as an argument');
   process.exit(1);
 }
 
@@ -109,28 +89,15 @@ process.on('unhandledRejection', error => {
   console.error('unhandledRejection', error);
 });
 
-const server = http.createServer(
-    (req, res) => requestHandler(req, res).catch(err => send500(res, err)),
-);
+const server = http.createServer((req, res) => requestHandler(req, res).catch(err => send500(res, err)));
 server.listen(serverPort, 'localhost');
 server.once('listening', () => {
   if (process.send) {
     process.send(serverPort);
   }
   console.log(`Started components server at http://localhost:${serverPort}\n`);
-  console.log(
-      `ui/components/docs location: ${
-          path.relative(
-              process.cwd(),
-              path.join(
-                  componentDocsBaseFolder,
-                  'front_end',
-                  'ui',
-                  'components',
-                  'docs',
-                  ),
-              )}`,
-  );
+  console.log(`ui/components/docs location: ${
+      path.relative(process.cwd(), path.join(componentDocsBaseFolder, 'front_end', 'ui', 'components', 'docs'))}`);
 });
 
 server.once('error', error => {
@@ -143,10 +110,13 @@ server.once('error', error => {
 // All paths that are injected globally into real DevTools, so we do the same
 // to avoid styles being broken in the component server.
 const styleSheetPaths = [
-  'front_end/design_system_tokens.css',
-  'front_end/application_tokens.css',
-  'front_end/ui/components/buttons/textButton.css',
+  'front_end/ui/legacy/themeColors.css',
+  'front_end/ui/legacy/tokens.css',
+  'front_end/ui/legacy/applicationColorTokens.css',
+  'front_end/ui/legacy/designTokens.css',
   'front_end/ui/legacy/inspectorCommon.css',
+  'front_end/ui/legacy/inspectorSyntaxHighlight.css',
+  'front_end/ui/legacy/textButton.css',
   'front_end/ui/components/docs/component_docs_styles.css',
 ];
 
@@ -194,31 +164,23 @@ function createComponentIndexFile(componentPath, componentExamples) {
         ${componentName}
         <a class="back-link" href="/">Back to index</a>
       </h1>
-      ${componentExamples
-        .map(example => {
-          const fullPath = path.join(componentPath, example);
-          return `<details class="example">
-          <summary><a href="${fullPath}">${example
-            .replace('.html', '')
-            .replace(/-|_/g, ' ')}</a></summary>
+      ${componentExamples.map(example => {
+        const fullPath = path.join(componentPath, example);
+        return `<details class="example">
+          <summary><a href="${fullPath}">${example.replace('.html', '').replace(/-|_/g, ' ')}</a></summary>
           <iframe src="${fullPath}"></iframe>
         </details>`;
-        })
-        .join('\n')}
+      }).join('\n')}
     </body>
   </html>`;
   // clang-format on
 }
 
 function createServerIndexFile(componentNames) {
-  const linksToStyleSheets = styleSheetPaths
-                                 .map(
-                                     link => `<link rel="stylesheet" href="${sharedResourcesBase}${
-                                         path.join(
-                                             ...link.split('/'),
-                                             )}" />`,
-                                     )
-                                 .join('\n');
+  const linksToStyleSheets =
+      styleSheetPaths
+          .map(link => `<link rel="stylesheet" href="${sharedResourcesBase}${path.join(...link.split('/'))}" />`)
+          .join('\n');
 
   // clang-format off
   return `<!DOCTYPE html>
@@ -232,12 +194,10 @@ function createServerIndexFile(componentNames) {
     <body id="index-page">
       <h1>DevTools components</h1>
       <ul class="components-list">
-        ${componentNames
-          .map(name => {
-            const niceName = name.replace(/_/g, ' ');
-            return `<li><a href='/front_end/ui/components/docs/${name}'>${niceName}</a></li>`;
-          })
-          .join('\n')}
+        ${componentNames.map(name => {
+          const niceName = name.replace(/_/g, ' ');
+          return `<li><a href='/front_end/ui/components/docs/${name}'>${niceName}</a></li>`;
+        }).join('\n')}
       </ul>
     </body>
   </html>`;
@@ -246,7 +206,7 @@ function createServerIndexFile(componentNames) {
 
 async function getExamplesForPath(filePath) {
   const componentDirectory = path.join(componentDocsBaseFolder, filePath);
-  if (!(await checkFileExists(componentDirectory))) {
+  if (!await checkFileExists(componentDirectory)) {
     return null;
   }
   const allFiles = await fs.promises.readdir(componentDirectory);
@@ -278,15 +238,44 @@ function send500(response, error) {
 
 async function checkFileExists(filePath) {
   try {
-    const errorsAccessingFile = await fs.promises.access(
-        filePath,
-        fs.constants.R_OK,
-    );
+    const errorsAccessingFile = await fs.promises.access(filePath, fs.constants.R_OK);
     return !errorsAccessingFile;
-  } catch {
+  } catch (e) {
     return false;
   }
 }
+
+const EXCLUDED_COVERAGE_FOLDERS = new Set(['third_party', 'ui/components/docs', 'Images']);
+
+const USER_DEFINED_COVERAGE_FOLDERS = process.env['COVERAGE_FOLDERS'];
+
+/**
+ * @param {string} filePath
+ * @returns {boolean}
+ */
+function isIncludedForCoverageComputation(filePath) {
+  for (const excludedFolder of EXCLUDED_COVERAGE_FOLDERS) {
+    if (filePath.startsWith(`/front_end/${excludedFolder}/`)) {
+      return false;
+    }
+  }
+  if (USER_DEFINED_COVERAGE_FOLDERS) {
+    const matchPattern = `/${USER_DEFINED_COVERAGE_FOLDERS}/**/*.{js,mjs}`;
+    return match(filePath, matchPattern);
+  }
+
+  return true;
+}
+
+const COVERAGE_INSTRUMENTER = createInstrumenter({
+  esModules: true,
+  parserPlugins: [
+    ...defaultIstanbulSchema.instrumenter.properties.parserPlugins.default,
+    'topLevelAwait',
+  ],
+});
+
+const instrumentedSourceCacheForFilePaths = new Map();
 
 /**
  * @param {http.IncomingMessage} request
@@ -299,31 +288,13 @@ async function requestHandler(request, response) {
     return;
   }
   if (['/', '/index.html'].includes(filePath) && tracesMode === false) {
-    const components = await fs.promises.readdir(
-        path.join(
-            componentDocsBaseFolder,
-            'front_end',
-            'ui',
-            'components',
-            'docs',
-            ),
-    );
-    const html = createServerIndexFile(
-        components.filter(filePath => {
-          const stats = fs.lstatSync(
-              path.join(
-                  componentDocsBaseFolder,
-                  'front_end',
-                  'ui',
-                  'components',
-                  'docs',
-                  filePath,
-                  ),
-          );
-          // Filter out some build config files (tsconfig, d.ts, etc), and just list the directories.
-          return stats.isDirectory();
-        }),
-    );
+    const components =
+        await fs.promises.readdir(path.join(componentDocsBaseFolder, 'front_end', 'ui', 'components', 'docs'));
+    const html = createServerIndexFile(components.filter(filePath => {
+      const stats = fs.lstatSync(path.join(componentDocsBaseFolder, 'front_end', 'ui', 'components', 'docs', filePath));
+      // Filter out some build config files (tsconfig, d.ts, etc), and just list the directories.
+      return stats.isDirectory();
+    }));
     respondWithHtml(response, html);
   } else if (filePath.startsWith('/front_end/ui/components/docs') && path.extname(filePath) === '') {
     // This means it's a component path like /breadcrumbs.
@@ -360,32 +331,21 @@ async function requestHandler(request, response) {
       send404(response, '404, File not found');
       return;
     }
-    const fileContents = await fs.promises.readFile(fullPath, {
-      encoding: 'utf8',
-    });
+    const fileContents = await fs.promises.readFile(fullPath, {encoding: 'utf8'});
 
-    const linksToStyleSheets = styleSheetPaths
-                                   .map(
-                                       link => `<link rel="stylesheet" href="${
-                                           path.join(
-                                               baseUrlForSharedResource,
-                                               ...link.split('/'),
-                                               )}" type="text/css" />`,
-                                       )
-                                   .join('\n');
+    const linksToStyleSheets =
+        styleSheetPaths
+            .map(
+                link => `<link rel="stylesheet" href="${
+                    path.join(baseUrlForSharedResource, ...link.split('/'))}" type="text/css" />`)
+            .join('\n');
 
     const toggleDarkModeScript = `<script type="module" src="${
-        path.join(
-            baseUrlForSharedResource,
-            'front_end',
-            'ui',
-            'components',
-            'docs',
-            'component_docs.js',
-            )}"></script>`;
+        path.join(baseUrlForSharedResource, 'front_end', 'ui', 'components', 'docs', 'component_docs.js')}"></script>`;
     const newFileContents = fileContents.replace('</head>', `${linksToStyleSheets}</head>`)
                                 .replace('</body>', toggleDarkModeScript + '\n</body>');
     respondWithHtml(response, newFileContents);
+
   } else {
     // This means it's an asset like a JS file or an image.
     let fullPath = path.join(componentDocsBaseFolder, filePath);
@@ -403,19 +363,10 @@ async function requestHandler(request, response) {
       if (sharedResourcesBase && !componentDocsBaseFolder.includes(sharedResourcesBase)) {
         prefix = path.join(componentDocsBaseFolder, sharedResourcesBase);
       }
-      fullPath = path.join(
-          prefix,
-          'front_end',
-          'core',
-          'i18n',
-          'locales',
-          'en-US.json',
-      );
+      fullPath = path.join(prefix, 'front_end', 'core', 'i18n', 'locales', 'en-US.json');
     }
     if (!fullPath.startsWith(devtoolsRootFolder) && !fileIsInTestFolder) {
-      console.error(
-          `Path ${fullPath} is outside the DevTools Frontend root dir.`,
-      );
+      console.error(`Path ${fullPath} is outside the DevTools Frontend root dir.`);
       process.exit(1);
     }
 
@@ -427,7 +378,7 @@ async function requestHandler(request, response) {
     }
 
     let encoding = 'utf8';
-    if (fullPath.endsWith('.js') || fullPath.endsWith('.mjs')) {
+    if (fullPath.endsWith('.js')) {
       response.setHeader('Content-Type', 'text/javascript; charset=utf-8');
     } else if (fullPath.endsWith('.css')) {
       response.setHeader('Content-Type', 'text/css; charset=utf-8');
@@ -450,7 +401,46 @@ async function requestHandler(request, response) {
       encoding = 'binary';
     }
 
-    const fileContents = await fs.promises.readFile(fullPath, encoding);
+    let fileContents = await fs.promises.readFile(fullPath, encoding);
+    const isComputingCoverageRequest = request.headers['devtools-compute-coverage'] === '1';
+
+    if (argv.coverage && fullPath.endsWith('.js') && filePath.startsWith('/front_end/') &&
+        isIncludedForCoverageComputation(filePath)) {
+      const previouslyGeneratedInstrumentedSource = instrumentedSourceCacheForFilePaths.get(fullPath);
+
+      if (previouslyGeneratedInstrumentedSource) {
+        fileContents = previouslyGeneratedInstrumentedSource;
+      } else {
+        if (!isComputingCoverageRequest) {
+          response.writeHead(400);
+          response.write(`Invalid coverage request. Attempted to load ${request.url}.`, 'utf8');
+          response.end();
+
+          console.error(
+              `Invalid coverage request. Attempted to load ${request.url} which was not available in the ` +
+              'code coverage instrumentation cache. Make sure that you call `preloadForCodeCoverage` in the describe block ' +
+              'of your interactions test, before declaring any tests.\n');
+          return;
+        }
+
+        fileContents = await new Promise(async (resolve, reject) => {
+          let sourceMap = convertSourceMap.fromSource(fileContents);
+          if (!sourceMap) {
+            sourceMap = convertSourceMap.fromMapFileSource(fileContents, path.dirname(fullPath));
+          }
+
+          COVERAGE_INSTRUMENTER.instrument(fileContents, fullPath, (error, instrumentedSource) => {
+            if (error) {
+              reject(error);
+            } else {
+              resolve(instrumentedSource);
+            }
+          }, sourceMap ? sourceMap.sourcemap : undefined);
+        });
+
+        instrumentedSourceCacheForFilePaths.set(fullPath, fileContents);
+      }
+    }
 
     response.writeHead(200);
     response.write(fileContents, encoding);
@@ -531,11 +521,9 @@ function createTracesIndexFile(traceFilenames) {
       <h1>Load OPP with fixture traces:</h1>
 
       <form>
-        ${traceFilenames
-          .map(filename => {
-            return `<button type=button>${filename}</button>`;
-          })
-          .join('\n')}
+        ${traceFilenames.map(filename => {
+          return `<button type=button>${filename}</button>`;
+        }).join('\n')}
       </form>
 
       <script>
@@ -552,9 +540,7 @@ function createTracesIndexFile(traceFilenames) {
  * @param {string|null} filePath
  */
 async function handleTracesModeRequest(request, response, filePath) {
-  const traceFolder = path.resolve(
-      path.join(process.cwd(), 'front_end/panels/timeline/fixtures/traces/'),
-  );
+  const traceFolder = path.resolve(path.join(process.cwd(), 'front_end/panels/timeline/fixtures/traces/'));
   if (filePath === '/') {
     const traceFilenames = fs.readdirSync(traceFolder).filter(f => f.includes('json'));
     const html = createTracesIndexFile(traceFilenames);

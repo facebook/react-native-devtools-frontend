@@ -9,8 +9,10 @@
 
 /* eslint-disable no-console */
 
-import * as path from 'path';
-import type * as puppeteer from 'puppeteer-core';
+// use require here due to
+// https://github.com/evanw/esbuild/issues/587#issuecomment-901397213
+import puppeteer = require('puppeteer-core');
+const path = require('path');
 
 const ALLOWED_ASSERTION_FAILURES = [
   // Failure during shutdown. crbug.com/1145969
@@ -34,9 +36,6 @@ const ALLOWED_ASSERTION_FAILURES = [
   'Request Storage.getStorageKeyForFrame failed. {"code":-32602,"message":"Frame tree node for given frame not found"}',
   'Unable to create texture',
   'Not allowed to load local resource: devtools://theme/colors.css',
-  // neterror.js started serving sourcemaps and we're requesting it unnecessarily.
-  'Request Network.loadNetworkResource failed. {"code":-32602,"message":"Unsupported URL scheme"}',
-  'Fetch API cannot load chrome-error://chromewebdata/neterror.rollup.js.map. URL scheme "chrome-error" is not supported.',
 ];
 
 const logLevels = {
@@ -98,7 +97,7 @@ export function installPageErrorHandlers(page: puppeteer.Page): void {
   });
 
   page.on('console', async msg => {
-    const logLevel = logLevels[msg.type() as keyof typeof logLevels];
+    const logLevel = logLevels[msg.type() as keyof typeof logLevels] as string;
     if (logLevel) {
       if (logLevel === 'E') {
         let message = `${logLevel}> `;
@@ -173,7 +172,7 @@ export function expectError(msg: string|RegExp) {
 }
 
 function formatStackFrame(stackFrame: puppeteer.ConsoleMessageLocation): string {
-  if (!stackFrame?.url) {
+  if (!stackFrame || !stackFrame.url) {
     return '<unknown>';
   }
   const filename = stackFrame.url.replace(/^.*\//, '');
@@ -181,9 +180,6 @@ function formatStackFrame(stackFrame: puppeteer.ConsoleMessageLocation): string 
 }
 
 export function dumpCollectedErrors(): void {
-  if (!(expectedErrors.length + fatalErrors.length)) {
-    return;
-  }
   console.log('Expected errors: ' + expectedErrors.length);
   console.log('   Fatal errors: ' + fatalErrors.length);
   if (fatalErrors.length) {
@@ -193,13 +189,11 @@ export function dumpCollectedErrors(): void {
     console.log(
         '\nErrors from component examples during test run:\n', uiComponentDocErrors.map(e => e.message).join('\n  '));
   }
-  expectedErrors = [];
-  fatalErrors = [];
 }
 
 const pendingErrorExpectations = new Set<ErrorExpectation>();
-export let fatalErrors: string[] = [];
-export let expectedErrors: string[] = [];
+export const fatalErrors: string[] = [];
+export const expectedErrors: string[] = [];
 // Gathered separately so we can surface them during screenshot tests to help
 // give an idea of failures, rather than having to guess purely based on the
 // screenshot.

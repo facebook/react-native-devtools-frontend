@@ -7,7 +7,7 @@ import * as Buttons from '../../ui/components/buttons/buttons.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import lighthouseDialogStyles from './lighthouseDialog.css.js';
-import type {LighthousePanel} from './LighthousePanel.js';
+import {type LighthousePanel} from './LighthousePanel.js';
 
 const UIStrings = {
   /**
@@ -17,11 +17,7 @@ const UIStrings = {
   /**
    * @description Header indicating that a Lighthouse timespan has started. "Timespan" is a Lighthouse mode that analyzes user interactions over a period of time. "interact with the page" is a call to action for the user to interact with the web page.
    */
-  timespanStarted: 'Timespan started',
-  /**
-   * @description Call to action for the user to interact with the web page.
-   */
-  interactWithPage: 'Interact with the page.',
+  timespanStarted: 'Timespan started, interact with the page',
   /**
    * @description Label for a button that ends a Lighthouse timespan. "timespan" is a Lighthouse mode that analyzes user interactions over a period of time.
    */
@@ -30,7 +26,7 @@ const UIStrings = {
    * @description Label for a button that cancels a Lighthouse timespan.
    */
   cancel: 'Cancel',
-} as const;
+};
 
 const str_ = i18n.i18n.registerUIStrings('panels/lighthouse/LighthouseTimespanView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -38,14 +34,12 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class TimespanView extends UI.Dialog.Dialog {
   private panel: LighthousePanel;
   private statusHeader: Element|null;
-  private contentContainer: Element|null;
   private endButton: Buttons.Button.Button|null;
 
   constructor(panel: LighthousePanel) {
     super();
     this.panel = panel;
     this.statusHeader = null;
-    this.contentContainer = null;
     this.endButton = null;
     this.setDimmed(true);
     this.setCloseOnEscape(false);
@@ -59,39 +53,35 @@ export class TimespanView extends UI.Dialog.Dialog {
   }
 
   reset(): void {
-    if (this.statusHeader && this.contentContainer && this.endButton) {
+    if (this.statusHeader && this.endButton) {
       this.statusHeader.textContent = i18nString(UIStrings.timespanStarting);
-      this.contentContainer.textContent = '';
       this.endButton.disabled = true;
     }
   }
 
   ready(): void {
-    if (this.statusHeader && this.contentContainer && this.endButton) {
+    if (this.statusHeader && this.endButton) {
       this.statusHeader.textContent = i18nString(UIStrings.timespanStarted);
-      this.contentContainer.textContent = i18nString(UIStrings.interactWithPage);
       this.endButton.disabled = false;
       this.endButton.focus();
     }
   }
 
   render(): void {
-    const dialogRoot =
-        UI.UIUtils.createShadowRootWithCoreStyles(this.contentElement, {cssFile: lighthouseDialogStyles});
+    const dialogRoot = UI.UIUtils.createShadowRootWithCoreStyles(
+        this.contentElement, {cssFile: [lighthouseDialogStyles], delegatesFocus: undefined});
 
     this.endButton = UI.UIUtils.createTextButton(
         i18nString(UIStrings.endTimespan),
         this.endTimespan.bind(this),
-        {variant: Buttons.Button.Variant.PRIMARY, jslogContext: 'lighthouse.end-time-span', className: 'end-timespan'},
+        {variant: Buttons.Button.Variant.PRIMARY, jslogContext: 'lighthouse.end-time-span'},
     );
     const cancelButton = UI.UIUtils.createTextButton(i18nString(UIStrings.cancel), this.cancel.bind(this), {
-      className: 'cancel',
       jslogContext: 'lighthouse.cancel',
     });
     const fragment = UI.Fragment.Fragment.build`
   <div class="lighthouse-view vbox">
-  <span $="status-header" class="header"></span>
-  <span $="call-to-action" class="lighthouse-dialog-text"></span>
+  <h2 $="status-header"></h2>
   <div class="lighthouse-action-buttons hbox">
   ${cancelButton}
   ${this.endButton}
@@ -100,10 +90,9 @@ export class TimespanView extends UI.Dialog.Dialog {
   `;
 
     this.statusHeader = fragment.$('status-header');
-    this.contentContainer = fragment.$('call-to-action');
     dialogRoot.appendChild(fragment.element());
 
-    this.setSizeBehavior(UI.GlassPane.SizeBehavior.SET_EXACT_WIDTH_MAX_HEIGHT);
+    this.setSizeBehavior(UI.GlassPane.SizeBehavior.SetExactWidthMaxHeight);
     this.setMaxContentSize(new UI.Geometry.Size(500, 400));
     this.reset();
   }

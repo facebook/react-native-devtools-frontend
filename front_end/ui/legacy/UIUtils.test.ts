@@ -2,129 +2,54 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Host from '../../core/host/host.js';
-import * as Platform from '../../core/platform/platform.js';
-import type * as Root from '../../core/root/root.js';
-import {updateHostConfig} from '../../testing/EnvironmentHelpers.js';
+import type * as Platform from '../../core/platform/platform.js';
 
 import * as UI from './legacy.js';
 
-const {urlString} = Platform.DevToolsPath;
-
 describe('UIUtils', () => {
-  describe('openInNewTab', () => {
-    const {openInNewTab} = UI.UIUtils;
-    const {InspectorFrontendHostInstance} = Host.InspectorFrontendHost;
-
-    it('throws a TypeError if the URL is invalid', () => {
-      assert.throws(() => openInNewTab('ThisIsNotAValidURL'), TypeError);
+  describe('addReferrerToURL', () => {
+    it('correctly adds referrer info to URLs', () => {
+      assert.strictEqual(
+          UI.UIUtils.addReferrerToURL('https://www.domain.com/route' as Platform.DevToolsPath.UrlString),
+          'https://www.domain.com/route?utm_source=devtools');
+      assert.strictEqual(
+          UI.UIUtils.addReferrerToURL('https://www.domain.com/route#anchor' as Platform.DevToolsPath.UrlString),
+          'https://www.domain.com/route?utm_source=devtools#anchor');
+      assert.strictEqual(
+          UI.UIUtils.addReferrerToURL('https://www.domain.com/route?key=value' as Platform.DevToolsPath.UrlString),
+          'https://www.domain.com/route?key=value&utm_source=devtools');
+      assert.strictEqual(
+          UI.UIUtils.addReferrerToURL(
+              'https://www.domain.com/route?key=value#anchor' as Platform.DevToolsPath.UrlString),
+          'https://www.domain.com/route?key=value&utm_source=devtools#anchor');
+      assert.strictEqual(
+          UI.UIUtils.addReferrerToURL(
+              'https://www.domain.com/route?utm_source=devtools#anchor' as Platform.DevToolsPath.UrlString),
+          'https://www.domain.com/route?utm_source=devtools#anchor');
+      assert.strictEqual(
+          UI.UIUtils.addReferrerToURL(
+              'https://www.domain.com/route?key=value&utm_source=devtools#anchor' as Platform.DevToolsPath.UrlString),
+          'https://www.domain.com/route?key=value&utm_source=devtools#anchor');
     });
+  });
 
-    it('opens URLs via host bindings', () => {
-      const stub = sinon.stub(InspectorFrontendHostInstance, 'openInNewTab');
-
-      openInNewTab('https://www.google.com/');
-
-      assert.strictEqual(stub.callCount, 1);
-      assert.deepEqual(stub.args[0], ['https://www.google.com/']);
-    });
-
-    it('doesn\'t override existing `utm_source` search parameters', () => {
-      const URLs = [
-        'http://developer.chrome.com/docs/devtools/workspaces/?utm_source=unittests',
-        'http://developers.google.com/learn/?utm_source=unittests',
-        'http://web.dev/?utm_source=unittests',
-        'http://www.google.com/?utm_source=unittests',
-        'https://developer.chrome.com/docs/devtools/?utm_source=unittests',
-        'https://developers.google.com/community/?utm_source=unittests',
-        'https://www.google.com/?utm_source=unittests',
-        'https://web.dev/baseline/?utm_source=unittests',
-      ];
-      for (const url of URLs) {
-        const stub = sinon.stub(InspectorFrontendHostInstance, 'openInNewTab');
-
-        openInNewTab(url);
-
-        assert.isTrue(stub.calledOnceWithExactly(urlString`${url}`));
-        stub.restore();
-      }
-    });
-
-    it('adds `utm_source` search parameter to Google documentation set links', () => {
-      const URLs = [
-        'http://developer.chrome.com/docs/devtools/workspaces/',
-        'http://developers.google.com/learn/',
-        'http://web.dev/',
-        'https://developer.chrome.com/docs/devtools/',
-        'https://developers.google.com/community/',
-        'https://web.dev/baseline/',
-      ];
-      for (const url of URLs) {
-        const stub = sinon.stub(InspectorFrontendHostInstance, 'openInNewTab');
-
-        openInNewTab(url);
-
-        assert.isTrue(stub.calledOnce);
-        assert.strictEqual(new URL(stub.args[0][0]).searchParams.get('utm_source'), 'devtools');
-        stub.restore();
-      }
-    });
-
-    it('adds `utm_campaign` search parameter to Google documentation set links', () => {
-      const CHANNELS: Array<typeof Root.Runtime.hostConfig.channel> = [
-        'stable',
-        'beta',
-        'dev',
-        'canary',
-      ];
-      const URLs = [
-        'http://developer.chrome.com/docs/devtools/workspaces/',
-        'http://developers.google.com/learn/',
-        'http://web.dev/',
-        'https://developer.chrome.com/docs/devtools/',
-        'https://developers.google.com/community/',
-        'https://web.dev/baseline/',
-      ];
-      for (const channel of CHANNELS) {
-        updateHostConfig({channel});
-
-        for (const url of URLs) {
-          const stub = sinon.stub(InspectorFrontendHostInstance, 'openInNewTab');
-
-          openInNewTab(url);
-
-          assert.isTrue(stub.calledOnce);
-          assert.strictEqual(new URL(stub.args[0][0]).searchParams.get('utm_campaign'), channel);
-          stub.restore();
-        }
-      }
-    });
-
-    it('correctly preserves anchors', () => {
-      updateHostConfig({channel: 'stable'});
-      const stub = sinon.stub(InspectorFrontendHostInstance, 'openInNewTab');
-
-      openInNewTab('https://developer.chrome.com/docs/devtools/settings/ignore-list/#skip-third-party');
-
-      assert.isTrue(stub.calledOnce);
-      const url = new URL(stub.args[0][0]);
-      assert.strictEqual(url.hash, '#skip-third-party');
-      assert.strictEqual(url.searchParams.get('utm_campaign'), 'stable');
-      assert.strictEqual(url.searchParams.get('utm_source'), 'devtools');
-    });
-
-    it('correctly preserves other search params', () => {
-      updateHostConfig({channel: 'stable'});
-      const stub = sinon.stub(InspectorFrontendHostInstance, 'openInNewTab');
-
-      openInNewTab('http://web.dev/route?foo=bar&baz=devtools');
-
-      assert.isTrue(stub.calledOnce);
-      const url = new URL(stub.args[0][0]);
-      assert.strictEqual(url.searchParams.get('baz'), 'devtools');
-      assert.strictEqual(url.searchParams.get('foo'), 'bar');
-      assert.strictEqual(url.searchParams.get('utm_campaign'), 'stable');
-      assert.strictEqual(url.searchParams.get('utm_source'), 'devtools');
+  describe('addReferrerToURLIfNecessary', () => {
+    it('correctly adds referrer for web.dev and developers.google.com', () => {
+      assert.strictEqual(
+          UI.UIUtils.addReferrerToURLIfNecessary('https://web.dev/route' as Platform.DevToolsPath.UrlString),
+          'https://web.dev/route?utm_source=devtools');
+      assert.strictEqual(
+          UI.UIUtils.addReferrerToURLIfNecessary(
+              'https://developers.google.com/route#anchor' as Platform.DevToolsPath.UrlString),
+          'https://developers.google.com/route?utm_source=devtools#anchor');
+      assert.strictEqual(
+          UI.UIUtils.addReferrerToURLIfNecessary(
+              'https://www.domain.com/web.dev/route' as Platform.DevToolsPath.UrlString),
+          'https://www.domain.com/web.dev/route');
+      assert.strictEqual(
+          UI.UIUtils.addReferrerToURLIfNecessary(
+              'https://foo.developers.google.com/route#anchor' as Platform.DevToolsPath.UrlString),
+          'https://foo.developers.google.com/route#anchor');
     });
   });
 
@@ -133,7 +58,7 @@ describe('UIUtils', () => {
       const el = document.createElement('div');
       const callback = sinon.spy();
       const controller = new UI.UIUtils.LongClickController(el, callback);
-      // @ts-expect-error
+      // @ts-ignore
       const setTimeout = sinon.stub(window, 'setTimeout').callsFake(cb => cb());
 
       el.dispatchEvent(new PointerEvent('pointerdown'));

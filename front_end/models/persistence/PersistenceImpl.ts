@@ -180,9 +180,9 @@ export class PersistenceImpl extends Common.ObjectWrapper.ObjectWrapper<EventTyp
     }
 
     const target = Bindings.NetworkProject.NetworkProject.targetForUISourceCode(binding.network);
-    if (target && target.type() === SDK.Target.Type.NODE) {
+    if (target && target.type() === SDK.Target.Type.Node) {
       const newContent = uiSourceCode.workingCopy();
-      void other.requestContentData().then(() => {
+      void other.requestContent().then(() => {
         const nodeJSContent = PersistenceImpl.rewrapNodeJSContent(other, other.workingCopy(), newContent);
         setWorkingCopy.call(this, () => nodeJSContent);
       });
@@ -204,7 +204,7 @@ export class PersistenceImpl extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   private onWorkingCopyCommitted(
-      event: Common.EventTarget.EventTargetEvent<Workspace.UISourceCode.WorkingCopyCommittedEvent>): void {
+      event: Common.EventTarget.EventTargetEvent<Workspace.UISourceCode.WorkingCopyCommitedEvent>): void {
     const uiSourceCode = event.data.uiSourceCode;
     const newContent = event.data.content;
     this.syncContent(uiSourceCode, newContent, Boolean(event.data.encoded));
@@ -217,7 +217,7 @@ export class PersistenceImpl extends Common.ObjectWrapper.ObjectWrapper<EventTyp
     }
     const other = binding.network === uiSourceCode ? binding.fileSystem : binding.network;
     const target = Bindings.NetworkProject.NetworkProject.targetForUISourceCode(binding.network);
-    if (target && target.type() === SDK.Target.Type.NODE) {
+    if (target && target.type() === SDK.Target.Type.Node) {
       void other.requestContent().then(currentContent => {
         const nodeJSContent = PersistenceImpl.rewrapNodeJSContent(other, currentContent.content || '', newContent);
         setContent.call(this, nodeJSContent);
@@ -267,7 +267,7 @@ export class PersistenceImpl extends Common.ObjectWrapper.ObjectWrapper<EventTyp
         breakpointLocation => breakpointLocation.breakpoint);
     await Promise.all(breakpoints.map(async breakpoint => {
       await breakpoint.remove(false /* keepInStorage */);
-      return await this.breakpointManager.setBreakpoint(
+      return this.breakpointManager.setBreakpoint(
           to, breakpoint.lineNumber(), breakpoint.columnNumber(), breakpoint.condition(), breakpoint.enabled(),
           breakpoint.isLogpoint(), BreakpointManager.BreakpointManager.BreakpointOrigin.OTHER);
     }));
@@ -379,16 +379,14 @@ export const NodeSuffix = '\n});';
 export const NodeShebang = '#!/usr/bin/env node';
 
 export enum Events {
-  /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   BindingCreated = 'BindingCreated',
   BindingRemoved = 'BindingRemoved',
-  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
-export interface EventTypes {
-  [Events.BindingCreated]: PersistenceBinding;
-  [Events.BindingRemoved]: PersistenceBinding;
-}
+export type EventTypes = {
+  [Events.BindingCreated]: PersistenceBinding,
+  [Events.BindingRemoved]: PersistenceBinding,
+};
 
 export class PersistenceBinding {
   network: Workspace.UISourceCode.UISourceCode;

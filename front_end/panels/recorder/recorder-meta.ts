@@ -33,7 +33,7 @@ const UIStrings = {
    * @description Title for toggling code action in command menu
    */
   toggleCode: 'Toggle code view',
-} as const;
+};
 
 const str_ = i18n.i18n.registerUIStrings(
     'panels/recorder/recorder-meta.ts',
@@ -86,7 +86,7 @@ UI.ViewManager.registerViewExtension({
 
 UI.ActionRegistration.registerActionExtension({
   category: UI.ActionRegistration.ActionCategory.RECORDER,
-  actionId: Actions.RecorderActions.CREATE_RECORDING,
+  actionId: Actions.RecorderActions.CreateRecording,
   title: i18nLazyString(UIStrings.createRecording),
   async loadActionDelegate() {
     const Recorder = await loadRecorderModule();
@@ -96,12 +96,12 @@ UI.ActionRegistration.registerActionExtension({
 
 UI.ActionRegistration.registerActionExtension({
   category: UI.ActionRegistration.ActionCategory.RECORDER,
-  actionId: Actions.RecorderActions.START_RECORDING,
+  actionId: Actions.RecorderActions.StartRecording,
   title: i18nLazyString(UIStrings.startStopRecording),
   contextTypes() {
     return maybeRetrieveContextTypes(
         Recorder => [Recorder.RecorderPanel.RecorderPanel],
-        Actions.RecorderActions.START_RECORDING,
+        Actions.RecorderActions.StartRecording,
     );
   },
   async loadActionDelegate() {
@@ -111,20 +111,20 @@ UI.ActionRegistration.registerActionExtension({
   bindings: [
     {
       shortcut: 'Ctrl+E',
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
     },
-    {shortcut: 'Meta+E', platform: UI.ActionRegistration.Platforms.MAC},
+    {shortcut: 'Meta+E', platform: UI.ActionRegistration.Platforms.Mac},
   ],
 });
 
 UI.ActionRegistration.registerActionExtension({
   category: UI.ActionRegistration.ActionCategory.RECORDER,
-  actionId: Actions.RecorderActions.REPLAY_RECORDING,
+  actionId: Actions.RecorderActions.ReplayRecording,
   title: i18nLazyString(UIStrings.replayRecording),
   contextTypes() {
     return maybeRetrieveContextTypes(
         Recorder => [Recorder.RecorderPanel.RecorderPanel],
-        Actions.RecorderActions.REPLAY_RECORDING,
+        Actions.RecorderActions.ReplayRecording,
     );
   },
   async loadActionDelegate() {
@@ -134,20 +134,20 @@ UI.ActionRegistration.registerActionExtension({
   bindings: [
     {
       shortcut: 'Ctrl+Enter',
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
     },
-    {shortcut: 'Meta+Enter', platform: UI.ActionRegistration.Platforms.MAC},
+    {shortcut: 'Meta+Enter', platform: UI.ActionRegistration.Platforms.Mac},
   ],
 });
 
 UI.ActionRegistration.registerActionExtension({
   category: UI.ActionRegistration.ActionCategory.RECORDER,
-  actionId: Actions.RecorderActions.TOGGLE_CODE_VIEW,
+  actionId: Actions.RecorderActions.ToggleCodeView,
   title: i18nLazyString(UIStrings.toggleCode),
   contextTypes() {
     return maybeRetrieveContextTypes(
         Recorder => [Recorder.RecorderPanel.RecorderPanel],
-        Actions.RecorderActions.TOGGLE_CODE_VIEW,
+        Actions.RecorderActions.ToggleCodeView,
     );
   },
   async loadActionDelegate() {
@@ -157,8 +157,8 @@ UI.ActionRegistration.registerActionExtension({
   bindings: [
     {
       shortcut: 'Ctrl+B',
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
     },
-    {shortcut: 'Meta+B', platform: UI.ActionRegistration.Platforms.MAC},
+    {shortcut: 'Meta+B', platform: UI.ActionRegistration.Platforms.Mac},
   ],
 });

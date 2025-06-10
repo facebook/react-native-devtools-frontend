@@ -2,19 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../../ui/legacy/legacy.js';
-
 import * as Common from '../../../core/common/common.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Input from '../../../ui/components/input/input.js';
-import {html, nothing, render} from '../../../ui/lit/lit.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import CSSPropertyDocsViewStylesRaw from './cssPropertyDocsView.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const CSSPropertyDocsViewStyles = new CSSStyleSheet();
-CSSPropertyDocsViewStyles.replaceSync(CSSPropertyDocsViewStylesRaw.cssText);
+import CSSPropertyDocsViewStyles from './cssPropertyDocsView.css.js';
 
 const UIStrings = {
   /**
@@ -25,9 +19,11 @@ const UIStrings = {
    *@description Text for a checkbox to turn off the CSS property documentation.
    */
   dontShow: 'Don\'t show',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/elements/components/CSSPropertyDocsView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
+
+const {render, html} = LitHtml;
 
 interface CSSProperty {
   name: string;
@@ -39,6 +35,7 @@ interface CSSProperty {
 }
 
 export class CSSPropertyDocsView extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-css-property-docs-view`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   readonly #cssProperty: CSSProperty;
 
@@ -68,7 +65,7 @@ export class CSSPropertyDocsView extends HTMLElement {
           <div id="description">
             ${description}
           </div>
-        ` : nothing}
+        ` : LitHtml.nothing}
         ${link ? html`
           <div class="docs-popup-section footer">
             <x-link
@@ -79,11 +76,11 @@ export class CSSPropertyDocsView extends HTMLElement {
               ${i18nString(UIStrings.learnMore)}
             </x-link>
             <label class="dont-show">
-              <input type="checkbox" @change=${this.#dontShowChanged} jslog=${VisualLogging.toggle('css-property-doc').track({ change: true })} />
+              <input type="checkbox" @change=${this.#dontShowChanged} jslog=${VisualLogging.toggle('css-property-doc').track({ change: true })}/>
               ${i18nString(UIStrings.dontShow)}
             </label>
           </div>
-        ` : nothing}
+        ` : LitHtml.nothing}
       </div>
     `, this.#shadow, {
         host: this,

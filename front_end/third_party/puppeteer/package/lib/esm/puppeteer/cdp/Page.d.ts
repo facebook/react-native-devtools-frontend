@@ -3,6 +3,7 @@
  * Copyright 2017 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
+/// <reference types="node" />
 import type { Protocol } from 'devtools-protocol';
 import type { Browser } from '../api/Browser.js';
 import type { BrowserContext } from '../api/BrowserContext.js';
@@ -12,11 +13,10 @@ import type { HTTPResponse } from '../api/HTTPResponse.js';
 import type { JSHandle } from '../api/JSHandle.js';
 import type { Credentials } from '../api/Page.js';
 import { Page, type GeolocationOptions, type MediaFeature, type Metrics, type NewDocumentScriptEvaluation, type ScreenshotOptions, type WaitTimeoutOptions } from '../api/Page.js';
-import type { Cookie, DeleteCookiesRequest, CookieParam, CookiePartitionKey } from '../common/Cookie.js';
+import type { Cookie, DeleteCookiesRequest, CookieParam } from '../common/Cookie.js';
 import { FileChooser } from '../common/FileChooser.js';
 import type { PDFOptions } from '../common/PDFOptions.js';
 import type { Viewport } from '../common/Viewport.js';
-import { CdpCDPSession } from './CdpSession.js';
 import { Coverage } from './Coverage.js';
 import type { DeviceRequestPrompt } from './DeviceRequestPrompt.js';
 import type { CdpFrame } from './Frame.js';
@@ -30,8 +30,8 @@ import { CdpWebWorker } from './WebWorker.js';
  */
 export declare class CdpPage extends Page {
     #private;
-    static _create(client: CdpCDPSession, target: CdpTarget, defaultViewport: Viewport | null): Promise<CdpPage>;
-    constructor(client: CdpCDPSession, target: CdpTarget);
+    static _create(client: CDPSession, target: CdpTarget, defaultViewport: Viewport | null): Promise<CdpPage>;
+    constructor(client: CDPSession, target: CdpTarget);
     _client(): CDPSession;
     isServiceWorkerBypassed(): boolean;
     isDragInterceptionEnabled(): boolean;
@@ -56,7 +56,6 @@ export declare class CdpPage extends Page {
     setDefaultNavigationTimeout(timeout: number): void;
     setDefaultTimeout(timeout: number): void;
     getDefaultTimeout(): number;
-    getDefaultNavigationTimeout(): number;
     queryObjects<Prototype>(prototypeHandle: JSHandle<Prototype>): Promise<JSHandle<Prototype[]>>;
     cookies(...urls: string[]): Promise<Cookie[]>;
     deleteCookie(...cookies: DeleteCookiesRequest[]): Promise<void>;
@@ -92,7 +91,7 @@ export declare class CdpPage extends Page {
     setCacheEnabled(enabled?: boolean): Promise<void>;
     _screenshot(options: Readonly<ScreenshotOptions>): Promise<string>;
     createPDFStream(options?: PDFOptions): Promise<ReadableStream<Uint8Array>>;
-    pdf(options?: PDFOptions): Promise<Uint8Array>;
+    pdf(options?: PDFOptions): Promise<Buffer>;
     close(options?: {
         runBeforeUnload?: boolean;
     }): Promise<void>;
@@ -117,11 +116,10 @@ export declare class CdpPage extends Page {
      *   page.click('#connect-bluetooth'),
      * ]);
      * await devicePrompt.select(
-     *   await devicePrompt.waitForDevice(({name}) => name.includes('My Device')),
+     *   await devicePrompt.waitForDevice(({name}) => name.includes('My Device'))
      * );
      * ```
      */
     waitForDevicePrompt(options?: WaitTimeoutOptions): Promise<DeviceRequestPrompt>;
 }
-export declare function convertCookiesPartitionKeyFromPuppeteerToCdp(partitionKey: CookiePartitionKey | string | undefined): Protocol.Network.CookiePartitionKey | undefined;
 //# sourceMappingURL=Page.d.ts.map

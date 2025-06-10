@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import {assert} from 'chai';
-import type {ElementHandle, Page} from 'puppeteer-core';
+import {type ElementHandle, type Page} from 'puppeteer-core';
 
 import {
   getBrowserAndPages,
@@ -13,18 +13,19 @@ import {
   waitFor,
   waitForAria,
 } from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {navigateToNetworkTab} from '../helpers/network-helpers.js';
 
 interface Navigator {
   userAgentData?: {
-    brands: Array<{
+    brands: {
       brand: string,
       version: string,
-    }>,
-    fullVersionList: Array<{
+    }[],
+    fullVersionList: {
       brand: string,
       version: string,
-    }>,
+    }[],
     mobile: string,
     getHighEntropyValues: (metaDataKeys: string[]) => Promise<string[]>,
   };
@@ -127,39 +128,39 @@ describe('The Network Tab', function() {
     const noMetadataVersionUAValue = 'Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko';
 
     const fixedVersionUserAgentMetadataExpected = {
-      brands: [
-        {brand: 'Not A;Brand', version: '99'},
-        {brand: 'Chromium', version: majorVersion},
-        {brand: 'Google Chrome', version: majorVersion},
+      'brands': [
+        {'brand': 'Not A;Brand', 'version': '99'},
+        {'brand': 'Chromium', 'version': majorVersion},
+        {'brand': 'Google Chrome', 'version': majorVersion},
       ],
-      uaFullVersion: `${majorVersion}.0.0.0`,
-      platform: 'Android',
-      platformVersion: '4.0.2',
-      architecture: '',
-      model: 'Galaxy Nexus',
-      mobile: true,
+      'uaFullVersion': `${majorVersion}.0.0.0`,
+      'platform': 'Android',
+      'platformVersion': '4.0.2',
+      'architecture': '',
+      'model': 'Galaxy Nexus',
+      'mobile': true,
     };
     const dynamicVersionUserAgentMetadataExpected = {
-      brands: [
-        {brand: 'Not A;Brand', version: '99'},
-        {brand: 'Chromium', version: majorVersion},
-        {brand: 'Google Chrome', version: majorVersion},
+      'brands': [
+        {'brand': 'Not A;Brand', 'version': '99'},
+        {'brand': 'Chromium', 'version': majorVersion},
+        {'brand': 'Google Chrome', 'version': majorVersion},
       ],
-      uaFullVersion: `${majorVersion}.0.0.0`,
-      platform: 'Windows',
-      platformVersion: '10.0',
-      architecture: 'x86',
-      model: '',
-      mobile: false,
+      'uaFullVersion': `${majorVersion}.0.0.0`,
+      'platform': 'Windows',
+      'platformVersion': '10.0',
+      'architecture': 'x86',
+      'model': '',
+      'mobile': false,
     };
     const noMetadataVersionUserAgentMetadataExpected = {
-      brands: [],
-      mobile: false,
-      uaFullVersion: '',
-      platform: '',
-      platformVersion: '',
-      architecture: '',
-      model: '',
+      'brands': [],
+      'mobile': false,
+      'uaFullVersion': '',
+      'platform': '',
+      'platformVersion': '',
+      'architecture': '',
+      'model': '',
     };
     const section = await openNetworkConditions('.network-config-ua');
     const autoCheckbox = await (await waitForAria('Use browser default', section)).toElement('input');
@@ -281,17 +282,17 @@ describe('The Network Tab', function() {
     await pressKey('Enter');
     const userAgentMetadata = await getUserAgentMetadataFromTarget(target);
     assert.deepEqual(userAgentMetadata, {
-      brands: [
-        {brand: 'Test Brand 1', version: '99'},
-        {brand: 'Test Brand 2', version: '100'},
-        {brand: 'Test Brand 3', version: '101'},
+      'brands': [
+        {'brand': 'Test Brand 1', 'version': '99'},
+        {'brand': 'Test Brand 2', 'version': '100'},
+        {'brand': 'Test Brand 3', 'version': '101'},
       ],
-      uaFullVersion: '99.99',
-      platform: 'Test Platform',
-      platformVersion: '10',
-      architecture: 'Test Architecture',
-      model: 'Test Model',
-      mobile: true,
+      'uaFullVersion': '99.99',
+      'platform': 'Test Platform',
+      'platformVersion': '10',
+      'architecture': 'Test Architecture',
+      'model': 'Test Model',
+      'mobile': true,
     });
 
     // Delete a brand
@@ -314,16 +315,16 @@ describe('The Network Tab', function() {
     await pressKey('Enter');
     const updatedUserAgentMetadata = await getUserAgentMetadataFromTarget(target);
     assert.deepEqual(updatedUserAgentMetadata, {
-      brands: [
-        {brand: 'Test Brand 2', version: '100'},
-        {brand: 'Test Brand 3', version: '101'},
+      'brands': [
+        {'brand': 'Test Brand 2', 'version': '100'},
+        {'brand': 'Test Brand 3', 'version': '101'},
       ],
-      uaFullVersion: '99.99',
-      platform: 'Test Platform',
-      platformVersion: '1011',
-      architecture: 'Test Architecture',
-      model: 'Test Model',
-      mobile: true,
+      'uaFullVersion': '99.99',
+      'platform': 'Test Platform',
+      'platformVersion': '1011',
+      'architecture': 'Test Architecture',
+      'model': 'Test Model',
+      'mobile': true,
     });
   });
 });

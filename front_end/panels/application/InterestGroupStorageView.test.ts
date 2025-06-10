@@ -6,6 +6,7 @@ import * as Protocol from '../../generated/protocol.js';
 import {raf} from '../../testing/DOMHelpers.js';
 import {expectCall} from '../../testing/ExpectStubCall.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
+import * as DataGrid from '../../ui/components/data_grid/data_grid.js';
 
 import * as Resources from './application.js';
 
@@ -30,7 +31,7 @@ class InterestGroupDetailsGetter {
   async getInterestGroupDetails(owner: string, name: string): Promise<object|null> {
     return {
       ownerOrigin: owner,
-      name,
+      name: name,
       expirationTime: 2,
       joiningOrigin: 'https://joiner.com',
       trustedBiddingSignalsKeys: [],
@@ -67,11 +68,7 @@ describeWithMockConnection('InterestGroupStorageView', () => {
   it('initially has placeholder sidebar', () => {
     const view = new View.InterestGroupStorageView(new InterestGroupDetailsGetter());
     assert.notDeepEqual(view.sidebarWidget()?.constructor.name, 'SearchableView');
-
-    const placeholder = view.sidebarWidget()?.contentElement;
-    assert.deepEqual(
-        placeholder?.textContent,
-        'No interest group selectedSelect any interest group event to display the group\'s current state');
+    assert.isTrue(view.sidebarWidget()?.contentElement.firstChild?.textContent?.includes('Click'));
   });
 
   // Disabled due to flakiness
@@ -87,9 +84,16 @@ describeWithMockConnection('InterestGroupStorageView', () => {
           view.addEvent(event);
         });
         const grid = view.getInterestGroupGridForTesting();
+        const cells = [
+          {columnId: 'event-time', value: 0},
+          {columnId: 'event-type', value: Protocol.Storage.InterestGroupAccessType.Join},
+          {columnId: 'event-group-owner', value: 'https://owner1.com'},
+          {columnId: 'event-group-name', value: 'cars'},
+        ];
         const spy = sinon.spy(view, 'setSidebarWidget');
         assert.isTrue(spy.notCalled);
-        grid.dispatchEvent(new CustomEvent('select', {detail: events[0]}));
+        grid.dispatchEvent(
+            new DataGrid.DataGridEvents.BodyCellFocusedEvent({columnId: 'event-time', value: '0'}, {cells}));
         await raf();
         assert.isTrue(spy.calledOnce);
         assert.deepEqual(view.sidebarWidget()?.constructor.name, 'SearchableView');
@@ -109,10 +113,17 @@ describeWithMockConnection('InterestGroupStorageView', () => {
         view.addEvent(event);
       });
       const grid = view.getInterestGroupGridForTesting();
+      const cells = [
+        {columnId: 'event-time', value: 0},
+        {columnId: 'event-type', value: eventType},
+        {columnId: 'event-group-owner', value: 'https://owner1.com'},
+        {columnId: 'event-group-name', value: 'cars'},
+      ];
       const sideBarUpdateDone = expectCall(sinon.stub(view, 'sidebarUpdatedForTesting'));
       const spy = sinon.spy(view, 'setSidebarWidget');
       assert.isTrue(spy.notCalled);
-      grid.dispatchEvent(new CustomEvent('select', {detail: {...events[0], type: eventType}}));
+      grid.dispatchEvent(
+          new DataGrid.DataGridEvents.BodyCellFocusedEvent({columnId: 'event-time', value: '0'}, {cells}));
       await sideBarUpdateDone;
       assert.isTrue(spy.calledOnce);
       assert.notDeepEqual(view.sidebarWidget()?.constructor.name, 'SearchableView');
@@ -133,9 +144,16 @@ describeWithMockConnection('InterestGroupStorageView', () => {
           view.addEvent(event);
         });
         const grid = view.getInterestGroupGridForTesting();
+        const cells = [
+          {columnId: 'event-time', value: 0},
+          {columnId: 'event-type', value: Protocol.Storage.InterestGroupAccessType.Join},
+          {columnId: 'event-group-owner', value: 'https://owner1.com'},
+          {columnId: 'event-group-name', value: 'cars'},
+        ];
         const spy = sinon.spy(view, 'setSidebarWidget');
         assert.isTrue(spy.notCalled);
-        grid.dispatchEvent(new CustomEvent('select', {detail: events[0]}));
+        grid.dispatchEvent(
+            new DataGrid.DataGridEvents.BodyCellFocusedEvent({columnId: 'event-time', value: '0'}, {cells}));
         await raf();
         assert.isTrue(spy.calledOnce);
         assert.notDeepEqual(view.sidebarWidget()?.constructor.name, 'SearchableView');
@@ -153,9 +171,15 @@ describeWithMockConnection('InterestGroupStorageView', () => {
       view.addEvent(event);
     });
     const grid = view.getInterestGroupGridForTesting();
+    const cells = [
+      {columnId: 'event-time', value: 0},
+      {columnId: 'event-type', value: Protocol.Storage.InterestGroupAccessType.Join},
+      {columnId: 'event-group-owner', value: 'https://owner1.com'},
+      {columnId: 'event-group-name', value: 'cars'},
+    ];
     const spy = sinon.spy(view, 'setSidebarWidget');
     assert.isTrue(spy.notCalled);
-    grid.dispatchEvent(new CustomEvent('select', {detail: events[0]}));
+    grid.dispatchEvent(new DataGrid.DataGridEvents.BodyCellFocusedEvent({columnId: 'event-time', value: '0'}, {cells}));
     await raf();
     assert.isTrue(spy.calledOnce);
     assert.deepEqual(view.sidebarWidget()?.constructor.name, 'SearchableView');

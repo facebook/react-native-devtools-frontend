@@ -2,45 +2,41 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {DevToolsPage} from '../../e2e_non_hosted/shared/frontend-helper.js';
 import {
+  $,
   click,
   clickElement,
+  getBrowserAndPages,
+  hover,
   scrollElementIntoView,
   waitFor,
+  waitForAria,
   waitForFunction,
 } from '../../shared/helper.js';
-import {getBrowserAndPagesWrappers} from '../../shared/non_hosted_wrappers.js';
 
-export async function openPanelViaMoreTools(panelTitle: string, frontend?: DevToolsPage) {
-  frontend = frontend || getBrowserAndPagesWrappers().devToolsPage;
+export const openPanelViaMoreTools = async (panelTitle: string) => {
+  const {frontend} = getBrowserAndPages();
+
   await frontend.bringToFront();
 
   // Head to the triple dot menu.
-  await frontend.click('aria/Customize and control DevTools');
+  await click('aria/Customize and control DevTools');
 
-  await frontend.waitForFunction(async () => {
+  await waitForFunction(async () => {
     // Open the “More Tools” option.
-    await frontend.hover('aria/More tools[role="menuitem"]');
-    return await frontend.$(`${panelTitle}[role="menuitem"]`, undefined, 'aria');
+    await hover('aria/More tools[role="menuitem"]');
+    return $(`${panelTitle}[role="menuitem"]`, undefined, 'aria');
   });
 
   // Click the desired menu item
-  await frontend.click(`aria/${panelTitle}[role="menuitem"]`);
-
-  // Wait for the triple dot menu to be collapsed.
-  const button = await frontend.waitForAria('Customize and control DevTools');
-  await frontend.waitForFunction(async () => {
-    const expanded = await button.evaluate(el => el.getAttribute('aria-expanded'));
-    return expanded === null;
-  });
+  await click(`aria/${panelTitle}[role="menuitem"]`);
 
   // Wait for the corresponding panel to appear.
-  await frontend.waitForAria(`${panelTitle} panel[role="tabpanel"]`);
-}
+  await waitForAria(`${panelTitle} panel[role="tabpanel"]`);
+};
 
 export const openSettingsTab = async (tabTitle: string) => {
-  const gearIconSelector = 'devtools-button[aria-label="Settings"]';
+  const gearIconSelector = '.toolbar-button[aria-label="Settings"]';
   const settingsMenuSelector = `.tabbed-pane-header-tab[aria-label="${tabTitle}"]`;
   const panelSelector = `.view-container[aria-label="${tabTitle} panel"]`;
 
@@ -78,9 +74,9 @@ export const togglePreferenceInSettingsTab = async (label: string, shouldBeCheck
 };
 
 export const setIgnoreListPattern = async (pattern: string) => {
-  await openSettingsTab('Ignore list');
-  await click('[aria-label="Add a regular expression rule for the script\'s URL"]');
-  const textBox = await waitFor('[aria-label="Add a regular expression rule for the script\'s URL"]');
+  await openSettingsTab('Ignore List');
+  await click('[aria-label="Add filename pattern"]');
+  const textBox = await waitFor('[aria-label="Add Pattern"]');
   await clickElement(textBox);
   await textBox.type(pattern);
   await textBox.type('\n');
@@ -89,11 +85,11 @@ export const setIgnoreListPattern = async (pattern: string) => {
 };
 
 export const toggleIgnoreListing = async (enable: boolean) => {
-  await openSettingsTab('Ignore list');
-  const enabledPattern = '.ignore-list-settings:not(.ignore-listing-disabled)';
-  const disabledPattern = '.ignore-list-settings.ignore-listing-disabled';
+  await openSettingsTab('Ignore List');
+  const enabledPattern = '.ignore-list-options:not(.ignore-listing-disabled)';
+  const disabledPattern = '.ignore-list-options.ignore-listing-disabled';
   await waitFor(enable ? disabledPattern : enabledPattern);
-  await click('[title="Enable ignore listing"]');
+  await click('[title="Enable Ignore Listing"]');
   await waitFor(enable ? enabledPattern : disabledPattern);
   await closeSettings();
 };

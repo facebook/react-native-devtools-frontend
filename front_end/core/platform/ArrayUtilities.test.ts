@@ -27,11 +27,12 @@ describe('ArrayUtilities', () => {
         const actualFirstOnlyTrue = [...testCase.input];
 
         Platform.ArrayUtilities.removeElement(actualFirstOnlyTrue, 2, true);
-        assert.deepEqual(actualFirstOnlyTrue, testCase.expectedFirstOnlyTrue, 'Removing firstOnly (true) failed');
+        assert.deepStrictEqual(actualFirstOnlyTrue, testCase.expectedFirstOnlyTrue, 'Removing firstOnly (true) failed');
 
         const actualFirstOnlyFalse = [...testCase.input];
         Platform.ArrayUtilities.removeElement(actualFirstOnlyFalse, 2, false);
-        assert.deepEqual(actualFirstOnlyFalse, testCase.expectedFirstOnlyFalse, 'Removing firstOnly (false) failed');
+        assert.deepStrictEqual(
+            actualFirstOnlyFalse, testCase.expectedFirstOnlyFalse, 'Removing firstOnly (false) failed');
       }
     });
   });
@@ -53,20 +54,20 @@ describe('ArrayUtilities', () => {
             for (let count = 1, k = right - first + 1; count <= k; ++count) {
               const actual = fixture.slice(0);
               Platform.ArrayUtilities.sortRange(actual, comparator, left, right, first, first + count - 1);
-              assert.deepEqual(
+              assert.deepStrictEqual(
                   fixture.slice(0, left), actual.slice(0, left), 'left ' + left + ' ' + right + ' ' + count);
-              assert.deepEqual(
+              assert.deepStrictEqual(
                   fixture.slice(right + 1), actual.slice(right + 1), 'right ' + left + ' ' + right + ' ' + count);
 
               const middle = fixture.slice(left, right + 1);
               middle.sort(comparator);
-              assert.deepEqual(
+              assert.deepStrictEqual(
                   middle.slice(first - left, first - left + count), actual.slice(first, first + count),
                   'sorted ' + left + ' ' + right + ' ' + first + ' ' + count);
 
               const actualRest = actual.slice(first + count, right + 1);
               actualRest.sort(comparator);
-              assert.deepEqual(
+              assert.deepStrictEqual(
                   middle.slice(first - left + count), actualRest,
                   'unsorted ' + left + ' ' + right + ' ' + first + ' ' + count);
             }
@@ -136,7 +137,7 @@ describe('ArrayUtilities', () => {
         }
 
         const shallowCopy = [...actual];
-        assert.deepEqual(actual.sort(), shallowCopy, 'Result array is ordered');
+        assert.deepStrictEqual(actual.sort(), shallowCopy, 'Result array is ordered');
       }
 
       const fixtures = new Map([

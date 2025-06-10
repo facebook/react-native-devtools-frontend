@@ -2,12 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Core from '../core/core.js';
-import type * as Lantern from '../types/types.js';
-
-import type {Node} from './BaseNode.js';
+import {type Node} from './BaseNode.js';
 import {CPUNode} from './CPUNode.js';
 import {NetworkNode} from './NetworkNode.js';
+import * as Core from '../core/core.js';
+import type * as Lantern from '../types/types.js';
 
 // COMPAT: m71+ We added RunTask to `disabled-by-default-lighthouse`
 const SCHEDULABLE_TASK_TITLE_LH = 'RunTask';
@@ -19,9 +18,9 @@ const SCHEDULABLE_TASK_TITLE_ALT2 = 'ThreadControllerImpl::DoWork';
 const SCHEDULABLE_TASK_TITLE_ALT3 = 'TaskQueueManager::ProcessTaskFromWorkQueue';
 
 interface NetworkNodeOutput {
-  nodes: NetworkNode[];
+  nodes: Array<NetworkNode>;
   idToNodeMap: Map<string, NetworkNode>;
-  urlToNodeMap: Map<string, NetworkNode[]>;
+  urlToNodeMap: Map<string, Array<NetworkNode>>;
   frameIdToNodeMap: Map<string, NetworkNode|null>;
 }
 
@@ -64,9 +63,9 @@ class PageDependencyGraph {
   }
 
   static getNetworkNodeOutput(networkRequests: Lantern.NetworkRequest[]): NetworkNodeOutput {
-    const nodes: NetworkNode[] = [];
+    const nodes: Array<NetworkNode> = [];
     const idToNodeMap = new Map<string, NetworkNode>();
-    const urlToNodeMap = new Map<string, NetworkNode[]>();
+    const urlToNodeMap = new Map<string, Array<NetworkNode>>();
     const frameIdToNodeMap = new Map<string, NetworkNode|null>();
 
     networkRequests.forEach(request => {
@@ -388,7 +387,7 @@ class PageDependencyGraph {
       // here replaces O(M + N) edges with (M * N) edges, which is fine if either  M or N is at
       // most 1.
       if (node.getNumberOfDependencies() === 1 || node.getNumberOfDependents() <= 1) {
-        PageDependencyGraph.pruneNode(node);
+        PageDependencyGraph._pruneNode(node);
       }
     }
   }
@@ -397,7 +396,7 @@ class PageDependencyGraph {
    * Removes the given node from the graph, but retains all paths between its dependencies and
    * dependents.
    */
-  static pruneNode(node: Node): void {
+  static _pruneNode(node: Node): void {
     const dependencies = node.getDependencies();
     const dependents = node.getDependents();
     for (const dependency of dependencies) {
@@ -422,7 +421,7 @@ class PageDependencyGraph {
    *
    * When using for a unit test, make sure to do `.only` so you are getting what you expect.
    */
-  static debugNormalizeRequests(lanternRequests: Lantern.NetworkRequest[]): void {
+  static _debugNormalizeRequests(lanternRequests: Lantern.NetworkRequest[]): void {
     for (const request of lanternRequests) {
       request.rendererStartTime = Math.round(request.rendererStartTime * 1000) / 1000;
       request.networkRequestTime = Math.round(request.networkRequestTime * 1000) / 1000;
@@ -505,7 +504,7 @@ class PageDependencyGraph {
                                                           serverResponseTime: r.serverResponseTime,
                                                         }))
                                                    .filter(r => !r.fromWorker);
-
+    // eslint-disable-next-line no-unused-vars
     const debug = requests;
     // Set breakpoint here.
     // Copy `debug` and compare with https://www.diffchecker.com/text-compare/
@@ -517,7 +516,7 @@ class PageDependencyGraph {
       mainThreadEvents: Lantern.TraceEvent[], networkRequests: Lantern.NetworkRequest[],
       url: Lantern.Simulation.URL): Node {
     // This is for debugging trace/devtoolslog network records.
-    // const debug = PageDependencyGraph.debugNormalizeRequests(networkRequests);
+    // const debug = PageDependencyGraph._debugNormalizeRequests(networkRequests);
     const networkNodeOutput = PageDependencyGraph.getNetworkNodeOutput(networkRequests);
     const cpuNodes = PageDependencyGraph.getCPUNodes(mainThreadEvents);
     const {requestedUrl, mainDocumentUrl} = url;
@@ -556,7 +555,6 @@ class PageDependencyGraph {
     return rootNode;
   }
 
-  // Unused, but useful for debugging.
   static printGraph(rootNode: Node, widthInCharacters = 100): void {
     function padRight(str: string, target: number, padChar = ' '): string {
       return str + padChar.repeat(Math.max(target - str.length, 0));

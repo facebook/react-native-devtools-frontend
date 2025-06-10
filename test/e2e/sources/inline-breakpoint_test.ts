@@ -9,6 +9,7 @@ import {
   waitFor,
   waitForFunction,
 } from '../../shared/helper.js';
+import {beforeEach, describe, it} from '../../shared/mocha-extensions.js';
 import {
   addBreakpointForLine,
   disableInlineBreakpointForLine,
@@ -32,7 +33,7 @@ describe('The Sources Tab', () => {
    */
   async function getLineDecorationDescriptor(line: number): Promise<string> {
     const {frontend} = getBrowserAndPages();
-    return await frontend.$eval(
+    return frontend.$eval(
         `pierce/.cm-content > :nth-child(${line})`,
         contentEl => [...contentEl.childNodes]
                          .map(lineSegment => {

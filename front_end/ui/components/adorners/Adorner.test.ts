@@ -12,7 +12,7 @@ const ADORNER_TAG_NAME = 'DEVTOOLS-ADORNER';
 describe('Adorner', () => {
   function assertIsAdorner(element: HTMLElement) {
     assert.strictEqual(element.tagName, ADORNER_TAG_NAME, `element tag name is not ${ADORNER_TAG_NAME}`);
-    assert.instanceOf(element, Adorners.Adorner.Adorner, 'element is not an instance of Adorner');
+    assert.isTrue(element instanceof Adorners.Adorner.Adorner, 'element is not an instance of Adorner');
     assert.strictEqual(
         Object.getPrototypeOf(element), Adorners.Adorner.Adorner.prototype,
         'element is not on Adorner\'s prototype chain');
@@ -62,7 +62,7 @@ describe('Adorner', () => {
     assert.strictEqual(
         adorner.getAttribute('aria-pressed'), 'true', 'toggle adorner didn\'t have correct active aria-pressed value');
 
-    adorner.dispatchEvent(new KeyboardEvent('keydown', {code: 'Enter'}));
+    adorner.dispatchEvent(new KeyboardEvent('keydown', {'code': 'Enter'}));
     assert.strictEqual(clickCounter, 2, 'interactive adorner was not triggered by Enter key');
     assert.strictEqual(
         adorner.getAttribute('aria-label'), ariaLabelDefault,
@@ -71,7 +71,7 @@ describe('Adorner', () => {
         adorner.getAttribute('aria-pressed'), 'false',
         'toggle adorner didn\'t have correct inactive aria-pressed value');
 
-    adorner.dispatchEvent(new KeyboardEvent('keydown', {code: 'Space'}));
+    adorner.dispatchEvent(new KeyboardEvent('keydown', {'code': 'Space'}));
     assert.strictEqual(clickCounter, 3, 'interactive adorner was not triggered by Space key');
     assert.strictEqual(
         adorner.getAttribute('aria-label'), ariaLabelActive,
@@ -126,8 +126,8 @@ describe('Adorner', () => {
       name: 'foo',
     };
 
-    const slottedChildren = adorner.children;
-    assert.lengthOf(slottedChildren, 1, 'adorner light dom should only have one child with [slot="content"]');
+    const slottedChildren = adorner.querySelectorAll('[slot="content"]');
+    assert.strictEqual(slottedChildren.length, 1, 'adorner light dom should only have one child with [slot="content"]');
     assert.strictEqual(
         slottedChildren[0].textContent, 'content 3', 'adorner content slot should have the most recent content');
   });

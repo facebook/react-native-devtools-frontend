@@ -2,12 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Host from '../../core/host/host.js';
-import * as Root from '../../core/root/root.js';
-
-import {DebugLoggingFormat} from './Debugging.js';
-import {knownContextValues} from './KnownContextValues.js';
-
 const LOGGING_ATTRIBUTE = 'jslog';
 
 interface TrackConfig {
@@ -36,7 +30,6 @@ export function getLoggingConfig(element: Element): LoggingConfig {
 }
 
 export enum VisualElements {
-  /* eslint-disable @typescript-eslint/naming-convention -- Indexed access. */
   TreeItem = 1,
   Close = 2,
   Counter = 3,
@@ -112,28 +105,12 @@ export enum VisualElements {
   ResponsivePresets = 73,
   DeviceModeRuler = 74,
   MediaInspectorView = 75,
-  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
 export type VisualElementName = keyof typeof VisualElements;
 
 function resolveVe(ve: string): number {
   return VisualElements[ve as VisualElementName] ?? 0;
-}
-
-const reportedUnknownVeContext = new Set<string>();
-
-function checkContextValue(context: string|number|undefined): void {
-  if (typeof context !== 'string' || !context.length || knownContextValues.has(context) ||
-      reportedUnknownVeContext.has(context)) {
-    return;
-  }
-  if (Root.Runtime.Runtime.queryParam('debugFrontend') || Host.InspectorFrontendHost.isUnderTest() ||
-      localStorage.getItem('veDebugLoggingEnabled') === DebugLoggingFormat.TEST) {
-    const stack = (new Error().stack || '').split('\n').slice(3).join('\n');
-    console.error(`Unknown VE context: ${context}${stack}`);
-  }
-  reportedUnknownVeContext.add(context);
 }
 
 export function parseJsLog(jslog: string): LoggingConfig {
@@ -146,8 +123,7 @@ export function parseJsLog(jslog: string): LoggingConfig {
   }
   const config: LoggingConfig = {ve};
   const context = getComponent('context:');
-  if (context?.trim().length) {
-    checkContextValue(context);
+  if (context) {
     config.context = context;
   }
 
@@ -207,16 +183,14 @@ export interface ConfigStringBuilder {
 
 export function makeConfigStringBuilder(veName: VisualElementName, context?: string): ConfigStringBuilder {
   const components: string[] = [veName];
-  if (typeof context === 'string' && context.trim().length) {
+  if (typeof context !== 'undefined') {
     components.push(`context: ${context}`);
-    checkContextValue(context);
   }
   return {
     context: function(value: string|number|undefined): ConfigStringBuilder {
-      if (typeof value === 'number' || typeof value === 'string' && value.length) {
+      if (typeof value !== 'undefined') {
         components.push(`context: ${value}`);
       }
-      checkContextValue(context);
       return this;
     },
     parent: function(value: string): ConfigStringBuilder {

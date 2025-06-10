@@ -2,11 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {Capability, type Target} from './Target.js';
+import {SDKModel} from './SDKModel.js';
 import * as Common from '../common/common.js';
 import type * as Platform from '../platform/platform.js';
-
-import {SDKModel} from './SDKModel.js';
-import {Capability, type Target} from './Target.js';
 
 export class StorageKeyManager extends SDKModel<EventTypes> {
   #mainStorageKeyInternal: string;
@@ -24,13 +23,13 @@ export class StorageKeyManager extends SDKModel<EventTypes> {
 
     for (const storageKey of oldStorageKeys) {
       if (!this.#storageKeysInternal.has(storageKey)) {
-        this.dispatchEventToListeners(Events.STORAGE_KEY_REMOVED, storageKey);
+        this.dispatchEventToListeners(Events.StorageKeyRemoved, storageKey);
       }
     }
 
     for (const storageKey of this.#storageKeysInternal) {
       if (!oldStorageKeys.has(storageKey)) {
-        this.dispatchEventToListeners(Events.STORAGE_KEY_ADDED, storageKey);
+        this.dispatchEventToListeners(Events.StorageKeyAdded, storageKey);
       }
     }
   }
@@ -45,7 +44,7 @@ export class StorageKeyManager extends SDKModel<EventTypes> {
 
   setMainStorageKey(storageKey: string): void {
     this.#mainStorageKeyInternal = storageKey;
-    this.dispatchEventToListeners(Events.MAIN_STORAGE_KEY_CHANGED, {
+    this.dispatchEventToListeners(Events.MainStorageKeyChanged, {
       mainStorageKey: this.#mainStorageKeyInternal,
     });
   }
@@ -79,20 +78,20 @@ export interface StorageKey {
 }
 
 export const enum Events {
-  STORAGE_KEY_ADDED = 'StorageKeyAdded',
-  STORAGE_KEY_REMOVED = 'StorageKeyRemoved',
-  MAIN_STORAGE_KEY_CHANGED = 'MainStorageKeyChanged',
+  StorageKeyAdded = 'StorageKeyAdded',
+  StorageKeyRemoved = 'StorageKeyRemoved',
+  MainStorageKeyChanged = 'MainStorageKeyChanged',
 }
 
 export interface MainStorageKeyChangedEvent {
   mainStorageKey: string;
 }
 
-export interface EventTypes {
-  [Events.STORAGE_KEY_ADDED]: string;
-  [Events.STORAGE_KEY_REMOVED]: string;
-  [Events.MAIN_STORAGE_KEY_CHANGED]: MainStorageKeyChangedEvent;
-}
+export type EventTypes = {
+  [Events.StorageKeyAdded]: string,
+  [Events.StorageKeyRemoved]: string,
+  [Events.MainStorageKeyChanged]: MainStorageKeyChangedEvent,
+};
 
 // TODO(jarhar): this is the one of the two usages of Capability.None. Do something about it!
-SDKModel.register(StorageKeyManager, {capabilities: Capability.NONE, autostart: false});
+SDKModel.register(StorageKeyManager, {capabilities: Capability.None, autostart: false});

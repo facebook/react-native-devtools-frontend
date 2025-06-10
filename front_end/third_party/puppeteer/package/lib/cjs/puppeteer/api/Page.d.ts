@@ -3,6 +3,7 @@
  * Copyright 2017 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
+/// <reference types="node" />
 import type { Protocol } from 'devtools-protocol';
 import { type Observable } from '../../third_party/rxjs/rxjs.js';
 import type { HTTPRequest } from '../api/HTTPRequest.js';
@@ -783,20 +784,16 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      */
     abstract getDefaultTimeout(): number;
     /**
-     * Maximum navigation time in milliseconds.
-     */
-    abstract getDefaultNavigationTimeout(): number;
-    /**
      * Creates a locator for the provided selector. See {@link Locator} for
      * details and supported actions.
      *
      * @param selector -
      * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
+     * to query page for.
      * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
      * can be passed as-is and a
      * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
+     * allows quering by
      * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
      * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
      * and
@@ -813,11 +810,11 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *
      * @param selector -
      * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
+     * to query page for.
      * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
      * can be passed as-is and a
      * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
+     * allows quering by
      * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
      * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
      * and
@@ -840,11 +837,11 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *
      * @param selector -
      * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
+     * to query page for.
      * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
      * can be passed as-is and a
      * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
+     * allows quering by
      * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
      * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
      * and
@@ -865,11 +862,11 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *
      * @param selector -
      * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
+     * to query page for.
      * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
      * can be passed as-is and a
      * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
+     * allows quering by
      * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
      * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
      * and
@@ -910,7 +907,7 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      * const aHandle = await page.evaluateHandle(() => document.body);
      * const resultHandle = await page.evaluateHandle(
      *   body => body.innerHTML,
-     *   aHandle,
+     *   aHandle
      * );
      * console.log(await resultHandle.jsonValue());
      * await resultHandle.dispose();
@@ -924,7 +921,7 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *
      * ```ts
      * const button = await page.evaluateHandle(() =>
-     *   document.querySelector('button'),
+     *   document.querySelector('button')
      * );
      * // can call `click` because `button` is an `ElementHandle`
      * await button.click();
@@ -997,7 +994,7 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      * // as `value` is not on `Element`
      * const searchValue = await page.$eval(
      *   '#search',
-     *   (el: HTMLInputElement) => el.value,
+     *   (el: HTMLInputElement) => el.value
      * );
      * ```
      *
@@ -1012,17 +1009,17 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      * // or if you want to be more explicit, provide it as the generic type.
      * const searchValue = await page.$eval<string>(
      *   '#search',
-     *   (el: HTMLInputElement) => el.value,
+     *   (el: HTMLInputElement) => el.value
      * );
      * ```
      *
      * @param selector -
      * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
+     * to query page for.
      * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
      * can be passed as-is and a
      * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
+     * allows quering by
      * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
      * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
      * and
@@ -1082,17 +1079,17 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *
      * ```ts
      * const allInputValues = await page.$$eval('input', elements =>
-     *   elements.map(e => e.textContent),
+     *   elements.map(e => e.textContent)
      * );
      * ```
      *
      * @param selector -
      * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
+     * to query page for.
      * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
      * can be passed as-is and a
      * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
+     * allows quering by
      * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
      * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
      * and
@@ -1111,30 +1108,17 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      */
     $$eval<Selector extends string, Params extends unknown[], Func extends EvaluateFuncWith<Array<NodeFor<Selector>>, Params> = EvaluateFuncWith<Array<NodeFor<Selector>>, Params>>(selector: Selector, pageFunction: Func | string, ...args: Params): Promise<Awaited<ReturnType<Func>>>;
     /**
-     * If no URLs are specified, this method returns cookies for the
-     * current page URL. If URLs are specified, only cookies for those
-     * URLs are returned.
-     *
-     * @deprecated Page-level cookie API is deprecated. Use
-     * {@link Browser.cookies} or {@link BrowserContext.cookies} instead.
+     * If no URLs are specified, this method returns cookies for the current page
+     * URL. If URLs are specified, only cookies for those URLs are returned.
      */
     abstract cookies(...urls: string[]): Promise<Cookie[]>;
-    /**
-     * @deprecated Page-level cookie API is deprecated. Use
-     * {@link Browser.deleteCookie} or {@link BrowserContext.deleteCookie}
-     * instead.
-     */
     abstract deleteCookie(...cookies: DeleteCookiesRequest[]): Promise<void>;
     /**
      * @example
      *
-     *```ts
+     * ```ts
      * await page.setCookie(cookieObject1, cookieObject2);
-     *```
-     *
-     * @deprecated Page-level cookie API is deprecated. Use
-     * {@link Browser.setCookie} or {@link BrowserContext.setCookie}
-     * instead.
+     * ```
      */
     abstract setCookie(...cookies: CookieParam[]): Promise<void>;
     /**
@@ -1187,7 +1171,7 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *   const page = await browser.newPage();
      *   page.on('console', msg => console.log(msg.text()));
      *   await page.exposeFunction('md5', text =>
-     *     crypto.createHash('md5').update(text).digest('hex'),
+     *     crypto.createHash('md5').update(text).digest('hex')
      *   );
      *   await page.evaluate(async () => {
      *     // use window.md5 to compute hashes
@@ -1204,7 +1188,7 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *
      * ```ts
      * import puppeteer from 'puppeteer';
-     * import fs from 'node:fs';
+     * import fs from 'fs';
      *
      * (async () => {
      *   const browser = await puppeteer.launch();
@@ -1387,10 +1371,10 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *
      * ```ts
      * const firstRequest = await page.waitForRequest(
-     *   'https://example.com/resource',
+     *   'https://example.com/resource'
      * );
      * const finalRequest = await page.waitForRequest(
-     *   request => request.url() === 'https://example.com',
+     *   request => request.url() === 'https://example.com'
      * );
      * return finalRequest.response()?.ok();
      * ```
@@ -1411,11 +1395,11 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *
      * ```ts
      * const firstResponse = await page.waitForResponse(
-     *   'https://example.com/resource',
+     *   'https://example.com/resource'
      * );
      * const finalResponse = await page.waitForResponse(
      *   response =>
-     *     response.url() === 'https://example.com' && response.status() === 200,
+     *     response.url() === 'https://example.com' && response.status() === 200
      * );
      * const finalResponse = await page.waitForResponse(async response => {
      *   return (await response.text()).includes('<html>');
@@ -1562,11 +1546,11 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *   {name: 'prefers-color-scheme', value: 'dark'},
      * ]);
      * await page.evaluate(
-     *   () => matchMedia('(prefers-color-scheme: dark)').matches,
+     *   () => matchMedia('(prefers-color-scheme: dark)').matches
      * );
      * // → true
      * await page.evaluate(
-     *   () => matchMedia('(prefers-color-scheme: light)').matches,
+     *   () => matchMedia('(prefers-color-scheme: light)').matches
      * );
      * // → false
      *
@@ -1574,11 +1558,11 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *   {name: 'prefers-reduced-motion', value: 'reduce'},
      * ]);
      * await page.evaluate(
-     *   () => matchMedia('(prefers-reduced-motion: reduce)').matches,
+     *   () => matchMedia('(prefers-reduced-motion: reduce)').matches
      * );
      * // → true
      * await page.evaluate(
-     *   () => matchMedia('(prefers-reduced-motion: no-preference)').matches,
+     *   () => matchMedia('(prefers-reduced-motion: no-preference)').matches
      * );
      * // → false
      *
@@ -1587,19 +1571,19 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *   {name: 'prefers-reduced-motion', value: 'reduce'},
      * ]);
      * await page.evaluate(
-     *   () => matchMedia('(prefers-color-scheme: dark)').matches,
+     *   () => matchMedia('(prefers-color-scheme: dark)').matches
      * );
      * // → true
      * await page.evaluate(
-     *   () => matchMedia('(prefers-color-scheme: light)').matches,
+     *   () => matchMedia('(prefers-color-scheme: light)').matches
      * );
      * // → false
      * await page.evaluate(
-     *   () => matchMedia('(prefers-reduced-motion: reduce)').matches,
+     *   () => matchMedia('(prefers-reduced-motion: reduce)').matches
      * );
      * // → true
      * await page.evaluate(
-     *   () => matchMedia('(prefers-reduced-motion: no-preference)').matches,
+     *   () => matchMedia('(prefers-reduced-motion: no-preference)').matches
      * );
      * // → false
      *
@@ -1665,9 +1649,6 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *   await page.emulateVisionDeficiency('blurredVision');
      *   await page.screenshot({path: 'blurred-vision.png'});
      *
-     *   await page.emulateVisionDeficiency('reducedContrast');
-     *   await page.screenshot({path: 'reduced-contrast.png'});
-     *
      *   await browser.close();
      * })();
      * ```
@@ -1708,8 +1689,8 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *
      * This is either the viewport set with the previous {@link Page.setViewport}
      * call or the default viewport set via
-     * {@link ConnectOptions.defaultViewport |
-     * ConnectOptions.defaultViewport}.
+     * {@link BrowserConnectOptions.defaultViewport |
+     * BrowserConnectOptions.defaultViewport}.
      */
     abstract viewport(): Viewport | null;
     /**
@@ -1809,7 +1790,7 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
     /**
      * @internal
      */
-    _maybeWriteTypedArrayToFile(path: string | undefined, typedArray: Uint8Array): Promise<void>;
+    _maybeWriteBufferToFile(path: string | undefined, buffer: Buffer): Promise<void>;
     /**
      * Captures a screencast of this {@link Page | page}.
      *
@@ -1879,7 +1860,7 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
     screenshot(options: Readonly<ScreenshotOptions> & {
         encoding: 'base64';
     }): Promise<string>;
-    screenshot(options?: Readonly<ScreenshotOptions>): Promise<Uint8Array>;
+    screenshot(options?: Readonly<ScreenshotOptions>): Promise<Buffer>;
     /**
      * @internal
      */
@@ -1904,7 +1885,7 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
     /**
      * {@inheritDoc Page.createPDFStream}
      */
-    abstract pdf(options?: PDFOptions): Promise<Uint8Array>;
+    abstract pdf(options?: PDFOptions): Promise<Buffer>;
     /**
      * The page's title
      *
@@ -1946,21 +1927,7 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      * ```
      *
      * Shortcut for {@link Frame.click | page.mainFrame().click(selector[, options]) }.
-     * @param selector -
-     * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
-     * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
-     * can be passed as-is and a
-     * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
-     * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
-     * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
-     * and
-     * {@link https://pptr.dev/guides/page-interactions#xpath-selectors--p-xpath | xpath}
-     * and
-     * {@link https://pptr.dev/guides/page-interactions#querying-elements-in-shadow-dom | combining these queries across shadow roots}.
-     * Alternatively, you can specify the selector type using a
-     * {@link https://pptr.dev/guides/page-interactions#prefixed-selector-syntax | prefix}. If there are
+     * @param selector - A `selector` to search for element to click. If there are
      * multiple elements satisfying the `selector`, the first will be clicked
      * @param options - `Object`
      * @returns Promise which resolves when the element matching `selector` is
@@ -1969,33 +1936,19 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      */
     click(selector: string, options?: Readonly<ClickOptions>): Promise<void>;
     /**
-     * This method fetches an element with `selector` and focuses it. If
-     * there's no element matching `selector`, the method throws an error.
-     * @param selector -
-     * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
-     * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
-     * can be passed as-is and a
-     * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
-     * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
-     * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
-     * and
-     * {@link https://pptr.dev/guides/page-interactions#xpath-selectors--p-xpath | xpath}
-     * and
-     * {@link https://pptr.dev/guides/page-interactions#querying-elements-in-shadow-dom | combining these queries across shadow roots}.
-     * Alternatively, you can specify the selector type using a
-     * {@link https://pptr.dev/guides/page-interactions#prefixed-selector-syntax | prefix}.
-     * If there are multiple elements satisfying the selector, the first
-     * will be focused.
-     * @returns Promise which resolves when the element matching selector
-     * is successfully focused. The promise will be rejected if there is
-     * no element matching selector.
+     * This method fetches an element with `selector` and focuses it. If there's no
+     * element matching `selector`, the method throws an error.
+     * @param selector - A
+     * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | selector }
+     * of an element to focus. If there are multiple elements satisfying the
+     * selector, the first will be focused.
+     * @returns Promise which resolves when the element matching selector is
+     * successfully focused. The promise will be rejected if there is no element
+     * matching selector.
      *
      * @remarks
      *
-     * Shortcut for
-     * {@link Frame.focus | page.mainFrame().focus(selector)}.
+     * Shortcut for {@link Frame.focus | page.mainFrame().focus(selector)}.
      */
     focus(selector: string): Promise<void>;
     /**
@@ -2003,22 +1956,10 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      * needed, and then uses {@link Page.mouse}
      * to hover over the center of the element.
      * If there's no element matching `selector`, the method throws an error.
-     * @param selector -
-     * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
-     * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
-     * can be passed as-is and a
-     * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
-     * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
-     * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
-     * and
-     * {@link https://pptr.dev/guides/page-interactions#xpath-selectors--p-xpath | xpath}
-     * and
-     * {@link https://pptr.dev/guides/page-interactions#querying-elements-in-shadow-dom | combining these queries across shadow roots}.
-     * Alternatively, you can specify the selector type using a
-     * {@link https://pptr.dev/guides/page-interactions#prefixed-selector-syntax | prefix}. If there are
-     * multiple elements satisfying the `selector`, the first will be hovered.
+     * @param selector - A
+     * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | selector}
+     * to search for element to hover. If there are multiple elements satisfying
+     * the selector, the first will be hovered.
      * @returns Promise which resolves when the element matching `selector` is
      * successfully hovered. Promise gets rejected if there's no element matching
      * `selector`.
@@ -2040,21 +1981,9 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      * page.select('select#colors', 'red', 'green', 'blue'); // multiple selections
      * ```
      *
-     * @param selector -
-     * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
-     * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
-     * can be passed as-is and a
-     * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
-     * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
-     * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
-     * and
-     * {@link https://pptr.dev/guides/page-interactions#xpath-selectors--p-xpath | xpath}
-     * and
-     * {@link https://pptr.dev/guides/page-interactions#querying-elements-in-shadow-dom | combining these queries across shadow roots}.
-     * Alternatively, you can specify the selector type using a
-     * {@link https://pptr.dev/guides/page-interactions#prefixed-selector-syntax | prefix}.
+     * @param selector - A
+     * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | Selector}
+     * to query the page for
      * @param values - Values of options to select. If the `<select>` has the
      * `multiple` attribute, all values are considered, otherwise only the first one
      * is taken into account.
@@ -2070,21 +1999,9 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      * needed, and then uses {@link Page.touchscreen}
      * to tap in the center of the element.
      * If there's no element matching `selector`, the method throws an error.
-     * @param selector -
-     * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
-     * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
-     * can be passed as-is and a
-     * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
-     * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
-     * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
-     * and
-     * {@link https://pptr.dev/guides/page-interactions#xpath-selectors--p-xpath | xpath}
-     * and
-     * {@link https://pptr.dev/guides/page-interactions#querying-elements-in-shadow-dom | combining these queries across shadow roots}.
-     * Alternatively, you can specify the selector type using a
-     * {@link https://pptr.dev/guides/page-interactions#prefixed-selector-syntax | prefix}. If there are multiple elements satisfying the
+     * @param selector - A
+     * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | Selector}
+     * to search for element to tap. If there are multiple elements satisfying the
      * selector, the first will be tapped.
      *
      * @remarks
@@ -2106,21 +2023,10 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      * // Types slower, like a user
      * ```
      *
-     * @param selector -
-     * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
-     * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
-     * can be passed as-is and a
-     * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
-     * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
-     * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
-     * and
-     * {@link https://pptr.dev/guides/page-interactions#xpath-selectors--p-xpath | xpath}
-     * and
-     * {@link https://pptr.dev/guides/page-interactions#querying-elements-in-shadow-dom | combining these queries across shadow roots}.
-     * Alternatively, you can specify the selector type using a
-     * {@link https://pptr.dev/guides/page-interactions#prefixed-selector-syntax | prefix}.
+     * @param selector - A
+     * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | selector}
+     * of an element to type into. If there are multiple elements satisfying the
+     * selector, the first will be used.
      * @param text - A text to type into a focused element.
      * @param options - have property `delay` which is the Time to wait between
      * key presses in milliseconds. Defaults to `0`.
@@ -2156,21 +2062,9 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      * })();
      * ```
      *
-     * @param selector -
-     * {@link https://pptr.dev/guides/page-interactions#selectors | selector}
-     * to query the page for.
-     * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | CSS selectors}
-     * can be passed as-is and a
-     * {@link https://pptr.dev/guides/page-interactions#non-css-selectors | Puppeteer-specific selector syntax}
-     * allows querying by
-     * {@link https://pptr.dev/guides/page-interactions#text-selectors--p-text | text},
-     * {@link https://pptr.dev/guides/page-interactions#aria-selectors--p-aria | a11y role and name},
-     * and
-     * {@link https://pptr.dev/guides/page-interactions#xpath-selectors--p-xpath | xpath}
-     * and
-     * {@link https://pptr.dev/guides/page-interactions#querying-elements-in-shadow-dom | combining these queries across shadow roots}.
-     * Alternatively, you can specify the selector type using a
-     * {@link https://pptr.dev/guides/page-interactions#prefixed-selector-syntax | prefix}.
+     * @param selector - A
+     * {@link https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_Selectors | selector}
+     * of an element to wait for
      * @param options - Optional waiting parameters
      * @returns Promise which resolves when element specified by selector string
      * is added to DOM. Resolves to `null` if waiting for hidden: `true` and
@@ -2219,7 +2113,7 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      * await page.waitForFunction(
      *   selector => !!document.querySelector(selector),
      *   {},
-     *   selector,
+     *   selector
      * );
      * ```
      *
@@ -2231,7 +2125,7 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      * await page.waitForFunction(
      *   async username => {
      *     const githubResponse = await fetch(
-     *       `https://api.github.com/users/${username}`,
+     *       `https://api.github.com/users/${username}`
      *     );
      *     const githubUser = await githubResponse.json();
      *     // show the avatar
@@ -2242,7 +2136,7 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *     img.remove();
      *   },
      *   {},
-     *   username,
+     *   username
      * );
      * ```
      *
@@ -2270,7 +2164,7 @@ export declare abstract class Page extends EventEmitter<PageEvents> {
      *   page.click('#connect-bluetooth'),
      * ]);
      * await devicePrompt.select(
-     *   await devicePrompt.waitForDevice(({name}) => name.includes('My Device')),
+     *   await devicePrompt.waitForDevice(({name}) => name.includes('My Device'))
      * );
      * ```
      */

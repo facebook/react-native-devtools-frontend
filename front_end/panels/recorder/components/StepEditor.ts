@@ -8,13 +8,13 @@ import * as Platform from '../../../core/platform/platform.js';
 import type * as Puppeteer from '../../../third_party/puppeteer/puppeteer.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as SuggestionInput from '../../../ui/components/suggestion_input/suggestion_input.js';
-import * as Lit from '../../../ui/lit/lit.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 import * as Controllers from '../controllers/controllers.js';
 import * as Models from '../models/models.js';
 import * as Util from '../util/util.js';
 
-import stepEditorStylesRaw from './stepEditor.css.js';
+import stepEditorStyles from './stepEditor.css.js';
 import {
   ArrayAssignments,
   assert,
@@ -29,11 +29,7 @@ import {
   type RequiredKeys,
 } from './util.js';
 
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const stepEditorStyles = new CSSStyleSheet();
-stepEditorStyles.replaceSync(stepEditorStylesRaw.cssText);
-
-const {html, Decorators, Directives, LitElement} = Lit;
+const {html, Decorators, Directives, LitElement} = LitHtml;
 const {customElement, property, state} = Decorators;
 const {live} = Directives;
 
@@ -135,7 +131,7 @@ const defaultValuesByAttribute = deepFreeze({
 
 const attributesByType = deepFreeze<{
   [Type in Models.Schema.StepType]:
-      {required: Array<Exclude<RequiredKeys<StepFor<Type>>, 'type'>>, optional: Array<OptionalKeys<StepFor<Type>>>};
+      {required: Exclude<RequiredKeys<StepFor<Type>>, 'type'>[], optional: OptionalKeys<StepFor<Type>>[]};
 }>({
   [Models.Schema.StepType.Click]: {
     required: ['selectors', 'offsetX', 'offsetY'],
@@ -274,7 +270,7 @@ const UIStrings = {
    *@description The error message display when a user enters a type in the input not associates with any existing types.
    */
   unknownActionType: 'Unknown action type.',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/recorder/components/StepEditor.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -368,7 +364,7 @@ export class EditorState {
       attribute: Attribute): Promise<DeepImmutable<typeof defaultValuesByAttribute[Attribute]>>;
   static async defaultByAttribute(_state: DeepImmutable<EditorState>, attribute: keyof typeof defaultValuesByAttribute):
       Promise<unknown> {
-    return await this.#puppeteer.run(puppeteer => {
+    return this.#puppeteer.run(puppeteer => {
       switch (attribute) {
         case 'assertedEvents': {
           return immutableDeepAssign(defaultValuesByAttribute.assertedEvents, new ArrayAssignments({
@@ -401,7 +397,7 @@ export class EditorState {
     const state = structuredClone(step) as EditorState;
     for (const key of ['parameters', 'properties'] as Array<'properties'>) {
       if (key in step && step[key] !== undefined) {
-        // @ts-expect-error Potential infinite type instantiation.
+        // @ts-ignore Potential infinite type instantiation.
         state[key] = JSON.stringify(step[key]);
       }
     }
@@ -419,7 +415,7 @@ export class EditorState {
         return [...selector];
       });
     }
-    return deepFreeze(state);
+    return deepFreeze(state as EditorState);
   }
 
   static toStep(state: DeepImmutable<EditorState>): Models.Schema.Step {
@@ -470,7 +466,7 @@ export class EditorState {
 class RecorderSelectorPickerButton extends LitElement {
   static override styles = [stepEditorStyles];
 
-  @property({type: Boolean}) declare disabled: boolean;
+  @property() declare disabled: boolean;
 
   #picker = new Controllers.SelectorPicker.SelectorPicker(this);
 
@@ -490,7 +486,7 @@ class RecorderSelectorPickerButton extends LitElement {
     void this.#picker.stop();
   }
 
-  protected override render(): Lit.TemplateResult|undefined {
+  protected override render(): LitHtml.TemplateResult|undefined {
     if (this.disabled) {
       return;
     }
@@ -520,10 +516,10 @@ export class StepEditor extends LitElement {
   @state() private declare state: DeepImmutable<EditorState>;
   @state() private declare error: string|undefined;
 
-  @property({type: Boolean}) declare isTypeEditable: boolean;
-  @property({type: Boolean}) declare disabled: boolean;
+  @property() declare isTypeEditable: boolean;
+  @property() declare disabled: boolean;
 
-  #renderedAttributes = new Set<Attribute>();
+  #renderedAttributes: Set<Attribute> = new Set();
 
   constructor() {
     super();
@@ -641,7 +637,7 @@ export class StepEditor extends LitElement {
       return;
     }
     this.#commit(await EditorState.default(value));
-    Host.userMetrics.recordingEdited(Host.UserMetrics.RecordingEdited.TYPE_CHANGED);
+    Host.userMetrics.recordingEdited(Host.UserMetrics.RecordingEdited.TypeChanged);
   };
 
   #handleAddRowClickEvent = async(event: MouseEvent): Promise<void> => {
@@ -658,7 +654,7 @@ export class StepEditor extends LitElement {
   };
 
   #renderInlineButton(opts: {class: string, title: string, iconName: string, onClick: (event: MouseEvent) => void}):
-      Lit.TemplateResult|undefined {
+      LitHtml.TemplateResult|undefined {
     if (this.disabled) {
       return;
     }
@@ -677,7 +673,7 @@ export class StepEditor extends LitElement {
     `;
   }
 
-  #renderDeleteButton(attribute: Attribute): Lit.TemplateResult|undefined {
+  #renderDeleteButton(attribute: Attribute): LitHtml.TemplateResult|undefined {
     if (this.disabled) {
       return;
     }
@@ -709,7 +705,7 @@ export class StepEditor extends LitElement {
     // clang-format on
   }
 
-  #renderTypeRow(editable: boolean): Lit.TemplateResult {
+  #renderTypeRow(editable: boolean): LitHtml.TemplateResult {
     this.#renderedAttributes.add('type');
     // clang-format off
     return html`<div class="row attribute" data-attribute="type" jslog=${VisualLogging.treeItem('type')}>
@@ -725,7 +721,7 @@ export class StepEditor extends LitElement {
     // clang-format on
   }
 
-  #renderRow(attribute: Attribute): Lit.TemplateResult|undefined {
+  #renderRow(attribute: Attribute): LitHtml.TemplateResult|undefined {
     this.#renderedAttributes.add(attribute);
     const attributeValue = this.state[attribute]?.toString();
     if (attributeValue === undefined) {
@@ -756,12 +752,12 @@ export class StepEditor extends LitElement {
         }
         switch (attribute) {
           case 'properties':
-            Host.userMetrics.recordingAssertion(Host.UserMetrics.RecordingAssertion.PROPERTY_ASSERTION_EDITED);
+            Host.userMetrics.recordingAssertion(Host.UserMetrics.RecordingAssertion.PropertyAssertionEdited);
             break;
         }
         return {[attribute]: value};
       },
-      metric: Host.UserMetrics.RecordingEdited.OTHER_EDITING,
+      metric: Host.UserMetrics.RecordingEdited.OtherEditing,
     })}
       ></devtools-suggestion-input>
       ${this.#renderDeleteButton(attribute)}
@@ -769,7 +765,7 @@ export class StepEditor extends LitElement {
     // clang-format on
   }
 
-  #renderFrameRow(): Lit.TemplateResult|undefined {
+  #renderFrameRow(): LitHtml.TemplateResult|undefined {
     this.#renderedAttributes.add('frame');
     if (this.state.frame === undefined) {
       return;
@@ -799,7 +795,7 @@ export class StepEditor extends LitElement {
                       frame: new ArrayAssignments({ [index]: value }),
                     };
                   },
-                  metric: Host.UserMetrics.RecordingEdited.OTHER_EDITING,
+                  metric: Host.UserMetrics.RecordingEdited.OtherEditing,
                 })}
               ></devtools-suggestion-input>
               ${this.#renderInlineButton({
@@ -815,7 +811,7 @@ export class StepEditor extends LitElement {
                     }),
                   },
                   `devtools-suggestion-input[data-path="frame.${index + 1}"]`,
-                  Host.UserMetrics.RecordingEdited.OTHER_EDITING,
+                  Host.UserMetrics.RecordingEdited.OtherEditing,
                 ),
               })}
               ${this.#renderInlineButton({
@@ -830,7 +826,7 @@ export class StepEditor extends LitElement {
                     index,
                     frames.length - 2,
                   )}"]`,
-                  Host.UserMetrics.RecordingEdited.OTHER_EDITING,
+                  Host.UserMetrics.RecordingEdited.OtherEditing,
                 ),
               })}
             </div>
@@ -841,7 +837,7 @@ export class StepEditor extends LitElement {
     // clang-format on
   }
 
-  #renderSelectorsRow(): Lit.TemplateResult|undefined {
+  #renderSelectorsRow(): LitHtml.TemplateResult|undefined {
     this.#renderedAttributes.add('selectors');
     if (this.state.selectors === undefined) {
       return;
@@ -872,7 +868,7 @@ export class StepEditor extends LitElement {
                   }),
                 },
                 `devtools-suggestion-input[data-path="selectors.${index + 1}.0"]`,
-                Host.UserMetrics.RecordingEdited.SELECTOR_ADDED,
+                Host.UserMetrics.RecordingEdited.SelectorAdded,
               ),
             })}
             ${this.#renderInlineButton({
@@ -885,7 +881,7 @@ export class StepEditor extends LitElement {
                   index,
                   selectors.length - 2,
                 )}.0"]`,
-                Host.UserMetrics.RecordingEdited.SELECTOR_REMOVED,
+                Host.UserMetrics.RecordingEdited.SelectorRemoved,
               ),
             })}
           </div>
@@ -915,7 +911,7 @@ export class StepEditor extends LitElement {
                       }),
                     };
                   },
-                  metric: Host.UserMetrics.RecordingEdited.SELECTOR_PART_EDITED,
+                  metric: Host.UserMetrics.RecordingEdited.SelectorPartEdited,
                 })}
               ></devtools-suggestion-input>
               ${this.#renderInlineButton({
@@ -935,7 +931,7 @@ export class StepEditor extends LitElement {
                   `devtools-suggestion-input[data-path="selectors.${index}.${
                     partIndex + 1
                   }"]`,
-                  Host.UserMetrics.RecordingEdited.SELECTOR_PART_ADDED,
+                  Host.UserMetrics.RecordingEdited.SelectorPartAdded,
                 ),
               })}
               ${this.#renderInlineButton({
@@ -954,7 +950,7 @@ export class StepEditor extends LitElement {
                     partIndex,
                     parts.length - 2,
                   )}"]`,
-                  Host.UserMetrics.RecordingEdited.SELECTOR_PART_REMOVED,
+                  Host.UserMetrics.RecordingEdited.SelectorPartRemoved,
                 ),
               })}
             </div>`;
@@ -964,7 +960,7 @@ export class StepEditor extends LitElement {
     // clang-format on
   }
 
-  #renderAssertedEvents(): Lit.TemplateResult|undefined {
+  #renderAssertedEvents(): LitHtml.TemplateResult|undefined {
     this.#renderedAttributes.add('assertedEvents');
     if (this.state.assertedEvents === undefined) {
       return;
@@ -998,7 +994,7 @@ export class StepEditor extends LitElement {
                     }),
                   };
                 },
-                metric: Host.UserMetrics.RecordingEdited.OTHER_EDITING,
+                metric: Host.UserMetrics.RecordingEdited.OtherEditing,
               })}
             ></devtools-suggestion-input>
           </div>
@@ -1020,7 +1016,7 @@ export class StepEditor extends LitElement {
                     }),
                   };
                 },
-                metric: Host.UserMetrics.RecordingEdited.OTHER_EDITING,
+                metric: Host.UserMetrics.RecordingEdited.OtherEditing,
               })}
             ></devtools-suggestion-input>
           </div>`;
@@ -1029,7 +1025,7 @@ export class StepEditor extends LitElement {
     // clang-format on
   }
 
-  #renderAttributesRow(): Lit.TemplateResult|undefined {
+  #renderAttributesRow(): LitHtml.TemplateResult|undefined {
     this.#renderedAttributes.add('attributes');
     if (this.state.attributes === undefined) {
       return;
@@ -1055,13 +1051,13 @@ export class StepEditor extends LitElement {
                   return;
                 }
                 Host.userMetrics.recordingAssertion(
-                  Host.UserMetrics.RecordingAssertion.ATTRIBUTE_ASSERTION_EDITED,
+                  Host.UserMetrics.RecordingAssertion.AttributeAssertionEdited,
                 );
                 return {
                   attributes: new ArrayAssignments({ [index]: { name } }),
                 };
               },
-              metric: Host.UserMetrics.RecordingEdited.OTHER_EDITING,
+              metric: Host.UserMetrics.RecordingEdited.OtherEditing,
             })}
           ></devtools-suggestion-input>
           <span class="separator">:</span>
@@ -1077,13 +1073,13 @@ export class StepEditor extends LitElement {
                   return;
                 }
                 Host.userMetrics.recordingAssertion(
-                  Host.UserMetrics.RecordingAssertion.ATTRIBUTE_ASSERTION_EDITED,
+                  Host.UserMetrics.RecordingAssertion.AttributeAssertionEdited,
                 );
                 return {
                   attributes: new ArrayAssignments({ [index]: { value } }),
                 };
               },
-              metric: Host.UserMetrics.RecordingEdited.OTHER_EDITING,
+              metric: Host.UserMetrics.RecordingEdited.OtherEditing,
             })}
           ></devtools-suggestion-input>
           ${this.#renderInlineButton({
@@ -1116,7 +1112,7 @@ export class StepEditor extends LitElement {
               `devtools-suggestion-input[data-path="attributes.${
                 index + 1
               }.name"]`,
-              Host.UserMetrics.RecordingEdited.OTHER_EDITING,
+              Host.UserMetrics.RecordingEdited.OtherEditing,
             ),
           })}
           ${this.#renderInlineButton({
@@ -1129,7 +1125,7 @@ export class StepEditor extends LitElement {
                 index,
                 attributes.length - 2,
               )}.value"]`,
-              Host.UserMetrics.RecordingEdited.OTHER_EDITING,
+              Host.UserMetrics.RecordingEdited.OtherEditing,
             ),
           })}
         </div>`;
@@ -1138,7 +1134,7 @@ export class StepEditor extends LitElement {
     // clang-format on
   }
 
-  #renderAddRowButtons(): Array<Lit.TemplateResult|undefined> {
+  #renderAddRowButtons(): Array<LitHtml.TemplateResult|undefined> {
     const attributes = attributesByType[this.state.type];
     return [...attributes.optional].filter(attr => this.state[attr] === undefined).map(attr => {
       // clang-format off
@@ -1164,7 +1160,7 @@ export class StepEditor extends LitElement {
     });
   };
 
-  protected override render(): Lit.TemplateResult {
+  protected override render(): LitHtml.TemplateResult {
     this.#renderedAttributes = new Set();
 
     // clang-format off

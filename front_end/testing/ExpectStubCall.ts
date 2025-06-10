@@ -9,9 +9,10 @@ export function expectCall<TArgs extends any[] = any[], TReturnValue = any>(
   return new Promise<TArgs>(resolve => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     stub.callsFake(function(this: any, ...args: TArgs) {
-      if (stub.callCount >= (options.callCount ?? 1)) {
-        resolve(args);
+      if (stub.callCount < (options.callCount ?? 1)) {
+        return undefined as TReturnValue;
       }
+      resolve(args);
       return (options.fakeFn ? options.fakeFn.apply(this, args) : undefined) as TReturnValue;
     });
   });
@@ -26,20 +27,4 @@ export function expectCalled<TArgs extends any[] = any[], TReturnValue = any>(
     return Promise.resolve(stub.lastCall.args);
   }
   return expectCall(stub, {...options, callCount: remainingCalls});
-}
-
-type Args<T> = T extends(...args: infer TArgs) => unknown ? TArgs : never;
-type Ret<T> = T extends(...args: infer TArgs) => infer TRet ? TRet : never;
-
-export function spyCall<T, Fn extends keyof T>(obj: T, method: Fn): Promise<{args: Args<T[Fn]>, result: Ret<T[Fn]>}> {
-  const {promise, resolve} = Promise.withResolvers<{args: Args<T[Fn]>, result: Ret<T[Fn]>}>();
-
-  const original = obj[method] as (...args: Args<T[Fn]>) => Ret<T[Fn]>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sinon.stub(obj, method).callsFake(function(this: any, ...args: any) {
-    const result = original.apply(this, args);
-    resolve({args, result});
-  });
-
-  return promise;
 }

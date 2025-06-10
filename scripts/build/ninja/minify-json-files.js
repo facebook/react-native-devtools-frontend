@@ -4,7 +4,6 @@
 
 const fs = require('fs');
 const path = require('path');
-
 const {writeIfChanged} = require('./write-if-changed.js');
 
 const [, , dest, ...files] = process.argv;

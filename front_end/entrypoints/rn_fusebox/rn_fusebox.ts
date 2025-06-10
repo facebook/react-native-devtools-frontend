@@ -18,17 +18,17 @@ import '../../panels/timeline/timeline-meta.js';
 
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
-import type * as Platform from '../../core/platform/platform.js';
-import * as RNExperiments from '../../core/rn_experiments/rn_experiments.js';
 import * as Root from '../../core/root/root.js';
+import * as RNExperiments from '../../core/rn_experiments/rn_experiments.js';
 import * as SDK from '../../core/sdk/sdk.js';
-import type * as Sources from '../../panels/sources/sources.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as Main from '../main/main.js';
+import FuseboxAppMetadataObserver from './FuseboxAppMetadataObserver.js';
+import FuseboxReconnectDeviceButton from './FuseboxReconnectDeviceButton.js';
+import FuseboxExperimentsObserver from './FuseboxExperimentsObserver.js';
 
-import * as FuseboxAppMetadataObserverModule from './FuseboxAppMetadataObserver.js';
-import * as FuseboxFeatureObserverModule from './FuseboxExperimentsObserver.js';
-import * as FuseboxReconnectDeviceButtonModule from './FuseboxReconnectDeviceButton.js';
+import type * as Platform from '../../core/platform/platform.js';
+import type * as Sources from '../../panels/sources/sources.js';
 
 // To ensure accurate timing measurements, please make sure these perf metrics
 // lines are called ahead of everything else
@@ -52,7 +52,7 @@ const UIStrings = {
    *@description Label of the FB-only 'send feedback' action button in the toolbar
    */
   sendFeedback: '[FB-only] Send feedback',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('entrypoints/rn_fusebox/rn_fusebox.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
@@ -85,18 +85,18 @@ document.addEventListener('visibilitychange', () => {
 });
 
 SDK.SDKModel.SDKModel.register(
-    SDK.ReactNativeApplicationModel.ReactNativeApplicationModel,
-    {
-      capabilities: SDK.Target.Capability.NONE,
-      autostart: true,
-      // Ensure ReactNativeApplication.enable is sent before most other CDP domains
-      // are initialised. This allows the backend to confidently detect non-Fusebox
-      // clients by the fact that they send e.g. Runtime.enable without sending any
-      // Fusebox-specific messages first.
-      // TODO: Explicitly depend on this model in RuntimeModel and LogModel, and
-      // remove the `early` and `autostart` flags.
-      early: true,
-    },
+  SDK.ReactNativeApplicationModel.ReactNativeApplicationModel,
+  {
+    capabilities: SDK.Target.Capability.None,
+    autostart: true,
+    // Ensure ReactNativeApplication.enable is sent before most other CDP domains
+    // are initialised. This allows the backend to confidently detect non-Fusebox
+    // clients by the fact that they send e.g. Runtime.enable without sending any
+    // Fusebox-specific messages first.
+    // TODO: Explicitly depend on this model in RuntimeModel and LogModel, and
+    // remove the `early` and `autostart` flags.
+    early: true,
+  },
 );
 
 let loadedSourcesModule: (typeof Sources|undefined);
@@ -121,7 +121,7 @@ UI.ViewManager.registerViewExtension({
   },
 });
 
-// @ts-expect-error Exposed for legacy layout tests
+// @ts-ignore Exposed for legacy layout tests
 self.runtime = Root.Runtime.Runtime.instance({forceNew: true});
 new Main.MainImpl.MainImpl();
 
@@ -154,18 +154,18 @@ if (globalThis.FB_ONLY__reactNativeFeedbackLink) {
   UI.Toolbar.registerToolbarItem({
     location: UI.Toolbar.ToolbarItemLocation.MAIN_TOOLBAR_RIGHT,
     actionId,
-    label: i18nLazyString(UIStrings.sendFeedback),
+    showLabel: true,
   });
 }
 
 UI.Toolbar.registerToolbarItem({
   location: UI.Toolbar.ToolbarItemLocation.MAIN_TOOLBAR_RIGHT,
   loadItem: async () => {
-    return FuseboxReconnectDeviceButtonModule.FuseboxReconnectDeviceButton.instance();
+    return FuseboxReconnectDeviceButton.instance();
   },
 });
 
-new FuseboxAppMetadataObserverModule.FuseboxAppMetadataObserver(SDK.TargetManager.TargetManager.instance());
-new FuseboxFeatureObserverModule.FuseboxFeatureObserver(SDK.TargetManager.TargetManager.instance());
+new FuseboxAppMetadataObserver(SDK.TargetManager.TargetManager.instance());
+new FuseboxExperimentsObserver(SDK.TargetManager.TargetManager.instance());
 
 Host.rnPerfMetrics.entryPointLoadingFinished('rn_fusebox');

@@ -27,7 +27,7 @@ class MockRemoteObject extends SDK.RemoteObject.LocalJSONObject {
   }
 }
 
-function createWrapper(array: Uint8Array<ArrayBuffer>) {
+function createWrapper(array: Uint8Array) {
   const mockRemoteObj = new MockRemoteObject(array.buffer);
   const mockRemoteArrayBuffer = new SDK.RemoteObject.RemoteArrayBuffer(mockRemoteObj);
   return new LinearMemoryInspectorController.RemoteArrayBufferWrapper(mockRemoteArrayBuffer);
@@ -89,13 +89,13 @@ describeWithEnvironment('LinearMemoryInspectorController', () => {
     const instance = LinearMemoryInspectorController.LinearMemoryInspectorController.instance();
 
     const valueTypes =
-        new Set([ValueInterpreterDisplayUtils.ValueType.INT16, ValueInterpreterDisplayUtils.ValueType.FLOAT32]);
+        new Set([ValueInterpreterDisplayUtils.ValueType.Int16, ValueInterpreterDisplayUtils.ValueType.Float32]);
     const valueTypeModes = new Map(
-        [[ValueInterpreterDisplayUtils.ValueType.INT16, ValueInterpreterDisplayUtils.ValueTypeMode.HEXADECIMAL]]);
+        [[ValueInterpreterDisplayUtils.ValueType.Int16, ValueInterpreterDisplayUtils.ValueTypeMode.Hexadecimal]]);
     const settings = {
       valueTypes,
       modes: valueTypeModes,
-      endianness: ValueInterpreterDisplayUtils.Endianness.LITTLE,
+      endianness: ValueInterpreterDisplayUtils.Endianness.Little,
     };
     const defaultSettings = instance.loadSettings();
     instance.saveSettings(settings);
@@ -119,7 +119,7 @@ describeWithEnvironment('LinearMemoryInspectorController', () => {
     const instance = LinearMemoryInspectorController.LinearMemoryInspectorController.instance();
     const expressionName = 'myCar';
     const result = await instance.evaluateExpression(callFrame, expressionName);
-    assert.isUndefined(result);
+    assert.strictEqual(result, undefined);
     assert.isTrue(stub.calledOnceWithExactly(
         `Tried to evaluate the expression '${expressionName}' but got an error: ${errorText}`));
   });
@@ -140,7 +140,7 @@ describeWithEnvironment('LinearMemoryInspectorController', () => {
     const instance = LinearMemoryInspectorController.LinearMemoryInspectorController.instance();
     const expressionName = 'myCar.manufacturer';
     const result = await instance.evaluateExpression(callFrame, expressionName);
-    assert.isUndefined(result);
+    assert.strictEqual(result, undefined);
     assert.isTrue(stub.calledOnceWithExactly(
         `Tried to evaluate the expression '${expressionName}' but got an exception: ${exceptionText}`));
   });
@@ -171,7 +171,7 @@ describeWithEnvironment('LinearMemoryInspectorController', () => {
     assert.deepEqual(instance.getHighlightInfo(bufferId), highlightInfo);
 
     instance.removeHighlight(bufferId, highlightInfo);
-    assert.isUndefined(instance.getHighlightInfo(bufferId));
+    assert.deepEqual(instance.getHighlightInfo(bufferId), undefined);
   });
 
   it('does not change the stored highlight when the provided highlightInfo does not match', () => {

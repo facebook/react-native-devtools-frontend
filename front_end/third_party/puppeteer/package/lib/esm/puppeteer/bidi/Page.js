@@ -40,7 +40,7 @@ var __runInitializers = (this && this.__runInitializers) || function (thisArg, i
 var __addDisposableResource = (this && this.__addDisposableResource) || function (env, value, async) {
     if (value !== null && value !== void 0) {
         if (typeof value !== "object" && typeof value !== "function") throw new TypeError("Object expected.");
-        var dispose, inner;
+        var dispose;
         if (async) {
             if (!Symbol.asyncDispose) throw new TypeError("Symbol.asyncDispose is not defined.");
             dispose = value[Symbol.asyncDispose];
@@ -48,10 +48,8 @@ var __addDisposableResource = (this && this.__addDisposableResource) || function
         if (dispose === void 0) {
             if (!Symbol.dispose) throw new TypeError("Symbol.dispose is not defined.");
             dispose = value[Symbol.dispose];
-            if (async) inner = dispose;
         }
         if (typeof dispose !== "function") throw new TypeError("Object not disposable.");
-        if (inner) dispose = function() { try { inner.call(this); } catch (e) { return Promise.reject(e); } };
         env.stack.push({ value: value, dispose: dispose, async: async });
     }
     else if (async) {
@@ -65,22 +63,17 @@ var __disposeResources = (this && this.__disposeResources) || (function (Suppres
             env.error = env.hasError ? new SuppressedError(e, env.error, "An error was suppressed during disposal.") : e;
             env.hasError = true;
         }
-        var r, s = 0;
         function next() {
-            while (r = env.stack.pop()) {
+            while (env.stack.length) {
+                var rec = env.stack.pop();
                 try {
-                    if (!r.async && s === 1) return s = 0, env.stack.push(r), Promise.resolve().then(next);
-                    if (r.dispose) {
-                        var result = r.dispose.call(r.value);
-                        if (r.async) return s |= 2, Promise.resolve(result).then(next, function(e) { fail(e); return next(); });
-                    }
-                    else s |= 1;
+                    var result = rec.dispose && rec.dispose.call(rec.value);
+                    if (rec.async) return Promise.resolve(result).then(next, function(e) { fail(e); return next(); });
                 }
                 catch (e) {
                     fail(e);
                 }
             }
-            if (s === 1) return env.hasError ? Promise.reject(env.error) : Promise.resolve();
             if (env.hasError) throw env.error;
         }
         return next();
@@ -99,7 +92,6 @@ import { EventEmitter } from '../common/EventEmitter.js';
 import { evaluationString, isString, parsePDFOptions, timeout, } from '../common/util.js';
 import { assert } from '../util/assert.js';
 import { bubble } from '../util/decorators.js';
-import { stringToTypedArray } from '../util/encoding.js';
 import { isErrorLike } from '../util/ErrorLike.js';
 import { BidiFrame } from './Frame.js';
 import { BidiKeyboard, BidiMouse, BidiTouchscreen } from './Input.js';
@@ -194,7 +186,6 @@ let BidiPage = (() => {
             const changeUserAgent = (userAgent) => {
                 Object.defineProperty(navigator, 'userAgent', {
                     value: userAgent,
-                    configurable: true,
                 });
             };
             const frames = [this.#frame];
@@ -210,7 +201,7 @@ let BidiPage = (() => {
                     : undefined,
                 // When we disable the UserAgent we want to
                 // evaluate the original value in all Browsing Contexts
-                ...frames.map(frame => {
+                frames.map(frame => {
                     return frame.evaluate(changeUserAgent, userAgent);
                 }),
             ]);
@@ -317,9 +308,6 @@ let BidiPage = (() => {
         getDefaultTimeout() {
             return this._timeoutSettings.timeout();
         }
-        getDefaultNavigationTimeout() {
-            return this._timeoutSettings.navigationTimeout();
-        }
         isJavaScriptEnabled() {
             return this.#cdpEmulationManager.javascriptEnabled;
         }
@@ -393,15 +381,15 @@ let BidiPage = (() => {
                 scale,
                 shrinkToFit: !preferCSSPageSize,
             })).pipe(raceWith(timeout(ms))));
-            const typedArray = stringToTypedArray(data, true);
-            await this._maybeWriteTypedArrayToFile(path, typedArray);
-            return typedArray;
+            const buffer = Buffer.from(data, 'base64');
+            await this._maybeWriteBufferToFile(path, buffer);
+            return buffer;
         }
         async createPDFStream(options) {
-            const typedArray = await this.pdf(options);
+            const buffer = await this.pdf(options);
             return new ReadableStream({
                 start(controller) {
-                    controller.enqueue(typedArray);
+                    controller.enqueue(buffer);
                     controller.close();
                 },
             });
@@ -616,9 +604,6 @@ let BidiPage = (() => {
                 }
                 assert(cookieUrl !== 'about:blank', `Blank page can not have cookie "${cookie.name}"`);
                 assert(!String.prototype.startsWith.call(cookieUrl || '', 'data:'), `Data URL page can not have cookie "${cookie.name}"`);
-                // TODO: Support Chrome cookie partition keys
-                assert(cookie.partitionKey === undefined ||
-                    typeof cookie.partitionKey === 'string', 'BiDi only allows domain partition keys');
                 const normalizedUrl = URL.canParse(cookieUrl)
                     ? new URL(cookieUrl)
                     : undefined;
@@ -637,7 +622,7 @@ let BidiPage = (() => {
                     ...(cookie.sameSite !== undefined
                         ? { sameSite: convertCookiesSameSiteCdpToBiDi(cookie.sameSite) }
                         : {}),
-                    ...{ expiry: convertCookiesExpiryCdpToBiDi(cookie.expires) },
+                    ...(cookie.expires !== undefined ? { expiry: cookie.expires } : {}),
                     // Chrome-specific properties.
                     ...cdpSpecificCookiePropertiesFromPuppeteerToBidi(cookie, 'sameParty', 'sourceScheme', 'priority', 'url'),
                 };
@@ -680,19 +665,15 @@ let BidiPage = (() => {
             return await this.#go(1, options);
         }
         async #go(delta, options) {
-            const controller = new AbortController();
             try {
                 const [response] = await Promise.all([
-                    this.waitForNavigation({
-                        ...options,
-                        signal: controller.signal,
-                    }),
+                    this.waitForNavigation(options),
                     this.#frame.browsingContext.traverseHistory(delta),
                 ]);
                 return response;
             }
             catch (error) {
-                controller.abort();
+                // TODO: waitForNavigation should be cancelled if an error happens.
                 if (isErrorLike(error)) {
                     if (error.message.includes('no such history entry')) {
                         return null;
@@ -707,24 +688,20 @@ let BidiPage = (() => {
     };
 })();
 export { BidiPage };
-// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
 function evaluationExpression(fun, ...args) {
     return `() => {${evaluationString(fun, ...args)}}`;
 }
 /**
  * Check domains match.
+ * According to cookies spec, this check should match subdomains as well, but CDP
+ * implementation does not do that, so this method matches only the exact domains, not
+ * what is written in the spec:
+ * https://datatracker.ietf.org/doc/html/rfc6265#section-5.1.3
  */
 function testUrlMatchCookieHostname(cookie, normalizedUrl) {
     const cookieDomain = cookie.domain.toLowerCase();
     const urlHostname = normalizedUrl.hostname.toLowerCase();
-    if (cookieDomain === urlHostname) {
-        return true;
-    }
-    // TODO: does not consider additional restrictions w.r.t to IP
-    // addresses which is fine as it is for representation and does not
-    // mean that cookies actually apply that way in the browser.
-    // https://datatracker.ietf.org/doc/html/rfc6265#section-5.1.3
-    return cookieDomain.startsWith('.') && urlHostname.endsWith(cookieDomain);
+    return cookieDomain === urlHostname;
 }
 /**
  * Check paths match.
@@ -762,29 +739,7 @@ function testUrlMatchCookie(cookie, url) {
     }
     return testUrlMatchCookiePath(cookie, normalizedUrl);
 }
-export function bidiToPuppeteerCookie(bidiCookie, returnCompositePartitionKey = false) {
-    const partitionKey = bidiCookie[CDP_SPECIFIC_PREFIX + 'partitionKey'];
-    function getParitionKey() {
-        if (typeof partitionKey === 'string') {
-            return { partitionKey };
-        }
-        if (typeof partitionKey === 'object' && partitionKey !== null) {
-            if (returnCompositePartitionKey) {
-                return {
-                    partitionKey: {
-                        sourceOrigin: partitionKey.topLevelSite,
-                        hasCrossSiteAncestor: partitionKey.hasCrossSiteAncestor ?? false,
-                    },
-                };
-            }
-            return {
-                // TODO: a breaking change in Puppeteer is required to change
-                // partitionKey type and report the composite partition key.
-                partitionKey: partitionKey.topLevelSite,
-            };
-        }
-        return {};
-    }
+function bidiToPuppeteerCookie(bidiCookie) {
     return {
         name: bidiCookie.name,
         // Presents binary value as base64 string.
@@ -798,8 +753,7 @@ export function bidiToPuppeteerCookie(bidiCookie, returnCompositePartitionKey = 
         expires: bidiCookie.expiry ?? -1,
         session: bidiCookie.expiry === undefined || bidiCookie.expiry <= 0,
         // Extending with CDP-specific properties with `goog:` prefix.
-        ...cdpSpecificCookiePropertiesFromBidiToPuppeteer(bidiCookie, 'sameParty', 'sourceScheme', 'partitionKeyOpaque', 'priority'),
-        ...getParitionKey(),
+        ...cdpSpecificCookiePropertiesFromBidiToPuppeteer(bidiCookie, 'sameParty', 'sourceScheme', 'partitionKey', 'partitionKeyOpaque', 'priority'),
     };
 }
 const CDP_SPECIFIC_PREFIX = 'goog:';
@@ -819,7 +773,7 @@ function cdpSpecificCookiePropertiesFromBidiToPuppeteer(bidiCookie, ...propertyN
  * Gets CDP-specific properties from the cookie, adds CDP-specific prefixes and returns
  * them as a new object which can be used in BiDi.
  */
-export function cdpSpecificCookiePropertiesFromPuppeteerToBidi(cookieParam, ...propertyNames) {
+function cdpSpecificCookiePropertiesFromPuppeteerToBidi(cookieParam, ...propertyNames) {
     const result = {};
     for (const property of propertyNames) {
         if (cookieParam[property] !== undefined) {
@@ -831,23 +785,11 @@ export function cdpSpecificCookiePropertiesFromPuppeteerToBidi(cookieParam, ...p
 function convertCookiesSameSiteBiDiToCdp(sameSite) {
     return sameSite === 'strict' ? 'Strict' : sameSite === 'lax' ? 'Lax' : 'None';
 }
-export function convertCookiesSameSiteCdpToBiDi(sameSite) {
+function convertCookiesSameSiteCdpToBiDi(sameSite) {
     return sameSite === 'Strict'
         ? "strict" /* Bidi.Network.SameSite.Strict */
         : sameSite === 'Lax'
             ? "lax" /* Bidi.Network.SameSite.Lax */
             : "none" /* Bidi.Network.SameSite.None */;
-}
-export function convertCookiesExpiryCdpToBiDi(expiry) {
-    return [undefined, -1].includes(expiry) ? undefined : expiry;
-}
-export function convertCookiesPartitionKeyFromPuppeteerToBiDi(partitionKey) {
-    if (partitionKey === undefined || typeof partitionKey === 'string') {
-        return partitionKey;
-    }
-    if (partitionKey.hasCrossSiteAncestor) {
-        throw new UnsupportedOperation('WebDriver BiDi does not support `hasCrossSiteAncestor` yet.');
-    }
-    return partitionKey.sourceOrigin;
 }
 //# sourceMappingURL=Page.js.map

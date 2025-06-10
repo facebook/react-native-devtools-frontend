@@ -31,6 +31,7 @@
 import * as Platform from '../../core/platform/platform.js';
 import * as Root from '../../core/root/root.js';
 import * as Acorn from '../../third_party/acorn/acorn.js';
+
 // This file is required to bring some types into scope, even though it
 // is not used.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -39,7 +40,7 @@ import type * as CodeMirrorModule from '../../third_party/codemirror/codemirror-
 import {AcornTokenizer, ECMA_VERSION} from './AcornTokenizer.js';
 import {CSSFormatter} from './CSSFormatter.js';
 import {FormattedContentBuilder} from './FormattedContentBuilder.js';
-import {type FormatResult, FormattableMediaTypes} from './FormatterActions.js';
+import {FormattableMediaTypes, type FormatResult} from './FormatterActions.js';
 import {HTMLFormatter} from './HTMLFormatter.js';
 import {IdentityFormatter} from './IdentityFormatter.js';
 import {JavaScriptFormatter} from './JavaScriptFormatter.js';

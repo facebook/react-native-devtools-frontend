@@ -106,7 +106,7 @@ const UIStrings = {
    *@description Title for a checkbox that turns on breakpoints on Trusted Type policy violations
    */
   policyViolations: 'Policy Violations',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/sources/CategorizedBreakpointL10n.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
@@ -117,54 +117,53 @@ export function getLocalizedBreakpointName(name: string): Platform.UIString.Loca
 
 const LOCALIZED_INSTRUMENTATION_NAMES:
     Record<SDK.EventBreakpointsModel.InstrumentationNames, () => Platform.UIString.LocalizedString> = {
-      [SDK.EventBreakpointsModel.InstrumentationNames.BEFORE_BIDDER_WORKLET_BIDDING_START]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.BeforeBidderWorkletBiddingStart]:
           i18nLazyString(UIStrings.beforeBidderWorkletBiddingStart),
-      [SDK.EventBreakpointsModel.InstrumentationNames.BEFORE_BIDDER_WORKLET_REPORTING_START]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.BeforeBidderWorkletReportingStart]:
           i18nLazyString(UIStrings.beforeBidderWorkletReportingStart),
-      [SDK.EventBreakpointsModel.InstrumentationNames.BEFORE_SELLER_WORKLET_SCORING_START]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.BeforeSellerWorkletScoringStart]:
           i18nLazyString(UIStrings.beforeSellerWorkletScoringStart),
-      [SDK.EventBreakpointsModel.InstrumentationNames.BEFORE_SELLER_WORKLET_REPORTING_START]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.BeforeSellerWorkletReportingStart]:
           i18nLazyString(UIStrings.beforeSellerWorkletReportingStart),
-      [SDK.EventBreakpointsModel.InstrumentationNames.SET_TIMEOUT]: i18n.i18n.lockedLazyString('setTimeout'),
-      [SDK.EventBreakpointsModel.InstrumentationNames.CLEAR_TIMEOUT]: i18n.i18n.lockedLazyString('clearTimeout'),
-      [SDK.EventBreakpointsModel.InstrumentationNames.SET_TIMEOUT_CALLBACK]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.SetTimeout]: i18n.i18n.lockedLazyString('setTimeout'),
+      [SDK.EventBreakpointsModel.InstrumentationNames.ClearTimeout]: i18n.i18n.lockedLazyString('clearTimeout'),
+      [SDK.EventBreakpointsModel.InstrumentationNames.SetTimeoutCallback]:
           i18nLazyString(UIStrings.setTimeoutOrIntervalFired, {PH1: 'setTimeout'}),
-      [SDK.EventBreakpointsModel.InstrumentationNames.SET_INTERVAL]: i18n.i18n.lockedLazyString('setInterval'),
-      [SDK.EventBreakpointsModel.InstrumentationNames.CLEAR_INTERVAL]: i18n.i18n.lockedLazyString('clearInterval'),
-      [SDK.EventBreakpointsModel.InstrumentationNames.SET_INTERVAL_CALLBACK]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.SetInterval]: i18n.i18n.lockedLazyString('setInterval'),
+      [SDK.EventBreakpointsModel.InstrumentationNames.ClearInterval]: i18n.i18n.lockedLazyString('clearInterval'),
+      [SDK.EventBreakpointsModel.InstrumentationNames.SetIntervalCallback]:
           i18nLazyString(UIStrings.setTimeoutOrIntervalFired, {PH1: 'setInterval'}),
-      [SDK.EventBreakpointsModel.InstrumentationNames.SCRIPT_FIRST_STATEMENT]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.ScriptFirstStatement]:
           i18nLazyString(UIStrings.scriptFirstStatement),
-      [SDK.EventBreakpointsModel.InstrumentationNames.SCRIPT_BLOCKED_BY_CSP]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.ScriptBlockedByCSP]:
           i18nLazyString(UIStrings.scriptBlockedByContentSecurity),
-      [SDK.EventBreakpointsModel.InstrumentationNames.SHARED_STORAGE_WORKLET_SCRIPT_FIRST_STATEMENT]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.SharedStorageWorkletScriptFirstStatement]:
           i18nLazyString(UIStrings.scriptFirstStatement),
-      [SDK.EventBreakpointsModel.InstrumentationNames.REQUEST_ANIMATION_FRAME]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.RequestAnimationFrame]:
           i18nLazyString(UIStrings.requestAnimationFrame),
-      [SDK.EventBreakpointsModel.InstrumentationNames.CANCEL_ANIMATION_FRAME]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.CancelAnimationFrame]:
           i18nLazyString(UIStrings.cancelAnimationFrame),
-      [SDK.EventBreakpointsModel.InstrumentationNames.REQUEST_ANIMATION_FRAME_CALLBACK]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.RequestAnimationFrameCallback]:
           i18nLazyString(UIStrings.animationFrameFired),
-      [SDK.EventBreakpointsModel.InstrumentationNames.WEBGL_ERROR_FIRED]: i18nLazyString(UIStrings.webglErrorFired),
-      [SDK.EventBreakpointsModel.InstrumentationNames.WEBGL_WARNING_FIRED]: i18nLazyString(UIStrings.webglWarningFired),
-      [SDK.EventBreakpointsModel.InstrumentationNames.ELEMENT_SET_INNER_HTML]: i18nLazyString(UIStrings.setInnerhtml),
-      [SDK.EventBreakpointsModel.InstrumentationNames.CANVAS_CONTEXT_CREATED]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.WebGLErrorFired]: i18nLazyString(UIStrings.webglErrorFired),
+      [SDK.EventBreakpointsModel.InstrumentationNames.WebGLWarningFired]: i18nLazyString(UIStrings.webglWarningFired),
+      [SDK.EventBreakpointsModel.InstrumentationNames.ElementSetInnerHTML]: i18nLazyString(UIStrings.setInnerhtml),
+      [SDK.EventBreakpointsModel.InstrumentationNames.CanvasContextCreated]:
           i18nLazyString(UIStrings.createCanvasContext),
-      [SDK.EventBreakpointsModel.InstrumentationNames.GEOLOCATION_GET_CURRENT_POSITION]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.GeolocationGetCurrentPosition]:
           i18n.i18n.lockedLazyString('getCurrentPosition'),
-      [SDK.EventBreakpointsModel.InstrumentationNames.GEOLOCATION_WATCH_POSITION]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.GeolocationWatchPosition]:
           i18n.i18n.lockedLazyString('watchPosition'),
-      [SDK.EventBreakpointsModel.InstrumentationNames.NOTIFCATION_REQUEST_PERMISSION]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.NotificationRequestPermission]:
           i18n.i18n.lockedLazyString('requestPermission'),
-      [SDK.EventBreakpointsModel.InstrumentationNames.DOM_WINDOW_CLOSE]: i18n.i18n.lockedLazyString('window.close'),
-      [SDK.EventBreakpointsModel.InstrumentationNames.DOCUMENT_WRITE]: i18n.i18n.lockedLazyString('document.write'),
-      [SDK.EventBreakpointsModel.InstrumentationNames.AUDIO_CONTEXT_CREATED]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.DOMWindowClose]: i18n.i18n.lockedLazyString('window.close'),
+      [SDK.EventBreakpointsModel.InstrumentationNames.DocumentWrite]: i18n.i18n.lockedLazyString('document.write'),
+      [SDK.EventBreakpointsModel.InstrumentationNames.AudioContextCreated]:
           i18nLazyString(UIStrings.createAudiocontext),
-      [SDK.EventBreakpointsModel.InstrumentationNames.AUDIO_CONTEXT_CLOSED]:
-          i18nLazyString(UIStrings.closeAudiocontext),
-      [SDK.EventBreakpointsModel.InstrumentationNames.AUDIO_CONTEXT_RESUMED]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.AudioContextClosed]: i18nLazyString(UIStrings.closeAudiocontext),
+      [SDK.EventBreakpointsModel.InstrumentationNames.AudioContextResumed]:
           i18nLazyString(UIStrings.resumeAudiocontext),
-      [SDK.EventBreakpointsModel.InstrumentationNames.AUDIO_CONTEXT_SUSPENDED]:
+      [SDK.EventBreakpointsModel.InstrumentationNames.AudioContextSuspended]:
           i18nLazyString(UIStrings.suspendAudiocontext),
     };
 

@@ -2,47 +2,44 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Trace from '../../../models/trace/trace.js';
+import type * as TraceEngine from '../../../models/trace/trace.js';
 import * as ThemeSupport from '../../../ui/legacy/theme_support/theme_support.js';
 
-export function extensionEntryColor(event: Trace.Types.Extensions.SyntheticExtensionEntry): string {
+export function extensionEntryColor(event: TraceEngine.Types.Extensions.SyntheticExtensionEntry): string {
   const color = event.args.color;
   // Use a default value for when the color of the extension entry
   // was not passed or was set an unknown value.
-  let themeColor = '--ref-palette-blue70';
+  let themeColor = '--ref-palette-primary70';
   switch (color) {
     case 'primary':
-      themeColor = '--ref-palette-blue70';
+      themeColor = '--ref-palette-primary70';
       break;
     case 'primary-light':
-      themeColor = '--ref-palette-blue80';
+      themeColor = '--ref-palette-primary80';
       break;
     case 'primary-dark':
-      themeColor = '--ref-palette-blue60';
+      themeColor = '--ref-palette-primary60';
       break;
     case 'secondary':
-      themeColor = '--ref-palette-purple80';
+      themeColor = '--ref-palette-secondary70';
       break;
     case 'secondary-light':
-      themeColor = '--ref-palette-purple90';
+      themeColor = '--ref-palette-secondary80';
       break;
     case 'secondary-dark':
-      themeColor = '--ref-palette-purple70';
+      themeColor = '--ref-palette-secondary60';
       break;
     case 'tertiary':
-      themeColor = '--ref-palette-green70';
+      themeColor = '--ref-palette-tertiary70';
       break;
     case 'tertiary-light':
-      themeColor = '--ref-palette-green80';
+      themeColor = '--ref-palette-tertiary80';
       break;
     case 'tertiary-dark':
-      themeColor = '--ref-palette-green60';
-      break;
-    case 'warning':
-      themeColor = '--ref-palette-yellow70';
+      themeColor = '--ref-palette-tertiary60';
       break;
     case 'error':
-      themeColor = '--ref-palette-error60';
+      themeColor = '--ref-palette-error50';
       break;
   }
   return ThemeSupport.ThemeSupport.instance().getComputedValue(themeColor);

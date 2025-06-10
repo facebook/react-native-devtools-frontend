@@ -7,7 +7,6 @@ import './emulation/emulation-meta.js';
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Root from '../../core/root/root.js';
-import * as LegacyWrapper from '../../ui/components/legacy_wrapper/legacy_wrapper.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import type * as Settings from './settings.js';
@@ -26,9 +25,9 @@ const UIStrings = {
    */
   experiments: 'Experiments',
   /**
-   *@description Title of Ignore list settings
+   *@description Title of Ignore List settings
    */
-  ignoreList: 'Ignore list',
+  ignoreList: 'Ignore List',
   /**
    *@description Command for showing the keyboard shortcuts in Settings
    */
@@ -42,9 +41,9 @@ const UIStrings = {
    */
   showExperiments: 'Show Experiments',
   /**
-   *@description Command for showing the Ignore list settings
+   *@description Command for showing the Ignore List settings
    */
-  showIgnoreList: 'Show Ignore list',
+  showIgnoreList: 'Show Ignore List',
   /**
    *@description Name of the Settings view
    */
@@ -53,15 +52,7 @@ const UIStrings = {
    *@description Text for the documentation of something
    */
   documentation: 'Documentation',
-  /**
-   *@description Text for AI innovation settings
-   */
-  aiInnovations: 'AI innovations',
-  /**
-   *@description Command for showing the AI innovation settings
-   */
-  showAiInnovations: 'Show AI innovations',
-} as const;
+};
 
 const str_ = i18n.i18n.registerUIStrings('panels/settings/settings-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
@@ -86,25 +77,6 @@ UI.ViewManager.registerViewExtension({
     return new Settings.SettingsScreen.GenericSettingsTab();
   },
   iconName: 'gear',
-});
-
-UI.ViewManager.registerViewExtension({
-  location: UI.ViewManager.ViewLocationValues.SETTINGS_VIEW,
-  id: 'chrome-ai',
-  title: i18nLazyString(UIStrings.aiInnovations),
-  commandPrompt: i18nLazyString(UIStrings.showAiInnovations),
-  order: 2,
-  async loadView() {
-    const Settings = await loadSettingsModule();
-    return LegacyWrapper.LegacyWrapper.legacyWrapper(UI.Widget.VBox, new Settings.AISettingsTab.AISettingsTab());
-  },
-  iconName: 'button-magic',
-  settings: ['console-insights-enabled'],
-  condition: config => {
-    return (config?.aidaAvailability?.enabled &&
-            (config?.devToolsConsoleInsights?.enabled || config?.devToolsFreestyler?.enabled)) ??
-        false;
-  },
 });
 
 UI.ViewManager.registerViewExtension({
@@ -167,14 +139,14 @@ UI.ActionRegistration.registerActionExtension({
       shortcut: 'Shift+?',
     },
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+,',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.VS_CODE,
       ],
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+,',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.VS_CODE,
@@ -203,14 +175,14 @@ UI.ActionRegistration.registerActionExtension({
   },
   bindings: [
     {
-      platform: UI.ActionRegistration.Platforms.WINDOWS_LINUX,
+      platform: UI.ActionRegistration.Platforms.WindowsLinux,
       shortcut: 'Ctrl+K Ctrl+S',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.VS_CODE,
       ],
     },
     {
-      platform: UI.ActionRegistration.Platforms.MAC,
+      platform: UI.ActionRegistration.Platforms.Mac,
       shortcut: 'Meta+K Meta+S',
       keybindSets: [
         UI.ActionRegistration.KeybindSet.VS_CODE,

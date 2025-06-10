@@ -5,12 +5,15 @@
 import {assert} from 'chai';
 
 import {getTestServerPort, goToResource, waitForFunction} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   getStructuredConsoleMessages,
   navigateToConsoleTab,
   showVerboseMessages,
   waitForConsoleMessagesToBeNonEmpty,
 } from '../helpers/console-helpers.js';
+
+/* eslint-disable no-console */
 
 describe('The Console\'s errors', () => {
   it('picks up custom exception names ending with \'Error\' and symbolizes stack traces according to source maps',
@@ -60,7 +63,10 @@ describe('The Console\'s errors', () => {
         source: 'resource-errors.html:20',
         stackPreview: `
 loadXHR @ resource-errors.html:20
-step2 @ resource-errors.html:12`,
+step2 @ resource-errors.html:12
+error
+performActions @ resource-errors.html:7
+(anonymous) @ resource-errors.html:30`,
         wrapperClasses: 'console-message-wrapper console-error-level',
       },
       {

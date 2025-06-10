@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {Chrome} from '../../../extension-api/ExtensionAPI.js';
+import {type Chrome} from '../../../extension-api/ExtensionAPI.js';
 import type * as Platform from '../../core/platform/platform.js';
 import type * as SDK from '../../core/sdk/sdk.js';
 import * as Bindings from '../bindings/bindings.js';
@@ -31,46 +31,29 @@ class LanguageExtensionEndpointImpl extends ExtensionEndpoint {
 export class LanguageExtensionEndpoint implements Bindings.DebuggerLanguagePlugins.DebuggerLanguagePlugin {
   private readonly supportedScriptTypes: {
     language: string,
+    // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    symbol_types: string[],
+    symbol_types: Array<string>,
   };
-  private readonly endpoint: LanguageExtensionEndpointImpl;
-  private readonly extensionOrigin: string;
-  readonly allowFileAccess: boolean;
-  readonly name: string;
+  private endpoint: LanguageExtensionEndpointImpl;
+  private extensionOrigin: string;
+  name: string;
 
   constructor(
-      allowFileAccess: boolean, extensionOrigin: string, name: string, supportedScriptTypes: {
+      extensionOrigin: string, name: string, supportedScriptTypes: {
         language: string,
+        // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
         // eslint-disable-next-line @typescript-eslint/naming-convention
-        symbol_types: string[],
+        symbol_types: Array<string>,
       },
       port: MessagePort) {
     this.name = name;
     this.extensionOrigin = extensionOrigin;
     this.supportedScriptTypes = supportedScriptTypes;
     this.endpoint = new LanguageExtensionEndpointImpl(this, port);
-    this.allowFileAccess = allowFileAccess;
-  }
-
-  canAccessURL(url: string): boolean {
-    try {
-      return !url || this.allowFileAccess || new URL(url).protocol !== 'file:';
-    } catch {
-      // If the URL isn't valid, it also isn't a valid file url and it's safe to tell the extensions about it.
-      return true;
-    }
   }
 
   handleScript(script: SDK.Script.Script): boolean {
-    try {
-      if (!this.canAccessURL(script.contentURL()) || (script.hasSourceURL && !this.canAccessURL(script.sourceURL)) ||
-          (script.debugSymbols?.externalURL && !this.canAccessURL(script.debugSymbols.externalURL))) {
-        return false;
-      }
-    } catch {
-      return false;
-    }
     const language = script.scriptLanguage();
     return language !== null && script.debugSymbols !== null && language === this.supportedScriptTypes.language &&
         this.supportedScriptTypes.symbol_types.includes(script.debugSymbols.type);
@@ -88,18 +71,17 @@ export class LanguageExtensionEndpoint implements Bindings.DebuggerLanguagePlugi
   /** Notify the plugin about a new script
    */
   addRawModule(rawModuleId: string, symbolsURL: string, rawModule: Chrome.DevTools.RawModule): Promise<string[]> {
-    if (!this.canAccessURL(symbolsURL) || !this.canAccessURL(rawModule.url)) {
-      return Promise.resolve([]);
-    }
     return this.endpoint.sendRequest(
-        PrivateAPI.LanguageExtensionPluginCommands.AddRawModule, {rawModuleId, symbolsURL, rawModule});
+               PrivateAPI.LanguageExtensionPluginCommands.AddRawModule, {rawModuleId, symbolsURL, rawModule}) as
+        Promise<string[]>;
   }
 
   /**
    * Notifies the plugin that a script is removed.
    */
   removeRawModule(rawModuleId: string): Promise<void> {
-    return this.endpoint.sendRequest(PrivateAPI.LanguageExtensionPluginCommands.RemoveRawModule, {rawModuleId});
+    return this.endpoint.sendRequest(PrivateAPI.LanguageExtensionPluginCommands.RemoveRawModule, {rawModuleId}) as
+        Promise<void>;
   }
 
   /** Find locations in raw modules from a location in a source file
@@ -107,32 +89,39 @@ export class LanguageExtensionEndpoint implements Bindings.DebuggerLanguagePlugi
   sourceLocationToRawLocation(sourceLocation: Chrome.DevTools.SourceLocation):
       Promise<Chrome.DevTools.RawLocationRange[]> {
     return this.endpoint.sendRequest(
-        PrivateAPI.LanguageExtensionPluginCommands.SourceLocationToRawLocation, {sourceLocation});
+               PrivateAPI.LanguageExtensionPluginCommands.SourceLocationToRawLocation, {sourceLocation}) as
+        Promise<Chrome.DevTools.RawLocationRange[]>;
   }
 
   /** Find locations in source files from a location in a raw module
    */
   rawLocationToSourceLocation(rawLocation: Chrome.DevTools.RawLocation): Promise<Chrome.DevTools.SourceLocation[]> {
     return this.endpoint.sendRequest(
-        PrivateAPI.LanguageExtensionPluginCommands.RawLocationToSourceLocation, {rawLocation});
+               PrivateAPI.LanguageExtensionPluginCommands.RawLocationToSourceLocation, {rawLocation}) as
+        Promise<Chrome.DevTools.SourceLocation[]>;
   }
 
   getScopeInfo(type: string): Promise<Chrome.DevTools.ScopeInfo> {
-    return this.endpoint.sendRequest(PrivateAPI.LanguageExtensionPluginCommands.GetScopeInfo, {type});
+    return this.endpoint.sendRequest(PrivateAPI.LanguageExtensionPluginCommands.GetScopeInfo, {type}) as
+        Promise<Chrome.DevTools.ScopeInfo>;
   }
 
   /** List all variables in lexical scope at a given location in a raw module
    */
   listVariablesInScope(rawLocation: Chrome.DevTools.RawLocation): Promise<Chrome.DevTools.Variable[]> {
-    return this.endpoint.sendRequest(PrivateAPI.LanguageExtensionPluginCommands.ListVariablesInScope, {rawLocation});
+    return this.endpoint.sendRequest(PrivateAPI.LanguageExtensionPluginCommands.ListVariablesInScope, {rawLocation}) as
+        Promise<Chrome.DevTools.Variable[]>;
   }
 
   /** List all function names (including inlined frames) at location
    */
   getFunctionInfo(rawLocation: Chrome.DevTools.RawLocation): Promise<{
-    frames: Chrome.DevTools.FunctionInfo[],
+    frames: Array<Chrome.DevTools.FunctionInfo>,
   }> {
-    return this.endpoint.sendRequest(PrivateAPI.LanguageExtensionPluginCommands.GetFunctionInfo, {rawLocation});
+    return this.endpoint.sendRequest(PrivateAPI.LanguageExtensionPluginCommands.GetFunctionInfo, {rawLocation}) as
+        Promise<{
+             frames: Array<Chrome.DevTools.FunctionInfo>,
+           }>;
   }
 
   /** Find locations in raw modules corresponding to the inline function
@@ -140,24 +129,27 @@ export class LanguageExtensionEndpoint implements Bindings.DebuggerLanguagePlugi
    */
   getInlinedFunctionRanges(rawLocation: Chrome.DevTools.RawLocation): Promise<Chrome.DevTools.RawLocationRange[]> {
     return this.endpoint.sendRequest(
-        PrivateAPI.LanguageExtensionPluginCommands.GetInlinedFunctionRanges, {rawLocation});
+               PrivateAPI.LanguageExtensionPluginCommands.GetInlinedFunctionRanges, {rawLocation}) as
+        Promise<Chrome.DevTools.RawLocationRange[]>;
   }
 
   /** Find locations in raw modules corresponding to inline functions
    *  called by the function or inline frame that rawLocation is in.
    */
   getInlinedCalleesRanges(rawLocation: Chrome.DevTools.RawLocation): Promise<Chrome.DevTools.RawLocationRange[]> {
-    return this.endpoint.sendRequest(PrivateAPI.LanguageExtensionPluginCommands.GetInlinedCalleesRanges, {rawLocation});
+    return this.endpoint.sendRequest(
+               PrivateAPI.LanguageExtensionPluginCommands.GetInlinedCalleesRanges, {rawLocation}) as
+        Promise<Chrome.DevTools.RawLocationRange[]>;
   }
 
   async getMappedLines(rawModuleId: string, sourceFileURL: string): Promise<number[]|undefined> {
-    return await this.endpoint.sendRequest(
+    return this.endpoint.sendRequest(
         PrivateAPI.LanguageExtensionPluginCommands.GetMappedLines, {rawModuleId, sourceFileURL});
   }
 
   async evaluate(expression: string, context: Chrome.DevTools.RawLocation, stopId: number):
       Promise<Chrome.DevTools.RemoteObject> {
-    return await this.endpoint.sendRequest(
+    return this.endpoint.sendRequest(
         PrivateAPI.LanguageExtensionPluginCommands.FormatValue, {expression, context, stopId});
   }
 

@@ -59,7 +59,7 @@ export class BreakpointManager extends Common.ObjectWrapper.ObjectWrapper<EventT
   readonly #breakpointsForUISourceCode =
       new Map<Workspace.UISourceCode.UISourceCode, Map<string, BreakpointLocation>>();
   readonly #breakpointByStorageId = new Map<string, Breakpoint>();
-  #updateBindingsCallbacks: Array<(uiSourceCode: Workspace.UISourceCode.UISourceCode) => Promise<void>> = [];
+  #updateBindingsCallbacks: ((uiSourceCode: Workspace.UISourceCode.UISourceCode) => Promise<void>)[] = [];
 
   private constructor(
       targetManager: SDK.TargetManager.TargetManager, workspace: Workspace.Workspace.WorkspaceImpl,
@@ -494,16 +494,14 @@ export class BreakpointManager extends Common.ObjectWrapper.ObjectWrapper<EventT
 }
 
 export enum Events {
-  /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   BreakpointAdded = 'breakpoint-added',
   BreakpointRemoved = 'breakpoint-removed',
-  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
-export interface EventTypes {
-  [Events.BreakpointAdded]: BreakpointLocation;
-  [Events.BreakpointRemoved]: BreakpointLocation;
-}
+export type EventTypes = {
+  [Events.BreakpointAdded]: BreakpointLocation,
+  [Events.BreakpointRemoved]: BreakpointLocation,
+};
 
 export const enum DebuggerUpdateResult {
   OK = 'OK',
@@ -612,7 +610,7 @@ export class Breakpoint implements SDK.TargetManager.SDKModelObserver<SDK.Debugg
       const modelBreakpoints = Array.from(this.#modelBreakpoints.values());
       await Promise.all(modelBreakpoints.map(async modelBreakpoint => {
         await modelBreakpoint.resetBreakpoint();
-        return await this.#updateModel(modelBreakpoint);
+        return this.#updateModel(modelBreakpoint);
       }));
     }
   }
@@ -769,6 +767,15 @@ export class Breakpoint implements SDK.TargetManager.SDKModelObserver<SDK.Debugg
     return this.#uiLocations.size !== 0;
   }
 
+  hasBoundScript(): boolean {
+    for (const uiSourceCode of this.uiSourceCodes) {
+      if (uiSourceCode.project().type() === Workspace.Workspace.projectTypes.Network) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   setEnabled(enabled: boolean): void {
     this.updateState({...this.#storageState, enabled});
   }
@@ -847,7 +854,7 @@ export class Breakpoint implements SDK.TargetManager.SDKModelObserver<SDK.Debugg
         this.addAllUnboundLocations();
       }
     }
-    return await this.#updateModels();
+    return this.#updateModels();
   }
 
   async remove(keepInStorage: boolean): Promise<void> {
@@ -977,7 +984,7 @@ export class ModelBreakpoint {
   private scriptDiverged(): boolean {
     for (const uiSourceCode of this.#breakpoint.getUiSourceCodes()) {
       const scriptFile = this.#debuggerWorkspaceBinding.scriptFile(uiSourceCode, this.#debuggerModel);
-      if (scriptFile?.hasDivergedFromVM()) {
+      if (scriptFile && scriptFile.hasDivergedFromVM()) {
         return true;
       }
     }
@@ -1117,7 +1124,7 @@ export class ModelBreakpoint {
         return this.#debuggerModel.setBreakpointByURL(pos.url, pos.lineNumber, pos.columnNumber, pos.condition);
       }
       return this.#debuggerModel.setBreakpointInAnonymousScript(
-          pos.scriptHash, pos.lineNumber, pos.columnNumber, pos.condition);
+          pos.scriptHash as string, pos.lineNumber, pos.columnNumber, pos.condition);
     }));
     const breakpointIds: Protocol.Debugger.BreakpointId[] = [];
     let locations: SDK.DebuggerModel.Location[] = [];

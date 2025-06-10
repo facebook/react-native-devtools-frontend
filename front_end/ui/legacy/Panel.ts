@@ -32,15 +32,15 @@
 
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
-import type {SearchableView} from './SearchableView.js';
+import {type SearchableView} from './SearchableView.js';
 import {SplitWidget} from './SplitWidget.js';
 import {VBox} from './Widget.js';
 
 export class Panel extends VBox {
   protected panelName: string;
 
-  constructor(name: string, useShadowDom?: boolean) {
-    super(useShadowDom);
+  constructor(name: string) {
+    super();
 
     this.element.setAttribute('jslog', `${VisualLogging.panel().context(name).track({resize: true})}`);
     this.element.classList.add('panel');
@@ -48,12 +48,12 @@ export class Panel extends VBox {
     this.element.classList.add(name);
     this.panelName = name;
 
-    // @ts-expect-error: Legacy global. Requires rewriting tests to get rid of.
+    // @ts-ignore: Legacy global. Requires rewriting tests to get rid of.
     // For testing.
     self.UI = self.UI || {};
-    // @ts-expect-error
+    // @ts-ignore
     self.UI.panels = self.UI.panels || {};
-    // @ts-expect-error
+    // @ts-ignore
     UI.panels[name] = this;
   }
 

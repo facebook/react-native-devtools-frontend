@@ -1,7 +1,7 @@
 var __addDisposableResource = (this && this.__addDisposableResource) || function (env, value, async) {
     if (value !== null && value !== void 0) {
         if (typeof value !== "object" && typeof value !== "function") throw new TypeError("Object expected.");
-        var dispose, inner;
+        var dispose;
         if (async) {
             if (!Symbol.asyncDispose) throw new TypeError("Symbol.asyncDispose is not defined.");
             dispose = value[Symbol.asyncDispose];
@@ -9,10 +9,8 @@ var __addDisposableResource = (this && this.__addDisposableResource) || function
         if (dispose === void 0) {
             if (!Symbol.dispose) throw new TypeError("Symbol.dispose is not defined.");
             dispose = value[Symbol.dispose];
-            if (async) inner = dispose;
         }
         if (typeof dispose !== "function") throw new TypeError("Object not disposable.");
-        if (inner) dispose = function() { try { inner.call(this); } catch (e) { return Promise.reject(e); } };
         env.stack.push({ value: value, dispose: dispose, async: async });
     }
     else if (async) {
@@ -26,22 +24,17 @@ var __disposeResources = (this && this.__disposeResources) || (function (Suppres
             env.error = env.hasError ? new SuppressedError(e, env.error, "An error was suppressed during disposal.") : e;
             env.hasError = true;
         }
-        var r, s = 0;
         function next() {
-            while (r = env.stack.pop()) {
+            while (env.stack.length) {
+                var rec = env.stack.pop();
                 try {
-                    if (!r.async && s === 1) return s = 0, env.stack.push(r), Promise.resolve().then(next);
-                    if (r.dispose) {
-                        var result = r.dispose.call(r.value);
-                        if (r.async) return s |= 2, Promise.resolve(result).then(next, function(e) { fail(e); return next(); });
-                    }
-                    else s |= 1;
+                    var result = rec.dispose && rec.dispose.call(rec.value);
+                    if (rec.async) return Promise.resolve(result).then(next, function(e) { fail(e); return next(); });
                 }
                 catch (e) {
                     fail(e);
                 }
             }
-            if (s === 1) return env.hasError ? Promise.reject(env.error) : Promise.resolve();
             if (env.hasError) throw env.error;
         }
         return next();
@@ -59,7 +52,7 @@ import { AsyncIterableUtil } from '../util/AsyncIterableUtil.js';
 import { stringifyFunction } from '../util/Function.js';
 import { BidiDeserializer } from './Deserializer.js';
 import { BidiElementHandle } from './ElementHandle.js';
-import { ExposableFunction } from './ExposedFunction.js';
+import { ExposeableFunction } from './ExposedFunction.js';
 import { BidiJSHandle } from './JSHandle.js';
 import { BidiSerializer } from './Serializer.js';
 import { createEvaluationError } from './util.js';
@@ -133,17 +126,11 @@ export class BidiRealm extends Realm {
                 : `${functionDeclaration}\n${sourceUrlComment}\n`;
             responsePromise = this.realm.callFunction(functionDeclaration, 
             /* awaitPromise= */ true, {
-                // LazyArgs are used only internally and should not affect the order
-                // evaluate calls for the public APIs.
-                arguments: args.some(arg => {
-                    return arg instanceof LazyArg;
-                })
+                arguments: args.length
                     ? await Promise.all(args.map(arg => {
-                        return this.serializeAsync(arg);
-                    }))
-                    : args.map(arg => {
                         return this.serialize(arg);
-                    }),
+                    }))
+                    : [],
                 resultOwnership,
                 userActivation: true,
                 serializationOptions,
@@ -164,13 +151,10 @@ export class BidiRealm extends Realm {
         }
         return BidiJSHandle.from(result, this);
     }
-    async serializeAsync(arg) {
+    async serialize(arg) {
         if (arg instanceof LazyArg) {
             arg = await arg.get(this);
         }
-        return this.serialize(arg);
-    }
-    serialize(arg) {
         if (arg instanceof BidiJSHandle || arg instanceof BidiElementHandle) {
             if (arg.realm !== this) {
                 if (!(arg.realm instanceof BidiFrameRealm) ||
@@ -249,8 +233,8 @@ export class BidiFrameRealm extends BidiRealm {
         let promise = Promise.resolve();
         if (!this.#bindingsInstalled) {
             promise = Promise.all([
-                ExposableFunction.from(this.environment, '__ariaQuerySelector', ARIAQueryHandler.queryOne, !!this.sandbox),
-                ExposableFunction.from(this.environment, '__ariaQuerySelectorAll', async (element, selector) => {
+                ExposeableFunction.from(this.environment, '__ariaQuerySelector', ARIAQueryHandler.queryOne, !!this.sandbox),
+                ExposeableFunction.from(this.environment, '__ariaQuerySelectorAll', async (element, selector) => {
                     const results = ARIAQueryHandler.queryAll(element, selector);
                     return await element.realm.evaluateHandle((...elements) => {
                         return elements;

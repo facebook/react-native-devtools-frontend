@@ -2,13 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+export type FinishCallback = (err: Error) => void;
+
 export class Throttler {
   readonly #timeout: number;
   #isRunningProcess: boolean;
   #asSoonAsPossible: boolean;
-  #process: (() => (void|Promise<unknown>))|null;
+  #process: (() => (Promise<unknown>))|null;
   #lastCompleteTime: number;
-  #scheduler = Promise.withResolvers<unknown>();
+  #schedulePromise: Promise<unknown>;
+  #scheduleResolve!: (value: unknown) => void;
   #processTimeout?: number;
 
   constructor(timeout: number) {
@@ -17,25 +20,34 @@ export class Throttler {
     this.#asSoonAsPossible = false;
     this.#process = null;
     this.#lastCompleteTime = 0;
+
+    this.#schedulePromise = new Promise(fulfill => {
+      this.#scheduleResolve = fulfill;
+    });
   }
 
   #processCompleted(): void {
-    this.#lastCompleteTime = this.#getTime();
+    this.#lastCompleteTime = this.getTime();
     this.#isRunningProcess = false;
     if (this.#process) {
-      this.#schedule(false);
+      this.innerSchedule(false);
     }
+    this.processCompletedForTests();
   }
 
-  get process(): (() => (void|Promise<unknown>))|null {
+  private processCompletedForTests(): void {
+    // For sniffing in tests.
+  }
+
+  get process(): (() => (Promise<unknown>))|null {
     return this.#process;
   }
 
   get processCompleted(): Promise<unknown>|null {
-    return this.#process ? this.#scheduler.promise : null;
+    return this.#process ? this.#schedulePromise : null;
   }
 
-  #onTimeout(): void {
+  private onTimeout(): void {
     this.#processTimeout = undefined;
     this.#asSoonAsPossible = false;
     this.#isRunningProcess = true;
@@ -44,44 +56,55 @@ export class Throttler {
         .then(this.#process)
         .catch(console.error.bind(console))
         .then(this.#processCompleted.bind(this))
-        .then(this.#scheduler.resolve);
-    this.#scheduler = Promise.withResolvers();
+        .then(this.#scheduleResolve);
+    this.#schedulePromise = new Promise(fulfill => {
+      this.#scheduleResolve = fulfill;
+    });
     this.#process = null;
   }
 
-  async schedule(process: () => (void|Promise<unknown>), scheduling = Scheduling.DEFAULT): Promise<void> {
+  schedule(process: () => (Promise<unknown>), scheduling = Scheduling.Default): Promise<void> {
     // Deliberately skip previous #process.
     this.#process = process;
 
     // Run the first scheduled task instantly.
     const hasScheduledTasks = Boolean(this.#processTimeout) || this.#isRunningProcess;
-    const okToFire = this.#getTime() - this.#lastCompleteTime > this.#timeout;
-    const asSoonAsPossible = scheduling === Scheduling.AS_SOON_AS_POSSIBLE ||
-        (scheduling === Scheduling.DEFAULT && !hasScheduledTasks && okToFire);
+    const okToFire = this.getTime() - this.#lastCompleteTime > this.#timeout;
+    const asSoonAsPossible = scheduling === Scheduling.AsSoonAsPossible ||
+        (scheduling === Scheduling.Default && !hasScheduledTasks && okToFire);
 
     const forceTimerUpdate = asSoonAsPossible && !this.#asSoonAsPossible;
     this.#asSoonAsPossible = this.#asSoonAsPossible || asSoonAsPossible;
 
-    this.#schedule(forceTimerUpdate);
+    this.innerSchedule(forceTimerUpdate);
 
-    await this.#scheduler.promise;
+    return this.#schedulePromise as Promise<void>;
   }
 
-  #schedule(forceTimerUpdate: boolean): void {
+  private innerSchedule(forceTimerUpdate: boolean): void {
     if (this.#isRunningProcess) {
       return;
     }
     if (this.#processTimeout && !forceTimerUpdate) {
       return;
     }
-
-    clearTimeout(this.#processTimeout);
+    if (this.#processTimeout) {
+      this.clearTimeout(this.#processTimeout);
+    }
 
     const timeout = this.#asSoonAsPossible ? 0 : this.#timeout;
-    this.#processTimeout = window.setTimeout(this.#onTimeout.bind(this), timeout);
+    this.#processTimeout = this.setTimeout(this.onTimeout.bind(this), timeout);
   }
 
-  #getTime(): number {
+  private clearTimeout(timeoutId: number): void {
+    clearTimeout(timeoutId);
+  }
+
+  private setTimeout(operation: () => void, timeout: number): number {
+    return window.setTimeout(operation, timeout);
+  }
+
+  private getTime(): number {
     return window.performance.now();
   }
 }
@@ -90,10 +113,10 @@ export const enum Scheduling {
   // If the throttler has run another task recently (i.e. time since the last run is less then the
   // throttling delay), schedule the task to be run after the throttling delay. Otherwise scheule
   // the task after the next tick.
-  DEFAULT = 'Default',
+  Default = 'Default',
   // Schedule the task to run at the next tick, even if the throttler has run another task recently.
-  AS_SOON_AS_POSSIBLE = 'AsSoonAsPossible',
+  AsSoonAsPossible = 'AsSoonAsPossible',
   // Schedule the task to run after the throttling delay, even if the throttler has not run any
   // task recently.
-  DELAYED = 'Delayed',
+  Delayed = 'Delayed',
 }

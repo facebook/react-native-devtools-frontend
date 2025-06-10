@@ -67,7 +67,8 @@
 
 .storage-view.query {
   padding: 2px 0;
-  overflow: hidden auto;
+  overflow-y: overlay;
+  overflow-x: hidden;
 }
 
 .storage-view .filter-bar {

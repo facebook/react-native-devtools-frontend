@@ -11,13 +11,13 @@ const IDLE_FUNCTION_CALL_NAMES = new Set([
 ]);
 
 export function calculateWindow(
-    traceBounds: Types.Timing.TraceWindowMicro,
-    mainThreadEntries: readonly Types.Events.Event[]): Types.Timing.TraceWindowMicro {
+    traceBounds: Types.Timing.TraceWindowMicroSeconds,
+    mainThreadEntries: readonly Types.TraceEvents.SyntheticTraceEntry[]): Types.Timing.TraceWindowMicroSeconds {
   if (!mainThreadEntries.length) {
     return traceBounds;
   }
   const entriesWithIdleRemoved = mainThreadEntries.filter(entry => {
-    if (Types.Events.isProfileCall(entry) &&
+    if (Types.TraceEvents.isProfileCall(entry) &&
         (IDLE_FUNCTION_CALL_NAMES.has(entry.callFrame.functionName) || !entry.callFrame.functionName)) {
       return false;
     }
@@ -75,12 +75,12 @@ export function calculateWindow(
   // we give the range we want to zoom a bit of breathing space. At the
   // same time, ensure that we do not stray beyond the bounds of the
   // min/max time of the entire trace.
-  leftTime = Types.Timing.Micro(Math.max(leftTime - 0.05 * zoomedInSpan, traceBounds.min));
-  rightTime = Types.Timing.Micro(Math.min(rightTime + 0.05 * zoomedInSpan, traceBounds.max));
+  leftTime = Types.Timing.MicroSeconds(Math.max(leftTime - 0.05 * zoomedInSpan, traceBounds.min));
+  rightTime = Types.Timing.MicroSeconds(Math.min(rightTime + 0.05 * zoomedInSpan, traceBounds.max));
 
   return {
     min: leftTime,
     max: rightTime,
-    range: Types.Timing.Micro(rightTime - leftTime),
+    range: Types.Timing.MicroSeconds(rightTime - leftTime),
   };
 }

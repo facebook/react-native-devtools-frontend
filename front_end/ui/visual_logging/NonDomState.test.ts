@@ -15,7 +15,7 @@ describe('NonDomState', () => {
       {loggable: parent, config: {ve: 1, context: '1'}, parent: undefined},
     ]);
     assert.sameDeepMembers(VisualLogging.NonDomState.getNonDomLoggables(parent), [
-      {loggable: child, config: {ve: 1, context: '2'}, parent},
+      {loggable: child, config: {ve: 1, context: '2'}, parent: parent},
     ]);
 
     VisualLogging.NonDomState.unregisterLoggables(parent);
@@ -36,7 +36,7 @@ describe('NonDomState', () => {
     loggables.pop();
 
     assert.sameDeepMembers(VisualLogging.NonDomState.getNonDomLoggables(), [
-      {loggable, config: {ve: 1, context: '1'}, parent: undefined},
+      {loggable: loggable, config: {ve: 1, context: '1'}, parent: undefined},
     ]);
     VisualLogging.NonDomState.unregisterLoggables();
   });

@@ -9,7 +9,7 @@ import {
   PAUSE_INDICATOR_SELECTOR,
 } from 'test/e2e/helpers/sources-helpers';
 import {
-  click,
+  clickElement,
   getBrowserAndPages,
   getPendingEvents,
   installEventListener,
@@ -17,6 +17,7 @@ import {
   waitForFunction,
   waitForMany,
 } from 'test/shared/helper.js';
+import {describe, it} from 'test/shared/mocha-extensions.js';
 
 import {
   openTestSuiteResourceInSourcesPanel,
@@ -39,14 +40,13 @@ describe('LinearMemoryInspector', () => {
     await waitForFunction(async () => ((await getPendingEvents(frontend, 'DevTools.DebuggerPaused')) || []).length > 0);
 
     const stopped = await waitFor(PAUSE_INDICATOR_SELECTOR);
-    const stoppedText = await waitForFunction(async () => await stopped.evaluate(node => node.textContent));
+    const stoppedText = await waitForFunction(async () => stopped.evaluate(node => node.textContent));
 
-    assert.strictEqual(stoppedText, 'Paused on breakpoint');
+    assert.equal(stoppedText, 'Paused on breakpoint');
 
     const localVariable = await waitFor('[data-object-property-name-for-test="d"]');
-    await click('[title="Open in Memory inspector panel"]', {
-      root: localVariable,
-    });
+    const memIcon = await waitFor('[title="Reveal in Memory inspector panel"]', localVariable);
+    await clickElement(memIcon);
 
     const byteHighlights = await waitForMany('.byte-cell.highlight-area', 8);
     const byteHighlightText = await Promise.all(byteHighlights.map(cell => cell.evaluate(cell => cell.textContent)));

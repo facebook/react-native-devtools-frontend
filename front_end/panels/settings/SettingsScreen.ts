@@ -28,31 +28,22 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import '../../ui/components/cards/cards.js';
-
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import type * as Platform from '../../core/platform/platform.js';
 import * as Root from '../../core/root/root.js';
-import * as Buttons from '../../ui/components/buttons/buttons.js';
-import type * as Cards from '../../ui/components/cards/cards.js';
 import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as Components from '../../ui/legacy/components/utils/utils.js';
 import * as UI from '../../ui/legacy/legacy.js';
-import {html, render} from '../../ui/lit/lit.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 import {PanelUtils} from '../utils/utils.js';
 
 import * as PanelComponents from './components/components.js';
-import type {KeybindsSettingsTab} from './KeybindsSettingsTab.js';
+import {type KeybindsSettingsTab} from './KeybindsSettingsTab.js';
 import settingsScreenStyles from './settingsScreen.css.js';
 
 const UIStrings = {
-
-  /**
-   *@description Card header in Experiments settings tab that list all available unstable experiments that can be turned on or off.
-   */
-  unstableExperiments: 'Unstable experiments',
   /**
    *@description Name of the Settings view
    */
@@ -62,25 +53,38 @@ const UIStrings = {
    */
   shortcuts: 'Shortcuts',
   /**
+   *@description Text in Settings Screen of the Settings
+   */
+  preferences: 'Preferences',
+  /**
    *@description Text of button in Settings Screen of the Settings
    */
   restoreDefaultsAndReload: 'Restore defaults and reload',
   /**
-   *@description Card header in Experiments settings tab that list all available stable experiments that can be turned on or off.
+   *@description Text in Settings Screen of the Settings
    */
   experiments: 'Experiments',
   /**
    *@description Message shown in the experiments panel to warn users about any possible unstable features.
    */
-  theseExperimentsCouldBeUnstable: 'Warning: These experiments could be unstable or unreliable.',
+  theseExperimentsCouldBeUnstable:
+      'These experiments could be unstable or unreliable and may require you to restart DevTools.',
   /**
    *@description Message text content in Settings Screen of the Settings
    */
-  theseExperimentsAreParticularly: 'Warning: These experiments are particularly unstable. Enable at your own risk.',
+  theseExperimentsAreParticularly: 'These experiments are particularly unstable. Enable at your own risk.',
+  /**
+   *@description Warning text content in Settings Screen of the Settings
+   */
+  warning: 'WARNING:',
   /**
    *@description Message to display if a setting change requires a reload of DevTools
    */
-  oneOrMoreSettingsHaveChanged: 'One or more settings have changed which requires a reload to take effect',
+  oneOrMoreSettingsHaveChanged: 'One or more settings have changed which requires a reload to take effect.',
+  /**
+   * @description Label for a filter text input that controls which experiments are shown.
+   */
+  filterExperimentsLabel: 'Filter',
   /**
    * @description Warning text shown when the user has entered text to filter the
    * list of experiments, but no experiments match the filter.
@@ -94,22 +98,11 @@ const UIStrings = {
    *@description Text that is usually a hyperlink to a feedback form
    */
   sendFeedback: 'Send feedback',
-  /**
-   *@description Placeholder text in search bar
-   */
-  searchExperiments: 'Search experiments',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/settings/SettingsScreen.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 let settingsScreenInstance: SettingsScreen;
-
-function createSettingsCard(heading: Common.UIString.LocalizedString, ...content: HTMLElement[]): Cards.Card.Card {
-  const card = document.createElement('devtools-card');
-  card.heading = heading;
-  card.append(...content);
-  return card;
-}
 
 export class SettingsScreen extends UI.Widget.VBox implements UI.View.ViewLocationResolver {
   private readonly tabbedLocation: UI.View.TabbedViewLocation;
@@ -118,7 +111,6 @@ export class SettingsScreen extends UI.Widget.VBox implements UI.View.ViewLocati
 
   private constructor() {
     super(true);
-    this.registerRequiredCSS(settingsScreenStyles);
 
     this.contentElement.classList.add('settings-window-main');
     this.contentElement.classList.add('vbox');
@@ -126,7 +118,9 @@ export class SettingsScreen extends UI.Widget.VBox implements UI.View.ViewLocati
     const settingsLabelElement = document.createElement('div');
     settingsLabelElement.classList.add('settings-window-label-element');
     const settingsTitleElement =
-        UI.UIUtils.createShadowRootWithCoreStyles(settingsLabelElement, {cssFile: settingsScreenStyles})
+        UI.UIUtils
+            .createShadowRootWithCoreStyles(
+                settingsLabelElement, {cssFile: [settingsScreenStyles], delegatesFocus: undefined})
             .createChild('div', 'settings-window-title');
 
     UI.ARIAUtils.markAsHeading(settingsTitleElement, 1);
@@ -135,7 +129,7 @@ export class SettingsScreen extends UI.Widget.VBox implements UI.View.ViewLocati
     this.tabbedLocation = UI.ViewManager.ViewManager.instance().createTabbedLocation(
         () => SettingsScreen.revealSettingsScreen(), 'settings-view');
     const tabbedPane = this.tabbedLocation.tabbedPane();
-    tabbedPane.registerRequiredCSS(settingsScreenStyles);
+    tabbedPane.registerCSSFiles([settingsScreenStyles]);
     tabbedPane.headerElement().prepend(settingsLabelElement);
     tabbedPane.setShrinkableTabs(false);
     tabbedPane.makeVerticalTabLayout();
@@ -168,15 +162,18 @@ export class SettingsScreen extends UI.Widget.VBox implements UI.View.ViewLocati
 
     settingsScreen.reportTabOnReveal = true;
     const dialog = new UI.Dialog.Dialog('settings');
-    dialog.contentElement.removeAttribute('aria-modal');
     dialog.contentElement.tabIndex = -1;
     dialog.addCloseButton();
     dialog.setOutsideClickCallback(() => {});
-    dialog.setPointerEventsBehavior(UI.GlassPane.PointerEventsBehavior.PIERCE_GLASS_PANE);
-    dialog.setOutsideTabIndexBehavior(UI.Dialog.OutsideTabIndexBehavior.PRESERVE_MAIN_VIEW_TAB_INDEX);
+    dialog.setPointerEventsBehavior(UI.GlassPane.PointerEventsBehavior.PierceGlassPane);
+    dialog.setOutsideTabIndexBehavior(UI.Dialog.OutsideTabIndexBehavior.PreserveMainViewTabIndex);
     settingsScreen.show(dialog.contentElement);
     dialog.setEscapeKeyCallback(settingsScreen.onEscapeKeyPressed.bind(settingsScreen));
-    dialog.setMarginBehavior(UI.GlassPane.MarginBehavior.NO_MARGIN);
+    dialog.setMarginBehavior(UI.GlassPane.MarginBehavior.NoMargin);
+    // UI.Dialog extends GlassPane and overrides the `show` method with a wider
+    // accepted type. However, TypeScript uses the supertype declaration to
+    // determine the full type, which requires a `!Document`.
+    // @ts-ignore
     dialog.show();
 
     return settingsScreen;
@@ -235,18 +232,36 @@ export class SettingsScreen extends UI.Widget.VBox implements UI.View.ViewLocati
       this.keybindsTab.onEscapeKeyPressed(event);
     }
   }
+  override wasShown(): void {
+    super.wasShown();
+    this.registerCSSFiles([settingsScreenStyles]);
+  }
 }
 
 abstract class SettingsTab extends UI.Widget.VBox {
   containerElement: HTMLElement;
-  constructor(id?: string) {
+  constructor(name: string, id?: string) {
     super();
     this.element.classList.add('settings-tab-container');
     if (id) {
       this.element.id = id;
     }
-    this.containerElement =
-        this.contentElement.createChild('div', 'settings-card-container-wrapper').createChild('div');
+    const header = this.element.createChild('header');
+    UI.UIUtils.createTextChild(header.createChild('h1'), name);
+    this.containerElement = this.element.createChild('div', 'settings-container-wrapper')
+                                .createChild('div', 'settings-tab settings-content settings-container');
+  }
+
+  protected appendSection(name?: string): HTMLElement {
+    const block = this.containerElement.createChild('div', 'settings-block');
+    if (name) {
+      UI.ARIAUtils.markAsGroup(block);
+      const title = block.createChild('div', 'settings-section-title');
+      title.textContent = name;
+      UI.ARIAUtils.markAsHeading(title, 2);
+      UI.ARIAUtils.setLabel(block, name);
+    }
+    return block;
   }
 
   abstract highlightObject(_object: Object): void;
@@ -257,13 +272,11 @@ export class GenericSettingsTab extends SettingsTab {
   private readonly settingToControl = new Map<Common.Settings.Setting<unknown>, HTMLElement>();
 
   constructor() {
-    super('preferences-tab-content');
+    super(i18nString(UIStrings.preferences), 'preferences-tab-content');
 
     this.element.setAttribute('jslog', `${VisualLogging.pane('preferences')}`);
-    this.containerElement.classList.add('settings-multicolumn-card-container');
 
-    // AI, GRID, MOBILE, EMULATION, and RENDERING are intentionally excluded from this list.
-    // AI settings are displayed in their own tab.
+    // GRID, MOBILE, EMULATION, and RENDERING are intentionally excluded from this list.
     const explicitSectionOrder: Common.Settings.SettingCategory[] = [
       Common.Settings.SettingCategory.NONE,
       Common.Settings.SettingCategory.APPEARANCE,
@@ -305,7 +318,7 @@ export class GenericSettingsTab extends SettingsTab {
     const restoreAndReloadButton = UI.UIUtils.createTextButton(
         i18nString(UIStrings.restoreDefaultsAndReload), restoreAndReload,
         {jslogContext: 'settings.restore-defaults-and-reload'});
-    this.containerElement.appendChild(restoreAndReloadButton);
+    this.appendSection().appendChild(restoreAndReloadButton);
 
     function restoreAndReload(): void {
       Common.Settings.Settings.instance().clearAll();
@@ -342,7 +355,8 @@ export class GenericSettingsTab extends SettingsTab {
     const settingUI = Components.Linkifier.LinkHandlerSettingUI.instance() as UI.SettingsUI.SettingUI;
     const element = settingUI.settingElement();
     if (element) {
-      this.createStandardSectionElement(sectionName, settings, element);
+      const sectionElement = this.createStandardSectionElement(sectionName, settings);
+      sectionElement.appendChild(element);
     }
   }
 
@@ -352,20 +366,16 @@ export class GenericSettingsTab extends SettingsTab {
     if (category === Common.Settings.SettingCategory.EXTENSIONS) {
       this.createExtensionSection(settings);
     } else if (category === Common.Settings.SettingCategory.SYNC && settings.length > 0) {
-      const syncCard = createSettingsCard(
-          Common.SettingRegistration.getLocalizedSettingsCategory(Common.SettingRegistration.SettingCategory.SYNC),
-          this.syncSection);
-      this.containerElement.appendChild(syncCard);
+      this.containerElement.appendChild(this.syncSection);
     } else if (settings.length > 0) {
       this.createStandardSectionElement(category, settings);
     }
   }
 
   private createStandardSectionElement(
-      category: Common.Settings.SettingCategory, settings: Common.Settings.SettingRegistration[],
-      content?: Element): void {
+      category: Common.Settings.SettingCategory, settings: Common.Settings.SettingRegistration[]): Element {
     const uiSectionName = Common.Settings.getLocalizedSettingsCategory(category);
-    const sectionElement = document.createElement('div');
+    const sectionElement = this.appendSection(uiSectionName);
     for (const settingRegistration of settings) {
       const setting = Common.Settings.Settings.instance().moduleSetting(settingRegistration.settingName);
       const settingControl = UI.SettingsUI.createControlForSetting(setting);
@@ -374,11 +384,7 @@ export class GenericSettingsTab extends SettingsTab {
         sectionElement.appendChild(settingControl);
       }
     }
-    if (content) {
-      sectionElement.appendChild(content);
-    }
-    const card = createSettingsCard(uiSectionName, sectionElement);
-    this.containerElement.appendChild(card);
+    return sectionElement;
   }
 
   highlightObject(setting: Object): void {
@@ -392,33 +398,28 @@ export class GenericSettingsTab extends SettingsTab {
 }
 
 export class ExperimentsSettingsTab extends SettingsTab {
-  #experimentsSection: Cards.Card.Card|undefined;
-  #unstableExperimentsSection: Cards.Card.Card|undefined;
+  #experimentsSection: HTMLElement|undefined;
+  #unstableExperimentsSection: HTMLElement|undefined;
+  #inputElement: HTMLInputElement;
   private readonly experimentToControl = new Map<Root.Runtime.Experiment, HTMLElement>();
 
   constructor() {
-    super('experiments-tab-content');
-    this.containerElement.classList.add('settings-card-container');
+    super(i18nString(UIStrings.experiments), 'experiments-tab-content');
+    const filterSection = this.appendSection();
+    filterSection.classList.add('experiments-filter');
+
     this.element.setAttribute('jslog', `${VisualLogging.pane('experiments')}`);
 
-    const filterSection = this.containerElement.createChild('div');
-    filterSection.classList.add('experiments-filter');
-    render(
-        html`
-        <devtools-toolbar>
-          <devtools-toolbar-input type="filter" placeholder=${
-            i18nString(UIStrings.searchExperiments)} style="flex-grow:1" @change=${
-            this.#onFilterChanged.bind(this)}></devtools-toolbar-input>
-        </devtools-toolbar>
-    `,
-        filterSection);
-    this.renderExperiments('');
-    const filter = filterSection.querySelector('devtools-toolbar-input') as HTMLElement;
-    this.setDefaultFocusedElement(filter);
-  }
+    const labelElement = filterSection.createChild('label');
+    labelElement.textContent = i18nString(UIStrings.filterExperimentsLabel);
+    this.#inputElement = UI.UIUtils.createInput('', 'text', 'experiments-filter');
+    UI.ARIAUtils.bindLabelToControl(labelElement, this.#inputElement);
+    filterSection.appendChild(this.#inputElement);
+    this.#inputElement.addEventListener(
+        'input', () => this.renderExperiments(this.#inputElement.value.toLowerCase()), false);
+    this.setDefaultFocusedElement(this.#inputElement);
 
-  #onFilterChanged(e: CustomEvent<string>): void {
-    this.renderExperiments(e.detail.toLowerCase());
+    this.setFilter('');
   }
 
   private renderExperiments(filterText: string): void {
@@ -433,51 +434,41 @@ export class ExperimentsSettingsTab extends SettingsTab {
     const unstableExperiments = experiments.filter(e => e.unstable && e.title.toLowerCase().includes(filterText));
     const stableExperiments = experiments.filter(e => !e.unstable && e.title.toLowerCase().includes(filterText));
     if (stableExperiments.length) {
-      const experimentsBlock = document.createElement('div');
-      experimentsBlock.classList.add('settings-experiments-block');
+      this.#experimentsSection = this.appendSection();
       const warningMessage = i18nString(UIStrings.theseExperimentsCouldBeUnstable);
-      const warningSection = this.createExperimentsWarningSubsection(warningMessage);
+      this.#experimentsSection.appendChild(this.createExperimentsWarningSubsection(warningMessage));
       for (const experiment of stableExperiments) {
-        experimentsBlock.appendChild(this.createExperimentCheckbox(experiment));
+        this.#experimentsSection.appendChild(this.createExperimentCheckbox(experiment));
       }
-      this.#experimentsSection =
-          createSettingsCard(i18nString(UIStrings.experiments), warningSection, experimentsBlock);
-      this.containerElement.appendChild(this.#experimentsSection);
     }
     if (unstableExperiments.length) {
-      const experimentsBlock = document.createElement('div');
-      experimentsBlock.classList.add('settings-experiments-block');
+      this.#unstableExperimentsSection = this.appendSection();
       const warningMessage = i18nString(UIStrings.theseExperimentsAreParticularly);
+      this.#unstableExperimentsSection.appendChild(this.createExperimentsWarningSubsection(warningMessage));
       for (const experiment of unstableExperiments) {
-        experimentsBlock.appendChild(this.createExperimentCheckbox(experiment));
+        this.#unstableExperimentsSection.appendChild(this.createExperimentCheckbox(experiment));
       }
-      this.#unstableExperimentsSection = createSettingsCard(
-          i18nString(UIStrings.unstableExperiments), this.createExperimentsWarningSubsection(warningMessage),
-          experimentsBlock);
-      this.containerElement.appendChild(this.#unstableExperimentsSection);
     }
     if (!stableExperiments.length && !unstableExperiments.length) {
-      const warning = document.createElement('span');
+      this.#experimentsSection = this.appendSection();
+      const warning = this.#experimentsSection.createChild('span');
       warning.textContent = i18nString(UIStrings.noResults);
       UI.ARIAUtils.alert(warning.textContent);
-      this.#experimentsSection = createSettingsCard(i18nString(UIStrings.experiments), warning);
-      this.containerElement.appendChild(this.#experimentsSection);
     }
   }
 
-  private createExperimentsWarningSubsection(warningMessage: string): HTMLElement {
+  private createExperimentsWarningSubsection(warningMessage: string): Element {
     const subsection = document.createElement('div');
-    subsection.classList.add('experiments-warning-subsection');
-    const warningIcon = IconButton.Icon.create('warning');
-    subsection.appendChild(warningIcon);
-    const warning = subsection.createChild('span');
-    warning.textContent = warningMessage;
+    const warning = subsection.createChild('span', 'settings-experiments-warning-subsection-warning');
+    warning.textContent = i18nString(UIStrings.warning);
+    UI.UIUtils.createTextChild(subsection, ' ');
+    const message = subsection.createChild('span', 'settings-experiments-warning-subsection-message');
+    message.textContent = warningMessage;
     return subsection;
   }
 
   private createExperimentCheckbox(experiment: Root.Runtime.Experiment): HTMLParagraphElement {
-    const label = UI.UIUtils.CheckboxLabel.createWithStringLiteral(
-        experiment.title, experiment.isEnabled(), undefined, experiment.name);
+    const label = UI.UIUtils.CheckboxLabel.create(experiment.title, experiment.isEnabled(), undefined, experiment.name);
     label.classList.add('experiment-label');
     const input = label.checkboxElement;
     input.name = experiment.name;
@@ -497,20 +488,18 @@ export class ExperimentsSettingsTab extends SettingsTab {
     }
     p.appendChild(label);
 
-    const experimentLink = experiment.docLink;
-    if (experimentLink) {
-      const linkButton = new Buttons.Button.Button();
-      linkButton.data = {
-        iconName: 'help',
-        variant: Buttons.Button.Variant.ICON,
-        size: Buttons.Button.Size.SMALL,
-        jslogContext: `${experiment.name}-documentation`,
-        title: i18nString(UIStrings.learnMore),
-      };
-      linkButton.addEventListener('click', () => UI.UIUtils.openInNewTab(experimentLink));
-      linkButton.classList.add('link-icon');
+    if (experiment.docLink) {
+      const link = UI.XLink.XLink.create(
+          experiment.docLink, undefined, undefined, undefined, `${experiment.name}-documentation`);
+      link.textContent = '';
+      link.setAttribute('aria-label', i18nString(UIStrings.learnMore));
 
-      p.appendChild(linkButton);
+      const linkIcon = new IconButton.Icon.Icon();
+      linkIcon.data = {iconName: 'help', color: 'var(--icon-default)', width: '16px', height: '16px'};
+      linkIcon.classList.add('link-icon');
+      link.prepend(linkIcon);
+
+      p.appendChild(link);
     }
 
     if (experiment.feedbackLink) {
@@ -534,6 +523,11 @@ export class ExperimentsSettingsTab extends SettingsTab {
     }
   }
 
+  setFilter(filterText: string): void {
+    this.#inputElement.value = filterText;
+    this.#inputElement.dispatchEvent(new Event('input', {'bubbles': true, 'cancelable': true}));
+  }
+
   override wasShown(): void {
     UI.Context.Context.instance().setFlavor(ExperimentsSettingsTab, this);
     super.wasShown();
@@ -552,7 +546,8 @@ export class ActionDelegate implements UI.ActionRegistration.ActionDelegate {
         void SettingsScreen.showSettingsScreen({focusTabHeader: true} as ShowSettingsScreenOptions);
         return true;
       case 'settings.documentation':
-        UI.UIUtils.openInNewTab('https://developer.chrome.com/docs/devtools/');
+        Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(UI.UIUtils.addReferrerToURL(
+            'https://developer.chrome.com/docs/devtools/' as Platform.DevToolsPath.UrlString));
         return true;
       case 'settings.shortcuts':
         void SettingsScreen.showSettingsScreen({name: 'keybinds', focusTabHeader: true});
@@ -590,7 +585,8 @@ export class Revealer implements Common.Revealer.Revealer<Root.Runtime.Experimen
     }
 
     // Reveal settings views
-    for (const view of UI.ViewManager.getRegisteredViewExtensions()) {
+    for (const view of UI.ViewManager.getRegisteredViewExtensions(
+             Common.Settings.Settings.instance().getHostConfig())) {
       const id = view.viewId();
       const location = view.location();
       if (location !== UI.ViewManager.ViewLocationValues.SETTINGS_VIEW) {

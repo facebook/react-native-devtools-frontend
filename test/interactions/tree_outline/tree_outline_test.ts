@@ -3,10 +3,11 @@
 // found in the LICENSE file.
 
 import {assert} from 'chai';
-import type {ElementHandle} from 'puppeteer-core';
 
+import {type ElementHandle} from 'puppeteer-core';
 import {$, $$, click, waitFor, waitForFunction} from '../../shared/helper.js';
-import {loadComponentDocExample} from '../helpers/shared.js';
+import {it} from '../../shared/mocha-extensions.js';
+import {loadComponentDocExample, preloadForCodeCoverage} from '../helpers/shared.js';
 
 async function getTreeOutline(root?: ElementHandle) {
   const treeOutline = await waitFor<HTMLElement>('devtools-tree-outline', root);
@@ -57,6 +58,8 @@ async function getRenderedNodesTextAsTree(treeOutline: ElementHandle<HTMLElement
 }
 
 describe('TreeOutline', () => {
+  preloadForCodeCoverage('tree_outline/basic.html');
+
   it('renders the top level nodes by default', async () => {
     await loadComponentDocExample('tree_outline/basic.html');
     const treeOutline = await getTreeOutline();

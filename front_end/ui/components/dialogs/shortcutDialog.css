@@ -4,71 +4,70 @@
  * found in the LICENSE file.
  */
 
-.keybinds-list {
+.keybinds-category-header {
+  white-space: nowrap;
+  padding: 0 10px 20px;
   display: flex;
-  flex-direction: column;
-  /* overwrite default`margin` and `padding` for the <ul> element */
+}
+
+.keybinds-category-header-text {
+  line-height: 24px;
+  flex: auto;
+  font-weight: bold;
+}
+
+.keybinds-key {
+  padding: 0.1em 0.6em;
+  border: 1px solid var(--sys-color-neutral-outline);
+  font-size: 11px;
+  background-color: var(--sys-color-neutral-container);
+  color: var(--sys-color-on-surface);
+  border-radius: 3px;
+  display: inline-block;
+  margin: 0 0.1em;
+  text-shadow: 0 1px 0 var(--sys-color-cdt-base-container);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.keybinds-list {
+  list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .keybinds-list-item {
-  display: grid;
-  align-items: baseline;
-  justify-content: space-between;
-  grid-template-rows: 1fr;
-  grid-template-columns: 1fr var(--sys-size-11) 1fr;
-  border-bottom: var(--sys-size-1) solid var(--sys-color-divider);
-  padding: var(--sys-size-4) 0;
-
-  &:last-of-type {
-    border-bottom: unset;
-  }
-
-  .keybinds-list-title {
-    grid-row: 1/1;
-  }
-
-  .shortcuts-for-actions {
-    grid-area: auto / 3 / auto / span 1;
-  }
+  line-height: 30px;
+  display: flex;
+  padding: 0 10px;
 }
 
-.keys-container {
-  display: flex;
-  gap: var(--sys-size-3);
-}
-
-.shortcuts-for-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--sys-size-3);
-}
-
-.nav-radio-buttons {
-  display: flex;
-  flex-direction: column;
-  border-bottom: var(--sys-size-1) solid var(--sys-color-divider);
-  padding-bottom: var(--sys-size-5);
-
-  & label {
-    display: flex;
-    font: var(--sys-typescale-body3-regular);
-    gap: var(--sys-size-2);
-  }
-}
-
-.keybinds-key {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  padding: var(--sys-size-4);
-  min-width: var(--sys-size-11);
-  height: var(--sys-size-11);
-  font: var(--sys-typescale-body5-medium);
+.keybinds-list-text {
   white-space: nowrap;
-  border-radius: var(--sys-shape-corner-small);
-  background: var(--sys-color-tonal-container);
+  text-overflow: ellipsis;
+  overflow: hidden;
+  user-select: none;
+  color: var(--sys-color-on-surface);
+  text-align: start;
+  position: relative;
+  margin-right: 0;
+}
+
+.keybinds-shortcut-separator {
+  white-space: pre-wrap;
+}
+
+.keybinds-action-name {
+  flex: auto;
+  padding-right: 30px;
+}
+
+.keybinds-shortcut {
+  flex: none;
+}
+
+.close-icon {
+  width: 12px;
+  height: 12px;
+  padding-top: 2px;
 }

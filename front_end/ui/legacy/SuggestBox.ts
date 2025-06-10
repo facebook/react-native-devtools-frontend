@@ -38,7 +38,7 @@ import {Size} from './Geometry.js';
 import {AnchorBehavior, GlassPane} from './GlassPane.js';
 import {ListControl, type ListDelegate, ListMode} from './ListControl.js';
 import {ListModel} from './ListModel.js';
-import suggestBoxStyles from './suggestBox.css.js';
+import suggestBoxStyles from './suggestBox.css.legacy.js';
 import {createShadowRootWithCoreStyles, measuredScrollbarWidth, measurePreferredSize} from './UIUtils.js';
 
 const UIStrings = {
@@ -54,7 +54,7 @@ const UIStrings = {
    *@example {name} PH1
    */
   sSuggestionSSelected: '{PH1}, suggestion selected',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/SuggestBox.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export interface SuggestBoxDelegate {
@@ -103,9 +103,10 @@ export class SuggestBox implements ListDelegate<Suggestion> {
         `${VisualLogging.menu().parent('mapped').track({resize: true, keydown: 'ArrowUp|ArrowDown|PageUp|PageDown'})}`);
 
     this.glassPane = new GlassPane();
-    this.glassPane.setAnchorBehavior(AnchorBehavior.PREFER_BOTTOM);
+    this.glassPane.setAnchorBehavior(AnchorBehavior.PreferBottom);
     this.glassPane.setOutsideClickCallback(this.hide.bind(this));
-    const shadowRoot = createShadowRootWithCoreStyles(this.glassPane.contentElement, {cssFile: suggestBoxStyles});
+    const shadowRoot = createShadowRootWithCoreStyles(
+        this.glassPane.contentElement, {cssFile: suggestBoxStyles, delegatesFocus: undefined});
     shadowRoot.appendChild(this.element);
   }
 
@@ -134,7 +135,7 @@ export class SuggestBox implements ListDelegate<Suggestion> {
       return kMaxWidth;
     }
     let maxItem;
-    let maxLength = -Infinity;
+    let maxLength: number = -Infinity;
     for (let i = 0; i < items.length; i++) {
       const length = (items[i].title || items[i].text).length + (items[i].subtitle || '').length;
       if (length > maxLength) {
@@ -181,7 +182,7 @@ export class SuggestBox implements ListDelegate<Suggestion> {
       return true;
     }
     const suggestion = this.list.selectedItem();
-    if (suggestion?.text) {
+    if (suggestion && suggestion.text) {
       isIntermediateSuggestion ?
           ARIAUtils.alert(i18nString(UIStrings.sSuggestionSOfS, {
             PH1: suggestion.title || suggestion.text,
@@ -283,7 +284,7 @@ export class SuggestBox implements ListDelegate<Suggestion> {
   private canShowBox(
       completions: Suggestion[], highestPriorityItem: Suggestion|null, canShowForSingleItem: boolean,
       userEnteredText: string): boolean {
-    if (!completions?.length) {
+    if (!completions || !completions.length) {
       return false;
     }
 

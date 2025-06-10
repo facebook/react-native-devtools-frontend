@@ -39,22 +39,7 @@ import * as Workspace from '../../../../models/workspace/workspace.js';
 import * as VisualLogging from '../../../visual_logging/visual_logging.js';
 import * as UI from '../../legacy.js';
 
-import imageViewStyles from './imageView.css.js';
-
-declare global {
-  interface FileSystemWritableFileStream extends WritableStream {
-    write(data: unknown): Promise<void>;
-    close(): Promise<void>;
-  }
-
-  interface FileSystemHandle {
-    createWritable(): Promise<FileSystemWritableFileStream>;
-  }
-
-  interface Window {
-    showSaveFilePicker(opts: unknown): Promise<FileSystemHandle>;
-  }
-}
+import imageViewStyles from './imageView.css.legacy.js';
 
 const UIStrings = {
   /**
@@ -96,7 +81,7 @@ const UIStrings = {
    *@description The default file name when downloading a file
    */
   download: 'download',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/components/source_frame/ImageView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class ImageView extends UI.View.SimpleView {
@@ -111,7 +96,7 @@ export class ImageView extends UI.View.SimpleView {
   private readonly mimeTypeLabel: UI.Toolbar.ToolbarText;
   private readonly container: HTMLElement;
   private imagePreviewElement: HTMLImageElement;
-  private cachedContent?: TextUtils.ContentData.ContentData;
+  private cachedContent?: TextUtils.ContentProvider.DeferredContent;
   constructor(mimeType: string, contentProvider: TextUtils.ContentProvider.ContentProvider) {
     super(i18nString(UIStrings.image));
     this.registerRequiredCSS(imageViewStyles);
@@ -122,7 +107,9 @@ export class ImageView extends UI.View.SimpleView {
     this.parsedURL = new Common.ParsedURL.ParsedURL(this.url);
     this.mimeType = mimeType;
     this.contentProvider = contentProvider;
-    this.uiSourceCode = contentProvider instanceof Workspace.UISourceCode.UISourceCode ? contentProvider : null;
+    this.uiSourceCode = contentProvider instanceof Workspace.UISourceCode.UISourceCode ?
+        contentProvider as Workspace.UISourceCode.UISourceCode :
+        null;
     if (this.uiSourceCode) {
       this.uiSourceCode.addEventListener(
           Workspace.UISourceCode.Events.WorkingCopyCommitted, this.workingCopyCommitted, this);
@@ -135,7 +122,7 @@ export class ImageView extends UI.View.SimpleView {
     this.aspectRatioLabel = new UI.Toolbar.ToolbarText();
     this.mimeTypeLabel = new UI.Toolbar.ToolbarText(mimeType);
     this.container = this.element.createChild('div', 'image');
-    this.imagePreviewElement = this.container.createChild('img', 'resource-image-view');
+    this.imagePreviewElement = (this.container.createChild('img', 'resource-image-view') as HTMLImageElement);
     this.imagePreviewElement.addEventListener('contextmenu', this.contextMenu.bind(this), true);
   }
 
@@ -168,20 +155,22 @@ export class ImageView extends UI.View.SimpleView {
   }
 
   private async updateContentIfNeeded(): Promise<void> {
-    const content = await this.contentProvider.requestContentData();
-    if (TextUtils.ContentData.ContentData.isError(content) || this.cachedContent?.contentEqualTo(content)) {
+    const content = await this.contentProvider.requestContent();
+    if (this.cachedContent?.content === content.content) {
       return;
     }
 
     this.cachedContent = content;
-    const imageSrc = content.asDataUrl() ?? this.url;
+    const imageSrc =
+        TextUtils.ContentProvider.contentAsDataURL(content.content, this.mimeType, content.isEncoded) || this.url;
     const loadPromise = new Promise(x => {
       this.imagePreviewElement.onload = x;
     });
     this.imagePreviewElement.src = imageSrc;
     this.imagePreviewElement.alt = i18nString(UIStrings.imageFromS, {PH1: this.url});
-    const size = content.isTextContent ? content.text.length : Platform.StringUtilities.base64ToSize(content.base64);
-    this.sizeLabel.setText(i18n.ByteUtilities.bytesToString(size));
+    const size = content.content && !content.isEncoded ? content.content.length :
+                                                         Platform.StringUtilities.base64ToSize(content.content);
+    this.sizeLabel.setText(Platform.NumberUtilities.bytesToString(size));
     await loadPromise;
     this.dimensionsLabel.setText(i18nString(
         UIStrings.dD, {PH1: this.imagePreviewElement.naturalWidth, PH2: this.imagePreviewElement.naturalHeight}));
@@ -223,35 +212,27 @@ export class ImageView extends UI.View.SimpleView {
   }
 
   private async saveImage(): Promise<void> {
-    const imageDataURL = this.cachedContent?.asDataUrl();
+    if (!this.cachedContent || !this.cachedContent.content) {
+      return;
+    }
+    const imageDataURL = TextUtils.ContentProvider.contentAsDataURL(
+        this.cachedContent.content, this.mimeType, this.cachedContent.isEncoded, '', false);
+
     if (!imageDataURL) {
       return;
     }
 
-    let suggestedName = '';
-    if (this.parsedURL.isDataURL()) {
-      suggestedName = i18nString(UIStrings.download);
-      const {type, subtype} = this.parsedURL.extractDataUrlMimeType();
-      if (type === 'image' && subtype) {
-        suggestedName += '.' + subtype;
-      }
-    } else {
-      suggestedName = decodeURIComponent(this.parsedURL.displayName);
-    }
+    const link = document.createElement('a');
+    link.href = imageDataURL;
 
-    const blob = await fetch(imageDataURL).then(r => r.blob());
-    try {
-      const handle = await window.showSaveFilePicker({suggestedName});
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-    } catch (error) {
-      // If the user aborts the action no need to report it, otherwise do.
-      if (error.name === 'AbortError') {
-        return;
-      }
-      throw error;
-    }
+    // If it is a Base64 image, set a default file name.
+    // When chrome saves a file, the file name characters that are not supported
+    // by the OS will be replaced automatically. For example, in the Mac,
+    // `:` it will be replaced with `_`.
+    link.download =
+        this.parsedURL.isDataURL() ? i18nString(UIStrings.download) : decodeURIComponent(this.parsedURL.displayName);
+    link.click();
+    link.remove();
   }
 
   private openInNewTab(): void {

@@ -34,7 +34,7 @@ export interface IsolatedWorldChart {
 /**
  * @internal
  */
-export type IsolatedWorldEmitter = EventEmitter<{
+type IsolatedWorldEmitter = EventEmitter<{
     context: ExecutionContext;
     disposed: undefined;
     consoleapicalled: Protocol.Runtime.ConsoleAPICalledEvent;
@@ -64,4 +64,5 @@ export declare class IsolatedWorld extends Realm {
     createCdpHandle(remoteObject: Protocol.Runtime.RemoteObject): JSHandle | ElementHandle<Node>;
     [disposeSymbol](): void;
 }
+export {};
 //# sourceMappingURL=IsolatedWorld.d.ts.map

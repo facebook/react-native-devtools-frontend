@@ -2,7 +2,8 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("../../../scripts/build/typescript/typescript.gni")
+import("//build/toolchain/rbe.gni")
+import("../../../third_party/typescript/typescript.gni")
 import("./bundle.gni")
 import("./copy.gni")
 import("./node.gni")
@@ -119,6 +120,11 @@ template("devtools_entrypoint") {
       public_deps = [ ":$_copy_target_name" ]
 
       is_web_worker = _is_web_worker
+
+      if (defined(use_remoteexec) && use_remoteexec &&
+          defined(devtools_use_remoteexec) && devtools_use_remoteexec) {
+        use_remoteexec = false
+      }
     }
 
     bundle(_bundle_target_name) {

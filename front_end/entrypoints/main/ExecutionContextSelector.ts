@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Common from '../../core/common/common.js';
 import * as SDK from '../../core/sdk/sdk.js';
+import type * as Common from '../../core/common/common.js';
 import type * as UI from '../../ui/legacy/legacy.js';
 
 export class ExecutionContextSelector implements SDK.TargetManager.SDKModelObserver<SDK.RuntimeModel.RuntimeModel> {
@@ -113,38 +113,16 @@ export class ExecutionContextSelector implements SDK.TargetManager.SDKModelObser
     if (!executionContext.isDefault || !executionContext.frameId) {
       return false;
     }
-    if (executionContext.target().parentTarget()?.type() === SDK.Target.Type.FRAME) {
+    if (executionContext.target().parentTarget()?.type() === SDK.Target.Type.Frame) {
       return false;
     }
     const resourceTreeModel = executionContext.target().model(SDK.ResourceTreeModel.ResourceTreeModel);
-    const frame = resourceTreeModel?.frameForId(executionContext.frameId);
+    const frame = resourceTreeModel && resourceTreeModel.frameForId(executionContext.frameId);
     return Boolean(frame?.isOutermostFrame());
   }
 
   #onExecutionContextCreated(event: Common.EventTarget.EventTargetEvent<SDK.RuntimeModel.ExecutionContext>): void {
-    if (this.#lastSelectedContextId === undefined) {
-      // We switch to the first context created (if applicable) but ignore sub-sequent
-      // worker context creations.
-      this.#switchContextIfNecessary(event.data);
-      return;
-    }
-
-    switch (event.data.target().type()) {
-      case SDK.Target.Type.AUCTION_WORKLET:
-      case SDK.Target.Type.SHARED_STORAGE_WORKLET:
-      case SDK.Target.Type.SHARED_WORKER:
-      case SDK.Target.Type.ServiceWorker:
-      case SDK.Target.Type.WORKLET:
-      case SDK.Target.Type.Worker:
-        return;
-
-      case SDK.Target.Type.BROWSER:
-      case SDK.Target.Type.FRAME:
-      case SDK.Target.Type.NODE:
-      case SDK.Target.Type.TAB:
-        this.#switchContextIfNecessary(event.data);
-        break;
-    }
+    this.#switchContextIfNecessary(event.data);
   }
 
   #onExecutionContextDestroyed(event: Common.EventTarget.EventTargetEvent<SDK.RuntimeModel.ExecutionContext>): void {

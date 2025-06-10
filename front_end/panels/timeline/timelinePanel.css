@@ -29,35 +29,22 @@
 
 .timeline-toolbar-container {
   display: flex;
-  align-items: flex-start;
   flex: none;
+}
+
+.timeline-toolbar-container > .toolbar {
   background-color: var(--sys-color-cdt-base-container);
   border-bottom: 1px solid var(--sys-color-divider);
+}
 
-  & > :first-child {
-    flex: 1 1 auto;
-  }
+.timeline-main-toolbar {
+  flex: 1 1 auto;
 }
 
 .timeline-settings-pane {
-  display: grid;
-  grid-template-columns: 50% 50%;
   flex: none;
   background-color: var(--sys-color-cdt-base-container);
   border-bottom: 1px solid var(--sys-color-divider);
-
-  & > div {
-    margin-left: 5px;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-
-    & > select {
-      height: var(--sys-size-9);
-      min-width: var(--sys-size-14);
-      border: none;
-    }
-  }
 }
 
 #timeline-overview-panel {
@@ -99,12 +86,6 @@
   pointer-events: auto;
 }
 
-.timeline-landing-page.legacy > div > p {
-  flex: none;
-  white-space: pre-line;
-  line-height: 18px;
-}
-
 .popover ul {
   margin: 0;
   padding: 0;
@@ -115,17 +96,6 @@
   overflow: hidden;
   flex: auto;
   position: relative;
-
-  .no-events-found {
-    position: absolute;
-    font: var(--sys-typescale-body4-regular);
-    left: var(--sys-size-5);
-    bottom: var(--sys-size-5);
-
-    p {
-      margin: 0;
-    }
-  }
 }
 
 #memory-counters-graph {
@@ -150,7 +120,6 @@
 
 #memory-graphs-container .timeline-memory-header::after {
   content: "";
-  /* stylelint-disable-next-line custom-property-pattern */
   background-image: var(--image-file-toolbarResizerVertical);
   background-repeat: no-repeat;
   background-position: right center, center;
@@ -203,7 +172,6 @@
 .timeline-details-view-row {
   padding-left: 10px;
   min-height: 20px;
-  line-height: 16px; /* Vertically center text within row, important for background-color rows like .timeline-details-warning */
 }
 
 .timeline-details-view-block .timeline-details-stack-values {
@@ -248,7 +216,8 @@
   display: inline-block;
   user-select: text;
   text-overflow: ellipsis;
-  overflow: visible;
+  overflow: hidden;
+  padding: 0 3px;
 }
 
 .timeline-details-warning .timeline-details-view-row-value {
@@ -332,7 +301,6 @@
 
   100% {
     opacity: 0%;
-    /* stylelint-disable-next-line custom-property-pattern */
     transform: translateY(var(--to-Y)) translateX(var(--to-X)) rotate(var(--rotation));
   }
 }
@@ -375,6 +343,7 @@
 }
 
 .timeline-filmstrip-preview > img {
+  margin-top: 5px;
   max-width: 500px;
   max-height: 300px;
   cursor: pointer;
@@ -386,12 +355,13 @@
   overflow: hidden;
 }
 
-.timeline-tree-view devtools-toolbar {
+.timeline-tree-view .toolbar {
   background-color: var(--sys-color-cdt-base-container);
   border-bottom: 1px solid var(--sys-color-divider);
 }
 
 .timeline-tree-view .data-grid {
+  border: none;
   flex: auto;
 }
 
@@ -420,7 +390,8 @@
   position: relative;
 }
 
-.timeline-tree-view .data-grid div.background-bar-text {
+.timeline-tree-view .data-grid div.background-percent-bar {
+  float: right;
   position: relative;
   z-index: 1;
 }
@@ -442,6 +413,7 @@
 .timeline-tree-view .data-grid .name-container {
   display: flex;
   align-items: center;
+  padding-left: 2px;
 }
 
 .timeline-tree-view .data-grid .name-container .activity-icon {
@@ -484,16 +456,15 @@
 
 .timeline-tree-view .data-grid .background-bar-container {
   position: absolute;
-  /* Small gap on the left side so the first row (which has a 100% width bar, has a distinguishable bar */
-  inset: 0 0 0 2px;
+  left: 3px;
+  right: 0;
 }
 
 .timeline-tree-view .data-grid .background-bar {
+  float: right;
   height: 18px;
   background-color: var(--sys-color-surface-yellow);
   border-bottom: 1px solid var(--sys-color-yellow-outline);
-  position: absolute;
-  right: 0;
 }
 
 .timeline-tree-view .data-grid .selected .background-bar {
@@ -543,8 +514,8 @@
   }
 
   .timeline-tree-view .data-grid tr.selected span.percent-column,
-  .timeline-tree-view .data-grid tr.selected div.background-bar-text span,
-  .timeline-tree-view .data-grid tr.selected .name-container .activity-link .devtools-link .timeline-link {
+  .timeline-tree-view .data-grid tr.selected div.background-percent-bar span,
+  .timeline-tree-view .data-grid tr.selected .name-container .activity-link .devtools-link {
     color: HighlightText;
   }
 
@@ -559,20 +530,9 @@
   }
 }
 
-.timeline-details-range-summary {
-  height: 100%;
-  margin: var(--sys-size-4) 0 0;
-
-  & > devtools-performance-timeline-summary {
-    /* The category summary can't be more narrow than this, so we'll force a horizontal scrollbar
-       Also this style can't be applied on the element's :host without !important, thus its here. */
-    min-width: 192px;
-  }
-}
-
-/* Dont need to see insight chips in range summary */
-.timeline-details-range-summary > devtools-related-insight-chips {
-  display:none;
+.timeline-details-view-body > div {
+  overflow-y: hidden;
+  overflow-x: hidden;
 }
 
 .timeline-details-chip-title > div {
@@ -603,195 +563,29 @@
   pointer-events: auto;
 }
 
+.timeline-landing-page.legacy > div > p {
+  flex: none;
+  white-space: pre-line;
+  line-height: 18px;
+}
+
 .timeline-tree-view .data-grid .name-container div {
   flex: none;
 }
 
+.status-pane-container > .small-dialog {
+  width: 100%;
+  height: 100%;
+}
 
-devtools-performance-third-party-tree-view {
-  .background-bar-container {
-    /* Dont need the bars in 3p table */
-    display: none;
-  }
+.timeline-concurrency-input {
+  width: 50px;
+}
 
-   .timeline-tree-view devtools-toolbar {
-    border: 0;
-   }
-
-  .timeline-tree-view .data-grid .odd {
-    background: none;
-  }
-
-  .timeline-tree-view .data-grid {
-    border-width: 0 !important; /* stylelint-disable-line declaration-no-important */
-
-    th {
-      background-color: var(--sys-color-cdt-base-container);
-      font-weight: var(--ref-typeface-weight-medium);
-      /* Center to give some gap against sorting triangle */
-      text-align: center;
-
-      &.site-column {
-        text-align: left;
-      }
-    }
-
-    tr .numeric-column,
-    tr .site-column {
-      border-left: none;
-      border-bottom: var(--sys-size-1) solid var(--sys-color-divider);
-      /* Don't let devtools-button size mess with things */
-      contain: strict;
-      padding: 0;
-      line-height: 21px;
-    }
-
-    .bottom-filler-td,
-    th.sortable {
-      border: none;
-    }
-
-    tr {
-      height: 22px;
-    }
-
-    devtools-button {
-      display: inline-flex;
-      visibility: hidden;
-      margin: 0 8px 0 4px;
-      vertical-align: top;
-    }
-
-    tr.revealed:hover,
-    tr.selected {
-     devtools-button {
-        visibility: visible;
-      }
-    }
-
-    /* Default data-grid has this element on the edge of the rows,
-      we don't need them for the 3P table. So for now set display to none. */
-    .corner,
-    &.data-grid-fits-viewport .corner {
-      display: none;
-    }
-
-    .data-grid-resizer:hover {
-        background: linear-gradient(to right, transparent, transparent 2px, var(--sys-color-divider) 2px, var(--sys-color-divider) 3px, transparent 3px) no-repeat 0 0 / 100% 100%;
-    }
-  }
-
-  .widget.vbox.timeline-tree-view {
-    /* See column width comments in populateColumns() */
-    max-width: min(100%, 550px);
-    min-width: 350px; /* Lower than this, there's not enough room for the entity name */
-    padding: 0 0 0 var(--sys-size-6);
-    border-left: var(--sys-size-1) solid var(--sys-color-divider);
-  }
-
-  /* While timeline treeview name-container uses flexbox to layout, it's overkill for this table's purposes.
-     By not using it, we can benefit from text-overflow:ellipsis applying correctly to names and entity-badges */
- .timeline-tree-view .data-grid .name-container {
-    display: block;
-    padding-left: 2px;
-
-    .activity-name {
-      display: inline;
-    }
-
-    .activity-icon-container {
-      display: none;
-    }
-
-    .entity-badge {
-      margin-left: var(--sys-size-4);
-      font-weight: var(--ref-typeface-weight-medium);
-      padding: 0 var(--sys-size-2);
-      background-color: var(--sys-color-tonal-container);
-      border-radius: var(--sys-shape-corner-extra-small);
-      height: 16px;
-      line-height: 16px;
-      font-size: var(--sys-typescale-body5-size);
-      display: inline-block;
-    }
- }
+.timeline-concurrency-hidden {
+  visibility: hidden;
 }
 
 devtools-feedback-button {
   float: right;
-}
-
-devtools-toolbar {
-  .history-dropdown-button {
-    width: var(--sys-size-23);
-    height: var(--sys-size-9);
-    border-radius: var(--sys-shape-corner-extra-small);
-    text-align: left;
-    display: flex;
-    padding-right: var(--sys-size-5);
-
-    &:hover {
-      background-color: var(--sys-color-state-hover-on-subtle);
-    }
-
-    &:active {
-      background-color: var(--sys-color-state-ripple-neutral-on-subtle);
-    }
-
-    &:hover:active {
-      background:
-        linear-gradient(var(--sys-color-state-hover-on-subtle), var(--sys-color-state-hover-on-subtle)),
-        linear-gradient(var(--sys-color-state-ripple-neutral-on-subtle), var(--sys-color-state-ripple-neutral-on-subtle));
-    }
-
-    &:focus-visible {
-      outline: var(--sys-size-2) solid var(--sys-color-state-focus-ring);
-    }
-
-    &[disabled] {
-      pointer-events: none;
-      color: var(--sys-color-state-disabled);
-      background-color: var(--sys-color-state-disabled-container);
-
-      .content::after {
-        background-color: var(--sys-color-state-disabled);
-      }
-    }
-
-    & > .content {
-      margin-left: 5px;
-      padding-right: 5px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      flex: 1 1;
-      min-width: 35px;
-
-      &::after {
-        float: right;
-        user-select: none;
-        mask-image: var(--image-file-triangle-down);
-        width: 14px;
-        height: 14px;
-        content: "";
-        position: absolute;
-        background-color: var(--icon-default);
-        right: var(--sys-size-3);
-        top: var(--sys-size-3);
-      }
-    }
-  }
-
-  @media (forced-colors: active) {
-    .history-dropdown-button[disabled] {
-      opacity: 100%;
-    }
-
-    .history-dropdown-button > .content::after {
-      background-color: ButtonText;
-    }
-
-    .history-dropdown-button[disabled] > .content::after {
-      background-color: GrayText;
-    }
-  }
 }

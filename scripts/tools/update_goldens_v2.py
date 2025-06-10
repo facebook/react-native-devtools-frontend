@@ -5,8 +5,6 @@
 """The purpose of this CLI tool is to help you manage changes to screenshots in
  Interaction tests across multiple platforms.
 
-For more information, see test/interactions/README.md.
-
 If you've made changes that impact the screenshots, you'll need to update them
 for all supported platforms. Assuming you've committed your changes and
 uploaded the CL, you'll need to trigger a dry run in Gerrit or execute the
@@ -64,5 +62,5 @@ def build_parser():
 if __name__ == '__main__':
     main(
         ProjectConfig(platforms=['linux', 'mac', 'win64'],
-                      builder_prefix='dtf',
+                      builder_prefix='devtools_frontend',
                       ignore_failed_builders=True), sys.argv[1:])

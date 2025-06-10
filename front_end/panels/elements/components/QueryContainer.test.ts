@@ -4,7 +4,7 @@
 
 import * as SDK from '../../../core/sdk/sdk.js';
 import {assertNodeTextContent, renderElementIntoDOM} from '../../../testing/DOMHelpers.js';
-import type * as NodeText from '../../../ui/components/node_text/node_text.js';
+import * as NodeText from '../../../ui/components/node_text/node_text.js';
 
 import * as ElementsComponents from './components.js';
 
@@ -29,8 +29,9 @@ const containerTemplate: ElementsComponents.Helper.DOMNode = {
 };
 
 const assertContainerContent = (container: HTMLElement, expectedContent: string) => {
-  const nodeText = container.shadowRoot!.querySelector<NodeText.NodeText.NodeText>('devtools-node-text');
-  if (!nodeText?.shadowRoot) {
+  const nodeText =
+      container.shadowRoot!.querySelector<NodeText.NodeText.NodeText>(`${NodeText.NodeText.NodeText.litTagName.value}`);
+  if (!nodeText || !nodeText.shadowRoot) {
     assert.fail('node text element and its shadowRoot should exist');
     return;
   }
@@ -116,32 +117,32 @@ describe('QueryContainer', () => {
     component.shadowRoot!.querySelector('a')?.dispatchEvent(new Event('mouseenter'));
 
     component.updateContainerQueriedSizeDetails({
-      physicalAxis: SDK.CSSContainerQuery.PhysicalAxis.NONE,
-      queryAxis: SDK.CSSContainerQuery.QueryAxis.NONE,
+      physicalAxis: SDK.CSSContainerQuery.PhysicalAxis.None,
+      queryAxis: SDK.CSSContainerQuery.QueryAxis.None,
       width: '500px',
       height: '300px',
     });
     const nonExistentDetailsElement = component.shadowRoot!.querySelector<HTMLElement>('.queried-size-details');
-    assert.isNull(nonExistentDetailsElement, 'query details without any axis should not be rendered');
+    assert.strictEqual(nonExistentDetailsElement, null, 'query details without any axis should not be rendered');
 
     component.updateContainerQueriedSizeDetails({
-      physicalAxis: SDK.CSSContainerQuery.PhysicalAxis.HORIZONTAL,
-      queryAxis: SDK.CSSContainerQuery.QueryAxis.INLINE,
+      physicalAxis: SDK.CSSContainerQuery.PhysicalAxis.Horizontal,
+      queryAxis: SDK.CSSContainerQuery.QueryAxis.Inline,
       width: '500px',
     });
     const detailsElement = component.shadowRoot!.querySelector<HTMLElement>('.queried-size-details');
     assert.strictEqual(detailsElement?.innerText, '(inline-size) 500px', 'queried size details are not correct');
 
     component.updateContainerQueriedSizeDetails({
-      physicalAxis: SDK.CSSContainerQuery.PhysicalAxis.HORIZONTAL,
-      queryAxis: SDK.CSSContainerQuery.QueryAxis.BLOCK,
+      physicalAxis: SDK.CSSContainerQuery.PhysicalAxis.Horizontal,
+      queryAxis: SDK.CSSContainerQuery.QueryAxis.Block,
       width: '200px',
     });
     assert.strictEqual(detailsElement?.innerText, '(block-size) 200px', 'queried size details are not correct');
 
     component.updateContainerQueriedSizeDetails({
-      physicalAxis: SDK.CSSContainerQuery.PhysicalAxis.BOTH,
-      queryAxis: SDK.CSSContainerQuery.QueryAxis.BOTH,
+      physicalAxis: SDK.CSSContainerQuery.PhysicalAxis.Both,
+      queryAxis: SDK.CSSContainerQuery.QueryAxis.Both,
       width: '500px',
       height: '300px',
     });

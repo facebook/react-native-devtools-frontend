@@ -25,7 +25,7 @@ const UIStrings = {
    *@example {example.url} PH1
    */
   linkedToS: 'Linked to {PH1}',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('models/persistence/PersistenceUtils.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class PersistenceUtils {
@@ -51,7 +51,7 @@ export class PersistenceUtils {
         return null;
       }
       const icon = new IconButton.Icon.Icon();
-      icon.data = {iconName: 'document', color: 'var(--icon-default)', width: '14px', height: '14px'};
+      icon.data = {iconName: 'document', color: 'var(--icon-default)', width: '16px', height: '16px'};
       UI.Tooltip.Tooltip.install(icon, PersistenceUtils.tooltipForUISourceCode(binding.network));
       if (NetworkPersistenceManager.instance().project() === binding.fileSystem.project()) {
         icon.classList.add('dot', 'purple');
@@ -68,13 +68,13 @@ export class PersistenceUtils {
 
     if (NetworkPersistenceManager.instance().isActiveHeaderOverrides(uiSourceCode)) {
       const icon = new IconButton.Icon.Icon();
-      icon.data = {iconName: 'document', color: 'var(--icon-default)', width: '14px', height: '14px'};
+      icon.data = {iconName: 'document', color: 'var(--icon-default)', width: '16px', height: '16px'};
       icon.classList.add('dot', 'purple');
       return icon;
     }
 
     const icon = new IconButton.Icon.Icon();
-    icon.data = {iconName: 'document', color: 'var(--icon-default)', width: '14px', height: '14px'};
+    icon.data = {iconName: 'document', color: 'var(--icon-default)', width: '16px', height: '16px'};
     UI.Tooltip.Tooltip.install(icon, PersistenceUtils.tooltipForUISourceCode(uiSourceCode));
     return icon;
   }
@@ -90,7 +90,7 @@ export class LinkDecorator extends Common.ObjectWrapper.ObjectWrapper<Components
 
   private bindingChanged(event: Common.EventTarget.EventTargetEvent<PersistenceBinding>): void {
     const binding = event.data;
-    this.dispatchEventToListeners(Components.Linkifier.LinkDecorator.Events.LINK_ICON_CHANGED, binding.network);
+    this.dispatchEventToListeners(Components.Linkifier.LinkDecorator.Events.LinkIconChanged, binding.network);
   }
 
   linkIcon(uiSourceCode: Workspace.UISourceCode.UISourceCode): IconButton.Icon.Icon|null {

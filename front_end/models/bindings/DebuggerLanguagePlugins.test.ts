@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {Chrome} from '../../../extension-api/ExtensionAPI.js';
+import {type Chrome} from '../../../extension-api/ExtensionAPI.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
@@ -12,8 +12,6 @@ import {describeWithMockConnection} from '../../testing/MockConnection.js';
 import * as Workspace from '../workspace/workspace.js';
 
 import * as Bindings from './bindings.js';
-
-const {urlString} = Platform.DevToolsPath;
 
 describe('DebuggerLanguagePlugins', () => {
   describe('ExtensionRemoteObject', () => {
@@ -52,12 +50,12 @@ describe('DebuggerLanguagePlugins', () => {
 
       const MISSING_DWO_FILE = 'test.dwo';
       const MISSING_DEBUG_FILES: SDK.DebuggerModel.MissingDebugFiles = {
-        resourceUrl: urlString`${MISSING_DWO_FILE}`,
+        resourceUrl: MISSING_DWO_FILE as Platform.DevToolsPath.UrlString,
         initiator: {
           target: null,
           frameId: null,
           extensionId: 'chrome-extension-id',
-          initiatorUrl: urlString`chrome-extension-id`,
+          initiatorUrl: 'chrome-extension-id' as Platform.DevToolsPath.UrlString,
         },
       };
       const FUNCTION_NAME = 'test';
@@ -89,7 +87,7 @@ describe('DebuggerLanguagePlugins', () => {
 
       function createAndRegisterScript(): SDK.Script.Script {
         const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel) as SDK.DebuggerModel.DebuggerModel;
-        const scriptUrl = urlString`https://script-host/script.js`;
+        const scriptUrl = 'https://script-host/script.js' as Platform.DevToolsPath.UrlString;
         return debuggerModel.parsedScriptSource(
             '0' as Protocol.Runtime.ScriptId, scriptUrl, 0, 0, 0, 0, 0, '', null, false, undefined, false, false, 0,
             null, null, null, null, null, null);
@@ -105,7 +103,7 @@ describe('DebuggerLanguagePlugins', () => {
         const location = sinon.createStubInstance(SDK.DebuggerModel.Location);
         const result = await pluginManager.getFunctionInfo(script, location);
         Platform.assertNotNullOrUndefined(result);
-        assert.deepEqual(result, {missingSymbolFiles: [MISSING_DEBUG_FILES]});
+        assert.deepStrictEqual(result, {missingSymbolFiles: [MISSING_DEBUG_FILES]});
       });
 
       it('correctly returns frames if available', async () => {
@@ -118,7 +116,7 @@ describe('DebuggerLanguagePlugins', () => {
 
         const result = await pluginManager.getFunctionInfo(script, location);
         Platform.assertNotNullOrUndefined(result);
-        assert.deepEqual(result, {frames: [{name: FUNCTION_NAME}]});
+        assert.deepStrictEqual(result, {frames: [{name: FUNCTION_NAME}]});
       });
 
       it('correctly returns frames and missing debug info if both are available', async () => {
@@ -132,7 +130,7 @@ describe('DebuggerLanguagePlugins', () => {
 
         const result = await pluginManager.getFunctionInfo(script, location);
         Platform.assertNotNullOrUndefined(result);
-        assert.deepEqual(result, {frames: [{name: FUNCTION_NAME}], missingSymbolFiles: [MISSING_DEBUG_FILES]});
+        assert.deepStrictEqual(result, {frames: [{name: FUNCTION_NAME}], missingSymbolFiles: [MISSING_DEBUG_FILES]});
       });
     });
   });

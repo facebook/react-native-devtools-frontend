@@ -3,7 +3,8 @@
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
-devtools-data-grid {
+devtools-data-grid-controller {
+  border: 1px solid var(--sys-color-divider);
   margin-top: 0;
 }
 

@@ -68,7 +68,7 @@ export interface CommandOptions {
  * const client = await page.createCDPSession();
  * await client.send('Animation.enable');
  * client.on('Animation.animationCreated', () =>
- *   console.log('Animation created!'),
+ *   console.log('Animation created!')
  * );
  * const response = await client.send('Animation.getPlaybackRate');
  * console.log('playback rate is ' + response.playbackRate);
@@ -84,18 +84,7 @@ export declare abstract class CDPSession extends EventEmitter<CDPSessionEvents> 
      * @internal
      */
     constructor();
-    /**
-     * The underlying connection for this session, if any.
-     *
-     * @public
-     */
     abstract connection(): Connection | undefined;
-    /**
-     * True if the session has been detached, false otherwise.
-     *
-     * @public
-     */
-    abstract get detached(): boolean;
     /**
      * Parent session in terms of CDP's auto-attach mechanism.
      *

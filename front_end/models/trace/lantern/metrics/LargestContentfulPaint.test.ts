@@ -2,18 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
-import {TraceLoader} from '../../../../testing/TraceLoader.js';
 import * as Lantern from '../lantern.js';
-import {getComputationDataFromFixture, toLanternTrace} from '../testing/testing.js';
+import {getComputationDataFromFixture, loadTrace} from '../testing/testing.js';
 
 const {FirstContentfulPaint, LargestContentfulPaint} = Lantern.Metrics;
 
-describeWithEnvironment('Metrics: Lantern LCP', function() {
-  TraceLoader.setTestTimeout(this);
+describe('Metrics: Lantern LCP', () => {
   let trace: Lantern.Types.Trace;
   before(async function() {
-    trace = toLanternTrace(await TraceLoader.rawEvents(this, 'lantern/paul/trace.json.gz'));
+    trace = await loadTrace(this, 'lantern/paul/trace.json.gz');
   });
 
   it('should compute predicted value', async () => {
@@ -22,7 +19,7 @@ describeWithEnvironment('Metrics: Lantern LCP', function() {
       fcpResult: FirstContentfulPaint.compute(data),
     });
 
-    assert.deepEqual(
+    assert.deepStrictEqual(
         {
           timing: Math.round(result.timing),
           optimistic: Math.round(result.optimisticEstimate.timeInMs),
@@ -37,7 +34,7 @@ describeWithEnvironment('Metrics: Lantern LCP', function() {
           optimisticNodeTimings: 8,
           pessimisticNodeTimings: 9,
         });
-    assert.isOk(result.optimisticGraph, 'should have created optimistic graph');
-    assert.isOk(result.pessimisticGraph, 'should have created pessimistic graph');
+    assert.ok(result.optimisticGraph, 'should have created optimistic graph');
+    assert.ok(result.pessimisticGraph, 'should have created pessimistic graph');
   });
 });

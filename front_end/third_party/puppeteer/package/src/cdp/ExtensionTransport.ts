@@ -54,7 +54,7 @@ export class ExtensionTransport implements ConnectionTransport {
   #debuggerEventHandler = (
     source: chrome.debugger.Debuggee,
     method: string,
-    params?: object | undefined,
+    params?: object | undefined
   ): void => {
     if (source.tabId !== this.#tabId) {
       return;
@@ -130,13 +130,6 @@ export class ExtensionTransport implements ConnectionTransport {
               sessionId: 'pageTargetSessionId',
             },
           });
-          this.#dispatchResponse({
-            id: parsed.id,
-            sessionId: parsed.sessionId,
-            method: parsed.method,
-            result: {},
-          });
-          return;
         } else if (!parsed.sessionId) {
           this.#dispatchResponse({
             method: 'Target.attachedToTarget',
@@ -145,14 +138,14 @@ export class ExtensionTransport implements ConnectionTransport {
               sessionId: 'tabTargetSessionId',
             },
           });
-          this.#dispatchResponse({
-            id: parsed.id,
-            sessionId: parsed.sessionId,
-            method: parsed.method,
-            result: {},
-          });
-          return;
         }
+        this.#dispatchResponse({
+          id: parsed.id,
+          sessionId: parsed.sessionId,
+          method: parsed.method,
+          result: {},
+        });
+        return;
       }
     }
     if (parsed.sessionId === 'pageTargetSessionId') {
@@ -163,7 +156,7 @@ export class ExtensionTransport implements ConnectionTransport {
         // @ts-expect-error sessionId is not in stable yet.
         {tabId: this.#tabId, sessionId: parsed.sessionId},
         parsed.method,
-        parsed.params,
+        parsed.params
       )
       .then(response => {
         this.#dispatchResponse({
@@ -178,11 +171,7 @@ export class ExtensionTransport implements ConnectionTransport {
           id: parsed.id,
           sessionId: parsed.sessionId ?? 'pageTargetSessionId',
           method: parsed.method,
-          error: {
-            code: err?.code,
-            data: err?.data,
-            message: err?.message ?? 'CDP error had no message',
-          },
+          error: err,
         });
       });
   }

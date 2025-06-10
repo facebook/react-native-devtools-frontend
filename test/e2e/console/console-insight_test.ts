@@ -8,6 +8,7 @@ import type * as puppeteer from 'puppeteer-core';
 import type * as Root from '../../../front_end/core/root/root.js';
 import type * as Console from '../../../front_end/panels/console/console.js';
 import {click, getBrowserAndPages, hover, setDevToolsSettings, waitFor, waitForNone} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {clickOnContextMenu, CONSOLE_TAB_SELECTOR} from '../helpers/console-helpers.js';
 
 describe('ConsoleInsight', function() {
@@ -15,22 +16,21 @@ describe('ConsoleInsight', function() {
   const EXPLAIN_LABEL = 'Understand this error';
   const EXPLAIN_ACTION_ID = 'explain.console-message.context.error';
 
-  async function setupMocks(
-      aidaAvailability: Partial<Root.Runtime.AidaAvailability>,
-      devToolsConsoleInsights: Partial<Root.Runtime.HostConfigConsoleInsights>) {
+  async function setupMocks(devToolsConsoleInsights: Partial<Root.Runtime.HostConfigConsoleInsights>) {
     const {frontend} = getBrowserAndPages();
     await frontend.bringToFront();
     await frontend.evaluateOnNewDocument(
         `globalThis.hostConfigForTesting = {...globalThis.hostConfigForTesting, devToolsConsoleInsights: ${
-            JSON.stringify(devToolsConsoleInsights)}, aidaAvailability: ${JSON.stringify(aidaAvailability)}
-  };`);
+            JSON.stringify(devToolsConsoleInsights)}
+    };`);
     await frontend.reload({
       waitUntil: 'networkidle0',
     });
   }
+
   it('shows an insight for a console message via the context menu', async () => {
     const {target} = getBrowserAndPages();
-    await setupMocks({enabled: true}, {enabled: true});
+    await setupMocks({blocked: false, blockedByFeatureFlag: false, enabled: true});
     await click(CONSOLE_TAB_SELECTOR);
     await target.evaluate(() => {
       console.error(new Error('Unexpected error'));
@@ -41,7 +41,7 @@ describe('ConsoleInsight', function() {
 
   it('shows an insight for a console message via the hover button', async () => {
     const {target} = getBrowserAndPages();
-    await setupMocks({enabled: true}, {enabled: true});
+    await setupMocks({blocked: false, blockedByFeatureFlag: false, enabled: true});
     await click(CONSOLE_TAB_SELECTOR);
     await target.evaluate(() => {
       console.error(new Error('Unexpected error'));
@@ -55,7 +55,7 @@ describe('ConsoleInsight', function() {
 
   it('does not show context menu if AIDA is not available', async () => {
     const {target} = getBrowserAndPages();
-    await setupMocks({enabled: false}, {enabled: true});
+    await setupMocks({blocked: false, blockedByFeatureFlag: true, enabled: false});
     await click(CONSOLE_TAB_SELECTOR);
     await target.evaluate(() => {
       console.error(new Error('Unexpected error'));
@@ -71,32 +71,10 @@ describe('ConsoleInsight', function() {
     await waitForNone('.hover-button');
   });
 
-  it('shows the hover button even if locale is not supported', async () => {
+  it('does not show the hover button if locale is not supported', async () => {
     const {target} = getBrowserAndPages();
     await setDevToolsSettings({language: 'zh'});
-    await setupMocks({enabled: true}, {enabled: true});
-    await click(CONSOLE_TAB_SELECTOR);
-    await target.evaluate(() => {
-      console.error(new Error('Unexpected error'));
-    });
-    await waitFor('.console-message', undefined, undefined, 'pierce');
-    await waitFor('.hover-button', undefined, undefined, 'pierce');
-  });
-
-  it('shows the hover button even if age check is not passing', async () => {
-    const {target} = getBrowserAndPages();
-    await setupMocks({blockedByAge: true, enabled: true}, {enabled: true});
-    await click(CONSOLE_TAB_SELECTOR);
-    await target.evaluate(() => {
-      console.error(new Error('Unexpected error'));
-    });
-    await waitFor('.console-message', undefined, undefined, 'pierce');
-    await waitFor('.hover-button', undefined, undefined, 'pierce');
-  });
-
-  it('does not show the hover button if policy does not allow it', async () => {
-    const {target} = getBrowserAndPages();
-    await setupMocks({blockedByEnterprisePolicy: true, enabled: true}, {enabled: true});
+    await setupMocks({blocked: false, blockedByFeatureFlag: false, enabled: true});
     await click(CONSOLE_TAB_SELECTOR);
     await target.evaluate(() => {
       console.error(new Error('Unexpected error'));
@@ -105,15 +83,59 @@ describe('ConsoleInsight', function() {
     await waitForNone('.hover-button', undefined, undefined, 'pierce');
   });
 
-  it('shows the hover button even if it is restriced by geography', async () => {
+  it('does not show the hover button if age check is not passing', async () => {
     const {target} = getBrowserAndPages();
-    await setupMocks({blockedByGeo: true, enabled: true}, {enabled: true});
+    await setupMocks({blocked: false, blockedByFeatureFlag: false, enabled: true, blockedByAge: true});
     await click(CONSOLE_TAB_SELECTOR);
     await target.evaluate(() => {
       console.error(new Error('Unexpected error'));
     });
     await waitFor('.console-message', undefined, undefined, 'pierce');
-    await waitFor('.hover-button', undefined, undefined, 'pierce');
+    await waitForNone('.hover-button', undefined, undefined, 'pierce');
+  });
+
+  it('does not show the hover button if policy does not allow it', async () => {
+    const {target} = getBrowserAndPages();
+    await setupMocks({blocked: false, blockedByFeatureFlag: false, enabled: true, blockedByEnterprisePolicy: true});
+    await click(CONSOLE_TAB_SELECTOR);
+    await target.evaluate(() => {
+      console.error(new Error('Unexpected error'));
+    });
+    await waitFor('.console-message', undefined, undefined, 'pierce');
+    await waitForNone('.hover-button', undefined, undefined, 'pierce');
+  });
+
+  it('does not show the hover button if the feature is not rolled out', async () => {
+    const {target} = getBrowserAndPages();
+    await setupMocks({blocked: false, blockedByFeatureFlag: false, enabled: true, blockedByRollout: true});
+    await click(CONSOLE_TAB_SELECTOR);
+    await target.evaluate(() => {
+      console.error(new Error('Unexpected error'));
+    });
+    await waitFor('.console-message', undefined, undefined, 'pierce');
+    await waitForNone('.hover-button', undefined, undefined, 'pierce');
+  });
+
+  it('does not show the hover button if it is restriced by geography', async () => {
+    const {target} = getBrowserAndPages();
+    await setupMocks({blocked: false, blockedByFeatureFlag: false, enabled: true, blockedByGeo: true});
+    await click(CONSOLE_TAB_SELECTOR);
+    await target.evaluate(() => {
+      console.error(new Error('Unexpected error'));
+    });
+    await waitFor('.console-message', undefined, undefined, 'pierce');
+    await waitForNone('.hover-button', undefined, undefined, 'pierce');
+  });
+
+  it('does not show the hover button if disabled by default', async () => {
+    const {target} = getBrowserAndPages();
+    await setupMocks({blocked: false, blockedByFeatureFlag: false, enabled: true, optIn: true});
+    await click(CONSOLE_TAB_SELECTOR);
+    await target.evaluate(() => {
+      console.error(new Error('Unexpected error'));
+    });
+    await waitFor('.console-message', undefined, undefined, 'pierce');
+    await waitForNone('.hover-button', undefined, undefined, 'pierce');
   });
 
   it('gets console message texts', async () => {
@@ -218,14 +240,14 @@ describe('ConsoleInsight', function() {
       // Replace dynamic line and column numbers in stacktraces with ':1:1'.
       // Ignore stacktrace added by Puppeteer.
       return message.replace(/:\d+:\d+/gi, ':1:1')
-          .replaceAll(/\n    at pptr:;CdpFrame\.%3Can…js%3A\d+%3A\d+\):1:1/gi, '');
+          .replaceAll(/\n    at pptr:;CdpFrame\.%3Can….js%3A\d+%3A\d+\):1:1/gi, '');
     };
     const consoleModule = (await frontend.evaluateHandle('import(\'./panels/console/console.js\')')) as
         puppeteer.JSHandle<typeof Console>;
 
     for (let testIdx = 0; testIdx < messages.length; testIdx++) {
       const messageWithStacktrace = await frontend.evaluate(messageGetter, consoleModule, messages[testIdx], true);
-      assert.deepEqual(messageWithStacktrace, tests[testIdx].expectedWithStackTrace);
+      assert.deepStrictEqual(messageWithStacktrace, tests[testIdx].expectedWithStackTrace);
     }
   });
 });

@@ -5,6 +5,7 @@
 import {assert} from 'chai';
 
 import {getBrowserAndPages, step} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   focusConsolePrompt,
   navigateToConsoleTab,
@@ -24,11 +25,11 @@ describe('The Console Tab', () => {
     });
 
     await step('enter "1+1" in console', async () => {
-      await typeIntoConsoleAndWaitForResult('1+1');
+      await typeIntoConsoleAndWaitForResult(frontend, '1+1');
     });
 
     await step('enter "$_" in console', async () => {
-      await typeIntoConsoleAndWaitForResult('$_');
+      await typeIntoConsoleAndWaitForResult(frontend, '$_');
     });
 
     await step('check the evaluation results from console', async () => {
@@ -39,7 +40,7 @@ describe('The Console Tab', () => {
     });
 
     await step('enter "console.clear()" in console', async () => {
-      await typeIntoConsole('console.clear();');
+      await typeIntoConsole(frontend, 'console.clear();');
     });
 
     await step('wait for the console to be cleared', async () => {
@@ -49,7 +50,7 @@ describe('The Console Tab', () => {
     });
 
     await step('enter "$_" in console', async () => {
-      await typeIntoConsoleAndWaitForResult('$_');
+      await typeIntoConsoleAndWaitForResult(frontend, '$_');
     });
 
     await step('check the evaluation results from console', async () => {

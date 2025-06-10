@@ -12,9 +12,11 @@ import {renderElementIntoDOM} from '../../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
 import * as UI from '../../legacy/legacy.js';
 import * as IconButton from '../icon_button/icon_button.js';
-import * as RenderCoordinator from '../render_coordinator/render_coordinator.js';
+import * as Coordinator from '../render_coordinator/render_coordinator.js';
 
 import * as RequestLinkIcon from './request_link_icon.js';
+
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 const renderRequestLinkIcon = async(data: RequestLinkIcon.RequestLinkIcon.RequestLinkIconData): Promise<{
   component: RequestLinkIcon.RequestLinkIcon.RequestLinkIcon,
@@ -24,7 +26,7 @@ const renderRequestLinkIcon = async(data: RequestLinkIcon.RequestLinkIcon.Reques
   component.data = data;
   renderElementIntoDOM(component);
   assert.isNotNull(component.shadowRoot);
-  await RenderCoordinator.done();
+  await coordinator.done();
   return {component, shadowRoot: component.shadowRoot};
 };
 
@@ -50,7 +52,7 @@ interface MockRequestResolverEntry {
 }
 
 class MockRequestResolver {
-  #promiseMap = new Map<string, MockRequestResolverEntry>();
+  #promiseMap: Map<string, MockRequestResolverEntry> = new Map();
 
   waitFor(requestId?: string) {
     if (!requestId) {
@@ -64,7 +66,10 @@ class MockRequestResolver {
     if (entry) {
       return entry.promise;
     }
-    const {resolve, promise} = Promise.withResolvers<SDK.NetworkRequest.NetworkRequest|null>();
+    let resolve: (request: SDK.NetworkRequest.NetworkRequest|null) => void = () => {};
+    const promise = new Promise<SDK.NetworkRequest.NetworkRequest|null>(r => {
+      resolve = r;
+    });
     this.#promiseMap.set(requestId, {resolve, promise});
     return promise;
   }
@@ -196,7 +201,7 @@ describeWithEnvironment('RequestLinkIcon', () => {
       assert.isFalse(extractElements(shadowRoot).button.classList.contains('link'));
 
       resolver.resolve(mockRequest as unknown as SDK.NetworkRequest.NetworkRequest);
-      await RenderCoordinator.done({waitForWork: true});
+      await coordinator.done({waitForWork: true});
 
       assert.isTrue(extractElements(shadowRoot).button.classList.contains('link'));
     });
@@ -212,7 +217,7 @@ describeWithEnvironment('RequestLinkIcon', () => {
       assert.strictEqual(extractElements(shadowRoot).label?.textContent, 'gamma');
 
       resolver.resolve(mockRequest as unknown as SDK.NetworkRequest.NetworkRequest);
-      await RenderCoordinator.done({waitForWork: true});
+      await coordinator.done({waitForWork: true});
 
       assert.strictEqual(extractElements(shadowRoot).label?.textContent, 'baz');
     });
@@ -243,7 +248,7 @@ describeWithEnvironment('RequestLinkIcon', () => {
       };
 
       resolver.resolve(mockRequest2 as unknown as SDK.NetworkRequest.NetworkRequest);
-      await RenderCoordinator.done({waitForWork: true});
+      await coordinator.done({waitForWork: true});
 
       assert.strictEqual(extractElements(shadowRoot).label?.textContent, 'baz');
 
@@ -261,7 +266,7 @@ describeWithEnvironment('RequestLinkIcon', () => {
     before(() => {
       UI.ViewManager.resetViewRegistration();
       UI.ViewManager.registerViewExtension({
-        // @ts-expect-error
+        // @ts-ignore
         location: 'mock-location',
         id: 'network',
         title: () => 'Network' as Platform.UIString.LocalizedString,
@@ -292,7 +297,7 @@ describeWithEnvironment('RequestLinkIcon', () => {
 
       assert.isTrue(revealOverride.called);
       assert.isTrue(revealOverride.calledOnceWith(
-          sinon.match({tab: NetworkForward.UIRequestLocation.UIRequestTabs.HEADERS_COMPONENT})));
+          sinon.match({tab: NetworkForward.UIRequestLocation.UIRequestTabs.HeadersComponent})));
     });
   });
 });

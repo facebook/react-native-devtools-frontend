@@ -4,20 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 export * from './index.js';
-import fs from 'node:fs';
-import path from 'node:path';
-import { environment } from './environment.js';
-import * as Puppeteer from './index.js';
-// Set up Node-specific environment dependencies.
-environment.value = {
-    fs,
-    path,
-    ScreenRecorder: Puppeteer.ScreenRecorder,
-};
+import { PuppeteerNode } from './node/PuppeteerNode.js';
 /**
  * @public
  */
-const puppeteer = new Puppeteer.PuppeteerNode({
+const puppeteer = new PuppeteerNode({
     isPuppeteerCore: true,
 });
 export const { 

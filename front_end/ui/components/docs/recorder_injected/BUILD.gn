@@ -3,9 +3,20 @@
 # found in the LICENSE file.
 
 import("../../../../../scripts/build/ninja/copy.gni")
-import("../../../../../scripts/build/typescript/typescript.gni")
+import("../../../../../third_party/typescript/typescript.gni")
+
+ts_library("ts") {
+  testonly = true
+  sources = [ "basic.ts" ]
+  deps = [
+    "../../../../panels/recorder/injected:bundle",
+    "../../../../testing",
+  ]
+}
 
 copy_to_gen("recorder_injected") {
   testonly = true
   sources = [ "basic.html" ]
+
+  deps = [ ":ts" ]
 }

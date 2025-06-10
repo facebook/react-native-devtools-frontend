@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getQueryHandlerAndSelector = getQueryHandlerAndSelector;
+exports.getQueryHandlerAndSelector = void 0;
 const AriaQueryHandler_js_1 = require("../cdp/AriaQueryHandler.js");
 const CSSQueryHandler_js_1 = require("./CSSQueryHandler.js");
 const CustomQueryHandler_js_1 = require("./CustomQueryHandler.js");
@@ -70,4 +70,5 @@ function getQueryHandlerAndSelector(selector) {
         };
     }
 }
+exports.getQueryHandlerAndSelector = getQueryHandlerAndSelector;
 //# sourceMappingURL=GetQueryHandler.js.map

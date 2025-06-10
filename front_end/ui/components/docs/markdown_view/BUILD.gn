@@ -3,14 +3,11 @@
 # found in the LICENSE file.
 
 import("../../../../../scripts/build/ninja/copy.gni")
-import("../../../../../scripts/build/typescript/typescript.gni")
+import("../../../../../third_party/typescript/typescript.gni")
 
 ts_library("ts") {
   testonly = true
-  sources = [
-    "basic.ts",
-    "code-block.ts",
-  ]
+  sources = [ "basic.ts" ]
 
   deps = [
     "../../../../testing",
@@ -22,10 +19,7 @@ ts_library("ts") {
 
 copy_to_gen("markdown_view") {
   testonly = true
-  sources = [
-    "basic.html",
-    "code-block.html",
-  ]
+  sources = [ "basic.html" ]
 
   deps = [ ":ts" ]
 }

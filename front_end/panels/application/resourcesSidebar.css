@@ -5,27 +5,33 @@
  */
 
 .tree-outline {
-  li.storage-group-list-item,
-  li.storage-group-list-item:not(:has(dt-checkbox)) {
-    padding: 0 var(--sys-size-8) 0 var(--sys-size-3);
+  padding-left: 0;
+  color: var(--sys-color-on-surface);
+}
 
-    &::before {
-      display: none;
-    }
+.tree-outline > ol {
+  padding-bottom: 10px;
+}
 
-    &:hover .selection,
-    &:active .selection::before {
-      background-color: transparent;
-    }
+.tree-outline li {
+  min-height: 20px;
+}
 
-    & + ol {
-      padding-left: 0;
-    }
-  }
+.tree-outline li[role="heading"] {
+  color: var(--sys-color-on-surface-subtle);
+  font-weight: 500;
+}
 
-  li.storage-group-list-item:not(:first-child) {
-    margin-top: var(--sys-size-6);
-  }
+li.storage-group-list-item {
+  padding: 10px 8px 6px;
+}
+
+li.storage-group-list-item:not(:first-child) {
+  border-top: 1px solid var(--sys-color-divider);
+}
+
+li.storage-group-list-item::before {
+  display: none;
 }
 
 .icons-container devtools-icon.red-icon {

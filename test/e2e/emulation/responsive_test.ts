@@ -7,6 +7,7 @@ import {
   pressKey,
   waitFor,
 } from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   clickWidthInput,
   clickZoomDropDown,
@@ -14,7 +15,6 @@ import {
   openDeviceToolbar,
   reloadDockableFrontEnd,
   toggleAutoAdjustZoom,
-  waitForZoomDropDownNotExpanded,
 } from '../helpers/emulation-helpers.js';
 
 describe('Custom devices', () => {
@@ -24,11 +24,10 @@ describe('Custom devices', () => {
     await openDeviceToolbar();
   });
 
-  it('can preserve zoom', async () => {
+  it('can preserved zoom', async () => {
     await clickZoomDropDown();
     await pressKey('ArrowDown');
     await pressKey('Enter');
-    await waitForZoomDropDownNotExpanded();
     assert.strictEqual(await getZoom(), '50%');
 
     await clickWidthInput();
@@ -38,7 +37,6 @@ describe('Custom devices', () => {
     await clickZoomDropDown();
     await pressKey('ArrowDown');
     await pressKey('Enter');
-    await waitForZoomDropDownNotExpanded();
     assert.strictEqual(await getZoom(), '50%');
 
     await toggleAutoAdjustZoom();

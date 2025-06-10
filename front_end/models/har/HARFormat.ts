@@ -12,7 +12,7 @@ class HARBase {
   readonly custom: Map<string, any>;
   constructor(data: any) {
     if (!data || typeof data !== 'object') {
-      throw new Error('First parameter is expected to be an object');
+      throw 'First parameter is expected to be an object';
     }
     this.custom = new Map();
   }
@@ -22,7 +22,7 @@ class HARBase {
     if (!Number.isNaN(date.getTime())) {
       return date;
     }
-    throw new Error('Invalid date format');
+    throw 'Invalid date format';
   }
 
   static safeNumber(data: any): number {
@@ -30,7 +30,7 @@ class HARBase {
     if (!Number.isNaN(result)) {
       return result;
     }
-    throw new Error('Casting to number results in NaN');
+    throw 'Casting to number results in NaN';
   }
 
   static optionalNumber(data: any): number|undefined {
@@ -96,7 +96,7 @@ export class HARLog extends HARBase {
     this.browser = data['browser'] ? new HARCreator(data['browser']) : undefined;
     this.pages = Array.isArray(data['pages']) ? data['pages'].map(page => new HARPage(page)) : [];
     if (!Array.isArray(data['entries'])) {
-      throw new Error('log.entries is expected to be an array');
+      throw 'log.entries is expected to be an array';
     }
     this.entries = data['entries'].map(entry => new HAREntry(entry));
     this.comment = HARBase.optionalString(data['comment']);
@@ -149,6 +149,7 @@ export class HAREntry extends HARBase {
   time: number;
   request: HARRequest;
   response: HARResponse;
+  cache: {};
   timings: HARTimings;
   serverIPAddress: string|undefined;
   connection: string|undefined;
@@ -160,13 +161,13 @@ export class HAREntry extends HARBase {
     this.time = HARBase.safeNumber(data['time']);
     this.request = new HARRequest(data['request']);
     this.response = new HARResponse(data['response']);
+    this.cache = {};  // Not yet implemented.
     this.timings = new HARTimings(data['timings']);
     this.serverIPAddress = HARBase.optionalString(data['serverIPAddress']);
     this.connection = HARBase.optionalString(data['connection']);
     this.comment = HARBase.optionalString(data['comment']);
 
     // Chrome specific.
-    this.custom.set('connectionId', HARBase.optionalString(data['_connectionId']));
     this.custom.set('fromCache', HARBase.optionalString(data['_fromCache']));
     this.custom.set('initiator', this.importInitiator(data['_initiator']));
     this.custom.set('priority', HARBase.optionalString(data['_priority']));
@@ -254,12 +255,6 @@ class HARResponse extends HARBase {
     this.custom.set('fetchedViaServiceWorker', Boolean(data['_fetchedViaServiceWorker']));
     this.custom.set('responseCacheStorageCacheName', HARBase.optionalString(data['_responseCacheStorageCacheName']));
     this.custom.set('serviceWorkerResponseSource', HARBase.optionalString(data['_serviceWorkerResponseSource']));
-    this.custom.set(
-        'serviceWorkerRouterRuleIdMatched', HARBase.optionalNumber(data['_serviceWorkerRouterRuleIdMatched']));
-    this.custom.set(
-        'serviceWorkerRouterMatchedSourceType', HARBase.optionalString(data['_serviceWorkerRouterMatchedSourceType']));
-    this.custom.set(
-        'serviceWorkerRouterActualSourceType', HARBase.optionalString(data['_serviceWorkerRouterActualSourceType']));
   }
 }
 
@@ -386,8 +381,6 @@ export class HARTimings extends HARBase {
     this.custom.set('workerReady', HARBase.optionalNumber(data['_workerReady']));
     this.custom.set('workerFetchStart', HARBase.optionalNumber(data['_workerFetchStart']));
     this.custom.set('workerRespondWithSettled', HARBase.optionalNumber(data['_workerRespondWithSettled']));
-    this.custom.set('workerRouterEvaluationStart', HARBase.optionalNumber(data['_workerRouterEvaluationStart']));
-    this.custom.set('workerCacheLookupStart', HARBase.optionalNumber(data['_workerCacheLookupStart']));
   }
 }
 
@@ -402,7 +395,7 @@ export class HARInitiator extends HARBase {
    */
   constructor(data: any) {
     super(data);
-    this.type = (HARBase.optionalString(data['type']) ?? SDK.NetworkRequest.InitiatorType.OTHER) as
+    this.type = (HARBase.optionalString(data['type']) ?? SDK.NetworkRequest.InitiatorType.Other) as
         Protocol.Network.InitiatorType;
     this.url = HARBase.optionalString(data['url']);
     this.lineNumber = HARBase.optionalNumber(data['lineNumber']);
@@ -450,9 +443,9 @@ export class HARStack extends HARBase {
 export class HARCallFrame extends HARBase {
   functionName: string;
   scriptId: Protocol.Runtime.ScriptId;
-  url = '';
-  lineNumber = -1;
-  columnNumber = -1;
+  url: string = '';
+  lineNumber: number = -1;
+  columnNumber: number = -1;
   /**
    * Based on Protocol.Runtime.CallFrame defined in browser_protocol.pdl
    */

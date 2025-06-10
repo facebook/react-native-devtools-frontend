@@ -6,33 +6,14 @@ import("../../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../../scripts/build/ninja/devtools_module.gni")
 
 devtools_module("utils") {
-  sources = [
-    "AICallTree.ts",
-    "EntityMapper.ts",
-    "EntryName.ts",
-    "EntryStyles.ts",
-    "Helpers.ts",
-    "IgnoreList.ts",
-    "ImageCache.ts",
-    "InsightAIContext.ts",
-    "SourceMapsResolver.ts",
-    "Treemap.ts",
-  ]
+  sources = [ "NetworkRequest.ts" ]
 
   deps = [
     "../../../core/common:bundle",
     "../../../core/platform:bundle",
     "../../../core/sdk:bundle",
-    "../../../generated",
     "../../../models/bindings:bundle",
-    "../../../models/crux-manager:bundle",
-    "../../../models/source_map_scopes:bundle",
     "../../../models/trace:bundle",
-    "../../../models/workspace:bundle",
-    "../../../panels/mobile_throttling:bundle",
-    "../../../third_party/marked:bundle",
-    "../../../ui/components/markdown_view:bundle",
-    "../../../ui/legacy:bundle",
   ]
 }
 
@@ -44,41 +25,7 @@ devtools_entrypoint("bundle") {
   visibility = [
     ":*",
     "..:*",
-    "../../../models/ai_assistance/*",
-    "../../ai_assistance/*",
     "../../network/*",
     "../components:*",
-    "../components/insights:*",
-    "../overlays/*",
-
-    # only for use in tests
-    "../../../models/trace/handlers/*",
-  ]
-}
-
-ts_library("unittests") {
-  testonly = true
-
-  sources = [
-    "AICallTree.test.ts",
-    "EntityMapper.test.ts",
-    "EntryName.test.ts",
-    "Helpers.test.ts",
-    "IgnoreList.test.ts",
-    "ImageCache.test.ts",
-    "InsightAIContext.test.ts",
-    "SourceMapsResolver.test.ts",
-    "Treemap.test.ts",
-  ]
-
-  deps = [
-    ":bundle",
-    "../../../core/platform:bundle",
-    "../../../core/root:bundle",
-    "../../../core/sdk:bundle",
-    "../../../models/bindings:bundle",
-    "../../../models/trace:bundle",
-    "../../../models/workspace:bundle",
-    "../../../testing",
   ]
 }

@@ -5,7 +5,8 @@
  */
 
 .film-strip-view {
-  overflow: auto hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   align-content: flex-start;
   min-height: 81px;
 }
@@ -15,8 +16,10 @@
   margin-top: 2px;
 }
 
-.film-strip-view .gray-info-message {
+.film-strip-view .label {
   margin: auto;
+  font-size: 18px;
+  color: var(--sys-color-token-subtle);
 }
 
 .film-strip-view .frame {

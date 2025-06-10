@@ -5,12 +5,12 @@
 import './SDKModel.js';
 import './CSSMetadata.js';
 import '../../generated/SupportedCSSProperties.js';
+import './ProfileTreeModel.js';
 import './NetworkRequest.js';
 import './NetworkManager.js';
 import './RuntimeModel.js';
 
 import * as AccessibilityModel from './AccessibilityModel.js';
-import * as AnimationModel from './AnimationModel.js';
 import * as AutofillModel from './AutofillModel.js';
 import * as CategorizedBreakpoint from './CategorizedBreakpoint.js';
 import * as ChildTargetManager from './ChildTargetManager.js';
@@ -20,6 +20,7 @@ import * as ConsoleModel from './ConsoleModel.js';
 import * as Cookie from './Cookie.js';
 import * as CookieModel from './CookieModel.js';
 import * as CookieParser from './CookieParser.js';
+import * as CPUProfileDataModel from './CPUProfileDataModel.js';
 import * as CPUProfilerModel from './CPUProfilerModel.js';
 import * as CPUThrottlingManager from './CPUThrottlingManager.js';
 import * as CSSContainerQuery from './CSSContainerQuery.js';
@@ -31,7 +32,6 @@ import * as CSSMetadata from './CSSMetadata.js';
 import * as CSSModel from './CSSModel.js';
 import * as CSSProperty from './CSSProperty.js';
 import * as CSSPropertyParser from './CSSPropertyParser.js';
-import * as CSSPropertyParserMatchers from './CSSPropertyParserMatchers.js';
 import * as CSSQuery from './CSSQuery.js';
 import * as CSSRule from './CSSRule.js';
 import * as CSSScope from './CSSScope.js';
@@ -42,7 +42,6 @@ import * as DebuggerModel from './DebuggerModel.js';
 import * as DOMDebuggerModel from './DOMDebuggerModel.js';
 import * as DOMModel from './DOMModel.js';
 import * as EmulationModel from './EmulationModel.js';
-import * as EnhancedTracesParser from './EnhancedTracesParser.js';
 import * as EventBreakpointsModel from './EventBreakpointsModel.js';
 import * as FrameAssociated from './FrameAssociated.js';
 import * as FrameManager from './FrameManager.js';
@@ -62,6 +61,7 @@ import * as PageResourceLoader from './PageResourceLoader.js';
 import * as PaintProfiler from './PaintProfiler.js';
 import * as PerformanceMetricsModel from './PerformanceMetricsModel.js';
 import * as PreloadingModel from './PreloadingModel.js';
+import * as ProfileTreeModel from './ProfileTreeModel.js';
 import * as ReactNativeApplicationModel from './ReactNativeApplicationModel.js';
 import * as RemoteObject from './RemoteObject.js';
 import * as Resource from './Resource.js';
@@ -76,21 +76,17 @@ import * as ServerTiming from './ServerTiming.js';
 import * as ServiceWorkerCacheModel from './ServiceWorkerCacheModel.js';
 import * as ServiceWorkerManager from './ServiceWorkerManager.js';
 import * as SourceMap from './SourceMap.js';
-import * as SourceMapFunctionRanges from './SourceMapFunctionRanges.js';
 import * as SourceMapManager from './SourceMapManager.js';
-import * as SourceMapScopeChainEntry from './SourceMapScopeChainEntry.js';
 import * as SourceMapScopes from './SourceMapScopes.js';
 import * as SourceMapScopesInfo from './SourceMapScopesInfo.js';
 import * as StorageBucketsModel from './StorageBucketsModel.js';
 import * as StorageKeyManager from './StorageKeyManager.js';
 import * as Target from './Target.js';
 import * as TargetManager from './TargetManager.js';
-import * as TraceObject from './TraceObject.js';
 import * as WebAuthnModel from './WebAuthnModel.js';
 
 export {
   AccessibilityModel,
-  AnimationModel,
   AutofillModel,
   CategorizedBreakpoint,
   ChildTargetManager,
@@ -100,6 +96,7 @@ export {
   Cookie,
   CookieModel,
   CookieParser,
+  CPUProfileDataModel,
   CPUProfilerModel,
   CPUThrottlingManager,
   CSSContainerQuery,
@@ -111,7 +108,6 @@ export {
   CSSModel,
   CSSProperty,
   CSSPropertyParser,
-  CSSPropertyParserMatchers,
   CSSQuery,
   CSSRule,
   CSSScope,
@@ -122,7 +118,6 @@ export {
   DOMDebuggerModel,
   DOMModel,
   EmulationModel,
-  EnhancedTracesParser,
   EventBreakpointsModel,
   FrameAssociated,
   FrameManager,
@@ -142,6 +137,7 @@ export {
   PaintProfiler,
   PerformanceMetricsModel,
   PreloadingModel,
+  ProfileTreeModel,
   ReactNativeApplicationModel,
   RemoteObject,
   Resource,
@@ -156,15 +152,12 @@ export {
   ServiceWorkerCacheModel,
   ServiceWorkerManager,
   SourceMap,
-  SourceMapFunctionRanges,
   SourceMapManager,
-  SourceMapScopeChainEntry,
   SourceMapScopes,
   SourceMapScopesInfo,
   StorageBucketsModel,
   StorageKeyManager,
   Target,
   TargetManager,
-  TraceObject,
   WebAuthnModel,
 };

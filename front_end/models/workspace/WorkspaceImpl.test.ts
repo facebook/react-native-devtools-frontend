@@ -2,11 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Platform from '../../core/platform/platform.js';
+import type * as Platform from '../../core/platform/platform.js';
 import * as Bindings from '../bindings/bindings.js';
 import * as Workspace from '../workspace/workspace.js';
-
-const {urlString} = Platform.DevToolsPath;
 
 describe('WorkspaceImpl', () => {
   it('can remove the current instance', () => {
@@ -22,7 +20,7 @@ describe('WorkspaceImpl', () => {
     const sut = Workspace.Workspace.WorkspaceImpl.instance({forceNew: true});
     const projectStub = sinon.createStubInstance(Bindings.ContentProviderBasedProject.ContentProviderBasedProject);
     const exampleProjectID = 'exampleProjectID';
-    const exampleUrl = urlString`https://example.com/`;
+    const exampleUrl = 'https://example.com/' as Platform.DevToolsPath.UrlString;
     projectStub.id.returns(exampleProjectID);
     const uiSourceCodeStub = sinon.createStubInstance(Workspace.UISourceCode.UISourceCode);
     projectStub.uiSourceCodeForURL.withArgs(exampleUrl).returns(uiSourceCodeStub);
@@ -35,7 +33,7 @@ describe('WorkspaceImpl', () => {
 
   it('can return the UI source code from a URL', async () => {
     const sut = Workspace.Workspace.WorkspaceImpl.instance({forceNew: true});
-    const exampleUrl = urlString`https://example.com/`;
+    const exampleUrl = 'https://example.com/' as Platform.DevToolsPath.UrlString;
     const projectStub = sinon.createStubInstance(Bindings.ContentProviderBasedProject.ContentProviderBasedProject);
     sut.addProject(projectStub);
 
@@ -54,7 +52,7 @@ describe('WorkspaceImpl', () => {
 
     const result = sut.uiSourceCodesForProjectType(Workspace.Workspace.projectTypes.Debugger);
 
-    assert.deepEqual(result, [uiSourceCodeStub]);
+    assert.deepStrictEqual(result, [uiSourceCodeStub]);
   });
 
   it('can remove a project', () => {
@@ -64,7 +62,7 @@ describe('WorkspaceImpl', () => {
 
     sut.removeProject(projectStub);
 
-    assert.deepEqual(sut.projects(), []);
+    assert.deepStrictEqual(sut.projects(), []);
   });
 
   it('can retrieve a project by ID', () => {
@@ -76,7 +74,7 @@ describe('WorkspaceImpl', () => {
 
     const result = sut.project(exampleProjectID);
 
-    assert.deepEqual(result, projectStub);
+    assert.deepStrictEqual(result, projectStub);
   });
 
   it('can retrieve all projects', () => {
@@ -90,7 +88,7 @@ describe('WorkspaceImpl', () => {
 
     const result = sut.projects();
 
-    assert.deepEqual(result, [projectStub0, projectStub1]);
+    assert.deepStrictEqual(result, [projectStub0, projectStub1]);
   });
 
   it('can retrieve all projects for a certain type', () => {
@@ -106,7 +104,7 @@ describe('WorkspaceImpl', () => {
 
     const result = sut.projectsForType(Workspace.Workspace.projectTypes.Debugger);
 
-    assert.deepEqual(result, [projectStub0]);
+    assert.deepStrictEqual(result, [projectStub0]);
   });
 
   it('can return the UI source code from project type', async () => {
@@ -118,7 +116,7 @@ describe('WorkspaceImpl', () => {
 
     const result = sut.uiSourceCodes();
 
-    assert.deepEqual(result, [uiSourceCodeStub]);
+    assert.deepStrictEqual(result, [uiSourceCodeStub]);
   });
 
   it('can check if there are tracking extensions', async () => {
@@ -141,8 +139,9 @@ describe('WorkspaceImpl', () => {
 describe('ProjectStore', () => {
   it('allows renaming for file names with special characters when there is no parent URL', () => {
     const workspaceStub = sinon.createStubInstance(Workspace.Workspace.WorkspaceImpl);
-    const originalUrlExample = urlString`https://example.com/`;
-    const nameWithSpecialChars = urlString`equals=question?percent%space dollar\$semi;hash#amper&`;
+    const originalUrlExample = 'https://example.com/' as Platform.DevToolsPath.UrlString;
+    const nameWithSpecialChars =
+        'equals=question?percent%space dollar$semi;hash#amper&' as Platform.DevToolsPath.UrlString;
     const uiSourceCodeStub = sinon.createStubInstance(Workspace.UISourceCode.UISourceCode);
     uiSourceCodeStub.url.returns(originalUrlExample);
     const projectInstance = new Bindings.ContentProviderBasedProject.ContentProviderBasedProject(
@@ -158,14 +157,15 @@ describe('ProjectStore', () => {
 
     assert.isNull(projectInstance.uiSourceCodeForURL(originalUrlExample));
     assert.isNotNull(projectInstance.uiSourceCodeForURL(
-        urlString`equals=question%3Fpercent%25space%20dollar\$semi%3Bhash%23amper&`));
+        'equals=question%3Fpercent%25space%20dollar$semi%3Bhash%23amper&' as Platform.DevToolsPath.UrlString));
   });
 
   it('allows renaming for file names with special characters when there is a parent URL', () => {
     const workspaceStub = sinon.createStubInstance(Workspace.Workspace.WorkspaceImpl);
-    const originalUrlExample = urlString`https://example.com/`;
-    const parentUrlExample = urlString`https://parent.example.com`;
-    const nameWithSpecialChars = urlString`equals=question?percent%space dollar\$semi;hash#amper&`;
+    const originalUrlExample = 'https://example.com/' as Platform.DevToolsPath.UrlString;
+    const parentUrlExample = 'https://parent.example.com' as Platform.DevToolsPath.UrlString;
+    const nameWithSpecialChars =
+        'equals=question?percent%space dollar$semi;hash#amper&' as Platform.DevToolsPath.UrlString;
     const uiSourceCodeStub = sinon.createStubInstance(Workspace.UISourceCode.UISourceCode);
     uiSourceCodeStub.url.returns(originalUrlExample);
     uiSourceCodeStub.parentURL.returns(parentUrlExample);
@@ -182,6 +182,7 @@ describe('ProjectStore', () => {
 
     assert.isNull(projectInstance.uiSourceCodeForURL(originalUrlExample));
     assert.isNotNull(projectInstance.uiSourceCodeForURL(
-        urlString`https://parent.example.com/equals=question%3Fpercent%25space%20dollar\$semi%3Bhash%23amper&`));
+        'https://parent.example.com/equals=question%3Fpercent%25space%20dollar$semi%3Bhash%23amper&' as
+        Platform.DevToolsPath.UrlString));
   });
 });

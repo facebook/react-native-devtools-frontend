@@ -5,6 +5,7 @@
 import {assert} from 'chai';
 
 import {enableExperiment, getBrowserAndPages, goToResource, waitFor} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   clickNthChildOfSelectedElementNode,
   getElementStyleFontEditorButton,
@@ -14,7 +15,7 @@ import {
   waitForCSSPropertyValue,
 } from '../helpers/elements-helpers.js';
 
-async function goToTestPageAndSelectTestElement(path = 'inline_editor/fontEditor.html') {
+async function goToTestPageAndSelectTestElement(path: string = 'inline_editor/fontEditor.html') {
   await goToResource(path);
   await waitForContentOfSelectedElementsNode('<body>\u200B');
   await clickNthChildOfSelectedElementNode(1);
@@ -39,8 +40,8 @@ describe('The font editor', function() {
   it('icon is displayed for sections containing font properties', async () => {
     const fontEditorButtons = await getFontEditorButtons();
     const hiddenFontEditorButtons = await getHiddenFontEditorButtons();
-    assert.lengthOf(fontEditorButtons, 5);
-    assert.lengthOf(hiddenFontEditorButtons, 2);
+    assert.deepEqual(fontEditorButtons.length, 5);
+    assert.deepEqual(hiddenFontEditorButtons.length, 2);
   });
 
   it('opens when button is clicked', async () => {

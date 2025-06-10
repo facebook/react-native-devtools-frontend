@@ -17,6 +17,7 @@ import {
   waitFor,
   waitForFunction,
 } from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   addBreakpointForLine,
   BREAKPOINT_ITEM_SELECTOR,
@@ -85,7 +86,7 @@ describe('Multi-Workers', function() {
         await validateNavigationTree();
 
         const {target, frontend} = getBrowserAndPages();
-        await installEventListener(frontend, DEBUGGER_PAUSED_EVENT);
+        installEventListener(frontend, DEBUGGER_PAUSED_EVENT);
 
         await step('Send message to a worker to trigger break', async () => {
           await target.evaluate('workers[3].postMessage({command:"break"});');
@@ -107,7 +108,7 @@ describe('Multi-Workers', function() {
         await step('Wait for first worker to be expanded', async () => {
           await waitFor(selectedFile);
           const workers = await $$(expandedWorker);
-          assert.lengthOf(workers, 1);
+          assert.strictEqual(workers.length, 1);
         });
 
         await step('Break in and switch to a different worker', async () => {
@@ -117,7 +118,10 @@ describe('Multi-Workers', function() {
 
           // This typically happens too quickly to cause DevTools to switch to the other thread, so
           // click on the other paused thread.
-          await waitFor(THREADS_SELECTOR + '[aria-expanded="true"]');
+          await Promise.all([
+            click(THREADS_SELECTOR),
+            waitFor(THREADS_SELECTOR + '[aria-expanded="true"]'),
+          ]);
           await click('.thread-item:has( .thread-item-paused-state:not(:empty)):not(.selected)');
         });
 
@@ -174,7 +178,7 @@ describe('Multi-Workers', function() {
     it(`shows exactly one breakpoint ${withOrWithout}`, async () => {
       const {frontend} = getBrowserAndPages();
       await waitForSourceFiles(
-          SourceFileEvents.SOURCE_FILE_LOADED, files => files.some(f => f.endsWith('multi-workers.js')), async () => {
+          SourceFileEvents.SourceFileLoaded, files => files.some(f => f.endsWith('multi-workers.js')), async () => {
             // Have the target load the page.
             await goToResource(targetPage);
 
@@ -198,7 +202,7 @@ describe('Multi-Workers', function() {
           beforeEach(async () => {
             const {frontend} = getBrowserAndPages();
             await waitForSourceFiles(
-                SourceFileEvents.SOURCE_FILE_LOADED, files => files.some(f => f.endsWith('multi-workers.js')),
+                SourceFileEvents.SourceFileLoaded, files => files.some(f => f.endsWith('multi-workers.js')),
                 async () => {
                   // Have the target load the page.
                   await goToResource(targetPage);
@@ -268,13 +272,12 @@ describe('Multi-Workers', function() {
           });
         });
 
-    // Flaky tests in beforeEach.
-    describe.skip(`[crbug.com/1425122] hits breakpoints added to workers ${withOrWithout}`, () => {
+    describe(`hits breakpoints added to workers ${withOrWithout}`, () => {
       beforeEach(async () => {
         await enableExperiment('instrumentation-breakpoints');
         const {frontend} = getBrowserAndPages();
         await waitForSourceFiles(
-            SourceFileEvents.SOURCE_FILE_LOADED, files => files.some(f => f.endsWith('multi-workers.js')), async () => {
+            SourceFileEvents.SourceFileLoaded, files => files.some(f => f.endsWith('multi-workers.js')), async () => {
               // Have the target load the page.
               await goToResource(targetPage);
 

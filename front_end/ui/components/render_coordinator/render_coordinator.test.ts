@@ -4,20 +4,18 @@
 
 import * as RenderCoordinator from './render_coordinator.js';
 
-describe('RenderCoordinator', () => {
+describe('Render Coordinator', () => {
+  let coordinator: RenderCoordinator.RenderCoordinator.RenderCoordinator;
+  beforeEach(() => {
+    coordinator = RenderCoordinator.RenderCoordinator.RenderCoordinator.instance({forceNew: true});
+    coordinator.observe = true;
+  });
+
   async function validateRecords(expected: string[]) {
-    await RenderCoordinator.done();
-    const records = RenderCoordinator.takeLoggingRecords();
+    await coordinator.done();
+    const records = coordinator.takeRecords();
     assert.deepEqual(records.map(r => r.value), expected, 'render coordinator messages are out of order');
   }
-
-  beforeEach(() => {
-    RenderCoordinator.setLoggingEnabled(true);
-  });
-
-  afterEach(() => {
-    RenderCoordinator.setLoggingEnabled(false);
-  });
 
   it('groups interleaved reads and writes', async () => {
     const expected = [
@@ -30,11 +28,11 @@ describe('RenderCoordinator', () => {
       '[Queue empty]',
     ];
 
-    void RenderCoordinator.write('Write 1', () => {});
-    void RenderCoordinator.read('Read 1', () => {});
-    void RenderCoordinator.read('Read 2', () => {});
-    void RenderCoordinator.write('Write 2', () => {});
-    void RenderCoordinator.read('Read 3', () => {});
+    void coordinator.write('Write 1', () => {});
+    void coordinator.read('Read 1', () => {});
+    void coordinator.read('Read 2', () => {});
+    void coordinator.write('Write 2', () => {});
+    void coordinator.read('Read 3', () => {});
 
     await validateRecords(expected);
   });
@@ -49,11 +47,12 @@ describe('RenderCoordinator', () => {
       '[Queue empty]',
     ];
 
-    void RenderCoordinator.read('Named Read', () => {});
-    void RenderCoordinator.write(() => {});
-    void RenderCoordinator.write('Named Write', () => {});
-    void RenderCoordinator.write(() => {});
-    void RenderCoordinator.write('Named Write', () => {});
+    coordinator.observeOnlyNamed = false;
+    void coordinator.read('Named Read', () => {});
+    void coordinator.write(() => {});
+    void coordinator.write('Named Write', () => {});
+    void coordinator.write(() => {});
+    void coordinator.write('Named Write', () => {});
 
     await validateRecords(expected);
   });
@@ -72,15 +71,15 @@ describe('RenderCoordinator', () => {
       '[Queue empty]',
     ];
 
-    void RenderCoordinator.read('Read 1', () => {
-      void RenderCoordinator.write('Write 1', () => {});
+    void coordinator.read('Read 1', () => {
+      void coordinator.write('Write 1', () => {});
     });
 
-    void RenderCoordinator.read('Read 2', () => {
-      void RenderCoordinator.write('Write 2', () => {
-        void RenderCoordinator.write('Write 3', () => {});
+    void coordinator.read('Read 2', () => {
+      void coordinator.write('Write 2', () => {
+        void coordinator.write('Write 3', () => {});
       });
-      void RenderCoordinator.read('Read 3', () => {});
+      void coordinator.read('Read 3', () => {});
     });
 
     await validateRecords(expected);
@@ -94,15 +93,15 @@ describe('RenderCoordinator', () => {
       '[Write]: Write at end',
       '[Queue empty]',
     ];
-    void RenderCoordinator.read('Read', () => {
+    void coordinator.read('Read', () => {
       // This write is added when we are evaluating the last item in the queue,
       // and it should be enqueued correctly for the test to pass.
-      void RenderCoordinator.write('Write at end', () => {});
+      void coordinator.write('Write at end', () => {});
     });
 
-    await RenderCoordinator.done();
+    await coordinator.done();
 
-    const records = RenderCoordinator.takeLoggingRecords();
+    const records = coordinator.takeRecords();
     assert.deepEqual(records.map(r => r.value), expected);
   });
 
@@ -111,8 +110,8 @@ describe('RenderCoordinator', () => {
     element.style.height = '800px';
     document.body.appendChild(element);
 
-    const height = await RenderCoordinator.read(() => element.clientHeight);
-    await RenderCoordinator.done();
+    const height = await coordinator.read(() => element.clientHeight);
+    await coordinator.done();
 
     element.remove();
     assert.strictEqual(height, 800);
@@ -128,8 +127,8 @@ describe('RenderCoordinator', () => {
                          }, timeout));
     };
 
-    void RenderCoordinator.write(async () => await delayedSet(expected, 100));
-    await RenderCoordinator.done();
+    void coordinator.write(async () => delayedSet(expected, 100));
+    await coordinator.done();
 
     assert.strictEqual(targetValue, expected);
   });
@@ -137,42 +136,42 @@ describe('RenderCoordinator', () => {
   it('throws if there is a read-write deadlock (blocked on read)', async () => {
     const read = () => {};
     try {
-      await RenderCoordinator.write(async () => {
+      await coordinator.write(async () => {
         // Awaiting a read block within a write should block because
         // this write can't proceed until the read has completed, but
         // the read won't start until this write has completed.
-        await RenderCoordinator.read(read);
+        await coordinator.read(read);
       });
     } catch (err) {
       assert.strictEqual(err.toString(), new Error('Writers took over 1500ms. Possible deadlock?').toString());
     }
-    RenderCoordinator.cancelPending();
+    coordinator.cancelPending();
   });
 
   it('throws if there is a write deadlock (blocked on write)', async () => {
     const write = () => {};
     try {
-      await RenderCoordinator.read(async () => {
+      await coordinator.read(async () => {
         // Awaiting a write block within a read should block because
         // this read can't proceed until the write has completed, but
         // the write won't start until this read has completed.
-        await RenderCoordinator.write(write);
+        await coordinator.write(write);
       });
     } catch (err) {
       assert.strictEqual(err.toString(), new Error('Readers took over 1500ms. Possible deadlock?').toString());
     }
-    RenderCoordinator.cancelPending();
+    coordinator.cancelPending();
   });
 
   it('exposes the presence of pending work', async () => {
-    const readDonePromise = RenderCoordinator.read('Named Read', () => {});
-    assert.isTrue(RenderCoordinator.hasPendingWork());
+    const readDonePromise = coordinator.read('Named Read', () => {});
+    assert.isTrue(coordinator.hasPendingWork());
     await readDonePromise;
-    assert.isFalse(RenderCoordinator.hasPendingWork());
+    assert.isFalse(coordinator.hasPendingWork());
   });
 
   it('exposes the pending work count globally for interaction/e2e tests', async () => {
-    const readDonePromise = RenderCoordinator.read('Named Read', () => {});
+    const readDonePromise = coordinator.read('Named Read', () => {});
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     assert.strictEqual((globalThis as any).__getRenderCoordinatorPendingFrames(), 1);
     await readDonePromise;
@@ -182,15 +181,14 @@ describe('RenderCoordinator', () => {
 
   describe('Logger', () => {
     it('only logs by default when provided with names', async () => {
-      RenderCoordinator.setLoggingEnabled(true, {onlyNamed: true});
       const expected = [
         '[New frame]',
         '[Read]: Named Read',
         '[Queue empty]',
       ];
 
-      void RenderCoordinator.read('Named Read', () => {});
-      void RenderCoordinator.write(() => {});
+      void coordinator.read('Named Read', () => {});
+      void coordinator.write(() => {});
 
       await validateRecords(expected);
     });
@@ -203,8 +201,9 @@ describe('RenderCoordinator', () => {
         '[Queue empty]',
       ];
 
-      void RenderCoordinator.read('Named Read', () => {});
-      void RenderCoordinator.write(() => {});
+      coordinator.observeOnlyNamed = false;
+      void coordinator.read('Named Read', () => {});
+      void coordinator.write(() => {});
 
       await validateRecords(expected);
     });
@@ -217,14 +216,14 @@ describe('RenderCoordinator', () => {
       expected.push('[Queue empty]');
 
       for (let i = 0; i < 150; i++) {
-        void RenderCoordinator.read(`Named read ${i}`, () => {});
+        void coordinator.read(`Named read ${i}`, () => {});
       }
 
       await validateRecords(expected);
     });
 
     it('supports different log sizes', async () => {
-      RenderCoordinator.setLoggingEnabled(true, {storageLimit: 10});
+      coordinator.recordStorageLimit = 10;
       const expected = [];
       for (let i = 41; i < 50; i++) {
         expected.push(`[Write]: Named write ${i}`);
@@ -232,7 +231,7 @@ describe('RenderCoordinator', () => {
       expected.push('[Queue empty]');
 
       for (let i = 0; i < 50; i++) {
-        void RenderCoordinator.write(`Named write ${i}`, () => {});
+        void coordinator.write(`Named write ${i}`, () => {});
       }
 
       await validateRecords(expected);

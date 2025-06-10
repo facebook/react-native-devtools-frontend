@@ -65,7 +65,7 @@ export class ConsoleViewport {
   private stickToBottomInternal: boolean;
   private selectionIsBackward: boolean;
   private lastSelectedElement?: HTMLElement|null;
-  private cachedProviderElements?: Array<ConsoleViewportElement|null>;
+  private cachedProviderElements?: (ConsoleViewportElement|null)[];
 
   constructor(provider: ConsoleViewportProvider) {
     this.element = document.createElement('div');
@@ -85,8 +85,8 @@ export class ConsoleViewport {
     this.topGapElement.textContent = '\uFEFF';
     this.bottomGapElement.textContent = '\uFEFF';
 
-    UI.ARIAUtils.setHidden(this.topGapElement, true);
-    UI.ARIAUtils.setHidden(this.bottomGapElement, true);
+    UI.ARIAUtils.markAsHidden(this.topGapElement);
+    UI.ARIAUtils.markAsHidden(this.bottomGapElement);
 
     this.provider = provider;
     this.element.addEventListener('scroll', this.onScroll.bind(this), false);
@@ -334,7 +334,7 @@ export class ConsoleViewport {
   }
 
   private isSelectionBackwards(selection: Selection|null): boolean {
-    if (!selection?.rangeCount || !selection.anchorNode || !selection.focusNode) {
+    if (!selection || !selection.rangeCount || !selection.anchorNode || !selection.focusNode) {
       return false;
     }
     const range = document.createRange();
@@ -348,11 +348,11 @@ export class ConsoleViewport {
     node: Node,
     offset: number,
   } {
-    return {item: itemIndex, node, offset};
+    return {item: itemIndex, node: node, offset: offset};
   }
 
   private updateSelectionModel(selection: Selection|null): boolean {
-    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    const range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
     if (!range || (!selection || selection.isCollapsed) || !this.element.hasSelection()) {
       this.headSelection = null;
       this.anchorSelection = null;
@@ -391,8 +391,8 @@ export class ConsoleViewport {
     let firstSelected: SelectionModel|null = null;
     let lastSelected: SelectionModel|null = null;
     if (hasVisibleSelection) {
-      firstSelected = this.createSelectionModel(firstSelectedIndex, (range.startContainer), range.startOffset);
-      lastSelected = this.createSelectionModel(lastSelectedIndex, (range.endContainer), range.endOffset);
+      firstSelected = this.createSelectionModel(firstSelectedIndex, (range.startContainer as Node), range.startOffset);
+      lastSelected = this.createSelectionModel(lastSelectedIndex, (range.endContainer as Node), range.endOffset);
     }
     if (topOverlap && bottomOverlap && hasVisibleSelection) {
       firstSelected = (firstSelected && firstSelected.item < startSelection.item) ? firstSelected : startSelection;
@@ -607,8 +607,8 @@ export class ConsoleViewport {
     }
 
     const endProviderElement = this.providerElement(endSelection.item);
-    const endSelectionElement = endProviderElement?.element();
-    if (endSelectionElement && endSelection.node?.isSelfOrDescendant(endSelectionElement)) {
+    const endSelectionElement = endProviderElement && endProviderElement.element();
+    if (endSelectionElement && endSelection.node && endSelection.node.isSelfOrDescendant(endSelectionElement)) {
       const itemTextOffset = this.textOffsetInNode(endSelectionElement, endSelection.node, endSelection.offset);
       if (textLines.length > 0) {
         textLines[textLines.length - 1] = textLines[textLines.length - 1].substring(0, itemTextOffset);
@@ -616,8 +616,8 @@ export class ConsoleViewport {
     }
 
     const startProviderElement = this.providerElement(startSelection.item);
-    const startSelectionElement = startProviderElement?.element();
-    if (startSelectionElement && startSelection.node?.isSelfOrDescendant(startSelectionElement)) {
+    const startSelectionElement = startProviderElement && startProviderElement.element();
+    if (startSelectionElement && startSelection.node && startSelection.node.isSelfOrDescendant(startSelectionElement)) {
       const itemTextOffset = this.textOffsetInNode(startSelectionElement, startSelection.node, startSelection.offset);
       textLines[0] = textLines[0].substring(itemTextOffset);
     }

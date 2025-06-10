@@ -33,7 +33,7 @@ describe('RecordingPlayer', () => {
           ],
         },
         {
-          speed: Models.RecordingPlayer.PlayRecordingSpeed.NORMAL,
+          speed: Models.RecordingPlayer.PlayRecordingSpeed.Normal,
           breakpointIndexes: new Set(),
         },
     );
@@ -41,7 +41,7 @@ describe('RecordingPlayer', () => {
       resolve();
     });
     recordingPlayer.addEventListener(
-        Models.RecordingPlayer.Events.STEP,
+        Models.RecordingPlayer.Events.Step,
         stepEventHandlerStub,
     );
 
@@ -62,7 +62,7 @@ describe('RecordingPlayer', () => {
             ],
           },
           {
-            speed: Models.RecordingPlayer.PlayRecordingSpeed.NORMAL,
+            speed: Models.RecordingPlayer.PlayRecordingSpeed.Normal,
             breakpointIndexes: new Set([1]),
           },
       );
@@ -71,21 +71,21 @@ describe('RecordingPlayer', () => {
       });
       const stopEventPromise = new Promise<void>(resolve => {
         recordingPlayer.addEventListener(
-            Models.RecordingPlayer.Events.STOP,
+            Models.RecordingPlayer.Events.Stop,
             () => {
               resolve();
             },
         );
       });
       recordingPlayer.addEventListener(
-          Models.RecordingPlayer.Events.STEP,
+          Models.RecordingPlayer.Events.Step,
           stepEventHandlerStub,
       );
 
       void recordingPlayer.play();
       await stopEventPromise;
 
-      assert.lengthOf(stepEventHandlerStub.getCalls(), 2);
+      assert.strictEqual(stepEventHandlerStub.getCalls().length, 2);
     });
 
     it('should `stepOver` execute only the next step after breakpoint and stop', async () => {
@@ -100,7 +100,7 @@ describe('RecordingPlayer', () => {
             ],
           },
           {
-            speed: Models.RecordingPlayer.PlayRecordingSpeed.NORMAL,
+            speed: Models.RecordingPlayer.PlayRecordingSpeed.Normal,
             breakpointIndexes: new Set([1]),
           },
       );
@@ -109,12 +109,12 @@ describe('RecordingPlayer', () => {
       });
       let stopEventPromise = new Promise<void>(resolve => {
         recordingPlayer.addEventListener(
-            Models.RecordingPlayer.Events.STOP,
+            Models.RecordingPlayer.Events.Stop,
             () => {
               resolve();
               stopEventPromise = new Promise<void>(nextResolve => {
                 recordingPlayer.addEventListener(
-                    Models.RecordingPlayer.Events.STOP,
+                    Models.RecordingPlayer.Events.Stop,
                     () => {
                       nextResolve();
                     },
@@ -126,17 +126,17 @@ describe('RecordingPlayer', () => {
         );
       });
       recordingPlayer.addEventListener(
-          Models.RecordingPlayer.Events.STEP,
+          Models.RecordingPlayer.Events.Step,
           stepEventHandlerStub,
       );
 
       void recordingPlayer.play();
       await stopEventPromise;
-      assert.lengthOf(stepEventHandlerStub.getCalls(), 2);
+      assert.strictEqual(stepEventHandlerStub.getCalls().length, 2);
       recordingPlayer.stepOver();
       await stopEventPromise;
 
-      assert.lengthOf(stepEventHandlerStub.getCalls(), 3);
+      assert.strictEqual(stepEventHandlerStub.getCalls().length, 3);
     });
 
     it('should `continue` execute until the next breakpoint', async () => {
@@ -152,7 +152,7 @@ describe('RecordingPlayer', () => {
             ],
           },
           {
-            speed: Models.RecordingPlayer.PlayRecordingSpeed.NORMAL,
+            speed: Models.RecordingPlayer.PlayRecordingSpeed.Normal,
             breakpointIndexes: new Set([1, 3]),
           },
       );
@@ -161,12 +161,12 @@ describe('RecordingPlayer', () => {
       });
       let stopEventPromise = new Promise<void>(resolve => {
         recordingPlayer.addEventListener(
-            Models.RecordingPlayer.Events.STOP,
+            Models.RecordingPlayer.Events.Stop,
             () => {
               resolve();
               stopEventPromise = new Promise<void>(nextResolve => {
                 recordingPlayer.addEventListener(
-                    Models.RecordingPlayer.Events.STOP,
+                    Models.RecordingPlayer.Events.Stop,
                     () => {
                       nextResolve();
                     },
@@ -178,17 +178,17 @@ describe('RecordingPlayer', () => {
         );
       });
       recordingPlayer.addEventListener(
-          Models.RecordingPlayer.Events.STEP,
+          Models.RecordingPlayer.Events.Step,
           stepEventHandlerStub,
       );
 
       void recordingPlayer.play();
       await stopEventPromise;
-      assert.lengthOf(stepEventHandlerStub.getCalls(), 2);
+      assert.strictEqual(stepEventHandlerStub.getCalls().length, 2);
       recordingPlayer.continue();
       await stopEventPromise;
 
-      assert.lengthOf(stepEventHandlerStub.getCalls(), 4);
+      assert.strictEqual(stepEventHandlerStub.getCalls().length, 4);
     });
 
     it('should `continue` execute until the end if there is no later breakpoints', async () => {
@@ -204,7 +204,7 @@ describe('RecordingPlayer', () => {
             ],
           },
           {
-            speed: Models.RecordingPlayer.PlayRecordingSpeed.NORMAL,
+            speed: Models.RecordingPlayer.PlayRecordingSpeed.Normal,
             breakpointIndexes: new Set([1]),
           },
       );
@@ -213,12 +213,12 @@ describe('RecordingPlayer', () => {
       });
       let stopEventPromise = new Promise<void>(resolve => {
         recordingPlayer.addEventListener(
-            Models.RecordingPlayer.Events.STOP,
+            Models.RecordingPlayer.Events.Stop,
             () => {
               resolve();
               stopEventPromise = new Promise<void>(nextResolve => {
                 recordingPlayer.addEventListener(
-                    Models.RecordingPlayer.Events.STOP,
+                    Models.RecordingPlayer.Events.Stop,
                     () => {
                       nextResolve();
                     },
@@ -231,7 +231,7 @@ describe('RecordingPlayer', () => {
       });
       const doneEventPromise = new Promise<void>(resolve => {
         recordingPlayer.addEventListener(
-            Models.RecordingPlayer.Events.DONE,
+            Models.RecordingPlayer.Events.Done,
             () => {
               resolve();
             },
@@ -239,17 +239,17 @@ describe('RecordingPlayer', () => {
         );
       });
       recordingPlayer.addEventListener(
-          Models.RecordingPlayer.Events.STEP,
+          Models.RecordingPlayer.Events.Step,
           stepEventHandlerStub,
       );
 
       void recordingPlayer.play();
       await stopEventPromise;
-      assert.lengthOf(stepEventHandlerStub.getCalls(), 2);
+      assert.strictEqual(stepEventHandlerStub.getCalls().length, 2);
       recordingPlayer.continue();
       await doneEventPromise;
 
-      assert.lengthOf(stepEventHandlerStub.getCalls(), 5);
+      assert.strictEqual(stepEventHandlerStub.getCalls().length, 5);
     });
   });
 });

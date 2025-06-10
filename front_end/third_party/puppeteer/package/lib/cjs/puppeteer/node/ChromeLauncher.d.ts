@@ -4,27 +4,27 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { Browser } from '../api/Browser.js';
-import { BrowserLauncher, type ResolvedLaunchArgs } from './BrowserLauncher.js';
-import type { ChromeReleaseChannel, LaunchOptions } from './LaunchOptions.js';
+import type { BrowserLaunchArgumentOptions, ChromeReleaseChannel, PuppeteerNodeLaunchOptions } from './LaunchOptions.js';
+import { ProductLauncher, type ResolvedLaunchArgs } from './ProductLauncher.js';
 import type { PuppeteerNode } from './PuppeteerNode.js';
 /**
  * @internal
  */
-export declare class ChromeLauncher extends BrowserLauncher {
+export declare class ChromeLauncher extends ProductLauncher {
     constructor(puppeteer: PuppeteerNode);
-    launch(options?: LaunchOptions): Promise<Browser>;
+    launch(options?: PuppeteerNodeLaunchOptions): Promise<Browser>;
     /**
      * @internal
      */
-    computeLaunchArguments(options?: LaunchOptions): Promise<ResolvedLaunchArgs>;
+    computeLaunchArguments(options?: PuppeteerNodeLaunchOptions): Promise<ResolvedLaunchArgs>;
     /**
      * @internal
      */
     cleanUserDataDir(path: string, opts: {
         isTemp: boolean;
     }): Promise<void>;
-    defaultArgs(options?: LaunchOptions): string[];
-    executablePath(channel?: ChromeReleaseChannel, validatePath?: boolean): string;
+    defaultArgs(options?: BrowserLaunchArgumentOptions): string[];
+    executablePath(channel?: ChromeReleaseChannel, headless?: boolean | 'shell'): string;
 }
 /**
  * Extracts all features from the given command-line flag

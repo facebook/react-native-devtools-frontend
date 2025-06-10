@@ -2,12 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Protocol from '../../generated/protocol.js';
 import * as Common from '../common/common.js';
 
 import {RemoteObject} from './RemoteObject.js';
-import {SDKModel} from './SDKModel.js';
+
 import {Capability, type Target} from './Target.js';
+import {SDKModel} from './SDKModel.js';
+import type * as Protocol from '../../generated/protocol.js';
 
 // [RN] Increase IO read size default
 const IO_READ_SIZE = 1024 * 1024 * 4;

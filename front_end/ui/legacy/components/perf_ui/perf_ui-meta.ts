@@ -11,19 +11,17 @@ import type * as PerfUI from './perf_ui.js';
 
 const UIStrings = {
   /**
-   *@description Title of a setting under the Performance category in Settings.
-   * Selected navigation allows switching between 2 different sets of shortcuts
-   * and actions (like zoom on scroll or crtl/cmd + scroll) for navigating the performance panel.
+   *@description Title of a setting under the Performance category in Settings
    */
-  flamechartSelectedNavigation: 'Flamechart navigation:',
+  flamechartMouseWheelAction: 'Flamechart mouse wheel action:',
   /**
-   *@description Modern navigation option in the Performance Panel.
+   *@description The action to scroll
    */
-  modern: 'Modern',
+  scroll: 'Scroll',
   /**
-   *@description Classic navigation option in the Performance Panel.
+   *@description Text for zooming in
    */
-  classic: 'Classic',
+  zoom: 'Zoom',
   /**
    * @description Title of a setting under the Memory category in Settings. Live memory is memory
    * that is still in-use by the program (not dead). Allocation of live memory is when the program
@@ -43,7 +41,7 @@ const UIStrings = {
    *@description Title of an action in the components tool to collect garbage
    */
   collectGarbage: 'Collect garbage',
-} as const;
+};
 
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/components/perf_ui/perf_ui-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
@@ -70,21 +68,21 @@ UI.ActionRegistration.registerActionExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.PERFORMANCE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
-  title: i18nLazyString(UIStrings.flamechartSelectedNavigation),
-  settingName: 'flamechart-selected-navigation',
+  storageType: Common.Settings.SettingStorageType.Synced,
+  title: i18nLazyString(UIStrings.flamechartMouseWheelAction),
+  settingName: 'flamechart-mouse-wheel-action',
   settingType: Common.Settings.SettingType.ENUM,
-  defaultValue: 'classic',
+  defaultValue: 'zoom',
   options: [
     {
-      title: i18nLazyString(UIStrings.modern),
-      text: i18nLazyString(UIStrings.modern),
-      value: 'modern',
+      title: i18nLazyString(UIStrings.scroll),
+      text: i18nLazyString(UIStrings.scroll),
+      value: 'scroll',
     },
     {
-      title: i18nLazyString(UIStrings.classic),
-      text: i18nLazyString(UIStrings.classic),
-      value: 'classic',
+      title: i18nLazyString(UIStrings.zoom),
+      text: i18nLazyString(UIStrings.zoom),
+      value: 'zoom',
     },
   ],
 });

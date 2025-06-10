@@ -3,22 +3,16 @@
 // found in the LICENSE file.
 
 import '../../../ui/legacy/legacy.js';
-import '../../../ui/components/icon_button/icon_button.js';
 
 import * as i18n from '../../../core/i18n/i18n.js';
 import type * as PublicExtensions from '../../../models/extensions/extensions.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
-import * as Lit from '../../../ui/lit/lit.js';
+import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
+import * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 import * as Extensions from '../extensions/extensions.js';
 
-import extensionViewStylesRaw from './extensionView.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const extensionViewStyles = new CSSStyleSheet();
-extensionViewStyles.replaceSync(extensionViewStylesRaw.cssText);
-
-const {html} = Lit;
+import extensionViewStyles from './extensionView.css.js';
 
 const UIStrings = {
   /**
@@ -29,7 +23,7 @@ const UIStrings = {
    * @description The label that indicates that the content shown is provided by a browser extension.
    */
   extension: 'Content provided by a browser extension',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings(
     'panels/recorder/components/ExtensionView.ts',
     UIStrings,
@@ -53,6 +47,7 @@ export class ClosedEvent extends Event {
 }
 
 export class ExtensionView extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-recorder-extension-view`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   #descriptor?: PublicExtensions.RecorderPluginManager.ViewDescriptor;
 
@@ -92,19 +87,19 @@ export class ExtensionView extends HTMLElement {
     }
     const iframe = Extensions.ExtensionManager.ExtensionManager.instance().getView(this.#descriptor.id).frame();
     // clang-format off
-    Lit.render(
-      html`
+    LitHtml.render(
+      LitHtml.html`
         <div class="extension-view">
           <header>
             <div class="title">
-              <devtools-icon
+              <${IconButton.Icon.Icon.litTagName}
                 class="icon"
                 title=${i18nString(UIStrings.extension)}
                 name="extension">
-              </devtools-icon>
+              </${IconButton.Icon.Icon.litTagName}>
               ${this.#descriptor.title}
             </div>
-            <devtools-button
+            <${Buttons.Button.Button.litTagName}
               title=${i18nString(UIStrings.closeView)}
               jslog=${VisualLogging.close().track({click: true})}
               .data=${
@@ -115,11 +110,11 @@ export class ExtensionView extends HTMLElement {
                 } as Buttons.Button.ButtonData
               }
               @click=${this.#closeView}
-            ></devtools-button>
+            ></${Buttons.Button.Button.litTagName}>
           </header>
           <main>
             ${iframe}
-          </main>
+          <main>
       </div>
     `,
       this.#shadow,

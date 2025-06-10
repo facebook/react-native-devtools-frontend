@@ -6,16 +6,14 @@ import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 import type * as Protocol from '../../generated/protocol.js';
 import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
 import * as Common from '../common/common.js';
-import * as Platform from '../platform/platform.js';
+import type * as Platform from '../platform/platform.js';
 
 import * as SDK from './sdk.js';
-
-const {urlString} = Platform.DevToolsPath;
 
 type PersistentHighlightSettingItem = SDK.OverlayPersistentHighlighter.PersistentHighlightSettingItem;
 type PersistentHighlighterCallbacks = SDK.OverlayPersistentHighlighter.PersistentHighlighterCallbacks;
 
-function resetSavedSetting(forcedState: PersistentHighlightSettingItem[] = []): void {
+function resetSavedSetting(forcedState: Array<PersistentHighlightSettingItem> = []): void {
   const setting = Common.Settings.Settings.instance().createLocalSetting<PersistentHighlightSettingItem[]>(
       'persistent-highlight-setting', []);
   setting.set(forcedState);
@@ -27,8 +25,8 @@ function assertSavedSettingState(expected: unknown): void {
   assert.deepEqual(setting.get(), expected);
 }
 
-const NON_RELATED_DOCUMENT_URL_FOR_TEST = urlString`https://notexample.com/`;
-const DOCUMENT_URL_FOR_TEST = urlString`https://example.com/`;
+const NON_RELATED_DOCUMENT_URL_FOR_TEST = 'https://notexample.com/' as Platform.DevToolsPath.UrlString;
+const DOCUMENT_URL_FOR_TEST = 'https://example.com/' as Platform.DevToolsPath.UrlString;
 const NODE_PATH_FOR_TEST = 'body > div';
 const EXISTING_NODE_ID = 1 as Protocol.DOM.NodeId;
 

@@ -4,9 +4,11 @@
 
 import {renderElementIntoDOM} from '../../../testing/DOMHelpers.js';
 import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
-import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
+import * as Coordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 
 import * as ElementsComponents from './components.js';
+
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 describeWithLocale('AccessibilityTreeNode', () => {
   it('renders role and name correctly for unignored nodes', async () => {
@@ -21,7 +23,7 @@ describeWithLocale('AccessibilityTreeNode', () => {
       id: 'NodeId',
     };
 
-    await RenderCoordinator.done();
+    await coordinator.done();
 
     assert.strictEqual(component.shadowRoot!.textContent, 'NodeRole\xa0"NodeName"');
   });
@@ -37,7 +39,7 @@ describeWithLocale('AccessibilityTreeNode', () => {
       properties: [],
       id: 'NodeId',
     };
-    await RenderCoordinator.done();
+    await coordinator.done();
 
     assert.strictEqual(component.shadowRoot!.textContent, 'Ignored');
   });

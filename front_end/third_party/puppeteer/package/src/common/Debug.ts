@@ -97,6 +97,7 @@ export const debug = (prefix: string): ((...args: unknown[]) => void) => {
       return;
     }
 
+    // eslint-disable-next-line no-console
     console.log(`${prefix}:`, ...logArgs);
   };
 };

@@ -5,11 +5,12 @@
 import("../../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../../scripts/build/ninja/devtools_module.gni")
 import("../../../../scripts/build/ninja/generate_css.gni")
-import("../../../../scripts/build/typescript/typescript.gni")
+import("../../../../third_party/typescript/typescript.gni")
 
 generate_css("css_files") {
   sources = [
     "accessibilityTreeNode.css",
+    "adornerSettingsPane.css",
     "anchorFunctionLinkSwatch.css",
     "computedStyleProperty.css",
     "computedStyleTrace.css",
@@ -29,6 +30,7 @@ devtools_module("components") {
   sources = [
     "AccessibilityTreeNode.ts",
     "AdornerManager.ts",
+    "AdornerSettingsPane.ts",
     "AnchorFunctionLinkSwatch.ts",
     "CSSHintDetailsView.ts",
     "CSSPropertyDocsView.ts",
@@ -56,6 +58,7 @@ devtools_module("components") {
     "../../../ui/components/buttons:bundle",
     "../../../ui/components/helpers:bundle",
     "../../../ui/components/icon_button:bundle",
+    "../../../ui/components/icon_button:bundle",
     "../../../ui/components/legacy_wrapper:bundle",
     "../../../ui/components/node_text:bundle",
     "../../../ui/components/render_coordinator:bundle",
@@ -63,7 +66,7 @@ devtools_module("components") {
     "../../../ui/components/tree_outline:bundle",
     "../../../ui/legacy:bundle",
     "../../../ui/legacy/components/inline_editor:bundle",
-    "../../../ui/lit:bundle",
+    "../../../ui/lit-html:bundle",
     "../../../ui/visual_logging:bundle",
   ]
 }

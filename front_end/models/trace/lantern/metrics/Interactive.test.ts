@@ -2,21 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
-import {TraceLoader} from '../../../../testing/TraceLoader.js';
 import * as Lantern from '../lantern.js';
-import {getComputationDataFromFixture, toLanternTrace} from '../testing/testing.js';
+import {getComputationDataFromFixture, loadTrace} from '../testing/testing.js';
 
 const {Interactive, FirstContentfulPaint, LargestContentfulPaint} = Lantern.Metrics;
 
-describeWithEnvironment('Metrics: Lantern TTI', function() {
-  TraceLoader.setTestTimeout(this);
-
+describe('Metrics: Lantern TTI', () => {
   let trace: Lantern.Types.Trace;
   let iframeTrace: Lantern.Types.Trace;
   before(async function() {
-    trace = toLanternTrace(await TraceLoader.rawEvents(this, 'lantern/progressive-app/trace.json.gz'));
-    iframeTrace = toLanternTrace(await TraceLoader.rawEvents(this, 'lantern/iframe/trace.json.gz'));
+    trace = await loadTrace(this, 'lantern/progressive-app/trace.json.gz');
+    iframeTrace = await loadTrace(this, 'lantern/iframe/trace.json.gz');
   });
 
   it('should compute predicted value', async () => {
@@ -27,7 +23,7 @@ describeWithEnvironment('Metrics: Lantern TTI', function() {
       }),
     });
 
-    assert.deepEqual(
+    assert.deepStrictEqual(
         {
           timing: Math.round(result.timing),
           optimistic: Math.round(result.optimisticEstimate.timeInMs),
@@ -40,8 +36,8 @@ describeWithEnvironment('Metrics: Lantern TTI', function() {
         });
     assert.strictEqual(result.optimisticEstimate.nodeTimings.size, 14);
     assert.strictEqual(result.pessimisticEstimate.nodeTimings.size, 31);
-    assert.isOk(result.optimisticGraph, 'should have created optimistic graph');
-    assert.isOk(result.pessimisticGraph, 'should have created pessimistic graph');
+    assert.ok(result.optimisticGraph, 'should have created optimistic graph');
+    assert.ok(result.pessimisticGraph, 'should have created pessimistic graph');
   });
 
   it('should compute predicted value on iframes with substantial layout', async () => {
@@ -54,7 +50,7 @@ describeWithEnvironment('Metrics: Lantern TTI', function() {
       }),
     });
 
-    assert.deepEqual(
+    assert.deepStrictEqual(
         {
           timing: Math.round(result.timing),
           optimistic: Math.round(result.optimisticEstimate.timeInMs),
@@ -65,7 +61,7 @@ describeWithEnvironment('Metrics: Lantern TTI', function() {
           pessimistic: 2386,
           timing: 2379,
         });
-    assert.isOk(result.optimisticGraph, 'should have created optimistic graph');
-    assert.isOk(result.pessimisticGraph, 'should have created pessimistic graph');
+    assert.ok(result.optimisticGraph, 'should have created optimistic graph');
+    assert.ok(result.pessimisticGraph, 'should have created pessimistic graph');
   });
 });

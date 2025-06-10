@@ -4,7 +4,7 @@
 
 import("../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../scripts/build/ninja/devtools_module.gni")
-import("../../../scripts/build/typescript/typescript.gni")
+import("../../../third_party/typescript/typescript.gni")
 import("../visibility.gni")
 
 devtools_module("workspace_diff") {
@@ -28,7 +28,6 @@ devtools_entrypoint("bundle") {
 
   visibility = [
     ":*",
-    "../../panels/ai_assistance/*",
     "../../panels/changes/*",
     "../../panels/elements/*",
     "../../panels/sources/*",

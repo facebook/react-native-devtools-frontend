@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
-import * as Platform from '../../core/platform/platform.js';
+import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
@@ -14,8 +14,6 @@ import * as Workspace from '../workspace/workspace.js';
 
 import * as Bindings from './bindings.js';
 
-const {urlString} = Platform.DevToolsPath;
-
 async function addMessage(
     helper: Bindings.PresentationConsoleMessageHelper.PresentationSourceFrameMessageHelper, target: SDK.Target.Target,
     url: Platform.DevToolsPath.UrlString) {
@@ -23,7 +21,7 @@ async function addMessage(
   const message = new SDK.ConsoleModel.ConsoleMessage(
       target.model(SDK.RuntimeModel.RuntimeModel), Common.Console.FrontendMessageSource.ConsoleAPI,
       Protocol.Log.LogEntryLevel.Error, 'test message', details);
-  const level = Workspace.UISourceCode.Message.Level.ERROR;
+  const level = Workspace.UISourceCode.Message.Level.Error;
   await helper.addMessage(new Workspace.UISourceCode.Message(level, message.messageText), message);
   return message;
 }
@@ -99,7 +97,7 @@ async function addStyleSheet(
 }
 
 describeWithMockConnection('PresentationConsoleMessageHelper', () => {
-  const url = urlString`http://example.test/test.css`;
+  const url = 'http://example.test/test.css' as Platform.DevToolsPath.UrlString;
   let helper: Bindings.PresentationConsoleMessageHelper.PresentationSourceFrameMessageHelper;
   let executionContext: SDK.RuntimeModel.ExecutionContext;
   let cssModel: SDK.CSSModel.CSSModel;

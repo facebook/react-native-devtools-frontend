@@ -11,14 +11,14 @@ import {globMatch} from './GlobMatch.js';
  * and `settings set target.source-map old new` feature that
  * is found in LLDB.
  */
-export interface PathSubstitution {
+export type PathSubstitution = {
   readonly from: string; readonly to: string;
-}
+};
 
 /**
  * List of {@type PathSubstitution}s.
  */
-export type PathSubstitutions = readonly PathSubstitution[];
+export type PathSubstitutions = ReadonlyArray<PathSubstitution>;
 
 /**
  * Resolve a source path (as stored in DWARF debugging information) to an absolute URL.
@@ -77,16 +77,16 @@ export function resolveSourcePathToURL(pathSubstitutions: PathSubstitutions, sou
  * The name can be a wildcard pattern, and {@see globMatch} will be used to
  * match the name against the URL of the WebAssembly module file.
  */
-export interface ModuleConfiguration {
+export type ModuleConfiguration = {
   readonly name?: string; readonly pathSubstitutions: PathSubstitutions;
-}
+};
 
 /**
  * List of {@type ModuleConfiguration}s. These lists are intended to have
  * a default configuration, whose name field is `undefined`, which is chosen
  * when no matching named configuration is found.
  */
-export type ModuleConfigurations = readonly ModuleConfiguration[];
+export type ModuleConfigurations = ReadonlyArray<ModuleConfiguration>;
 
 /**
  * Locate the configuration for a given `something.wasm` module file name.

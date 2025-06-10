@@ -9,7 +9,7 @@ import { debug } from '../common/Debug.js';
 import { TargetCloseError } from '../common/Errors.js';
 import { EventEmitter } from '../common/EventEmitter.js';
 import { createProtocolErrorMessage } from '../util/ErrorLike.js';
-import { CdpCDPSession } from './CdpSession.js';
+import { CdpCDPSession } from './CDPSession.js';
 const debugProtocolSend = debug('puppeteer:protocol:SEND ►');
 const debugProtocolReceive = debug('puppeteer:protocol:RECV ◀');
 /**
@@ -23,12 +23,9 @@ export class Connection extends EventEmitter {
     #sessions = new Map();
     #closed = false;
     #manuallyAttached = new Set();
-    #callbacks;
-    #rawErrors = false;
-    constructor(url, transport, delay = 0, timeout, rawErrors = false) {
+    #callbacks = new CallbackRegistry();
+    constructor(url, transport, delay = 0, timeout) {
         super();
-        this.#rawErrors = rawErrors;
-        this.#callbacks = new CallbackRegistry();
         this.#url = url;
         this.#delay = delay;
         this.#timeout = timeout ?? 180_000;
@@ -61,17 +58,11 @@ export class Connection extends EventEmitter {
         return this.#sessions;
     }
     /**
-     * @internal
-     */
-    _session(sessionId) {
-        return this.#sessions.get(sessionId) || null;
-    }
-    /**
      * @param sessionId - The session id
      * @returns The current CDP session if it exists
      */
     session(sessionId) {
-        return this._session(sessionId);
+        return this.#sessions.get(sessionId) || null;
     }
     url() {
         return this.#url;
@@ -122,7 +113,7 @@ export class Connection extends EventEmitter {
         const object = JSON.parse(message);
         if (object.method === 'Target.attachedToTarget') {
             const sessionId = object.params.sessionId;
-            const session = new CdpCDPSession(this, object.params.targetInfo.type, sessionId, object.sessionId, this.#rawErrors);
+            const session = new CdpCDPSession(this, object.params.targetInfo.type, sessionId, object.sessionId);
             this.#sessions.set(sessionId, session);
             this.emit(CDPSessionEvent.SessionAttached, session);
             const parentSession = this.#sessions.get(object.sessionId);
@@ -133,7 +124,7 @@ export class Connection extends EventEmitter {
         else if (object.method === 'Target.detachedFromTarget') {
             const session = this.#sessions.get(object.params.sessionId);
             if (session) {
-                session.onClosed();
+                session._onClosed();
                 this.#sessions.delete(object.params.sessionId);
                 this.emit(CDPSessionEvent.SessionDetached, session);
                 const parentSession = this.#sessions.get(object.sessionId);
@@ -145,17 +136,12 @@ export class Connection extends EventEmitter {
         if (object.sessionId) {
             const session = this.#sessions.get(object.sessionId);
             if (session) {
-                session.onMessage(object);
+                session._onMessage(object);
             }
         }
         else if (object.id) {
             if (object.error) {
-                if (this.#rawErrors) {
-                    this.#callbacks.rejectRaw(object.id, object.error);
-                }
-                else {
-                    this.#callbacks.reject(object.id, createProtocolErrorMessage(object), object.error.message);
-                }
+                this.#callbacks.reject(object.id, createProtocolErrorMessage(object), object.error.message);
             }
             else {
                 this.#callbacks.resolve(object.id, object.result);
@@ -174,7 +160,7 @@ export class Connection extends EventEmitter {
         this.#transport.onclose = undefined;
         this.#callbacks.clear();
         for (const session of this.#sessions.values()) {
-            session.onClosed();
+            session._onClosed();
         }
         this.#sessions.clear();
         this.emit(CDPSessionEvent.Disconnected, undefined);

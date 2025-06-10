@@ -114,13 +114,6 @@ class ExtensionTransport {
                             sessionId: 'pageTargetSessionId',
                         },
                     });
-                    this.#dispatchResponse({
-                        id: parsed.id,
-                        sessionId: parsed.sessionId,
-                        method: parsed.method,
-                        result: {},
-                    });
-                    return;
                 }
                 else if (!parsed.sessionId) {
                     this.#dispatchResponse({
@@ -130,14 +123,14 @@ class ExtensionTransport {
                             sessionId: 'tabTargetSessionId',
                         },
                     });
-                    this.#dispatchResponse({
-                        id: parsed.id,
-                        sessionId: parsed.sessionId,
-                        method: parsed.method,
-                        result: {},
-                    });
-                    return;
                 }
+                this.#dispatchResponse({
+                    id: parsed.id,
+                    sessionId: parsed.sessionId,
+                    method: parsed.method,
+                    result: {},
+                });
+                return;
             }
         }
         if (parsed.sessionId === 'pageTargetSessionId') {
@@ -160,11 +153,7 @@ class ExtensionTransport {
                 id: parsed.id,
                 sessionId: parsed.sessionId ?? 'pageTargetSessionId',
                 method: parsed.method,
-                error: {
-                    code: err?.code,
-                    data: err?.data,
-                    message: err?.message ?? 'CDP error had no message',
-                },
+                error: err,
             });
         });
     }

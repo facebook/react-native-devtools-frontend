@@ -4,17 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type Path from 'path';
+
 import type {Protocol} from 'devtools-protocol';
 
 import type {CDPSession} from '../api/CDPSession.js';
-import {
-  bindIsolatedHandle,
-  ElementHandle,
-  type AutofillData,
-} from '../api/ElementHandle.js';
+import {ElementHandle, type AutofillData} from '../api/ElementHandle.js';
 import type {AwaitableIterable} from '../common/types.js';
 import {debugError} from '../common/util.js';
-import {environment} from '../environment.js';
 import {assert} from '../util/assert.js';
 import {AsyncIterableUtil} from '../util/AsyncIterableUtil.js';
 import {throwIfDisposed} from '../util/decorators.js';
@@ -36,12 +33,11 @@ const NON_ELEMENT_NODE_ROLES = new Set(['StaticText', 'InlineTextBox']);
 export class CdpElementHandle<
   ElementType extends Node = Element,
 > extends ElementHandle<ElementType> {
-  declare protected readonly handle: CdpJSHandle<ElementType>;
-  #backendNodeId?: number;
+  protected declare readonly handle: CdpJSHandle<ElementType>;
 
   constructor(
     world: IsolatedWorld,
-    remoteObject: Protocol.Runtime.RemoteObject,
+    remoteObject: Protocol.Runtime.RemoteObject
   ) {
     super(new CdpJSHandle(world, remoteObject));
   }
@@ -67,7 +63,7 @@ export class CdpElementHandle<
   }
 
   override async contentFrame(
-    this: ElementHandle<HTMLIFrameElement>,
+    this: ElementHandle<HTMLIFrameElement>
   ): Promise<CdpFrame>;
 
   @throwIfDisposed()
@@ -82,9 +78,9 @@ export class CdpElementHandle<
   }
 
   @throwIfDisposed()
-  @bindIsolatedHandle
+  @ElementHandle.bindIsolatedHandle
   override async scrollIntoView(
-    this: CdpElementHandle<Element>,
+    this: CdpElementHandle<Element>
   ): Promise<void> {
     await this.assertConnectedElement();
     try {
@@ -99,33 +95,38 @@ export class CdpElementHandle<
   }
 
   @throwIfDisposed()
-  @bindIsolatedHandle
+  @ElementHandle.bindIsolatedHandle
   override async uploadFile(
     this: CdpElementHandle<HTMLInputElement>,
-    ...files: string[]
+    ...filePaths: string[]
   ): Promise<void> {
     const isMultiple = await this.evaluate(element => {
       return element.multiple;
     });
     assert(
-      files.length <= 1 || isMultiple,
-      'Multiple file uploads only work with <input type=file multiple>',
+      filePaths.length <= 1 || isMultiple,
+      'Multiple file uploads only work with <input type=file multiple>'
     );
 
     // Locate all files and confirm that they exist.
-    const path = environment.value.path;
-    if (path) {
-      files = files.map(filePath => {
-        if (
-          path.win32.isAbsolute(filePath) ||
-          path.posix.isAbsolute(filePath)
-        ) {
-          return filePath;
-        } else {
-          return path.resolve(filePath);
-        }
-      });
+    let path: typeof Path;
+    try {
+      path = await import('path');
+    } catch (error) {
+      if (error instanceof TypeError) {
+        throw new Error(
+          `JSHandle#uploadFile can only be used in Node-like environments.`
+        );
+      }
+      throw error;
     }
+    const files = filePaths.map(filePath => {
+      if (path.win32.isAbsolute(filePath) || path.posix.isAbsolute(filePath)) {
+        return filePath;
+      } else {
+        return path.resolve(filePath);
+      }
+    });
 
     /**
      * The zero-length array is a special case, it seems that
@@ -140,7 +141,7 @@ export class CdpElementHandle<
 
         // Dispatch events for this case because it should behave akin to a user action.
         element.dispatchEvent(
-          new Event('input', {bubbles: true, composed: true}),
+          new Event('input', {bubbles: true, composed: true})
         );
         element.dispatchEvent(new Event('change', {bubbles: true}));
       });
@@ -175,7 +176,7 @@ export class CdpElementHandle<
 
   override async *queryAXTree(
     name?: string | undefined,
-    role?: string | undefined,
+    role?: string | undefined
   ): AwaitableIterable<ElementHandle<Node>> {
     const {nodes} = await this.client.send('Accessibility.queryAXTree', {
       objectId: this.id,
@@ -201,16 +202,5 @@ export class CdpElementHandle<
         ElementHandle<Node>
       >;
     });
-  }
-
-  override async backendNodeId(): Promise<number> {
-    if (this.#backendNodeId) {
-      return this.#backendNodeId;
-    }
-    const {node} = await this.client.send('DOM.describeNode', {
-      objectId: this.handle.id,
-    });
-    this.#backendNodeId = node.backendNodeId;
-    return this.#backendNodeId;
   }
 }

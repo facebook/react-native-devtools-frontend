@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Platform from '../../core/platform/platform.js';
+import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
@@ -12,8 +12,6 @@ import * as TextUtils from '../text_utils/text_utils.js';
 import * as Workspace from '../workspace/workspace.js';
 
 import * as Bindings from './bindings.js';
-
-const {urlString} = Platform.DevToolsPath;
 
 describeWithMockConnection('ResourceMapping', () => {
   let debuggerModel: SDK.DebuggerModel.DebuggerModel;
@@ -41,7 +39,7 @@ describeWithMockConnection('ResourceMapping', () => {
   //  </body>
   //  </html>
   //
-  const url = urlString`http://example.com/index.html`;
+  const url = 'http://example.com/index.html' as Platform.DevToolsPath.UrlString;
   const SCRIPTS = [
     {
       scriptId: '1' as Protocol.Runtime.ScriptId,
@@ -49,7 +47,7 @@ describeWithMockConnection('ResourceMapping', () => {
       startColumn: 8,
       endLine: 8,
       endColumn: 0,
-      sourceURL: urlString`webpack:///src/foo.js`,
+      sourceURL: 'webpack:///src/foo.js' as Platform.DevToolsPath.UrlString,
       hasSourceURLComment: true,
     },
     {
@@ -104,7 +102,7 @@ describeWithMockConnection('ResourceMapping', () => {
   it('creates UISourceCode for added out of scope target', () => {
     SDK.TargetManager.TargetManager.instance().setScopeTarget(null);
 
-    const otherUrl = urlString`http://example.com/other.html`;
+    const otherUrl = 'http://example.com/other.html' as Platform.DevToolsPath.UrlString;
     createResource(getMainFrame(target), otherUrl, 'text/html', '');
     uiSourceCode = workspace.uiSourceCodeForURL(otherUrl) as Workspace.UISourceCode.UISourceCode;
     assert.isNotNull(uiSourceCode);

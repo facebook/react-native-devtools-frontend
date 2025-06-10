@@ -16,7 +16,7 @@ import {
   registerEditorAction,
   type SourcesView,
 } from './SourcesView.js';
-import type {UISourceCodeFrame} from './UISourceCodeFrame.js';
+import {type UISourceCodeFrame} from './UISourceCodeFrame.js';
 
 const UIStrings = {
   /**
@@ -28,7 +28,7 @@ const UIStrings = {
    *@description Tooltip text that appears when hovering over the largeicon pretty print button in the Inplace Formatter Editor Action of the Sources panel
    */
   format: 'Format',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/sources/InplaceFormatterEditorAction.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -84,11 +84,11 @@ export class InplaceFormatterEditorAction implements EditorAction {
     }
 
     this.sourcesView = sourcesView;
-    this.sourcesView.addEventListener(Events.EDITOR_SELECTED, this.editorSelected.bind(this));
-    this.sourcesView.addEventListener(Events.EDITOR_CLOSED, this.editorClosed.bind(this));
+    this.sourcesView.addEventListener(Events.EditorSelected, this.editorSelected.bind(this));
+    this.sourcesView.addEventListener(Events.EditorClosed, this.editorClosed.bind(this));
 
     this.button = new UI.Toolbar.ToolbarButton(i18nString(UIStrings.format), 'brackets');
-    this.button.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.formatSourceInPlace, this);
+    this.button.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, this.formatSourceInPlace, this);
     this.updateButton(sourcesView.currentUISourceCode());
 
     return this.button;

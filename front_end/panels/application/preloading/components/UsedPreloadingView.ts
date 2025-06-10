@@ -2,29 +2,25 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../../../ui/components/icon_button/icon_button.js';
-import '../../../../ui/components/report_view/report_view.js';
-import './PreloadingMismatchedHeadersGrid.js';
-import './MismatchedPreloadingGrid.js';
-
 import * as Common from '../../../../core/common/common.js';
 import * as i18n from '../../../../core/i18n/i18n.js';
 import type * as Platform from '../../../../core/platform/platform.js';
 import {assertNotNullOrUndefined} from '../../../../core/platform/platform.js';
 import * as SDK from '../../../../core/sdk/sdk.js';
 import * as Protocol from '../../../../generated/protocol.js';
+import * as IconButton from '../../../../ui/components/icon_button/icon_button.js';
 import * as LegacyWrapper from '../../../../ui/components/legacy_wrapper/legacy_wrapper.js';
-import * as RenderCoordinator from '../../../../ui/components/render_coordinator/render_coordinator.js';
+import * as Coordinator from '../../../../ui/components/render_coordinator/render_coordinator.js';
+import * as ReportView from '../../../../ui/components/report_view/report_view.js';
 import * as UI from '../../../../ui/legacy/legacy.js';
-import * as Lit from '../../../../ui/lit/lit.js';
+import * as LitHtml from '../../../../ui/lit-html/lit-html.js';
 import * as VisualLogging from '../../../../ui/visual_logging/visual_logging.js';
 import * as PreloadingHelper from '../helper/helper.js';
 
-import type * as MismatchedPreloadingGrid from './MismatchedPreloadingGrid.js';
+import * as MismatchedPreloadingGrid from './MismatchedPreloadingGrid.js';
+import * as PreloadingMismatchedHeadersGrid from './PreloadingMismatchedHeadersGrid.js';
 import {prefetchFailureReason, prerenderFailureReason} from './PreloadingString.js';
 import usedPreloadingStyles from './usedPreloadingView.css.js';
-
-const {html} = Lit;
 
 const UIStrings = {
   /**
@@ -118,9 +114,11 @@ const UIStrings = {
    *@description Label for badge, indicating how many failed speculations there are.
    */
   badgeFailureWithCount: '{n, plural, =1 {# failure} other {# failures}}',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/application/preloading/components/UsedPreloadingView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
+
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 export interface UsedPreloadingViewData {
   pageURL: Platform.DevToolsPath.UrlString;
@@ -129,17 +127,18 @@ export interface UsedPreloadingViewData {
 }
 
 export const enum UsedKind {
-  DOWNGRADED_PRERENDER_TO_PREFETCH_AND_USED = 'DowngradedPrerenderToPrefetchAndUsed',
-  PREFETCH_USED = 'PrefetchUsed',
-  PRERENDER_USED = 'PrerenderUsed',
-  PREFETCH_FAILED = 'PrefetchFailed',
-  PRERENDER_FAILED = 'PrerenderFailed',
-  NO_PRELOADS = 'NoPreloads',
+  DowngradedPrerenderToPrefetchAndUsed = 'DowngradedPrerenderToPrefetchAndUsed',
+  PrefetchUsed = 'PrefetchUsed',
+  PrerenderUsed = 'PrerenderUsed',
+  PrefetchFailed = 'PrefetchFailed',
+  PrerenderFailed = 'PrerenderFailed',
+  NoPreloads = 'NoPreloads',
 }
 
 // TODO(kenoss): Rename this class and file once https://crrev.com/c/4933567 landed.
 // This also shows summary of speculations initiated by this page.
 export class UsedPreloadingView extends LegacyWrapper.LegacyWrapper.WrappableComponent<UI.Widget.VBox> {
+  static readonly litTagName = LitHtml.literal`devtools-resources-used-preloading-view`;
 
   readonly #shadow = this.attachShadow({mode: 'open'});
   #data: UsedPreloadingViewData = {
@@ -148,40 +147,45 @@ export class UsedPreloadingView extends LegacyWrapper.LegacyWrapper.WrappableCom
     currentAttempts: [],
   };
 
+  connectedCallback(): void {
+    this.#shadow.adoptedStyleSheets = [usedPreloadingStyles];
+  }
+
   set data(data: UsedPreloadingViewData) {
     this.#data = data;
     void this.#render();
   }
 
   async #render(): Promise<void> {
-    await RenderCoordinator.write('UsedPreloadingView render', () => {
-      Lit.render(this.#renderInternal(), this.#shadow, {host: this});
+    await coordinator.write('UsedPreloadingView render', () => {
+      LitHtml.render(this.#renderInternal(), this.#shadow, {host: this});
     });
   }
 
-  #renderInternal(): Lit.LitTemplate {
+  #renderInternal(): LitHtml.LitTemplate {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    return html`
-      <style>${usedPreloadingStyles.cssText}</style>
-      <devtools-report>
+    return LitHtml.html`
+      <${ReportView.ReportView.Report.litTagName}>
         ${this.#speculativeLoadingStatusForThisPageSections()}
 
-        <devtools-report-divider></devtools-report-divider>
+        <${ReportView.ReportView.ReportSectionDivider.litTagName}></${
+          ReportView.ReportView.ReportSectionDivider.litTagName}>
 
         ${this.#speculationsInitiatedByThisPageSummarySections()}
 
-        <devtools-report-divider></devtools-report-divider>
+        <${ReportView.ReportView.ReportSectionDivider.litTagName}></${
+          ReportView.ReportView.ReportSectionDivider.litTagName}>
 
-        <devtools-report-section>
+        <${ReportView.ReportView.ReportSection.litTagName}>
           ${UI.XLink.XLink.create('https://developer.chrome.com/blog/prerender-pages/', i18nString(UIStrings.learnMore), 'link', undefined, 'learn-more')}
-        </devtools-report-section>
-      </devtools-report>
+        </${ReportView.ReportView.ReportSection.litTagName}>
+      </${ReportView.ReportView.Report.litTagName}>
     `;
     // clang-format on
   }
 
-  #speculativeLoadingStatusForThisPageSections(): Lit.LitTemplate {
+  #speculativeLoadingStatusForThisPageSections(): LitHtml.LitTemplate {
     const pageURL = Common.ParsedURL.ParsedURL.urlWithoutHash(this.#data.pageURL);
     const forThisPage = this.#data.previousAttempts.filter(
         attempt => Common.ParsedURL.ParsedURL.urlWithoutHash(attempt.key.url) === pageURL);
@@ -190,82 +194,84 @@ export class UsedPreloadingView extends LegacyWrapper.LegacyWrapper.WrappableCom
     const prerender =
         forThisPage.filter(attempt => attempt.key.action === Protocol.Preload.SpeculationAction.Prerender)[0];
 
-    let kind = UsedKind.NO_PRELOADS;
+    let kind = UsedKind.NoPreloads;
     // Prerender -> prefetch downgrade case
     //
     // This code does not handle the case SpecRules designate these preloads rather than prerenderer automatically downgrade prerendering.
     // TODO(https://crbug.com/1410709): Improve this logic once automatic downgrade implemented.
-    if (prerender?.status === SDK.PreloadingModel.PreloadingStatus.FAILURE &&
-        prefetch?.status === SDK.PreloadingModel.PreloadingStatus.SUCCESS) {
-      kind = UsedKind.DOWNGRADED_PRERENDER_TO_PREFETCH_AND_USED;
-    } else if (prefetch?.status === SDK.PreloadingModel.PreloadingStatus.SUCCESS) {
-      kind = UsedKind.PREFETCH_USED;
-    } else if (prerender?.status === SDK.PreloadingModel.PreloadingStatus.SUCCESS) {
-      kind = UsedKind.PRERENDER_USED;
-    } else if (prefetch?.status === SDK.PreloadingModel.PreloadingStatus.FAILURE) {
-      kind = UsedKind.PREFETCH_FAILED;
-    } else if (prerender?.status === SDK.PreloadingModel.PreloadingStatus.FAILURE) {
-      kind = UsedKind.PRERENDER_FAILED;
+    if (prerender?.status === SDK.PreloadingModel.PreloadingStatus.Failure &&
+        prefetch?.status === SDK.PreloadingModel.PreloadingStatus.Success) {
+      kind = UsedKind.DowngradedPrerenderToPrefetchAndUsed;
+    } else if (prefetch?.status === SDK.PreloadingModel.PreloadingStatus.Success) {
+      kind = UsedKind.PrefetchUsed;
+    } else if (prerender?.status === SDK.PreloadingModel.PreloadingStatus.Success) {
+      kind = UsedKind.PrerenderUsed;
+    } else if (prefetch?.status === SDK.PreloadingModel.PreloadingStatus.Failure) {
+      kind = UsedKind.PrefetchFailed;
+    } else if (prerender?.status === SDK.PreloadingModel.PreloadingStatus.Failure) {
+      kind = UsedKind.PrerenderFailed;
     } else {
-      kind = UsedKind.NO_PRELOADS;
+      kind = UsedKind.NoPreloads;
     }
 
     let badge;
     let basicMessage;
     switch (kind) {
-      case UsedKind.DOWNGRADED_PRERENDER_TO_PREFETCH_AND_USED:
+      case UsedKind.DowngradedPrerenderToPrefetchAndUsed:
         badge = this.#badgeSuccess();
-        basicMessage = html`${i18nString(UIStrings.downgradedPrefetchUsed)}`;
+        basicMessage = LitHtml.html`${i18nString(UIStrings.downgradedPrefetchUsed)}`;
         break;
-      case UsedKind.PREFETCH_USED:
+      case UsedKind.PrefetchUsed:
         badge = this.#badgeSuccess();
-        basicMessage = html`${i18nString(UIStrings.prefetchUsed)}`;
+        basicMessage = LitHtml.html`${i18nString(UIStrings.prefetchUsed)}`;
         break;
-      case UsedKind.PRERENDER_USED:
+      case UsedKind.PrerenderUsed:
         badge = this.#badgeSuccess();
-        basicMessage = html`${i18nString(UIStrings.prerenderUsed)}`;
+        basicMessage = LitHtml.html`${i18nString(UIStrings.prerenderUsed)}`;
         break;
-      case UsedKind.PREFETCH_FAILED:
+      case UsedKind.PrefetchFailed:
         badge = this.#badgeFailure();
-        basicMessage = html`${i18nString(UIStrings.prefetchFailed)}`;
+        basicMessage = LitHtml.html`${i18nString(UIStrings.prefetchFailed)}`;
         break;
-      case UsedKind.PRERENDER_FAILED:
+      case UsedKind.PrerenderFailed:
         badge = this.#badgeFailure();
-        basicMessage = html`${i18nString(UIStrings.prerenderFailed)}`;
+        basicMessage = LitHtml.html`${i18nString(UIStrings.prerenderFailed)}`;
         break;
-      case UsedKind.NO_PRELOADS:
+      case UsedKind.NoPreloads:
         badge = this.#badgeNeutral(i18nString(UIStrings.badgeNoSpeculativeLoads));
-        basicMessage = html`${i18nString(UIStrings.noPreloads)}`;
+        basicMessage = LitHtml.html`${i18nString(UIStrings.noPreloads)}`;
         break;
     }
 
     let maybeFailureReasonMessage;
-    if (kind === UsedKind.PREFETCH_FAILED) {
+    if (kind === UsedKind.PrefetchFailed) {
       assertNotNullOrUndefined(prefetch);
       maybeFailureReasonMessage = prefetchFailureReason(prefetch as SDK.PreloadingModel.PrefetchAttempt);
-    } else if (kind === UsedKind.PRERENDER_FAILED || kind === UsedKind.DOWNGRADED_PRERENDER_TO_PREFETCH_AND_USED) {
+    } else if (kind === UsedKind.PrerenderFailed || kind === UsedKind.DowngradedPrerenderToPrefetchAndUsed) {
       assertNotNullOrUndefined(prerender);
       maybeFailureReasonMessage = prerenderFailureReason(prerender as SDK.PreloadingModel.PrerenderAttempt);
     }
 
-    let maybeFailureReason: Lit.LitTemplate = Lit.nothing;
+    let maybeFailureReason: LitHtml.LitTemplate = LitHtml.nothing;
     if (maybeFailureReasonMessage !== undefined) {
       // Disabled until https://crbug.com/1079231 is fixed.
       // clang-format off
-      maybeFailureReason = html`
-      <devtools-report-section-header>${i18nString(UIStrings.detailsFailureReason)}</devtools-report-section-header>
-      <devtools-report-section>
+      maybeFailureReason = LitHtml.html`
+      <${ReportView.ReportView.ReportSectionHeader.litTagName}>${i18nString(UIStrings.detailsFailureReason)}</${
+        ReportView.ReportView.ReportSectionHeader.litTagName}>
+      <${ReportView.ReportView.ReportSection.litTagName}>
         ${maybeFailureReasonMessage}
-      </devtools-report-section>
+      </${ReportView.ReportView.ReportSection.litTagName}>
       `;
       // clang-format on
     }
 
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    return html`
-      <devtools-report-section-header>${i18nString(UIStrings.speculativeLoadingStatusForThisPage)}</devtools-report-section-header>
-      <devtools-report-section>
+    return LitHtml.html`
+      <${ReportView.ReportView.ReportSectionHeader.litTagName}>${i18nString(UIStrings.speculativeLoadingStatusForThisPage)}</${
+        ReportView.ReportView.ReportSectionHeader.litTagName}>
+      <${ReportView.ReportView.ReportSection.litTagName}>
         <div>
           <div class="status-badge-container">
             ${badge}
@@ -274,7 +280,7 @@ export class UsedPreloadingView extends LegacyWrapper.LegacyWrapper.WrappableCom
             ${basicMessage}
           </div>
         </div>
-      </devtools-report-section>
+      </${ReportView.ReportView.ReportSection.litTagName}>
 
       ${maybeFailureReason}
 
@@ -284,9 +290,9 @@ export class UsedPreloadingView extends LegacyWrapper.LegacyWrapper.WrappableCom
     // clang-format on
   }
 
-  #maybeMismatchedSections(kind: UsedKind): Lit.LitTemplate {
-    if (kind !== UsedKind.NO_PRELOADS || this.#data.previousAttempts.length === 0) {
-      return Lit.nothing;
+  #maybeMismatchedSections(kind: UsedKind): LitHtml.LitTemplate {
+    if (kind !== UsedKind.NoPreloads || this.#data.previousAttempts.length === 0) {
+      return LitHtml.nothing;
     }
 
     const rows = this.#data.previousAttempts.map(attempt => {
@@ -303,28 +309,31 @@ export class UsedPreloadingView extends LegacyWrapper.LegacyWrapper.WrappableCom
 
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    return html`
-      <devtools-report-section-header>${i18nString(UIStrings.currentURL)}</devtools-report-section-header>
-      <devtools-report-section>
+    return LitHtml.html`
+      <${ReportView.ReportView.ReportSectionHeader.litTagName}>${i18nString(UIStrings.currentURL)}</${
+        ReportView.ReportView.ReportSectionHeader.litTagName}>
+      <${ReportView.ReportView.ReportSection.litTagName}>
         ${UI.XLink.XLink.create(this.#data.pageURL, undefined, 'link', undefined, 'current-url')}
-      </devtools-report-section>
+      </${ReportView.ReportView.ReportSection.litTagName}>
 
-      <devtools-report-section-header>${i18nString(UIStrings.preloadedURLs)}</devtools-report-section-header>
-      <devtools-report-section
+      <${ReportView.ReportView.ReportSectionHeader.litTagName}>${i18nString(UIStrings.preloadedURLs)}</${
+        ReportView.ReportView.ReportSectionHeader.litTagName}>
+      <${ReportView.ReportView.ReportSection.litTagName}
       jslog=${VisualLogging.section('preloaded-urls')}>
-        <devtools-resources-mismatched-preloading-grid
-          .data=${data as MismatchedPreloadingGrid.MismatchedPreloadingGridData}></devtools-resources-mismatched-preloading-grid>
-      </devtools-report-section>
+        <${MismatchedPreloadingGrid.MismatchedPreloadingGrid.litTagName}
+          .data=${data as MismatchedPreloadingGrid.MismatchedPreloadingGridData}></${
+          MismatchedPreloadingGrid.MismatchedPreloadingGrid.litTagName}>
+      </${ReportView.ReportView.ReportSection.litTagName}>
     `;
     // clang-format on
   }
 
-  #maybeMismatchedHTTPHeadersSections(): Lit.LitTemplate {
+  #maybeMismatchedHTTPHeadersSections(): LitHtml.LitTemplate {
     const attempt = this.#data.previousAttempts.find(
         attempt =>
             attempt.action === Protocol.Preload.SpeculationAction.Prerender && attempt.mismatchedHeaders !== null);
     if (attempt === undefined) {
-      return Lit.nothing;
+      return LitHtml.nothing;
     }
 
     if (attempt.key.url !== this.#data.pageURL) {
@@ -336,26 +345,28 @@ export class UsedPreloadingView extends LegacyWrapper.LegacyWrapper.WrappableCom
 
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    return html`
-      <devtools-report-section-header>${i18nString(UIStrings.mismatchedHeadersDetail)}</devtools-report-section-header>
-      <devtools-report-section>
-        <devtools-resources-preloading-mismatched-headers-grid
-          .data=${attempt as SDK.PreloadingModel.PrerenderAttempt}></devtools-resources-preloading-mismatched-headers-grid>
-      </devtools-report-section>
+    return LitHtml.html`
+      <${ReportView.ReportView.ReportSectionHeader.litTagName}>${i18nString(UIStrings.mismatchedHeadersDetail)}</${
+        ReportView.ReportView.ReportSectionHeader.litTagName}>
+      <${ReportView.ReportView.ReportSection.litTagName}>
+        <${PreloadingMismatchedHeadersGrid.PreloadingMismatchedHeadersGrid.litTagName}
+          .data=${attempt as SDK.PreloadingModel.PrerenderAttempt}></${
+            PreloadingMismatchedHeadersGrid.PreloadingMismatchedHeadersGrid.litTagName}>
+      </${ReportView.ReportView.ReportSection.litTagName}>
     `;
     // clang-format on
   }
 
-  #speculationsInitiatedByThisPageSummarySections(): Lit.LitTemplate {
+  #speculationsInitiatedByThisPageSummarySections(): LitHtml.LitTemplate {
     const count = this.#data.currentAttempts.reduce((acc, attempt) => {
       acc.set(attempt.status, (acc.get(attempt.status) ?? 0) + 1);
       return acc;
     }, new Map());
-    const notTriggeredCount = count.get(SDK.PreloadingModel.PreloadingStatus.NOT_TRIGGERED) ?? 0;
-    const readyCount = count.get(SDK.PreloadingModel.PreloadingStatus.READY) ?? 0;
-    const failureCount = count.get(SDK.PreloadingModel.PreloadingStatus.FAILURE) ?? 0;
-    const inProgressCount = (count.get(SDK.PreloadingModel.PreloadingStatus.PENDING) ?? 0) +
-        (count.get(SDK.PreloadingModel.PreloadingStatus.RUNNING) ?? 0);
+    const notTriggeredCount = count.get(SDK.PreloadingModel.PreloadingStatus.NotTriggered) ?? 0;
+    const readyCount = count.get(SDK.PreloadingModel.PreloadingStatus.Ready) ?? 0;
+    const failureCount = count.get(SDK.PreloadingModel.PreloadingStatus.Failure) ?? 0;
+    const inProgressCount = (count.get(SDK.PreloadingModel.PreloadingStatus.Pending) ?? 0) +
+        (count.get(SDK.PreloadingModel.PreloadingStatus.Running) ?? 0);
     const badges = [];
     if (this.#data.currentAttempts.length === 0) {
       badges.push(this.#badgeNeutral(i18nString(UIStrings.badgeNoSpeculativeLoads)));
@@ -382,9 +393,10 @@ export class UsedPreloadingView extends LegacyWrapper.LegacyWrapper.WrappableCom
 
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    return html`
-      <devtools-report-section-header>${i18nString(UIStrings.speculationsInitiatedByThisPage)}</devtools-report-section-header>
-      <devtools-report-section>
+    return LitHtml.html`
+      <${ReportView.ReportView.ReportSectionHeader.litTagName}>${i18nString(UIStrings.speculationsInitiatedByThisPage)}</${
+        ReportView.ReportView.ReportSectionHeader.litTagName}>
+      <${ReportView.ReportView.ReportSection.litTagName}>
         <div>
           <div class="status-badge-container">
             ${badges}
@@ -402,12 +414,12 @@ export class UsedPreloadingView extends LegacyWrapper.LegacyWrapper.WrappableCom
             </button>
           </div>
         </div>
-      </devtools-report-section>
+      </${ReportView.ReportView.ReportSection.litTagName}>
     `;
     // clang-format on
   }
 
-  #badgeSuccess(count?: number): Lit.LitTemplate {
+  #badgeSuccess(count?: number): LitHtml.LitTemplate {
     let message;
     if (count === undefined) {
       message = i18nString(UIStrings.badgeSuccess);
@@ -417,7 +429,7 @@ export class UsedPreloadingView extends LegacyWrapper.LegacyWrapper.WrappableCom
     return this.#badge('status-badge status-badge-success', 'check-circle', message);
   }
 
-  #badgeFailure(count?: number): Lit.LitTemplate {
+  #badgeFailure(count?: number): LitHtml.LitTemplate {
     let message;
     if (count === undefined) {
       message = i18nString(UIStrings.badgeFailure);
@@ -427,16 +439,16 @@ export class UsedPreloadingView extends LegacyWrapper.LegacyWrapper.WrappableCom
     return this.#badge('status-badge status-badge-failure', 'cross-circle', message);
   }
 
-  #badgeNeutral(message: string): Lit.LitTemplate {
+  #badgeNeutral(message: string): LitHtml.LitTemplate {
     return this.#badge('status-badge status-badge-neutral', 'clear', message);
   }
 
-  #badge(klass: string, iconName: string, message: string): Lit.LitTemplate {
+  #badge(klass: string, iconName: string, message: string): LitHtml.LitTemplate {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    return html`
+    return LitHtml.html`
       <span class=${klass}>
-        <devtools-icon name=${iconName}></devtools-icon>
+        <${IconButton.Icon.Icon.litTagName} name=${iconName}></${IconButton.Icon.Icon.litTagName}>
         <span>
           ${message}
         </span>

@@ -4,33 +4,20 @@
  * found in the LICENSE file.
  */
 
-.excluded-folder-header {
+.file-system-header {
   display: flex;
-  flex-direction: column;
-  min-height: var(--sys-size-16);
-  border-bottom: var(--sys-size-1) solid var(--app-color-card-divider);
-  padding: var(--sys-size-4) var(--sys-size-6);
-  gap: var(--sys-size-4);
-
-  & > .excluded-folder-url {
-    color: var(--sys-color-on-surface-subtle);
-    overflow-wrap: break-word;
-  }
-}
-
-.exclude-subfolders-text,
-.file-system-list-empty {
-  padding: 0 var(--sys-size-6);
-  height: var(--sys-size-13);
-}
-
-.exclude-subfolders-text {
+  flex-direction: row;
   align-items: center;
-  display: flex;
+  flex: auto;
+  margin: 10px 0;
+}
+
+.file-system-header-text {
+  flex: 1 0 auto;
 }
 
 .add-button {
-  padding: var(--sys-size-4) var(--sys-size-6);
+  margin-left: 10px;
   align-self: flex-start;
 }
 
@@ -39,12 +26,17 @@
 }
 
 .file-system-list-empty {
+  flex: auto;
+  height: 30px;
   display: flex;
   align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .file-system-list-item {
-  height: var(--sys-size-13);
+  padding: 3px 5px;
+  height: 30px;
   display: flex;
   align-items: center;
   flex: auto 1 1;
@@ -52,26 +44,6 @@
 
 .file-system-value {
   flex: 1 1 0;
-}
-
-.list {
-  &:has(div) {
-    border: none;
-  }
-}
-
-.list-item {
-  padding-left: var(--sys-size-11);
-
-  &:not(:last-child) {
-    .file-system-list-item {
-      border-bottom: var(--sys-size-1) solid var(--app-color-card-divider);
-    }
-  }
-}
-
-.editor-buttons {
-  padding: var(--sys-size-4) var(--sys-size-6);
 }
 
 .list-item .file-system-value {
@@ -85,7 +57,7 @@
   flex: none;
   display: flex;
   flex-direction: row;
-  margin: var(--sys-size-4) var(--sys-size-6);
+  margin: 6px 5px;
   align-items: center;
 }
 

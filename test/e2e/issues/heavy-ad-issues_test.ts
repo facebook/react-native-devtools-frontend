@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import {assertNotNullOrUndefined, getBrowserAndPages, goToResource} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   ensureResourceSectionIsExpanded,
   expandIssue,
@@ -14,37 +15,36 @@ import {
 
 describe('Heavy Ad issue', () => {
   beforeEach(async () => {
-    await goToResource('elements/quirks-mode.html');
+    await goToResource('empty.html');
   });
 
-  // Frequently fails on multiple CQ bots. https://luci-analysis.appspot.com/p/devtools-frontend/clusters?q=heavy&interval=7d
-  it.skip('[crbug.com/375892666]: should display correct information', async () => {
+  it('should display correct information', async () => {
     await navigateToIssuesTab();
     const {frontend} = getBrowserAndPages();
-    await frontend.evaluate(() => {
+    frontend.evaluate(() => {
       const issue = {
-        code: 'HeavyAdIssue',
-        details: {
-          heavyAdIssueDetails: {
-            resolution: 'HeavyAdBlocked',
-            reason: 'NetworkTotalLimit',
-            frame: {frameId: 'main'},
+        'code': 'HeavyAdIssue',
+        'details': {
+          'heavyAdIssueDetails': {
+            'resolution': 'HeavyAdBlocked',
+            'reason': 'NetworkTotalLimit',
+            'frame': {frameId: 'main'},
           },
         },
       };
-      // @ts-expect-error
+      // @ts-ignore
       window.addIssueForTest(issue);
       const issue2 = {
-        code: 'HeavyAdIssue',
-        details: {
-          heavyAdIssueDetails: {
-            resolution: 'HeavyAdWarning',
-            reason: 'CpuPeakLimit',
-            frame: {frameId: 'main'},
+        'code': 'HeavyAdIssue',
+        'details': {
+          'heavyAdIssueDetails': {
+            'resolution': 'HeavyAdWarning',
+            'reason': 'CpuPeakLimit',
+            'frame': {frameId: 'main'},
           },
         },
       };
-      // @ts-expect-error
+      // @ts-ignore
       window.addIssueForTest(issue2);
     });
     await expandIssue();

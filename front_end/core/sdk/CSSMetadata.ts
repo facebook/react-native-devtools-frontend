@@ -39,18 +39,24 @@ import * as SupportedCSSProperties from '../../generated/SupportedCSSProperties.
 import * as Common from '../common/common.js';
 
 export class CSSMetadata {
-  readonly #values: string[] = [];
-  readonly #longhands = new Map<string, string[]>();
-  readonly #shorthands = new Map<string, string[]>();
-  readonly #inherited = new Set<string>();
-  readonly #svgProperties = new Set<string>();
-  readonly #propertyValues = new Map<string, string[]>();
-  readonly #aliasesFor = new Map<string, string>();
-  readonly #nameValuePresets: string[] = [];
-  readonly #nameValuePresetsIncludingSVG: string[] = [];
+  readonly #values: string[];
+  readonly #longhands: Map<string, string[]>;
+  readonly #shorthands: Map<string, string[]>;
+  readonly #inherited: Set<string>;
+  readonly #svgProperties: Set<string>;
+  readonly #propertyValues: Map<string, string[]>;
+  readonly #aliasesFor: Map<string, string>;
   #valuesSet: Set<string>;
+  readonly #nameValuePresetsInternal: string[];
+  readonly #nameValuePresetsIncludingSVG: string[];
 
   constructor(properties: CSSPropertyDefinition[], aliasesFor: Map<string, string>) {
+    this.#values = [];
+    this.#longhands = new Map();
+    this.#shorthands = new Map();
+    this.#inherited = new Set();
+    this.#svgProperties = new Set();
+    this.#propertyValues = new Map();
     this.#aliasesFor = aliasesFor;
     for (let i = 0; i < properties.length; ++i) {
       const property = properties[i];
@@ -111,29 +117,23 @@ export class CSSMetadata {
       this.#propertyValues.set(propertyName, [...values]);
     }
 
+    this.#nameValuePresetsInternal = [];
+    this.#nameValuePresetsIncludingSVG = [];
     for (const name of this.#valuesSet) {
       const values = this.specificPropertyValues(name)
                          .filter(value => CSS.supports(name, value))
                          .sort(CSSMetadata.sortPrefixesAndCSSWideKeywordsToEnd);
       const presets = values.map(value => `${name}: ${value}`);
       if (!this.isSVGProperty(name)) {
-        this.#nameValuePresets.push(...presets);
+        this.#nameValuePresetsInternal.push(...presets);
       }
       this.#nameValuePresetsIncludingSVG.push(...presets);
     }
   }
 
-  static isCSSWideKeyword(a: string): a is CSSWideKeyword {
-    return CSSWideKeywords.includes(a as CSSWideKeyword);
-  }
-
-  static isPositionTryOrderKeyword(a: string): a is PositionTryOrderKeyword {
-    return PositionTryOrderKeywords.includes(a as PositionTryOrderKeyword);
-  }
-
   private static sortPrefixesAndCSSWideKeywordsToEnd(a: string, b: string): 1|- 1|0 {
-    const aIsCSSWideKeyword = CSSMetadata.isCSSWideKeyword(a);
-    const bIsCSSWideKeyword = CSSMetadata.isCSSWideKeyword(b);
+    const aIsCSSWideKeyword = CSSWideKeywords.includes(a);
+    const bIsCSSWideKeyword = CSSWideKeywords.includes(b);
 
     if (aIsCSSWideKeyword && !bIsCSSWideKeyword) {
       return 1;
@@ -162,7 +162,7 @@ export class CSSMetadata {
   }
 
   nameValuePresets(includeSVG?: boolean): string[] {
-    return includeSVG ? this.#nameValuePresetsIncludingSVG : this.#nameValuePresets;
+    return includeSVG ? this.#nameValuePresetsIncludingSVG : this.#nameValuePresetsInternal;
   }
 
   isSVGProperty(name: string): boolean {
@@ -196,26 +196,6 @@ export class CSSMetadata {
   isGridAreaDefiningProperty(propertyName: string): boolean {
     propertyName = propertyName.toLowerCase();
     return propertyName === 'grid' || propertyName === 'grid-template' || propertyName === 'grid-template-areas';
-  }
-
-  isGridColumnNameAwareProperty(propertyName: string): boolean {
-    propertyName = propertyName.toLowerCase();
-    return ['grid-column', 'grid-column-start', 'grid-column-end'].includes(propertyName);
-  }
-
-  isGridRowNameAwareProperty(propertyName: string): boolean {
-    propertyName = propertyName.toLowerCase();
-    return ['grid-row', 'grid-row-start', 'grid-row-end'].includes(propertyName);
-  }
-
-  isGridAreaNameAwareProperty(propertyName: string): boolean {
-    propertyName = propertyName.toLowerCase();
-    return propertyName === 'grid-area';
-  }
-
-  isGridNameAwareProperty(propertyName: string): boolean {
-    return this.isGridAreaNameAwareProperty(propertyName) || this.isGridColumnNameAwareProperty(propertyName) ||
-        this.isGridRowNameAwareProperty(propertyName);
   }
 
   isLengthProperty(propertyName: string): boolean {
@@ -354,48 +334,10 @@ export class CSSMetadata {
   }
 }
 
-export const CubicBezierKeywordValues = new Map([
-  ['linear', 'cubic-bezier(0, 0, 1, 1)'],
-  ['ease', 'cubic-bezier(0.25, 0.1, 0.25, 1)'],
-  ['ease-in', 'cubic-bezier(0.42, 0, 1, 1)'],
-  ['ease-in-out', 'cubic-bezier(0.42, 0, 0.58, 1)'],
-  ['ease-out', 'cubic-bezier(0, 0, 0.58, 1)'],
-]);
-
 // CSS-wide keywords.
-export const enum CSSWideKeyword {
-  INHERIT = 'inherit',
-  INITIAL = 'initial',
-  REVERT = 'revert',
-  REVERT_LAYER = 'revert-layer',
-  UNSET = 'unset',
-}
 // Spec: https://drafts.csswg.org/css-cascade/#defaulting-keywords
 // https://drafts.csswg.org/css-cascade-5/#revert-layer
-export const CSSWideKeywords: CSSWideKeyword[] = [
-  CSSWideKeyword.INHERIT,
-  CSSWideKeyword.INITIAL,
-  CSSWideKeyword.REVERT,
-  CSSWideKeyword.REVERT_LAYER,
-  CSSWideKeyword.UNSET,
-];
-
-// https://www.w3.org/TR/css-anchor-position-1/#typedef-try-size
-export const enum PositionTryOrderKeyword {
-  NORMAL = 'normal',
-  MOST_HEIGHT = 'most-height',
-  MOST_WIDTH = 'most-width',
-  MOST_BLOCK_SIZE = 'most-block-size',
-  MOST_INLINE_SIZE = 'most-inline-size',
-}
-
-export const PositionTryOrderKeywords: PositionTryOrderKeyword[] = [
-  PositionTryOrderKeyword.NORMAL,
-  PositionTryOrderKeyword.MOST_HEIGHT,
-  PositionTryOrderKeyword.MOST_WIDTH,
-  PositionTryOrderKeyword.MOST_BLOCK_SIZE,
-  PositionTryOrderKeyword.MOST_INLINE_SIZE,
-];
+export const CSSWideKeywords = ['inherit', 'initial', 'revert', 'revert-layer', 'unset'];
 
 export const VariableNameRegex = /(\s*--.*?)/gs;
 export const VariableRegex = /(var\(\s*--.*?\))/gs;
@@ -447,11 +389,6 @@ const filterValuePresetMap = new Map([
   ['url', 'url(||)'],
 ]);
 
-const cornerShapeValuePresetMap = new Map([
-  ['superellipse(0.5)', 'superellipse(|0.5|)'],
-  ['superellipse(infinity)', 'superellipse(|infinity|)'],
-]);
-
 const valuePresets = new Map([
   ['filter', filterValuePresetMap],
   ['backdrop-filter', filterValuePresetMap],
@@ -483,7 +420,6 @@ const valuePresets = new Map([
       ['perspective', 'perspective(|10px|)'],
     ]),
   ],
-  ['corner-shape', cornerShapeValuePresetMap],
 ]);
 
 const distanceProperties = new Set<string>([
@@ -539,14 +475,10 @@ const colorAwareProperties = new Set<string>([
   'border-right-color',
   'border-top',
   'border-top-color',
-  'border-block',
-  'border-block-color',
   'border-block-end',
   'border-block-end-color',
   'border-block-start',
   'border-block-start-color',
-  'border-inline',
-  'border-inline-color',
   'border-inline-end',
   'border-inline-end-color',
   'border-inline-start',
@@ -570,8 +502,6 @@ const colorAwareProperties = new Set<string>([
   'stroke',
   'text-decoration-color',
   'text-shadow',
-  'text-emphasis',
-  'text-emphasis-color',
   '-webkit-border-after',
   '-webkit-border-after-color',
   '-webkit-border-before',
@@ -593,10 +523,6 @@ const colorAwareProperties = new Set<string>([
   '-webkit-text-fill-color',
   '-webkit-text-stroke',
   '-webkit-text-stroke-color',
-  // For SVG
-  'flood-color',
-  'lighting-color',
-  'stop-color',
 ]);
 
 // In addition to `_colorAwareProperties`, the following properties contain CSS <angle> units.
@@ -611,22 +537,6 @@ const angleAwareProperties = new Set<string>([
   'offset',
   'offset-rotate',
   'font-style',
-]);
-
-const textEmphasisPosition = new Set([
-  'over',
-  'under',
-  'over right',  // Initial value
-  'over left',
-  'under right',
-  'under left',
-]);
-
-// https://drafts.csswg.org/css-text-decor/#text-emphasis-style-property
-const textEmphasisStyle = new Set([
-  'none', 'dot', 'circle', 'double-circle', 'triangle', 'sesame', 'filled', 'open', 'dot open', 'circle open',
-  'double-circle open', 'triangle open', 'sesame open',
-  '"❤️"',  // <string>
 ]);
 
 // manually maintained list of property #values to add into autocomplete list
@@ -654,8 +564,7 @@ const extraPropertyValues = new Map<string, Set<string>>([
   ['color-interpolation', new Set(['sRGB', 'linearRGB'])],
   ['word-wrap', new Set(['normal', 'break-word'])],
   ['font-weight', new Set(['100', '200', '300', '400', '500', '600', '700', '800', '900'])],
-  ['text-emphasis', textEmphasisStyle],
-  ['-webkit-text-emphasis', textEmphasisStyle],
+  ['-webkit-text-emphasis', new Set(['circle', 'filled', 'open', 'dot', 'double-circle', 'triangle', 'sesame'])],
   ['color-rendering', new Set(['optimizeSpeed', 'optimizeQuality'])],
   ['-webkit-text-combine', new Set(['horizontal'])],
   ['text-orientation', new Set(['sideways-right'])],
@@ -678,8 +587,7 @@ const extraPropertyValues = new Map<string, Set<string>>([
     ]),
   ],
   ['dominant-baseline', new Set(['text-before-edge', 'text-after-edge', 'use-script', 'no-change', 'reset-size'])],
-  ['text-emphasis-position', textEmphasisPosition],
-  ['-webkit-text-emphasis-position', textEmphasisPosition],
+  ['-webkit-text-emphasis-position', new Set(['over', 'under'])],
   ['alignment-baseline', new Set(['before-edge', 'after-edge', 'text-before-edge', 'text-after-edge', 'hanging'])],
   ['page-break-before', new Set(['left', 'right', 'always', 'avoid'])],
   ['border-image', new Set(['repeat', 'stretch', 'space', 'round'])],
@@ -766,8 +674,7 @@ const extraPropertyValues = new Map<string, Set<string>>([
   ],
   ['vertical-align', new Set(['top', 'bottom', '-webkit-baseline-middle'])],
   ['page-break-after', new Set(['left', 'right', 'always', 'avoid'])],
-  ['text-emphasis-style', textEmphasisStyle],
-  ['-webkit-text-emphasis-style', textEmphasisStyle],
+  ['-webkit-text-emphasis-style', new Set(['circle', 'filled', 'open', 'dot', 'double-circle', 'triangle', 'sesame'])],
   [
     'transform',
     new Set([
@@ -838,7 +745,6 @@ const extraPropertyValues = new Map<string, Set<string>>([
       'self-end',
       'flex-start',
       'flex-end',
-      'anchor-center',
     ]),
   ],
   [
@@ -857,7 +763,6 @@ const extraPropertyValues = new Map<string, Set<string>>([
       'left',
       'right',
       'legacy',
-      'anchor-center',
     ]),
   ],
   [
@@ -873,7 +778,6 @@ const extraPropertyValues = new Map<string, Set<string>>([
       'self-end',
       'flex-start',
       'flex-end',
-      'anchor-center',
     ]),
   ],
   [
@@ -889,7 +793,6 @@ const extraPropertyValues = new Map<string, Set<string>>([
       'self-end',
       'flex-start',
       'flex-end',
-      'anchor-center',
     ]),
   ],
   [
@@ -907,7 +810,6 @@ const extraPropertyValues = new Map<string, Set<string>>([
       'flex-end',
       'left',
       'right',
-      'anchor-center',
     ]),
   ],
   [
@@ -923,7 +825,6 @@ const extraPropertyValues = new Map<string, Set<string>>([
       'self-end',
       'flex-start',
       'flex-end',
-      'anchor-center',
     ]),
   ],
   ['perspective-origin', new Set(['left', 'center', 'right', 'top', 'bottom'])],
@@ -1345,36 +1246,6 @@ const extraPropertyValues = new Map<string, Set<string>>([
       'pre-line',      // equal to: `preserve-breaks wrap`
       'nowrap',        // equal to: `collapse nowrap`
       'break-spaces',  // equal to: `break-spaces wrap`, Chrome 76, crbug.com/767634#c28
-    ]),
-  ],
-  // https://drafts.csswg.org/css-inline-3/#text-box-edge
-  // Now we're going to allow the following rule:
-  // auto | [ text | cap | ex ] [ text | alphabetic ]?
-  // ideographic and ideographic-ink are not implemented yet.
-  // We don't add values like `cap text` because that is equivalent to `text`.
-  [
-    'text-box-edge',
-    new Set([
-      'auto',
-      'text',
-      'cap',
-      'ex',
-      'text alphabetic',
-      'cap alphabetic',
-      'ex alphabetic',
-    ]),
-  ],
-  [
-    'corner-shape',
-    new Set([
-      'round',
-      'scoop',
-      'bevel',
-      'notch',
-      'straight',
-      'squircle',
-      'superellipse(0.5)',
-      'superellipse(infinity)',
     ]),
   ],
 ]);

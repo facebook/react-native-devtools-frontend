@@ -8,7 +8,7 @@ import * as Common from '../common/common.js';
 import * as i18n from '../i18n/i18n.js';
 
 import {InspectorFrontendHostInstance} from './InspectorFrontendHost.js';
-import type {LoadNetworkResourceResult} from './InspectorFrontendHostAPI.js';
+import {type LoadNetworkResourceResult} from './InspectorFrontendHostAPI.js';
 
 const UIStrings = {
   /**
@@ -65,7 +65,7 @@ const UIStrings = {
    *@description Name of an error category used in error messages
    */
   decodingDataUrlFailed: 'Decoding Data URL failed',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('core/host/ResourceLoader.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export const ResourceLoader = {};
@@ -97,7 +97,7 @@ export interface LoadErrorDescription {
   message?: string;
 }
 
-export const load = function(
+export let load = function(
     url: string, headers: {
       [x: string]: string,
     }|null,
@@ -118,6 +118,19 @@ export const load = function(
     callback(success, headers, stream.data(), errorDescription);
   }
 };
+
+export function setLoadForTest(
+    newLoad: (
+        arg0: string, arg1: {
+          [x: string]: string,
+        }|null,
+        arg2: (
+            arg0: boolean, arg1: {
+              [x: string]: string,
+            },
+            arg2: string, arg3: LoadErrorDescription) => void) => void): void {
+  load = newLoad;
+}
 
 function getNetErrorCategory(netError: number): string {
   if (netError > -100) {
@@ -225,7 +238,7 @@ function canBeRemoteFilePath(url: string): boolean {
   try {
     const urlObject = new URL(url);
     return urlObject.protocol === 'file:' && urlObject.host !== '';
-  } catch {
+  } catch (exception) {
     return false;
   }
 }

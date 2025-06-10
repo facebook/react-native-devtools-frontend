@@ -21,8 +21,8 @@
   display: flex;
   flex-wrap: nowrap;
   justify-content: space-between;
-  padding-left: var(--sys-size-3);
-  padding-right: var(--sys-size-3);
+  padding-left: 12px;
+  padding-right: 12px;
   align-items: center;
 }
 

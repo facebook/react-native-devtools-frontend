@@ -14,7 +14,6 @@ devtools_pre_built("marked") {
     "marked-tsconfig.json",
     "package/lib/marked.esm.d.ts",
     "package/lib/marked.esm.js",
-    "package/lib/marked.esm.js.map",
   ]
 }
 
@@ -25,12 +24,10 @@ devtools_entrypoint("bundle") {
 
   visibility = [
     "../../models/issues_manager/*",
-    "../../panels/ai_assistance/*",
     "../../panels/explain/*",
-    "../../panels/timeline/*",
-    "../../panels/whats_new/*",
-    "../../ui/components/docs/ai_assistance/*",
+    "../../panels/freestyler/*",
     "../../ui/components/docs/console_insight/*",
+    "../../ui/components/docs/freestyler/*",
     "../../ui/components/docs/markdown_view/*",
     "../../ui/components/markdown_view/*",
   ]

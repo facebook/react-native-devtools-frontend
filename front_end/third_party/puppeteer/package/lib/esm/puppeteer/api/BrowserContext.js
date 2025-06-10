@@ -12,8 +12,8 @@ import { Mutex } from '../util/Mutex.js';
  * {@link BrowserContext} represents individual user contexts within a
  * {@link Browser | browser}.
  *
- * When a {@link Browser | browser} is launched, it has at least one default
- * {@link BrowserContext | browser context}. Others can be created
+ * When a {@link Browser | browser} is launched, it has a single
+ * {@link BrowserContext | browser context} by default. Others can be created
  * using {@link Browser.createBrowserContext}. Each context has isolated storage
  * (cookies/localStorage/etc.)
  *
@@ -36,13 +36,6 @@ import { Mutex } from '../util/Mutex.js';
  * // Dispose context once it's no longer needed.
  * await context.close();
  * ```
- *
- * @remarks
- *
- * In Chrome all non-default contexts are incognito,
- * and {@link Browser.defaultBrowserContext | default browser context}
- * might be incognito if you provide the `--incognito` argument when launching
- * the browser.
  *
  * @public
  */
@@ -90,25 +83,13 @@ export class BrowserContext extends EventEmitter {
      * ```ts
      * await page.evaluate(() => window.open('https://www.example.com/'));
      * const newWindowTarget = await browserContext.waitForTarget(
-     *   target => target.url() === 'https://www.example.com/',
+     *   target => target.url() === 'https://www.example.com/'
      * );
      * ```
      */
     async waitForTarget(predicate, options = {}) {
         const { timeout: ms = 30000 } = options;
         return await firstValueFrom(merge(fromEmitterEvent(this, "targetcreated" /* BrowserContextEvent.TargetCreated */), fromEmitterEvent(this, "targetchanged" /* BrowserContextEvent.TargetChanged */), from(this.targets())).pipe(filterAsync(predicate), raceWith(timeout(ms))));
-    }
-    /**
-     * Removes cookie in the browser context
-     * @param cookies - {@link Cookie | cookie} to remove
-     */
-    async deleteCookie(...cookies) {
-        return await this.setCookie(...cookies.map(cookie => {
-            return {
-                ...cookie,
-                expires: 1,
-            };
-        }));
     }
     /**
      * Whether this {@link BrowserContext | browser context} is closed.

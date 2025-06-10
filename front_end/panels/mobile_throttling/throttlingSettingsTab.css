@@ -4,17 +4,28 @@
  * found in the LICENSE file.
  */
 
+:host {
+  overflow: hidden;
+}
+
+.header {
+  padding: 0 0 6px;
+  border-bottom: 1px solid var(--sys-color-divider);
+  font-size: 18px;
+  font-weight: normal;
+  flex: none;
+}
+
 .add-conditions-button {
-  margin: var(--sys-size-5) 0;
-  border: none;
+  flex: none;
+  margin: 10px 5px;
+  min-width: 140px;
+  align-self: flex-start;
 }
 
 .conditions-list {
+  min-width: 640px;
   flex: auto;
-
-  &:has(.list-item) {
-    margin-top: var(--sys-size-3);
-  }
 }
 
 .conditions-list-item {
@@ -27,9 +38,7 @@
 }
 
 .conditions-list-text {
-  text-overflow: ellipsis;
-  overflow: hidden;
-  flex: 0 0 60px;
+  flex: 0 0 80px;
   user-select: none;
   color: var(--sys-color-on-surface);
   text-align: center;
@@ -48,15 +57,12 @@
 .conditions-list-title {
   text-align: start;
   display: flex;
-  flex-grow: 1;
+  flex: auto;
   align-items: flex-start;
 }
 
 .conditions-list-title-text {
   flex: auto;
-  text-overflow: ellipsis;
-  overflow: hidden;
-  white-space: nowrap;
 }
 
 .conditions-list-separator {
@@ -76,20 +82,13 @@
   display: flex;
   flex-direction: row;
   margin: 6px 5px;
-
-  .conditions-list-title-text {
-    white-space: unset;
-  }
 }
 
 .conditions-edit-row input {
   &[type="checkbox"] {
+    display: block;
     margin: auto;
     top: 6px;
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
 
   &:not([type="checkbox"]) {
@@ -99,57 +98,12 @@
 }
 
 .conditions-edit-optional {
-  margin-top: var(--sys-size-5);
-  color: var(--sys-color-on-surface-subtle);
+  position: absolute;
+  bottom: -20px;
+  right: 0;
+  color: var(--sys-color-state-disabled);
 }
 
 .editor-buttons {
   margin-top: 10px;
-}
-
-.settings-card-container-wrapper {
-  scrollbar-gutter: stable;
-  padding: var(--sys-size-8) 0;
-  overflow: auto;
-  position: absolute;
-  inset: var(--sys-size-8) 0 0;
-}
-
-.settings-card-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--sys-size-9);
-}
-
-.cpu-preset-section {
-  padding: 14px;
-  display: flex;
-  justify-content: space-between;
-}
-
-.cpu-preset-result.not-calibrated {
-  font-style: italic;
-}
-
-.cpu-preset-calibrate {
-  flex-direction: column;
-  gap: 14px;
-}
-
-.cpu-preset-calibrate .button-container {
-  display: flex;
-  gap: 10px;
-}
-
-.cpu-preset-calibrate .text-container {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.text-with-icon {
-  display: flex;
-  align-items: center;
-  gap: 5px;
 }

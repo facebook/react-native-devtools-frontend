@@ -6,8 +6,9 @@ import * as Common from '../../../core/common/common.js';
 import * as Platform from '../../../core/platform/platform.js';
 import * as SDK from '../../../core/sdk/sdk.js';
 import type * as Protocol from '../../../generated/protocol.js';
-import type * as Lit from '../../../ui/lit/lit.js';
+import type * as LitHtml from '../../../ui/lit-html/lit-html.js';
 import * as Models from '../models/models.js';
+
 import * as Util from '../util/util.js';
 
 const BINDING_NAME = 'captureSelectors';
@@ -42,14 +43,14 @@ export class SelectorPicker implements SDK.TargetManager.Observer {
     return SDK.TargetManager.TargetManager.instance();
   }
 
-  readonly #element: Lit.LitElement;
+  readonly #element: LitHtml.LitElement;
 
   #selectorAttribute?: string;
 
   readonly #activeMutex = new Common.Mutex.Mutex();
   active = false;
 
-  constructor(element: Lit.LitElement) {
+  constructor(element: LitHtml.LitElement) {
     this.#element = element;
   }
 
@@ -103,7 +104,7 @@ export class SelectorPicker implements SDK.TargetManager.Observer {
 
   readonly #targetMutexes = new Map<SDK.Target.Target, Common.Mutex.Mutex>();
   targetAdded(target: SDK.Target.Target): void {
-    if (target.type() !== SDK.Target.Type.FRAME) {
+    if (target.type() !== SDK.Target.Type.Frame) {
       return;
     }
     let mutex = this.#targetMutexes.get(target);

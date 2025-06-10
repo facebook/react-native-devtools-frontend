@@ -24,9 +24,8 @@ config.gypi
 /interactions-coverage
 /perf-data
 npm-debug.log
+/scripts/javascript_natives/node_modules
 /scripts/protocol_typescript/*.js
-/scripts/ai_assistance/data
-/scripts/ai_assistance/performance-trace-downloads
 
 /build
 /buildtools
@@ -53,8 +52,3 @@ test/perf/.generated
 /.gclient_entries
 /.gclient_previous_sync_commits
 /.cipd
-
-# Linters caches
-.eslintcache
-.stylelintcache
-**/tsconfig.tsbuildinfo

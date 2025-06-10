@@ -32,15 +32,16 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
-import * as Protocol from '../../generated/protocol.js';
 import * as Common from '../common/common.js';
 import * as i18n from '../i18n/i18n.js';
 import type * as Platform from '../platform/platform.js';
+import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
+import * as Protocol from '../../generated/protocol.js';
 
-import {Events as RuntimeModelEvents, type ExecutionContext, RuntimeModel} from './RuntimeModel.js';
+import {Events as RuntimeModelEvents, RuntimeModel, type ExecutionContext} from './RuntimeModel.js';
+
+import {Capability, Type, type Target} from './Target.js';
 import {SDKModel} from './SDKModel.js';
-import {Capability, type Target, Type} from './Target.js';
 import {TargetManager} from './TargetManager.js';
 
 const UIStrings = {
@@ -91,26 +92,27 @@ const UIStrings = {
    *@example {activated} PH3
    */
   sSS: '{PH1} #{PH2} ({PH3})',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('core/sdk/ServiceWorkerManager.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
 export class ServiceWorkerManager extends SDKModel<EventTypes> {
   readonly #agent: ProtocolProxyApi.ServiceWorkerApi;
-  readonly #registrationsInternal = new Map<string, ServiceWorkerRegistration>();
-  #enabled = false;
+  readonly #registrationsInternal: Map<string, ServiceWorkerRegistration>;
+  #enabled: boolean;
   readonly #forceUpdateSetting: Common.Settings.Setting<boolean>;
-  /** Status of service worker network requests panel */
-  serviceWorkerNetworkRequestsPanelStatus = {
-    isOpen: false,
-    openedAt: 0,
+  serviceWorkerNetworkRequestsPanelStatus: {
+    isOpen: boolean,
+    openedAt: number,
   };
 
   constructor(target: Target) {
     super(target);
     target.registerServiceWorkerDispatcher(new ServiceWorkerDispatcher(this));
     this.#agent = target.serviceWorkerAgent();
+    this.#registrationsInternal = new Map();
+    this.#enabled = false;
     void this.enable();
     this.#forceUpdateSetting =
         Common.Settings.Settings.instance().createSetting('service-worker-update-on-reload', false);
@@ -119,6 +121,12 @@ export class ServiceWorkerManager extends SDKModel<EventTypes> {
     }
     this.#forceUpdateSetting.addChangeListener(this.forceUpdateSettingChanged, this);
     new ServiceWorkerContextNamer(target, this);
+
+    /** Status of service worker network requests panel */
+    this.serviceWorkerNetworkRequestsPanelStatus = {
+      isOpen: false,
+      openedAt: 0,
+    };
   }
 
   async enable(): Promise<void> {
@@ -142,6 +150,15 @@ export class ServiceWorkerManager extends SDKModel<EventTypes> {
     return this.#registrationsInternal;
   }
 
+  hasRegistrationForURLs(urls: string[]): boolean {
+    for (const registration of this.#registrationsInternal.values()) {
+      if (urls.filter(url => url && url.startsWith(registration.scopeURL)).length === urls.length) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   findVersion(versionId: string): ServiceWorkerVersion|null {
     for (const registration of this.registrations().values()) {
       const version = registration.versions.get(versionId);
@@ -159,7 +176,7 @@ export class ServiceWorkerManager extends SDKModel<EventTypes> {
     }
     if (registration.isRedundant()) {
       this.#registrationsInternal.delete(registrationId);
-      this.dispatchEventToListeners(Events.REGISTRATION_DELETED, registration);
+      this.dispatchEventToListeners(Events.RegistrationDeleted, registration);
       return;
     }
     registration.deleting = true;
@@ -231,16 +248,16 @@ export class ServiceWorkerManager extends SDKModel<EventTypes> {
       if (!registration) {
         registration = new ServiceWorkerRegistration(payload);
         this.#registrationsInternal.set(payload.registrationId, registration);
-        this.dispatchEventToListeners(Events.REGISTRATION_UPDATED, registration);
+        this.dispatchEventToListeners(Events.RegistrationUpdated, registration);
         continue;
       }
       registration.update(payload);
 
       if (registration.shouldBeRemoved()) {
         this.#registrationsInternal.delete(registration.id);
-        this.dispatchEventToListeners(Events.REGISTRATION_DELETED, registration);
+        this.dispatchEventToListeners(Events.RegistrationDeleted, registration);
       } else {
-        this.dispatchEventToListeners(Events.REGISTRATION_UPDATED, registration);
+        this.dispatchEventToListeners(Events.RegistrationUpdated, registration);
       }
     }
   }
@@ -258,9 +275,9 @@ export class ServiceWorkerManager extends SDKModel<EventTypes> {
     for (const registration of registrations) {
       if (registration.shouldBeRemoved()) {
         this.#registrationsInternal.delete(registration.id);
-        this.dispatchEventToListeners(Events.REGISTRATION_DELETED, registration);
+        this.dispatchEventToListeners(Events.RegistrationDeleted, registration);
       } else {
-        this.dispatchEventToListeners(Events.REGISTRATION_UPDATED, registration);
+        this.dispatchEventToListeners(Events.RegistrationUpdated, registration);
       }
     }
   }
@@ -271,7 +288,11 @@ export class ServiceWorkerManager extends SDKModel<EventTypes> {
       return;
     }
     registration.errors.push(payload);
-    this.dispatchEventToListeners(Events.REGISTRATION_ERROR_ADDED, {registration, error: payload});
+    this.dispatchEventToListeners(Events.RegistrationErrorAdded, {registration: registration, error: payload});
+  }
+
+  forceUpdateOnReloadSetting(): Common.Settings.Setting<boolean> {
+    return this.#forceUpdateSetting;
   }
 
   private forceUpdateSettingChanged(): void {
@@ -281,9 +302,9 @@ export class ServiceWorkerManager extends SDKModel<EventTypes> {
 }
 
 export const enum Events {
-  REGISTRATION_UPDATED = 'RegistrationUpdated',
-  REGISTRATION_ERROR_ADDED = 'RegistrationErrorAdded',
-  REGISTRATION_DELETED = 'RegistrationDeleted',
+  RegistrationUpdated = 'RegistrationUpdated',
+  RegistrationErrorAdded = 'RegistrationErrorAdded',
+  RegistrationDeleted = 'RegistrationDeleted',
 }
 
 export interface RegistrationErrorAddedEvent {
@@ -291,11 +312,11 @@ export interface RegistrationErrorAddedEvent {
   error: Protocol.ServiceWorker.ServiceWorkerErrorMessage;
 }
 
-export interface EventTypes {
-  [Events.REGISTRATION_UPDATED]: ServiceWorkerRegistration;
-  [Events.REGISTRATION_ERROR_ADDED]: RegistrationErrorAddedEvent;
-  [Events.REGISTRATION_DELETED]: ServiceWorkerRegistration;
-}
+export type EventTypes = {
+  [Events.RegistrationUpdated]: ServiceWorkerRegistration,
+  [Events.RegistrationErrorAdded]: RegistrationErrorAddedEvent,
+  [Events.RegistrationDeleted]: ServiceWorkerRegistration,
+};
 
 class ServiceWorkerDispatcher implements ProtocolProxyApi.ServiceWorkerDispatcher {
   readonly #manager: ServiceWorkerManager;
@@ -446,15 +467,15 @@ export class ServiceWorkerVersion {
 
   mode(): string {
     if (this.isNew() || this.isInstalling()) {
-      return ServiceWorkerVersion.Modes.INSTALLING;
+      return ServiceWorkerVersion.Modes.Installing;
     }
     if (this.isInstalled()) {
-      return ServiceWorkerVersion.Modes.WAITING;
+      return ServiceWorkerVersion.Modes.Waiting;
     }
     if (this.isActivating() || this.isActivated()) {
-      return ServiceWorkerVersion.Modes.ACTIVE;
+      return ServiceWorkerVersion.Modes.Active;
     }
-    return ServiceWorkerVersion.Modes.REDUNDANT;
+    return ServiceWorkerVersion.Modes.Redundant;
   }
 
   private parseJSONRules(input: string): ServiceWorkerRouterRule[]|null {
@@ -474,7 +495,7 @@ export class ServiceWorkerVersion {
         routerRules.push(new ServiceWorkerRouterRule(JSON.stringify(condition), JSON.stringify(source), id));
       }
       return routerRules;
-    } catch {
+    } catch (e) {
       console.error('Parse error: Invalid `routerRules` in ServiceWorkerVersion');
       return null;
     }
@@ -499,10 +520,10 @@ export namespace ServiceWorkerVersion {
   };
 
   export const enum Modes {
-    INSTALLING = 'installing',
-    WAITING = 'waiting',
-    ACTIVE = 'active',
-    REDUNDANT = 'redundant',
+    Installing = 'installing',
+    Waiting = 'waiting',
+    Active = 'active',
+    Redundant = 'redundant',
   }
 }
 
@@ -512,12 +533,15 @@ export class ServiceWorkerRegistration {
   scopeURL!: Platform.DevToolsPath.UrlString;
   securityOrigin!: Platform.DevToolsPath.UrlString;
   isDeleted!: boolean;
-  versions = new Map<string, ServiceWorkerVersion>();
-  deleting = false;
-  errors: Protocol.ServiceWorker.ServiceWorkerErrorMessage[] = [];
+  versions: Map<string, ServiceWorkerVersion>;
+  deleting: boolean;
+  errors: Protocol.ServiceWorker.ServiceWorkerErrorMessage[];
 
   constructor(payload: Protocol.ServiceWorker.ServiceWorkerRegistration) {
     this.update(payload);
+    this.versions = new Map();
+    this.deleting = false;
+    this.errors = [];
   }
 
   update(payload: Protocol.ServiceWorker.ServiceWorkerRegistration): void {
@@ -569,18 +593,24 @@ export class ServiceWorkerRegistration {
   canBeRemoved(): boolean {
     return this.isDeleted || this.deleting;
   }
+
+  clearErrors(): void {
+    this.#fingerprintInternal = Symbol('fingerprint');
+    this.errors = [];
+  }
 }
 
 class ServiceWorkerContextNamer {
   readonly #target: Target;
   readonly #serviceWorkerManager: ServiceWorkerManager;
-  readonly #versionByTargetId = new Map<string, ServiceWorkerVersion>();
+  readonly #versionByTargetId: Map<string, ServiceWorkerVersion>;
 
   constructor(target: Target, serviceWorkerManager: ServiceWorkerManager) {
     this.#target = target;
     this.#serviceWorkerManager = serviceWorkerManager;
-    serviceWorkerManager.addEventListener(Events.REGISTRATION_UPDATED, this.registrationsUpdated, this);
-    serviceWorkerManager.addEventListener(Events.REGISTRATION_DELETED, this.registrationsUpdated, this);
+    this.#versionByTargetId = new Map();
+    serviceWorkerManager.addEventListener(Events.RegistrationUpdated, this.registrationsUpdated, this);
+    serviceWorkerManager.addEventListener(Events.RegistrationDeleted, this.registrationsUpdated, this);
     TargetManager.instance().addModelListener(
         RuntimeModel, RuntimeModelEvents.ExecutionContextCreated, this.executionContextCreated, this);
   }
@@ -641,4 +671,4 @@ class ServiceWorkerContextNamer {
   }
 }
 
-SDKModel.register(ServiceWorkerManager, {capabilities: Capability.SERVICE_WORKER, autostart: true});
+SDKModel.register(ServiceWorkerManager, {capabilities: Capability.ServiceWorker, autostart: true});

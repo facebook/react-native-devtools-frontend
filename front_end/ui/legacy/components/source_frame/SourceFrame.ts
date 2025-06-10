@@ -33,15 +33,16 @@ import * as Host from '../../../../core/host/host.js';
 import * as i18n from '../../../../core/i18n/i18n.js';
 import * as Platform from '../../../../core/platform/platform.js';
 import * as Root from '../../../../core/root/root.js';
-import * as SDK from '../../../../core/sdk/sdk.js';
 import * as Formatter from '../../../../models/formatter/formatter.js';
 import * as TextUtils from '../../../../models/text_utils/text_utils.js';
-import * as PanelCommon from '../../../../panels/common/common.js';
 import * as CodeMirror from '../../../../third_party/codemirror.next/codemirror.next.js';
+import * as Buttons from '../../../components/buttons/buttons.js';
 import * as CodeHighlighter from '../../../components/code_highlighter/code_highlighter.js';
 import * as TextEditor from '../../../components/text_editor/text_editor.js';
 import * as VisualLogging from '../../../visual_logging/visual_logging.js';
 import * as UI from '../../legacy.js';
+
+import selfXssDialogStyles from './selfXssDialog.css.legacy.js';
 
 const UIStrings = {
   /**
@@ -100,17 +101,19 @@ const UIStrings = {
    */
   allowPasting: 'allow pasting',
   /**
+   *@description Button text for canceling an action
+   */
+  cancel: 'Cancel',
+  /**
+   *@description Button text for allowing an action
+   */
+  allow: 'Allow',
+  /**
    *@description Input box placeholder which instructs the user to type 'allow pasing' into the input box.
    *@example {allow pasting} PH1
    */
   typeAllowPasting: 'Type \'\'{PH1}\'\'',
-  /**
-   * @description Error message shown when the user tries to open a file that contains non-readable data. "Editor" refers to
-   * a text editor.
-   */
-  binaryContentError:
-      'Editor can\'t show binary data. Use the "Response" tab in the "Network" panel to inspect this resource.',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/components/source_frame/SourceFrame.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -122,14 +125,14 @@ export interface SourceFrameOptions {
 }
 
 export const enum Events {
-  EDITOR_UPDATE = 'EditorUpdate',
-  EDITOR_SCROLL = 'EditorScroll',
+  EditorUpdate = 'EditorUpdate',
+  EditorScroll = 'EditorScroll',
 }
 
-export interface EventTypes {
-  [Events.EDITOR_UPDATE]: CodeMirror.ViewUpdate;
-  [Events.EDITOR_SCROLL]: void;
-}
+export type EventTypes = {
+  [Events.EditorUpdate]: CodeMirror.ViewUpdate,
+  [Events.EditorScroll]: void,
+};
 
 type FormatFn = (lineNo: number, state: CodeMirror.EditorState) => string;
 export const LINE_NUMBER_FORMATTER = CodeMirror.Facet.define<FormatFn, FormatFn>({
@@ -143,7 +146,7 @@ export const LINE_NUMBER_FORMATTER = CodeMirror.Facet.define<FormatFn, FormatFn>
 
 export class SourceFrameImpl extends Common.ObjectWrapper.eventMixin<EventTypes, typeof UI.View.SimpleView>(
     UI.View.SimpleView) implements UI.SearchableView.Searchable, UI.SearchableView.Replaceable, Transformer {
-  private readonly lazyContent: () => Promise<TextUtils.ContentData.ContentDataOrError>;
+  private readonly lazyContent: () => Promise<TextUtils.ContentProvider.DeferredContent>;
   private prettyInternal: boolean;
   private rawContent: string|CodeMirror.Text|null;
   private formattedMap: Formatter.ScriptFormatter.FormatterSourceMapping|null;
@@ -178,7 +181,7 @@ export class SourceFrameImpl extends Common.ObjectWrapper.eventMixin<EventTypes,
   private selfXssWarningDisabledSetting: Common.Settings.Setting<boolean>;
 
   constructor(
-      lazyContent: () => Promise<TextUtils.ContentData.ContentDataOrError>,
+      lazyContent: () => Promise<TextUtils.ContentProvider.DeferredContent>,
       private readonly options: SourceFrameOptions = {}) {
     super(i18nString(UIStrings.source));
 
@@ -189,8 +192,8 @@ export class SourceFrameImpl extends Common.ObjectWrapper.eventMixin<EventTypes,
     this.formattedMap = null;
     this.prettyToggle =
         new UI.Toolbar.ToolbarToggle(i18nString(UIStrings.prettyPrint), 'brackets', undefined, 'pretty-print');
-    this.prettyToggle.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, () => {
-      void this.setPretty(this.prettyToggle.isToggled());
+    this.prettyToggle.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, () => {
+      void this.setPretty(!this.prettyToggle.toggled());
     });
     this.shouldAutoPrettyPrint = false;
     this.prettyToggle.setVisible(false);
@@ -233,7 +236,7 @@ export class SourceFrameImpl extends Common.ObjectWrapper.eventMixin<EventTypes,
     this.contentSet = false;
 
     this.selfXssWarningDisabledSetting = Common.Settings.Settings.instance().createSetting(
-        'disable-self-xss-warning', false, Common.Settings.SettingStorageType.SYNCED);
+        'disable-self-xss-warning', false, Common.Settings.SettingStorageType.Synced);
     Common.Settings.Settings.instance()
         .moduleSetting('text-editor-indent')
         .addChangeListener(this.#textEditorIndentChanged, this);
@@ -268,7 +271,7 @@ export class SourceFrameImpl extends Common.ObjectWrapper.eventMixin<EventTypes,
 
   protected editorConfiguration(doc: string|CodeMirror.Text): CodeMirror.Extension {
     return [
-      CodeMirror.EditorView.updateListener.of(update => this.dispatchEventToListeners(Events.EDITOR_UPDATE, update)),
+      CodeMirror.EditorView.updateListener.of(update => this.dispatchEventToListeners(Events.EditorUpdate, update)),
       TextEditor.Config.baseConfiguration(doc),
       TextEditor.Config.closeBrackets.instance(),
       TextEditor.Config.autocompletion.instance(),
@@ -281,7 +284,7 @@ export class SourceFrameImpl extends Common.ObjectWrapper.eventMixin<EventTypes,
         focus: () => this.onFocus(),
         blur: () => this.onBlur(),
         paste: () => this.onPaste(),
-        scroll: () => this.dispatchEventToListeners(Events.EDITOR_SCROLL),
+        scroll: () => this.dispatchEventToListeners(Events.EditorScroll),
         contextmenu: event => this.onContextMenu(event),
       }),
       CodeMirror.lineNumbers({
@@ -304,15 +307,16 @@ export class SourceFrameImpl extends Common.ObjectWrapper.eventMixin<EventTypes,
       this.wasmDisassemblyInternal ? markNonBreakableLines(this.wasmDisassemblyInternal) : nonBreakableLines,
       this.options.lineWrapping ? CodeMirror.EditorView.lineWrapping : [],
       this.options.lineNumbers !== false ? CodeMirror.lineNumbers() : [],
-      CodeMirror.indentationMarkers({
-        colors: {
-          light: 'var(--sys-color-divider)',
-          activeLight: 'var(--sys-color-divider-prominent)',
-          dark: 'var(--sys-color-divider)',
-          activeDark: 'var(--sys-color-divider-prominent)',
-        },
-      }),
-      infobarState,
+      Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.INDENTATION_MARKERS_TEMP_DISABLE) ?
+          [] :
+          CodeMirror.indentationMarkers({
+            colors: {
+              light: 'var(--sys-color-divider)',
+              activeLight: 'var(--sys-color-divider-prominent)',
+              dark: 'var(--sys-color-divider)',
+              activeDark: 'var(--sys-color-divider-prominent)',
+            },
+          }),
     ];
   }
 
@@ -320,6 +324,7 @@ export class SourceFrameImpl extends Common.ObjectWrapper.eventMixin<EventTypes,
   }
 
   protected onFocus(): void {
+    this.resetCurrentSearchResultIndex();
   }
 
   protected onPaste(): boolean {
@@ -336,16 +341,7 @@ export class SourceFrameImpl extends Common.ObjectWrapper.eventMixin<EventTypes,
     // dialog if pasting via keyboard.
     await new Promise(resolve => setTimeout(resolve, 0));
 
-    const allowPasting = await PanelCommon.TypeToAllowDialog.show({
-      jslogContext: {
-        dialog: 'self-xss-warning',
-        input: 'allow-pasting',
-      },
-      header: i18nString(UIStrings.doYouTrustThisCode),
-      message: i18nString(UIStrings.doNotPaste, {PH1: i18nString(UIStrings.allowPasting)}),
-      typePhrase: i18nString(UIStrings.allowPasting),
-      inputPlaceholder: i18nString(UIStrings.typeAllowPasting, {PH1: i18nString(UIStrings.allowPasting)})
-    });
+    const allowPasting = await SelfXssWarningDialog.show();
     if (allowPasting) {
       this.selfXssWarningDisabledSetting.set(true);
       Host.userMetrics.actionTaken(Host.UserMetrics.Action.SelfXssAllowPastingInDialog);
@@ -541,13 +537,13 @@ export class SourceFrameImpl extends Common.ObjectWrapper.eventMixin<EventTypes,
   private async ensureContentLoaded(): Promise<void> {
     if (!this.contentRequested) {
       this.contentRequested = true;
-      await this.setContentDataOrError(this.lazyContent());
+      await this.setDeferredContent(this.lazyContent());
 
       this.contentSet = true;
     }
   }
 
-  protected async setContentDataOrError(contentDataPromise: Promise<TextUtils.ContentData.ContentDataOrError>):
+  protected async setDeferredContent(deferredContentPromise: Promise<TextUtils.ContentProvider.DeferredContent>):
       Promise<void> {
     const progressIndicator = new UI.ProgressIndicator.ProgressIndicator();
     progressIndicator.setTitle(i18nString(UIStrings.loading));
@@ -555,36 +551,29 @@ export class SourceFrameImpl extends Common.ObjectWrapper.eventMixin<EventTypes,
     this.progressToolbarItem.element.appendChild(progressIndicator.element);
 
     progressIndicator.setWorked(1);
-    const contentData = await contentDataPromise;
+    const deferredContent = await deferredContentPromise;
 
-    let error: string|undefined;
-    let content: CodeMirror.Text|string|null;
-    let isMinified = false;
-    if (TextUtils.ContentData.ContentData.isError(contentData)) {
-      error = contentData.error;
-      content = contentData.error;
-    } else if (contentData instanceof TextUtils.WasmDisassembly.WasmDisassembly) {
-      content = CodeMirror.Text.of(contentData.lines);
-      this.wasmDisassemblyInternal = contentData;
-    } else if (contentData.isTextContent) {
-      content = contentData.text;
-      isMinified = TextUtils.TextUtils.isMinified(contentData.text);
-      this.wasmDisassemblyInternal = null;
-    } else if (contentData.mimeType === 'application/wasm') {
-      // The network panel produces ContentData with raw WASM inside. We have to manually disassemble that
-      // as V8 might not know about it.
-      this.wasmDisassemblyInternal = await SDK.Script.disassembleWasm(contentData.base64);
-      content = CodeMirror.Text.of(this.wasmDisassemblyInternal.lines);
+    let error, content;
+    if (deferredContent.content === null) {
+      error = deferredContent.error;
+      content = deferredContent.error;
+    } else if (deferredContent.isEncoded) {
+      const view = new DataView(Common.Base64.decode(deferredContent.content));
+      const decoder = new TextDecoder();
+      content = decoder.decode(view, {stream: true});
+    } else if ('wasmDisassemblyInfo' in deferredContent && deferredContent.wasmDisassemblyInfo) {
+      const {wasmDisassemblyInfo} = deferredContent;
+      content = CodeMirror.Text.of(wasmDisassemblyInfo.lines);
+      this.wasmDisassemblyInternal = wasmDisassemblyInfo;
     } else {
-      error = i18nString(UIStrings.binaryContentError);
-      content = null;
+      content = deferredContent.content;
       this.wasmDisassemblyInternal = null;
     }
 
     progressIndicator.setWorked(100);
     progressIndicator.done();
 
-    if (this.rawContent === content && error === undefined) {
+    if (this.rawContent === content) {
       return;
     }
     this.rawContent = content;
@@ -596,10 +585,12 @@ export class SourceFrameImpl extends Common.ObjectWrapper.eventMixin<EventTypes,
       this.loadError = true;
       this.textEditor.state = this.placeholderEditorState(error);
       this.prettyToggle.setEnabled(false);
-    } else if (this.shouldAutoPrettyPrint && isMinified) {
-      await this.setPretty(true);
     } else {
-      await this.setContent(this.rawContent || '');
+      if (this.shouldAutoPrettyPrint && TextUtils.TextUtils.isMinified(deferredContent.content || '')) {
+        await this.setPretty(true);
+      } else {
+        await this.setContent(this.rawContent || '');
+      }
     }
   }
 
@@ -836,7 +827,7 @@ export class SourceFrameImpl extends Common.ObjectWrapper.eventMixin<EventTypes,
     }
     const editor = this.textEditor;
     const currentActiveSearch = editor.state.field(activeSearchState);
-    if (currentActiveSearch?.currentRange) {
+    if (currentActiveSearch && currentActiveSearch.currentRange) {
       editor.dispatch({effects: setActiveSearch.of(new ActiveSearch(currentActiveSearch.regexp, null))});
     }
   }
@@ -1049,10 +1040,66 @@ class SearchMatch {
         return this.match[0];
       }
       if (selector[0] === '<') {
-        return (this.match.groups?.[selector.slice(1, selector.length - 1)]) || '';
+        return (this.match.groups && this.match.groups[selector.slice(1, selector.length - 1)]) || '';
       }
       return this.match[Number.parseInt(selector, 10)] || '';
     });
+  }
+}
+
+export class SelfXssWarningDialog {
+  static async show(): Promise<boolean> {
+    const dialog = new UI.Dialog.Dialog('self-xss-warning');
+    dialog.setMaxContentSize(new UI.Geometry.Size(504, 340));
+    dialog.setSizeBehavior(UI.GlassPane.SizeBehavior.SetExactWidthMaxHeight);
+    dialog.setDimmed(true);
+    const shadowRoot = UI.UIUtils.createShadowRootWithCoreStyles(
+        dialog.contentElement, {cssFile: selfXssDialogStyles, delegatesFocus: undefined});
+    const content = shadowRoot.createChild('div', 'widget');
+
+    const result = await new Promise<boolean>(resolve => {
+      const closeButton =
+          content.createChild('div', 'dialog-close-button', 'dt-close-button') as UI.UIUtils.DevToolsCloseButton;
+      closeButton.setTabbable(true);
+      self.onInvokeElement(closeButton, event => {
+        dialog.hide();
+        event.consume(true);
+        resolve(false);
+      });
+
+      content.createChild('div', 'title').textContent = i18nString(UIStrings.doYouTrustThisCode);
+      content.createChild('div', 'message').textContent =
+          i18nString(UIStrings.doNotPaste, {PH1: i18nString(UIStrings.allowPasting)});
+
+      const input = UI.UIUtils.createInput('text-input', 'text', 'allow-pasting');
+      input.placeholder = i18nString(UIStrings.typeAllowPasting, {PH1: i18nString(UIStrings.allowPasting)});
+      content.appendChild(input);
+
+      const buttonsBar = content.createChild('div', 'button');
+      const cancelButton =
+          UI.UIUtils.createTextButton(i18nString(UIStrings.cancel), () => resolve(false), {jslogContext: 'cancel'});
+      buttonsBar.appendChild(cancelButton);
+      const allowButton = UI.UIUtils.createTextButton(i18nString(UIStrings.allow), () => {
+        resolve(input.value === i18nString(UIStrings.allowPasting));
+      }, {jslogContext: 'confirm', variant: Buttons.Button.Variant.PRIMARY});
+      allowButton.disabled = true;
+      buttonsBar.appendChild(allowButton);
+
+      input.addEventListener('input', () => {
+        allowButton.disabled = !Boolean(input.value);
+      }, false);
+      input.addEventListener('paste', e => e.preventDefault());
+      input.addEventListener('drop', e => e.preventDefault());
+
+      dialog.setOutsideClickCallback(event => {
+        event.consume();
+        resolve(false);
+      });
+      dialog.show();
+      Host.userMetrics.actionTaken(Host.UserMetrics.Action.SelfXssWarningDialogShown);
+    });
+    dialog.hide();
+    return result;
   }
 }
 
@@ -1105,7 +1152,7 @@ class ActiveSearch {
 }
 
 const setActiveSearch =
-    CodeMirror.StateEffect.define<ActiveSearch|null>({map: (value, mapping) => value?.map(mapping)});
+    CodeMirror.StateEffect.define<ActiveSearch|null>({map: (value, mapping) => value && value.map(mapping)});
 
 const activeSearchState = CodeMirror.StateField.define<ActiveSearch|null>({
   create(): null {
@@ -1114,7 +1161,7 @@ const activeSearchState = CodeMirror.StateField.define<ActiveSearch|null>({
   update(state, tr): ActiveSearch |
       null {
         return tr.effects.reduce(
-            (state, effect) => effect.is(setActiveSearch) ? effect.value : state, state?.map(tr.changes) ?? null);
+            (state, effect) => effect.is(setActiveSearch) ? effect.value : state, state && state.map(tr.changes));
       },
 });
 
@@ -1122,7 +1169,8 @@ const searchMatchDeco = CodeMirror.Decoration.mark({class: 'cm-searchMatch'});
 const currentSearchMatchDeco = CodeMirror.Decoration.mark({class: 'cm-searchMatch cm-searchMatch-selected'});
 
 const searchHighlighter = CodeMirror.ViewPlugin.fromClass(class {
-  decorations: CodeMirror.DecorationSet;
+decorations:
+  CodeMirror.DecorationSet;
 
   constructor(view: CodeMirror.EditorView) {
     this.decorations = this.computeDecorations(view);
@@ -1248,28 +1296,3 @@ const sourceFrameTheme = CodeMirror.EditorView.theme({
  */
 export type RevealPosition = number|{lineNumber: number, columnNumber?: number}|
     {from: {lineNumber: number, columnNumber: number}, to: {lineNumber: number, columnNumber: number}};
-
-// Infobar panel state, used to show additional panels below the editor.
-
-export const addInfobar = CodeMirror.StateEffect.define<UI.Infobar.Infobar>();
-export const removeInfobar = CodeMirror.StateEffect.define<UI.Infobar.Infobar>();
-
-const infobarState = CodeMirror.StateField.define<UI.Infobar.Infobar[]>({
-  create(): UI.Infobar.Infobar[] {
-    return [];
-  },
-  update(current, tr): UI.Infobar.Infobar[] {
-    for (const effect of tr.effects) {
-      if (effect.is(addInfobar)) {
-        current = current.concat(effect.value);
-      } else if (effect.is(removeInfobar)) {
-        current = current.filter(b => b !== effect.value);
-      }
-    }
-    return current;
-  },
-  provide: (field): CodeMirror.Extension => CodeMirror.showPanel.computeN(
-      [field],
-      (state): Array<() => CodeMirror.Panel> =>
-          state.field(field).map((bar): (() => CodeMirror.Panel) => (): CodeMirror.Panel => ({dom: bar.element}))),
-});

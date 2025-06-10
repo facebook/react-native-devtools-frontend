@@ -20,25 +20,15 @@ var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (
 }) : function(o, v) {
     o["default"] = v;
 });
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.connectBidiOverCdp = connectBidiOverCdp;
+exports.connectBidiOverCdp = void 0;
 const BidiMapper = __importStar(require("chromium-bidi/lib/cjs/bidiMapper/BidiMapper.js"));
 const Debug_js_1 = require("../common/Debug.js");
 const Errors_js_1 = require("../common/Errors.js");
@@ -49,7 +39,7 @@ const bidiServerLogger = (prefix, ...args) => {
 /**
  * @internal
  */
-async function connectBidiOverCdp(cdp) {
+async function connectBidiOverCdp(cdp, options) {
     const transportBiDi = new NoOpTransport();
     const cdpConnectionAdapter = new CdpConnectionAdapter(cdp);
     const pptrTransport = {
@@ -72,9 +62,17 @@ async function connectBidiOverCdp(cdp) {
     });
     const pptrBiDiConnection = new Connection_js_1.BidiConnection(cdp.url(), pptrTransport, cdp.delay, cdp.timeout);
     const bidiServer = await BidiMapper.BidiServer.createAndStart(transportBiDi, cdpConnectionAdapter, cdpConnectionAdapter.browserClient(), 
-    /* selfTargetId= */ '', undefined, bidiServerLogger);
+    /* selfTargetId= */ '', {
+        // Override Mapper's `unhandledPromptBehavior` default value of `dismiss` to
+        // `ignore`, so that user can handle the prompt instead of just closing it.
+        unhandledPromptBehavior: {
+            default: "ignore" /* Bidi.Session.UserPromptHandlerType.Ignore */,
+        },
+        ...options,
+    }, undefined, bidiServerLogger);
     return pptrBiDiConnection;
 }
+exports.connectBidiOverCdp = connectBidiOverCdp;
 /**
  * Manages CDPSessions for BidiServer.
  * @internal

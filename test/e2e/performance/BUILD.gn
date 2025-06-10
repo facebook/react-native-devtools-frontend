@@ -2,10 +2,11 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import("../../../scripts/build/typescript/typescript.gni")
+import("../../../third_party/typescript/typescript.gni")
 
 node_ts_library("performance") {
   sources = [
+    "emulate-hardware-concurrency_test.ts",
     "landing-page_test.ts",
     "recording_test.ts",
     "selector-stats-tracing_test.ts",

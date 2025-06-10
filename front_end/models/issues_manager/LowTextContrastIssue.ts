@@ -7,14 +7,14 @@ import type * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
 
 import {Issue, IssueCategory, IssueKind} from './Issue.js';
-import type {MarkdownIssueDescription} from './MarkdownIssueDescription.js';
+import {type MarkdownIssueDescription} from './MarkdownIssueDescription.js';
 
 const UIStrings = {
   /**
    *@description Link title for the Low Text Contrast issue in the Issues panel
    */
   colorAndContrastAccessibility: 'Color and contrast accessibility',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/LowTextContrastIssue.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -33,7 +33,7 @@ export class LowTextContrastIssue extends Issue {
   }
 
   getCategory(): IssueCategory {
-    return IssueCategory.LOW_TEXT_CONTRAST;
+    return IssueCategory.LowTextContrast;
   }
 
   details(): Protocol.Audits.LowTextContrastIssueDetails {
@@ -53,7 +53,7 @@ export class LowTextContrastIssue extends Issue {
   }
 
   getKind(): IssueKind {
-    return IssueKind.IMPROVEMENT;
+    return IssueKind.Improvement;
   }
 
   static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):

@@ -17,10 +17,11 @@
 
 .object-properties-section li {
   user-select: text;
+}
 
-  &::before {
-    margin-right: 2px;
-  }
+.object-properties-section li::before {
+  top: -1px;
+  margin-right: 2px;
 }
 
 .object-properties-section li.editing-sub-part {
@@ -57,6 +58,17 @@
 
 .object-properties-section .editable-div {
   overflow: hidden;
+}
+
+.object-properties-section [data-webidl="true"] > .name-and-value > .adorner {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-right: 2px;
+}
+
+.object-properties-section [data-webidl="true"] > .name-and-value > .name {
+  font-weight: bold;
 }
 
 .name-and-value {

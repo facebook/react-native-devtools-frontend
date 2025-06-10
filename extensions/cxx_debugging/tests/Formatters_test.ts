@@ -3,8 +3,7 @@
 // found in the LICENSE file.
 
 import {CustomFormatters, type TypeInfo} from '../src/CustomFormatters.js';
-import * as Formatters from '../src/Formatters.js';
-
+import * as Formatters from '../src/Formatters.js';  // eslint-disable-line rulesdir/es_modules_import
 import {TestValue, TestWasmInterface} from './TestUtils.js';
 
 describe('Formatters', () => {
@@ -44,8 +43,7 @@ describe('Formatters', () => {
     // short string
 
     const shortString = 'abcdef\0';
-    const shortStringValue =
-        new TestValue(new DataView(new TextEncoder().encode(shortString).buffer as ArrayBuffer), 'char');
+    const shortStringValue = new TestValue(new DataView(new TextEncoder().encode(shortString).buffer), 'char');
     assert.deepEqual(
         Formatters.formatCString(wasm, TestValue.pointerTo(shortStringValue, Formatters.Constants.SAFE_HEAP_START)),
         'abcdef');
@@ -61,8 +59,7 @@ describe('Formatters', () => {
 
     // long string
     const longString = `${new Array(Formatters.Constants.PAGE_SIZE / 4).fill('abcdefg').join('')}\0`;
-    const longStringValue =
-        new TestValue(new DataView(new TextEncoder().encode(longString).buffer as ArrayBuffer), 'char');
+    const longStringValue = new TestValue(new DataView(new TextEncoder().encode(longString).buffer), 'char');
     assert.deepEqual(
         Formatters.formatCString(wasm, TestValue.pointerTo(longStringValue, Formatters.Constants.SAFE_HEAP_START)),
         longString.substr(0, longString.length - 1));
@@ -92,14 +89,13 @@ describe('Formatters', () => {
     // eslint-disable-next-line @typescript-eslint/naming-convention
     const __l = TestValue.fromMembers('__l', {});
     const str = TestValue.fromMembers('std::string', {
-      __r_: TestValue.fromMembers('__r_', {
-        __value_: TestValue.fromMembers('__value_', {'<union>': TestValue.fromMembers('__value_union', {__s, __l})}),
+      '__r_': TestValue.fromMembers('__r_', {
+        '__value_': TestValue.fromMembers('__value_', {'<union>': TestValue.fromMembers('__value_union', {__s, __l})}),
       }),
     });
 
     // short char8_t
-    __s.members.__data_ =
-        new TestValue(new DataView(new TextEncoder().encode(shortString).buffer as ArrayBuffer), 'char');
+    __s.members.__data_ = new TestValue(new DataView(new TextEncoder().encode(shortString).buffer), 'char');
     __s_union.members.__size_ = shortFlag;
 
     assert.deepEqual(Formatters.formatLibCXX8String(wasm, str), {size: shortString.length, string: shortString});

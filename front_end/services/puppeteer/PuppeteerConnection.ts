@@ -2,9 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as SDK from '../../core/sdk/sdk.js';
-import type * as Protocol from '../../generated/protocol.js';
 import * as puppeteer from '../../third_party/puppeteer/puppeteer.js';
+import type * as Protocol from '../../generated/protocol.js';
+import type * as SDK from '../../core/sdk/sdk.js';
 
 class Transport implements puppeteer.ConnectionTransport {
   #connection: SDK.Connections.ParallelConnectionInterface;
@@ -22,7 +22,7 @@ class Transport implements puppeteer.ConnectionTransport {
   }
 
   set onmessage(cb: (message: string) => void) {
-    this.#connection.setOnMessage((message: unknown) => {
+    this.#connection.setOnMessage((message: Object) => {
       const data = (message) as {id: number, method: string, params: unknown, sessionId?: string};
       if (!data.sessionId) {
         return;
@@ -79,14 +79,14 @@ export class PuppeteerConnectionHelper {
     const puppeteerConnection = new PuppeteerConnection('', transport);
 
     const browserPromise = puppeteer.Browser._create(
+        'chrome',
         puppeteerConnection,
         [] /* contextIds */,
         false /* ignoreHTTPSErrors */,
         undefined /* defaultViewport */,
-        undefined /* DownloadBehavior */,
         undefined /* process */,
         undefined /* closeCallback */,
-        undefined /* targetFilterCallback */,
+        undefined,
         target => isPageTargetCallback((target as puppeteer.Target)._getTargetInfo()),
         false /* waitForInitiallyDiscoveredTargets */,
     );

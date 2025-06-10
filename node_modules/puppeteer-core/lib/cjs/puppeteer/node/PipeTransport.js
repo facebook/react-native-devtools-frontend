@@ -17,24 +17,16 @@ class PipeTransport {
     onmessage;
     constructor(pipeWrite, pipeRead) {
         this.#pipeWrite = pipeWrite;
-        const pipeReadEmitter = this.#subscriptions.use(
-        // NodeJS event emitters don't support `*` so we need to typecast
-        // As long as we don't use it we should be OK.
-        new EventEmitter_js_1.EventEmitter(pipeRead));
-        pipeReadEmitter.on('data', (buffer) => {
+        this.#subscriptions.use(new EventEmitter_js_1.EventSubscription(pipeRead, 'data', (buffer) => {
             return this.#dispatch(buffer);
-        });
-        pipeReadEmitter.on('close', () => {
+        }));
+        this.#subscriptions.use(new EventEmitter_js_1.EventSubscription(pipeRead, 'close', () => {
             if (this.onclose) {
                 this.onclose.call(null);
             }
-        });
-        pipeReadEmitter.on('error', util_js_1.debugError);
-        const pipeWriteEmitter = this.#subscriptions.use(
-        // NodeJS event emitters don't support `*` so we need to typecast
-        // As long as we don't use it we should be OK.
-        new EventEmitter_js_1.EventEmitter(pipeRead));
-        pipeWriteEmitter.on('error', util_js_1.debugError);
+        }));
+        this.#subscriptions.use(new EventEmitter_js_1.EventSubscription(pipeRead, 'error', util_js_1.debugError));
+        this.#subscriptions.use(new EventEmitter_js_1.EventSubscription(pipeWrite, 'error', util_js_1.debugError));
     }
     send(message) {
         (0, assert_js_1.assert)(!this.#isClosed, '`PipeTransport` is closed.');

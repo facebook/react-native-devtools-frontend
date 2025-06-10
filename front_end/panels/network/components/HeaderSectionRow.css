@@ -10,11 +10,10 @@
 
 .row {
   display: flex;
-  line-height: 18px;
+  line-height: 20px;
   padding-left: 8px;
-  gap: var(--sys-size-6);
+  gap: 12px;
   user-select: text;
-  margin: var(--sys-size-3) 0;
 }
 
 .row.header-editable {
@@ -23,8 +22,8 @@
 }
 
 .header-name {
-  font: var(--sys-typescale-body5-medium);
-  color: var(--sys-color-on-surface-subtle);
+  color: var(--sys-color-on-surface);
+  font-weight: 400;
   width: 30%;
   min-width: 160px;
   max-width: 240px;
@@ -57,7 +56,6 @@
   display: flex;
   overflow-wrap: anywhere;
   margin-inline-end: 14px;
-  font: var(--sys-typescale-body4-regular);
 }
 
 .header-badge-text {
@@ -131,7 +129,7 @@
   color: var(--sys-color-token-subtle);
 }
 
-x-link .inline-icon {
+x-link .inline-icon { /* stylelint-disable-line selector-type-no-unknown */
   padding-right: 3px;
 }
 

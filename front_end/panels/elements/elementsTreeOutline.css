@@ -83,23 +83,6 @@
   margin-left: -12px;
 }
 
-.elements-disclosure li .ai-button-container {
-  display: none;
-  margin-left: 1ch;
-  overflow: visible;
-  max-height: var(--sys-size-6);
-  vertical-align: top;
-  margin-top: -1px;
-  position: absolute;
-  right: var(--sys-size-3);
-  bottom: 5px;
-  z-index: 999;
-}
-
-.elements-disclosure .elements-tree-outline:not(.hide-selection-when-blurred) li.hovered .ai-button-container {
-  display: inline-flex;
-}
-
 .elements-disclosure li .selected-hint::before {
   font-style: italic;
   content: " == $0";
@@ -116,18 +99,20 @@
 .elements-disclosure li.parent:not(.always-parent)::before {
   box-sizing: border-box;
   user-select: none;
-  mask-image: var(--image-file-arrow-collapse);
+  mask-image: var(--image-file-triangle-right);
   height: 14px;
   width: 14px;
   content: "\A0\A0";
   color: transparent;
   text-shadow: none;
-  margin: -3px var(--sys-size-2) 0 -3px;
+  margin-left: -3px;
   background-color: var(--icon-default);
+  transition: transform 200ms;
 }
 
 .elements-disclosure li.parent.expanded::before {
-  mask-image: var(--image-file-arrow-drop-down);
+  transform: rotate(90deg);
+  margin-top: -2px;
 }
 
 .elements-disclosure li .selection {
@@ -246,7 +231,7 @@ select {
 }
 /* DOM update highlight */
 @keyframes dom-update-highlight-animation {
-  0% {
+  from {
     background-color: var(--sys-color-token-tag);
     color: var(--sys-color-cdt-base-container);
   }
@@ -255,13 +240,13 @@ select {
     background-color: var(--sys-color-token-meta);
   }
 
-  100% {
+  to {
     background-color: inherit;
   }
 }
 
 @keyframes dom-update-highlight-animation-dark {
-  0% {
+  from {
     background-color: var(--sys-color-token-tag);
     color: var(--sys-color-cdt-base-container);
   }
@@ -271,7 +256,7 @@ select {
     color: inherit;
   }
 
-  100% {
+  to {
     background-color: inherit;
   }
 }
@@ -312,8 +297,6 @@ select {
   visibility: hidden;
   position: relative;
   left: -1px;
-  width: 16px;
-  height: 16px;
 }
 
 .elements-disclosure li.selected .gutter-container:not(.has-decorations) > devtools-icon {
@@ -335,7 +318,7 @@ li.selected:not(.always-parent) + ol.children {
 }
 
 li.hovered:not(.always-parent) + ol.children:not(.shadow-root) {
-  --override-indentation-level-border-color: color-mix(in srgb, var(--ref-palette-neutral0) 10%, transparent);
+  --override-indentation-level-border-color: color-mix(in sRGB, var(--ref-palette-neutral0) 10%, transparent);
 }
 
 .elements-tree-outline ol.shadow-root {
@@ -366,7 +349,6 @@ li.hovered:not(.always-parent) + ol.children:not(.shadow-root) {
 }
 
 .violating-element {
-  /* stylelint-disable-next-line custom-property-pattern */
   background-image: var(--image-file-errorWave);
   background-repeat: repeat-x;
   background-position: bottom;

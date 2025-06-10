@@ -2,28 +2,36 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-export type Micro = number&{_tag: 'MicroSeconds'};
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export function Micro(value: number): Micro {
-  return value as Micro;
+/* eslint-disable no-unused-private-class-members, @typescript-eslint/naming-convention */
+
+export type MicroSeconds = number&{_tag: 'MicroSeconds'};
+export function MicroSeconds(value: number): MicroSeconds {
+  return value as MicroSeconds;
 }
 
-export type Milli = number&{_tag: 'MilliSeconds'};
-// eslint-disable-next-line @typescript-eslint/naming-convention
-export function Milli(value: number): Milli {
-  return value as Milli;
+export type MilliSeconds = number&{_tag: 'MilliSeconds'};
+export function MilliSeconds(value: number): MilliSeconds {
+  return value as MilliSeconds;
 }
 export type Seconds = number&{_tag: 'Seconds'};
-// eslint-disable-next-line @typescript-eslint/naming-convention
 export function Seconds(value: number): Seconds {
   return value as Seconds;
 }
 
-export interface TraceWindow<TimeFormat extends Micro|Milli> {
+export const enum TimeUnit {
+  MICROSECONDS = 0,
+  MILLISECONDS = 1,
+  SECONDS = 2,
+  MINUTES = 3,
+}
+
+// Other types.
+
+export interface TraceWindow<TimeFormat extends MicroSeconds|MilliSeconds> {
   min: TimeFormat;
   max: TimeFormat;
   range: TimeFormat;
 }
 
-export type TraceWindowMicro = TraceWindow<Micro>;
-export type TraceWindowMilli = TraceWindow<Milli>;
+export type TraceWindowMicroSeconds = TraceWindow<MicroSeconds>;
+export type TraceWindowMilliSeconds = TraceWindow<MilliSeconds>;

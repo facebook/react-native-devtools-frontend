@@ -1,5 +1,4 @@
-import { MetricType } from '../types.js';
-export declare const initMetric: <MetricName extends MetricType["name"]>(name: MetricName, value?: number) => {
+export declare const initMetric: <MetricName extends "CLS" | "FCP" | "FID" | "INP" | "LCP" | "TTFB">(name: MetricName, value?: number) => {
     name: MetricName;
     value: number;
     rating: "good";
@@ -18,5 +17,5 @@ export declare const initMetric: <MetricName extends MetricType["name"]>(name: M
         name: MetricName;
     }>)["entries"];
     id: string;
-    navigationType: "reload" | "navigate" | "prerender" | "back-forward" | "back-forward-cache" | "restore";
+    navigationType: "navigate" | "reload" | "back-forward" | "back-forward-cache" | "prerender" | "restore";
 };

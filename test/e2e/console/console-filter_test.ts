@@ -6,6 +6,7 @@ import {assert} from 'chai';
 import type * as puppeteer from 'puppeteer-core';
 
 import {$, getBrowserAndPages, step} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   CONSOLE_MESSAGE_WRAPPER_SELECTOR,
   deleteConsoleMessagesFilter,
@@ -24,8 +25,8 @@ function createUrlFilter(url: string) {
 }
 
 function collectSourceUrlsFromConsoleOutput(frontend: puppeteer.Page) {
-  return frontend.evaluate(selector => {
-    return Array.from(document.querySelectorAll(selector)).map(wrapper => {
+  return frontend.evaluate(CONSOLE_MESSAGE_WRAPPER_SELECTOR => {
+    return Array.from(document.querySelectorAll(CONSOLE_MESSAGE_WRAPPER_SELECTOR)).map(wrapper => {
       return ((wrapper.querySelector('.devtools-link') as HTMLElement).textContent as string).split(':')[0];
     });
   }, CONSOLE_MESSAGE_WRAPPER_SELECTOR);
@@ -38,6 +39,7 @@ function getExpectedMessages(unfilteredMessages: string[], filter: MessageCheck)
 }
 
 async function testMessageFilter(filter: string, expectedMessageFilter: MessageCheck) {
+  const {frontend} = getBrowserAndPages();
   let unfilteredMessages: string[];
   const showMessagesWithAnchor = true;
 
@@ -46,7 +48,7 @@ async function testMessageFilter(filter: string, expectedMessageFilter: MessageC
   });
 
   await step(`filter to only show messages containing '${filter}'`, async () => {
-    await filterConsoleMessages(filter);
+    await filterConsoleMessages(frontend, filter);
   });
 
   await step('check that messages are correctly filtered', async () => {
@@ -127,7 +129,7 @@ describe('The Console Tab', () => {
   it('can exclude messages from a source url', async () => {
     const {frontend} = getBrowserAndPages();
     let sourceUrls: string[];
-    let uniqueUrls = new Set<string>();
+    let uniqueUrls: Set<string> = new Set();
 
     await step('navigate to console-filter.html and wait for console messages', async () => {
       await getConsoleMessages('console-filter');
@@ -159,7 +161,7 @@ describe('The Console Tab', () => {
       await testMessageFilter(filter, expectedMessageFilter);
 
       await step(`remove filter '${filter}'`, async () => {
-        await deleteConsoleMessagesFilter();
+        await deleteConsoleMessagesFilter(frontend);
       });
     }
   });
@@ -167,7 +169,7 @@ describe('The Console Tab', () => {
   it('can include messages from a given source url', async () => {
     const {frontend} = getBrowserAndPages();
     let sourceUrls: string[];
-    let uniqueUrls = new Set<string>();
+    let uniqueUrls: Set<string> = new Set();
 
     await step('navigate to console-filter.html and wait for console messages', async () => {
       await getConsoleMessages('console-filter');
@@ -198,14 +200,14 @@ describe('The Console Tab', () => {
       await testMessageFilter(filter, expectedMessageFilter);
 
       await step(`remove filter '${filter}'`, async () => {
-        await deleteConsoleMessagesFilter();
+        await deleteConsoleMessagesFilter(frontend);
       });
     }
   });
 
   it('can apply empty filter', async () => {
     const filter = '';
-
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const expectedMessageFilter: MessageCheck = _ => true;
     await testMessageFilter(filter, expectedMessageFilter);
   });
@@ -311,6 +313,7 @@ describe('The Console Tab', () => {
   });
 
   it('can reset filter', async () => {
+    const {frontend} = getBrowserAndPages();
     let unfilteredMessages: string[];
 
     await step('get unfiltered messages', async () => {
@@ -318,11 +321,11 @@ describe('The Console Tab', () => {
     });
 
     await step('apply message filter', async () => {
-      await filterConsoleMessages('outer');
+      await filterConsoleMessages(frontend, 'outer');
     });
 
     await step('delete message filter', async () => {
-      void deleteConsoleMessagesFilter();
+      void deleteConsoleMessagesFilter(frontend);
     });
 
     await step('check if messages are unfiltered', async () => {
@@ -338,7 +341,7 @@ describe('The Console Tab', () => {
     const JS_ERROR_PATTERN = /Uncaught \(in promise\) TypeError: Failed to fetch.*/;
     const allMessages = await getConsoleMessages('cors-issue', false, () => waitForConsoleMessagesToBeNonEmpty(6));
     allMessages.sort();
-    assert.lengthOf(allMessages, 6);
+    assert.strictEqual(allMessages.length, 6);
     assert.match(allMessages[0], CORS_DETAILED_ERROR_PATTERN);
     assert.match(allMessages[1], CORS_DETAILED_ERROR_PATTERN);
     assert.match(allMessages[2], NETWORK_ERROR_PATTERN);
@@ -348,7 +351,7 @@ describe('The Console Tab', () => {
 
     await toggleShowCorsErrors();
     const filteredMessages = await getCurrentConsoleMessages();
-    assert.lengthOf(filteredMessages, 2);
+    assert.strictEqual(2, filteredMessages.length);
     for (const message of filteredMessages) {
       assert.match(message, JS_ERROR_PATTERN);
     }

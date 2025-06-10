@@ -2,23 +2,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type {InsightModel} from '../../../../models/trace/insights/types.js';
-import type * as Trace from '../../../../models/trace/trace.js';
+import * as ComponentHelpers from '../../../../ui/components/helpers/helpers.js';
+import * as LitHtml from '../../../../ui/lit-html/lit-html.js';
 import type * as Overlays from '../../overlays/overlays.js';
+
+import sidebarInsightStyles from './sidebarInsight.css.js';
 
 export interface InsightDetails {
   title: string;
-  description: string;
-  internalName: string;
   expanded: boolean;
-  estimatedSavingsTime?: Trace.Types.Timing.Milli;
-  estimatedSavingsBytes?: number;
 }
 
 export class InsightActivated extends Event {
   static readonly eventName = 'insightactivated';
 
-  constructor(public model: InsightModel, public insightSetKey: string) {
+  constructor(
+      public name: string, public navigationId: string,
+      public createOverlayFn: () => Array<Overlays.Overlays.TimelineOverlay>) {
     super(InsightActivated.eventName, {bubbles: true, composed: true});
   }
 }
@@ -30,36 +30,54 @@ export class InsightDeactivated extends Event {
   }
 }
 
-export class InsightSetHovered extends Event {
-  static readonly eventName = 'insightsethovered';
-  constructor(public bounds?: Trace.Types.Timing.TraceWindowMicro) {
-    super(InsightSetHovered.eventName, {bubbles: true, composed: true});
-  }
-}
-
-export class InsightSetZoom extends Event {
-  static readonly eventName = 'insightsetzoom';
-  constructor(public bounds: Trace.Types.Timing.TraceWindowMicro) {
-    super(InsightSetZoom.eventName, {bubbles: true, composed: true});
-  }
-}
-
-export class InsightProvideOverlays extends Event {
-  static readonly eventName = 'insightprovideoverlays';
-
-  constructor(
-      public overlays: Overlays.Overlays.TimelineOverlay[],
-      public options: Overlays.Overlays.TimelineOverlaySetOptions) {
-    super(InsightProvideOverlays.eventName, {bubbles: true, composed: true});
-  }
-}
-
 declare global {
   interface GlobalEventHandlersEventMap {
     [InsightActivated.eventName]: InsightActivated;
     [InsightDeactivated.eventName]: InsightDeactivated;
-    [InsightSetHovered.eventName]: InsightSetHovered;
-    [InsightSetZoom.eventName]: InsightSetZoom;
-    [InsightProvideOverlays.eventName]: InsightProvideOverlays;
   }
 }
+
+export class SidebarInsight extends HTMLElement {
+  static readonly litTagName = LitHtml.literal`devtools-performance-sidebar-insight`;
+  readonly #shadow = this.attachShadow({mode: 'open'});
+  readonly #boundRender = this.#render.bind(this);
+  #insightTitle: string = '';
+  #expanded: boolean = false;
+
+  set data(data: InsightDetails) {
+    this.#insightTitle = data.title;
+    this.#expanded = data.expanded;
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
+  }
+
+  connectedCallback(): void {
+    this.#shadow.adoptedStyleSheets = [sidebarInsightStyles];
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
+  }
+
+  #render(): void {
+    let output: LitHtml.TemplateResult;
+    if (!this.#expanded) {
+      output = LitHtml.html`
+        <div class="insight closed">
+            <h3 class="insight-title">${this.#insightTitle}</h3>
+        </div>`;
+    } else {
+      output = LitHtml.html`
+        <div class="insight">
+            <h3 class="insight-title">${this.#insightTitle}</h3>
+            <slot name="insight-description"></slot>
+            <slot name="insight-content"></slot>
+        </div>`;
+    }
+    LitHtml.render(output, this.#shadow, {host: this});
+  }
+}
+
+declare global {
+  interface HTMLElementTagNameMap {
+    'devtools-performance-sidebar-insight': SidebarInsight;
+  }
+}
+
+customElements.define('devtools-performance-sidebar-insight', SidebarInsight);

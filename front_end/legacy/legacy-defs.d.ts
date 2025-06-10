@@ -60,9 +60,13 @@ declare namespace Adb {
   type NetworkDiscoveryConfig = string[];
 }
 
+interface HTMLElement {
+  createChild(tagName: string, className?: string, content?: string): HTMLElement;
+}
+
 interface Element {
   boxInWindow(targetWindow?: Window): AnchorBox;
-  createChild<K extends keyof HTMLElementTagNameMap>(tagName: K, className?: string): HTMLElementTagNameMap[K];
+  createChild(tagName: string, className?: string, content?: string): Element;
   hasFocus(): boolean;
   positionAt(x: (number|undefined), y: (number|undefined), relativeTo?: Element): void;
   removeChildren(): void;
@@ -70,7 +74,7 @@ interface Element {
 }
 
 interface DocumentFragment {
-  createChild<K extends keyof HTMLElementTagNameMap>(tagName: K, className?: string): HTMLElementTagNameMap[K];
+  createChild(tagName: string, className?: string, content?: string): Element;
 }
 
 interface Event {
@@ -90,10 +94,10 @@ interface Node {
   isSelfOrDescendant(node: Node|null): boolean;
   parentElementOrShadowHost(): Element|null;
   parentNodeOrShadowHost(): Node|null;
-  setTextContentTruncatedIfNeeded(text: unknown, placeholder?: string): boolean;
+  setTextContentTruncatedIfNeeded(text: any, placeholder?: string): boolean;
   traverseNextNode(stayWithin?: Node): Node|null;
   traversePreviousNode(stayWithin?: Node): Node|null;
-  deepTextContent(): string;
+  deepTextContent(): string
   window(): Window;
   childTextNodes(): Node[];
 }

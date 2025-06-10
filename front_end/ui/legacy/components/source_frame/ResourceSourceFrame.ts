@@ -31,15 +31,13 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-import '../../legacy.js';
-
 import * as Common from '../../../../core/common/common.js';
 import * as i18n from '../../../../core/i18n/i18n.js';
-import * as FormatterActions from '../../../../entrypoints/formatter_worker/FormatterActions.js';  // eslint-disable-line rulesdir/es-modules-import
+import * as FormatterActions from '../../../../entrypoints/formatter_worker/FormatterActions.js';  // eslint-disable-line rulesdir/es_modules_import
 import * as TextUtils from '../../../../models/text_utils/text_utils.js';
 import * as UI from '../../legacy.js';
 
-import resourceSourceFrameStyles from './resourceSourceFrame.css.js';
+import resourceSourceFrameStyles from './resourceSourceFrame.css.legacy.js';
 import {type RevealPosition, SourceFrameImpl, type SourceFrameOptions} from './SourceFrame.js';
 
 const UIStrings = {
@@ -47,7 +45,7 @@ const UIStrings = {
    *@description Text to find an item
    */
   find: 'Find',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/components/source_frame/ResourceSourceFrame.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -58,19 +56,19 @@ export class ResourceSourceFrame extends SourceFrameImpl {
   constructor(
       resource: TextUtils.ContentProvider.ContentProvider, givenContentType: string, options?: SourceFrameOptions) {
     const isStreamingProvider = TextUtils.ContentProvider.isStreamingContentProvider(resource);
-
+    /* eslint-disable @typescript-eslint/explicit-function-return-type */
     const lazyContent = isStreamingProvider ?
-        () => resource.requestStreamingContent().then(TextUtils.StreamingContentData.asContentDataOrError) :
-        () => resource.requestContentData();
+        () => resource.requestStreamingContent().then(TextUtils.StreamingContentData.asDeferredContent.bind(null)) :
+        () => resource.requestContent();
     super(lazyContent, options);
-
+    /* eslint-enable @typescript-eslint/explicit-function-return-type */
     this.#givenContentType = givenContentType;
     this.resourceInternal = resource;
     if (isStreamingProvider) {
       void resource.requestStreamingContent().then(streamingContent => {
         if (!TextUtils.StreamingContentData.isError(streamingContent)) {
-          streamingContent.addEventListener(TextUtils.StreamingContentData.Events.CHUNK_ADDED, () => {
-            void this.setContentDataOrError(Promise.resolve(streamingContent.content()));
+          streamingContent.addEventListener(TextUtils.StreamingContentData.Events.ChunkAdded, () => {
+            void this.setDeferredContent(Promise.resolve(streamingContent.content().asDeferedContent()));
           });
         }
       });
@@ -115,7 +113,7 @@ export class SearchableContainer extends UI.Widget.VBox {
     sourceFrame.setSearchableView(searchableView);
     searchableView.show(this.contentElement);
 
-    const toolbar = this.contentElement.createChild('devtools-toolbar', 'toolbar');
+    const toolbar = new UI.Toolbar.Toolbar('toolbar', this.contentElement);
     void sourceFrame.toolbarItems().then(items => {
       items.map(item => toolbar.appendToolbarItem(item));
     });

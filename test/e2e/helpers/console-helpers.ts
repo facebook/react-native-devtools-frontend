@@ -3,28 +3,28 @@
 // found in the LICENSE file.
 
 import {assert} from 'chai';
+import type * as puppeteer from 'puppeteer-core';
 
-import {AsyncScope} from '../../conductor/async-scope.js';
-import type {DevToolsPage} from '../../e2e_non_hosted/shared/frontend-helper.js';
+import {AsyncScope} from '../../shared/async-scope.js';
 import {
   $,
   $$,
   click,
-  drainFrontendTaskQueue,
   getBrowserAndPages,
   goToResource,
   pasteText,
   timeout,
   waitFor,
-  waitForFunction
+  waitForFunction,
 } from '../../shared/helper.js';
-import {getBrowserAndPagesWrappers} from '../../shared/non_hosted_wrappers.js';
 
 import {
   expectVeEvents,
   veChange,
   veClick,
   veImpression,
+  veImpressionsUnder,
+  veKeyDown,
   veResize,
 } from './visual-logging-helpers.js';
 
@@ -59,30 +59,29 @@ export const Level = {
   Error: CONSOLE_ERROR_MESSAGES_SELECTOR,
 };
 
-export async function deleteConsoleMessagesFilter() {
-  const {frontend} = getBrowserAndPages();
-  const main = await waitFor('.console-main-toolbar');
-  await frontend.evaluate(toolbar => {
-    const deleteButton = toolbar.querySelector<HTMLElement>('.toolbar-input-clear-button');
+export async function deleteConsoleMessagesFilter(frontend: puppeteer.Page) {
+  await waitFor('.console-main-toolbar');
+  const main = await $('.console-main-toolbar');
+  await frontend.evaluate(n => {
+    const deleteButton = n.shadowRoot?.querySelector('.toolbar-input-clear-button') as HTMLElement;
     if (deleteButton) {
       deleteButton.click();
     }
   }, main);
-  await expectVeEvents([veClick('Toolbar > TextField: filter > Action: clear')], await veRoot());
+  await expectVeEvents([veClick('Panel: console > Toolbar > TextField > Action: clear')]);
 }
 
-export async function filterConsoleMessages(filter: string) {
-  const {frontend} = getBrowserAndPages();
-  const main = await waitFor('.console-main-toolbar');
-  await frontend.evaluate(toolbar => {
-    const prompt = toolbar.querySelector<HTMLElement>('.toolbar-input-prompt.text-prompt');
-    prompt!.focus();
+export async function filterConsoleMessages(frontend: puppeteer.Page, filter: string) {
+  await waitFor('.console-main-toolbar');
+  const main = await $('.console-main-toolbar');
+  await frontend.evaluate(n => {
+    const toolbar = n.shadowRoot?.querySelector('.toolbar-input-prompt.text-prompt') as HTMLElement;
+    toolbar.focus();
   }, main);
   await pasteText(filter);
-  await drainFrontendTaskQueue();
   await frontend.keyboard.press('Tab');
   if (filter.length) {
-    await expectVeEvents([veChange('Toolbar > TextField: filter')], await veRoot());
+    await expectVeEvents([veChange('Panel: console > Toolbar > TextField')]);
   }
 }
 
@@ -96,7 +95,7 @@ export async function waitForConsoleMessagesToBeNonEmpty(numberOfMessages: numbe
         await Promise.all(messages.map(message => message.evaluate(message => message.textContent || '')));
     return textContents.every(text => text !== '');
   });
-  await expectVeEvents([veImpressionForConsoleMessage()], await veRoot());
+  await expectVeEvents([veImpressionForConsoleMessage()]);
 }
 
 export async function waitForLastConsoleMessageToHaveContent(expectedTextContent: string) {
@@ -108,7 +107,7 @@ export async function waitForLastConsoleMessageToHaveContent(expectedTextContent
     const lastMessageContent = await messages[messages.length - 1].evaluate(message => message.textContent);
     return lastMessageContent === expectedTextContent;
   });
-  await expectVeEvents([veImpressionForConsoleMessage()], await veRoot());
+  await expectVeEvents([veImpressionForConsoleMessage()]);
 }
 
 export async function getConsoleMessages(testName: string, withAnchor = false, callback?: () => Promise<void>) {
@@ -118,7 +117,7 @@ export async function getConsoleMessages(testName: string, withAnchor = false, c
   // Have the target load the page.
   await goToResource(`console/${testName}.html`);
 
-  return await getCurrentConsoleMessages(withAnchor, Level.All, callback);
+  return getCurrentConsoleMessages(withAnchor, Level.All, callback);
 }
 
 export async function getCurrentConsoleMessages(withAnchor = false, level = Level.All, callback?: () => Promise<void>) {
@@ -135,8 +134,8 @@ export async function getCurrentConsoleMessages(withAnchor = false, level = Leve
   }
 
   // Ensure all messages are populated.
-  await asyncScope.exec(() => frontend.waitForFunction((selector: string) => {
-    const messages = document.querySelectorAll(selector);
+  await asyncScope.exec(() => frontend.waitForFunction((CONSOLE_FIRST_MESSAGES_SELECTOR: string) => {
+    const messages = document.querySelectorAll(CONSOLE_FIRST_MESSAGES_SELECTOR);
     if (messages.length === 0) {
       return false;
     }
@@ -148,15 +147,15 @@ export async function getCurrentConsoleMessages(withAnchor = false, level = Leve
   // FIXME(crbug/1112692): Refactor test to remove the timeout.
   await timeout(100);
 
-  await expectVeEvents([veImpressionForConsoleMessage()], await veRoot());
+  await expectVeEvents([veImpressionForConsoleMessage()]);
 
   // Get the messages from the console.
-  return await frontend.evaluate(selector => {
+  return frontend.evaluate(selector => {
     return Array.from(document.querySelectorAll(selector)).map(message => message.textContent as string);
   }, selector);
 }
 
-export async function getLastConsoleMessages(offset = 0) {
+export async function getLastConsoleMessages(offset: number = 0) {
   return (await getCurrentConsoleMessages()).at(-1 - offset);
 }
 
@@ -184,44 +183,49 @@ export async function maybeGetCurrentConsoleMessages(withAnchor = false, callbac
   }, selector);
 
   if (result.length) {
-    await expectVeEvents([veImpressionForConsoleMessage()], await veRoot());
+    if ((await $$(CONSOLE_VIEW_IN_DRAWER_SELECTOR)).length) {
+      await expectVeEvents([veImpressionsUnder('Drawer', [veImpressionForConsoleMessage()])]);
+    } else {
+      await expectVeEvents([veImpressionForConsoleMessage()]);
+    }
   }
   return result;
 }
 
-export async function getStructuredConsoleMessages(devToolsPage?: DevToolsPage) {
-  devToolsPage = devToolsPage || getBrowserAndPagesWrappers().devToolsPage;
+export async function getStructuredConsoleMessages() {
+  const {frontend} = getBrowserAndPages();
   const asyncScope = new AsyncScope();
 
-  await navigateToConsoleTab(devToolsPage);
+  await navigateToConsoleTab();
 
   // Get console messages that were logged.
-  await devToolsPage.waitFor(CONSOLE_MESSAGES_SELECTOR, undefined, asyncScope);
+  await waitFor(CONSOLE_MESSAGES_SELECTOR, undefined, asyncScope);
 
   // Ensure all messages are populated.
-  await asyncScope.exec(() => devToolsPage.page.waitForFunction((selector: string) => {
-    return Array.from(document.querySelectorAll(selector)).every(message => message.childNodes.length > 0);
+  await asyncScope.exec(() => frontend.waitForFunction((CONSOLE_FIRST_MESSAGES_SELECTOR: string) => {
+    return Array.from(document.querySelectorAll(CONSOLE_FIRST_MESSAGES_SELECTOR))
+        .every(message => message.childNodes.length > 0);
   }, {timeout: 0}, CONSOLE_ALL_MESSAGES_SELECTOR));
-  await expectVeEvents([veImpressionForConsoleMessage()], await veRoot(devToolsPage), devToolsPage);
+  await expectVeEvents([veImpressionForConsoleMessage()]);
 
-  return await devToolsPage.evaluate(selector => {
-    return Array.from(document.querySelectorAll(selector)).map(wrapper => {
+  return frontend.evaluate((CONSOLE_MESSAGE_WRAPPER_SELECTOR, STACK_PREVIEW_CONTAINER) => {
+    return Array.from(document.querySelectorAll(CONSOLE_MESSAGE_WRAPPER_SELECTOR)).map(wrapper => {
       const message = wrapper.querySelector('.console-message-text')?.textContent;
       const source = wrapper.querySelector('.devtools-link')?.textContent;
       const consoleMessage = wrapper.querySelector('.console-message');
       const repeatCount = wrapper.querySelector('.console-message-repeat-count');
-      const stackPreviewRoot = wrapper.querySelector('.hidden-stack-trace > span');
-      const stackPreview = stackPreviewRoot?.shadowRoot?.querySelectorAll('tbody') ?? null;
+      const stackPreviewRoot = wrapper.querySelector('.hidden > span');
+      const stackPreview = stackPreviewRoot?.shadowRoot?.querySelector(STACK_PREVIEW_CONTAINER) ?? null;
       return {
         message,
         messageClasses: consoleMessage?.className,
-        repeatCount: repeatCount?.textContent ?? null,
+        repeatCount: repeatCount ? repeatCount?.textContent : null,
         source,
-        stackPreview: stackPreview?.length ? Array.from(stackPreview).map(x => x.textContent).join('') : null,
+        stackPreview: stackPreview ? stackPreview?.textContent : null,
         wrapperClasses: wrapper?.className,
       };
     });
-  }, CONSOLE_MESSAGE_WRAPPER_SELECTOR);
+  }, CONSOLE_MESSAGE_WRAPPER_SELECTOR, STACK_PREVIEW_CONTAINER);
 }
 
 export async function focusConsolePrompt() {
@@ -234,26 +238,23 @@ export async function focusConsolePrompt() {
 export async function showVerboseMessages() {
   await click(LOG_LEVELS_SELECTOR);
   await click(LOG_LEVELS_VERBOSE_OPTION_SELECTOR);
-  await expectVeEvents(
-      [
-        veClick(''),
-        veImpression(
-            'Menu', undefined,
-            [
-              veImpression('Action', 'default'),
-              veImpression('Toggle', 'error'),
-              veImpression('Toggle', 'info'),
-              veImpression('Toggle', 'verbose'),
-              veImpression('Toggle', 'warning'),
-            ]),
-        veClick('Menu > Toggle: verbose'),
-        veResize('Menu'),
-      ],
-      `${await veRoot()} > Toolbar > DropDown: log-level`);
+  await expectVeEvents([
+    veClick('Panel: console > Toolbar > DropDown: log-level'),
+    veImpressionsUnder('Panel: console > Toolbar > DropDown: log-level', [veImpression(
+                                                                             'Menu', undefined,
+                                                                             [
+                                                                               veImpression('Action', 'default'),
+                                                                               veImpression('Toggle', 'error'),
+                                                                               veImpression('Toggle', 'info'),
+                                                                               veImpression('Toggle', 'verbose'),
+                                                                               veImpression('Toggle', 'warning'),
+                                                                             ])]),
+    veClick('Panel: console > Toolbar > DropDown: log-level > Menu > Toggle: verbose'),
+    veResize('Panel: console > Toolbar > DropDown: log-level > Menu'),
+  ]);
 }
 
-export async function typeIntoConsole(message: string) {
-  const {frontend} = getBrowserAndPages();
+export async function typeIntoConsole(frontend: puppeteer.Page, message: string) {
   const asyncScope = new AsyncScope();
   const consoleElement = await waitFor(CONSOLE_PROMPT_SELECTOR, undefined, asyncScope);
   await consoleElement.click();
@@ -267,28 +268,32 @@ export async function typeIntoConsole(message: string) {
   // Sometimes the autocomplete suggests `assert` when typing `console.clear()` which made a test flake.
   // The following checks if there is any autocomplete text and dismisses it by pressing escape.
   if (autocomplete && await autocomplete.evaluate(e => e.textContent)) {
-    void consoleElement.press('Escape');
+    consoleElement.press('Escape');
   }
   await asyncScope.exec(
       () =>
           frontend.waitForFunction((msg: string, ln: Element) => ln.textContent === msg, {timeout: 0}, message, line));
   await consoleElement.press('Enter');
+  await expectVeEvents([veKeyDown('Panel: console > TextField: console-prompt')]);
 }
 
 export async function typeIntoConsoleAndWaitForResult(
-    message: string, leastExpectedMessages = 1, selector = Level.All) {
-  const {frontend} = getBrowserAndPages();
+    frontend: puppeteer.Page, message: string, leastExpectedMessages = 1, selector = Level.All) {
   // Get the current number of console results so we can check we increased it.
   const originalLength = await frontend.evaluate(selector => {
     return document.querySelectorAll(selector).length;
   }, selector);
 
-  await typeIntoConsole(message);
+  await typeIntoConsole(frontend, message);
 
   await new AsyncScope().exec(
       () => frontend.waitForFunction((originalLength: number, leastExpectedMessages: number, selector: string) => {
         return document.querySelectorAll(selector).length >= originalLength + leastExpectedMessages;
       }, {timeout: 0}, originalLength, leastExpectedMessages, selector));
+  await expectVeEvents([
+    veChange('Panel: console > TextField: console-prompt'),
+    veImpressionForConsoleMessage(),
+  ]);
 }
 
 export async function unifyLogVM(actualLog: string, expectedLog: string) {
@@ -307,57 +312,50 @@ export async function unifyLogVM(actualLog: string, expectedLog: string) {
   return expectedLogArray.join('\n');
 }
 
-export async function navigateToConsoleTab(devToolsPage?: DevToolsPage) {
-  devToolsPage = devToolsPage || getBrowserAndPagesWrappers().devToolsPage;
+export async function navigateToConsoleTab() {
   // Locate the button for switching to the console tab.
-  if ((await devToolsPage.$$(CONSOLE_VIEW_SELECTOR)).length) {
+  if ((await $$(CONSOLE_VIEW_SELECTOR)).length) {
     return;
   }
-  await devToolsPage.click(CONSOLE_TAB_SELECTOR);
-  await devToolsPage.waitFor(CONSOLE_PROMPT_SELECTOR);
-  await expectVeEvents([veImpressionForConsolePanel()], undefined, devToolsPage);
+  await click(CONSOLE_TAB_SELECTOR);
+  await waitFor(CONSOLE_VIEW_SELECTOR);
+  await expectVeEvents([veImpressionForConsolePanel()]);
 }
 
 export async function waitForConsoleInfoMessageAndClickOnLink() {
   const consoleMessage = await waitFor('div.console-group-messages .console-info-level span.source-code');
   await click('button.devtools-link', {root: consoleMessage});
-  await expectVeEvents([veClick('Item: console-message > Link: script-location')], await veRoot());
+  await expectVeEvents([veClick('Panel: console > Item: console-message > Link: script-location')]);
 }
 
 export async function turnOffHistoryAutocomplete() {
   await click(CONSOLE_SETTINGS_SELECTOR);
   await click(AUTOCOMPLETE_FROM_HISTORY_SELECTOR);
-  await expectVeEvents(
-      [
-        veClick('Toolbar > ToggleSubpane: console-settings'),
-        ...veImpressionsForConsoleSettings(),
-        veChange('Toggle: console-history-autocomplete'),
-      ],
-      await veRoot());
+  await expectVeEvents([
+    veClick('Panel: console > Toolbar > ToggleSubpane: console-settings'),
+    veImpressionForConsoleSettings(),
+    veChange('Panel: console > Toggle: console-history-autocomplete'),
+  ]);
 }
 
 export async function toggleShowCorsErrors() {
   await click(CONSOLE_SETTINGS_SELECTOR);
   await click(SHOW_CORS_ERRORS_SELECTOR);
-  await expectVeEvents(
-      [
-        veClick('Toolbar > ToggleSubpane: console-settings'),
-        ...veImpressionsForConsoleSettings(),
-        veChange('Toggle: console-shows-cors-errors'),
-      ],
-      await veRoot());
+  await expectVeEvents([
+    veClick('Panel: console > Toolbar > ToggleSubpane: console-settings'),
+    veImpressionForConsoleSettings(),
+    veChange('Panel: console > Toggle: console-shows-cors-errors'),
+  ]);
 }
 
 export async function toggleShowLogXmlHttpRequests() {
   await click(CONSOLE_SETTINGS_SELECTOR);
   await click(LOG_XML_HTTP_REQUESTS_SELECTOR);
-  await expectVeEvents(
-      [
-        veClick('Toolbar > ToggleSubpane: console-settings'),
-        ...veImpressionsForConsoleSettings(),
-        veChange('Toggle: monitoring-xhr-enabled'),
-      ],
-      await veRoot());
+  await expectVeEvents([
+    veClick('Panel: console > Toolbar > ToggleSubpane: console-settings'),
+    veImpressionForConsoleSettings(),
+    veChange('Panel: console > Toggle: monitoring-xhr-enabled'),
+  ]);
 }
 
 async function getIssueButtonLabel(): Promise<string|null> {
@@ -365,7 +363,7 @@ async function getIssueButtonLabel(): Promise<string|null> {
   const iconButton = await waitFor('icon-button', infobarButton);
   const titleElement = await waitFor('.icon-button-title', iconButton);
   const infobarButtonText = await titleElement.evaluate(node => (node as HTMLElement).textContent);
-  await expectVeEvents([veImpression('Counter', 'issues')], `${await veRoot()} > Toolbar`);
+  await expectVeEvents([veImpressionsUnder('Panel: console > Toolbar', [veImpression('Counter', 'issues')])]);
   return infobarButtonText;
 }
 
@@ -381,38 +379,37 @@ export async function clickOnContextMenu(selectorForNode: string, jslogContext: 
   const menuItem = await waitFor(`[jslog*="context: ${jslogContext}"]`);
   await menuItem.click();
   const isObject = ['copy-object', 'expand-recursively'].includes(jslogContext);
-  await expectVeEvents(
-      [
-        veClick(isObject ? 'Tree > TreeItem' : ''),
-        veImpressionForConsoleMessageContextMenu(jslogContext),
-        veClick(`Menu > Action: ${jslogContext}`),
-        veResize('Menu'),
-      ],
-      `${await veRoot()} > Item: console-message`);
+  await expectVeEvents([
+    veClick('Panel: console > Item: console-message' + (isObject ? ' > Tree > TreeItem' : '')),
+    veImpressionForConsoleMessageContextMenu(jslogContext),
+    veClick(`Panel: console > Item: console-message > Menu > Action: ${jslogContext}`),
+    veResize('Panel: console > Item: console-message > Menu'),
+  ]);
 }
 
 /**
  * Creates a function that runs a command and checks the nth output from the
  * bottom (checks last message by default)
  */
-export function checkCommandResultFunction(offset = 0) {
+export function checkCommandResultFunction(offset: number = 0) {
   return async function(command: string, expected: string, message?: string) {
-    await typeIntoConsoleAndWaitForResult(command);
+    await typeIntoConsoleAndWaitForResult(getBrowserAndPages().frontend, command);
     assert.strictEqual(await getLastConsoleMessages(offset), expected, message);
   };
 }
 
-export async function getLastConsoleStacktrace(offset = 0) {
+export async function getLastConsoleStacktrace(offset: number = 0) {
   return (await getStructuredConsoleMessages()).at(-1 - offset)?.stackPreview as string;
 }
 
-export async function checkCommandStacktrace(command: string, expected: string, leastMessages = 1, offset = 0) {
-  await typeIntoConsoleAndWaitForResult(command, leastMessages);
+export async function checkCommandStacktrace(
+    command: string, expected: string, leastMessages: number = 1, offset: number = 0) {
+  await typeIntoConsoleAndWaitForResult(getBrowserAndPages().frontend, command, leastMessages);
   await unifyLogVM(await getLastConsoleStacktrace(offset), expected);
 }
 
 function veImpressionForConsoleMessage() {
-  return veImpression('Item', 'console-message');
+  return veImpressionsUnder('Panel: console', [veImpression('Item', 'console-message')]);
 }
 
 export function veImpressionForConsolePanel() {
@@ -426,14 +423,14 @@ export function veImpressionForConsolePanel() {
           veImpression('Action', 'console.create-pin'),
           veImpression('DropDown', 'log-level'),
           veImpression('ToggleSubpane', 'console-settings'),
-          veImpression('TextField', 'filter'),
+          veImpression('TextField'),
         ]),
     veImpression('TextField', 'console-prompt'),
   ]);
 }
 
-function veImpressionsForConsoleSettings() {
-  return [
+function veImpressionForConsoleSettings() {
+  return veImpressionsUnder('Panel: console', [
     veImpression('Toggle', 'console-eager-eval'),
     veImpression('Toggle', 'console-group-similar'),
     veImpression('Toggle', 'console-history-autocomplete'),
@@ -443,7 +440,7 @@ function veImpressionsForConsoleSettings() {
     veImpression('Toggle', 'monitoring-xhr-enabled'),
     veImpression('Toggle', 'preserve-console-log'),
     veImpression('Toggle', 'selected-context-filter-enabled'),
-  ];
+  ]);
 }
 function veImpressionForConsoleMessageContextMenu(expectedItem: string) {
   const isObject = ['copy-object', 'expand-recursively'].includes(expectedItem);
@@ -459,10 +456,7 @@ function veImpressionForConsoleMessageContextMenu(expectedItem: string) {
   if (isString) {
     menuItems.add('copy-string-as-js-literal').add('copy-string-as-json-literal').add('copy-string-contents');
   }
-  return veImpression('Menu', undefined, [...menuItems].map(i => veImpression('Action', i)));
-}
-
-async function veRoot(devToolsPage?: DevToolsPage): Promise<string> {
-  devToolsPage = devToolsPage || getBrowserAndPagesWrappers().devToolsPage;
-  return (await devToolsPage.$$(CONSOLE_VIEW_IN_DRAWER_SELECTOR)).length ? 'Drawer > Panel: console' : 'Panel: console';
+  return veImpressionsUnder(
+      'Panel: console > Item: console-message',
+      [veImpression('Menu', undefined, [...menuItems].map(i => veImpression('Action', i)))]);
 }

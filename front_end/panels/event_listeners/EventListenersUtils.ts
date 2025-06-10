@@ -13,7 +13,7 @@ export async function frameworkEventListeners(object: SDK.RemoteObject.RemoteObj
   }
 
   const listenersResult = {internalHandlers: null, eventListeners: []} as FrameworkEventListenersObject;
-  return await object.callFunction(frameworkEventListenersImpl, undefined)
+  return object.callFunction(frameworkEventListenersImpl, undefined)
       .then(assertCallFunctionResult)
       .then(getOwnProperties)
       .then(createEventListeners)
@@ -142,7 +142,7 @@ export async function frameworkEventListeners(object: SDK.RemoteObject.RemoteObj
         }
         return new SDK.DOMDebuggerModel.EventListener(
             domDebuggerModel as SDK.DOMDebuggerModel.DOMDebuggerModel, object, type, useCapture, passive, once, handler,
-            originalHandler, location, removeFunctionObject, SDK.DOMDebuggerModel.EventListener.Origin.FRAMEWORK_USER);
+            originalHandler, location, removeFunctionObject, SDK.DOMDebuggerModel.EventListener.Origin.FrameworkUser);
       }
     }
   }
@@ -181,7 +181,7 @@ export async function frameworkEventListeners(object: SDK.RemoteObject.RemoteObj
     return result.object;
   }
 
-  function filterOutEmptyObjects<T>(objects: Array<T|null>): T[] {
+  function filterOutEmptyObjects<T>(objects: (T|null)[]): T[] {
     return objects.filter(filterOutEmpty) as T[];
 
     function filterOutEmpty(object: T|null): boolean {
@@ -212,15 +212,15 @@ export async function frameworkEventListeners(object: SDK.RemoteObject.RemoteObj
           ]
         }
     */
-  function frameworkEventListenersImpl(this: Object): {eventListeners: EventListenerObjectInInspectedPage[]} {
+  function frameworkEventListenersImpl(this: Object): {eventListeners: Array<EventListenerObjectInInspectedPage>} {
     const errorLines = [];
     let eventListeners: EventListenerObjectInInspectedPage[] = [];
-    let internalHandlers: Array<() => void> = [];
+    let internalHandlers: (() => void)[] = [];
     let fetchers = [jQueryFetcher];
     try {
-      // @ts-expect-error Here because of layout tests.
+      // @ts-ignore Here because of layout tests.
       if (self.devtoolsFrameworkEventListeners && isArrayLike(self.devtoolsFrameworkEventListeners)) {
-        // @ts-expect-error Here because of layout tests.
+        // @ts-ignore Here because of layout tests.
         fetchers = fetchers.concat(self.devtoolsFrameworkEventListeners);
       }
     } catch (e) {
@@ -240,13 +240,13 @@ export async function frameworkEventListeners(object: SDK.RemoteObject.RemoteObj
           eventListeners = eventListeners.concat(nonEmptyEventListeners as EventListenerObjectInInspectedPage[]);
         }
         if (fetcherResult.internalHandlers && isArrayLike(fetcherResult.internalHandlers)) {
-          const fetcherResultInternalHandlers = fetcherResult.internalHandlers as Array<() => void>;
+          const fetcherResultInternalHandlers = fetcherResult.internalHandlers as (() => void)[];
           const nonEmptyInternalHandlers = fetcherResultInternalHandlers
                                                .map(handler => {
                                                  return checkInternalHandler(handler);
                                                })
                                                .filter(nonEmptyObject);
-          internalHandlers = internalHandlers.concat(nonEmptyInternalHandlers as Array<() => void>);
+          internalHandlers = internalHandlers.concat(nonEmptyInternalHandlers as (() => void)[]);
         }
       } catch (e) {
         errorLines.push('fetcher call produced error: ' + toString(e));
@@ -254,10 +254,10 @@ export async function frameworkEventListeners(object: SDK.RemoteObject.RemoteObj
     }
     const result: {
       eventListeners: EventListenerObjectInInspectedPage[],
-      internalHandlers?: Array<() => void>,
+      internalHandlers?: (() => void)[],
       errorString?: string,
     } = {
-      eventListeners,
+      eventListeners: eventListeners,
       internalHandlers: internalHandlers.length ? internalHandlers : undefined,
       errorString: undefined,
     };
@@ -293,13 +293,13 @@ export async function frameworkEventListeners(object: SDK.RemoteObject.RemoteObj
           const len = obj.length;
           return typeof len === 'number' && (len >>> 0 === len && (len > 0 || 1 / len > 0));
         }
-      } catch {
+      } catch (e) {
       }
       return false;
     }
 
-    function checkEventListener(eventListener: PossibleEventListenerObjectInInspectedPage|null):
-        EventListenerObjectInInspectedPage|null {
+    function checkEventListener(eventListener: PossibleEventListenerObjectInInspectedPage|
+                                null): EventListenerObjectInInspectedPage|null {
       try {
         let errorString = '';
         if (!eventListener) {
@@ -331,12 +331,12 @@ export async function frameworkEventListeners(object: SDK.RemoteObject.RemoteObj
           }
           if (!errorString) {
             return {
-              type,
-              useCapture,
-              passive,
-              once,
-              handler,
-              remove,
+              type: type,
+              useCapture: useCapture,
+              passive: passive,
+              once: once,
+              handler: handler,
+              remove: remove,
             } as EventListenerObjectInInspectedPage;
           }
         }
@@ -362,7 +362,7 @@ export async function frameworkEventListeners(object: SDK.RemoteObject.RemoteObj
     function toString(obj: any): string {
       try {
         return String(obj);
-      } catch {
+      } catch (e) {
         return '<error>';
       }
     }
@@ -374,15 +374,15 @@ export async function frameworkEventListeners(object: SDK.RemoteObject.RemoteObj
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function jQueryFetcher(node: any): {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      eventListeners: Array<{handler: any, useCapture: boolean, passive: boolean, once: boolean, type: string}>,
-      internalHandlers?: Array<() => void>,
+      eventListeners: {handler: any, useCapture: boolean, passive: boolean, once: boolean, type: string}[],
+      internalHandlers?: (() => void)[],
     } {
       if (!node || !(node instanceof Node)) {
         return {eventListeners: []};
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const jQuery = (window as any)['jQuery'];
-      if (!jQuery?.fn) {
+      if (!jQuery || !jQuery.fn) {
         return {eventListeners: []};
       }
       const jQueryFunction = jQuery;
@@ -402,7 +402,7 @@ export async function frameworkEventListeners(object: SDK.RemoteObject.RemoteObj
                 useCapture: true,
                 passive: false,
                 once: false,
-                type,
+                type: type,
                 remove: jQueryRemove.bind(node, frameworkListener.selector),
               };
               eventListeners.push(listener);
@@ -421,31 +421,31 @@ export async function frameworkEventListeners(object: SDK.RemoteObject.RemoteObj
           const events = entryEvents[type];
           for (const key in events) {
             if (typeof events[key] === 'function') {
-              const listener = {handler: events[key], useCapture: true, passive: false, once: false, type};
+              const listener = {handler: events[key], useCapture: true, passive: false, once: false, type: type};
               // We don't support removing for old version < 1.4 of jQuery because it doesn't provide API for getting "selector".
               eventListeners.push(listener);
             }
           }
         }
-        if (entry?.['$handle']) {
+        if (entry && entry['$handle']) {
           internalHandlers.push(entry['$handle']);
         }
       }
-      return {eventListeners, internalHandlers};
+      return {eventListeners: eventListeners, internalHandlers: internalHandlers};
     }
 
     function jQueryRemove(this: Object|null, selector: string, type: string, handler: () => void): void {
       if (!this || !(this instanceof Node)) {
         return;
       }
-      const node = this;
+      const node = this as Node;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const jQuery = (window as any)['jQuery'];
-      if (!jQuery?.fn) {
+      if (!jQuery || !jQuery.fn) {
         return;
       }
       const jQueryFunction = jQuery as (arg0: Node) => {
-        off: (...arg: any[]) => void,
+        off: Function,
       };
       jQueryFunction(node).off(type, selector, handler);
     }

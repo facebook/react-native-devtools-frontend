@@ -6,17 +6,13 @@ import * as i18n from '../i18n/i18n.js';
 import type * as Platform from '../platform/platform.js';
 import * as Root from '../root/root.js';
 
-import type {SettingStorageType} from './Settings.js';
+import {type SettingStorageType} from './Settings.js';
 
 const UIStrings = {
   /**
    *@description Title of the Elements Panel
    */
   elements: 'Elements',
-  /**
-   *@description Text for DevTools AI
-   */
-  ai: 'AI',
   /**
    *@description Text for DevTools appearance
    */
@@ -78,14 +74,10 @@ const UIStrings = {
    * section allows users to configure which DevTools data is synced via Chrome Sync.
    */
   sync: 'Sync',
-  /**
-   * @description Text for the privacy section of the page.
-   */
-  privacy: 'Privacy',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('core/common/SettingRegistration.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-let registeredSettings: SettingRegistration[] = [];
+let registeredSettings: Array<SettingRegistration> = [];
 const settingNameSet = new Set<string>();
 
 export function registerSettingExtension(registration: SettingRegistration): void {
@@ -97,11 +89,13 @@ export function registerSettingExtension(registration: SettingRegistration): voi
   registeredSettings.push(registration);
 }
 
-export function getRegisteredSettings(): SettingRegistration[] {
-  return registeredSettings.filter(setting => Root.Runtime.Runtime.isDescriptorEnabled(setting));
+export function getRegisteredSettings(config?: Root.Runtime.HostConfig): Array<SettingRegistration> {
+  return registeredSettings.filter(
+      setting => Root.Runtime.Runtime.isDescriptorEnabled(
+          {experiment: setting.experiment, condition: setting.condition}, config));
 }
 
-export function registerSettingsForTest(settings: SettingRegistration[], forceReset = false): void {
+export function registerSettingsForTest(settings: Array<SettingRegistration>, forceReset: boolean = false): void {
   if (registeredSettings.length === 0 || forceReset) {
     registeredSettings = settings;
     settingNameSet.clear();
@@ -132,7 +126,6 @@ export function maybeRemoveSettingExtension(settingName: string): boolean {
 export const enum SettingCategory {
   NONE = '',  // `NONE` must be a falsy value. Legacy code uses if-checks for the category.
   ELEMENTS = 'ELEMENTS',
-  AI = 'AI',
   APPEARANCE = 'APPEARANCE',
   SOURCES = 'SOURCES',
   NETWORK = 'NETWORK',
@@ -149,15 +142,12 @@ export const enum SettingCategory {
   EXTENSIONS = 'EXTENSIONS',
   ADORNER = 'ADORNER',
   SYNC = 'SYNC',
-  PRIVACY = 'PRIVACY',
 }
 
 export function getLocalizedSettingsCategory(category: SettingCategory): Platform.UIString.LocalizedString {
   switch (category) {
     case SettingCategory.ELEMENTS:
       return i18nString(UIStrings.elements);
-    case SettingCategory.AI:
-      return i18nString(UIStrings.ai);
     case SettingCategory.APPEARANCE:
       return i18nString(UIStrings.appearance);
     case SettingCategory.SOURCES:
@@ -192,8 +182,6 @@ export function getLocalizedSettingsCategory(category: SettingCategory): Platfor
       return i18n.i18n.lockedString('');
     case SettingCategory.SYNC:
       return i18nString(UIStrings.sync);
-    case SettingCategory.PRIVACY:
-      return i18nString(UIStrings.privacy);
   }
 }
 
@@ -259,7 +247,7 @@ export interface SettingRegistration {
   /**
    * The possible values the setting can have, each with a description composed of a title and an optional text.
    */
-  options?: SettingExtensionOption[];
+  options?: Array<SettingExtensionOption>;
   /**
    * Whether DevTools must be reloaded for a change in the setting to take effect.
    */
@@ -293,30 +281,13 @@ export interface SettingRegistration {
   disabledCondition?: (config?: Root.Runtime.HostConfig) => DisabledConditionResult;
 
   /**
-   * If a setting is deprecated, define this notice to show an appropriate warning according to the `warning` property.
+   * If a setting is deprecated, define this notice to show an appropriate warning according to the `warning` propertiy.
    * If `disabled` is set, the setting will be disabled in the settings UI. In that case, `experiment` optionally can be
    * set to link to an experiment (by experiment name). The information icon in the settings UI can then be clicked to
    * jump to the experiment. If a setting is not disabled, the experiment entry will be ignored.
    */
   deprecationNotice?: {disabled: boolean, warning: () => Platform.UIString.LocalizedString, experiment?: string};
-
-  /**
-   * Optional information to learn more about the setting. If provided, a `(?)` icon will show next to the setting
-   * in the Settings panel with a link to learn more, and the `tooltip` will be presented to the user when hovering
-   * the `(?)` icon.
-   */
-  learnMore?: LearnMore;
 }
-
-/**
- * Metadata to learn more about a setting. The `url` will be used to construct
- * a `(?)` icon link and the `tooltip` will be shown when hovering the icon.
- */
-export interface LearnMore {
-  tooltip: () => Platform.UIString.LocalizedString;
-  url?: Platform.DevToolsPath.UrlString;
-}
-
 interface LocalizedSettingExtensionOption {
   value: boolean|string;
   title: () => Platform.UIString.LocalizedString;
@@ -335,5 +306,5 @@ interface RawSettingExtensionOption {
 export type SettingExtensionOption = LocalizedSettingExtensionOption|RawSettingExtensionOption;
 export type DisabledConditionResult = {
   disabled: true,
-  reasons: string[],
+  reason: string,
 }|{disabled: false};

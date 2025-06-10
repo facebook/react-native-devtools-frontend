@@ -20,21 +20,32 @@ interface CachedScopeMap {
 
 const scopeToCachedIdentifiersMap = new WeakMap<Formatter.FormatterWorkerPool.ScopeTreeNode, CachedScopeMap>();
 const cachedMapByCallFrame = new WeakMap<SDK.DebuggerModel.CallFrame, Map<string, string|null>>();
+const cachedTextByContentData = new WeakMap<TextUtils.ContentData.ContentData, TextUtils.Text.Text>();
 
 export async function getTextFor(contentProvider: TextUtils.ContentProvider.ContentProvider):
     Promise<TextUtils.Text.Text|null> {
+  // We intentionally cache based on the ContentData object rather
+  // than the ContentProvider object, which may appear as a more sensible
+  // choice, since the content of both Script and UISourceCode objects
+  // can change over time.
   const contentData = await contentProvider.requestContentData();
   if (TextUtils.ContentData.ContentData.isError(contentData) || !contentData.isTextContent) {
     return null;
   }
-  return contentData.textObj;
+
+  let text = cachedTextByContentData.get(contentData);
+  if (text === undefined) {
+    text = new TextUtils.Text.Text(contentData.text);
+    cachedTextByContentData.set(contentData, text);
+  }
+  return text;
 }
 
 export class IdentifierPositions {
   name: string;
-  positions: Array<{lineNumber: number, columnNumber: number}>;
+  positions: {lineNumber: number, columnNumber: number}[];
 
-  constructor(name: string, positions: Array<{lineNumber: number, columnNumber: number}> = []) {
+  constructor(name: string, positions: {lineNumber: number, columnNumber: number}[] = []) {
     this.name = name;
     this.positions = positions;
   }
@@ -157,7 +168,7 @@ freeVariables:
   for (const variable of scope.variables) {
     // Skip the fixed-kind variable (i.e., 'this' or 'arguments') if we only found their "definition"
     // without any uses.
-    if (variable.kind === Formatter.FormatterWorkerPool.DefinitionKind.FIXED && variable.offsets.length <= 1) {
+    if (variable.kind === Formatter.FormatterWorkerPool.DefinitionKind.Fixed && variable.offsets.length <= 1) {
       continue;
     }
 
@@ -194,11 +205,11 @@ freeVariables:
 const identifierAndPunctuationRegExp = /^\s*([A-Za-z_$][A-Za-z_$0-9]*)\s*([.;,=]?)\s*$/;
 
 const enum Punctuation {
-  NONE = 'none',
-  COMMA = 'comma',
-  DOT = 'dot',
-  SEMICOLON = 'semicolon',
-  EQUALS = 'equals',
+  None = 'none',
+  Comma = 'comma',
+  Dot = 'dot',
+  Semicolon = 'semicolon',
+  Equals = 'equals',
 }
 
 const resolveDebuggerScope = async(scope: SDK.DebuggerModel.ScopeChainEntry):
@@ -208,7 +219,7 @@ const resolveDebuggerScope = async(scope: SDK.DebuggerModel.ScopeChainEntry):
       }
       const script = scope.callFrame().script;
       const scopeChain = await findScopeChainForDebuggerScope(scope);
-      return await resolveScope(script, scopeChain);
+      return resolveScope(script, scopeChain);
     };
 
 const resolveScope = async(script: SDK.Script.Script, scopeChain: Formatter.FormatterWorkerPool.ScopeTreeNode[]):
@@ -231,13 +242,13 @@ const resolveScope = async(script: SDK.Script.Script, scopeChain: Formatter.Form
               }
               // Extract as much as possible from SourceMap and resolve
               // missing identifier names from SourceMap ranges.
-              const promises: Array<Promise<void>> = [];
+              const promises: Promise<void>[] = [];
 
               const resolveEntry = (id: IdentifierPositions, handler: (sourceName: string) => void): void => {
                 // First see if we have a source map entry with a name for the identifier.
                 for (const position of id.positions) {
                   const entry = sourceMap.findEntry(position.lineNumber, position.columnNumber);
-                  if (entry?.name) {
+                  if (entry && entry.name) {
                     handler(entry.name);
                     return;
                   }
@@ -335,7 +346,7 @@ const resolveScope = async(script: SDK.Script.Script, scopeChain: Formatter.Form
           return sourceName;
         }
         // Let us also allow semicolons into commas since that it is a common transformation.
-        if (compiledPunctuation === Punctuation.COMMA && sourcePunctuation === Punctuation.SEMICOLON) {
+        if (compiledPunctuation === Punctuation.Comma && sourcePunctuation === Punctuation.Semicolon) {
           return sourceName;
         }
 
@@ -351,19 +362,19 @@ const resolveScope = async(script: SDK.Script.Script, scopeChain: Formatter.Form
           let punctuation: Punctuation|null = null;
           switch (match[2]) {
             case '.':
-              punctuation = Punctuation.DOT;
+              punctuation = Punctuation.Dot;
               break;
             case ',':
-              punctuation = Punctuation.COMMA;
+              punctuation = Punctuation.Comma;
               break;
             case ';':
-              punctuation = Punctuation.SEMICOLON;
+              punctuation = Punctuation.Semicolon;
               break;
             case '=':
-              punctuation = Punctuation.EQUALS;
+              punctuation = Punctuation.Equals;
               break;
             case '':
-              punctuation = Punctuation.NONE;
+              punctuation = Punctuation.None;
               break;
             default:
               console.error(`Name token parsing error: unexpected token "${match[2]}"`);
@@ -378,12 +389,7 @@ const resolveScope = async(script: SDK.Script.Script, scopeChain: Formatter.Form
 export const resolveScopeChain =
     async function(callFrame: SDK.DebuggerModel.CallFrame): Promise<SDK.DebuggerModel.ScopeChainEntry[]> {
   const {pluginManager} = Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance();
-  let scopeChain: SDK.DebuggerModel.ScopeChainEntry[]|null|undefined = await pluginManager.resolveScopeChain(callFrame);
-  if (scopeChain) {
-    return scopeChain;
-  }
-
-  scopeChain = callFrame.script.sourceMap()?.resolveScopeChain(callFrame);
+  const scopeChain = await pluginManager.resolveScopeChain(callFrame);
   if (scopeChain) {
     return scopeChain;
   }
@@ -727,11 +733,11 @@ export class RemoteObject extends SDK.RemoteObject.RemoteObject {
         break;
       }
     }
-    return await this.object.setPropertyValue(actualName, value);
+    return this.object.setPropertyValue(actualName, value);
   }
 
   override async deleteProperty(name: Protocol.Runtime.CallArgument): Promise<string|undefined> {
-    return await this.object.deleteProperty(name);
+    return this.object.deleteProperty(name);
   }
 
   override callFunction<T, U>(
@@ -776,14 +782,16 @@ async function getFunctionNameFromScopeStart(
     return null;
   }
 
-  const scopeName = sourceMap.findOriginalFunctionName({line: lineNumber, column: columnNumber});
-  if (scopeName !== null) {
-    return scopeName;
-  }
-
   const mappingEntry = sourceMap.findEntry(lineNumber, columnNumber);
   if (!mappingEntry || !mappingEntry.sourceURL) {
     return null;
+  }
+
+  const scopeName =
+      sourceMap.findScopeEntry(mappingEntry.sourceURL, mappingEntry.sourceLineNumber, mappingEntry.sourceColumnNumber)
+          ?.scopeName();
+  if (scopeName) {
+    return scopeName;
   }
 
   const name = mappingEntry.name;

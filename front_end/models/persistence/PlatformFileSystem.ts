@@ -3,8 +3,8 @@
 // found in the LICENSE file.
 
 import type * as Common from '../../core/common/common.js';
-import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
+import * as i18n from '../../core/i18n/i18n.js';
 import type * as TextUtils from '../text_utils/text_utils.js';
 
 const UIStrings = {
@@ -12,47 +12,15 @@ const UIStrings = {
    * @description Assertion error message when failing to load a file.
    */
   unableToReadFilesWithThis: '`PlatformFileSystem` cannot read files.',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('models/persistence/PlatformFileSystem.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-
-export enum PlatformFileSystemType {
-  /**
-   * Snippets are implemented as a PlatformFileSystem but they are
-   * actually stored in the browser's profile directory and do not
-   * create files on the actual filesystem.
-   *
-   * See Sources > Snippets in the UI.
-   */
-  SNIPPETS = 'snippets',
-  /**
-   * Overrides is a filesystem that represents a user-selected folder on
-   * disk. This folder is used to replace page resources using request
-   * interception.
-   *
-   * See Sources > Overrides in the UI.
-   */
-  OVERRIDES = 'overrides',
-  /**
-   * Represents a filesystem for a workspace folder that the user added
-   * to DevTools. It can be manually connected or it can be
-   * automatically discovered based on the hints found in devtools.json
-   * served by the inspected page (see
-   * https://goo.gle/devtools-json-design). DevTools tries to map the
-   * page content to the content in such folder but does not use request
-   * interception for this.
-   */
-  WORKSPACE_PROJECT = 'workspace-project',
-}
-
 export class PlatformFileSystem {
   private readonly pathInternal: Platform.DevToolsPath.UrlString;
-  #type: PlatformFileSystemType;
-  #automatic: boolean;
-  constructor(path: Platform.DevToolsPath.UrlString, type: PlatformFileSystemType, automatic: boolean) {
+  private readonly typeInternal: string;
+  constructor(path: Platform.DevToolsPath.UrlString, type: string) {
     this.pathInternal = path;
-    this.#type = type;
-    this.#automatic = automatic;
+    this.typeInternal = type;
   }
 
   getMetadata(_path: Platform.DevToolsPath.EncodedPathString): Promise<{modificationTime: Date, size: number}|null> {
@@ -75,21 +43,14 @@ export class PlatformFileSystem {
     throw new Error('Not implemented');
   }
 
-  type(): PlatformFileSystemType {
-    return this.#type;
-  }
-
-  /**
-   * True if the filesystem was automatically discovered (see
-   * https://goo.gle/devtools-json-design).
-   */
-  automatic(): boolean {
-    return this.#automatic;
+  type(): string {
+    // TODO(kozyatinskiy): remove type, overrides should implement this interface.
+    return this.typeInternal;
   }
 
   async createFile(_path: Platform.DevToolsPath.EncodedPathString, _name: Platform.DevToolsPath.RawPathString|null):
       Promise<Platform.DevToolsPath.EncodedPathString|null> {
-    return await Promise.resolve(null);
+    return Promise.resolve(null);
   }
 
   deleteFile(_path: Platform.DevToolsPath.EncodedPathString): Promise<boolean> {

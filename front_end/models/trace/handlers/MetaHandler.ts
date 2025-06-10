@@ -6,32 +6,33 @@ import * as Platform from '../../../core/platform/platform.js';
 import * as Helpers from '../helpers/helpers.js';
 import * as Types from '../types/types.js';
 
+import {HandlerState} from './types.js';
+
 // We track the renderer processes we see in each frame on the way through the trace.
 const rendererProcessesByFrameId: FrameProcessData = new Map();
 
 // We will often want to key data by Frame IDs, and commonly we'll care most
 // about the main frame's ID, so we store and expose that.
-let mainFrameId = '';
-let mainFrameURL = '';
+let mainFrameId: string = '';
+let mainFrameURL: string = '';
 
-const framesByProcessId = new Map<Types.Events.ProcessID, Map<string, Types.Events.TraceFrame>>();
+const framesByProcessId = new Map<Types.TraceEvents.ProcessID, Map<string, Types.TraceEvents.TraceFrame>>();
 
 // We will often want to key data by the browser process, GPU process and top
 // level renderer IDs, so keep a track on those.
-let browserProcessId: Types.Events.ProcessID = Types.Events.ProcessID(-1);
-let browserThreadId: Types.Events.ThreadID = Types.Events.ThreadID(-1);
-let gpuProcessId: Types.Events.ProcessID = Types.Events.ProcessID(-1);
-let gpuThreadId: Types.Events.ThreadID = Types.Events.ThreadID(-1);
+let browserProcessId: Types.TraceEvents.ProcessID = Types.TraceEvents.ProcessID(-1);
+let browserThreadId: Types.TraceEvents.ThreadID = Types.TraceEvents.ThreadID(-1);
+let gpuProcessId: Types.TraceEvents.ProcessID = Types.TraceEvents.ProcessID(-1);
+let gpuThreadId: Types.TraceEvents.ThreadID = Types.TraceEvents.ThreadID(-1);
 let viewportRect: DOMRect|null = null;
-let devicePixelRatio: number|null = null;
 
-const processNames = new Map<Types.Events.ProcessID, Types.Events.ProcessName>();
+const processNames: Map<Types.TraceEvents.ProcessID, Types.TraceEvents.TraceEventProcessName> = new Map();
 
-const topLevelRendererIds = new Set<Types.Events.ProcessID>();
-const traceBounds: Types.Timing.TraceWindowMicro = {
-  min: Types.Timing.Micro(Number.POSITIVE_INFINITY),
-  max: Types.Timing.Micro(Number.NEGATIVE_INFINITY),
-  range: Types.Timing.Micro(Number.POSITIVE_INFINITY),
+const topLevelRendererIds = new Set<Types.TraceEvents.ProcessID>();
+const traceBounds: Types.Timing.TraceWindowMicroSeconds = {
+  min: Types.Timing.MicroSeconds(Number.POSITIVE_INFINITY),
+  max: Types.Timing.MicroSeconds(Number.NEGATIVE_INFINITY),
+  range: Types.Timing.MicroSeconds(Number.POSITIVE_INFINITY),
 };
 
 /**
@@ -44,28 +45,29 @@ const traceBounds: Types.Timing.TraceWindowMicro = {
  * Note that these Maps will have the same values in them; these are just keyed
  * differently to make look-ups easier.
  *
- * We also additionally maintain an array of only navigations that occurred on
+ * We also additionally maintain an array of only navigations that occured on
  * the main frame. In many places in the UI we only care about highlighting
  * main frame navigations, so calculating this list here is better than
  * filtering either of the below maps over and over again at the UI layer.
  */
-const navigationsByFrameId = new Map<string, Types.Events.NavigationStart[]>();
-const navigationsByNavigationId = new Map<string, Types.Events.NavigationStart>();
-const finalDisplayUrlByNavigationId = new Map<string, string>();
-const mainFrameNavigations: Types.Events.NavigationStart[] = [];
+const navigationsByFrameId = new Map<string, Types.TraceEvents.TraceEventNavigationStart[]>();
+const navigationsByNavigationId = new Map<string, Types.TraceEvents.TraceEventNavigationStart>();
+const mainFrameNavigations: Types.TraceEvents.TraceEventNavigationStart[] = [];
 
 // Represents all the threads in the trace, organized by process. This is mostly for internal
 // bookkeeping so that during the finalize pass we can obtain the main and browser thread IDs.
-const threadsInProcess = new Map<Types.Events.ProcessID, Map<Types.Events.ThreadID, Types.Events.ThreadName>>();
+const threadsInProcess =
+    new Map<Types.TraceEvents.ProcessID, Map<Types.TraceEvents.ThreadID, Types.TraceEvents.TraceEventThreadName>>();
 
-let traceStartedTimeFromTracingStartedEvent = Types.Timing.Micro(-1);
+let traceStartedTimeFromTracingStartedEvent = Types.Timing.MicroSeconds(-1);
 const eventPhasesOfInterestForTraceBounds = new Set([
-  Types.Events.Phase.BEGIN,
-  Types.Events.Phase.END,
-  Types.Events.Phase.COMPLETE,
-  Types.Events.Phase.INSTANT,
+  Types.TraceEvents.Phase.BEGIN,
+  Types.TraceEvents.Phase.END,
+  Types.TraceEvents.Phase.COMPLETE,
+  Types.TraceEvents.Phase.INSTANT,
 ]);
 
+let handlerState = HandlerState.UNINITIALIZED;
 // Tracks if the trace is a generic trace, which here means that it did not come from athe DevTools Performance Panel recording.
 // We assume a trace is generic, and mark it as not generic if we see any of:
 // - TracingStartedInPage
@@ -74,45 +76,56 @@ const eventPhasesOfInterestForTraceBounds = new Set([
 // These are all events which indicate this is a Chrome browser trace.
 let traceIsGeneric = true;
 const CHROME_WEB_TRACE_EVENTS = new Set([
-  Types.Events.Name.TRACING_STARTED_IN_PAGE,
-  Types.Events.Name.TRACING_SESSION_ID_FOR_WORKER,
-  Types.Events.Name.TRACING_STARTED_IN_BROWSER,
+  Types.TraceEvents.KnownEventName.TracingStartedInPage,
+  Types.TraceEvents.KnownEventName.TracingSessionIdForWorker,
+  Types.TraceEvents.KnownEventName.TracingStartedInBrowser,
 
 ]);
 
 export function reset(): void {
   navigationsByFrameId.clear();
   navigationsByNavigationId.clear();
-  finalDisplayUrlByNavigationId.clear();
   processNames.clear();
   mainFrameNavigations.length = 0;
 
-  browserProcessId = Types.Events.ProcessID(-1);
-  browserThreadId = Types.Events.ThreadID(-1);
-  gpuProcessId = Types.Events.ProcessID(-1);
-  gpuThreadId = Types.Events.ThreadID(-1);
+  browserProcessId = Types.TraceEvents.ProcessID(-1);
+  browserThreadId = Types.TraceEvents.ThreadID(-1);
+  gpuProcessId = Types.TraceEvents.ProcessID(-1);
+  gpuThreadId = Types.TraceEvents.ThreadID(-1);
   viewportRect = null;
   topLevelRendererIds.clear();
   threadsInProcess.clear();
   rendererProcessesByFrameId.clear();
   framesByProcessId.clear();
 
-  traceBounds.min = Types.Timing.Micro(Number.POSITIVE_INFINITY);
-  traceBounds.max = Types.Timing.Micro(Number.NEGATIVE_INFINITY);
-  traceBounds.range = Types.Timing.Micro(Number.POSITIVE_INFINITY);
-  traceStartedTimeFromTracingStartedEvent = Types.Timing.Micro(-1);
+  traceBounds.min = Types.Timing.MicroSeconds(Number.POSITIVE_INFINITY);
+  traceBounds.max = Types.Timing.MicroSeconds(Number.NEGATIVE_INFINITY);
+  traceBounds.range = Types.Timing.MicroSeconds(Number.POSITIVE_INFINITY);
+  traceStartedTimeFromTracingStartedEvent = Types.Timing.MicroSeconds(-1);
 
   traceIsGeneric = true;
+
+  handlerState = HandlerState.UNINITIALIZED;
 }
 
-function updateRendererProcessByFrame(event: Types.Events.Event, frame: Types.Events.TraceFrame): void {
+export function initialize(): void {
+  if (handlerState !== HandlerState.UNINITIALIZED) {
+    throw new Error('Meta Handler was not reset');
+  }
+
+  handlerState = HandlerState.INITIALIZED;
+}
+
+function updateRendererProcessByFrame(
+    event: Types.TraceEvents.TraceEventData, frame: Types.TraceEvents.TraceFrame): void {
   const framesInProcessById = Platform.MapUtilities.getWithDefault(framesByProcessId, frame.processId, () => new Map());
   framesInProcessById.set(frame.frame, frame);
 
   const rendererProcessInFrame = Platform.MapUtilities.getWithDefault(
       rendererProcessesByFrameId, frame.frame,
       () => new Map<
-          Types.Events.ProcessID, Array<{frame: Types.Events.TraceFrame, window: Types.Timing.TraceWindowMicro}>>());
+          Types.TraceEvents.ProcessID,
+          {frame: Types.TraceEvents.TraceFrame, window: Types.Timing.TraceWindowMicroSeconds}[]>());
   const rendererProcessInfo = Platform.MapUtilities.getWithDefault(rendererProcessInFrame, frame.processId, () => {
     return [];
   });
@@ -129,18 +142,22 @@ function updateRendererProcessByFrame(event: Types.Events.Event, frame: Types.Ev
     frame,
     window: {
       min: event.ts,
-      max: Types.Timing.Micro(0),
-      range: Types.Timing.Micro(0),
+      max: Types.Timing.MicroSeconds(0),
+      range: Types.Timing.MicroSeconds(0),
     },
   });
 }
 
-export function handleEvent(event: Types.Events.Event): void {
-  if (traceIsGeneric && CHROME_WEB_TRACE_EVENTS.has(event.name as Types.Events.Name)) {
+export function handleEvent(event: Types.TraceEvents.TraceEventData): void {
+  if (handlerState !== HandlerState.INITIALIZED) {
+    throw new Error('Meta Handler is not initialized');
+  }
+
+  if (traceIsGeneric && CHROME_WEB_TRACE_EVENTS.has(event.name as Types.TraceEvents.KnownEventName)) {
     traceIsGeneric = false;
   }
 
-  if (Types.Events.isProcessName(event)) {
+  if (Types.TraceEvents.isProcessName(event)) {
     processNames.set(event.pid, event);
   }
 
@@ -150,44 +167,44 @@ export function handleEvent(event: Types.Events.Event): void {
   // The UMA events in particular seem to be reported on page unloading, which
   // often extends the bounds of the trace unhelpfully.
   if (event.ts !== 0 && !event.name.endsWith('::UMA') && eventPhasesOfInterestForTraceBounds.has(event.ph)) {
-    traceBounds.min = Types.Timing.Micro(Math.min(event.ts, traceBounds.min));
-    const eventDuration = event.dur ?? Types.Timing.Micro(0);
-    traceBounds.max = Types.Timing.Micro(Math.max(event.ts + eventDuration, traceBounds.max));
+    traceBounds.min = Types.Timing.MicroSeconds(Math.min(event.ts, traceBounds.min));
+    const eventDuration = event.dur || Types.Timing.MicroSeconds(0);
+    traceBounds.max = Types.Timing.MicroSeconds(Math.max(event.ts + eventDuration, traceBounds.max));
   }
 
-  if (Types.Events.isProcessName(event) && (event.args.name === 'Browser' || event.args.name === 'HeadlessBrowser')) {
+  if (Types.TraceEvents.isProcessName(event) &&
+      (event.args.name === 'Browser' || event.args.name === 'HeadlessBrowser')) {
     browserProcessId = event.pid;
     return;
   }
 
-  if (Types.Events.isProcessName(event) && (event.args.name === 'Gpu' || event.args.name === 'GPU Process')) {
+  if (Types.TraceEvents.isProcessName(event) && (event.args.name === 'Gpu' || event.args.name === 'GPU Process')) {
     gpuProcessId = event.pid;
     return;
   }
 
-  if (Types.Events.isThreadName(event) && event.args.name === 'CrGpuMain') {
+  if (Types.TraceEvents.isThreadName(event) && event.args.name === 'CrGpuMain') {
     gpuThreadId = event.tid;
     return;
   }
 
-  if (Types.Events.isThreadName(event) && event.args.name === 'CrBrowserMain') {
+  if (Types.TraceEvents.isThreadName(event) && event.args.name === 'CrBrowserMain') {
     browserThreadId = event.tid;
   }
 
-  if (Types.Events.isMainFrameViewport(event) && viewportRect === null) {
+  if (Types.TraceEvents.isTraceEventMainFrameViewport(event) && viewportRect === null) {
     const rectAsArray = event.args.data.viewport_rect;
     const viewportX = rectAsArray[0];
     const viewportY = rectAsArray[1];
     const viewportWidth = rectAsArray[2];
     const viewportHeight = rectAsArray[5];
     viewportRect = new DOMRect(viewportX, viewportY, viewportWidth, viewportHeight);
-    devicePixelRatio = event.args.data.dpr;
   }
 
   // The TracingStartedInBrowser event includes the data on which frames are
   // in scope at the start of the trace. We use this to identify the frame with
   // no parent, i.e. the top level frame.
-  if (Types.Events.isTracingStartedInBrowser(event)) {
+  if (Types.TraceEvents.isTraceEventTracingStartedInBrowser(event)) {
     traceStartedTimeFromTracingStartedEvent = event.ts;
 
     if (!event.args.data) {
@@ -238,15 +255,17 @@ export function handleEvent(event: Types.Events.Event): void {
           mainFrameURL = frame.url;
         }
       } else if (traceHasOutermostMainFrameFlag) {
-        // Less ideal: "guess" at the main thread by using this flag.
+        // Less ideal: "guess" at the main thread by using this falg.
         if (frame.isOutermostMainFrame) {
           mainFrameId = frame.frame;
           mainFrameURL = frame.url;
         }
+      } else {
         // Worst case: guess by seeing if the frame doesn't have a parent, and does have a URL.
-      } else if (!frame.parent && frame.url) {
-        mainFrameId = frame.frame;
-        mainFrameURL = frame.url;
+        if (!frame.parent && frame.url) {
+          mainFrameId = frame.frame;
+          mainFrameURL = frame.url;
+        }
       }
     }
 
@@ -257,7 +276,7 @@ export function handleEvent(event: Types.Events.Event): void {
   // and we use these to track how long each individual renderer is active
   // for. We track all renderers here (top level and those in frames), but
   // for convenience we also populate a set of top level renderer IDs.
-  if (Types.Events.isFrameCommittedInBrowser(event)) {
+  if (Types.TraceEvents.isTraceEventFrameCommittedInBrowser(event)) {
     const frame = event.args.data;
     if (!frame) {
       return;
@@ -273,7 +292,7 @@ export function handleEvent(event: Types.Events.Event): void {
     return;
   }
 
-  if (Types.Events.isCommitLoad(event)) {
+  if (Types.TraceEvents.isTraceEventCommitLoad(event)) {
     const frameData = event.args.data;
     if (!frameData) {
       return;
@@ -285,7 +304,7 @@ export function handleEvent(event: Types.Events.Event): void {
   }
 
   // Track all threads based on the process & thread IDs.
-  if (Types.Events.isThreadName(event)) {
+  if (Types.TraceEvents.isThreadName(event)) {
     const threads = Platform.MapUtilities.getWithDefault(threadsInProcess, event.pid, () => new Map());
     threads.set(event.tid, event);
     return;
@@ -294,8 +313,9 @@ export function handleEvent(event: Types.Events.Event): void {
   // Track all navigation events. Note that there can be navigation start events
   // but where the documentLoaderURL is empty. As far as the trace rendering is
   // concerned, these events are noise so we filter them out here.
-  // (The filtering of empty URLs is done in the isNavigationStart check)
-  if (Types.Events.isNavigationStart(event) && event.args.data) {
+  // (The filtering of empty URLs is done in the
+  // isTraceEventNavigationStartWithURL check)
+  if (Types.TraceEvents.isTraceEventNavigationStartWithURL(event) && event.args.data) {
     const navigationId = event.args.data.navigationId;
     if (navigationsByNavigationId.has(navigationId)) {
       // We have only ever seen this situation once, in crbug.com/1503982, where the user ran:
@@ -305,7 +325,6 @@ export function handleEvent(event: Types.Events.Event): void {
       return;
     }
     navigationsByNavigationId.set(navigationId, event);
-    finalDisplayUrlByNavigationId.set(navigationId, event.args.data.documentLoaderURL);
 
     const frameId = event.args.frame;
     const existingFrameNavigations = navigationsByFrameId.get(frameId) || [];
@@ -316,37 +335,13 @@ export function handleEvent(event: Types.Events.Event): void {
     }
     return;
   }
-
-  // Update `finalDisplayUrlByNavigationId` to reflect the latest redirect for each navigation.
-  if (Types.Events.isResourceSendRequest(event)) {
-    if (event.args.data.resourceType !== 'Document') {
-      return;
-    }
-
-    const maybeNavigationId = event.args.data.requestId;
-    const navigation = navigationsByNavigationId.get(maybeNavigationId);
-    if (!navigation) {
-      return;
-    }
-
-    finalDisplayUrlByNavigationId.set(maybeNavigationId, event.args.data.url);
-    return;
-  }
-
-  // Update `finalDisplayUrlByNavigationId` to reflect history API navigations.
-  if (Types.Events.isDidCommitSameDocumentNavigation(event)) {
-    if (event.args.render_frame_host.frame_type !== 'PRIMARY_MAIN_FRAME') {
-      return;
-    }
-
-    const navigation = mainFrameNavigations.at(-1);
-    const key = navigation?.args.data?.navigationId ?? '';
-    finalDisplayUrlByNavigationId.set(key, event.args.url);
-    return;
-  }
 }
 
 export async function finalize(): Promise<void> {
+  if (handlerState !== HandlerState.INITIALIZED) {
+    throw new Error('Handler is not initialized');
+  }
+
   // We try to set the minimum time by finding the event with the smallest
   // timestamp. However, if we also got a timestamp from the
   // TracingStartedInBrowser event, we should always use that.
@@ -355,7 +350,7 @@ export async function finalize(): Promise<void> {
   if (traceStartedTimeFromTracingStartedEvent >= 0) {
     traceBounds.min = traceStartedTimeFromTracingStartedEvent;
   }
-  traceBounds.range = Types.Timing.Micro(traceBounds.max - traceBounds.min);
+  traceBounds.range = Types.Timing.MicroSeconds(traceBounds.max - traceBounds.min);
 
   // If we go from foo.com to example.com we will get a new renderer, and
   // therefore the "top level renderer" will have a different PID as it has
@@ -364,13 +359,7 @@ export async function finalize(): Promise<void> {
   // each particular renderer started and stopped being the main renderer
   // process.
   for (const [, processWindows] of rendererProcessesByFrameId) {
-    // Sort the windows by time; we cannot assume by default they arrive via
-    // events in time order. Because we set the window bounds per-process based
-    // on the time of the current + next window, we need them sorted in ASC
-    // order.
-    const processWindowValues = [...processWindows.values()].flat().sort((a, b) => {
-      return a.window.min - b.window.min;
-    });
+    const processWindowValues = [...processWindows.values()].flat();
     for (let i = 0; i < processWindowValues.length; i++) {
       const currentWindow = processWindowValues[i];
       const nextWindow = processWindowValues[i + 1];
@@ -378,11 +367,11 @@ export async function finalize(): Promise<void> {
       // For the last window we set its max to be positive infinity.
       // TODO: Move the trace bounds handler into meta so we can clamp first and last windows.
       if (!nextWindow) {
-        currentWindow.window.max = Types.Timing.Micro(traceBounds.max);
-        currentWindow.window.range = Types.Timing.Micro(traceBounds.max - currentWindow.window.min);
+        currentWindow.window.max = Types.Timing.MicroSeconds(traceBounds.max);
+        currentWindow.window.range = Types.Timing.MicroSeconds(traceBounds.max - currentWindow.window.min);
       } else {
-        currentWindow.window.max = Types.Timing.Micro(nextWindow.window.min - 1);
-        currentWindow.window.range = Types.Timing.Micro(currentWindow.window.max - currentWindow.window.min);
+        currentWindow.window.max = Types.Timing.MicroSeconds(nextWindow.window.min - 1);
+        currentWindow.window.range = Types.Timing.MicroSeconds(currentWindow.window.max - currentWindow.window.min);
       }
     }
   }
@@ -411,13 +400,13 @@ export async function finalize(): Promise<void> {
   // the previous page. This doesn't matter too much except we often use this
   // URL as the visual name of the trace shown to the user (e.g. in the history
   // dropdown). We can be more accurate by finding the first main frame
-  // navigation, and using its URL, if we have it.
+  // navigaton, and using its URL, if we have it.
   // However, to avoid doing this in a case where the first navigation is far
   // into the trace's lifecycle, we only do this in situations where the first
   // navigation happened very soon (0.5 seconds) after the trace started
   // recording.
   const firstMainFrameNav = mainFrameNavigations.at(0);
-  const firstNavTimeThreshold = Helpers.Timing.secondsToMicro(Types.Timing.Seconds(0.5));
+  const firstNavTimeThreshold = Helpers.Timing.secondsToMicroseconds(Types.Timing.Seconds(0.5));
   if (firstMainFrameNav) {
     const navigationIsWithinThreshold = firstMainFrameNav.ts - traceBounds.min < firstNavTimeThreshold;
     if (firstMainFrameNav.args.data?.isOutermostMainFrame && firstMainFrameNav.args.data?.documentLoaderURL &&
@@ -425,33 +414,23 @@ export async function finalize(): Promise<void> {
       mainFrameURL = firstMainFrameNav.args.data.documentLoaderURL;
     }
   }
+
+  handlerState = HandlerState.FINALIZED;
 }
 
-export interface MetaHandlerData {
-  traceIsGeneric: boolean;
-  traceBounds: Types.Timing.TraceWindowMicro;
-  browserProcessId: Types.Events.ProcessID;
-  processNames: Map<Types.Events.ProcessID, Types.Events.ProcessName>;
-  browserThreadId: Types.Events.ThreadID;
-  gpuProcessId: Types.Events.ProcessID;
-  navigationsByFrameId: Map<string, Types.Events.NavigationStart[]>;
-  navigationsByNavigationId: Map<string, Types.Events.NavigationStart>;
-  /**
-   * The user-visible URL displayed to users in the address bar.
-   * This captures:
-   *  - resolving all redirects
-   *  - history API pushState
-   *
-   * Given no redirects or history API usages, this is just the navigation event's documentLoaderURL.
-   *
-   * Note: empty string special case denotes the duration of the trace between the start
-   * and the first navigation. If there is no history API navigation during this time,
-   * there will be no value for empty string.
-   **/
-  finalDisplayUrlByNavigationId: Map<string, string>;
-  threadsInProcess: Map<Types.Events.ProcessID, Map<Types.Events.ThreadID, Types.Events.ThreadName>>;
-  mainFrameId: string;
-  mainFrameURL: string;
+export type MetaHandlerData = {
+  traceIsGeneric: boolean,
+  traceBounds: Types.Timing.TraceWindowMicroSeconds,
+  browserProcessId: Types.TraceEvents.ProcessID,
+  processNames: Map<Types.TraceEvents.ProcessID, Types.TraceEvents.TraceEventProcessName>,
+  browserThreadId: Types.TraceEvents.ThreadID,
+  gpuProcessId: Types.TraceEvents.ProcessID,
+  navigationsByFrameId: Map<string, Types.TraceEvents.TraceEventNavigationStart[]>,
+  navigationsByNavigationId: Map<string, Types.TraceEvents.TraceEventNavigationStart>,
+  threadsInProcess:
+      Map<Types.TraceEvents.ProcessID, Map<Types.TraceEvents.ThreadID, Types.TraceEvents.TraceEventThreadName>>,
+  mainFrameId: string,
+  mainFrameURL: string,
   /**
    * A frame can have multiple renderer processes, at the same time,
    * a renderer process can have multiple URLs. This map tracks the
@@ -460,14 +439,13 @@ export interface MetaHandlerData {
    * URLs, each process in each frame has an array of windows, with an
    * entry for each URL it had.
    */
-  rendererProcessesByFrame: FrameProcessData;
-  topLevelRendererIds: Set<Types.Events.ProcessID>;
-  frameByProcessId: Map<Types.Events.ProcessID, Map<string, Types.Events.TraceFrame>>;
-  mainFrameNavigations: Types.Events.NavigationStart[];
-  gpuThreadId?: Types.Events.ThreadID;
-  viewportRect?: DOMRect;
-  devicePixelRatio?: number;
-}
+  rendererProcessesByFrame: FrameProcessData,
+  topLevelRendererIds: Set<Types.TraceEvents.ProcessID>,
+  frameByProcessId: Map<Types.TraceEvents.ProcessID, Map<string, Types.TraceEvents.TraceFrame>>,
+  mainFrameNavigations: Types.TraceEvents.TraceEventNavigationStart[],
+  gpuThreadId?: Types.TraceEvents.ThreadID,
+  viewportRect?: DOMRect,
+};
 
 // Each frame has a single render process at a given time but it can have
 // multiple render processes  during a trace, for example if a navigation
@@ -485,23 +463,26 @@ export interface MetaHandlerData {
 // and https://web.dev/same-site-same-origin/
 export type FrameProcessData =
     Map<string,
-        Map<Types.Events.ProcessID, Array<{frame: Types.Events.TraceFrame, window: Types.Timing.TraceWindowMicro}>>>;
+        Map<Types.TraceEvents.ProcessID,
+            {frame: Types.TraceEvents.TraceFrame, window: Types.Timing.TraceWindowMicroSeconds}[]>>;
 
 export function data(): MetaHandlerData {
+  if (handlerState !== HandlerState.FINALIZED) {
+    throw new Error('Meta Handler is not finalized');
+  }
+
   return {
     traceBounds: {...traceBounds},
     browserProcessId,
     browserThreadId,
     processNames,
     gpuProcessId,
-    gpuThreadId: gpuThreadId === Types.Events.ThreadID(-1) ? undefined : gpuThreadId,
+    gpuThreadId: gpuThreadId === Types.TraceEvents.ThreadID(-1) ? undefined : gpuThreadId,
     viewportRect: viewportRect || undefined,
-    devicePixelRatio: devicePixelRatio ?? undefined,
     mainFrameId,
     mainFrameURL,
     navigationsByFrameId,
     navigationsByNavigationId,
-    finalDisplayUrlByNavigationId,
     threadsInProcess,
     rendererProcessesByFrame: rendererProcessesByFrameId,
     topLevelRendererIds,

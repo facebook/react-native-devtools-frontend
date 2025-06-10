@@ -9,7 +9,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import type {Protocol} from './protocol_schema.js';
+import {type Protocol} from './protocol_schema.js';
 
 const PROTOCOL_JSON_PATH = path.resolve(
     __dirname, path.join('..', '..', 'third_party', 'blink', 'public', 'devtools_protocol', 'browser_protocol.json'));
@@ -158,7 +158,7 @@ const emitProperty = (interfaceName: string, prop: Protocol.PropertyType) => {
   emitLine(`${getPropertyDef(interfaceName, prop)};`);
 };
 
-const emitInterface = (interfaceName: string, props?: Protocol.PropertyType[], optionalExtendsClause = '') => {
+const emitInterface = (interfaceName: string, props?: Protocol.PropertyType[], optionalExtendsClause: string = '') => {
   emitOpenBlock(`export interface ${interfaceName}${optionalExtendsClause}`);
   props ? props.forEach(prop => emitProperty(interfaceName, prop)) : emitLine('[key: string]: string;');
   emitCloseBlock();

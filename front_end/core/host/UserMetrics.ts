@@ -44,7 +44,7 @@ export class UserMetrics {
 
   panelShown(panelName: string, isLaunching?: boolean): void {
     const code = PanelCodes[panelName as keyof typeof PanelCodes] || 0;
-    InspectorFrontendHostInstance.recordEnumeratedHistogram(EnumeratedHistogram.PanelShown, code, PanelCodes.MAX_VALUE);
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(EnumeratedHistogram.PanelShown, code, PanelCodes.MaxValue);
     InspectorFrontendHostInstance.recordUserMetricsAction('DevTools_PanelShown_' + panelName);
     // Store that the user has changed the panel so we know launch histograms should not be fired.
     if (!isLaunching) {
@@ -59,9 +59,15 @@ export class UserMetrics {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
         EnumeratedHistogram.PanelShownInLocation,
         panelWithLocation,
-        PanelWithLocation.MAX_VALUE,
+        PanelWithLocation.MaxValue,
     );
     RNPerfMetrics.getInstance().panelShownInLocation(panelName, location);
+  }
+
+  sourcesSidebarTabShown(sidebarPaneName: string): void {
+    const code = SourcesSidebarTabCodes[sidebarPaneName as keyof typeof SourcesSidebarTabCodes] || 0;
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(
+        EnumeratedHistogram.SourcesSidebarTabShown, code, SourcesSidebarTabCodes.MaxValue);
   }
 
   settingsPanelShown(settingsViewId: string): void {
@@ -71,23 +77,23 @@ export class UserMetrics {
   sourcesPanelFileDebugged(mediaType?: string): void {
     const code = (mediaType && MediaTypes[mediaType as keyof typeof MediaTypes]) || MediaTypes.Unknown;
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.SourcesPanelFileDebugged, code, MediaTypes.MAX_VALUE);
+        EnumeratedHistogram.SourcesPanelFileDebugged, code, MediaTypes.MaxValue);
   }
 
   sourcesPanelFileOpened(mediaType?: string): void {
     const code = (mediaType && MediaTypes[mediaType as keyof typeof MediaTypes]) || MediaTypes.Unknown;
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.SourcesPanelFileOpened, code, MediaTypes.MAX_VALUE);
+        EnumeratedHistogram.SourcesPanelFileOpened, code, MediaTypes.MaxValue);
   }
 
   networkPanelResponsePreviewOpened(mediaType: string): void {
     const code = (mediaType && MediaTypes[mediaType as keyof typeof MediaTypes]) || MediaTypes.Unknown;
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.NetworkPanelResponsePreviewOpened, code, MediaTypes.MAX_VALUE);
+        EnumeratedHistogram.NetworkPanelResponsePreviewOpened, code, MediaTypes.MaxValue);
   }
 
   actionTaken(action: Action): void {
-    InspectorFrontendHostInstance.recordEnumeratedHistogram(EnumeratedHistogram.ActionTaken, action, Action.MAX_VALUE);
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(EnumeratedHistogram.ActionTaken, action, Action.MaxValue);
   }
 
   panelLoaded(panelName: string, histogramName: string): void {
@@ -125,19 +131,19 @@ export class UserMetrics {
   keybindSetSettingChanged(keybindSet: string): void {
     const value = KeybindSetSettings[keybindSet as keyof typeof KeybindSetSettings] || 0;
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.KeybindSetSettingChanged, value, KeybindSetSettings.MAX_VALUE);
+        EnumeratedHistogram.KeybindSetSettingChanged, value, KeybindSetSettings.MaxValue);
   }
 
   keyboardShortcutFired(actionId: string): void {
     const action =
         KeyboardShortcutAction[actionId as keyof typeof KeyboardShortcutAction] || KeyboardShortcutAction.OtherShortcut;
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.KeyboardShortcutFired, action, KeyboardShortcutAction.MAX_VALUE);
+        EnumeratedHistogram.KeyboardShortcutFired, action, KeyboardShortcutAction.MaxValue);
   }
 
   issuesPanelOpenedFrom(issueOpener: IssueOpener): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.IssuesPanelOpenedFrom, issueOpener, IssueOpener.MAX_VALUE);
+        EnumeratedHistogram.IssuesPanelOpenedFrom, issueOpener, IssueOpener.MaxValue);
   }
 
   issuesPanelIssueExpanded(issueExpandedCategory: string|undefined): void {
@@ -152,7 +158,7 @@ export class UserMetrics {
     }
 
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.IssuesPanelIssueExpanded, issueExpanded, IssueExpanded.MAX_VALUE);
+        EnumeratedHistogram.IssuesPanelIssueExpanded, issueExpanded, IssueExpanded.MaxValue);
   }
 
   issuesPanelResourceOpened(issueCategory: string, type: string): void {
@@ -164,7 +170,7 @@ export class UserMetrics {
     }
 
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.IssuesPanelResourceOpened, value, IssueResourceOpened.MAX_VALUE);
+        EnumeratedHistogram.IssuesPanelResourceOpened, value, IssueResourceOpened.MaxValue);
   }
 
   issueCreated(code: string): void {
@@ -173,7 +179,7 @@ export class UserMetrics {
       return;
     }
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.IssueCreated, issueCreated, IssueCreated.MAX_VALUE);
+        EnumeratedHistogram.IssueCreated, issueCreated, IssueCreated.MaxValue);
   }
 
   experimentEnabledAtLaunch(experimentId: string): void {
@@ -182,12 +188,7 @@ export class UserMetrics {
       return;
     }
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.ExperimentEnabledAtLaunch, experiment, DevtoolsExperiments.MAX_VALUE);
-  }
-
-  navigationSettingAtFirstTimelineLoad(state: TimelineNavigationSetting): void {
-    InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.TimelineNavigationSettingState, state, TimelineNavigationSetting.MAX_VALUE);
+        EnumeratedHistogram.ExperimentEnabledAtLaunch, experiment, DevtoolsExperiments.MaxValue);
   }
 
   experimentDisabledAtLaunch(experimentId: string): void {
@@ -196,7 +197,7 @@ export class UserMetrics {
       return;
     }
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.ExperimentDisabledAtLaunch, experiment, DevtoolsExperiments.MAX_VALUE);
+        EnumeratedHistogram.ExperimentDisabledAtLaunch, experiment, DevtoolsExperiments.MaxValue);
   }
 
   experimentChanged(experimentId: string, isEnabled: boolean): void {
@@ -205,23 +206,23 @@ export class UserMetrics {
       return;
     }
     const actionName = isEnabled ? EnumeratedHistogram.ExperimentEnabled : EnumeratedHistogram.ExperimentDisabled;
-    InspectorFrontendHostInstance.recordEnumeratedHistogram(actionName, experiment, DevtoolsExperiments.MAX_VALUE);
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(actionName, experiment, DevtoolsExperiments.MaxValue);
   }
 
   developerResourceLoaded(developerResourceLoaded: DeveloperResourceLoaded): void {
-    if (developerResourceLoaded >= DeveloperResourceLoaded.MAX_VALUE) {
+    if (developerResourceLoaded >= DeveloperResourceLoaded.MaxValue) {
       return;
     }
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.DeveloperResourceLoaded, developerResourceLoaded, DeveloperResourceLoaded.MAX_VALUE);
+        EnumeratedHistogram.DeveloperResourceLoaded, developerResourceLoaded, DeveloperResourceLoaded.MaxValue);
   }
 
   developerResourceScheme(developerResourceScheme: DeveloperResourceScheme): void {
-    if (developerResourceScheme >= DeveloperResourceScheme.MAX_VALUE) {
+    if (developerResourceScheme >= DeveloperResourceScheme.MaxValue) {
       return;
     }
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.DeveloperResourceScheme, developerResourceScheme, DeveloperResourceScheme.MAX_VALUE);
+        EnumeratedHistogram.DeveloperResourceScheme, developerResourceScheme, DeveloperResourceScheme.MaxValue);
   }
 
   language(language: Intl.UnicodeBCP47LocaleIdentifier): void {
@@ -230,97 +231,124 @@ export class UserMetrics {
       return;
     }
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.Language, languageCode, Language.MAX_VALUE);
+        EnumeratedHistogram.Language, languageCode, Language.MaxValue);
   }
 
   syncSetting(devtoolsSyncSettingEnabled: boolean): void {
     InspectorFrontendHostInstance.getSyncInformation(syncInfo => {
-      let settingValue = SyncSetting.CHROME_SYNC_DISABLED;
+      let settingValue = SyncSetting.ChromeSyncDisabled;
       if (syncInfo.isSyncActive && !syncInfo.arePreferencesSynced) {
-        settingValue = SyncSetting.CHROME_SYNC_SETTINGS_DISABLED;
+        settingValue = SyncSetting.ChromeSyncSettingsDisabled;
       } else if (syncInfo.isSyncActive && syncInfo.arePreferencesSynced) {
-        settingValue = devtoolsSyncSettingEnabled ? SyncSetting.DEVTOOLS_SYNC_SETTING_ENABLED :
-                                                    SyncSetting.DEVTOOLS_SYNC_SETTING_DISABLED;
+        settingValue = devtoolsSyncSettingEnabled ? SyncSetting.DevToolsSyncSettingEnabled :
+                                                    SyncSetting.DevToolsSyncSettingDisabled;
       }
 
       InspectorFrontendHostInstance.recordEnumeratedHistogram(
-          EnumeratedHistogram.SyncSetting, settingValue, SyncSetting.MAX_VALUE);
+          EnumeratedHistogram.SyncSetting, settingValue, SyncSetting.MaxValue);
     });
   }
 
   recordingAssertion(value: RecordingAssertion): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.RecordingAssertion, value, RecordingAssertion.MAX_VALUE);
+        EnumeratedHistogram.RecordingAssertion, value, RecordingAssertion.MaxValue);
   }
 
   recordingToggled(value: RecordingToggled): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.RecordingToggled, value, RecordingToggled.MAX_VALUE);
+        EnumeratedHistogram.RecordingToggled, value, RecordingToggled.MaxValue);
   }
 
   recordingReplayFinished(value: RecordingReplayFinished): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.RecordingReplayFinished, value, RecordingReplayFinished.MAX_VALUE);
+        EnumeratedHistogram.RecordingReplayFinished, value, RecordingReplayFinished.MaxValue);
   }
 
   recordingReplaySpeed(value: RecordingReplaySpeed): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.RecordingReplaySpeed, value, RecordingReplaySpeed.MAX_VALUE);
+        EnumeratedHistogram.RecordingReplaySpeed, value, RecordingReplaySpeed.MaxValue);
   }
 
   recordingReplayStarted(value: RecordingReplayStarted): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.RecordingReplayStarted, value, RecordingReplayStarted.MAX_VALUE);
+        EnumeratedHistogram.RecordingReplayStarted, value, RecordingReplayStarted.MaxValue);
   }
 
   recordingEdited(value: RecordingEdited): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.RecordingEdited, value, RecordingEdited.MAX_VALUE);
+        EnumeratedHistogram.RecordingEdited, value, RecordingEdited.MaxValue);
   }
 
   recordingExported(value: RecordingExported): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.RecordingExported, value, RecordingExported.MAX_VALUE);
+        EnumeratedHistogram.RecordingExported, value, RecordingExported.MaxValue);
   }
 
   recordingCodeToggled(value: RecordingCodeToggled): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.RecordingCodeToggled, value, RecordingCodeToggled.MAX_VALUE);
+        EnumeratedHistogram.RecordingCodeToggled, value, RecordingCodeToggled.MaxValue);
   }
 
   recordingCopiedToClipboard(value: RecordingCopiedToClipboard): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.RecordingCopiedToClipboard, value, RecordingCopiedToClipboard.MAX_VALUE);
+        EnumeratedHistogram.RecordingCopiedToClipboard, value, RecordingCopiedToClipboard.MaxValue);
+  }
+
+  styleTextCopied(value: StyleTextCopied): void {
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(
+        EnumeratedHistogram.StyleTextCopied, value, StyleTextCopied.MaxValue);
+  }
+
+  manifestSectionSelected(sectionTitle: string): void {
+    const code =
+        ManifestSectionCodes[sectionTitle as keyof typeof ManifestSectionCodes] || ManifestSectionCodes.OtherSection;
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(
+        EnumeratedHistogram.ManifestSectionSelected, code, ManifestSectionCodes.MaxValue);
   }
 
   cssHintShown(type: CSSHintType): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.CSSHintShown, type, CSSHintType.MAX_VALUE);
+        EnumeratedHistogram.CSSHintShown, type, CSSHintType.MaxValue);
   }
 
   lighthouseModeRun(type: LighthouseModeRun): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.LighthouseModeRun, type, LighthouseModeRun.MAX_VALUE);
+        EnumeratedHistogram.LighthouseModeRun, type, LighthouseModeRun.MaxValue);
   }
 
   lighthouseCategoryUsed(type: LighthouseCategoryUsed): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.LighthouseCategoryUsed, type, LighthouseCategoryUsed.MAX_VALUE);
+        EnumeratedHistogram.LighthouseCategoryUsed, type, LighthouseCategoryUsed.MaxValue);
+  }
+
+  colorConvertedFrom(type: ColorConvertedFrom): void {
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(
+        EnumeratedHistogram.ColorConvertedFrom, type, ColorConvertedFrom.MaxValue);
+  }
+
+  colorPickerOpenedFrom(type: ColorPickerOpenedFrom): void {
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(
+        EnumeratedHistogram.ColorPickerOpenedFrom, type, ColorPickerOpenedFrom.MaxValue);
+  }
+
+  cssPropertyDocumentation(type: CSSPropertyDocumentation): void {
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(
+        EnumeratedHistogram.CSSPropertyDocumentation, type, CSSPropertyDocumentation.MaxValue);
   }
 
   swatchActivated(swatch: SwatchType): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.SwatchActivated, swatch, SwatchType.MAX_VALUE);
+        EnumeratedHistogram.SwatchActivated, swatch, SwatchType.MaxValue);
   }
 
   animationPlaybackRateChanged(playbackRate: AnimationsPlaybackRate): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.AnimationPlaybackRateChanged, playbackRate, AnimationsPlaybackRate.MAX_VALUE);
+        EnumeratedHistogram.AnimationPlaybackRateChanged, playbackRate, AnimationsPlaybackRate.MaxValue);
   }
 
   animationPointDragged(dragType: AnimationPointDragType): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.AnimationPointDragged, dragType, AnimationPointDragType.MAX_VALUE);
+        EnumeratedHistogram.AnimationPointDragged, dragType, AnimationPointDragType.MaxValue);
   }
 
   workspacesPopulated(wallClockTimeInMilliseconds: number): void {
@@ -333,13 +361,50 @@ export class UserMetrics {
         'DevTools.VisualLogging.ProcessingTime', timeInMilliseconds);
   }
 
-  freestylerQueryLength(numberOfCharacters: number): void {
-    InspectorFrontendHostInstance.recordCountHistogram(
-        'DevTools.Freestyler.QueryLength', numberOfCharacters, 0, 100_000, 100);
+  legacyResourceTypeFilterNumberOfSelectedChanged(itemCount: number): void {
+    const boundItemCount = Math.max(Math.min(itemCount, ResourceType.MaxValue - 1), 1);
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(
+        EnumeratedHistogram.LegacyResourceTypeFilterNumberOfSelectedChanged, boundItemCount, ResourceType.MaxValue);
   }
 
-  freestylerEvalResponseSize(bytes: number): void {
-    InspectorFrontendHostInstance.recordCountHistogram('DevTools.Freestyler.EvalResponseSize', bytes, 0, 100_000, 100);
+  legacyResourceTypeFilterItemSelected(resourceTypeName: string): void {
+    const resourceType = ResourceType[resourceTypeName as keyof typeof ResourceType];
+    if (resourceType === undefined) {
+      return;
+    }
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(
+        EnumeratedHistogram.LegacyResourceTypeFilterItemSelected, resourceType, ResourceType.MaxValue);
+  }
+
+  resourceTypeFilterNumberOfSelectedChanged(itemCount: number): void {
+    const boundItemCount = Math.max(Math.min(itemCount, ResourceType.MaxValue - 1), 1);
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(
+        EnumeratedHistogram.ResourceTypeFilterNumberOfSelectedChanged, boundItemCount, ResourceType.MaxValue);
+  }
+
+  resourceTypeFilterItemSelected(resourceTypeName: string): void {
+    const resourceType = ResourceType[resourceTypeName as keyof typeof ResourceType];
+    if (resourceType === undefined) {
+      return;
+    }
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(
+        EnumeratedHistogram.ResourceTypeFilterItemSelected, resourceType, ResourceType.MaxValue);
+  }
+
+  networkPanelMoreFiltersNumberOfSelectedChanged(itemCount: number): void {
+    const boundItemCount = Math.max(Math.min(itemCount, NetworkPanelMoreFilters.MaxValue), 0);
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(
+        EnumeratedHistogram.NetworkPanelMoreFiltersNumberOfSelectedChanged, boundItemCount,
+        NetworkPanelMoreFilters.MaxValue);
+  }
+
+  networkPanelMoreFiltersItemSelected(filterName: string): void {
+    const filter = NetworkPanelMoreFilters[filterName as keyof typeof NetworkPanelMoreFilters];
+    if (filter === undefined) {
+      return;
+    }
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(
+        EnumeratedHistogram.NetworkPanelMoreFiltersItemSelected, filter, NetworkPanelMoreFilters.MaxValue);
   }
 }
 
@@ -347,19 +412,18 @@ export class UserMetrics {
  * The numeric enum values are not necessarily continuous! It is possible that
  * values have been removed, which results in gaps in the sequence of values.
  * When adding a new value:
- * 1. Add an entry to the bottom of the enum before 'MAX_VALUE'.
- * 2. Set the value of the new entry to the current value of 'MAX_VALUE'.
- * 2. Increment the value of 'MAX_VALUE' by 1.
+ * 1. Add an entry to the bottom of the enum before 'MaxValue'.
+ * 2. Set the value of the new entry to the current value of 'MaxValue'.
+ * 2. Increment the value of 'MaxValue' by 1.
  * When removing a value which is no longer needed:
  * 1. Delete the line with the unneeded value
- * 2. Do not update any 'MAX_VALUE' or any other value.
+ * 2. Do not update any 'MaxValue' or any other value.
  */
 
 // Codes below are used to collect UMA histograms in the Chromium port.
 // Do not change the values below, additional actions are needed on the Chromium side
 // in order to add more codes.
 export enum Action {
-  /* eslint-disable @typescript-eslint/naming-convention */
   WindowDocked = 1,
   WindowUndocked = 2,
   ScriptsBreakpointSet = 3,
@@ -501,8 +565,8 @@ export enum Action {
   AnimationGroupSelected = 142,
   ScrollDrivenAnimationGroupSelected = 143,
   ScrollDrivenAnimationGroupScrubbed = 144,
-  AiAssistanceOpenedFromElementsPanel = 145,
-  AiAssistanceOpenedFromStylesTab = 146,
+  FreestylerOpenedFromElementsPanel = 145,
+  FreestylerOpenedFromStylesTab = 146,
   ConsoleFilterByContext = 147,
   ConsoleFilterBySource = 148,
   ConsoleFilterByUrl = 149,
@@ -516,35 +580,11 @@ export enum Action {
   InsightsOnboardingNextPage = 157,
   InsightsOnboardingPrevPage = 158,
   InsightsOnboardingFeatureDisabled = 159,
-  InsightsOptInTeaserShown = 160,
-  InsightsOptInTeaserSettingsLinkClicked = 161,
-  InsightsOptInTeaserConfirmedInSettings = 162,
-  InsightsReminderTeaserShown = 163,
-  InsightsReminderTeaserConfirmed = 164,
-  InsightsReminderTeaserCanceled = 165,
-  InsightsReminderTeaserSettingsLinkClicked = 166,
-  InsightsReminderTeaserAbortedInSettings = 167,
-  GeneratingInsightWithoutDisclaimer = 168,
-  AiAssistanceOpenedFromElementsPanelFloatingButton = 169,
-  AiAssistanceOpenedFromNetworkPanel = 170,
-  AiAssistanceOpenedFromSourcesPanel = 171,
-  AiAssistanceOpenedFromSourcesPanelFloatingButton = 172,
-  AiAssistanceOpenedFromPerformancePanel = 173,
-  AiAssistanceOpenedFromNetworkPanelFloatingButton = 174,
-  AiAssistancePanelOpened = 175,
-  AiAssistanceQuerySubmitted = 176,
-  AiAssistanceAnswerReceived = 177,
-  AiAssistanceDynamicSuggestionClicked = 178,
-  AiAssistanceSideEffectConfirmed = 179,
-  AiAssistanceSideEffectRejected = 180,
-  AiAssistanceError = 181,
-  AiAssistanceOpenedFromPerformanceInsight = 182,
-  MAX_VALUE = 183,
-  /* eslint-enable @typescript-eslint/naming-convention */
+  MaxValue = 160,
 }
 
+/* eslint-disable @typescript-eslint/naming-convention */
 export enum PanelCodes {
-  /* eslint-disable @typescript-eslint/naming-convention */
   elements = 1,
   resources = 2,
   network = 3,
@@ -554,15 +594,15 @@ export enum PanelCodes {
   console = 8,
   layers = 9,
   'console-view' = 10,
-  animations = 11,
+  'animations' = 11,
   'network.config' = 12,
-  rendering = 13,
-  sensors = 14,
+  'rendering' = 13,
+  'sensors' = 14,
   'sources.search' = 15,
   security = 16,
   'js-profiler' = 17,
   lighthouse = 18,
-  coverage = 19,
+  'coverage' = 19,
   'protocol-monitor' = 20,
   'remote-devices' = 21,
   'web-audio' = 22,
@@ -582,7 +622,7 @@ export enum PanelCodes {
   'settings-shortcuts' = 36,
   'issues-pane' = 37,
   'settings-keybinds' = 38,
-  cssoverview = 39,
+  'cssoverview' = 39,
   'chrome-recorder' = 40,
   'trust-tokens' = 41,
   'reporting-api' = 42,
@@ -597,8 +637,8 @@ export enum PanelCodes {
   'background-service-periodic-background-sync' = 51,
   'service-workers' = 52,
   'app-manifest' = 53,
-  storage = 54,
-  cookies = 55,
+  'storage' = 54,
+  'cookies' = 55,
   'frame-details' = 56,
   'frame-resource' = 57,
   'frame-window' = 58,
@@ -607,16 +647,16 @@ export enum PanelCodes {
   'indexed-db' = 61,
   'web-sql' = 62,
   'performance-insights' = 63,
-  preloading = 64,
+  'preloading' = 64,
   'bounce-tracking-mitigations' = 65,
   'developer-resources' = 66,
   'autofill-view' = 67,
-  /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 68,
+  MaxValue = 68,
 }
+/* eslint-enable @typescript-eslint/naming-convention */
 
+/* eslint-disable @typescript-eslint/naming-convention */
 export enum PanelWithLocation {
-  /* eslint-disable @typescript-eslint/naming-convention */
   'elements-main' = 1,
   'elements-drawer' = 2,
   'resources-main' = 3,
@@ -747,26 +787,39 @@ export enum PanelWithLocation {
   'developer-resources-drawer' = 130,
   'autofill-view-main' = 131,
   'autofill-view-drawer' = 132,
-  /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 133,
+  MaxValue = 133,
 }
+/* eslint-enable @typescript-eslint/naming-convention */
 
+/* eslint-disable @typescript-eslint/naming-convention */
 export enum ElementsSidebarTabCodes {
-  /* eslint-disable @typescript-eslint/naming-convention */
-  OtherSidebarPane = 0,
-  styles = 1,
-  computed = 2,
+  'OtherSidebarPane' = 0,
+  'styles' = 1,
+  'computed' = 2,
   'elements.layout' = 3,
   'elements.event-listeners' = 4,
   'elements.dom-breakpoints' = 5,
   'elements.dom-properties' = 6,
   'accessibility.view' = 7,
-  /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 8,
+  MaxValue = 8,
 }
 
+/* eslint-enable @typescript-eslint/naming-convention */
+
+/* eslint-disable @typescript-eslint/naming-convention */
+export enum SourcesSidebarTabCodes {
+  'OtherSidebarPane' = 0,
+  'navigator-network' = 1,
+  'navigator-files' = 2,
+  'navigator-overrides' = 3,
+  'navigator-content-scripts' = 4,
+  'navigator-snippets' = 5,
+  MaxValue = 6,
+}
+/* eslint-enable @typescript-eslint/naming-convention */
+
+/* eslint-disable @typescript-eslint/naming-convention */
 export enum MediaTypes {
-  /* eslint-disable @typescript-eslint/naming-convention */
   Unknown = 0,
   'text/css' = 2,
   'text/html' = 3,
@@ -802,22 +855,19 @@ export enum MediaTypes {
   'text/javascript+sourcemapped' = 33,
   'text/x.angular' = 34,
   'text/x.vue' = 35,
-  'text/javascript+snippet' = 36,
-  'text/javascript+eval' = 37,  // Scripts resulting from console inputs or page "eval"s with no sourceUrl comment.
-  /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 38,
+  MaxValue = 36,
 }
+/* eslint-enable @typescript-eslint/naming-convention */
 
+/* eslint-disable @typescript-eslint/naming-convention */
 export enum KeybindSetSettings {
-  /* eslint-disable @typescript-eslint/naming-convention */
-  devToolsDefault = 0,
-  vsCode = 1,
-  /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 2,
+  'devToolsDefault' = 0,
+  'vsCode' = 1,
+  MaxValue = 2,
 }
+/* eslint-enable @typescript-eslint/naming-convention */
 
 export enum KeyboardShortcutAction {
-  /* eslint-disable @typescript-eslint/naming-convention */
   OtherShortcut = 0,
   'quick-open.show-command-menu' = 1,
   'console.clear' = 2,
@@ -936,27 +986,27 @@ export enum KeyboardShortcutAction {
   'elements.refresh-event-listeners' = 115,
   'coverage.clear' = 116,
   'coverage.export' = 117,
-  'timeline.dim-third-parties' = 118,
-  /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 119,
+  MaxValue = 118,
 }
+/* eslint-enable @typescript-eslint/naming-convention */
 
 export const enum IssueOpener {
-  CONSOLE_INFO_BAR = 0,
-  LEARN_MORE_LINK_COEP = 1,
-  STATUS_BAR_ISSUES_COUNTER = 2,
-  HAMBURGER_MENU = 3,
-  ADORNER = 4,
-  COMMAND_MENU = 5,
-  MAX_VALUE = 6,
+  ConsoleInfoBar = 0,
+  LearnMoreLinkCOEP = 1,
+  StatusBarIssuesCounter = 2,
+  HamburgerMenu = 3,
+  Adorner = 4,
+  CommandMenu = 5,
+  MaxValue = 6,
 }
 
 /**
  * This list should contain the currently active Devtools Experiments,
  * gaps are expected.
  */
+/* eslint-disable @typescript-eslint/naming-convention */
 export enum DevtoolsExperiments {
-  /* eslint-disable @typescript-eslint/naming-convention */
+  'apply-custom-stylesheet' = 0,
   'capture-node-creation-stacks' = 1,
   'live-heap-profile' = 11,
   'protocol-monitor' = 13,
@@ -965,35 +1015,58 @@ export enum DevtoolsExperiments {
   'timeline-invalidation-tracking' = 26,
   'timeline-show-all-events' = 27,
   'timeline-v8-runtime-call-stats' = 28,
-  apca = 39,
+  'apca' = 39,
   'font-editor' = 41,
   'full-accessibility-tree' = 42,
   'contrast-issues' = 44,
   'experimental-cookie-features' = 45,
+  'styles-pane-css-changes' = 55,
   'instrumentation-breakpoints' = 61,
   'authored-deployed-grouping' = 63,
+  'important-dom-properties' = 64,
   'just-my-code' = 65,
+  'preloading-status-panel' = 68,
+  'outermost-target-selector' = 71,
   'highlight-errors-elements-panel' = 73,
   'use-source-map-scopes' = 76,
   'network-panel-filter-bar-redesign' = 79,
+  'autofill-view' = 82,
+  'sources-frame-indentation-markers-temporarily-disable' = 83,
+  'css-type-component-length-deprecate' = 85,
   'timeline-show-postmessage-events' = 86,
   'timeline-enhanced-traces' = 90,
   'timeline-compiled-sources' = 91,
   'timeline-debug-mode' = 93,
-  'timeline-experimental-insights' = 102,
-  'timeline-dim-unrelated-events' = 103,
-  'timeline-alternative-navigation' = 104,
-  // 106 was historically used [https://chromium-review.googlesource.com/c/devtools/devtools-frontend/+/6230097]
-  // next experiment should be 107
-  /* eslint-enable @typescript-eslint/naming-convention */
+  'perf-panel-annotations' = 94,
+  'timeline-rpp-sidebar' = 95,
+  'timeline-observations' = 96,
 
   // Increment this when new experiments are added.
-  MAX_VALUE = 106,
+  'MaxValue' = 97,
+}
+/* eslint-enable @typescript-eslint/naming-convention */
+
+export const enum ColorConvertedFrom {
+  ColorSwatch = 0,
+  ColorPicker = 1,
+  MaxValue = 2,
+}
+
+export const enum ColorPickerOpenedFrom {
+  SourcesPanel = 0,
+  StylesPane = 1,
+  MaxValue = 2,
+}
+
+export const enum CSSPropertyDocumentation {
+  Shown = 0,
+  ToggledOn = 1,
+  ToggledOff = 2,
+  MaxValue = 3,
 }
 
 // Update DevToolsIssuesPanelIssueExpanded from tools/metrics/histograms/enums.xml if new enum is added.
 export enum IssueExpanded {
-  /* eslint-disable @typescript-eslint/naming-convention */
   CrossOriginEmbedderPolicy = 0,
   MixedContent = 1,
   SameSiteCookie = 2,
@@ -1003,12 +1076,10 @@ export enum IssueExpanded {
   Generic = 6,
   ThirdPartyPhaseoutCookie = 7,
   GenericCookie = 8,
-  /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 9,
+  MaxValue = 9,
 }
 
 export enum IssueResourceOpened {
-  /* eslint-disable @typescript-eslint/naming-convention */
   CrossOriginEmbedderPolicyRequest = 0,
   CrossOriginEmbedderPolicyElement = 1,
   MixedContentRequest = 2,
@@ -1017,8 +1088,7 @@ export enum IssueResourceOpened {
   HeavyAdElement = 5,
   ContentSecurityPolicyDirective = 6,
   ContentSecurityPolicyElement = 7,
-  /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 13,
+  MaxValue = 13,
 }
 
 /**
@@ -1026,7 +1096,6 @@ export enum IssueResourceOpened {
  * gaps are expected.
  */
 export enum IssueCreated {
-  /* eslint-disable @typescript-eslint/naming-convention */
   MixedContentIssue = 0,
   'ContentSecurityPolicyIssue::kInlineViolation' = 1,
   'ContentSecurityPolicyIssue::kEvalViolation' = 2,
@@ -1108,296 +1177,311 @@ export enum IssueCreated {
   'CookieIssue::WarnThirdPartyPhaseout::SetCookie' = 83,
   'CookieIssue::ExcludeThirdPartyPhaseout::ReadCookie' = 84,
   'CookieIssue::ExcludeThirdPartyPhaseout::SetCookie' = 85,
-  'SelectElementAccessibilityIssue::DisallowedSelectChild' = 86,
-  'SelectElementAccessibilityIssue::DisallowedOptGroupChild' = 87,
-  'SelectElementAccessibilityIssue::NonPhrasingContentOptionChild' = 88,
-  'SelectElementAccessibilityIssue::InteractiveContentOptionChild' = 89,
-  'SelectElementAccessibilityIssue::InteractiveContentLegendChild' = 90,
-  'SRIMessageSignatureIssue::MissingSignatureHeader' = 91,
-  'SRIMessageSignatureIssue::MissingSignatureInputHeader' = 92,
-  'SRIMessageSignatureIssue::InvalidSignatureHeader' = 93,
-  'SRIMessageSignatureIssue::InvalidSignatureInputHeader' = 94,
-  'SRIMessageSignatureIssue::SignatureHeaderValueIsNotByteSequence' = 95,
-  'SRIMessageSignatureIssue::SignatureHeaderValueIsParameterized' = 96,
-  'SRIMessageSignatureIssue::SignatureHeaderValueIsIncorrectLength' = 97,
-  'SRIMessageSignatureIssue::SignatureInputHeaderMissingLabel' = 98,
-  'SRIMessageSignatureIssue::SignatureInputHeaderValueNotInnerList' = 99,
-  'SRIMessageSignatureIssue::SignatureInputHeaderValueMissingComponents' = 100,
-  'SRIMessageSignatureIssue::SignatureInputHeaderInvalidComponentType' = 101,
-  'SRIMessageSignatureIssue::SignatureInputHeaderInvalidComponentName' = 102,
-  'SRIMessageSignatureIssue::SignatureInputHeaderInvalidHeaderComponentParameter' = 103,
-  'SRIMessageSignatureIssue::SignatureInputHeaderInvalidDerivedComponentParameter' = 104,
-  'SRIMessageSignatureIssue::SignatureInputHeaderKeyIdLength' = 105,
-  'SRIMessageSignatureIssue::SignatureInputHeaderInvalidParameter' = 106,
-  'SRIMessageSignatureIssue::SignatureInputHeaderMissingRequiredParameters' = 107,
-  'SRIMessageSignatureIssue::ValidationFailedSignatureExpired' = 108,
-  'SRIMessageSignatureIssue::ValidationFailedInvalidLength' = 109,
-  'SRIMessageSignatureIssue::ValidationFailedSignatureMismatch' = 110,
-  'CorsIssue::LocalNetworkAccessPermissionDenied' = 111,
-  'SRIMessageSignatureIssue::ValidationFailedIntegrityMismatch' = 112,
-  /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 113,
+  MaxValue = 86,
 }
 
 export const enum DeveloperResourceLoaded {
-  LOAD_THROUGH_PAGE_VIA_TARGET = 0,
-  LOAD_THROUGH_PAGE_VIA_FRAME = 1,
-  LOAD_THROUGH_PAGE_FAILURE = 2,
-  LOAD_THROUGH_PAGE_FALLBACK = 3,
-  FALLBACK_AFTER_FAILURE = 4,
-  FALLBACK_PER_OVERRIDE = 5,
-  FALLBACK_PER_PROTOCOL = 6,
-  FALLBACK_FAILURE = 7,
-  MAX_VALUE = 8,
+  LoadThroughPageViaTarget = 0,
+  LoadThroughPageViaFrame = 1,
+  LoadThroughPageFailure = 2,
+  LoadThroughPageFallback = 3,
+  FallbackAfterFailure = 4,
+  FallbackPerOverride = 5,
+  FallbackPerProtocol = 6,
+  FallbackFailure = 7,
+  MaxValue = 8,
 }
 
 export const enum DeveloperResourceScheme {
-  OTHER = 0,
-  UKNOWN = 1,
-  HTTP = 2,
-  HTTPS = 3,
-  HTTP_LOCALHOST = 4,
-  HTTPS_LOCALHOST = 5,
-  DATA = 6,
-  FILE = 7,
-  BLOB = 8,
-  MAX_VALUE = 9,
+  SchemeOther = 0,
+  SchemeUnknown = 1,
+  SchemeHttp = 2,
+  SchemeHttps = 3,
+  SchemeHttpLocalhost = 4,
+  SchemeHttpsLocalhost = 5,
+  SchemeData = 6,
+  SchemeFile = 7,
+  SchemeBlob = 8,
+  MaxValue = 9,
 }
 
-export enum Language {
+export enum ResourceType {
   /* eslint-disable @typescript-eslint/naming-convention */
-  af = 1,
-  am = 2,
-  ar = 3,
-  as = 4,
-  az = 5,
-  be = 6,
-  bg = 7,
-  bn = 8,
-  bs = 9,
-  ca = 10,
-  cs = 11,
-  cy = 12,
-  da = 13,
-  de = 14,
-  el = 15,
+  all = 0,
+  /* eslint-enable @typescript-eslint/naming-convention */
+  Document = 1,
+  JavaScript = 2,
+  'Fetch and XHR' = 3,
+  CSS = 4,
+  Font = 5,
+  Image = 6,
+  Media = 7,
+  Manifest = 8,
+  WebSocket = 9,
+  WebAssembly = 10,
+  Other = 11,
+  MaxValue = 12,
+}
+
+/* eslint-disable @typescript-eslint/naming-convention */
+export enum NetworkPanelMoreFilters {
+  'Hide data URLs' = 0,
+  'Hide extension URLs' = 1,
+  'Blocked response cookies' = 2,
+  'Blocked requests' = 3,
+  '3rd-party requests' = 4,
+  MaxValue = 5,
+}
+/* eslint-enable @typescript-eslint/naming-convention */
+
+/* eslint-disable @typescript-eslint/naming-convention */
+export enum Language {
+  'af' = 1,
+  'am' = 2,
+  'ar' = 3,
+  'as' = 4,
+  'az' = 5,
+  'be' = 6,
+  'bg' = 7,
+  'bn' = 8,
+  'bs' = 9,
+  'ca' = 10,
+  'cs' = 11,
+  'cy' = 12,
+  'da' = 13,
+  'de' = 14,
+  'el' = 15,
   'en-GB' = 16,
   'en-US' = 17,
   'es-419' = 18,
-  es = 19,
-  et = 20,
-  eu = 21,
-  fa = 22,
-  fi = 23,
-  fil = 24,
+  'es' = 19,
+  'et' = 20,
+  'eu' = 21,
+  'fa' = 22,
+  'fi' = 23,
+  'fil' = 24,
   'fr-CA' = 25,
-  fr = 26,
-  gl = 27,
-  gu = 28,
-  he = 29,
-  hi = 30,
-  hr = 31,
-  hu = 32,
-  hy = 33,
-  id = 34,
-  is = 35,
-  it = 36,
-  ja = 37,
-  ka = 38,
-  kk = 39,
-  km = 40,
-  kn = 41,
-  ko = 42,
-  ky = 43,
-  lo = 44,
-  lt = 45,
-  lv = 46,
-  mk = 47,
-  ml = 48,
-  mn = 49,
-  mr = 50,
-  ms = 51,
-  my = 52,
-  ne = 53,
-  nl = 54,
-  no = 55,
-  or = 56,
-  pa = 57,
-  pl = 58,
+  'fr' = 26,
+  'gl' = 27,
+  'gu' = 28,
+  'he' = 29,
+  'hi' = 30,
+  'hr' = 31,
+  'hu' = 32,
+  'hy' = 33,
+  'id' = 34,
+  'is' = 35,
+  'it' = 36,
+  'ja' = 37,
+  'ka' = 38,
+  'kk' = 39,
+  'km' = 40,
+  'kn' = 41,
+  'ko' = 42,
+  'ky' = 43,
+  'lo' = 44,
+  'lt' = 45,
+  'lv' = 46,
+  'mk' = 47,
+  'ml' = 48,
+  'mn' = 49,
+  'mr' = 50,
+  'ms' = 51,
+  'my' = 52,
+  'ne' = 53,
+  'nl' = 54,
+  'no' = 55,
+  'or' = 56,
+  'pa' = 57,
+  'pl' = 58,
   'pt-PT' = 59,
-  pt = 60,
-  ro = 61,
-  ru = 62,
-  si = 63,
-  sk = 64,
-  sl = 65,
-  sq = 66,
+  'pt' = 60,
+  'ro' = 61,
+  'ru' = 62,
+  'si' = 63,
+  'sk' = 64,
+  'sl' = 65,
+  'sq' = 66,
   'sr-Latn' = 67,
-  sr = 68,
-  sv = 69,
-  sw = 70,
-  ta = 71,
-  te = 72,
-  th = 73,
-  tr = 74,
-  uk = 75,
-  ur = 76,
-  uz = 77,
-  vi = 78,
-  zh = 79,
+  'sr' = 68,
+  'sv' = 69,
+  'sw' = 70,
+  'ta' = 71,
+  'te' = 72,
+  'th' = 73,
+  'tr' = 74,
+  'uk' = 75,
+  'ur' = 76,
+  'uz' = 77,
+  'vi' = 78,
+  'zh' = 79,
   'zh-HK' = 80,
   'zh-TW' = 81,
-  zu = 82,
-  /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 83,
+  'zu' = 82,
+  MaxValue = 83,
 }
+/* eslint-enable @typescript-eslint/naming-convention */
 
 export const enum SyncSetting {
-  CHROME_SYNC_DISABLED = 1,
-  CHROME_SYNC_SETTINGS_DISABLED = 2,
-  DEVTOOLS_SYNC_SETTING_DISABLED = 3,
-  DEVTOOLS_SYNC_SETTING_ENABLED = 4,
-  MAX_VALUE = 5,
+  ChromeSyncDisabled = 1,
+  ChromeSyncSettingsDisabled = 2,
+  DevToolsSyncSettingDisabled = 3,
+  DevToolsSyncSettingEnabled = 4,
+  MaxValue = 5,
 }
 
 export const enum RecordingToggled {
-  RECORDING_STARTED = 1,
-  RECORDING_FINISHED = 2,
-  MAX_VALUE = 3,
+  RecordingStarted = 1,
+  RecordingFinished = 2,
+  MaxValue = 3,
 }
 
 export const enum RecordingAssertion {
-  ASSERTION_ADDED = 1,
-  PROPERTY_ASSERTION_EDITED = 2,
-  ATTRIBUTE_ASSERTION_EDITED = 3,
-  MAX_VALUE = 4,
+  AssertionAdded = 1,
+  PropertyAssertionEdited = 2,
+  AttributeAssertionEdited = 3,
+  MaxValue = 4,
 }
 
 export const enum RecordingReplayFinished {
-  SUCCESS = 1,
-  TIMEOUT_ERROR_SELECTORS = 2,
-  TIMEOUT_ERROR_TARGET = 3,
-  OTHER_ERROR = 4,
-  MAX_VALUE = 5,
+  Success = 1,
+  TimeoutErrorSelectors = 2,
+  TimeoutErrorTarget = 3,
+  OtherError = 4,
+  MaxValue = 5,
 }
 
 export const enum RecordingReplaySpeed {
-  NORMAL = 1,
-  SLOW = 2,
-  VERY_SLOW = 3,
-  EXTREMELY_SLOW = 4,
-  MAX_VALUE = 5,
+  Normal = 1,
+  Slow = 2,
+  VerySlow = 3,
+  ExtremelySlow = 4,
+  MaxValue = 5,
 }
 
 export const enum RecordingReplayStarted {
-  REPLAY_ONLY = 1,
-  REPLAY_WITH_PERFORMANCE_TRACING = 2,
-  REPLAY_VIA_EXTENSION = 3,
-  MAX_VALUE = 4,
+  ReplayOnly = 1,
+  ReplayWithPerformanceTracing = 2,
+  ReplayViaExtension = 3,
+  MaxValue = 4,
 }
 
 export const enum RecordingEdited {
-  SELECTOR_PICKER_USED = 1,
-  STEP_ADDED = 2,
-  STEP_REMOVED = 3,
-  SELECTOR_ADDED = 4,
-  SELECTOR_REMOVED = 5,
-  SELECTOR_PART_ADDED = 6,
-  SELECTOR_PART_EDITED = 7,
-  SELECTOR_PART_REMOVED = 8,
-  TYPE_CHANGED = 9,
-  OTHER_EDITING = 10,
-  MAX_VALUE = 11,
+  SelectorPickerUsed = 1,
+  StepAdded = 2,
+  StepRemoved = 3,
+  SelectorAdded = 4,
+  SelectorRemoved = 5,
+  SelectorPartAdded = 6,
+  SelectorPartEdited = 7,
+  SelectorPartRemoved = 8,
+  TypeChanged = 9,
+  OtherEditing = 10,
+  MaxValue = 11,
 }
 
 export const enum RecordingExported {
-  TO_PUPPETEER = 1,
-  TO_JSON = 2,
-  TO_PUPPETEER_REPLAY = 3,
-  TO_EXTENSION = 4,
-  TO_LIGHTHOUSE = 5,
-  MAX_VALUE = 6,
+  ToPuppeteer = 1,
+  ToJSON = 2,
+  ToPuppeteerReplay = 3,
+  ToExtension = 4,
+  ToLighthouse = 5,
+  MaxValue = 6,
 }
 
 export const enum RecordingCodeToggled {
-  CODE_SHOWN = 1,
-  CODE_HIDDEN = 2,
-  MAX_VALUE = 3,
+  CodeShown = 1,
+  CodeHidden = 2,
+  MaxValue = 3,
 }
 
 export const enum RecordingCopiedToClipboard {
-  COPIED_RECORDING_WITH_PUPPETEER = 1,
-  COPIED_RECORDING_WITH_JSON = 2,
-  COPIED_RECORDING_WITH_REPLAY = 3,
-  COPIED_RECORDING_WITH_EXTENSION = 4,
-  COPIED_STEP_WITH_PUPPETEER = 5,
-  COPIED_STEP_WITH_JSON = 6,
-  COPIED_STEP_WITH_REPLAY = 7,
-  COPIED_STEP_WITH_EXTENSION = 8,
-  MAX_VALUE = 9,
+  CopiedRecordingWithPuppeteer = 1,
+  CopiedRecordingWithJSON = 2,
+  CopiedRecordingWithReplay = 3,
+  CopiedRecordingWithExtension = 4,
+  CopiedStepWithPuppeteer = 5,
+  CopiedStepWithJSON = 6,
+  CopiedStepWithReplay = 7,
+  CopiedStepWithExtension = 8,
+  MaxValue = 9,
+}
+
+export const enum StyleTextCopied {
+  DeclarationViaChangedLine = 1,
+  AllChangesViaStylesPane = 2,
+  DeclarationViaContextMenu = 3,
+  PropertyViaContextMenu = 4,
+  ValueViaContextMenu = 5,
+  DeclarationAsJSViaContextMenu = 6,
+  RuleViaContextMenu = 7,
+  AllDeclarationsViaContextMenu = 8,
+  AllDeclarationsAsJSViaContextMenu = 9,
+  SelectorViaContextMenu = 10,
+  MaxValue = 11,
 }
 
 export enum ManifestSectionCodes {
-  /* eslint-disable @typescript-eslint/naming-convention -- Indexed access. */
   OtherSection = 0,
-  Identity = 1,
-  Presentation = 2,
+  'Identity' = 1,
+  'Presentation' = 2,
   'Protocol Handlers' = 3,
-  Icons = 4,
+  'Icons' = 4,
   'Window Controls Overlay' = 5,
-  /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 6,
+  MaxValue = 6,
 }
+
+/* eslint-enable @typescript-eslint/naming-convention */
 
 // The names here match the CSSRuleValidator names in CSSRuleValidator.ts.
 export const enum CSSHintType {
-  OTHER = 0,
-  ALIGN_CONTENT = 1,
-  FLEX_ITEM = 2,
-  FLEX_CONTAINER = 3,
-  GRID_CONTAINER = 4,
-  GRID_ITEM = 5,
-  FLEX_GRID = 6,
-  MULTICOL_FLEX_GRID = 7,
-  PADDING = 8,
-  POSITION = 9,
-  Z_INDEX = 10,
-  SIZING = 11,
-  FLEX_OR_GRID_ITEM = 12,
-  FONT_VARIATION_SETTINGS = 13,
-  MAX_VALUE = 14,
+  Other = 0,
+  AlignContent = 1,
+  FlexItem = 2,
+  FlexContainer = 3,
+  GridContainer = 4,
+  GridItem = 5,
+  FlexGrid = 6,
+  MulticolFlexGrid = 7,
+  Padding = 8,
+  Position = 9,
+  ZIndex = 10,
+  Sizing = 11,
+  FlexOrGridItem = 12,
+  FontVariationSettings = 13,
+  MaxValue = 14,
 }
 
 export const enum LighthouseModeRun {
-  NAVIGATION = 0,
-  TIMESPAN = 1,
-  SNAPSHOT = 2,
-  LEGACY_NAVIGATION = 3,
-  MAX_VALUE = 4,
+  Navigation = 0,
+  Timespan = 1,
+  Snapshot = 2,
+  LegacyNavigation = 3,
+  MaxValue = 4,
 }
 
 export const enum LighthouseCategoryUsed {
-  PERFORMANCE = 0,
-  ACCESSIBILITY = 1,
-  BEST_PRACTICES = 2,
+  Performance = 0,
+  Accessibility = 1,
+  BestPractices = 2,
   SEO = 3,
   PWA = 4,
-  PUB_ADS = 5,
-  MAX_VALUE = 6,
+  PubAds = 5,
+  MaxValue = 6,
 }
 
 export const enum SwatchType {
-  VAR_LINK = 0,
-  ANIMATION_NAME_LINK = 1,
-  COLOR = 2,
-  ANIMATION_TIMING = 3,
-  SHADOW = 4,
-  GRID = 5,
-  FLEX = 6,
-  ANGLE = 7,
-  LENGTH = 8,
-  POSITION_TRY_LINK = 10,
-  MAX_VALUE = 11,
+  VarLink = 0,
+  AnimationNameLink = 1,
+  Color = 2,
+  AnimationTiming = 3,
+  Shadow = 4,
+  Grid = 5,
+  Flex = 6,
+  Angle = 7,
+  Length = 8,
+  PositionTryLink = 10,
+  MaxValue = 11,
 }
 
 export const enum BadgeType {
@@ -1410,36 +1494,26 @@ export const enum BadgeType {
   SLOT = 6,
   TOP_LAYER = 7,
   REVEAL = 8,
-  MAX_VALUE = 9,
+  MaxValue = 9,
 }
 
 export const enum AnimationsPlaybackRate {
-  PERCENT_100 = 0,
-  PERCENT_25 = 1,
-  PERCENT_10 = 2,
-  OTHER = 3,
-  MAX_VALUE = 4,
+  Percent100 = 0,
+  Percent25 = 1,
+  Percent10 = 2,
+  Other = 3,
+  MaxValue = 4,
 }
 
 export const enum AnimationPointDragType {
   // Animation is dragged as a whole in the Animations panel.
-  ANIMATION_DRAG = 0,
+  AnimationDrag = 0,
   // A keyframe point inside animation timeline is dragged.
-  KEYFRAME_MOVE = 1,
+  KeyframeMove = 1,
   // Start point of the animation inside animation timeline is dragged.
-  START_ENDPOINT_MOVE = 2,
+  StartEndpointMove = 2,
   // Finish point of the animation inside animation timeline is dragged.
-  FINISH_ENDPOINT_MOVE = 3,
-  OTHER = 4,
-  MAX_VALUE = 5,
-}
-
-export const enum TimelineNavigationSetting {
-  // Setting is set to classic when the first trace of the session is recorded or loaded.
-  CLASSIC_AT_SESSION_FIRST_TRACE = 0,
-  // Setting is set to modern when the first trace of the session is recorded or loaded.
-  MODERN_AT_SESSION_FIRST_TRACE = 1,
-  SWITCHED_TO_CLASSIC = 2,
-  SWITCHED_TO_MODERN = 3,
-  MAX_VALUE = 4,
+  FinishEndpointMove = 3,
+  Other = 4,
+  MaxValue = 5,
 }

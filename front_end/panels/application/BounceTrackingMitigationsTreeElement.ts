@@ -11,14 +11,14 @@ import * as UI from '../../ui/legacy/legacy.js';
 
 import {ApplicationPanelTreeElement} from './ApplicationPanelTreeElement.js';
 import * as ApplicationComponents from './components/components.js';
-import type {ResourcesPanel} from './ResourcesPanel.js';
+import {type ResourcesPanel} from './ResourcesPanel.js';
 
 const UIStrings = {
   /**
    * @description Hover text for the Bounce Tracking Mitigations element in the Application Panel sidebar.
    */
   bounceTrackingMitigations: 'Bounce tracking mitigations',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/application/BounceTrackingMitigationsTreeElement.ts', UIStrings);
 export const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 

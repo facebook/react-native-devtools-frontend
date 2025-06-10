@@ -48,21 +48,30 @@ const UIStrings = {
   /**
    *@description Message to display if a setting change requires a reload of DevTools
    */
-  oneOrMoreSettingsHaveChanged: 'One or more settings have changed which requires a reload to take effect',
-} as const;
+  oneOrMoreSettingsHaveChanged: 'One or more settings have changed which requires a reload to take effect.',
+};
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/SettingsUI.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-
-export function createSettingCheckbox(
-    name: Common.UIString.LocalizedString, setting: Common.Settings.Setting<boolean>, tooltip?: string): CheckboxLabel {
+export const createSettingCheckbox = function(
+    name: string, setting: Common.Settings.Setting<boolean>, omitParagraphElement?: boolean,
+    tooltip?: string): Element {
   const label = CheckboxLabel.create(name, undefined, undefined, setting.name);
-  label.checkboxElement.name = name;
-  bindCheckbox(label.checkboxElement, setting);
   if (tooltip) {
     Tooltip.install(label, tooltip);
   }
-  return label;
-}
+
+  const input = label.checkboxElement;
+  input.name = name;
+  bindCheckbox(input, setting);
+
+  if (omitParagraphElement) {
+    return label;
+  }
+
+  const p = document.createElement('p');
+  p.appendChild(label);
+  return p;
+};
 
 const createSettingSelect = function(
     name: string, options: Common.Settings.SimpleSettingOption[], requiresReload: boolean|null,
@@ -71,7 +80,7 @@ const createSettingSelect = function(
   const settingSelectElement = container.createChild('p');
   settingSelectElement.classList.add('settings-select');
   const label = settingSelectElement.createChild('label');
-  const select = settingSelectElement.createChild('select');
+  const select = (settingSelectElement.createChild('select', 'chrome-select') as HTMLSelectElement);
   label.textContent = name;
   if (subtitle) {
     container.classList.add('chrome-select-label');
@@ -88,7 +97,7 @@ const createSettingSelect = function(
 
   let reloadWarning: HTMLElement|(Element | null) = (null as Element | null);
   if (requiresReload) {
-    reloadWarning = container.createChild('p', 'reload-warning hidden');
+    reloadWarning = container.createChild('span', 'reload-warning hidden');
     reloadWarning.textContent = i18nString(UIStrings.srequiresReload);
     ARIAUtils.markAsAlert(reloadWarning);
   }

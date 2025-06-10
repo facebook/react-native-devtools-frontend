@@ -29,9 +29,9 @@ const warning = () => ('Deprecation Warning' as Platform.UIString.LocalizedStrin
 
 function setupElements() {
   const toplevel = document.createElement('div');
-  const container = toplevel.createChild('div');
-  const title = container.createChild('div');
-  const subtitle = container.createChild('div');
+  const container = toplevel.createChild('div') as HTMLDivElement;
+  const title = container.createChild('div') as HTMLDivElement;
+  const subtitle = container.createChild('div') as HTMLDivElement;
   return {toplevel, container, title, subtitle};
 }
 
@@ -56,8 +56,11 @@ describeWithLocale('CommandMenu', () => {
     provider.renderItem(0, 'Test', elements.title, elements.subtitle);
 
     const tags = Array.from(elements.toplevel.querySelectorAll('.deprecated-tag')) as HTMLElement[];
-    assert.deepEqual(tags.map(e => e.textContent), ['— deprecated']);
-    assert.deepEqual(tags[0].title, 'Deprecation Warning');
+    try {
+      assert.deepEqual(tags.map(e => e.textContent), ['— deprecated']);
+      assert.deepEqual(tags[0].title, 'Deprecation Warning');
+    } finally {
+    }
   });
 
   it('reveals the setting when calling a deprecated setting', () => {

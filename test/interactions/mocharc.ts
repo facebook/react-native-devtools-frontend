@@ -6,14 +6,13 @@ import * as path from 'path';
 
 import {loadTests, ServerType, TestConfig} from '../conductor/test_config.js';
 
-TestConfig.serverType = ServerType.COMPONENT_DOCS;
-TestConfig.copyScreenshotGoldens = true;
+TestConfig.serverType = ServerType.ComponentDocs;
 
 module.exports = {
   require : [path.join(path.dirname(__dirname), 'conductor', 'mocha_hooks.js'), 'source-map-support/register'],
   spec : loadTests(__dirname),
   timeout : TestConfig.debug ? 0 : 10_000,
-  retries : TestConfig.retries,
+  retries : 4,
   reporter : path.join(path.dirname(__dirname), 'shared', 'mocha-resultsdb-reporter'),
   suiteName : 'interactions',
   slow : 1000, ...TestConfig.mochaGrep,

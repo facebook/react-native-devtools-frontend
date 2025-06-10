@@ -5,10 +5,10 @@
 import {
   deinitializeGlobalVars,
   initializeGlobalVars,
-  updateHostConfig,
 } from '../../testing/EnvironmentHelpers.js';
 import * as QuickOpen from '../../ui/legacy/components/quick_open/quick_open.js';
 import * as i18n from '../i18n/i18n.js';
+import type * as Root from '../root/root.js';
 
 import * as Common from './common.js';
 
@@ -51,12 +51,13 @@ describe('SettingRegistration', () => {
 
   it('retrieves a registered setting', () => {
     try {
-      const preRegisteredSetting = Common.Settings.Settings.instance().moduleSetting(settingName);
+      const preRegisteredSetting =
+          Common.Settings.Settings.instance().moduleSetting(settingName) as Common.Settings.Setting<boolean>;
       assert.strictEqual(preRegisteredSetting.title(), settingTitle, 'Setting title is not returned correctly');
       assert.strictEqual(
           preRegisteredSetting.category(), settingCategory, 'Setting category is not returned correctly');
       assert.isNotTrue(preRegisteredSetting.get(), 'Setting value is not returned correctly');
-    } catch {
+    } catch (error) {
       assert.fail('Failed to find setting registration');
     }
   });
@@ -69,8 +70,10 @@ describe('SettingRegistration', () => {
     const enableSettingCommands = allCommands.filter(
         command => command.title === enableTitle &&
             command.category === Common.Settings.getLocalizedSettingsCategory(settingCategory));
-    assert.lengthOf(disableSettingCommands, 1, 'Commands for changing a setting\'s value were not added correctly');
-    assert.lengthOf(enableSettingCommands, 1, 'Commands for changing a setting\'s value were not added correctly');
+    assert.strictEqual(
+        disableSettingCommands.length, 1, 'Commands for changing a setting\'s value were not added correctly');
+    assert.strictEqual(
+        enableSettingCommands.length, 1, 'Commands for changing a setting\'s value were not added correctly');
   });
 
   it('triggers a setting\'s change listener when a setting is set', () => {
@@ -107,19 +110,12 @@ describe('SettingRegistration', () => {
 
   it('can handle settings with condition which depends on host config', () => {
     const configSettingName = 'mock-setting-with-host-config';
-    updateHostConfig({
-      devToolsConsoleInsights: {
-        modelId: 'mockModel',
-        temperature: -1,
-        enabled: true,
-      },
-    });
     Common.Settings.registerSettingExtension({
       settingName: configSettingName,
       settingType: Common.Settings.SettingType.BOOLEAN,
       defaultValue: false,
       condition: config => {
-        return config?.devToolsConsoleInsights?.enabled === true;
+        return config?.devToolsConsoleInsights.enabled === true;
       },
     });
     assert.throws(() => Common.Settings.Settings.instance().moduleSetting(configSettingName));
@@ -130,6 +126,14 @@ describe('SettingRegistration', () => {
       syncedStorage: dummyStorage,
       globalStorage: dummyStorage,
       localStorage: dummyStorage,
+      config: {
+        devToolsConsoleInsights: {
+          aidaModelId: 'mockModel',
+          aidaTemperature: 0.2,
+          optIn: false,
+          enabled: true,
+        },
+      } as Root.Runtime.HostConfig,
     });
     const setting = Common.Settings.Settings.instance().moduleSetting(configSettingName);
     assert.isNotNull(setting);

@@ -12,10 +12,12 @@ import {
 import {createTarget} from '../../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../../testing/MockConnection.js';
 import {getMainFrame, navigate} from '../../../testing/ResourceTreeHelpers.js';
-import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
+import * as Coordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 import * as TreeOutline from '../../../ui/components/tree_outline/tree_outline.js';
 
 import * as ApplicationComponents from './components.js';
+
+const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 interface NodeData {
   text: string;
@@ -32,7 +34,7 @@ async function renderBackForwardCacheView(): Promise<ApplicationComponents.BackF
   renderElementIntoDOM(component);
   await component.render();
   assert.isNotNull(component.shadowRoot);
-  await RenderCoordinator.done();
+  await coordinator.done();
   return component;
 }
 
@@ -50,7 +52,7 @@ describeWithMockConnection('BackForwardCacheView', () => {
   let resourceTreeModel: SDK.ResourceTreeModel.ResourceTreeModel;
 
   beforeEach(async () => {
-    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
+    const tabTarget = createTarget({type: SDK.Target.Type.Tab});
     createTarget({parentTarget: tabTarget, subtype: 'prerender'});
     target = createTarget({parentTarget: tabTarget});
     resourceTreeModel =
@@ -60,7 +62,7 @@ describeWithMockConnection('BackForwardCacheView', () => {
   it('updates BFCacheView on main frame navigation', async () => {
     await renderBackForwardCacheView();
     navigate(getMainFrame(target), {}, Protocol.Page.NavigationType.BackForwardCacheRestore);
-    await RenderCoordinator.done({waitForWork: true});
+    await coordinator.done({waitForWork: true});
   });
 
   it('updates BFCacheView on BFCache detail update', async () => {
@@ -68,7 +70,7 @@ describeWithMockConnection('BackForwardCacheView', () => {
     resourceTreeModel.dispatchEventToListeners(
         SDK.ResourceTreeModel.Events.BackForwardCacheDetailsUpdated, getMainFrame(target));
 
-    await RenderCoordinator.done({waitForWork: true});
+    await coordinator.done({waitForWork: true});
   });
 
   it('renders status if restored from BFCache', async () => {
@@ -108,7 +110,7 @@ describeWithMockConnection('BackForwardCacheView', () => {
     const component = await renderBackForwardCacheView();
     const sectionHeaders = component.shadowRoot!.querySelectorAll('devtools-report-section-header');
     const sectionHeadersText = Array.from(sectionHeaders).map(sectionHeader => sectionHeader.textContent?.trim());
-    assert.deepEqual(sectionHeadersText, ['Actionable', 'Pending Support', 'Not Actionable']);
+    assert.deepStrictEqual(sectionHeadersText, ['Actionable', 'Pending Support', 'Not Actionable']);
 
     const sections = component.shadowRoot!.querySelectorAll('devtools-report-section');
     const sectionsText = Array.from(sections).map(section => section.textContent?.trim());
@@ -120,7 +122,7 @@ describeWithMockConnection('BackForwardCacheView', () => {
       'Pages whose main resource has cache-control:no-store cannot enter back/forward cache.',
       'Learn more: back/forward cache eligibility',
     ];
-    assert.deepEqual(sectionsText, expected);
+    assert.deepStrictEqual(sectionsText, expected);
   });
 
   it('renders explanation tree', async () => {
@@ -199,7 +201,7 @@ describeWithMockConnection('BackForwardCacheView', () => {
       },
     ];
 
-    assert.deepEqual(treeData, expected);
+    assert.deepStrictEqual(treeData, expected);
   });
 
   it('renders blocking details if available', async () => {
@@ -224,7 +226,7 @@ describeWithMockConnection('BackForwardCacheView', () => {
     const component = await renderBackForwardCacheView();
     const sectionHeaders = component.shadowRoot!.querySelectorAll('devtools-report-section-header');
     const sectionHeadersText = Array.from(sectionHeaders).map(sectionHeader => sectionHeader.textContent?.trim());
-    assert.deepEqual(sectionHeadersText, ['Pending Support']);
+    assert.deepStrictEqual(sectionHeadersText, ['Pending Support']);
 
     const sections = component.shadowRoot!.querySelectorAll('devtools-report-section');
     const sectionsText = Array.from(sections).map(section => section.textContent?.trim());
@@ -234,13 +236,13 @@ describeWithMockConnection('BackForwardCacheView', () => {
       'Pages that use WebLocks are not currently eligible for back/forward cache.',
       'Learn more: back/forward cache eligibility',
     ];
-    assert.deepEqual(sectionsText, expected);
+    assert.deepStrictEqual(sectionsText, expected);
 
     const details = component.shadowRoot!.querySelector('.details-list devtools-expandable-list');
     details!.shadowRoot!.querySelector('button')!.click();
     const items = details!.shadowRoot!.querySelectorAll('.expandable-list-items .devtools-link');
     const detailsText = Array.from(items).map(detail => detail.textContent?.trim());
-    assert.deepEqual(detailsText, ['www.example.com/index.html:11:6', 'www.example.com/script.js:16:21']);
+    assert.deepStrictEqual(detailsText, ['www.example.com/index.html:11:6', 'www.example.com/script.js:16:21']);
   });
 
   it('can handle delayed navigation history when testing for BFcache availability', async () => {

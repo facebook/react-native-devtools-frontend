@@ -14,21 +14,21 @@ const DNS_RESOLUTION_RTT_MULTIPLIER = 2;
 class DNSCache {
   static rttMultiplier = DNS_RESOLUTION_RTT_MULTIPLIER;
 
-  rtt: number;
-  resolvedDomainNames: Map<string, {resolvedAt: number}>;
+  _rtt: number;
+  _resolvedDomainNames: Map<string, {resolvedAt: number}>;
 
   constructor({rtt}: {rtt: number}) {
-    this.rtt = rtt;
-    this.resolvedDomainNames = new Map();
+    this._rtt = rtt;
+    this._resolvedDomainNames = new Map();
   }
 
-  getTimeUntilResolution(
-      request: Lantern.NetworkRequest, options?: {requestedAt?: number, shouldUpdateCache?: boolean}): number {
+  getTimeUntilResolution(request: Lantern.NetworkRequest, options?: {requestedAt: number, shouldUpdateCache: boolean}):
+      number {
     const {requestedAt = 0, shouldUpdateCache = false} = options || {};
 
     const domain = request.parsedURL.host;
-    const cacheEntry = this.resolvedDomainNames.get(domain);
-    let timeUntilResolved = this.rtt * DNSCache.rttMultiplier;
+    const cacheEntry = this._resolvedDomainNames.get(domain);
+    let timeUntilResolved = this._rtt * DNSCache.rttMultiplier;
     if (cacheEntry) {
       const timeUntilCachedIsResolved = Math.max(cacheEntry.resolvedAt - requestedAt, 0);
       timeUntilResolved = Math.min(timeUntilCachedIsResolved, timeUntilResolved);
@@ -36,17 +36,17 @@ class DNSCache {
 
     const resolvedAt = requestedAt + timeUntilResolved;
     if (shouldUpdateCache) {
-      this.updateCacheResolvedAtIfNeeded(request, resolvedAt);
+      this._updateCacheResolvedAtIfNeeded(request, resolvedAt);
     }
 
     return timeUntilResolved;
   }
 
-  updateCacheResolvedAtIfNeeded(request: Lantern.NetworkRequest, resolvedAt: number): void {
+  _updateCacheResolvedAtIfNeeded(request: Lantern.NetworkRequest, resolvedAt: number): void {
     const domain = request.parsedURL.host;
-    const cacheEntry = this.resolvedDomainNames.get(domain) || {resolvedAt};
+    const cacheEntry = this._resolvedDomainNames.get(domain) || {resolvedAt};
     cacheEntry.resolvedAt = Math.min(cacheEntry.resolvedAt, resolvedAt);
-    this.resolvedDomainNames.set(domain, cacheEntry);
+    this._resolvedDomainNames.set(domain, cacheEntry);
   }
 
   /**
@@ -54,7 +54,7 @@ class DNSCache {
    * Useful for testing and alternate execution simulations.
    */
   setResolvedAt(domain: string, resolvedAt: number): void {
-    this.resolvedDomainNames.set(domain, {resolvedAt});
+    this._resolvedDomainNames.set(domain, {resolvedAt});
   }
 }
 

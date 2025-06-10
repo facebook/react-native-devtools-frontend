@@ -2,19 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../ui/components/cards/cards.js';
-
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
-import * as Buttons from '../../ui/components/buttons/buttons.js';
 import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import keybindsSettingsTabStyles from './keybindsSettingsTab.css.js';
-import settingsScreenStyles from './settingsScreen.css.js';
 
 const UIStrings = {
   /**
@@ -24,7 +20,7 @@ const UIStrings = {
   /**
    *@description Text appearing before a select control offering users their choice of keyboard shortcut presets.
    */
-  matchShortcutsFromPreset: 'Shortcut preset',
+  matchShortcutsFromPreset: 'Match shortcuts from preset',
   /**
    *@description Screen reader label for list of keyboard shortcuts in settings
    */
@@ -96,7 +92,7 @@ const UIStrings = {
    *@description Screen reader announcment for discarded short cut changes
    */
   shortcutChangesDiscared: 'Changes to shortcut discarded',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/settings/KeybindsSettingsTab.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -108,35 +104,29 @@ export class KeybindsSettingsTab extends UI.Widget.VBox implements UI.ListContro
 
   constructor() {
     super(true);
-    this.registerRequiredCSS(keybindsSettingsTabStyles, settingsScreenStyles);
 
     this.element.setAttribute('jslog', `${VisualLogging.pane('keybinds')}`);
 
-    const settingsContent =
-        this.contentElement.createChild('div', 'settings-card-container-wrapper').createChild('div');
-    settingsContent.classList.add('settings-card-container');
-
+    const header = this.contentElement.createChild('header');
+    header.createChild('h1').textContent = i18nString(UIStrings.shortcuts);
     const keybindsSetSetting = Common.Settings.Settings.instance().moduleSetting('active-keybind-set');
     const userShortcutsSetting = Common.Settings.Settings.instance().moduleSetting('user-shortcuts');
     keybindsSetSetting.addChangeListener(this.update, this);
     const keybindsSetSelect =
         UI.SettingsUI.createControlForSetting(keybindsSetSetting, i18nString(UIStrings.matchShortcutsFromPreset));
-
-    const card = settingsContent.createChild('devtools-card');
-    card.heading = i18nString(UIStrings.shortcuts);
-
     if (keybindsSetSelect) {
       keybindsSetSelect.classList.add('keybinds-set-select');
+      this.contentElement.appendChild(keybindsSetSelect);
     }
 
     this.items = new UI.ListModel.ListModel();
     this.list = new UI.ListControl.ListControl(this.items, this, UI.ListControl.ListMode.NonViewport);
-    this.list.element.classList.add('shortcut-list');
     this.items.replaceAll(this.createListItems());
     UI.ARIAUtils.markAsList(this.list.element);
 
+    this.contentElement.appendChild(this.list.element);
     UI.ARIAUtils.setLabel(this.list.element, i18nString(UIStrings.keyboardShortcutsList));
-    const footer = document.createElement('div');
+    const footer = this.contentElement.createChild('div');
     footer.classList.add('keybinds-footer');
     const docsLink = UI.XLink.XLink.create(
         'https://developer.chrome.com/docs/devtools/shortcuts/', i18nString(UIStrings.FullListOfDevtoolsKeyboard),
@@ -152,45 +142,36 @@ export class KeybindsSettingsTab extends UI.Widget.VBox implements UI.ListContro
     this.editingItem = null;
     this.editingRow = null;
 
-    if (keybindsSetSelect) {
-      card.append(keybindsSetSelect);
-    }
-    card.append(this.list.element, footer);
-
     this.update();
   }
 
   createElementForItem(item: KeybindsItem): Element {
-    const element = document.createElement('div');
+    let itemElement = document.createElement('div');
 
-    let itemContent;
     if (typeof item === 'string') {
-      itemContent = element;
-      itemContent.classList.add('keybinds-category-header');
-      itemContent.textContent = UI.ActionRegistration.getLocalizedActionCategory(item);
-      UI.ARIAUtils.setLevel(itemContent, 1);
+      UI.ARIAUtils.setLevel(itemElement, 1);
+      itemElement.classList.add('keybinds-category-header');
+      itemElement.textContent = UI.ActionRegistration.getLocalizedActionCategory(item);
     } else {
       const listItem = new ShortcutListItem(item, this, item === this.editingItem);
-      itemContent = listItem.element;
-      UI.ARIAUtils.setLevel(itemContent, 2);
+      itemElement = listItem.element;
+      UI.ARIAUtils.setLevel(itemElement, 2);
       if (item === this.editingItem) {
         this.editingRow = listItem;
       }
-      itemContent.classList.add('keybinds-list-item');
-      element.classList.add('keybinds-list-item-wrapper');
-      element.appendChild(itemContent);
     }
 
-    UI.ARIAUtils.markAsListitem(itemContent);
-    itemContent.tabIndex = item === this.list.selectedItem() && item !== this.editingItem ? 0 : -1;
-    return element;
+    itemElement.classList.add('keybinds-list-item');
+    UI.ARIAUtils.markAsListitem(itemElement);
+    itemElement.tabIndex = item === this.list.selectedItem() && item !== this.editingItem ? 0 : -1;
+    return itemElement;
   }
 
   commitChanges(
       item: UI.ActionRegistration.Action,
       editedShortcuts: Map<UI.KeyboardShortcut.KeyboardShortcut, UI.KeyboardShortcut.Descriptor[]|null>): void {
     for (const [originalShortcut, newDescriptors] of editedShortcuts) {
-      if (originalShortcut.type !== UI.KeyboardShortcut.Type.UNSET_SHORTCUT) {
+      if (originalShortcut.type !== UI.KeyboardShortcut.Type.UnsetShortcut) {
         UI.ShortcutRegistry.ShortcutRegistry.instance().removeShortcut(originalShortcut);
         if (!newDescriptors) {
           Host.userMetrics.actionTaken(Host.UserMetrics.Action.ShortcutRemoved);
@@ -198,8 +179,9 @@ export class KeybindsSettingsTab extends UI.Widget.VBox implements UI.ListContro
       }
       if (newDescriptors) {
         UI.ShortcutRegistry.ShortcutRegistry.instance().registerUserShortcut(
-            originalShortcut.changeKeys(newDescriptors).changeType(UI.KeyboardShortcut.Type.USER_SHORTCUT));
-        if (originalShortcut.type === UI.KeyboardShortcut.Type.UNSET_SHORTCUT) {
+            originalShortcut.changeKeys(newDescriptors as UI.KeyboardShortcut.Descriptor[])
+                .changeType(UI.KeyboardShortcut.Type.UserShortcut));
+        if (originalShortcut.type === UI.KeyboardShortcut.Type.UnsetShortcut) {
           Host.userMetrics.actionTaken(Host.UserMetrics.Action.UserShortcutAdded);
         } else {
           Host.userMetrics.actionTaken(Host.UserMetrics.Action.ShortcutModified);
@@ -314,10 +296,13 @@ export class KeybindsSettingsTab extends UI.Widget.VBox implements UI.ListContro
   }
 
   override willHide(): void {
-    super.willHide();
     if (this.editingItem) {
       this.stopEditing(this.editingItem);
     }
+  }
+  override wasShown(): void {
+    super.wasShown();
+    this.registerCSSFiles([keybindsSettingsTabStyles]);
   }
 }
 
@@ -330,7 +315,7 @@ export class ShortcutListItem {
   private readonly shortcutInputs: Map<UI.KeyboardShortcut.KeyboardShortcut, Element>;
   private readonly shortcuts: UI.KeyboardShortcut.KeyboardShortcut[];
   private elementToFocus: HTMLElement|null;
-  private confirmButton: Buttons.Button.Button|null;
+  private confirmButton: HTMLButtonElement|null;
   private addShortcutLinkContainer: Element|null;
   private errorMessageElement: Element|null;
   private secondKeyTimeout: number|null;
@@ -388,12 +373,15 @@ export class ShortcutListItem {
   }
 
   private setupEditor(): void {
-    this.addShortcutLinkContainer = this.element.createChild('div', 'keybinds-shortcut');
-    const addShortcutButton = UI.UIUtils.createTextButton(
-        i18nString(UIStrings.addAShortcut), this.addShortcut.bind(this), {jslogContext: 'add-shortcut'});
-    this.addShortcutLinkContainer.appendChild(addShortcutButton);
+    this.addShortcutLinkContainer = this.element.createChild('div', 'keybinds-shortcut devtools-link');
+    const addShortcutLink = this.addShortcutLinkContainer.createChild('span', 'devtools-link') as HTMLDivElement;
+    addShortcutLink.setAttribute('jslog', `${VisualLogging.action('add-shortcut').track({click: true})}`);
+    addShortcutLink.textContent = i18nString(UIStrings.addAShortcut);
+    addShortcutLink.tabIndex = 0;
+    UI.ARIAUtils.markAsLink(addShortcutLink);
+    self.onInvokeElement(addShortcutLink, this.addShortcut.bind(this));
     if (!this.elementToFocus) {
-      this.elementToFocus = addShortcutButton;
+      this.elementToFocus = addShortcutLink;
     }
 
     this.errorMessageElement = this.element.createChild('div', 'keybinds-info keybinds-error hidden');
@@ -421,7 +409,7 @@ export class ShortcutListItem {
 
   private addShortcut(): void {
     const shortcut =
-        new UI.KeyboardShortcut.KeyboardShortcut([], this.item.id(), UI.KeyboardShortcut.Type.UNSET_SHORTCUT);
+        new UI.KeyboardShortcut.KeyboardShortcut([], this.item.id(), UI.KeyboardShortcut.Type.UnsetShortcut);
     this.shortcuts.push(shortcut);
     this.update();
     const shortcutInput = this.shortcutInputs.get(shortcut) as HTMLElement;
@@ -435,14 +423,14 @@ export class ShortcutListItem {
       return;
     }
     let icon: IconButton.Icon.Icon;
-    if (shortcut.type !== UI.KeyboardShortcut.Type.UNSET_SHORTCUT && !shortcut.isDefault()) {
+    if (shortcut.type !== UI.KeyboardShortcut.Type.UnsetShortcut && !shortcut.isDefault()) {
       icon = IconButton.Icon.create('keyboard-pen', 'keybinds-modified');
       UI.ARIAUtils.setLabel(icon, i18nString(UIStrings.shortcutModified));
       this.element.appendChild(icon);
     }
     const shortcutElement = this.element.createChild('div', 'keybinds-shortcut keybinds-list-text');
     if (this.isEditing) {
-      const shortcutInput = shortcutElement.createChild('input', 'harmony-input');
+      const shortcutInput = shortcutElement.createChild('input', 'harmony-input') as HTMLInputElement;
       shortcutInput.setAttribute('jslog', `${VisualLogging.textField().track({change: true})}`);
       shortcutInput.spellcheck = false;
       shortcutInput.maxLength = 0;
@@ -475,10 +463,9 @@ export class ShortcutListItem {
             UI.ARIAUtils.alert(i18nString(UIStrings.shortcutRemoved, {PH1: this.item.title()}));
           }));
     } else {
-      const separator = Host.Platform.isMac() ? '\u2004' : ' + ';
-      const keys = shortcut.descriptors.flatMap(descriptor => descriptor.name.split(separator));
+      const keys = shortcut.descriptors.flatMap(descriptor => descriptor.name.split(' + '));
       keys.forEach(key => {
-        shortcutElement.createChild('div', 'keybinds-key').createChild('span').textContent = key;
+        shortcutElement.createChild('span', 'keybinds-key').textContent = key;
       });
       if (index === 0) {
         this.element.appendChild(this.createEditButton());
@@ -494,9 +481,11 @@ export class ShortcutListItem {
 
   private createIconButton(
       label: string, iconName: string, className: string, jslogContext: string,
-      listener: () => void): Buttons.Button.Button {
-    const button = new Buttons.Button.Button();
-    button.data = {variant: Buttons.Button.Variant.ICON, iconName, jslogContext, title: label};
+      listener: () => void): HTMLButtonElement {
+    const button = document.createElement('button') as HTMLButtonElement;
+    button.setAttribute('jslog', `${VisualLogging.action().track({click: true}).context(jslogContext)}`);
+    button.setAttribute('title', label);
+    button.appendChild(IconButton.Icon.create(iconName));
     button.addEventListener('click', listener);
     UI.ARIAUtils.setLabel(button, label);
     if (className) {
@@ -538,7 +527,7 @@ export class ShortcutListItem {
   }
 
   private descriptorForEvent(event: KeyboardEvent): UI.KeyboardShortcut.Descriptor {
-    const userKey = UI.KeyboardShortcut.KeyboardShortcut.makeKeyFromEvent(event);
+    const userKey = UI.KeyboardShortcut.KeyboardShortcut.makeKeyFromEvent(event as KeyboardEvent);
     const codeAndModifiers = UI.KeyboardShortcut.KeyboardShortcut.keyCodeAndModifiersFromKey(userKey);
     let key: UI.KeyboardShortcut.Key|string =
         UI.KeyboardShortcut.Keys[event.key] || UI.KeyboardShortcut.KeyBindings[event.key];
@@ -564,10 +553,10 @@ export class ShortcutListItem {
   private resetShortcutsToDefaults(): void {
     this.editedShortcuts.clear();
     for (const shortcut of this.shortcuts) {
-      if (shortcut.type === UI.KeyboardShortcut.Type.UNSET_SHORTCUT) {
+      if (shortcut.type === UI.KeyboardShortcut.Type.UnsetShortcut) {
         const index = this.shortcuts.indexOf(shortcut);
         this.shortcuts.splice(index, 1);
-      } else if (shortcut.type === UI.KeyboardShortcut.Type.USER_SHORTCUT) {
+      } else if (shortcut.type === UI.KeyboardShortcut.Type.UserShortcut) {
         this.editedShortcuts.set(shortcut, null);
       }
     }
@@ -589,7 +578,9 @@ export class ShortcutListItem {
     const activeElement = Platform.DOMUtilities.deepActiveElement(document);
     for (const [shortcut, shortcutInput] of this.shortcutInputs.entries()) {
       if (activeElement === shortcutInput) {
-        this.onShortcutInputKeyDown(shortcut, shortcutInput as HTMLInputElement, event as KeyboardEvent);
+        this.onShortcutInputKeyDown(
+            shortcut as UI.KeyboardShortcut.KeyboardShortcut, shortcutInput as HTMLInputElement,
+            event as KeyboardEvent);
       }
     }
   }

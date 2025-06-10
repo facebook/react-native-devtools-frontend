@@ -4,10 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { filter, from, fromEvent, map, mergeMap, NEVER, Observable, timer, } from '../../third_party/rxjs/rxjs.js';
-import { environment } from '../environment.js';
 import { packageVersion } from '../generated/version.js';
 import { assert } from '../util/assert.js';
-import { mergeUint8Arrays } from '../util/encoding.js';
 import { debug } from './Debug.js';
 import { TimeoutError } from './Errors.js';
 import { paperFormats } from './PDFOptions.js';
@@ -123,9 +121,7 @@ export const isDate = (obj) => {
 /**
  * @internal
  */
-export function evaluationString(
-// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-fun, ...args) {
+export function evaluationString(fun, ...args) {
     if (isString(fun)) {
         assert(args.length === 0, 'Cannot evaluate a string with arguments');
         return fun;
@@ -141,11 +137,33 @@ fun, ...args) {
 /**
  * @internal
  */
-export async function getReadableAsTypedArray(readable, path) {
+let fs = null;
+/**
+ * @internal
+ */
+export async function importFSPromises() {
+    if (!fs) {
+        try {
+            fs = await import('fs/promises');
+        }
+        catch (error) {
+            if (error instanceof TypeError) {
+                throw new Error('Cannot write to a path outside of a Node-like environment.');
+            }
+            throw error;
+        }
+    }
+    return fs;
+}
+/**
+ * @internal
+ */
+export async function getReadableAsBuffer(readable, path) {
     const buffers = [];
     const reader = readable.getReader();
     if (path) {
-        const fileHandle = await environment.value.fs.promises.open(path, 'w+');
+        const fs = await importFSPromises();
+        const fileHandle = await fs.open(path, 'w+');
         try {
             while (true) {
                 const { done, value } = await reader.read();
@@ -170,11 +188,7 @@ export async function getReadableAsTypedArray(readable, path) {
         }
     }
     try {
-        const concat = mergeUint8Arrays(buffers);
-        if (concat.length === 0) {
-            return null;
-        }
-        return concat;
+        return Buffer.concat(buffers);
     }
     catch (error) {
         debugError(error);
@@ -244,7 +258,7 @@ export const UTILITY_WORLD_NAME = '__puppeteer_utility_world__' + packageVersion
 /**
  * @internal
  */
-export const SOURCE_URL_REGEX = /^[\x20\t]*\/\/[@#] sourceURL=\s{0,10}(\S*?)\s{0,10}$/m;
+export const SOURCE_URL_REGEX = /^[\040\t]*\/\/[@#] sourceURL=\s*(\S*?)\s*$/m;
 /**
  * @internal
  */
@@ -276,7 +290,7 @@ export function parsePDFOptions(options = {}, lengthUnit = 'in') {
     let width = 8.5;
     let height = 11;
     if (options.format) {
-        const format = paperFormats[options.format.toLowerCase()][lengthUnit];
+        const format = paperFormats[options.format.toLowerCase()];
         assert(format, 'Unknown paper format: ' + options.format);
         width = format.width;
         height = format.height;

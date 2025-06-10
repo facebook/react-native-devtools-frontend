@@ -5,6 +5,7 @@
 import {assert} from 'chai';
 
 import {click, waitFor} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   getDisplayedEventListenerNames,
   getFirstNodeForEventListener,
@@ -29,11 +30,10 @@ describe('Removing event listeners in the elements sidebar', () => {
     assert.include(firstListenerText, 'button#test-button');
     const removeButtonSelector = `${listenerSelector} devtools-button`;
     const removeButton = await waitFor(removeButtonSelector);
-    const buttonTitle = await removeButton.evaluate(n => {
+    removeButton.evaluate(n => {
       const button = n.shadowRoot?.querySelector('button');
-      return button?.title;
+      assert.strictEqual(button?.title, 'Delete event listener');
     });
-    assert.strictEqual(buttonTitle, 'Delete event listener');
 
     await click(removeButtonSelector);
 

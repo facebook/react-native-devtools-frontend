@@ -32,7 +32,7 @@ import type {
 import type {WindowRealm} from './core/Realm.js';
 import {BidiDeserializer} from './Deserializer.js';
 import {BidiElementHandle} from './ElementHandle.js';
-import {ExposableFunction} from './ExposedFunction.js';
+import {ExposeableFunction} from './ExposedFunction.js';
 import type {BidiFrame} from './Frame.js';
 import {BidiJSHandle} from './JSHandle.js';
 import {BidiSerializer} from './Serializer.js';
@@ -125,7 +125,7 @@ export abstract class BidiRealm extends Realm {
   ): Promise<HandleFor<Awaited<ReturnType<Func>>> | Awaited<ReturnType<Func>>> {
     const sourceUrlComment = getSourceUrlComment(
       getSourcePuppeteerURLIfAvailable(pageFunction)?.toString() ??
-        PuppeteerURL.INTERNAL_URL,
+        PuppeteerURL.INTERNAL_URL
     );
 
     let responsePromise;
@@ -157,23 +157,17 @@ export abstract class BidiRealm extends Realm {
         functionDeclaration,
         /* awaitPromise= */ true,
         {
-          // LazyArgs are used only internally and should not affect the order
-          // evaluate calls for the public APIs.
-          arguments: args.some(arg => {
-            return arg instanceof LazyArg;
-          })
+          arguments: args.length
             ? await Promise.all(
                 args.map(arg => {
-                  return this.serializeAsync(arg);
-                }),
+                  return this.serialize(arg);
+                })
               )
-            : args.map(arg => {
-                return this.serialize(arg);
-              }),
+            : [],
           resultOwnership,
           userActivation: true,
           serializationOptions,
-        },
+        }
       );
     }
 
@@ -189,7 +183,7 @@ export abstract class BidiRealm extends Realm {
   }
 
   createHandle(
-    result: Bidi.Script.RemoteValue,
+    result: Bidi.Script.RemoteValue
   ): BidiJSHandle<unknown> | BidiElementHandle<Node> {
     if (
       (result.type === 'node' || result.type === 'window') &&
@@ -200,14 +194,11 @@ export abstract class BidiRealm extends Realm {
     return BidiJSHandle.from(result, this);
   }
 
-  async serializeAsync(arg: unknown): Promise<Bidi.Script.LocalValue> {
+  async serialize(arg: unknown): Promise<Bidi.Script.LocalValue> {
     if (arg instanceof LazyArg) {
       arg = await arg.get(this);
     }
-    return this.serialize(arg);
-  }
 
-  serialize(arg: unknown): Bidi.Script.LocalValue {
     if (arg instanceof BidiJSHandle || arg instanceof BidiElementHandle) {
       if (arg.realm !== this) {
         if (
@@ -215,12 +206,12 @@ export abstract class BidiRealm extends Realm {
           !(this instanceof BidiFrameRealm)
         ) {
           throw new Error(
-            "Trying to evaluate JSHandle from different global types. Usually this means you're using a handle from a worker in a page or vice versa.",
+            "Trying to evaluate JSHandle from different global types. Usually this means you're using a handle from a worker in a page or vice versa."
           );
         }
         if (arg.realm.environment !== this.environment) {
           throw new Error(
-            "Trying to evaluate JSHandle from different frames. Usually this means you're using a handle from a page on a different page.",
+            "Trying to evaluate JSHandle from different frames. Usually this means you're using a handle from a page on a different page."
           );
         }
       }
@@ -264,7 +255,7 @@ export abstract class BidiRealm extends Realm {
   }
 
   override async transferHandle<T extends JSHandle<Node>>(
-    handle: T,
+    handle: T
   ): Promise<T> {
     if (handle.realm === this) {
       return handle;
@@ -308,28 +299,28 @@ export class BidiFrameRealm extends BidiRealm {
     let promise = Promise.resolve() as Promise<unknown>;
     if (!this.#bindingsInstalled) {
       promise = Promise.all([
-        ExposableFunction.from(
+        ExposeableFunction.from(
           this.environment as BidiFrame,
           '__ariaQuerySelector',
           ARIAQueryHandler.queryOne,
-          !!this.sandbox,
+          !!this.sandbox
         ),
-        ExposableFunction.from(
+        ExposeableFunction.from(
           this.environment as BidiFrame,
           '__ariaQuerySelectorAll',
           async (
             element: BidiElementHandle<Node>,
-            selector: string,
+            selector: string
           ): Promise<JSHandle<Node[]>> => {
             const results = ARIAQueryHandler.queryAll(element, selector);
             return await element.realm.evaluateHandle(
               (...elements) => {
                 return elements;
               },
-              ...(await AsyncIterableUtil.collect(results)),
+              ...(await AsyncIterableUtil.collect(results))
             );
           },
-          !!this.sandbox,
+          !!this.sandbox
         ),
       ]);
       this.#bindingsInstalled = true;
@@ -348,7 +339,7 @@ export class BidiFrameRealm extends BidiRealm {
   }
 
   override async adoptBackendNode(
-    backendNodeId?: number | undefined,
+    backendNodeId?: number | undefined
   ): Promise<JSHandle<Node>> {
     const {object} = await this.#frame.client.send('DOM.resolveNode', {
       backendNodeId,
@@ -359,7 +350,7 @@ export class BidiFrameRealm extends BidiRealm {
         handle: object.objectId,
         type: 'node',
       },
-      this,
+      this
     );
     // We need the sharedId, so we perform the following to obtain it.
     return await handle.evaluateHandle(element => {
@@ -374,7 +365,7 @@ export class BidiFrameRealm extends BidiRealm {
 export class BidiWorkerRealm extends BidiRealm {
   static from(
     realm: DedicatedWorkerRealm | SharedWorkerRealm,
-    worker: BidiWebWorker,
+    worker: BidiWebWorker
   ): BidiWorkerRealm {
     const workerRealm = new BidiWorkerRealm(realm, worker);
     workerRealm.initialize();
@@ -386,7 +377,7 @@ export class BidiWorkerRealm extends BidiRealm {
 
   private constructor(
     realm: DedicatedWorkerRealm | SharedWorkerRealm,
-    frame: BidiWebWorker,
+    frame: BidiWebWorker
   ) {
     super(realm, frame.timeoutSettings);
     this.#worker = frame;

@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import {assertNotNullOrUndefined, getBrowserAndPages, goToResource} from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   ensureResourceSectionIsExpanded,
   expandIssue,
@@ -20,7 +21,7 @@ describe('Privacy Sandbox Extensions API', () => {
   it('should report privacy sandbox extensions api deprecation issues', async () => {
     await navigateToIssuesTab();
     const {frontend} = getBrowserAndPages();
-    await frontend.evaluate(() => {
+    frontend.evaluate(() => {
       const issue = {
         code: 'DeprecationIssue',
         details: {
@@ -34,7 +35,7 @@ describe('Privacy Sandbox Extensions API', () => {
           },
         },
       };
-      // @ts-expect-error
+      // @ts-ignore
       window.addIssueForTest(issue);
     });
 

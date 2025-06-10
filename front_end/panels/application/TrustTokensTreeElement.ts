@@ -11,7 +11,7 @@ import * as UI from '../../ui/legacy/legacy.js';
 
 import {ApplicationPanelTreeElement} from './ApplicationPanelTreeElement.js';
 import * as ApplicationComponents from './components/components.js';
-import type {ResourcesPanel} from './ResourcesPanel.js';
+import {type ResourcesPanel} from './ResourcesPanel.js';
 
 const UIStrings = {
   /**
@@ -19,7 +19,7 @@ const UIStrings = {
    * Previously known as 'Trust Tokens'.
    */
   trustTokens: 'Private state tokens',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/application/TrustTokensTreeElement.ts', UIStrings);
 export const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 

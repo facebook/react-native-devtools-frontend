@@ -2,30 +2,34 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 import * as Platform from '../platform/platform.js';
+import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 
-import {SDKModel} from './SDKModel.js';
 import {Capability, type Target} from './Target.js';
+import {SDKModel} from './SDKModel.js';
 
 export class PerformanceMetricsModel extends SDKModel<void> {
   readonly #agent: ProtocolProxyApi.PerformanceApi;
-  readonly #metricModes = new Map<string, MetricMode>([
-    ['TaskDuration', MetricMode.CUMULATIVE_TIME],
-    ['ScriptDuration', MetricMode.CUMULATIVE_TIME],
-    ['LayoutDuration', MetricMode.CUMULATIVE_TIME],
-    ['RecalcStyleDuration', MetricMode.CUMULATIVE_TIME],
-    ['LayoutCount', MetricMode.CUMULATIVE_COUNT],
-    ['RecalcStyleCount', MetricMode.CUMULATIVE_COUNT],
-  ]);
-  readonly #metricData = new Map<string, {
+  readonly #metricModes: Map<string, MetricMode>;
+  readonly #metricData: Map<string, {
     lastValue: (number | undefined),
     lastTimestamp: (number|undefined),
-  }>();
+  }>;
 
   constructor(target: Target) {
     super(target);
     this.#agent = target.performanceAgent();
+
+    this.#metricModes = new Map([
+      ['TaskDuration', MetricMode.CumulativeTime],
+      ['ScriptDuration', MetricMode.CumulativeTime],
+      ['LayoutDuration', MetricMode.CumulativeTime],
+      ['RecalcStyleDuration', MetricMode.CumulativeTime],
+      ['LayoutCount', MetricMode.CumulativeCount],
+      ['RecalcStyleCount', MetricMode.CumulativeCount],
+    ]);
+
+    this.#metricData = new Map();
   }
 
   enable(): Promise<Object> {
@@ -51,7 +55,7 @@ export class PerformanceMetricsModel extends SDKModel<void> {
       }
       let value;
       switch (this.#metricModes.get(metric.name)) {
-        case MetricMode.CUMULATIVE_TIME:
+        case MetricMode.CumulativeTime:
           value = (data.lastTimestamp && data.lastValue) ?
               Platform.NumberUtilities.clamp(
                   (metric.value - data.lastValue) * 1000 / (timestamp - data.lastTimestamp), 0, 1) :
@@ -59,7 +63,7 @@ export class PerformanceMetricsModel extends SDKModel<void> {
           data.lastValue = metric.value;
           data.lastTimestamp = timestamp;
           break;
-        case MetricMode.CUMULATIVE_COUNT:
+        case MetricMode.CumulativeCount:
           value = (data.lastTimestamp && data.lastValue) ?
               Math.max(0, (metric.value - data.lastValue) * 1000 / (timestamp - data.lastTimestamp)) :
               0;
@@ -72,13 +76,13 @@ export class PerformanceMetricsModel extends SDKModel<void> {
       }
       metrics.set(metric.name, value);
     }
-    return {metrics, timestamp};
+    return {metrics: metrics, timestamp: timestamp};
   }
 }
 
 const enum MetricMode {
-  CUMULATIVE_TIME = 'CumulativeTime',
-  CUMULATIVE_COUNT = 'CumulativeCount',
+  CumulativeTime = 'CumulativeTime',
+  CumulativeCount = 'CumulativeCount',
 }
 
 SDKModel.register(PerformanceMetricsModel, {capabilities: Capability.DOM, autostart: false});

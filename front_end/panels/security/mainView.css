@@ -9,7 +9,8 @@
 }
 
 .security-main-view {
-  overflow: hidden auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   background-color: var(--sys-color-cdt-base-container);
 }
 

@@ -1,7 +1,6 @@
 var _a;
 import { HTTPRequest, STATUS_TEXTS, handleError, } from '../api/HTTPRequest.js';
 import { UnsupportedOperation } from '../common/Errors.js';
-import { stringToBase64 } from '../util/encoding.js';
 import { BidiHTTPResponse } from './HTTPResponse.js';
 export const requests = new WeakMap();
 /**
@@ -120,10 +119,7 @@ export class BidiHTTPRequest extends HTTPRequest {
         return this.#request.navigation !== undefined;
     }
     initiator() {
-        return {
-            ...this.#request.initiator,
-            type: this.#request.initiator?.type ?? 'other',
-        };
+        return this.#request.initiator;
     }
     redirectChain() {
         return this.#redirectChain.slice();
@@ -147,7 +143,7 @@ export class BidiHTTPRequest extends HTTPRequest {
             body: overrides.postData
                 ? {
                     type: 'base64',
-                    value: stringToBase64(overrides.postData),
+                    value: btoa(overrides.postData),
                 }
                 : undefined,
             headers: headers.length > 0 ? headers : undefined,
@@ -233,9 +229,6 @@ export class BidiHTTPRequest extends HTTPRequest {
             });
         }
     };
-    timing() {
-        return this.#request.timing();
-    }
 }
 _a = BidiHTTPRequest;
 function getBidiHeaders(rawHeaders) {

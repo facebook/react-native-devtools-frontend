@@ -14,7 +14,13 @@ const iconName1 = document.createElement('td');
 iconName1.textContent = 'select-element';
 row1.appendChild(iconName1);
 
-const icon = IconButton.Icon.create('select-element');
+const icon = new IconButton.Icon.Icon();
+const name = 'select-element';
+icon.data = {
+  iconName: name,
+  color: 'rgb(110, 110, 110)',
+  width: '20px',
+};
 const icon1 = document.createElement('td');
 icon1.appendChild(icon);
 row1.appendChild(icon1);
@@ -31,8 +37,14 @@ const iconName2 = document.createElement('td');
 iconName2.textContent = 'issue-exclamation-filled';
 row2.appendChild(iconName2);
 
-const otherIcon = IconButton.Icon.create('issue-exclamation-filled');
-otherIcon.style.color = 'var(--icon-link)';
+const otherIcon = new IconButton.Icon.Icon();
+const otherPath = 'issue-exclamation-filled';
+otherIcon.data = {
+  iconPath: otherPath,
+  width: '20px',
+  height: '20px',
+  color: 'var(--icon-link)',
+};
 const icon2 = document.createElement('td');
 icon2.appendChild(otherIcon);
 row2.appendChild(icon2);
@@ -44,7 +56,9 @@ const iconName3 = document.createElement('td');
 iconName3.textContent = 'select-element';
 row3.appendChild(iconName3);
 
-const otherIcon2 = IconButton.Icon.create('select-element', 'custom-color');
+const otherIcon2 = new IconButton.Icon.Icon();
+otherIcon2.classList.add('custom-color');
+otherIcon2.name = 'select-element';
 const icon3 = document.createElement('td');
 icon3.appendChild(otherIcon2);
 row3.appendChild(icon3);
@@ -56,7 +70,14 @@ iconTable?.appendChild(row3);
   const span1 = document.createElement('span');
   span1.textContent = 'Some text';
   div.appendChild(span1);
-  const otherIcon3 = IconButton.Icon.create('select-element', 'custom-color');
+  const otherIcon3 = new IconButton.Icon.Icon();
+  otherIcon3.classList.add('custom-color');
+  otherIcon3.data = {
+    iconName: 'select-element',
+    width: '20px',
+    height: '20px',
+    color: 'var(--icon-default)',
+  };
   div.appendChild(otherIcon3);
   const span2 = document.createElement('span');
   span2.textContent = 'with a large icon';
@@ -69,9 +90,14 @@ iconTable?.appendChild(row3);
   const span1 = document.createElement('span');
   span1.textContent = 'Some text';
   div.appendChild(span1);
-  const otherIcon3 = IconButton.Icon.create('select-element', 'custom-color');
-  otherIcon3.style.width = '14px';
-  otherIcon3.style.height = '14px';
+  const otherIcon3 = new IconButton.Icon.Icon();
+  otherIcon3.classList.add('custom-color');
+  otherIcon3.data = {
+    iconName: 'select-element',
+    width: '14px',
+    height: '14px',
+    color: 'var(--icon-default)',
+  };
   div.appendChild(otherIcon3);
   const span2 = document.createElement('span');
   span2.textContent = 'with a small icon';

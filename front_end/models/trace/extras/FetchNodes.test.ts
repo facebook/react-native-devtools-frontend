@@ -12,7 +12,7 @@ import {
   setMockConnectionResponseHandler,
 } from '../../../testing/MockConnection.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
-import * as Trace from '../trace.js';
+import * as TraceEngine from '../trace.js';
 
 function nodeId<T extends Protocol.DOM.BackendNodeId|Protocol.DOM.NodeId>(x: number): T {
   return x as T;
@@ -21,7 +21,7 @@ function nodeId<T extends Protocol.DOM.BackendNodeId|Protocol.DOM.NodeId>(x: num
 describeWithMockConnection('FetchNodes', function() {
   beforeEach(async () => {
     clearAllMockConnectionResponseHandlers();
-    Trace.Extras.FetchNodes.clearCacheForTesting();
+    TraceEngine.Extras.FetchNodes.clearCacheForTesting();
   });
 
   describe('DOMNodeLookup', function() {
@@ -42,14 +42,14 @@ describeWithMockConnection('FetchNodes', function() {
       await domModel.requestDocument();
       domModel.registerNode(domNode);
 
-      const {parsedTrace} = await TraceLoader.traceEngine(this, 'cls-single-frame.json.gz');
-      const result = await Trace.Extras.FetchNodes.domNodeForBackendNodeID(parsedTrace, nodeId(2));
+      const {traceData} = await TraceLoader.traceEngine(this, 'cls-single-frame.json.gz');
+      const result = await TraceEngine.Extras.FetchNodes.domNodeForBackendNodeID(traceData, nodeId(2));
       assert.strictEqual(result, domNode);
 
       // Clear the mock and re-set it to return nothing to test the bad path.
       clearMockConnectionResponseHandler('DOM.pushNodesByBackendIdsToFrontend');
       setMockConnectionResponseHandler('DOM.pushNodesByBackendIdsToFrontend', () => ({nodeIds: []}));
-      const doesNotExistResult = await Trace.Extras.FetchNodes.domNodeForBackendNodeID(parsedTrace, nodeId(99));
+      const doesNotExistResult = await TraceEngine.Extras.FetchNodes.domNodeForBackendNodeID(traceData, nodeId(99));
       assert.isNull(doesNotExistResult);
     });
 
@@ -70,13 +70,13 @@ describeWithMockConnection('FetchNodes', function() {
       domModel.registerNode(domNode);
 
       // The model data is only used as a cache key, so we don't need it to be real to test this.
-      const modelData1 = {} as unknown as Trace.Handlers.Types.ParsedTrace;
-      const modelData2 = {} as unknown as Trace.Handlers.Types.ParsedTrace;
-      const result = await Trace.Extras.FetchNodes.domNodeForBackendNodeID(modelData1, nodeId(2));
+      const modelData1 = {} as unknown as TraceEngine.Handlers.Types.TraceParseData;
+      const modelData2 = {} as unknown as TraceEngine.Handlers.Types.TraceParseData;
+      const result = await TraceEngine.Extras.FetchNodes.domNodeForBackendNodeID(modelData1, nodeId(2));
       assert.isNotNull(result);
       // Look it up again to test the cache.
-      await Trace.Extras.FetchNodes.domNodeForBackendNodeID(modelData1, nodeId(2));
-      await Trace.Extras.FetchNodes.domNodeForBackendNodeID(modelData2, nodeId(2));
+      await TraceEngine.Extras.FetchNodes.domNodeForBackendNodeID(modelData1, nodeId(2));
+      await TraceEngine.Extras.FetchNodes.domNodeForBackendNodeID(modelData2, nodeId(2));
       // The call with the new model data did not hit the cache.
       assert.strictEqual(pushNodesSpy.callCount, 2);
     });
@@ -101,8 +101,9 @@ describeWithMockConnection('FetchNodes', function() {
       domModel.registerNode(domNodeId3);
 
       // The model data is only used as a cache key, so we don't need it to be real to test this.
-      const modelData = {} as unknown as Trace.Handlers.Types.ParsedTrace;
-      const result = await Trace.Extras.FetchNodes.domNodesForMultipleBackendNodeIds(modelData, [nodeId(2), nodeId(3)]);
+      const modelData = {} as unknown as TraceEngine.Handlers.Types.TraceParseData;
+      const result =
+          await TraceEngine.Extras.FetchNodes.domNodesForMultipleBackendNodeIds(modelData, [nodeId(2), nodeId(3)]);
       assert.isNotNull(result);
       const entries = Array.from(result.entries());
       assert.deepEqual(entries, [
@@ -114,18 +115,18 @@ describeWithMockConnection('FetchNodes', function() {
 
   describe('nodeIdsForEvent', () => {
     it('identifies node ids for a Layout event', async function() {
-      const {parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
-      const layoutEvent = parsedTrace.Renderer.allTraceEntries.find(Trace.Types.Events.isLayout);
+      const {traceData} = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
+      const layoutEvent = traceData.Renderer.allTraceEntries.find(TraceEngine.Types.TraceEvents.isTraceEventLayout);
       assert.isOk(layoutEvent);
-      const nodeIds = Trace.Extras.FetchNodes.nodeIdsForEvent(parsedTrace, layoutEvent);
+      const nodeIds = TraceEngine.Extras.FetchNodes.nodeIdsForEvent(traceData, layoutEvent);
       assert.deepEqual(Array.from(nodeIds), [2]);
     });
 
     it('identifies node ids for a LayoutShift event', async function() {
-      const {parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev-initial-url.json.gz');
-      const layoutShiftEvent = parsedTrace.LayoutShifts.clusters[0].events.at(0);
+      const {traceData} = await TraceLoader.traceEngine(this, 'web-dev-initial-url.json.gz');
+      const layoutShiftEvent = traceData.LayoutShifts.clusters[0].events.at(0);
       assert.isOk(layoutShiftEvent);
-      const nodeIds = Trace.Extras.FetchNodes.nodeIdsForEvent(parsedTrace, layoutShiftEvent);
+      const nodeIds = TraceEngine.Extras.FetchNodes.nodeIdsForEvent(traceData, layoutShiftEvent);
       assert.deepEqual(Array.from(nodeIds), [
         193,
         195,
@@ -136,53 +137,57 @@ describeWithMockConnection('FetchNodes', function() {
     });
 
     it('identifies node ids for a Paint event', async function() {
-      const {parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev-initial-url.json.gz');
-      const paintEvent = parsedTrace.Renderer.allTraceEntries.find(Trace.Types.Events.isPaint);
+      const {traceData} = await TraceLoader.traceEngine(this, 'web-dev-initial-url.json.gz');
+      const paintEvent = traceData.Renderer.allTraceEntries.find(TraceEngine.Types.TraceEvents.isTraceEventPaint);
       assert.isOk(paintEvent);
-      const nodeIds = Trace.Extras.FetchNodes.nodeIdsForEvent(parsedTrace, paintEvent);
+      const nodeIds = TraceEngine.Extras.FetchNodes.nodeIdsForEvent(traceData, paintEvent);
       assert.deepEqual(Array.from(nodeIds), [75]);
     });
 
     it('identifies node ids for a PaintImage event', async function() {
-      const {parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev-initial-url.json.gz');
-      const paintImageEvent = parsedTrace.Renderer.allTraceEntries.find(Trace.Types.Events.isPaintImage);
+      const {traceData} = await TraceLoader.traceEngine(this, 'web-dev-initial-url.json.gz');
+      const paintImageEvent =
+          traceData.Renderer.allTraceEntries.find(TraceEngine.Types.TraceEvents.isTraceEventPaintImage);
       assert.isOk(paintImageEvent);
-      const nodeIds = Trace.Extras.FetchNodes.nodeIdsForEvent(parsedTrace, paintImageEvent);
+      const nodeIds = TraceEngine.Extras.FetchNodes.nodeIdsForEvent(traceData, paintImageEvent);
       assert.deepEqual(Array.from(nodeIds), [107]);
     });
 
     it('identifies node ids for a ScrollLayer event', async function() {
       // This trace chosen as it happens to have ScrollLayer events, unlike the
       // web-dev traces used in tests above.
-      const {parsedTrace} = await TraceLoader.traceEngine(this, 'extension-tracks-and-marks.json.gz');
-      const scrollLayerEvent = parsedTrace.Renderer.allTraceEntries.find(Trace.Types.Events.isScrollLayer);
+      const {traceData} = await TraceLoader.traceEngine(this, 'extension-tracks-and-marks.json.gz');
+      const scrollLayerEvent =
+          traceData.Renderer.allTraceEntries.find(TraceEngine.Types.TraceEvents.isTraceEventScrollLayer);
       assert.isOk(scrollLayerEvent);
-      const nodeIds = Trace.Extras.FetchNodes.nodeIdsForEvent(parsedTrace, scrollLayerEvent);
+      const nodeIds = TraceEngine.Extras.FetchNodes.nodeIdsForEvent(traceData, scrollLayerEvent);
       assert.deepEqual(Array.from(nodeIds), [4]);
     });
 
     it('identifies node ids for a DecodeImage event', async function() {
-      const {parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev.json.gz');
-      const decodeImageEvent = parsedTrace.Renderer.allTraceEntries.find(Trace.Types.Events.isDecodeImage);
+      const {traceData} = await TraceLoader.traceEngine(this, 'web-dev.json.gz');
+      const decodeImageEvent =
+          traceData.Renderer.allTraceEntries.find(TraceEngine.Types.TraceEvents.isTraceEventDecodeImage);
       assert.isOk(decodeImageEvent);
-      const nodeIds = Trace.Extras.FetchNodes.nodeIdsForEvent(parsedTrace, decodeImageEvent);
+      const nodeIds = TraceEngine.Extras.FetchNodes.nodeIdsForEvent(traceData, decodeImageEvent);
       assert.deepEqual(Array.from(nodeIds), [240]);
     });
 
     it('identifies node ids for a DrawLazyPixelRef event', async function() {
-      const {parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev.json.gz');
-      const drawLazyPixelRefEvent = parsedTrace.Renderer.allTraceEntries.find(Trace.Types.Events.isDrawLazyPixelRef);
+      const {traceData} = await TraceLoader.traceEngine(this, 'web-dev.json.gz');
+      const drawLazyPixelRefEvent =
+          traceData.Renderer.allTraceEntries.find(TraceEngine.Types.TraceEvents.isTraceEventDrawLazyPixelRef);
       assert.isOk(drawLazyPixelRefEvent);
-      const nodeIds = Trace.Extras.FetchNodes.nodeIdsForEvent(parsedTrace, drawLazyPixelRefEvent);
+      const nodeIds = TraceEngine.Extras.FetchNodes.nodeIdsForEvent(traceData, drawLazyPixelRefEvent);
       assert.deepEqual(Array.from(nodeIds), [212]);
     });
 
     it('identifies node ids for a MarkLCP event', async function() {
-      const {parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev.json.gz');
-      const lcpCandidateEvent =
-          parsedTrace.PageLoadMetrics.allMarkerEvents.find(Trace.Types.Events.isLargestContentfulPaintCandidate);
+      const {traceData} = await TraceLoader.traceEngine(this, 'web-dev.json.gz');
+      const lcpCandidateEvent = traceData.PageLoadMetrics.allMarkerEvents.find(
+          TraceEngine.Types.TraceEvents.isTraceEventLargestContentfulPaintCandidate);
       assert.isOk(lcpCandidateEvent);
-      const nodeIds = Trace.Extras.FetchNodes.nodeIdsForEvent(parsedTrace, lcpCandidateEvent);
+      const nodeIds = TraceEngine.Extras.FetchNodes.nodeIdsForEvent(traceData, lcpCandidateEvent);
       assert.deepEqual(Array.from(nodeIds), [209]);
     });
   });
@@ -205,7 +210,7 @@ describeWithMockConnection('FetchNodes', function() {
       await domModel.requestDocument();
       domModel.registerNode(domNode);
 
-      const modelData = {} as unknown as Trace.Handlers.Types.ParsedTrace;
+      const modelData = {} as unknown as TraceEngine.Handlers.Types.TraceParseData;
       const event = {
         args: {
           data: {
@@ -216,8 +221,8 @@ describeWithMockConnection('FetchNodes', function() {
             }],
           },
         },
-      } as unknown as Trace.Types.Events.LayoutShift;
-      const sources = await Trace.Extras.FetchNodes.sourcesForLayoutShift(modelData, event);
+      } as unknown as TraceEngine.Types.TraceEvents.TraceEventLayoutShift;
+      const sources = await TraceEngine.Extras.FetchNodes.sourcesForLayoutShift(modelData, event);
       assert.lengthOf(sources, 1);
       assert.deepEqual(sources.at(0), {
         node: domNode,
@@ -229,7 +234,7 @@ describeWithMockConnection('FetchNodes', function() {
     it('returns normalized nodes if we can calculate the window.devicePixelRatio', async () => {
       createTarget();
       setMockConnectionResponseHandler('Runtime.evaluate', () => ({result: {value: 4, type: 'number'}}));
-      const impactedNodes: Trace.Types.Events.TraceImpactedNode[] = [
+      const impactedNodes: TraceEngine.Types.TraceEvents.TraceImpactedNode[] = [
         {
           new_rect: [0, 0, 40, 80],
           node_id: 1 as Protocol.DOM.BackendNodeId,
@@ -241,9 +246,11 @@ describeWithMockConnection('FetchNodes', function() {
           old_rect: [0, 0, 10, 10],
         },
       ];
-      const mockShift = {args: {data: {impacted_nodes: impactedNodes}}} as Trace.Types.Events.LayoutShift;
-      const modelData = {} as unknown as Trace.Handlers.Types.ParsedTrace;
-      const normalized = await Trace.Extras.FetchNodes.normalizedImpactedNodesForLayoutShift(modelData, mockShift);
+      const mockShift = {args: {data: {impacted_nodes: impactedNodes}}} as
+          TraceEngine.Types.TraceEvents.TraceEventLayoutShift;
+      const modelData = {} as unknown as TraceEngine.Handlers.Types.TraceParseData;
+      const normalized =
+          await TraceEngine.Extras.FetchNodes.normalizedImpactedNodesForLayoutShift(modelData, mockShift);
       assert.deepEqual(normalized, [
         {
           new_rect: [0, 0, 10, 20],

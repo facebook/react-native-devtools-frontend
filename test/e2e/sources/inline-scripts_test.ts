@@ -9,6 +9,7 @@ import {
   getBrowserAndPages,
   waitFor,
 } from '../../shared/helper.js';
+import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   addBreakpointForLine,
   getCallFrameNames,
@@ -25,7 +26,7 @@ describe('The Sources Tab', () => {
     await addBreakpointForLine(frontend, 4);
     await addBreakpointForLine(frontend, 11);
 
-    await target.reload();
+    target.reload();
     await waitFor(PAUSE_INDICATOR_SELECTOR);
 
     let names = await getCallFrameNames();

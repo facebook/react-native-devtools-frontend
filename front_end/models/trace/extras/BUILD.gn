@@ -4,7 +4,7 @@
 
 import("../../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../../scripts/build/ninja/devtools_module.gni")
-import("../../../../scripts/build/typescript/typescript.gni")
+import("../../../../third_party/typescript/typescript.gni")
 import("../../visibility.gni")
 
 devtools_module("extras") {
@@ -13,11 +13,7 @@ devtools_module("extras") {
     "FilmStrip.ts",
     "MainThreadActivity.ts",
     "Metadata.ts",
-    "ScriptDuplication.ts",
-    "StackTraceForEvent.ts",
-    "ThirdParties.ts",
-    "TraceFilter.ts",
-    "TraceTree.ts",
+    "URLForEntry.ts",
   ]
 
   deps = [
@@ -48,11 +44,7 @@ ts_library("unittests") {
     "FilmStrip.test.ts",
     "MainThreadActivity.test.ts",
     "Metadata.test.ts",
-    "ScriptDuplication.test.ts",
-    "StackTraceForEvent.test.ts",
-    "ThirdParties.test.ts",
-    "TraceFilter.test.ts",
-    "TraceTree.test.ts",
+    "URLForEntry.test.ts",
   ]
 
   deps = [

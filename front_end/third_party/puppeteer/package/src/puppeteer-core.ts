@@ -6,23 +6,12 @@
 
 export * from './index.js';
 
-import fs from 'node:fs';
-import path from 'node:path';
+import {PuppeteerNode} from './node/PuppeteerNode.js';
 
-import {environment} from './environment.js';
-
-import * as Puppeteer from './index.js';
-
-// Set up Node-specific environment dependencies.
-environment.value = {
-  fs,
-  path,
-  ScreenRecorder: Puppeteer.ScreenRecorder,
-};
 /**
  * @public
  */
-const puppeteer = new Puppeteer.PuppeteerNode({
+const puppeteer = new PuppeteerNode({
   isPuppeteerCore: true,
 });
 

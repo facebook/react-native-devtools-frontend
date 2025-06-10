@@ -4,16 +4,18 @@
 
 import * as Platform from '../../core/platform/platform.js';
 
-import type {Suggestion} from './SuggestBox.js';
+import {type Suggestion} from './SuggestBox.js';
 
 export class FilterSuggestionBuilder {
   private readonly keys: string[];
-  private readonly valueSorter: ((arg0: string, arg1: string[]) => void)|((key: string, result: string[]) => string[]);
-  private readonly valuesMap = new Map<string, Set<string>>();
+  private readonly valueSorter: ((arg0: string, arg1: Array<string>) => void)|
+      ((key: string, result: string[]) => string[]);
+  private readonly valuesMap: Map<string, Set<string>>;
 
-  constructor(keys: string[], valueSorter?: ((arg0: string, arg1: string[]) => void)) {
+  constructor(keys: string[], valueSorter?: ((arg0: string, arg1: Array<string>) => void)) {
     this.keys = keys;
     this.valueSorter = valueSorter || ((key: string, result: string[]) => result.sort());
+    this.valuesMap = new Map();
   }
 
   completions(expression: string, prefix: string, force?: boolean): Promise<Suggestion[]> {
@@ -58,7 +60,7 @@ export class FilterSuggestionBuilder {
 
     let set = this.valuesMap.get(key);
     if (!set) {
-      set = (new Set());
+      set = (new Set() as Set<string>);
       this.valuesMap.set(key, set);
     }
     set.add(value);

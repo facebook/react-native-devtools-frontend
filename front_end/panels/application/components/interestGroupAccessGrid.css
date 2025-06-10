@@ -4,16 +4,15 @@
  * found in the LICENSE file.
  */
 :host {
-  display: flex;
   padding: 20px;
-  height: 100%;
 }
 
 .heading {
   font-size: 15px;
 }
 
-devtools-data-grid {
+devtools-data-grid-controller {
+  border: 1px solid var(--sys-color-divider);
   margin-top: 20px;
 }
 

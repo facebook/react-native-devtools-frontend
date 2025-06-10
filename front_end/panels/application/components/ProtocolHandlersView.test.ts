@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Platform from '../../../core/platform/platform.js';
+import type * as Platform from '../../../core/platform/platform.js';
 import {
   getCleanTextContentFromElements,
   getElementWithinComponent,
@@ -11,8 +11,6 @@ import {
 import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
 
 import * as ApplicationComponents from './components.js';
-
-const {urlString} = Platform.DevToolsPath;
 
 async function renderProtocolHandlersComponent(
     manifestLink: Platform.DevToolsPath.UrlString,
@@ -27,18 +25,18 @@ describeWithEnvironment('ProtocolHandlersView', () => {
   it('renders view when protocols are detected', async () => {
     const protocols = [
       {
-        protocol: 'web+coffee',
-        url: './?coffee=%s',
+        'protocol': 'web+coffee',
+        'url': './?coffee=%s',
       },
       {
-        protocol: 'web+pwinter',
-        url: 'index.html?colors=%s',
+        'protocol': 'web+pwinter',
+        'url': 'index.html?colors=%s',
       },
       {
         'invalid-protocol': 'this is an invalid protocol entry for testing purposes',
       },
     ];
-    const manifestURL = urlString`https://www.example.com/index.html/manifest-protocol.json`;
+    const manifestURL = 'https://www.example.com/index.html/manifest-protocol.json' as Platform.DevToolsPath.UrlString;
     const component = await renderProtocolHandlersComponent(
         manifestURL, protocols as ApplicationComponents.ProtocolHandlersView.ProtocolHandler[]);
 
@@ -59,8 +57,9 @@ describeWithEnvironment('ProtocolHandlersView', () => {
 
   it('renders protocols not detected status message', async () => {
     const protocols: ApplicationComponents.ProtocolHandlersView.ProtocolHandler[] = [];
-    const manifestURL = urlString`https://www.example.com/index.html/manifest-protocol.json`;
-    const component = await renderProtocolHandlersComponent(manifestURL, protocols);
+    const manifestURL = 'https://www.example.com/index.html/manifest-protocol.json' as Platform.DevToolsPath.UrlString;
+    const component = await renderProtocolHandlersComponent(
+        manifestURL, protocols as ApplicationComponents.ProtocolHandlersView.ProtocolHandler[]);
 
     const noStatusElement = component.shadowRoot!.querySelector('.protocol-handlers-row.status');
     assert.instanceOf(noStatusElement, HTMLElement);

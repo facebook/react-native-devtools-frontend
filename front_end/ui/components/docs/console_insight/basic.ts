@@ -93,10 +93,9 @@ document.querySelector('test').style = 'black';
 \`\`\`
 `,
               metadata: {},
-              completed: true,
             };
           },
       registerClientEvent: () => Promise.resolve({}),
     },
-    Host.AidaClient.AidaAccessPreconditions.AVAILABLE);
+    Host.AidaClient.AidaAvailability.AVAILABLE);
 document.getElementById('container')?.appendChild(component);

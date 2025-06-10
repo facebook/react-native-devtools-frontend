@@ -4,12 +4,11 @@
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
-import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
 import * as Buttons from '../../ui/components/buttons/buttons.js';
 import * as ObjectUI from '../../ui/legacy/components/object_ui/object_ui.js';
-/* eslint-disable rulesdir/es-modules-import */
+/* eslint-disable rulesdir/es_modules_import */
 import objectValueStyles from '../../ui/legacy/components/object_ui/objectValue.css.js';
 import * as Components from '../../ui/legacy/components/utils/utils.js';
 import * as UI from '../../ui/legacy/legacy.js';
@@ -23,10 +22,6 @@ const UIStrings = {
    *@description Empty holder text content in Event Listeners View of the Event Listener Debugging pane in the Sources panel
    */
   noEventListeners: 'No event listeners',
-  /**
-   *@description Empty holder text content in Event Listeners View of the Event Listener Debugging pane in the Elements panel
-   */
-  eventListenersExplanation: 'On this page you will find registered event listeners',
   /**
    *@description Delete button title in Event Listeners View of the Event Listener Debugging pane in the Sources panel
    */
@@ -42,12 +37,12 @@ const UIStrings = {
   /**
    *@description A context menu item to reveal a node in the DOM tree of the Elements Panel
    */
-  openInElementsPanel: 'Open in Elements panel',
+  revealInElementsPanel: 'Reveal in Elements panel',
   /**
    *@description Text in Event Listeners Widget of the Elements panel
    */
   passive: 'Passive',
-} as const;
+};
 const str_ = i18n.i18n.registerUIStrings('panels/event_listeners/EventListenersView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class EventListenersView extends UI.Widget.VBox {
@@ -59,23 +54,18 @@ export class EventListenersView extends UI.Widget.VBox {
   private readonly treeItemMap: Map<string, EventListenersTreeElement>;
   constructor(changeCallback: () => void, enableDefaultTreeFocus: boolean|undefined = false) {
     super();
-    this.registerRequiredCSS(eventListenersViewStyles);
     this.changeCallback = changeCallback;
     this.enableDefaultTreeFocus = enableDefaultTreeFocus;
-
-    this.emptyHolder = this.element.createChild('div', 'placeholder hidden');
-    this.emptyHolder.createChild('span', 'gray-info-message').textContent = i18nString(UIStrings.noEventListeners);
-    const emptyWidget = new UI.EmptyWidget.EmptyWidget(
-        i18nString(UIStrings.noEventListeners), i18nString(UIStrings.eventListenersExplanation));
-    emptyWidget.show(this.emptyHolder);
-
     this.treeOutline = new UI.TreeOutline.TreeOutlineInShadow();
     this.treeOutline.setComparator(EventListenersTreeElement.comparator);
-    this.treeOutline.element.classList.add('event-listener-tree', 'monospace');
+    this.treeOutline.element.classList.add('monospace');
     this.treeOutline.setShowSelectionOnKeyboardFocus(true);
     this.treeOutline.setFocusable(true);
-    this.treeOutline.registerRequiredCSS(eventListenersViewStyles, objectValueStyles);
     this.element.appendChild(this.treeOutline.element);
+    this.emptyHolder = document.createElement('div');
+    this.emptyHolder.classList.add('gray-info-message');
+    this.emptyHolder.textContent = i18nString(UIStrings.noEventListeners);
+    this.emptyHolder.tabIndex = -1;
     this.linkifier = new Components.Linkifier.Linkifier();
     this.treeItemMap = new Map();
   }
@@ -84,14 +74,14 @@ export class EventListenersView extends UI.Widget.VBox {
     if (!this.enableDefaultTreeFocus) {
       return;
     }
-    if (!this.emptyHolder.classList.contains('hidden')) {
+    if (!this.emptyHolder.parentNode) {
       this.treeOutline.forceSelect();
     } else {
       this.emptyHolder.focus();
     }
   }
 
-  async addObjects(objects: Array<SDK.RemoteObject.RemoteObject|null>): Promise<void> {
+  async addObjects(objects: (SDK.RemoteObject.RemoteObject|null)[]): Promise<void> {
     this.reset();
     await Promise.all(objects.map(obj => obj ? this.addObject(obj) : Promise.resolve()));
     this.addEmptyHolderIfNeeded();
@@ -127,7 +117,7 @@ export class EventListenersView extends UI.Widget.VBox {
       if (!frameworkEventListenersObject.internalHandlers) {
         return;
       }
-      return await frameworkEventListenersObject.internalHandlers.object()
+      return frameworkEventListenersObject.internalHandlers.object()
           .callFunctionJSON(isInternalEventListener as (this: Object) => boolean[], eventListeners.map(handlerArgument))
           .then(setIsInternal);
 
@@ -135,9 +125,9 @@ export class EventListenersView extends UI.Widget.VBox {
         return SDK.RemoteObject.RemoteObject.toCallArgument(listener.handler());
       }
 
-      function isInternalEventListener(this: Array<Platform.Constructor.Constructor<unknown>>): boolean[] {
+      function isInternalEventListener(this: Function[]): boolean[] {
         const isInternal = [];
-        const internalHandlersSet = new Set<Platform.Constructor.Constructor<unknown>>(this);
+        const internalHandlersSet = new Set<Function>(this);
         for (const handler of arguments) {
           isInternal.push(internalHandlersSet.has(handler));
         }
@@ -180,10 +170,10 @@ export class EventListenersView extends UI.Widget.VBox {
         const objectListenerElement = listenerElement as ObjectEventListenerBar;
         const listenerOrigin = objectListenerElement.eventListener().origin();
         let hidden = false;
-        if (listenerOrigin === SDK.DOMDebuggerModel.EventListener.Origin.FRAMEWORK_USER && !showFramework) {
+        if (listenerOrigin === SDK.DOMDebuggerModel.EventListener.Origin.FrameworkUser && !showFramework) {
           hidden = true;
         }
-        if (listenerOrigin === SDK.DOMDebuggerModel.EventListener.Origin.FRAMEWORK && showFramework) {
+        if (listenerOrigin === SDK.DOMDebuggerModel.EventListener.Origin.Framework && showFramework) {
           hidden = true;
         }
         if (!showPassive && objectListenerElement.eventListener().passive()) {
@@ -207,7 +197,7 @@ export class EventListenersView extends UI.Widget.VBox {
       treeItem.hidden = true;
       this.treeOutline.appendChild(treeItem);
     }
-    this.emptyHolder.classList.add('hidden');
+    this.emptyHolder.remove();
     return treeItem;
   }
 
@@ -221,8 +211,8 @@ export class EventListenersView extends UI.Widget.VBox {
         firstVisibleChild = eventType;
       }
     }
-    if (allHidden && this.emptyHolder.classList.contains('hidden')) {
-      this.emptyHolder.classList.remove('hidden');
+    if (allHidden && !this.emptyHolder.parentNode) {
+      this.element.appendChild(this.emptyHolder);
     }
     if (firstVisibleChild) {
       firstVisibleChild.select(true /* omitFocus */);
@@ -240,6 +230,10 @@ export class EventListenersView extends UI.Widget.VBox {
   }
 
   private eventListenersArrivedForTest(): void {
+  }
+  override wasShown(): void {
+    super.wasShown();
+    this.treeOutline.registerCSSFiles([eventListenersViewStyles, objectValueStyles]);
   }
 }
 
@@ -310,7 +304,7 @@ export class ObjectEventListenerBar extends UI.TreeOutline.TreeElement {
       const deleteButton = new Buttons.Button.Button();
       deleteButton.data = {
         variant: Buttons.Button.Variant.ICON,
-        size: Buttons.Button.Size.MICRO,
+        size: Buttons.Button.Size.SMALL,
         iconName: 'bin',
         jslogContext: 'delete-event-listener',
       };
@@ -346,7 +340,7 @@ export class ObjectEventListenerBar extends UI.TreeOutline.TreeElement {
       }
       if (object.subtype === 'node') {
         menu.defaultSection().appendItem(
-            i18nString(UIStrings.openInElementsPanel), () => Common.Revealer.reveal(object),
+            i18nString(UIStrings.revealInElementsPanel), () => Common.Revealer.reveal(object),
             {jslogContext: 'reveal-in-elements'});
       }
       menu.defaultSection().appendItem(

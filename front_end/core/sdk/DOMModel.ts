@@ -56,7 +56,7 @@ export class DOMNode {
   ownerDocument!: DOMDocument|null;
   #isInShadowTreeInternal!: boolean;
   id!: Protocol.DOM.NodeId;
-  index: number|undefined = undefined;
+  index: number|undefined;
   #backendNodeIdInternal!: Protocol.DOM.BackendNodeId;
   #nodeTypeInternal!: number;
   #nodeNameInternal!: string;
@@ -68,22 +68,21 @@ export class DOMNode {
   #frameOwnerFrameIdInternal!: Protocol.Page.FrameId|null;
   #xmlVersion!: string|undefined;
   #isSVGNodeInternal!: boolean;
-  #isScrollableInternal!: boolean;
-  #creationStackTraceInternal: Promise<Protocol.Runtime.StackTrace|null>|null = null;
-  #pseudoElements = new Map<string, DOMNode[]>();
-  #distributedNodesInternal: DOMNodeShortcut[] = [];
-  assignedSlot: DOMNodeShortcut|null = null;
-  readonly shadowRootsInternal: DOMNode[] = [];
-  #attributesInternal = new Map<string, Attribute>();
-  #markers = new Map<string, unknown>();
-  #subtreeMarkerCount = 0;
+  #creationStackTraceInternal: Promise<Protocol.Runtime.StackTrace|null>|null;
+  #pseudoElements: Map<string, DOMNode[]>;
+  #distributedNodesInternal: DOMNodeShortcut[];
+  assignedSlot: DOMNodeShortcut|null;
+  readonly shadowRootsInternal: DOMNode[];
+  #attributesInternal: Map<string, Attribute>;
+  #markers: Map<string, unknown>;
+  #subtreeMarkerCount: number;
   childNodeCountInternal!: number;
-  childrenInternal: DOMNode[]|null = null;
-  nextSibling: DOMNode|null = null;
-  previousSibling: DOMNode|null = null;
-  firstChild: DOMNode|null = null;
-  lastChild: DOMNode|null = null;
-  parentNode: DOMNode|null = null;
+  childrenInternal: DOMNode[]|null;
+  nextSibling: DOMNode|null;
+  previousSibling: DOMNode|null;
+  firstChild: DOMNode|null;
+  lastChild: DOMNode|null;
+  parentNode: DOMNode|null;
   templateContentInternal?: DOMNode;
   contentDocumentInternal?: DOMDocument;
   childDocumentPromiseForTesting?: Promise<DOMDocument|null>;
@@ -97,6 +96,21 @@ export class DOMNode {
   constructor(domModel: DOMModel) {
     this.#domModelInternal = domModel;
     this.#agent = this.#domModelInternal.getAgent();
+    this.index = undefined;
+    this.#creationStackTraceInternal = null;
+    this.#pseudoElements = new Map();
+    this.#distributedNodesInternal = [];
+    this.assignedSlot = null;
+    this.shadowRootsInternal = [];
+    this.#attributesInternal = new Map();
+    this.#markers = new Map();
+    this.#subtreeMarkerCount = 0;
+    this.childrenInternal = null;
+    this.nextSibling = null;
+    this.previousSibling = null;
+    this.firstChild = null;
+    this.lastChild = null;
+    this.parentNode = null;
   }
 
   static create(domModel: DOMModel, doc: DOMDocument|null, isInShadowTree: boolean, payload: Protocol.DOM.Node):
@@ -124,7 +138,6 @@ export class DOMNode {
     this.#frameOwnerFrameIdInternal = payload.frameId || null;
     this.#xmlVersion = payload.xmlVersion;
     this.#isSVGNodeInternal = Boolean(payload.isSVG);
-    this.#isScrollableInternal = Boolean(payload.isScrollable);
 
     if (payload.attributes) {
       this.setAttributesPayload(payload.attributes);
@@ -200,7 +213,7 @@ export class DOMNode {
   private async requestChildDocument(frameId: Protocol.Page.FrameId, notInTarget: Target): Promise<DOMDocument|null> {
     const frame = await FrameManager.instance().getOrWaitForFrame(frameId, notInTarget);
     const childModel = frame.resourceTreeModel()?.target().model(DOMModel);
-    return await (childModel?.requestDocument() || null);
+    return childModel?.requestDocument() || null;
   }
 
   isAdFrameNode(): boolean {
@@ -216,10 +229,6 @@ export class DOMNode {
 
   isSVGNode(): boolean {
     return this.#isSVGNodeInternal;
-  }
-
-  isScrollable(): boolean {
-    return this.#isScrollableInternal;
   }
 
   isMediaNode(): boolean {
@@ -270,10 +279,6 @@ export class DOMNode {
     this.childrenInternal = children;
   }
 
-  setIsScrollable(isScrollable: boolean): void {
-    this.#isScrollableInternal = isScrollable;
-  }
-
   hasAttributes(): boolean {
     return this.#attributesInternal.size > 0;
   }
@@ -284,6 +289,10 @@ export class DOMNode {
 
   setChildNodeCount(childNodeCount: number): void {
     this.childNodeCountInternal = childNodeCount;
+  }
+
+  hasShadowRoots(): boolean {
+    return Boolean(this.shadowRootsInternal.length);
   }
 
   shadowRoots(): DOMNode[] {
@@ -334,20 +343,12 @@ export class DOMNode {
     return this.#pseudoElements;
   }
 
-  checkmarkPseudoElement(): DOMNode|undefined {
-    return this.#pseudoElements.get(Protocol.DOM.PseudoType.Checkmark)?.at(-1);
-  }
-
   beforePseudoElement(): DOMNode|undefined {
     return this.#pseudoElements.get(Protocol.DOM.PseudoType.Before)?.at(-1);
   }
 
   afterPseudoElement(): DOMNode|undefined {
     return this.#pseudoElements.get(Protocol.DOM.PseudoType.After)?.at(-1);
-  }
-
-  pickerIconPseudoElement(): DOMNode|undefined {
-    return this.#pseudoElements.get(Protocol.DOM.PseudoType.PickerIcon)?.at(-1);
   }
 
   markerPseudoElement(): DOMNode|undefined {
@@ -365,15 +366,6 @@ export class DOMNode {
       ...this.#pseudoElements.get(Protocol.DOM.PseudoType.ViewTransitionImagePair) || [],
       ...this.#pseudoElements.get(Protocol.DOM.PseudoType.ViewTransitionOld) || [],
       ...this.#pseudoElements.get(Protocol.DOM.PseudoType.ViewTransitionNew) || [],
-    ];
-  }
-
-  carouselPseudoElements(): DOMNode[] {
-    return [
-      ...this.#pseudoElements.get(Protocol.DOM.PseudoType.ScrollButton) || [],
-      ...this.#pseudoElements.get(Protocol.DOM.PseudoType.Column) || [],
-      ...this.#pseudoElements.get(Protocol.DOM.PseudoType.ScrollMarker) || [],
-      ...this.#pseudoElements.get(Protocol.DOM.PseudoType.ScrollMarkerGroup) || [],
     ];
   }
 
@@ -526,13 +518,7 @@ export class DOMNode {
     this.#domModelInternal.markUndoableState();
   }
 
-  getChildNodesPromise(): Promise<DOMNode[]|null> {
-    return new Promise(resolve => {
-      return this.getChildNodes(childNodes => resolve(childNodes));
-    });
-  }
-
-  getChildNodes(callback: (arg0: DOMNode[]|null) => void): void {
+  getChildNodes(callback: (arg0: Array<DOMNode>|null) => void): void {
     if (this.childrenInternal) {
       callback(this.children());
       return;
@@ -543,7 +529,7 @@ export class DOMNode {
   }
 
   async getSubtree(depth: number, pierce: boolean): Promise<DOMNode[]|null> {
-    const response = await this.#agent.invoke_requestChildNodes({nodeId: this.id, depth, pierce});
+    const response = await this.#agent.invoke_requestChildNodes({nodeId: this.id, depth: depth, pierce: pierce});
     return response.getError() ? null : this.childrenInternal;
   }
 
@@ -583,34 +569,17 @@ export class DOMNode {
   }
 
   path(): string {
-    function getNodeKey(node: DOMNode): number|'u'|'a'|'d'|null {
-      if (!node.#nodeNameInternal.length) {
-        return null;
-      }
-      if (node.index !== undefined) {
-        return node.index;
-      }
-      if (!node.parentNode) {
-        return null;
-      }
-      if (node.isShadowRoot()) {
-        return node.shadowRootType() === DOMNode.ShadowRootTypes.UserAgent ? 'u' : 'a';
-      }
-      if (node.nodeType() === Node.DOCUMENT_NODE) {
-        return 'd';
-      }
-      return null;
+    function canPush(node: DOMNode): number|false|null {
+      return (node.index !== undefined || (node.isShadowRoot() && node.parentNode)) && node.#nodeNameInternal.length;
     }
 
     const path = [];
     let node: (DOMNode|null) = (this as DOMNode | null);
-    while (node) {
-      const key = getNodeKey(node);
-      if (key === null) {
-        break;
-      }
-
-      path.push([key, node.#nodeNameInternal]);
+    while (node && canPush(node)) {
+      const index = typeof node.index === 'number' ?
+          node.index :
+          (node.shadowRootType() === DOMNode.ShadowRootTypes.UserAgent ? 'u' : 'a');
+      path.push([index, node.#nodeNameInternal]);
       node = node.parentNode;
     }
     path.reverse();
@@ -633,7 +602,7 @@ export class DOMNode {
   }
 
   isDescendant(descendant: DOMNode): boolean {
-    return descendant.isAncestor(this);
+    return descendant !== null && descendant.isAncestor(this);
   }
 
   frameOwnerFrameId(): Protocol.Page.FrameId|null {
@@ -780,7 +749,7 @@ export class DOMNode {
   }
 
   private addAttribute(name: string, value: string): void {
-    const attr = {name, value, _node: this};
+    const attr = {name: name, value: value, _node: this};
     this.#attributesInternal.set(name, attr);
   }
 
@@ -918,8 +887,8 @@ export class DOMNode {
   }
 
   async setAsInspectedNode(): Promise<void> {
-    let node: DOMNode|null = this;
-    if (node?.pseudoType()) {
+    let node: (DOMNode|null)|DOMNode = (this as DOMNode | null);
+    if (node && node.pseudoType()) {
       node = node.parentNode;
     }
     while (node) {
@@ -1042,20 +1011,13 @@ export class DOMNode {
 
     return this.domModel().nodeForId(response.nodeId);
   }
-
-  classNames(): string[] {
-    const classes = this.getAttribute('class');
-    return classes ? classes.split(/\s+/) : [];
-  }
 }
 
 export namespace DOMNode {
   export enum ShadowRootTypes {
-    /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
     UserAgent = 'user-agent',
     Open = 'open',
     Closed = 'closed',
-    /* eslint-enable @typescript-eslint/naming-convention */
   }
 }
 
@@ -1075,7 +1037,7 @@ export class DeferredDOMNode {
   async resolvePromise(): Promise<DOMNode|null> {
     const nodeIds =
         await this.#domModelInternal.pushNodesByBackendIdsToFrontend(new Set([this.#backendNodeIdInternal]));
-    return nodeIds?.get(this.#backendNodeIdInternal) || null;
+    return nodeIds && nodeIds.get(this.#backendNodeIdInternal) || null;
   }
 
   backendNodeId(): Protocol.DOM.BackendNodeId {
@@ -1119,12 +1081,12 @@ export class DOMDocument extends DOMNode {
 
 export class DOMModel extends SDKModel<EventTypes> {
   agent: ProtocolProxyApi.DOMApi;
-  idToDOMNode = new Map<Protocol.DOM.NodeId, DOMNode>();
-  #document: DOMDocument|null = null;
-  readonly #attributeLoadNodeIds = new Set<Protocol.DOM.NodeId>();
+  idToDOMNode: Map<Protocol.DOM.NodeId, DOMNode> = new Map();
+  #document: DOMDocument|null;
+  readonly #attributeLoadNodeIds: Set<Protocol.DOM.NodeId>;
   readonly runtimeModelInternal: RuntimeModel;
   #lastMutationId!: number;
-  #pendingDocumentRequestPromise: Promise<DOMDocument|null>|null = null;
+  #pendingDocumentRequestPromise: Promise<DOMDocument|null>|null;
   #frameOwnerNode?: DOMNode|null;
   #loadNodeAttributesTimeout?: number;
   #searchId?: string;
@@ -1133,8 +1095,12 @@ export class DOMModel extends SDKModel<EventTypes> {
 
     this.agent = target.domAgent();
 
+    this.#document = null;
+    this.#attributeLoadNodeIds = new Set();
     target.registerDOMDispatcher(new DOMDispatcher(this));
     this.runtimeModelInternal = (target.model(RuntimeModel) as RuntimeModel);
+
+    this.#pendingDocumentRequestPromise = null;
 
     if (!target.suspended()) {
       void this.agent.invoke_enable({});
@@ -1249,7 +1215,7 @@ export class DOMModel extends SDKModel<EventTypes> {
   async pushNodeToFrontend(objectId: Protocol.Runtime.RemoteObjectId): Promise<DOMNode|null> {
     await this.requestDocument();
     const {nodeId} = await this.agent.invoke_requestNode({objectId});
-    return this.nodeForId(nodeId);
+    return nodeId ? this.nodeForId(nodeId) : null;
   }
 
   pushNodeByPathToFrontend(path: string): Promise<Protocol.DOM.NodeId|null> {
@@ -1282,7 +1248,7 @@ export class DOMModel extends SDKModel<EventTypes> {
     }
 
     node.setAttributeInternal(name, value);
-    this.dispatchEventToListeners(Events.AttrModified, {node, name});
+    this.dispatchEventToListeners(Events.AttrModified, {node: node, name: name});
     this.scheduleMutationEvent(node);
   }
 
@@ -1292,7 +1258,7 @@ export class DOMModel extends SDKModel<EventTypes> {
       return;
     }
     node.removeAttributeInternal(name);
-    this.dispatchEventToListeners(Events.AttrRemoved, {node, name});
+    this.dispatchEventToListeners(Events.AttrRemoved, {node: node, name: name});
     this.scheduleMutationEvent(node);
   }
 
@@ -1316,7 +1282,7 @@ export class DOMModel extends SDKModel<EventTypes> {
           return;
         }
         if (node.setAttributesPayload(attributes)) {
-          this.dispatchEventToListeners(Events.AttrModified, {node, name: 'style'});
+          this.dispatchEventToListeners(Events.AttrModified, {node: node, name: 'style'});
           this.scheduleMutationEvent(node);
         }
       });
@@ -1423,7 +1389,7 @@ export class DOMModel extends SDKModel<EventTypes> {
     }
     parent.removeChild(node);
     this.unbind(node);
-    this.dispatchEventToListeners(Events.NodeRemoved, {node, parent});
+    this.dispatchEventToListeners(Events.NodeRemoved, {node: node, parent: parent});
     this.scheduleMutationEvent(node);
   }
 
@@ -1468,11 +1434,10 @@ export class DOMModel extends SDKModel<EventTypes> {
       throw new Error('DOMModel._pseudoElementAdded expects pseudoType to be defined.');
     }
     const currentPseudoElements = parent.pseudoElements().get(pseudoType);
-    if (currentPseudoElements && currentPseudoElements.length > 0) {
-      if (!(pseudoType.startsWith('view-transition') || pseudoType.startsWith('scroll-') || pseudoType === 'column')) {
+    if (currentPseudoElements) {
+      if (!pseudoType.startsWith('view-transition')) {
         throw new Error(
-            'DOMModel.pseudoElementAdded expects parent to not already have this pseudo type added; only view-transition* and scrolling pseudo elements can coexist under the same parent.' +
-            ` ${currentPseudoElements.length} elements of type ${pseudoType} already exist on parent.`);
+            'DOMModel.pseudoElementAdded expects parent to not already have this pseudo type added; only view-transition* pseudo elements can coexist under the same parent.');
       }
       currentPseudoElements.push(node);
     } else {
@@ -1480,15 +1445,6 @@ export class DOMModel extends SDKModel<EventTypes> {
     }
     this.dispatchEventToListeners(Events.NodeInserted, node);
     this.scheduleMutationEvent(node);
-  }
-
-  scrollableFlagUpdated(nodeId: Protocol.DOM.NodeId, isScrollable: boolean): void {
-    const node = this.nodeForId(nodeId);
-    if (!node || node.isScrollable() === isScrollable) {
-      return;
-    }
-    node.setIsScrollable(isScrollable);
-    this.dispatchEventToListeners(Events.ScrollableFlagUpdated, {node});
   }
 
   topLayerElementsUpdated(): void {
@@ -1506,7 +1462,7 @@ export class DOMModel extends SDKModel<EventTypes> {
     }
     parent.removeChild(pseudoElement);
     this.unbind(pseudoElement);
-    this.dispatchEventToListeners(Events.NodeRemoved, {node: pseudoElement, parent});
+    this.dispatchEventToListeners(Events.NodeRemoved, {node: pseudoElement, parent: parent});
     this.scheduleMutationEvent(pseudoElement);
   }
 
@@ -1542,11 +1498,11 @@ export class DOMModel extends SDKModel<EventTypes> {
   }
 
   async getNodesByStyle(
-      computedStyles: Array<{
+      computedStyles: {
         name: string,
         value: string,
-      }>,
-      pierce = false): Promise<Protocol.DOM.NodeId[]> {
+      }[],
+      pierce: boolean = false): Promise<Protocol.DOM.NodeId[]> {
     await this.requestDocument();
     if (!this.#document) {
       throw new Error('DOMModel.getNodesByStyle expects to have a document.');
@@ -1554,7 +1510,7 @@ export class DOMModel extends SDKModel<EventTypes> {
     const response =
         await this.agent.invoke_getNodesForSubtreeByStyle({nodeId: this.#document.id, computedStyles, pierce});
     if (response.getError()) {
-      throw new Error(response.getError());
+      throw response.getError();
     }
     return response.nodeIds;
   }
@@ -1600,10 +1556,6 @@ export class DOMModel extends SDKModel<EventTypes> {
     return this.agent.invoke_getTopLayerElements().then(({nodeIds}) => nodeIds);
   }
 
-  getDetachedDOMNodes(): Promise<Protocol.DOM.DetachedElementInfo[]|null> {
-    return this.agent.invoke_getDetachedDomNodes().then(({detachedNodes}) => detachedNodes);
-  }
-
   getElementByRelation(nodeId: Protocol.DOM.NodeId, relation: Protocol.DOM.GetElementByRelationRequestRelation):
       Promise<Protocol.DOM.NodeId|null> {
     return this.agent.invoke_getElementByRelation({nodeId, relation}).then(({nodeId}) => nodeId);
@@ -1623,9 +1575,9 @@ export class DOMModel extends SDKModel<EventTypes> {
 
   async getContainerForNode(
       nodeId: Protocol.DOM.NodeId, containerName?: string, physicalAxes?: Protocol.DOM.PhysicalAxes,
-      logicalAxes?: Protocol.DOM.LogicalAxes, queriesScrollState?: boolean): Promise<DOMNode|null> {
-    const {nodeId: containerNodeId} = await this.agent.invoke_getContainerForNode(
-        {nodeId, containerName, physicalAxes, logicalAxes, queriesScrollState});
+      logicalAxes?: Protocol.DOM.LogicalAxes): Promise<DOMNode|null> {
+    const {nodeId: containerNodeId} =
+        await this.agent.invoke_getContainerForNode({nodeId, containerName, physicalAxes, logicalAxes});
     if (!containerNodeId) {
       return null;
     }
@@ -1663,7 +1615,6 @@ export class DOMModel extends SDKModel<EventTypes> {
 }
 
 export enum Events {
-  /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   AttrModified = 'AttrModified',
   AttrRemoved = 'AttrRemoved',
   CharacterDataModified = 'CharacterDataModified',
@@ -1675,24 +1626,21 @@ export enum Events {
   DistributedNodesChanged = 'DistributedNodesChanged',
   MarkersChanged = 'MarkersChanged',
   TopLayerElementsChanged = 'TopLayerElementsChanged',
-  ScrollableFlagUpdated = 'ScrollableFlagUpdated',
-  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
-export interface EventTypes {
-  [Events.AttrModified]: {node: DOMNode, name: string};
-  [Events.AttrRemoved]: {node: DOMNode, name: string};
-  [Events.CharacterDataModified]: DOMNode;
-  [Events.DOMMutated]: DOMNode;
-  [Events.NodeInserted]: DOMNode;
-  [Events.NodeRemoved]: {node: DOMNode, parent: DOMNode};
-  [Events.DocumentUpdated]: DOMModel;
-  [Events.ChildNodeCountUpdated]: DOMNode;
-  [Events.DistributedNodesChanged]: DOMNode;
-  [Events.MarkersChanged]: DOMNode;
-  [Events.TopLayerElementsChanged]: void;
-  [Events.ScrollableFlagUpdated]: {node: DOMNode};
-}
+export type EventTypes = {
+  [Events.AttrModified]: {node: DOMNode, name: string},
+  [Events.AttrRemoved]: {node: DOMNode, name: string},
+  [Events.CharacterDataModified]: DOMNode,
+  [Events.DOMMutated]: DOMNode,
+  [Events.NodeInserted]: DOMNode,
+  [Events.NodeRemoved]: {node: DOMNode, parent: DOMNode},
+  [Events.DocumentUpdated]: DOMModel,
+  [Events.ChildNodeCountUpdated]: DOMNode,
+  [Events.DistributedNodesChanged]: DOMNode,
+  [Events.MarkersChanged]: DOMNode,
+  [Events.TopLayerElementsChanged]: void,
+};
 
 class DOMDispatcher implements ProtocolProxyApi.DOMDispatcher {
   readonly #domModel: DOMModel;
@@ -1759,10 +1707,6 @@ class DOMDispatcher implements ProtocolProxyApi.DOMDispatcher {
   topLayerElementsUpdated(): void {
     this.#domModel.topLayerElementsUpdated();
   }
-
-  scrollableFlagUpdated({nodeId, isScrollable}: Protocol.DOM.ScrollableFlagUpdatedEvent): void {
-    this.#domModel.scrollableFlagUpdated(nodeId, isScrollable);
-  }
 }
 
 let domModelUndoStackInstance: DOMModelUndoStack|null = null;
@@ -1817,7 +1761,7 @@ export class DOMModelUndoStack {
 
   async undo(): Promise<void> {
     if (this.#index === 0) {
-      return await Promise.resolve();
+      return Promise.resolve();
     }
     --this.#index;
     this.#lastModelWithMinorChange = null;
@@ -1826,7 +1770,7 @@ export class DOMModelUndoStack {
 
   async redo(): Promise<void> {
     if (this.#index >= this.#stack.length) {
-      return await Promise.resolve();
+      return Promise.resolve();
     }
     ++this.#index;
     this.#lastModelWithMinorChange = null;

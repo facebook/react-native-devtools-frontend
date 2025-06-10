@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Platform from '../../core/platform/platform.js';
+import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
@@ -12,10 +12,8 @@ import * as Workspace from '../workspace/workspace.js';
 
 import * as Bindings from './bindings.js';
 
-const {urlString} = Platform.DevToolsPath;
-
 describeWithMockConnection('ResourceScriptMapping', () => {
-  const url = urlString`http://localhost/example.js`;
+  const url = 'http://localhost/example.js' as Platform.DevToolsPath.UrlString;
   let target: SDK.Target.Target;
   let backend: MockProtocolBackend;
   let resourceScriptMapping: Bindings.ResourceScriptMapping.ResourceScriptMapping;

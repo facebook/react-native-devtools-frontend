@@ -4,13 +4,12 @@
 
 import * as Common from '../../../../core/common/common.js';
 import * as Root from '../../../../core/root/root.js';
-import * as TextUtils from '../../../../models/text_utils/text_utils.js';
+import type * as TextUtils from '../../../../models/text_utils/text_utils.js';
 import {
   dispatchInputEvent,
   dispatchPasteEvent,
 } from '../../../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
-import {expectCall} from '../../../../testing/ExpectStubCall.js';
 import * as Buttons from '../../../components/buttons/buttons.js';
 import * as UI from '../../legacy.js';
 
@@ -21,13 +20,13 @@ describeWithEnvironment('SourceFrame', () => {
 
   beforeEach(() => {
     setting = Common.Settings.Settings.instance().createSetting(
-        'disable-self-xss-warning', false, Common.Settings.SettingStorageType.SYNCED);
+        'disable-self-xss-warning', false, Common.Settings.SettingStorageType.Synced);
     setting.set(false);
   });
 
   async function createSourceFrame(content: string): Promise<SourceFrame.SourceFrame.SourceFrameImpl> {
-    const sourceFrame =
-        new SourceFrame.SourceFrame.SourceFrameImpl(async () => TextUtils.ContentData.EMPTY_TEXT_CONTENT_DATA);
+    const deferredContentStub = {content: '', isEncoded: true} as TextUtils.ContentProvider.DeferredContent;
+    const sourceFrame = new SourceFrame.SourceFrame.SourceFrameImpl(async () => deferredContentStub);
     await sourceFrame.setContent(content);
     return sourceFrame;
   }
@@ -104,7 +103,7 @@ describeWithEnvironment('SourceFrame', () => {
     input.value = 'allow pasting';
     dispatchInputEvent(input, {inputType: 'insertText', data: 'allow pasting', bubbles: true, composed: true});
 
-    const allowButton = dialogShadowRoot.querySelector('.button')?.children[0];
+    const allowButton = dialogShadowRoot.querySelector('.button')?.children[1];
     assert.deepEqual(allowButton?.textContent, 'Allow');
     assert.instanceOf(allowButton, Buttons.Button.Button);
     allowButton.click();
@@ -125,22 +124,5 @@ describeWithEnvironment('SourceFrame', () => {
     const dialogContainer = document.body.querySelector<HTMLDivElement>('[data-devtools-glass-pane]');
     assert.isNull(dialogContainer);
     stub.restore();
-  });
-
-  it('disassembles wasm', async () => {
-    const contentData = new TextUtils.ContentData.ContentData(
-        'AGFzbQEAAAABBQFgAAF/AwIBAAcHAQNiYXIAAAoGAQQAQQILACQEbmFtZQAQD3Nob3ctd2FzbS0yLndhdAEGAQADYmFyAgMBAAA=', true,
-        'application/wasm');
-    const sourceFrame = new SourceFrame.SourceFrame.SourceFrameImpl(async () => contentData);
-
-    sourceFrame.markAsRoot();
-    const setContentStub = sinon.stub(sourceFrame, 'setContent');
-    sourceFrame.show(document.body);
-    const content = await expectCall(setContentStub);
-
-    assert.strictEqual(
-        content.toString(), '(module\n  (func $bar (;0;) (export \"bar\") (result i32)\n    i32.const 2\n  )\n)');
-
-    sourceFrame.detach();
   });
 });

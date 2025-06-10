@@ -7,7 +7,6 @@ import * as ExtensionConverter from './ExtensionConverter.js';
 import * as JSONConverter from './JSONConverter.js';
 import * as LighthouseConverter from './LighthouseConverter.js';
 import * as PuppeteerConverter from './PuppeteerConverter.js';
-import * as PuppeteerFirefoxConverter from './PuppeteerFirefoxConverter.js';
 import * as PuppeteerReplayConverter from './PuppeteerReplayConverter.js';
 
 export {
@@ -16,6 +15,5 @@ export {
   JSONConverter,
   LighthouseConverter,
   PuppeteerConverter,
-  PuppeteerFirefoxConverter,
   PuppeteerReplayConverter,
 };

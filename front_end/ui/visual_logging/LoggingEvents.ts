@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Common from '../../core/common/common.js';
+import type * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import {assertNotNullOrUndefined} from '../../core/platform/platform.js';
 
 import {processEventForDebugging, processImpressionsForDebugging} from './Debugging.js';
-import type {Loggable} from './Loggable.js';
+import {type Loggable} from './Loggable.js';
 import {getLoggingState, type LoggingState} from './LoggingState.js';
 
 export async function logImpressions(loggables: Loggable[]): Promise<void> {
@@ -68,27 +68,29 @@ export const logHover = (throttler: Common.Throttler.Throttler) => async (event:
   const loggingState = getLoggingState(event.currentTarget as Element);
   assertNotNullOrUndefined(loggingState);
   const hoverEvent: Host.InspectorFrontendHostAPI.HoverEvent = {veid: loggingState.veid};
+  await throttler.schedule(async () => {});  // Ensure the logging won't get scheduled immediately
   void throttler.schedule(async () => {
     Host.InspectorFrontendHost.InspectorFrontendHostInstance.recordHover(hoverEvent);
     processEventForDebugging('Hover', loggingState);
-  }, Common.Throttler.Scheduling.DELAYED);
+  });
 };
 
 export const logDrag = (throttler: Common.Throttler.Throttler) => async (event: Event) => {
   const loggingState = getLoggingState(event.currentTarget as Element);
   assertNotNullOrUndefined(loggingState);
   const dragEvent: Host.InspectorFrontendHostAPI.DragEvent = {veid: loggingState.veid};
+  await throttler.schedule(async () => {});  // Ensure the logging won't get scheduled immediately
   void throttler.schedule(async () => {
     Host.InspectorFrontendHost.InspectorFrontendHostInstance.recordDrag(dragEvent);
     processEventForDebugging('Drag', loggingState);
-  }, Common.Throttler.Scheduling.DELAYED);
+  });
 };
 
 export async function logChange(loggable: Loggable): Promise<void> {
   const loggingState = getLoggingState(loggable);
   assertNotNullOrUndefined(loggingState);
   const changeEvent: Host.InspectorFrontendHostAPI.ChangeEvent = {veid: loggingState.veid};
-  const context = loggingState.pendingChangeContext;
+  const context = loggingState.lastInputEventType;
   if (context) {
     changeEvent.context = await contextAsNumber(context);
   }
@@ -98,36 +100,35 @@ export async function logChange(loggable: Loggable): Promise<void> {
 
 let pendingKeyDownContext: string|null = null;
 
-export const logKeyDown = (throttler: Common.Throttler.Throttler) =>
-    async (loggable: Loggable|null, event: Event|null, context?: string) => {
-  if (!(event instanceof KeyboardEvent)) {
-    return;
-  }
-  const loggingState = loggable ? getLoggingState(loggable) : null;
-  const codes = (typeof loggingState?.config.track?.keydown === 'string') ? loggingState.config.track.keydown : '';
-  if (codes.length && !codes.split('|').includes(event.code) && !codes.split('|').includes(event.key)) {
-    return;
-  }
-  const keyDownEvent: Host.InspectorFrontendHostAPI.KeyDownEvent = {veid: loggingState?.veid};
-  if (!context && codes?.length) {
-    context = contextFromKeyCodes(event);
-  }
+export const logKeyDown =
+    (throttler: Common.Throttler.Throttler) => async (loggable: Loggable|null, event: Event|null, context?: string) => {
+      if (!(event instanceof KeyboardEvent)) {
+        return;
+      }
+      const loggingState = loggable ? getLoggingState(loggable) : null;
+      const codes = (typeof loggingState?.config.track?.keydown === 'string') ? loggingState.config.track.keydown : '';
+      if (codes.length && !codes.split('|').includes(event.code) && !codes.split('|').includes(event.key)) {
+        return;
+      }
+      const keyDownEvent: Host.InspectorFrontendHostAPI.KeyDownEvent = {veid: loggingState?.veid};
+      if (!context && codes?.length) {
+        context = contextFromKeyCodes(event);
+      }
+      if (context) {
+        keyDownEvent.context = await contextAsNumber(context);
+      }
 
-  if (pendingKeyDownContext && context && pendingKeyDownContext !== context) {
-    void throttler.process?.();
-  }
+      if (pendingKeyDownContext && context && pendingKeyDownContext !== context) {
+        void throttler.process?.();
+      }
 
-  pendingKeyDownContext = context || null;
-  void throttler.schedule(async () => {
-    if (context) {
-      keyDownEvent.context = await contextAsNumber(context);
-    }
-
-    Host.InspectorFrontendHost.InspectorFrontendHostInstance.recordKeyDown(keyDownEvent);
-    processEventForDebugging('KeyDown', loggingState, {context});
-    pendingKeyDownContext = null;
-  });
-};
+      pendingKeyDownContext = context || null;
+      void throttler.schedule(async () => {
+        Host.InspectorFrontendHost.InspectorFrontendHostInstance.recordKeyDown(keyDownEvent);
+        processEventForDebugging('KeyDown', loggingState, {context});
+        pendingKeyDownContext = null;
+      });
+    };
 
 function contextFromKeyCodes(event: Event): string|undefined {
   if (!(event instanceof KeyboardEvent)) {
@@ -152,7 +153,7 @@ function contextFromKeyCodes(event: Event): string|undefined {
   return components.join('-');
 }
 
-export async function contextAsNumber(context: string|undefined): Promise<number|undefined> {
+async function contextAsNumber(context: string|undefined): Promise<number|undefined> {
   if (typeof context === 'undefined') {
     return undefined;
   }
@@ -168,17 +169,4 @@ export async function contextAsNumber(context: string|undefined): Promise<number
   const data = encoder.encode(context);
   const digest = await crypto.subtle.digest('SHA-1', data);
   return new DataView(digest).getInt32(0, true);
-}
-
-export async function logSettingAccess(name: string, value: number|string|boolean): Promise<void> {
-  let numericValue: number|undefined = undefined;
-  let stringValue: string|undefined = undefined;
-  if (typeof value === 'string') {
-    stringValue = value;
-  } else if (typeof value === 'number' || typeof value === 'boolean') {
-    numericValue = Number(value);
-  }
-  const settingAccessEvent: Host.InspectorFrontendHostAPI.SettingAccessEvent = {name, numericValue, stringValue};
-  Host.InspectorFrontendHost.InspectorFrontendHostInstance.recordSettingAccess(settingAccessEvent);
-  processEventForDebugging('SettingAccess', null, {name, numericValue, stringValue});
 }

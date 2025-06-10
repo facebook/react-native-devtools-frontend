@@ -11,7 +11,7 @@ import {data as layerTreeHandlerData, type LayerTreeData} from './LayerTreeHandl
 import {data as metaHandlerData, type MetaHandlerData} from './MetaHandler.js';
 import {data as rendererHandlerData, type RendererHandlerData} from './RendererHandler.js';
 import * as Threads from './Threads.js';
-import type {HandlerName} from './types.js';
+import {HandlerState, type TraceEventHandlerName} from './types.js';
 
 /**
  * IMPORTANT: this handler is slightly different to the rest. This is because
@@ -23,19 +23,32 @@ import type {HandlerName} from './types.js';
  *
  * In time we expect to migrate this code to a more "typical" handler.
  */
+let handlerState = HandlerState.UNINITIALIZED;
 
-const allEvents: Types.Events.Event[] = [];
+const allEvents: Types.TraceEvents.TraceEventData[] = [];
 let model: TimelineFrameModel|null = null;
 
 export function reset(): void {
+  handlerState = HandlerState.UNINITIALIZED;
   allEvents.length = 0;
 }
+export function initialize(): void {
+  if (handlerState !== HandlerState.UNINITIALIZED) {
+    throw new Error('FramesHandler was not reset before being initialized');
+  }
 
-export function handleEvent(event: Types.Events.Event): void {
+  handlerState = HandlerState.INITIALIZED;
+}
+
+export function handleEvent(event: Types.TraceEvents.TraceEventData): void {
   allEvents.push(event);
 }
 
 export async function finalize(): Promise<void> {
+  if (handlerState !== HandlerState.INITIALIZED) {
+    throw new Error('FramesHandler is not initialized');
+  }
+
   // Snapshot events can be emitted out of order, so we need to sort before
   // building the frames model.
   Helpers.Trace.sortTraceEventsInPlace(allEvents);
@@ -51,8 +64,8 @@ export async function finalize(): Promise<void> {
 }
 
 export interface FramesData {
-  frames: readonly Types.Events.LegacyTimelineFrame[];
-  framesById: Readonly<Record<number, Types.Events.LegacyTimelineFrame|undefined>>;
+  frames: readonly TimelineFrame[];
+  framesById: Readonly<Record<number, TimelineFrame|undefined>>;
 }
 
 export function data(): FramesData {
@@ -62,30 +75,34 @@ export function data(): FramesData {
   };
 }
 
-export function deps(): HandlerName[] {
+export function deps(): TraceEventHandlerName[] {
   return ['Meta', 'Renderer', 'AuctionWorklets', 'LayerTree'];
 }
 
-type FrameEvent = Types.Events.BeginFrame|Types.Events.DroppedFrame|Types.Events.RequestMainThreadFrame|
-                  Types.Events.BeginMainThreadFrame|Types.Events.Commit|Types.Events.CompositeLayers|
-                  Types.Events.ActivateLayerTree|Types.Events.NeedsBeginFrameChanged|Types.Events.DrawFrame;
+type FrameEvent = Types.TraceEvents.TraceEventBeginFrame|Types.TraceEvents.TraceEventDroppedFrame|
+                  Types.TraceEvents.TraceEventRequestMainThreadFrame|
+                  Types.TraceEvents.TraceEventBeginMainThreadFrame|Types.TraceEvents.TraceEventCommit|
+                  Types.TraceEvents.TraceEventCompositeLayers|Types.TraceEvents.TraceEventActivateLayerTree|
+                  Types.TraceEvents.TraceEventNeedsBeginFrameChanged|Types.TraceEvents.TraceEventDrawFrame;
 
-function isFrameEvent(event: Types.Events.Event): event is FrameEvent {
+function isFrameEvent(event: Types.TraceEvents.TraceEventData): event is FrameEvent {
   return (
-      Types.Events.isSetLayerId(event) || Types.Events.isBeginFrame(event) || Types.Events.isDroppedFrame(event) ||
-      Types.Events.isRequestMainThreadFrame(event) || Types.Events.isBeginMainThreadFrame(event) ||
-      Types.Events.isNeedsBeginFrameChanged(event) ||
+      Types.TraceEvents.isTraceEventSetLayerId(event) || Types.TraceEvents.isTraceEventBeginFrame(event) ||
+      Types.TraceEvents.isTraceEventDroppedFrame(event) ||
+      Types.TraceEvents.isTraceEventRequestMainThreadFrame(event) ||
+      Types.TraceEvents.isTraceEventBeginMainThreadFrame(event) ||
+      Types.TraceEvents.isTraceEventNeedsBeginFrameChanged(event) ||
       // Note that "Commit" is the replacement for "CompositeLayers" so in a trace
       // we wouldn't expect to see a combination of these. All "new" trace
       // recordings use "Commit", but we can easily support "CompositeLayers" too
       // to not break older traces being imported.
-      Types.Events.isCommit(event) || Types.Events.isCompositeLayers(event) ||
-      Types.Events.isActivateLayerTree(event) || Types.Events.isDrawFrame(event));
+      Types.TraceEvents.isTraceEventCommit(event) || Types.TraceEvents.isTraceEventCompositeLayers(event) ||
+      Types.TraceEvents.isTraceEventActivateLayerTree(event) || Types.TraceEvents.isTraceEventDrawFrame(event));
 }
 
-function entryIsTopLevel(entry: Types.Events.Event): boolean {
+function entryIsTopLevel(entry: Types.TraceEvents.TraceEventData): boolean {
   const devtoolsTimelineCategory = 'disabled-by-default-devtools.timeline';
-  return entry.name === Types.Events.Name.RUN_TASK && entry.cat.includes(devtoolsTimelineCategory);
+  return entry.name === Types.TraceEvents.KnownEventName.RunTask && entry.cat.includes(devtoolsTimelineCategory);
 }
 
 export class TimelineFrameModel {
@@ -97,19 +114,19 @@ export class TimelineFrameModel {
   #lastFrame: TimelineFrame|null = null;
   #mainFrameCommitted = false;
   #mainFrameRequested = false;
-  #lastLayerTree: Types.Events.LegacyFrameLayerTreeData|null = null;
+  #lastLayerTree: FrameLayerTreeData|null = null;
   #framePendingActivation: PendingFrame|null = null;
   #framePendingCommit: PendingFrame|null = null;
   #lastBeginFrame: number|null = null;
   #lastNeedsBeginFrame: number|null = null;
-  #lastTaskBeginTime: Types.Timing.Micro|null = null;
+  #lastTaskBeginTime: Types.Timing.MicroSeconds|null = null;
   #layerTreeId: number|null = null;
-  #activeProcessId: Types.Events.ProcessID|null = null;
-  #activeThreadId: Types.Events.ThreadID|null = null;
+  #activeProcessId: Types.TraceEvents.ProcessID|null = null;
+  #activeThreadId: Types.TraceEvents.ThreadID|null = null;
   #layerTreeData: LayerTreeData;
 
   constructor(
-      allEvents: readonly Types.Events.Event[], rendererData: RendererHandlerData,
+      allEvents: readonly Types.TraceEvents.TraceEventData[], rendererData: RendererHandlerData,
       auctionWorkletsData: AuctionWorkletsData, metaData: MetaHandlerData, layerTreeData: LayerTreeData) {
     // We only care about getting threads from the Renderer, not Samples,
     // because Frames don't exist in a CPU Profile (which won't have Renderer
@@ -137,7 +154,7 @@ export class TimelineFrameModel {
     return this.#frames;
   }
 
-  #handleBeginFrame(startTime: Types.Timing.Micro, seqId: number): void {
+  #handleBeginFrame(startTime: Types.Timing.MicroSeconds, seqId: number): void {
     if (!this.#lastFrame) {
       this.#startFrame(startTime, seqId);
     }
@@ -146,7 +163,7 @@ export class TimelineFrameModel {
     this.#beginFrameQueue.addFrameIfNotExists(seqId, startTime, false, false);
   }
 
-  #handleDroppedFrame(startTime: Types.Timing.Micro, seqId: number, isPartial: boolean): void {
+  #handleDroppedFrame(startTime: Types.Timing.MicroSeconds, seqId: number, isPartial: boolean): void {
     if (!this.#lastFrame) {
       this.#startFrame(startTime, seqId);
     }
@@ -159,7 +176,7 @@ export class TimelineFrameModel {
     this.#beginFrameQueue.setPartial(seqId, isPartial);
   }
 
-  #handleDrawFrame(startTime: Types.Timing.Micro, seqId: number): void {
+  #handleDrawFrame(startTime: Types.Timing.MicroSeconds, seqId: number): void {
     if (!this.#lastFrame) {
       this.#startFrame(startTime, seqId);
       return;
@@ -227,25 +244,25 @@ export class TimelineFrameModel {
     this.#mainFrameCommitted = true;
   }
 
-  #handleLayerTreeSnapshot(layerTree: Types.Events.LegacyFrameLayerTreeData): void {
+  #handleLayerTreeSnapshot(layerTree: FrameLayerTreeData): void {
     this.#lastLayerTree = layerTree;
   }
 
-  #handleNeedFrameChanged(startTime: Types.Timing.Micro, needsBeginFrame: boolean): void {
+  #handleNeedFrameChanged(startTime: Types.Timing.MicroSeconds, needsBeginFrame: boolean): void {
     if (needsBeginFrame) {
       this.#lastNeedsBeginFrame = startTime;
     }
   }
 
-  #startFrame(startTime: Types.Timing.Micro, seqId: number): void {
+  #startFrame(startTime: Types.Timing.MicroSeconds, seqId: number): void {
     if (this.#lastFrame) {
       this.#flushFrame(this.#lastFrame, startTime);
     }
     this.#lastFrame =
-        new TimelineFrame(seqId, startTime, Types.Timing.Micro(startTime - metaHandlerData().traceBounds.min));
+        new TimelineFrame(seqId, startTime, Types.Timing.MicroSeconds(startTime - metaHandlerData().traceBounds.min));
   }
 
-  #flushFrame(frame: TimelineFrame, endTime: Types.Timing.Micro): void {
+  #flushFrame(frame: TimelineFrame, endTime: Types.Timing.MicroSeconds): void {
     frame.setLayerTree(this.#lastLayerTree);
     frame.setEndTime(endTime);
     if (this.#lastLayerTree) {
@@ -257,8 +274,7 @@ export class TimelineFrameModel {
       console.assert(
           false, `Inconsistent frame time for frame ${this.#frames.length} (${frame.startTime} - ${frame.endTime})`);
     }
-    const newFramesLength = this.#frames.push(frame);
-    frame.setIndex(newFramesLength - 1);
+    this.#frames.push(frame);
     if (typeof frame.mainFrameId === 'number') {
       this.#frameById[frame.mainFrameId] = frame;
     }
@@ -275,11 +291,11 @@ export class TimelineFrameModel {
   }
 
   #addTraceEvents(
-      events: readonly Types.Events.Event[], threadData: Array<{
-        pid: Types.Events.ProcessID,
-        tid: Types.Events.ThreadID,
-        startTime: Types.Timing.Micro,
-      }>,
+      events: readonly Types.TraceEvents.TraceEventData[], threadData: {
+        pid: Types.TraceEvents.ProcessID,
+        tid: Types.TraceEvents.ThreadID,
+        startTime: Types.Timing.MicroSeconds,
+      }[],
       mainFrameId: string): void {
     let j = 0;
     this.#activeThreadId = threadData.length && threadData[0].tid || null;
@@ -295,10 +311,11 @@ export class TimelineFrameModel {
     this.#activeProcessId = null;
   }
 
-  #addTraceEvent(event: Types.Events.Event, mainFrameId: string): void {
-    if (Types.Events.isSetLayerId(event) && event.args.data.frame === mainFrameId) {
+  #addTraceEvent(event: Types.TraceEvents.TraceEventData, mainFrameId: string): void {
+    if (Types.TraceEvents.isTraceEventSetLayerId(event) && event.args.data.frame === mainFrameId) {
       this.#layerTreeId = event.args.data.layerTreeId;
-    } else if (Types.Events.isLayerTreeHostImplSnapshot(event) && Number(event.id) === this.#layerTreeId) {
+    } else if (
+        Types.TraceEvents.isTraceEventLayerTreeHostImplSnapshot(event) && Number(event.id) === this.#layerTreeId) {
       this.#handleLayerTreeSnapshot({
         entry: event,
         paints: [],
@@ -319,38 +336,38 @@ export class TimelineFrameModel {
     if (entry.args['layerTreeId'] !== this.#layerTreeId) {
       return;
     }
-    if (Types.Events.isBeginFrame(entry)) {
+    if (Types.TraceEvents.isTraceEventBeginFrame(entry)) {
       this.#handleBeginFrame(entry.ts, entry.args['frameSeqId']);
-    } else if (Types.Events.isDrawFrame(entry)) {
+    } else if (Types.TraceEvents.isTraceEventDrawFrame(entry)) {
       this.#handleDrawFrame(entry.ts, entry.args['frameSeqId']);
-    } else if (Types.Events.isActivateLayerTree(entry)) {
+    } else if (Types.TraceEvents.isTraceEventActivateLayerTree(entry)) {
       this.#handleActivateLayerTree();
-    } else if (Types.Events.isRequestMainThreadFrame(entry)) {
+    } else if (Types.TraceEvents.isTraceEventRequestMainThreadFrame(entry)) {
       this.#handleRequestMainThreadFrame();
-    } else if (Types.Events.isNeedsBeginFrameChanged(entry)) {
+    } else if (Types.TraceEvents.isTraceEventNeedsBeginFrameChanged(entry)) {
       // needsBeginFrame property will either be 0 or 1, which represents
       // true/false in this case, hence the Boolean() wrapper.
       this.#handleNeedFrameChanged(entry.ts, entry.args['data'] && Boolean(entry.args['data']['needsBeginFrame']));
-    } else if (Types.Events.isDroppedFrame(entry)) {
+    } else if (Types.TraceEvents.isTraceEventDroppedFrame(entry)) {
       this.#handleDroppedFrame(entry.ts, entry.args['frameSeqId'], Boolean(entry.args['hasPartialUpdate']));
     }
   }
 
-  #addMainThreadTraceEvent(entry: Types.Events.Event): void {
+  #addMainThreadTraceEvent(entry: Types.TraceEvents.TraceEventData): void {
     if (entryIsTopLevel(entry)) {
       this.#lastTaskBeginTime = entry.ts;
     }
-    if (!this.#framePendingCommit && MAIN_FRAME_MARKERS.has(entry.name as Types.Events.Name)) {
+    if (!this.#framePendingCommit && MAIN_FRAME_MARKERS.has(entry.name as Types.TraceEvents.KnownEventName)) {
       this.#framePendingCommit = new PendingFrame(this.#lastTaskBeginTime || entry.ts);
     }
     if (!this.#framePendingCommit) {
       return;
     }
 
-    if (Types.Events.isBeginMainThreadFrame(entry) && entry.args.data.frameId) {
+    if (Types.TraceEvents.isTraceEventBeginMainThreadFrame(entry) && entry.args.data.frameId) {
       this.#framePendingCommit.mainFrameId = entry.args.data.frameId;
     }
-    if (Types.Events.isPaint(entry)) {
+    if (Types.TraceEvents.isTraceEventPaint(entry)) {
       const snapshot = this.#layerTreeData.paintsToSnapshots.get(entry);
       if (snapshot) {
         this.#framePendingCommit.paints.push(new LayerPaintEvent(entry, snapshot));
@@ -358,59 +375,44 @@ export class TimelineFrameModel {
     }
     // Commit will be replacing CompositeLayers but CompositeLayers is kept
     // around for backwards compatibility.
-    if ((Types.Events.isCompositeLayers(entry) || Types.Events.isCommit(entry)) &&
+    if ((Types.TraceEvents.isTraceEventCompositeLayers(entry) || Types.TraceEvents.isTraceEventCommit(entry)) &&
         entry.args['layerTreeId'] === this.#layerTreeId) {
       this.#handleCommit();
     }
   }
 }
 
-const MAIN_FRAME_MARKERS = new Set<Types.Events.Name>([
-  Types.Events.Name.SCHEDULE_STYLE_RECALCULATION,
-  Types.Events.Name.INVALIDATE_LAYOUT,
-  Types.Events.Name.BEGIN_MAIN_THREAD_FRAME,
-  Types.Events.Name.SCROLL_LAYER,
+const MAIN_FRAME_MARKERS = new Set<Types.TraceEvents.KnownEventName>([
+  Types.TraceEvents.KnownEventName.ScheduleStyleRecalculation,
+  Types.TraceEvents.KnownEventName.InvalidateLayout,
+  Types.TraceEvents.KnownEventName.BeginMainThreadFrame,
+  Types.TraceEvents.KnownEventName.ScrollLayer,
 ]);
 
-/**
- * Legacy class that represents TimelineFrames that was ported from the old SDK.
- * This class is purposefully not exported as it breaks the abstraction that
- * every event shown on the timeline is a trace event. Instead, we use the Type
- * LegacyTimelineFrame to represent frames in the codebase. These do implement
- * the right interface to be treated just like they were a trace event.
- */
-class TimelineFrame implements Types.Events.LegacyTimelineFrame {
-  // These fields exist to satisfy the base Event type which all
-  // "trace events" must implement. They aren't used, but doing this means we
-  // can pass `TimelineFrame` instances into places that expect
-  // Types.Events.Event.
-  cat = 'devtools.legacy_frame';
-  name = 'frame';
-  ph = Types.Events.Phase.COMPLETE;
-  ts: Types.Timing.Micro;
-  pid = Types.Events.ProcessID(-1);
-  tid = Types.Events.ThreadID(-1);
+export interface FrameLayerTreeData {
+  entry: Types.TraceEvents.TraceEventLayerTreeHostImplSnapshot;
+  paints: LayerPaintEvent[];
+}
 
-  index = -1;
-  startTime: Types.Timing.Micro;
-  startTimeOffset: Types.Timing.Micro;
-  endTime: Types.Timing.Micro;
-  duration: Types.Timing.Micro;
+export class TimelineFrame {
+  startTime: Types.Timing.MicroSeconds;
+  startTimeOffset: Types.Timing.MicroSeconds;
+  endTime: Types.Timing.MicroSeconds;
+  duration: Types.Timing.MicroSeconds;
   idle: boolean;
   dropped: boolean;
   isPartial: boolean;
-  layerTree: Types.Events.LegacyFrameLayerTreeData|null;
+  layerTree: FrameLayerTreeData|null;
   paints: LayerPaintEvent[];
   mainFrameId: number|undefined;
   readonly seqId: number;
 
-  constructor(seqId: number, startTime: Types.Timing.Micro, startTimeOffset: Types.Timing.Micro) {
+  constructor(seqId: number, startTime: Types.Timing.MicroSeconds, startTimeOffset: Types.Timing.MicroSeconds) {
     this.seqId = seqId;
     this.startTime = startTime;
-    this.ts = startTime;
     this.startTimeOffset = startTimeOffset;
     this.endTime = this.startTime;
-    this.duration = Types.Timing.Micro(0);
+    this.duration = Types.Timing.MicroSeconds(0);
     this.idle = false;
     this.dropped = false;
     this.isPartial = false;
@@ -419,33 +421,25 @@ class TimelineFrame implements Types.Events.LegacyTimelineFrame {
     this.mainFrameId = undefined;
   }
 
-  setIndex(i: number): void {
-    this.index = i;
-  }
-
-  setEndTime(endTime: Types.Timing.Micro): void {
+  setEndTime(endTime: Types.Timing.MicroSeconds): void {
     this.endTime = endTime;
-    this.duration = Types.Timing.Micro(this.endTime - this.startTime);
+    this.duration = Types.Timing.MicroSeconds(this.endTime - this.startTime);
   }
 
-  setLayerTree(layerTree: Types.Events.LegacyFrameLayerTreeData|null): void {
+  setLayerTree(layerTree: FrameLayerTreeData|null): void {
     this.layerTree = layerTree;
-  }
-
-  /**
-   * Fake the `dur` field to meet the expected value given that we pretend
-   * these TimelineFrame classes are trace events across the codebase.
-   */
-  get dur(): Types.Timing.Micro {
-    return this.duration;
   }
 }
 
-export class LayerPaintEvent implements Types.Events.LegacyLayerPaintEvent {
-  readonly #event: Types.Events.Paint;
-  #snapshot: Types.Events.DisplayItemListSnapshot;
+export interface LayerPaintEventPicture {
+  rect: Array<number>;
+  serializedPicture: string;
+}
+export class LayerPaintEvent {
+  readonly #event: Types.TraceEvents.TraceEventPaint;
+  #snapshot: Types.TraceEvents.TraceEventDisplayItemListSnapshot;
 
-  constructor(event: Types.Events.Paint, snapshot: Types.Events.DisplayItemListSnapshot) {
+  constructor(event: Types.TraceEvents.TraceEventPaint, snapshot: Types.TraceEvents.TraceEventDisplayItemListSnapshot) {
     this.#event = event;
     this.#snapshot = snapshot;
   }
@@ -454,14 +448,14 @@ export class LayerPaintEvent implements Types.Events.LegacyLayerPaintEvent {
     return this.#event.args.data.layerId;
   }
 
-  event(): Types.Events.Paint {
+  event(): Types.TraceEvents.TraceEventPaint {
     return this.#event;
   }
 
-  picture(): Types.Events.LegacyLayerPaintEventPicture|null {
+  picture(): LayerPaintEventPicture|null {
     const rect = this.#snapshot.args.snapshot.params?.layer_rect;
     const pictureData = this.#snapshot.args.snapshot.skp64;
-    return rect && pictureData ? {rect, serializedPicture: pictureData} : null;
+    return rect && pictureData ? {rect: rect, serializedPicture: pictureData} : null;
   }
 }
 
@@ -479,10 +473,10 @@ export class PendingFrame {
 // The parameters of an impl-side BeginFrame.
 class BeginFrameInfo {
   seqId: number;
-  startTime: Types.Timing.Micro;
+  startTime: Types.Timing.MicroSeconds;
   isDropped: boolean;
   isPartial: boolean;
-  constructor(seqId: number, startTime: Types.Timing.Micro, isDropped: boolean, isPartial: boolean) {
+  constructor(seqId: number, startTime: Types.Timing.MicroSeconds, isDropped: boolean, isPartial: boolean) {
     this.seqId = seqId;
     this.startTime = startTime;
     this.isDropped = isDropped;
@@ -503,7 +497,8 @@ export class TimelineFrameBeginFrameQueue {
   } = {};
 
   // Add a BeginFrame to the queue, if it does not already exit.
-  addFrameIfNotExists(seqId: number, startTime: Types.Timing.Micro, isDropped: boolean, isPartial: boolean): void {
+  addFrameIfNotExists(seqId: number, startTime: Types.Timing.MicroSeconds, isDropped: boolean, isPartial: boolean):
+      void {
     if (!(seqId in this.mapFrames)) {
       this.mapFrames[seqId] = new BeginFrameInfo(seqId, startTime, isDropped, isPartial);
       this.queueFrames.push(seqId);
@@ -555,8 +550,8 @@ export class TimelineFrameBeginFrameQueue {
 }
 
 export function framesWithinWindow(
-    frames: readonly Types.Events.LegacyTimelineFrame[], startTime: Types.Timing.Micro,
-    endTime: Types.Timing.Micro): Types.Events.LegacyTimelineFrame[] {
+    frames: readonly TimelineFrame[], startTime: Types.Timing.MicroSeconds,
+    endTime: Types.Timing.MicroSeconds): TimelineFrame[] {
   const firstFrame = Platform.ArrayUtilities.lowerBound(frames, startTime || 0, (time, frame) => time - frame.endTime);
   const lastFrame =
       Platform.ArrayUtilities.lowerBound(frames, endTime || Infinity, (time, frame) => time - frame.startTime);
