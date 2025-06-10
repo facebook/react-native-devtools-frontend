@@ -29,7 +29,7 @@ describe('UISourceCode', () => {
     const sutObject = setupMockedUISourceCode('https://example.com/');
     sutObject.contentTypeStub.name.returns('nameExample');
 
-    const result = sutObject.sut.canononicalScriptId();
+    const result = sutObject.sut.canonicalScriptId();
 
     assert.strictEqual(result, 'nameExample,https://example.com/');
   });
@@ -77,7 +77,7 @@ describe('UISourceCode', () => {
 
     const result = await sutObject.sut.requestMetadata();
 
-    assert.strictEqual(result, null);
+    assert.isNull(result);
   });
 
   it('can return full display name', async () => {
@@ -338,13 +338,13 @@ describe('UISourceCode', () => {
   it('can add line message', async () => {
     const sutObject = setupMockedUISourceCode();
 
-    sutObject.sut.addLineMessage(Workspace.UISourceCode.Message.Level.Error, 'Example Message', 5);
+    sutObject.sut.addLineMessage(Workspace.UISourceCode.Message.Level.ERROR, 'Example Message', 5);
     const messagesSet = sutObject.sut.messages();
-    const addedMessage = messagesSet.values().next().value;
+    const addedMessage = messagesSet.values().next().value!;
 
     assert.strictEqual(messagesSet.size, 1);
-    assert.strictEqual(addedMessage.levelInternal, 'Error');
-    assert.strictEqual(addedMessage.textInternal, 'Example Message');
+    assert.strictEqual(addedMessage.level(), 'Error');
+    assert.strictEqual(addedMessage.text(), 'Example Message');
     assert.strictEqual(addedMessage.range.startLine, 5);
     assert.strictEqual(addedMessage.range.endLine, 5);
   });

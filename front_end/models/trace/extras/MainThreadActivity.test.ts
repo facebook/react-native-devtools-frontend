@@ -5,18 +5,18 @@
 import {
   makeCompleteEvent,
 } from '../../../testing/TraceHelpers.js';
-import * as TraceEngine from '../trace.js';
+import * as Trace from '../trace.js';
 
 const DEVTOOLS_CATEGORY = 'disabled-by-default-devtools.timeline';
-function milliToMicro(x: number): TraceEngine.Types.Timing.MicroSeconds {
-  return TraceEngine.Helpers.Timing.millisecondsToMicroseconds(TraceEngine.Types.Timing.MilliSeconds(x));
+function milliToMicro(x: number): Trace.Types.Timing.Micro {
+  return Trace.Helpers.Timing.milliToMicro(Trace.Types.Timing.Milli(x));
 }
 
-function makeFakeBounds(min: number, max: number): TraceEngine.Types.Timing.TraceWindowMicroSeconds {
+function makeFakeBounds(min: number, max: number): Trace.Types.Timing.TraceWindowMicro {
   return {
-    min: TraceEngine.Types.Timing.MicroSeconds(min),
-    max: TraceEngine.Types.Timing.MicroSeconds(max),
-    range: TraceEngine.Types.Timing.MicroSeconds(max - min),
+    min: Trace.Types.Timing.Micro(min),
+    max: Trace.Types.Timing.Micro(max),
+    range: Trace.Types.Timing.Micro(max - min),
   };
 }
 
@@ -29,7 +29,7 @@ describe('MainThreadActivity', function() {
       makeCompleteEvent('Program', milliToMicro(400), milliToMicro(50), DEVTOOLS_CATEGORY),
     ];
     const bounds = makeFakeBounds(milliToMicro(100), milliToMicro(450));
-    const win = TraceEngine.Extras.MainThreadActivity.calculateWindow(bounds, events);
+    const win = Trace.Extras.MainThreadActivity.calculateWindow(bounds, events);
     assert.strictEqual(win.min, bounds.min);
     assert.strictEqual(win.max, bounds.max);
   });
@@ -44,7 +44,7 @@ describe('MainThreadActivity', function() {
       makeCompleteEvent('Program', milliToMicro(1_000), milliToMicro(50), DEVTOOLS_CATEGORY),
     ];
     const bounds = makeFakeBounds(milliToMicro(1), milliToMicro(1_050));
-    const win = TraceEngine.Extras.MainThreadActivity.calculateWindow(bounds, events);
+    const win = Trace.Extras.MainThreadActivity.calculateWindow(bounds, events);
     // This trace has:
     // 1 event at 1
     // 4 events between 200 and 230ms
@@ -52,7 +52,7 @@ describe('MainThreadActivity', function() {
     // Therefore, the window focuses on the time period of 1 to 280ms (280 is
     // the end time of the event that starts at 230ms).
     // The right number looks odd because when we zoom the window we adjust it
-    // postively by 5% for the upper bound to give it some breathing room.
+    // positively by 5% for the upper bound to give it some breathing room.
     assert.strictEqual(win.min, milliToMicro(1));
     assert.strictEqual(win.max, milliToMicro(293.95));
   });
@@ -75,7 +75,7 @@ describe('MainThreadActivity', function() {
     // total time span, meaning that we fallback to just showing the entire
     // trace window.
     const bounds = makeFakeBounds(milliToMicro(100), milliToMicro(4_050_000));
-    const win = TraceEngine.Extras.MainThreadActivity.calculateWindow(bounds, events);
+    const win = Trace.Extras.MainThreadActivity.calculateWindow(bounds, events);
     // We expect the window to equal the entire trace bounds.
     assert.deepEqual(win, bounds);
   });

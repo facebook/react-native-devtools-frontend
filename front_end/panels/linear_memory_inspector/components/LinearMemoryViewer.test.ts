@@ -42,7 +42,7 @@ describe('LinearMemoryViewer', () => {
     };
     const dataWithHighlightInfo = {
       ...data,
-      highlightInfo: highlightInfo,
+      highlightInfo,
     };
 
     const eventPromise =
@@ -115,7 +115,7 @@ describe('LinearMemoryViewer', () => {
     const eventPromise = getEventPromise<LinearMemoryInspectorComponents.LinearMemoryViewer.ByteSelectedEvent>(
         component, 'byteselected');
     const view = getElementWithinComponent(component, '.view', HTMLDivElement);
-    view.dispatchEvent(new KeyboardEvent('keydown', {'code': code}));
+    view.dispatchEvent(new KeyboardEvent('keydown', {code}));
     const event = await eventPromise;
     assert.strictEqual(event.data, expectedAddress);
   }
@@ -344,8 +344,8 @@ describe('LinearMemoryViewer', () => {
     const byteCells = getElementsWithinComponent(component, '.byte-cell.highlight-area', HTMLSpanElement);
     const textCells = getElementsWithinComponent(component, '.text-cell.highlight-area', HTMLSpanElement);
 
-    assert.strictEqual(byteCells.length, 0);
-    assert.strictEqual(textCells.length, 0);
+    assert.lengthOf(byteCells, 0);
+    assert.lengthOf(textCells, 0);
   });
 
   it('highlights correct number of bytes when highlight info set', async () => {

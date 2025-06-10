@@ -4,28 +4,26 @@
 
 import * as Common from '../common/common.js';
 
-import {type HeapProfilerModel} from './HeapProfilerModel.js';
+import type {HeapProfilerModel} from './HeapProfilerModel.js';
 import {RuntimeModel} from './RuntimeModel.js';
-
-import {TargetManager, type SDKModelObserver} from './TargetManager.js';
+import {type SDKModelObserver, TargetManager} from './TargetManager.js';
 
 let isolateManagerInstance: IsolateManager;
 
 export class IsolateManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes> implements
     SDKModelObserver<RuntimeModel> {
-  readonly #isolatesInternal: Map<string, Isolate>;
-  #isolateIdByModel: Map<RuntimeModel, string|null>;
-  #observers: Set<Observer>;
-  #pollId: number;
+  readonly #isolatesInternal = new Map<string, Isolate>();
+  /**
+   * Contains null while the isolateId is being retrieved.
+   */
+  #isolateIdByModel = new Map<RuntimeModel, string|null>();
+  #observers = new Set<Observer>();
+  #pollId = 0;
 
   constructor() {
     super();
-    this.#isolatesInternal = new Map();
-    // #isolateIdByModel contains null while the isolateId is being retrieved.
-    this.#isolateIdByModel = new Map();
-    this.#observers = new Set();
+
     TargetManager.instance().observeModels(RuntimeModel, this);
-    this.#pollId = 0;
   }
 
   static instance({forceNew}: {
@@ -49,13 +47,6 @@ export class IsolateManager extends Common.ObjectWrapper.ObjectWrapper<EventType
     for (const isolate of this.#isolatesInternal.values()) {
       observer.isolateAdded(isolate);
     }
-  }
-
-  unobserveIsolates(observer: Observer): void {
-    this.#observers.delete(observer);
-    if (!this.#observers.size) {
-      ++this.#pollId;
-    }  // Stops the current polling loop.
   }
 
   modelAdded(model: RuntimeModel): void {
@@ -139,12 +130,12 @@ export interface Observer {
 }
 
 export const enum Events {
-  MemoryChanged = 'MemoryChanged',
+  MEMORY_CHANGED = 'MemoryChanged',
 }
 
-export type EventTypes = {
-  [Events.MemoryChanged]: Isolate,
-};
+export interface EventTypes {
+  [Events.MEMORY_CHANGED]: Isolate;
+}
 
 export const MemoryTrendWindowMs = 120e3;
 const PollIntervalMs = 2e3;
@@ -177,7 +168,7 @@ export class Isolate {
 
   heapProfilerModel(): HeapProfilerModel|null {
     const runtimeModel = this.runtimeModel();
-    return runtimeModel && runtimeModel.heapProfilerModel();
+    return runtimeModel?.heapProfilerModel() ?? null;
   }
 
   async update(): Promise<void> {
@@ -186,9 +177,9 @@ export class Isolate {
     if (!usage) {
       return;
     }
-    this.#usedHeapSizeInternal = usage.usedSize;
+    this.#usedHeapSizeInternal = usage.usedSize + (usage.embedderHeapUsedSize ?? 0) + (usage.backingStorageSize ?? 0);
     this.#memoryTrend.add(this.#usedHeapSizeInternal);
-    IsolateManager.instance().dispatchEventToListeners(Events.MemoryChanged, this);
+    IsolateManager.instance().dispatchEventToListeners(Events.MEMORY_CHANGED, this);
   }
 
   samplesCount(): number {
@@ -204,11 +195,6 @@ export class Isolate {
    */
   usedHeapSizeGrowRate(): number {
     return this.#memoryTrend.fitSlope();
-  }
-
-  isMainThread(): boolean {
-    const model = this.runtimeModel();
-    return model ? model.target().id() === 'main' : false;
   }
 }
 

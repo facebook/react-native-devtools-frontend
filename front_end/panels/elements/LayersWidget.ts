@@ -23,7 +23,7 @@ const UIStrings = {
    * For a button that opens a tool that shows the layers present in the current document.
    */
   toggleCSSLayers: 'Toggle CSS Layers view',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/elements/LayersWidget.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -35,6 +35,7 @@ export class LayersWidget extends UI.Widget.Widget {
 
   constructor() {
     super(true);
+    this.registerRequiredCSS(layersWidgetStyles);
 
     this.contentElement.className = 'styles-layers-pane';
     this.contentElement.setAttribute('jslog', `${VisualLogging.pane('css-layers')}`);
@@ -58,13 +59,12 @@ export class LayersWidget extends UI.Widget.Widget {
     }
   }
 
-  override async wasShown(): Promise<void> {
+  override wasShown(): Promise<void> {
     super.wasShown();
-    this.registerCSSFiles([layersWidgetStyles]);
     return this.update();
   }
 
-  private async update(): Promise<void> {
+  async update(): Promise<void> {
     if (!this.isShowing()) {
       return;
     }
@@ -113,7 +113,7 @@ export class LayersWidget extends UI.Widget.Widget {
       ElementsPanel.instance().showToolbarPane(this, ButtonProvider.instance().item());
     }
     await this.update();
-    return this.layerTreeComponent.expandToAndSelectTreeNodeId('implicit outer layer.' + layerName);
+    return await this.layerTreeComponent.expandToAndSelectTreeNodeId('implicit outer layer.' + layerName);
   }
 
   static instance(opts: {
@@ -135,7 +135,7 @@ export class ButtonProvider implements UI.Toolbar.Provider {
   private constructor() {
     this.button = new UI.Toolbar.ToolbarToggle(i18nString(UIStrings.toggleCSSLayers), 'layers', 'layers-filled');
     this.button.setVisible(false);
-    this.button.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, this.clicked, this);
+    this.button.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.clicked, this);
     this.button.element.classList.add('monospace');
     this.button.element.setAttribute('jslog', `${VisualLogging.toggleSubpane('css-layers').track({click: true})}`);
   }

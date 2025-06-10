@@ -26,7 +26,7 @@ const nodeShouldBeIgnored = (node: Node): boolean => {
 
   if (isTextNode) {
     // We ignore textNode changes where the trimmed text is empty - these are
-    // most likely whitespace changes from LitHtml and not important.
+    // most likely whitespace changes from Lit and not important.
     return (node.textContent || '').trim() === '';
   }
 
@@ -240,7 +240,7 @@ export const withNoMutations = async<T extends Node>(element: T, fn: (shadowRoot
 };
 
 export const someMutations = async<T extends Node>(element: T) => {
-  return new Promise<void>(resolve => {
+  return await new Promise<void>(resolve => {
     const observer = new MutationObserver(() => {
       resolve();
       observer.disconnect();

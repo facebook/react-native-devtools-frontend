@@ -76,24 +76,31 @@ let BidiBrowser = (() => {
         ];
         static subscribeCdpEvents = [
             // Coverage
-            'cdp.Debugger.scriptParsed',
-            'cdp.CSS.styleSheetAdded',
-            'cdp.Runtime.executionContextsCleared',
+            'goog:cdp.Debugger.scriptParsed',
+            'goog:cdp.CSS.styleSheetAdded',
+            'goog:cdp.Runtime.executionContextsCleared',
             // Tracing
-            'cdp.Tracing.tracingComplete',
+            'goog:cdp.Tracing.tracingComplete',
             // TODO: subscribe to all CDP events in the future.
-            'cdp.Network.requestWillBeSent',
-            'cdp.Debugger.scriptParsed',
-            'cdp.Page.screencastFrame',
+            'goog:cdp.Network.requestWillBeSent',
+            'goog:cdp.Debugger.scriptParsed',
+            'goog:cdp.Page.screencastFrame',
         ];
         static async create(opts) {
             const session = await Session_js_1.Session.from(opts.connection, {
+                firstMatch: opts.capabilities?.firstMatch,
                 alwaysMatch: {
-                    acceptInsecureCerts: opts.ignoreHTTPSErrors,
+                    ...opts.capabilities?.alwaysMatch,
+                    // Capabilities that come from Puppeteer's API take precedence.
+                    acceptInsecureCerts: opts.acceptInsecureCerts,
                     unhandledPromptBehavior: {
                         default: "ignore" /* Bidi.Session.UserPromptHandlerType.Ignore */,
                     },
                     webSocketUrl: true,
+                    // Puppeteer with WebDriver BiDi does not support prerendering
+                    // yet because WebDriver BiDi behavior is not specified. See
+                    // https://github.com/w3c/webdriver-bidi/issues/321.
+                    'goog:prerenderingDisabled': true,
                 },
             });
             await session.subscribe(session.capabilities.browserName.toLocaleLowerCase().includes('firefox')
@@ -112,12 +119,14 @@ let BidiBrowser = (() => {
         #defaultViewport;
         #browserContexts = new WeakMap();
         #target = new Target_js_1.BidiBrowserTarget(this);
+        #cdpConnection;
         constructor(browserCore, opts) {
             super();
             this.#process = opts.process;
             this.#closeCallback = opts.closeCallback;
             this.#browserCore = browserCore;
             this.#defaultViewport = opts.defaultViewport;
+            this.#cdpConnection = opts.cdpConnection;
         }
         #initialize() {
             // Initializing existing contexts.
@@ -140,7 +149,10 @@ let BidiBrowser = (() => {
             return this.#browserCore.session.capabilities.browserVersion;
         }
         get cdpSupported() {
-            return !this.#browserName.toLocaleLowerCase().includes('firefox');
+            return this.#cdpConnection !== undefined;
+        }
+        get cdpConnection() {
+            return this.#cdpConnection;
         }
         async userAgent() {
             return this.#browserCore.session.capabilities.userAgent;

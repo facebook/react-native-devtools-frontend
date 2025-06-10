@@ -30,9 +30,9 @@
 
 import * as Common from '../../core/common/common.js';
 import * as SDK from '../../core/sdk/sdk.js';
-import * as UI from '../../ui/legacy/legacy.js';
 import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 import type * as Protocol from '../../generated/protocol.js';
+import * as UI from '../../ui/legacy/legacy.js';
 
 export class LayerTreeModel extends SDK.SDKModel.SDKModel<EventTypes> {
   readonly layerTreeAgent: ProtocolProxyApi.LayerTreeApi;
@@ -143,14 +143,16 @@ export class LayerTreeModel extends SDK.SDKModel.SDKModel<EventTypes> {
 SDK.SDKModel.SDKModel.register(LayerTreeModel, {capabilities: SDK.Target.Capability.DOM, autostart: false});
 
 export enum Events {
+  /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   LayerTreeChanged = 'LayerTreeChanged',
   LayerPainted = 'LayerPainted',
+  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
-export type EventTypes = {
-  [Events.LayerTreeChanged]: void,
-  [Events.LayerPainted]: AgentLayer,
-};
+export interface EventTypes {
+  [Events.LayerTreeChanged]: void;
+  [Events.LayerPainted]: AgentLayer;
+}
 
 export class AgentLayerTree extends SDK.LayerTreeBase.LayerTreeBase {
   private layerTreeModel: LayerTreeModel;
@@ -363,12 +365,12 @@ export class AgentLayer implements SDK.LayerTreeBase.Layer {
     return this.drawsContent() ? this.width() * this.height() * bytesPerPixel : 0;
   }
 
-  snapshots(): Promise<SDK.PaintProfiler.SnapshotWithRect|null>[] {
+  snapshots(): Array<Promise<SDK.PaintProfiler.SnapshotWithRect|null>> {
     const promise = this.layerTreeModel.paintProfilerModel.makeSnapshot(this.id()).then(snapshot => {
       if (!snapshot) {
         return null;
       }
-      return {rect: {x: 0, y: 0, width: this.width(), height: this.height()}, snapshot: snapshot};
+      return {rect: {x: 0, y: 0, width: this.width(), height: this.height()}, snapshot};
     });
     return [promise];
   }

@@ -39,7 +39,7 @@ const UIStrings = {
    * @description Error message that is displayed in the Sources panel when can't be loaded.
    */
   unknownErrorLoadingFile: 'Unknown error loading file',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('models/bindings/ContentProviderBasedProject.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -96,7 +96,7 @@ export class ContentProviderBasedProject extends Workspace.Workspace.ProjectStor
     let parentPath = uiSourceCode.parentURL().replace(/^(?:https?|file)\:\/\//, '');
     try {
       parentPath = decodeURI(parentPath);
-    } catch (e) {
+    } catch {
     }
     return parentPath + '/' + uiSourceCode.displayName(true);
   }
@@ -182,8 +182,7 @@ export class ContentProviderBasedProject extends Workspace.Workspace.ProjectStor
           break;
         }
         matches = Platform.ArrayUtilities.mergeOrdered(
-            matches, searchMatches as TextUtils.ContentProvider.SearchMatch[],
-            TextUtils.ContentProvider.SearchMatch.comparator);
+            matches, searchMatches, TextUtils.ContentProvider.SearchMatch.comparator);
       }
       if (allMatchesFound) {
         result.set(uiSourceCode, matches);

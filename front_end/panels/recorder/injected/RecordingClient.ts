@@ -2,22 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {
-  type Schema,
-  type SelectorType,
-  type StepType,
-} from '../../../third_party/puppeteer-replay/puppeteer-replay.js';
+import type {Schema, SelectorType, StepType} from '../../../third_party/puppeteer-replay/puppeteer-replay.js';
+
 import {Logger} from './Logger.js';
 import {SelectorComputer} from './SelectorComputer.js';
-import {type Step} from './Step.js';
-import {type AccessibilityBindings} from './selectors/ARIASelector.js';
+import type {AccessibilityBindings} from './selectors/ARIASelector.js';
 import {queryCSSSelectorAll} from './selectors/CSSSelector.js';
-import {type Selector} from './selectors/Selector.js';
+import type {Selector} from './selectors/Selector.js';
+import type {Step} from './Step.js';
 import {
-  getClickableTargetFromEvent,
-  haultImmediateEvent,
   assert,
   createClickAttributes,
+  getClickableTargetFromEvent,
+  haultImmediateEvent,
 } from './util.js';
 
 declare global {
@@ -71,7 +68,7 @@ const isIgnorableInputElement = (element: Element): boolean => {
 };
 
 const getShortcutLength = (shortcut: Shortcut): string => {
-  return Object.values(shortcut).filter(key => Boolean(key)).length.toString();
+  return Object.values(shortcut).filter(key => !!key).length.toString();
 };
 
 class RecordingClient {

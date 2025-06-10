@@ -7,13 +7,13 @@ import type * as Handlers from '../handlers/handlers.js';
 import type * as Types from '../types/types.js';
 
 export interface Data {
-  zeroTime: Types.Timing.MicroSeconds;
-  spanTime: Types.Timing.MicroSeconds;
+  zeroTime: Types.Timing.Micro;
+  spanTime: Types.Timing.Micro;
   frames: readonly Frame[];
 }
 
 export interface Frame {
-  screenshotEvent: Types.TraceEvents.SyntheticScreenshot;
+  screenshotEvent: Types.Events.LegacySyntheticScreenshot|Types.Events.Screenshot;
   index: number;
 }
 
@@ -30,25 +30,27 @@ export type HandlerDataWithScreenshots = Handlers.Types.EnabledHandlerDataWithMe
 // Cache film strips based on:
 // 1. The trace parsed data object
 // 2. The start time.
-const filmStripCache = new Map<HandlerDataWithScreenshots, Map<Types.Timing.MicroSeconds, Data>>();
+const filmStripCache = new WeakMap<HandlerDataWithScreenshots, Map<Types.Timing.Micro, Data>>();
 
-export function fromTraceData(traceData: HandlerDataWithScreenshots, customZeroTime?: Types.Timing.MicroSeconds): Data {
+export function fromParsedTrace(parsedTrace: HandlerDataWithScreenshots, customZeroTime?: Types.Timing.Micro): Data {
   const frames: Frame[] = [];
 
-  const zeroTime = typeof customZeroTime !== 'undefined' ? customZeroTime : traceData.Meta.traceBounds.min;
-  const spanTime = traceData.Meta.traceBounds.range;
-  const fromCache = filmStripCache.get(traceData)?.get(zeroTime);
+  const zeroTime = typeof customZeroTime !== 'undefined' ? customZeroTime : parsedTrace.Meta.traceBounds.min;
+  const spanTime = parsedTrace.Meta.traceBounds.range;
+  const fromCache = filmStripCache.get(parsedTrace)?.get(zeroTime);
   if (fromCache) {
     return fromCache;
   }
 
-  for (const screenshotEvent of traceData.Screenshots) {
+  const screenshots = parsedTrace.Screenshots.screenshots ?? parsedTrace.Screenshots.legacySyntheticScreenshots ?? [];
+
+  for (const screenshotEvent of screenshots) {
     if (screenshotEvent.ts < zeroTime) {
       continue;
     }
     const frame: Frame = {
       index: frames.length,
-      screenshotEvent: screenshotEvent,
+      screenshotEvent,
     };
     frames.push(frame);
   }
@@ -60,13 +62,13 @@ export function fromTraceData(traceData: HandlerDataWithScreenshots, customZeroT
   };
 
   const cachedForData =
-      Platform.MapUtilities.getWithDefault(filmStripCache, traceData, () => new Map<Types.Timing.MicroSeconds, Data>());
+      Platform.MapUtilities.getWithDefault(filmStripCache, parsedTrace, () => new Map<Types.Timing.Micro, Data>());
   cachedForData.set(zeroTime, result);
 
   return result;
 }
 
-export function frameClosestToTimestamp(filmStrip: Data, searchTimestamp: Types.Timing.MicroSeconds): Frame|null {
+export function frameClosestToTimestamp(filmStrip: Data, searchTimestamp: Types.Timing.Micro): Frame|null {
   const closestFrameIndexBeforeTimestamp = Platform.ArrayUtilities.nearestIndexFromEnd(
       filmStrip.frames, frame => frame.screenshotEvent.ts < searchTimestamp);
   if (closestFrameIndexBeforeTimestamp === null) {

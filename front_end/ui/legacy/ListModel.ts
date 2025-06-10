@@ -102,12 +102,12 @@ export class ListModel<T> extends Common.ObjectWrapper.ObjectWrapper<EventTypes<
   }
 
   private replaced(index: number, removed: T[], inserted: number, keepSelectedIndex?: boolean): void {
-    this.dispatchEventToListeners(Events.ItemsReplaced, {index, removed, inserted, keepSelectedIndex});
+    this.dispatchEventToListeners(Events.ITEMS_REPLACED, {index, removed, inserted, keepSelectedIndex});
   }
 }
 
 export const enum Events {
-  ItemsReplaced = 'ItemsReplaced',
+  ITEMS_REPLACED = 'ItemsReplaced',
 }
 
 export interface ItemsReplacedEvent<T> {
@@ -117,6 +117,6 @@ export interface ItemsReplacedEvent<T> {
   keepSelectedIndex?: boolean;
 }
 
-export type EventTypes<T> = {
-  [Events.ItemsReplaced]: ItemsReplacedEvent<T>,
-};
+export interface EventTypes<T> {
+  [Events.ITEMS_REPLACED]: ItemsReplacedEvent<T>;
+}

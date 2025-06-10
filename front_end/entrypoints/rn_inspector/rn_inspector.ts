@@ -13,14 +13,13 @@ import '../../panels/mobile_throttling/mobile_throttling-meta.js';
 import '../../panels/network/network-meta.js';
 import '../../panels/rn_welcome/rn_welcome-legacy-meta.js';
 
+import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import * as RNExperiments from '../../core/rn_experiments/rn_experiments.js';
 import * as Root from '../../core/root/root.js';
+import type * as Sources from '../../panels/sources/sources.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as Main from '../main/main.js';
-
-import type * as Sources from '../../panels/sources/sources.js';
-import * as RNExperiments from '../../core/rn_experiments/rn_experiments.js';
-import * as Host from '../../core/host/host.js';
 
 /*
  * To ensure accurate timing measurements,
@@ -47,7 +46,7 @@ const UIStrings = {
    *@description Command for showing the 'React Native' tool in the Network Navigator View, which is part of the Sources tool
    */
   showReactNative: 'Show React Native',
-};
+} as const;
 
 const str_ = i18n.i18n.registerUIStrings('entrypoints/rn_inspector/rn_inspector.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
@@ -74,7 +73,7 @@ UI.ViewManager.registerViewExtension({
   },
 });
 
-// @ts-ignore Exposed for legacy layout tests
+// @ts-expect-error Exposed for legacy layout tests
 self.runtime = Root.Runtime.Runtime.instance({forceNew: true});
 new Main.MainImpl.MainImpl();
 

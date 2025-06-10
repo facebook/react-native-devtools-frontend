@@ -17,7 +17,8 @@ module.exports = {
         docs: {
             description: "Disallow `continue` statements",
             recommended: false,
-            url: "https://eslint.org/docs/rules/no-continue"
+            frozen: true,
+            url: "https://eslint.org/docs/latest/rules/no-continue"
         },
 
         schema: [],

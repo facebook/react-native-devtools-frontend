@@ -2,19 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 import * as Platform from '../../../core/platform/platform.js';
-import * as LitHtml from '../../lit-html/lit-html.js';
+import * as Lit from '../../lit/lit.js';
 
 export type TreeNodeId = string;
 
 interface BaseTreeNode<TreeNodeDataType> {
   treeNodeData: TreeNodeDataType;
-  renderer?: (node: TreeNode<TreeNodeDataType>, state: {isExpanded: boolean}) => LitHtml.TemplateResult;
+  renderer?: (node: TreeNode<TreeNodeDataType>, state: {isExpanded: boolean}) => Lit.TemplateResult;
   id: TreeNodeId;
   jslogContext?: string;
 }
 
 export interface TreeNodeWithChildren<TreeNodeDataType> extends BaseTreeNode<TreeNodeDataType> {
-  children: () => Promise<TreeNode<TreeNodeDataType>[]>;
+  children: () => Promise<Array<TreeNode<TreeNodeDataType>>>;
 }
 
 interface LeafNode<TreeNodeDataType> extends BaseTreeNode<TreeNodeDataType> {
@@ -29,21 +29,21 @@ export function isExpandableNode<TreeNodeDataType>(node: TreeNode<TreeNodeDataTy
 }
 
 /**
- * This is a custom lit-html directive that lets us track the DOM nodes that Lit
+ * This is a custom lit directive that lets us track the DOM nodes that Lit
  * creates and maps them to the tree node that was given to us. This means we
  * can navigate between real DOM node and structural tree node easily in code.
  */
 
-class TrackDOMNodeToTreeNode extends LitHtml.Directive.Directive {
-  constructor(partInfo: LitHtml.Directive.PartInfo) {
+class TrackDOMNodeToTreeNode extends Lit.Directive.Directive {
+  constructor(partInfo: Lit.Directive.PartInfo) {
     super(partInfo);
 
-    if (partInfo.type !== LitHtml.Directive.PartType.ATTRIBUTE) {
+    if (partInfo.type !== Lit.Directive.PartType.ATTRIBUTE) {
       throw new Error('TrackDOMNodeToTreeNode directive must be used as an attribute.');
     }
   }
 
-  override update(part: LitHtml.Directive.ElementPart, [weakMap, treeNode]: LitHtml.Directive.DirectiveParameters<this>): void {
+  override update(part: Lit.Directive.ElementPart, [weakMap, treeNode]: Lit.Directive.DirectiveParameters<this>): void {
     const elem = part.element;
     if (!(elem instanceof HTMLLIElement)) {
       throw new Error('trackTreeNodeToDOMNode must be used on <li> elements.');
@@ -64,7 +64,7 @@ class TrackDOMNodeToTreeNode extends LitHtml.Directive.Directive {
   }
 }
 
-export const trackDOMNodeToTreeNode = LitHtml.Directive.directive(TrackDOMNodeToTreeNode);
+export const trackDOMNodeToTreeNode = Lit.Directive.directive(TrackDOMNodeToTreeNode);
 
 /**
  * Finds the next sibling of the node's parent, recursing up the tree if
@@ -169,20 +169,20 @@ const getParentListItemForDOMNode = (currentDOMNode: HTMLLIElement): HTMLLIEleme
  * back as that's enforced by the TreeOutline types elsewhere. We can't make
  * this WeakMap easily generic as it's a top level variable.
  */
-const treeNodeChildrenWeakMap = new WeakMap<TreeNode<unknown>, TreeNode<unknown>[]>();
+const treeNodeChildrenWeakMap = new WeakMap<TreeNode<unknown>, Array<TreeNode<unknown>>>();
 export const getNodeChildren =
-    async<TreeNodeDataType>(node: TreeNode<TreeNodeDataType>): Promise<TreeNode<TreeNodeDataType>[]> => {
+    async<TreeNodeDataType>(node: TreeNode<TreeNodeDataType>): Promise<Array<TreeNode<TreeNodeDataType>>> => {
   if (!node.children) {
     throw new Error('Asked for children of node that does not have any children.');
   }
 
   const cachedChildren = treeNodeChildrenWeakMap.get(node as TreeNode<unknown>);
   if (cachedChildren) {
-    return cachedChildren as unknown as TreeNode<TreeNodeDataType>[];
+    return cachedChildren as unknown as Array<TreeNode<TreeNodeDataType>>;
   }
 
   const children = await node.children();
-  treeNodeChildrenWeakMap.set(node as TreeNode<unknown>, children as TreeNode<unknown>[]);
+  treeNodeChildrenWeakMap.set(node as TreeNode<unknown>, children as Array<TreeNode<unknown>>);
   return children;
 };
 
@@ -199,8 +199,8 @@ export const getNodeChildren =
  * And you look for F, you'll get back [A, D, F]
  */
 export const getPathToTreeNode =
-    async<TreeNodeDataType>(tree: readonly TreeNode<TreeNodeDataType>[], nodeIdToFind: TreeNodeId):
-        Promise<TreeNode<TreeNodeDataType>[]|null> => {
+    async<TreeNodeDataType>(tree: ReadonlyArray<TreeNode<TreeNodeDataType>>, nodeIdToFind: TreeNodeId):
+        Promise<Array<TreeNode<TreeNodeDataType>>|null> => {
           for (const rootNode of tree) {
             const foundPathOrNull = await getPathToTreeNodeRecursively(rootNode, nodeIdToFind, [rootNode]);
             if (foundPathOrNull !== null) {
@@ -212,7 +212,7 @@ export const getPathToTreeNode =
 
 const getPathToTreeNodeRecursively = async<TreeNodeDataType>(
     currentNode: TreeNode<TreeNodeDataType>, nodeIdToFind: TreeNodeId,
-    pathToNode: TreeNode<TreeNodeDataType>[]): Promise<TreeNode<TreeNodeDataType>[]|null> => {
+    pathToNode: Array<TreeNode<TreeNodeDataType>>): Promise<Array<TreeNode<TreeNodeDataType>>|null> => {
   if (currentNode.id === nodeIdToFind) {
     return pathToNode;
   }

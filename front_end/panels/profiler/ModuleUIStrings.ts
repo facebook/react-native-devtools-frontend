@@ -27,14 +27,6 @@ export const UIStrings = {
   /**
    *@description Text to indicate the status of a heap snapshot in the Performance Pane
    */
-  buildingPostorderIndex: 'Building postorder index…',
-  /**
-   *@description Text to indicate the status of a heap snapshot in the Performance Pane
-   */
-  buildingDominatorTree: 'Building dominator tree…',
-  /**
-   *@description Text to indicate the status of a heap snapshot in the Performance Pane
-   */
   calculatingShallowSizes: 'Calculating shallow sizes…',
   /**
    *@description Text to indicate the status of a heap snapshot in the Performance Pane
@@ -44,6 +36,11 @@ export const UIStrings = {
    *@description Text to indicate the status of a heap snapshot in the Performance Pane
    */
   buildingDominatedNodes: 'Building dominated nodes…',
+  /**
+   *@description Text to indicate the status of a heap snapshot in the Performance Pane.
+   * During this step, names are assigned to objects in the heap snapshot.
+   */
+  calculatingObjectNames: 'Calculating object names…',
   /**
    *@description Text to indicate the status of a heap snapshot in the Performance Pane
    */
@@ -107,4 +104,4 @@ export const UIStrings = {
    *@description Text in Heap Snapshot Loader of the Memory panel when taking a heap snapshot
    */
   loadingStrings: 'Loading strings…',
-};
+} as const;

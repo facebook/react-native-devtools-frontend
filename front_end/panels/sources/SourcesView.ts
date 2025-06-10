@@ -2,15 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../ui/legacy/legacy.js';
+
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
-import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import * as Persistence from '../../models/persistence/persistence.js';
 import * as Workspace from '../../models/workspace/workspace.js';
+import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as QuickOpen from '../../ui/legacy/components/quick_open/quick_open.js';
 import * as SourceFrame from '../../ui/legacy/components/source_frame/source_frame.js';
 import * as UI from '../../ui/legacy/legacy.js';
@@ -49,7 +51,7 @@ const UIStrings = {
    */
   sourceViewActions: 'Source View Actions',
 
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/sources/SourcesView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -70,6 +72,7 @@ export class SourcesView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
 
   constructor() {
     super();
+    this.registerRequiredCSS(sourcesViewStyles);
 
     this.element.id = 'sources-panel-sources-view';
     this.element.setAttribute('jslog', `${VisualLogging.pane('editor').track({keydown: 'Escape'})}`);
@@ -89,16 +92,16 @@ export class SourcesView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
         this, Common.Settings.Settings.instance().createLocalSetting('previously-viewed-files', []),
         this.placeholderElement(), this.focusedPlaceholderElement);
     this.editorContainer.show(this.searchableViewInternal.element);
-    this.editorContainer.addEventListener(TabbedEditorContainerEvents.EditorSelected, this.editorSelected, this);
-    this.editorContainer.addEventListener(TabbedEditorContainerEvents.EditorClosed, this.editorClosed, this);
+    this.editorContainer.addEventListener(TabbedEditorContainerEvents.EDITOR_SELECTED, this.editorSelected, this);
+    this.editorContainer.addEventListener(TabbedEditorContainerEvents.EDITOR_CLOSED, this.editorClosed, this);
 
     this.historyManager = new EditingLocationHistoryManager(this);
 
     this.toolbarContainerElementInternal = this.element.createChild('div', 'sources-toolbar');
     this.toolbarContainerElementInternal.setAttribute('jslog', `${VisualLogging.toolbar('bottom')}`);
-    this.scriptViewToolbar = new UI.Toolbar.Toolbar('', this.toolbarContainerElementInternal);
-    this.scriptViewToolbar.element.style.flex = 'auto';
-    this.bottomToolbarInternal = new UI.Toolbar.Toolbar('', this.toolbarContainerElementInternal);
+    this.scriptViewToolbar = this.toolbarContainerElementInternal.createChild('devtools-toolbar');
+    this.scriptViewToolbar.style.flex = 'auto';
+    this.bottomToolbarInternal = this.toolbarContainerElementInternal.createChild('devtools-toolbar');
 
     this.toolbarChangedListener = null;
 
@@ -144,57 +147,54 @@ export class SourcesView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
   }
 
   private placeholderElement(): Element {
+    const placeholder = document.createElement('div');
+    placeholder.classList.add('sources-placeholder');
+
+    const workspaceElement = placeholder.createChild('div', 'tabbed-pane-placeholder-row');
+    workspaceElement.classList.add('workspace');
+
+    const icon = IconButton.Icon.create('sync', 'sync-icon');
+    workspaceElement.createChild('span', 'icon-container').appendChild(icon);
+    const text = workspaceElement.createChild('span');
+    text.textContent = UIStrings.workspaceDropInAFolderToSyncSources;
+    const browseButton = text.createChild('button');
+    browseButton.textContent = i18nString(UIStrings.selectFolder);
+    browseButton.addEventListener('click', this.addFileSystemClicked.bind(this));
+
     const shortcuts = [
       {actionId: 'quick-open.show', description: i18nString(UIStrings.openFile)},
       {actionId: 'quick-open.show-command-menu', description: i18nString(UIStrings.runCommand)},
-      {
-        actionId: 'sources.add-folder-to-workspace',
-        condition: Root.Runtime.ConditionName.NOT_SOURCES_HIDE_ADD_FOLDER,
-        description: i18nString(UIStrings.workspaceDropInAFolderToSyncSources),
-        isWorkspace: true,
-      },
     ];
 
-    const list = document.createElement('div');
+    const list = placeholder.createChild('div', 'shortcuts-list');
+    list.classList.add('tabbed-pane-placeholder-row');
     UI.ARIAUtils.markAsList(list);
     UI.ARIAUtils.setLabel(list, i18nString(UIStrings.sourceViewActions));
 
     for (const shortcut of shortcuts) {
-      const {condition} = shortcut;
-      if (condition !== undefined &&
-          !Root.Runtime.Runtime.isDescriptorEnabled(
-              {experiment: undefined, condition: () => Boolean(Root.Runtime.Runtime.queryParam(condition))})) {
-        continue;
-      }
-      const shortcutKeyText = UI.ShortcutRegistry.ShortcutRegistry.instance().shortcutTitleForAction(shortcut.actionId);
-      const listItemElement = list.createChild('div', 'tabbed-pane-placeholder-row');
-      UI.ARIAUtils.markAsListitem(listItemElement);
-      if (shortcutKeyText) {
-        const title = listItemElement.createChild('span');
-        title.textContent = shortcutKeyText;
+      const shortcutKeys = UI.ShortcutRegistry.ShortcutRegistry.instance().shortcutsForAction(shortcut.actionId);
+      const listItemElement = list.createChild('div');
+      listItemElement.classList.add('shortcut-line');
 
+      UI.ARIAUtils.markAsListitem(listItemElement);
+
+      // Take the first shortcut for display.
+      if (shortcutKeys?.[0]) {
         const button = listItemElement.createChild('button');
         button.textContent = shortcut.description;
         const action = UI.ActionRegistry.ActionRegistry.instance().getAction(shortcut.actionId);
         button.addEventListener('click', () => action.execute());
-      }
 
-      if (shortcut.isWorkspace) {
-        const workspace = listItemElement.createChild('span', 'workspace');
-        workspace.textContent = shortcut.description;
-
-        const browseButton = workspace.createChild('button');
-        browseButton.textContent = i18nString(UIStrings.selectFolder);
-        browseButton.addEventListener('click', this.addFileSystemClicked.bind(this));
+        const shortcutElement = listItemElement.createChild('span', 'shortcuts');
+        const separator = Host.Platform.isMac() ? '\u2004' : ' + ';
+        const keys = shortcutKeys[0].descriptors.flatMap(descriptor => descriptor.name.split(separator));
+        keys.forEach(key => {
+          shortcutElement.createChild('span', 'keybinds-key').createChild('span').textContent = key;
+        });
       }
     }
 
-    if (Root.Runtime.Runtime.isDescriptorEnabled(
-            {experiment: undefined, condition: Root.Runtime.conditions.notSourcesHideAddFolder})) {
-      list.appendChild(UI.XLink.XLink.create(
-          'https://developer.chrome.com/docs/devtools/workspaces/', 'Learn more about Workspaces'));
-    }
-    return list;
+    return placeholder;
   }
 
   private async addFileSystemClicked(): Promise<void> {
@@ -233,7 +233,6 @@ export class SourcesView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
 
   override wasShown(): void {
     super.wasShown();
-    this.registerCSSFiles([sourcesViewStyles]);
     UI.Context.Context.instance().setFlavor(SourcesView, this);
   }
 
@@ -259,7 +258,7 @@ export class SourcesView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
     if (!(view instanceof UISourceCodeFrame)) {
       return null;
     }
-    return (view as UISourceCodeFrame);
+    return (view);
   }
 
   currentUISourceCode(): Workspace.UISourceCode.UISourceCode|null {
@@ -380,9 +379,9 @@ export class SourcesView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
     let sourceView;
     const contentType = uiSourceCode.contentType();
 
-    if (contentType === Common.ResourceType.resourceTypes.Image) {
+    if (contentType === Common.ResourceType.resourceTypes.Image || uiSourceCode.mimeType().startsWith('image/')) {
       sourceView = new SourceFrame.ImageView.ImageView(uiSourceCode.mimeType(), uiSourceCode);
-    } else if (contentType === Common.ResourceType.resourceTypes.Font) {
+    } else if (contentType === Common.ResourceType.resourceTypes.Font || uiSourceCode.mimeType().includes('font')) {
       sourceView = new SourceFrame.FontView.FontView(uiSourceCode.mimeType(), uiSourceCode);
     } else if (uiSourceCode.name() === HEADER_OVERRIDES_FILENAME) {
       sourceView = new Components.HeadersView.HeadersView(uiSourceCode);
@@ -399,29 +398,29 @@ export class SourcesView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
 
   #sourceViewTypeForWidget(widget: UI.Widget.Widget): SourceViewType {
     if (widget instanceof SourceFrame.ImageView.ImageView) {
-      return SourceViewType.ImageView;
+      return SourceViewType.IMAGE_VIEW;
     }
     if (widget instanceof SourceFrame.FontView.FontView) {
-      return SourceViewType.FontView;
+      return SourceViewType.FONT_VIEW;
     }
     if (widget instanceof Components.HeadersView.HeadersView) {
-      return SourceViewType.HeadersView;
+      return SourceViewType.HEADERS_VIEW;
     }
-    return SourceViewType.SourceView;
+    return SourceViewType.SOURCE_VIEW;
   }
 
   #sourceViewTypeForUISourceCode(uiSourceCode: Workspace.UISourceCode.UISourceCode): SourceViewType {
     if (uiSourceCode.name() === HEADER_OVERRIDES_FILENAME) {
-      return SourceViewType.HeadersView;
+      return SourceViewType.HEADERS_VIEW;
     }
     const contentType = uiSourceCode.contentType();
     switch (contentType) {
       case Common.ResourceType.resourceTypes.Image:
-        return SourceViewType.ImageView;
+        return SourceViewType.IMAGE_VIEW;
       case Common.ResourceType.resourceTypes.Font:
-        return SourceViewType.FontView;
+        return SourceViewType.FONT_VIEW;
       default:
-        return SourceViewType.SourceView;
+        return SourceViewType.SOURCE_VIEW;
     }
   }
 
@@ -462,7 +461,7 @@ export class SourcesView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
     const sourceView = this.sourceViewByUISourceCode.get(uiSourceCode);
     this.sourceViewByUISourceCode.delete(uiSourceCode);
     if (sourceView && sourceView instanceof UISourceCodeFrame) {
-      (sourceView as UISourceCodeFrame).dispose();
+      (sourceView).dispose();
     }
     uiSourceCode.removeEventListener(Workspace.UISourceCode.Events.TitleChanged, this.#uiSourceCodeTitleChanged, this);
   }
@@ -482,10 +481,10 @@ export class SourcesView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
     this.searchableViewInternal.resetSearch();
 
     const data = {
-      uiSourceCode: uiSourceCode,
-      wasSelected: wasSelected,
+      uiSourceCode,
+      wasSelected,
     };
-    this.dispatchEventToListeners(Events.EditorClosed, data);
+    this.dispatchEventToListeners(Events.EDITOR_CLOSED, data);
   }
 
   private editorSelected(event: Common.EventTarget.EventTargetEvent<EditorSelectedEvent>): void {
@@ -505,7 +504,7 @@ export class SourcesView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
 
     const currentFile = this.editorContainer.currentFile();
     if (currentFile) {
-      this.dispatchEventToListeners(Events.EditorSelected, currentFile);
+      this.dispatchEventToListeners(Events.EDITOR_SELECTED, currentFile);
     }
   }
 
@@ -523,7 +522,7 @@ export class SourcesView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
       return;
     }
     this.toolbarChangedListener = sourceFrame.addEventListener(
-        UISourceCodeFrameEvents.ToolbarItemsChanged, this.updateScriptViewToolbarItems, this);
+        UISourceCodeFrameEvents.TOOLBAR_ITEMS_CHANGED, this.updateScriptViewToolbarItems, this);
   }
 
   onSearchCanceled(): void {
@@ -625,7 +624,7 @@ export class SourcesView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
     if (!(sourceFrame instanceof UISourceCodeFrame)) {
       return;
     }
-    const uiSourceCodeFrame = (sourceFrame as UISourceCodeFrame);
+    const uiSourceCodeFrame = (sourceFrame);
     uiSourceCodeFrame.commitEditing();
   }
 
@@ -635,8 +634,8 @@ export class SourcesView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
 }
 
 export const enum Events {
-  EditorClosed = 'EditorClosed',
-  EditorSelected = 'EditorSelected',
+  EDITOR_CLOSED = 'EditorClosed',
+  EDITOR_SELECTED = 'EditorSelected',
 }
 
 export interface EditorClosedEvent {
@@ -644,16 +643,16 @@ export interface EditorClosedEvent {
   wasSelected: boolean;
 }
 
-export type EventTypes = {
-  [Events.EditorClosed]: EditorClosedEvent,
-  [Events.EditorSelected]: Workspace.UISourceCode.UISourceCode,
-};
+export interface EventTypes {
+  [Events.EDITOR_CLOSED]: EditorClosedEvent;
+  [Events.EDITOR_SELECTED]: Workspace.UISourceCode.UISourceCode;
+}
 
 export interface EditorAction {
   getOrCreateButton(sourcesView: SourcesView): UI.Toolbar.ToolbarButton;
 }
 
-const registeredEditorActions: (() => EditorAction)[] = [];
+const registeredEditorActions: Array<() => EditorAction> = [];
 
 export function registerEditorAction(editorAction: () => EditorAction): void {
   registeredEditorActions.push(editorAction);
@@ -757,8 +756,8 @@ export class ActionDelegate implements UI.ActionRegistration.ActionDelegate {
 const HEADER_OVERRIDES_FILENAME = '.headers';
 
 const enum SourceViewType {
-  ImageView = 'ImageView',
-  FontView = 'FontView',
-  HeadersView = 'HeadersView',
-  SourceView = 'SourceView',
+  IMAGE_VIEW = 'ImageView',
+  FONT_VIEW = 'FontView',
+  HEADERS_VIEW = 'HeadersView',
+  SOURCE_VIEW = 'SourceView',
 }

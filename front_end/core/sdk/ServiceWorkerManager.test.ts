@@ -42,9 +42,9 @@ describe('ServiceWorkerVersion', () => {
     assert.strictEqual(version.status, VERSION_PAYLOAD.status);
     assert.strictEqual(version.scriptLastModified, VERSION_PAYLOAD.scriptLastModified);
     assert.strictEqual(version.scriptResponseTime, VERSION_PAYLOAD.scriptResponseTime);
-    assert.deepStrictEqual(version.controlledClients, VERSION_PAYLOAD.controlledClients);
+    assert.deepEqual(version.controlledClients, VERSION_PAYLOAD.controlledClients);
     assert.strictEqual(version.targetId, VERSION_PAYLOAD.targetId);
-    assert.deepStrictEqual(version.routerRules, expectedRouterRules);
+    assert.deepEqual(version.routerRules, expectedRouterRules);
   });
 
   it('should update the version with the given payload', () => {
@@ -67,7 +67,7 @@ describe('ServiceWorkerVersion', () => {
     assert.strictEqual(version.status, 'installing');
     assert.strictEqual(version.scriptLastModified, 1234567891);
     assert.strictEqual(version.scriptResponseTime, 12346);
-    assert.deepStrictEqual(version.controlledClients, ['client3', 'client4']);
+    assert.deepEqual(version.controlledClients, ['client3', 'client4']);
     assert.strictEqual(version.targetId, 'target2');
   });
 
@@ -237,35 +237,35 @@ describe('ServiceWorkerVersion', () => {
   it('identifies when the worker is in installing mode', () => {
     let version = makeVersion(
         REGISTRATION_PAYLOAD, {...VERSION_PAYLOAD, status: 'new'} as Protocol.ServiceWorker.ServiceWorkerVersion);
-    assert.strictEqual(version.mode(), SDK.ServiceWorkerManager.ServiceWorkerVersion.Modes.Installing);
+    assert.strictEqual(version.mode(), SDK.ServiceWorkerManager.ServiceWorkerVersion.Modes.INSTALLING);
 
     version = makeVersion(
         REGISTRATION_PAYLOAD,
         {...VERSION_PAYLOAD, status: 'installing'} as Protocol.ServiceWorker.ServiceWorkerVersion);
-    assert.strictEqual(version.mode(), SDK.ServiceWorkerManager.ServiceWorkerVersion.Modes.Installing);
+    assert.strictEqual(version.mode(), SDK.ServiceWorkerManager.ServiceWorkerVersion.Modes.INSTALLING);
   });
 
   it('identifies when the worker is in waiting mode', () => {
     const version = makeVersion(
         REGISTRATION_PAYLOAD, {...VERSION_PAYLOAD, status: 'installed'} as Protocol.ServiceWorker.ServiceWorkerVersion);
-    assert.strictEqual(version.mode(), SDK.ServiceWorkerManager.ServiceWorkerVersion.Modes.Waiting);
+    assert.strictEqual(version.mode(), SDK.ServiceWorkerManager.ServiceWorkerVersion.Modes.WAITING);
   });
 
   it('identifies when the worker is in active mode', () => {
     let version = makeVersion(
         REGISTRATION_PAYLOAD,
         {...VERSION_PAYLOAD, status: 'activating'} as Protocol.ServiceWorker.ServiceWorkerVersion);
-    assert.strictEqual(version.mode(), SDK.ServiceWorkerManager.ServiceWorkerVersion.Modes.Active);
+    assert.strictEqual(version.mode(), SDK.ServiceWorkerManager.ServiceWorkerVersion.Modes.ACTIVE);
 
     version = makeVersion(
         REGISTRATION_PAYLOAD, {...VERSION_PAYLOAD, status: 'activated'} as Protocol.ServiceWorker.ServiceWorkerVersion);
-    assert.strictEqual(version.mode(), SDK.ServiceWorkerManager.ServiceWorkerVersion.Modes.Active);
+    assert.strictEqual(version.mode(), SDK.ServiceWorkerManager.ServiceWorkerVersion.Modes.ACTIVE);
   });
 
   it('identifies when the worker is in redundant mode', () => {
     const version = makeVersion(
         REGISTRATION_PAYLOAD, {...VERSION_PAYLOAD, status: 'redundant'} as Protocol.ServiceWorker.ServiceWorkerVersion);
-    assert.strictEqual(version.mode(), SDK.ServiceWorkerManager.ServiceWorkerVersion.Modes.Redundant);
+    assert.strictEqual(version.mode(), SDK.ServiceWorkerManager.ServiceWorkerVersion.Modes.REDUNDANT);
   });
 
   it('routerRules should be null if not provided', () => {

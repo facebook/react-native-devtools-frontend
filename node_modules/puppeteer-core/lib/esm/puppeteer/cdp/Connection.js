@@ -23,18 +23,27 @@ export class Connection extends EventEmitter {
     #sessions = new Map();
     #closed = false;
     #manuallyAttached = new Set();
-    #callbacks = new CallbackRegistry();
-    constructor(url, transport, delay = 0, timeout) {
+    #callbacks;
+    #rawErrors = false;
+    constructor(url, transport, delay = 0, timeout, rawErrors = false) {
         super();
+        this.#rawErrors = rawErrors;
+        this.#callbacks = new CallbackRegistry();
         this.#url = url;
         this.#delay = delay;
-        this.#timeout = timeout ?? 180000;
+        this.#timeout = timeout ?? 180_000;
         this.#transport = transport;
         this.#transport.onmessage = this.onMessage.bind(this);
         this.#transport.onclose = this.#onClose.bind(this);
     }
     static fromSession(session) {
         return session.connection();
+    }
+    /**
+     * @internal
+     */
+    get delay() {
+        return this.#delay;
     }
     get timeout() {
         return this.#timeout;
@@ -74,6 +83,9 @@ export class Connection extends EventEmitter {
      * @internal
      */
     _rawSend(callbacks, method, params, sessionId, options) {
+        if (this.#closed) {
+            return Promise.reject(new Error('Protocol error: Connection closed.'));
+        }
         return callbacks.create(method, options?.timeout ?? this.#timeout, id => {
             const stringifiedMessage = JSON.stringify({
                 method,
@@ -104,7 +116,7 @@ export class Connection extends EventEmitter {
         const object = JSON.parse(message);
         if (object.method === 'Target.attachedToTarget') {
             const sessionId = object.params.sessionId;
-            const session = new CdpCDPSession(this, object.params.targetInfo.type, sessionId, object.sessionId);
+            const session = new CdpCDPSession(this, object.params.targetInfo.type, sessionId, object.sessionId, this.#rawErrors);
             this.#sessions.set(sessionId, session);
             this.emit(CDPSessionEvent.SessionAttached, session);
             const parentSession = this.#sessions.get(object.sessionId);
@@ -132,7 +144,12 @@ export class Connection extends EventEmitter {
         }
         else if (object.id) {
             if (object.error) {
-                this.#callbacks.reject(object.id, createProtocolErrorMessage(object), object.error.message);
+                if (this.#rawErrors) {
+                    this.#callbacks.rejectRaw(object.id, object.error);
+                }
+                else {
+                    this.#callbacks.reject(object.id, createProtocolErrorMessage(object), object.error.message);
+                }
             }
             else {
                 this.#callbacks.resolve(object.id, object.result);

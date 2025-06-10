@@ -3,21 +3,21 @@
  * Copyright 2017 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
-export * from './api/api.js';
-export * from './cdp/cdp.js';
-export * from './common/common.js';
-export * from './node/node.js';
-export * from './revisions.js';
-export * from './util/util.js';
-/**
- * @deprecated Use the query handler API defined on {@link Puppeteer}
- */
-export * from './common/CustomQueryHandler.js';
-import { PuppeteerNode } from './node/PuppeteerNode.js';
+export * from './index.js';
+import fs from 'fs';
+import path from 'path';
+import { environment } from './environment.js';
+import * as Puppeteer from './index.js';
+// Set up Node-specific environment dependencies.
+environment.value = {
+    fs,
+    path,
+    ScreenRecorder: Puppeteer.ScreenRecorder,
+};
 /**
  * @public
  */
-const puppeteer = new PuppeteerNode({
+const puppeteer = new Puppeteer.PuppeteerNode({
     isPuppeteerCore: true,
 });
 export const { 

@@ -14,6 +14,8 @@ import * as Platform from '../platform/platform.js';
 
 import * as SDK from './sdk.js';
 
+const {urlString} = Platform.DevToolsPath;
+
 describe('NetworkRequest', () => {
   it('can parse statusText from the first line of responseReceivedExtraInfo\'s headersText', () => {
     assert.strictEqual(
@@ -26,15 +28,15 @@ describe('NetworkRequest', () => {
         'OK');
   });
 
-  it('parses reponse cookies from headers', () => {
+  it('parses response cookies from headers', () => {
     const request = SDK.NetworkRequest.NetworkRequest.createWithoutBackendRequest(
-        'requestId', 'url' as Platform.DevToolsPath.UrlString, 'documentURL' as Platform.DevToolsPath.UrlString, null);
+        'requestId', urlString`url`, urlString`documentURL`, null);
     request.addExtraResponseInfo({
       blockedResponseCookies: [],
       responseHeaders: [{name: 'Set-Cookie', value: 'foo=bar'}, {name: 'Set-Cookie', value: 'baz=qux'}],
       resourceIPAddressSpace: 'Public' as Protocol.Network.IPAddressSpace,
     } as unknown as SDK.NetworkRequest.ExtraResponseInfo);
-    assert.strictEqual(request.responseCookies.length, 2);
+    assert.lengthOf(request.responseCookies, 2);
     expectCookie(request.responseCookies[0], {name: 'foo', value: 'bar', size: 8});
     expectCookie(request.responseCookies[1], {name: 'baz', value: 'qux', size: 7});
   });
@@ -42,8 +44,8 @@ describe('NetworkRequest', () => {
   it('infers status text from status code if none given', () => {
     const fakeRequest = SDK.NetworkRequest.NetworkRequest.createWithoutBackendRequest(
         'fakeRequestId',
-        'url1' as Platform.DevToolsPath.UrlString,
-        'documentURL' as Platform.DevToolsPath.UrlString,
+        urlString`url1`,
+        urlString`documentURL`,
         null,
     );
     fakeRequest.statusCode = 200;
@@ -55,8 +57,8 @@ describe('NetworkRequest', () => {
   it('does not infer status text from unknown status code', () => {
     const fakeRequest = SDK.NetworkRequest.NetworkRequest.createWithoutBackendRequest(
         'fakeRequestId',
-        'url1' as Platform.DevToolsPath.UrlString,
-        'documentURL' as Platform.DevToolsPath.UrlString,
+        urlString`url1`,
+        urlString`documentURL`,
         null,
     );
     fakeRequest.statusCode = 999;
@@ -68,8 +70,8 @@ describe('NetworkRequest', () => {
   it('infers status text only when no status text given', () => {
     const fakeRequest = SDK.NetworkRequest.NetworkRequest.createWithoutBackendRequest(
         'fakeRequestId',
-        'url1' as Platform.DevToolsPath.UrlString,
-        'documentURL' as Platform.DevToolsPath.UrlString,
+        urlString`url1`,
+        urlString`documentURL`,
         null,
     );
     fakeRequest.statusCode = 200;
@@ -81,7 +83,7 @@ describe('NetworkRequest', () => {
 
   it('includes partition key in response cookies', () => {
     const request = SDK.NetworkRequest.NetworkRequest.createWithoutBackendRequest(
-        'requestId', 'url' as Platform.DevToolsPath.UrlString, 'documentURL' as Platform.DevToolsPath.UrlString, null);
+        'requestId', urlString`url`, urlString`documentURL`, null);
     request.addExtraResponseInfo({
       blockedResponseCookies: [],
       responseHeaders:
@@ -89,7 +91,7 @@ describe('NetworkRequest', () => {
       resourceIPAddressSpace: 'Public' as Protocol.Network.IPAddressSpace,
       cookiePartitionKey: {topLevelSite: 'partitionKey', hasCrossSiteAncestor: false},
     } as unknown as SDK.NetworkRequest.ExtraResponseInfo);
-    assert.strictEqual(request.responseCookies.length, 2);
+    assert.lengthOf(request.responseCookies, 2);
     expectCookie(request.responseCookies[0], {name: 'foo', value: 'bar', size: 8});
     expectCookie(request.responseCookies[1], {
       name: 'baz',
@@ -102,7 +104,7 @@ describe('NetworkRequest', () => {
 
   it('determines whether the response headers have been overridden', () => {
     const request = SDK.NetworkRequest.NetworkRequest.createWithoutBackendRequest(
-        'requestId', 'url' as Platform.DevToolsPath.UrlString, 'documentURL' as Platform.DevToolsPath.UrlString, null);
+        'requestId', urlString`url`, urlString`documentURL`, null);
     request.responseHeaders = [{name: 'foo', value: 'bar'}];
 
     request.originalResponseHeaders = [{name: 'foo', value: 'baz'}];
@@ -137,7 +139,7 @@ describe('NetworkRequest', () => {
 
   it('considers duplicate headers which only differ in the order of their values as overridden', () => {
     const request = SDK.NetworkRequest.NetworkRequest.createWithoutBackendRequest(
-        'requestId', 'url' as Platform.DevToolsPath.UrlString, 'documentURL' as Platform.DevToolsPath.UrlString, null);
+        'requestId', urlString`url`, urlString`documentURL`, null);
     request.responseHeaders = [{name: 'duplicate', value: 'first'}, {name: 'duplicate', value: 'second'}];
     request.originalResponseHeaders = [{name: 'duplicate', value: 'second'}, {name: 'duplicate', value: 'first'}];
     assert.isTrue(request.hasOverriddenHeaders());
@@ -145,8 +147,7 @@ describe('NetworkRequest', () => {
 
   it('can handle the case of duplicate cookies with only 1 of them being blocked', async () => {
     const request = SDK.NetworkRequest.NetworkRequest.create(
-        'requestId' as Protocol.Network.RequestId, 'url' as Platform.DevToolsPath.UrlString,
-        'documentURL' as Platform.DevToolsPath.UrlString, null, null, null);
+        'requestId' as Protocol.Network.RequestId, urlString`url`, urlString`documentURL`, null, null, null);
     request.addExtraResponseInfo({
       responseHeaders: [{name: 'Set-Cookie', value: 'foo=duplicate; Path=/\nfoo=duplicate; Path=/'}],
       blockedResponseCookies: [{
@@ -175,12 +176,11 @@ describe('NetworkRequest', () => {
 
   it('can handle the case of exempted cookies', async () => {
     const request = SDK.NetworkRequest.NetworkRequest.create(
-        'requestId' as Protocol.Network.RequestId, 'url' as Platform.DevToolsPath.UrlString,
-        'documentURL' as Platform.DevToolsPath.UrlString, null, null, null);
+        'requestId' as Protocol.Network.RequestId, urlString`url`, urlString`documentURL`, null, null, null);
 
     const cookie = new SDK.Cookie.Cookie('name', 'value');
-    cookie.addAttribute(SDK.Cookie.Attribute.SameSite, 'None');
-    cookie.addAttribute(SDK.Cookie.Attribute.Secure, true);
+    cookie.addAttribute(SDK.Cookie.Attribute.SAME_SITE, 'None');
+    cookie.addAttribute(SDK.Cookie.Attribute.SECURE, true);
     cookie.setCookieLine('name=value; Path=/; SameSite=None; Secure;');
     request.addExtraResponseInfo({
       responseHeaders: [{name: 'Set-Cookie', value: cookie.getCookieLine() as string}],
@@ -190,7 +190,7 @@ describe('NetworkRequest', () => {
       cookiePartitionKey: undefined,
       cookiePartitionKeyOpaque: undefined,
       exemptedResponseCookies: [{
-        cookie: cookie,
+        cookie,
         cookieLine: cookie.getCookieLine() as string,
         exemptionReason: Protocol.Network.CookieExemptionReason.TPCDHeuristics,
       }],
@@ -225,7 +225,7 @@ describe('NetworkRequest', () => {
 
   it('preserves order of headers in case of duplicates', () => {
     const request = SDK.NetworkRequest.NetworkRequest.createWithoutBackendRequest(
-        'requestId', 'url' as Platform.DevToolsPath.UrlString, 'documentURL' as Platform.DevToolsPath.UrlString, null);
+        'requestId', urlString`url`, urlString`documentURL`, null);
     const responseHeaders = [{name: '1ab', value: 'middle'}, {name: '1aB', value: 'last'}];
     request.addExtraResponseInfo({
       blockedResponseCookies: [],
@@ -237,7 +237,7 @@ describe('NetworkRequest', () => {
 
   it('treats multiple headers with the same name the same as single header with comma-separated values', () => {
     const request = SDK.NetworkRequest.NetworkRequest.createWithoutBackendRequest(
-        'requestId', 'url' as Platform.DevToolsPath.UrlString, 'documentURL' as Platform.DevToolsPath.UrlString, null);
+        'requestId', urlString`url`, urlString`documentURL`, null);
     request.responseHeaders = [{name: 'duplicate', value: 'first, second'}];
     request.originalResponseHeaders = [{name: 'duplicate', value: 'first'}, {name: 'duplicate', value: 'second'}];
     assert.isFalse(request.hasOverriddenHeaders());
@@ -268,10 +268,9 @@ describeWithMockConnection('NetworkRequest', () => {
     setMockConnectionResponseHandler('Network.getCookies', () => ({cookies: []}));
     const cookieModel = target.model(SDK.CookieModel.CookieModel);
     assert.exists(cookieModel);
-    const url = 'url' as Platform.DevToolsPath.UrlString;
+    const url = urlString`url`;
     const request = SDK.NetworkRequest.NetworkRequest.create(
-        'requestId' as Protocol.Network.RequestId, url, 'documentURL' as Platform.DevToolsPath.UrlString, null, null,
-        null);
+        'requestId' as Protocol.Network.RequestId, url, urlString`documentURL`, null, null, null);
 
     request.addExtraResponseInfo({
       responseHeaders: [{name: 'Set-Cookie', value: 'name=value; Path=/'}],
@@ -286,12 +285,14 @@ describeWithMockConnection('NetworkRequest', () => {
       cookiePartitionKeyOpaque: undefined,
       exemptedResponseCookies: undefined,
     });
-    assert.isTrue(addBlockedCookieSpy.calledOnceWith(
-        cookie, [{
-          attribute: null,
-          uiString: 'Setting this cookie was blocked due to third-party cookie phaseout. Learn more in the Issues tab.',
-        }]));
-    assert.deepStrictEqual(await cookieModel.getCookiesForDomain(''), [cookie]);
+    assert.isTrue(addBlockedCookieSpy.calledOnceWith(cookie, [
+      {
+        attribute: null,
+        uiString:
+            'Setting this cookie was blocked either because of Chrome flags or browser configuration. Learn more in the Issues panel.',
+      },
+    ]));
+    assert.deepEqual(await cookieModel.getCookiesForDomain(''), [cookie]);
 
     request.addExtraResponseInfo({
       responseHeaders: [{name: 'Set-Cookie', value: 'name=value; Path=/'}],
@@ -338,7 +339,7 @@ describeWithMockConnection('ServerSentEvents', () => {
 
     const networkEvents: SDK.NetworkRequest.EventSourceMessage[] = [];
     networkManager.requestForId('1')!.addEventListener(
-        SDK.NetworkRequest.Events.EventSourceMessageAdded, ({data}) => networkEvents.push(data));
+        SDK.NetworkRequest.Events.EVENT_SOURCE_MESSAGE_ADDED, ({data}) => networkEvents.push(data));
 
     networkManager.dispatcher.eventSourceMessageReceived({
       requestId: '1' as Protocol.Network.RequestId,
@@ -356,8 +357,8 @@ describeWithMockConnection('ServerSentEvents', () => {
     });
 
     assert.lengthOf(networkEvents, 2);
-    assert.deepStrictEqual(networkEvents[0], {data: 'foo', eventId: 'fooId', eventName: 'fooName', time: 21});
-    assert.deepStrictEqual(networkEvents[1], {data: 'bar', eventId: 'barId', eventName: 'barName', time: 42});
+    assert.deepEqual(networkEvents[0], {data: 'foo', eventId: 'fooId', eventName: 'fooName', time: 21});
+    assert.deepEqual(networkEvents[1], {data: 'bar', eventId: 'barId', eventName: 'barName', time: 42});
   });
 
   it('sends EventSourceMessageAdded events for raw text/event-stream', async () => {
@@ -383,13 +384,14 @@ describeWithMockConnection('ServerSentEvents', () => {
     } as Protocol.Network.ResponseReceivedEvent);
 
     const networkEvents: SDK.NetworkRequest.EventSourceMessage[] = [];
-    const {promise: twoEventsReceivedPromise, resolve} = Platform.PromiseUtilities.promiseWithResolvers<void>();
-    networkManager.requestForId('1')!.addEventListener(SDK.NetworkRequest.Events.EventSourceMessageAdded, ({data}) => {
-      networkEvents.push(data);
-      if (networkEvents.length === 2) {
-        resolve();
-      }
-    });
+    const {promise: twoEventsReceivedPromise, resolve} = Promise.withResolvers<void>();
+    networkManager.requestForId('1')!.addEventListener(
+        SDK.NetworkRequest.Events.EVENT_SOURCE_MESSAGE_ADDED, ({data}) => {
+          networkEvents.push(data);
+          if (networkEvents.length === 2) {
+            resolve();
+          }
+        });
 
     const message = `
 id: fooId
@@ -501,7 +503,7 @@ describeWithMockConnection('requestStreamingContent', () => {
     const maybeStreamingContent = await networkManager.requestForId('1')!.requestStreamingContent();
     assert.isFalse(TextUtils.StreamingContentData.isError(maybeStreamingContent));
     const streamingContent = maybeStreamingContent as TextUtils.StreamingContentData.StreamingContentData;
-    const eventPromise = streamingContent.once(TextUtils.StreamingContentData.Events.ChunkAdded);
+    const eventPromise = streamingContent.once(TextUtils.StreamingContentData.Events.CHUNK_ADDED);
 
     networkManager.dispatcher.dataReceived({
       requestId: '1' as Protocol.Network.RequestId,

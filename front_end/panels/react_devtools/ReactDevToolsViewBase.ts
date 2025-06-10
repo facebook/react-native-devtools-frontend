@@ -3,31 +3,35 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as i18n from '../../core/i18n/i18n.js';
-import * as UI from '../../ui/legacy/legacy.js';
-import * as SDK from '../../core/sdk/sdk.js';
-import * as ReactDevTools from '../../third_party/react-devtools/react-devtools.js';
 import * as Common from '../../core/common/common.js';
-import * as Workspace from '../../models/workspace/workspace.js';
+import * as Host from '../../core/host/host.js';
+import * as i18n from '../../core/i18n/i18n.js';
+import type * as Platform from '../../core/platform/platform.js';
+import * as SDK from '../../core/sdk/sdk.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import * as Logs from '../../models/logs/logs.js';
-import * as Host from '../../core/host/host.js';
-
-import {Events as ReactDevToolsModelEvents, ReactDevToolsModel, type EventTypes as ReactDevToolsModelEventTypes} from './ReactDevToolsModel.js';
-
+import * as Workspace from '../../models/workspace/workspace.js';
 import type * as ReactDevToolsTypes from '../../third_party/react-devtools/react-devtools.js';
-import type * as Platform from '../../core/platform/platform.js';
+import * as ReactDevTools from '../../third_party/react-devtools/react-devtools.js';
+import * as UI from '../../ui/legacy/legacy.js';
+
+import {
+  Events as ReactDevToolsModelEvents,
+  type EventTypes as ReactDevToolsModelEventTypes,
+  ReactDevToolsModel
+} from './ReactDevToolsModel.js';
 
 const UIStrings = {
   /**
    * @description Label of the FB-only 'send feedback' button.
    */
   sendFeedback: '[FB-only] Send feedback',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/react_devtools/ReactDevToolsViewBase.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-type ReactDevToolsInitializationFailedEvent = Common.EventTarget.EventTargetEvent<ReactDevToolsModelEventTypes[ReactDevToolsModelEvents.InitializationFailed]>;
+type ReactDevToolsInitializationFailedEvent =
+    Common.EventTarget.EventTargetEvent<ReactDevToolsModelEventTypes[ReactDevToolsModelEvents.INITIALIZATION_FAILED]>;
 
 // Based on ExtensionServer.onOpenResource
 async function openResource(
@@ -77,7 +81,8 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
     tab: 'components' | 'profiler',
     title: Platform.UIString.LocalizedString,
   ) {
-    super(title);
+    super(title, true);
+    this.registerRequiredCSS(ReactDevTools.CSS);
 
     this.#tab = tab;
     this.#renderLoader();
@@ -86,28 +91,23 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
     this.element.style.userSelect = 'text';
   }
 
-  override wasShown(): void {
-    super.wasShown();
-    this.registerCSSFiles([ReactDevTools.CSS]);
-  }
-
   modelAdded(model: ReactDevToolsModel): void {
     this.#model = model;
 
     model.addEventListener(
-      ReactDevToolsModelEvents.InitializationCompleted,
-      this.#handleInitializationCompleted,
-      this,
+        ReactDevToolsModelEvents.INITIALIZATION_COMPLETED,
+        this.#handleInitializationCompleted,
+        this,
     );
     model.addEventListener(
-      ReactDevToolsModelEvents.InitializationFailed,
-      this.#handleInitializationFailed,
-      this,
+        ReactDevToolsModelEvents.INITIALIZATION_FAILED,
+        this.#handleInitializationFailed,
+        this,
     );
     model.addEventListener(
-      ReactDevToolsModelEvents.Destroyed,
-      this.#handleBackendDestroyed,
-      this,
+        ReactDevToolsModelEvents.DESTROYED,
+        this.#handleBackendDestroyed,
+        this,
     );
 
     if (model.isInitialized()) {
@@ -122,19 +122,19 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
 
   modelRemoved(model: ReactDevToolsModel): void {
     model.removeEventListener(
-      ReactDevToolsModelEvents.InitializationCompleted,
-      this.#handleInitializationCompleted,
-      this,
+        ReactDevToolsModelEvents.INITIALIZATION_COMPLETED,
+        this.#handleInitializationCompleted,
+        this,
     );
     model.removeEventListener(
-      ReactDevToolsModelEvents.InitializationFailed,
-      this.#handleInitializationFailed,
-      this,
+        ReactDevToolsModelEvents.INITIALIZATION_FAILED,
+        this.#handleInitializationFailed,
+        this,
     );
     model.removeEventListener(
-      ReactDevToolsModelEvents.Destroyed,
-      this.#handleBackendDestroyed,
-      this,
+        ReactDevToolsModelEvents.DESTROYED,
+        this.#handleBackendDestroyed,
+        this,
     );
   }
 

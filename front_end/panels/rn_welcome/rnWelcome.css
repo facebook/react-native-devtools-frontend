@@ -12,11 +12,11 @@
   align-items: stretch;
   justify-content: center;
   padding: 36px;
-  background-color: var(--color-background-elevation-0);
+  background-color: var(--color-background);
   min-height: 100%;
 }
 
-@media (min-width: 1000px) {
+@media (width >= 1000px) {
   .rn-welcome-panel {
     flex-direction: row;
     align-items: center;
@@ -37,7 +37,7 @@
   text-align: center;
 }
 
-@media (min-width: 1000px) {
+@media (width >= 1000px) {
   .rn-welcome-hero {
     margin-left: 24px;
   }
@@ -66,13 +66,13 @@
   margin-left: 12px;
   padding: 4px 8px;
   border-radius: 4px;
-  background-color: var(--color-green);
+  background-color: var(--sys-color-green-bright);
   font-size: 12px;
-  color: var(--color-on-primary);
+  color: var(--sys-color-primary);
 }
 
 .rn-welcome-title-accessory-purple {
-  background-color: var(--color-purple-bright);
+  background-color: var(--sys-color-purple-bright);
 }
 
 .rn-welcome-tagline {
@@ -98,7 +98,7 @@
   position: absolute;
   right: -16px;
   height: 16px;
-  border-right: 1px solid var(--color-details-hairline);
+  border-right: 1px solid var(--sys-color-on-base-divider);
 }
 
 .rn-session-id {
@@ -115,7 +115,7 @@
   margin-top: 24px;
   padding: 4px 12px;
   border-radius: 6px;
-  background-color: var(--color-background-hover-overlay);
+  background-color: var(--sys-color-surface-variant);
   color: var(--color-text-secondary);
   font-size: 11px;
 }
@@ -130,7 +130,7 @@
   padding: 24px;
 }
 
-@media (min-width: 1000px) {
+@media (width >= 1000px) {
   .rn-welcome-docsfeed {
     flex-shrink: 1;
     width: 45%;
@@ -156,7 +156,7 @@
   margin-bottom: 8px;
   padding: 8px;
   padding-right: 16px;
-  border: 1px solid var(--color-details-hairline);
+  border: 1px solid var(--input-outline);
   border-radius: 4px;
   background-color: var(--color-background);
   text-align: left;
@@ -165,11 +165,11 @@
 }
 
 .rn-welcome-docsfeed-item:hover {
-  background-color: var(--color-background-elevation-0);
+  background-color: var(--color-background-elevation-1);
 }
 
 .rn-welcome-docsfeed-item:focus {
-  outline: solid var(--color-button-outline-focus);
+  outline: solid var(--color-grid-focus-selected);
 }
 
 .rn-welcome-docsfeed-item p {
@@ -188,7 +188,7 @@
   height: 64px;
   margin-right: 16px;
   border-radius: 2px;
-  background-color: var(--color-gray-100);
+  background-color: var(--sys-color-on-surface-subtle);
   background-position: center;
   background-size: cover;
 }

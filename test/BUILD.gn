@@ -3,13 +3,14 @@
 # found in the LICENSE file.
 
 import("../scripts/build/ninja/copy.gni")
-import("../third_party/typescript/typescript.gni")
+import("../scripts/build/typescript/typescript.gni")
 
 group("test") {
   deps = [
     ":run",
     ":unittests",
     "e2e",
+    "e2e_non_hosted",
     "interactions",
     "perf",
     "shared",

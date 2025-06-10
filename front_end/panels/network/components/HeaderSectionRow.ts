@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../../ui/legacy/legacy.js';
+
 import * as Host from '../../../core/host/host.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Platform from '../../../core/platform/platform.js';
@@ -10,14 +12,17 @@ import type * as Protocol from '../../../generated/protocol.js';
 import * as ClientVariations from '../../../third_party/chromium/client-variations/client-variations.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as ComponentHelpers from '../../../ui/components/helpers/helpers.js';
-import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
+import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import {EditableSpan, type EditableSpanData} from './EditableSpan.js';
-import headerSectionRowStyles from './HeaderSectionRow.css.js';
+import type {EditableSpan} from './EditableSpan.js';
+import headerSectionRowStylesRaw from './HeaderSectionRow.css.js';
 
-const {render, html} = LitHtml;
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const headerSectionRowStyles = new CSSStyleSheet();
+headerSectionRowStyles.replaceSync(headerSectionRowStylesRaw.cssText);
+
+const {render, html} = Lit;
 
 const UIStrings = {
   /**
@@ -56,13 +61,10 @@ const UIStrings = {
    *@description The title of a button which removes a HTTP header override.
    */
   removeOverride: 'Remove this header override',
-};
+} as const;
 
 const str_ = i18n.i18n.registerUIStrings('panels/network/components/HeaderSectionRow.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-
-const trashIconUrl = new URL('../../../Images/bin.svg', import.meta.url).toString();
-const editIconUrl = new URL('../../../Images/edit.svg', import.meta.url).toString();
 
 export const isValidHeaderName = (headerName: string): boolean => {
   return /^[a-z0-9_\-]+$/i.test(headerName);
@@ -116,7 +118,6 @@ export interface HeaderSectionRowData {
 }
 
 export class HeaderSectionRow extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-header-section-row`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   #header: HeaderDescriptor|null = null;
   readonly #boundRender = this.#render.bind(this);
@@ -144,20 +145,20 @@ export class HeaderSectionRow extends HTMLElement {
       return;
     }
 
-    const rowClasses = LitHtml.Directives.classMap({
+    const rowClasses = Lit.Directives.classMap({
       row: true,
       'header-highlight': Boolean(this.#header.highlight),
       'header-overridden': Boolean(this.#header.isOverride) || this.#isHeaderValueEdited,
-      'header-editable': this.#header.valueEditable === EditingAllowedStatus.Enabled,
+      'header-editable': this.#header.valueEditable === EditingAllowedStatus.ENABLED,
       'header-deleted': Boolean(this.#header.isDeleted),
     });
 
-    const headerNameClasses = LitHtml.Directives.classMap({
+    const headerNameClasses = Lit.Directives.classMap({
       'header-name': true,
       'pseudo-header': this.#header.name.startsWith(':'),
     });
 
-    const headerValueClasses = LitHtml.Directives.classMap({
+    const headerValueClasses = Lit.Directives.classMap({
       'header-value': true,
       'header-warning': Boolean(this.#header.headerValueIncorrect),
       'flex-columns': this.#header.name === 'x-client-data' && !this.#header.isResponseHeader,
@@ -167,7 +168,7 @@ export class HeaderSectionRow extends HTMLElement {
     // This ensures the header name's editability reacts correctly to enabling or
     // disabling local overrides.
     const isHeaderNameEditable =
-        this.#header.nameEditable && this.#header.valueEditable === EditingAllowedStatus.Enabled;
+        this.#header.nameEditable && this.#header.valueEditable === EditingAllowedStatus.ENABLED;
 
     // Case 1: Headers which were just now added via the 'Add header button'.
     //         'nameEditable' is true only for such headers.
@@ -183,26 +184,26 @@ export class HeaderSectionRow extends HTMLElement {
         <div class=${headerNameClasses}>
           ${this.#header.headerNotSet ?
             html`<div class="header-badge header-badge-text">${i18n.i18n.lockedString('not-set')}</div> ` :
-            LitHtml.nothing
+            Lit.nothing
           }
           ${isHeaderNameEditable && !this.#isValidHeaderName ?
-            html`<${IconButton.Icon.Icon.litTagName} class="inline-icon disallowed-characters" title=${UIStrings.headerNamesOnlyLetters} .data=${{
+            html`<devtools-icon class="inline-icon disallowed-characters" title=${UIStrings.headerNamesOnlyLetters} .data=${{
               iconName: 'cross-circle-filled',
               width: '16px',
               height: '16px',
               color: 'var(--icon-error)',
-            } as IconButton.Icon.IconData}>
-            </${IconButton.Icon.Icon.litTagName}>` : LitHtml.nothing
+            }}>
+            </devtools-icon>` : Lit.nothing
           }
           ${isHeaderNameEditable && !this.#header.isDeleted ?
-            html`<${EditableSpan.litTagName}
+            html`<devtools-editable-span
               @focusout=${this.#onHeaderNameFocusOut}
               @keydown=${this.#onKeyDown}
               @input=${this.#onHeaderNameEdit}
               @paste=${this.#onHeaderNamePaste}
-              .data=${{value: this.#header.name} as EditableSpanData}
-            ></${EditableSpan.litTagName}>` :
-            this.#header.name}:
+              .data=${{value: this.#header.name}}
+            ></devtools-editable-span>` :
+            this.#header.name}
         </div>
         <div
           class=${headerValueClasses}
@@ -211,13 +212,13 @@ export class HeaderSectionRow extends HTMLElement {
           ${this.#renderHeaderValue()}
         </div>
         ${showReloadInfoIcon ?
-          html`<${IconButton.Icon.Icon.litTagName} class="row-flex-icon flex-right" title=${UIStrings.reloadPrompt} .data=${{
+          html`<devtools-icon class="row-flex-icon flex-right" title=${UIStrings.reloadPrompt} .data=${{
             iconName: 'info',
             width: '16px',
             height: '16px',
             color: 'var(--icon-default)',
-          } as IconButton.Icon.IconData}>
-          </${IconButton.Icon.Icon.litTagName}>` : LitHtml.nothing
+          }}>
+          </devtools-icon>` : Lit.nothing
         }
       </div>
       ${this.#maybeRenderBlockedDetails(this.#header.blockedDetails)}
@@ -229,59 +230,59 @@ export class HeaderSectionRow extends HTMLElement {
     }
   }
 
-  #renderHeaderValue(): LitHtml.LitTemplate {
+  #renderHeaderValue(): Lit.LitTemplate {
     if (!this.#header) {
-      return LitHtml.nothing;
+      return Lit.nothing;
     }
     if (this.#header.name === 'x-client-data' && !this.#header.isResponseHeader) {
       return this.#renderXClientDataHeader(this.#header);
     }
 
-    if (this.#header.isDeleted || this.#header.valueEditable !== EditingAllowedStatus.Enabled) {
+    if (this.#header.isDeleted || this.#header.valueEditable !== EditingAllowedStatus.ENABLED) {
       const showEditHeaderButton = this.#header.isResponseHeader && !this.#header.isDeleted &&
-          this.#header.valueEditable !== EditingAllowedStatus.Forbidden;
+          this.#header.valueEditable !== EditingAllowedStatus.FORBIDDEN;
       // clang-format off
       return html`
       ${this.#header.value || ''}
       ${this.#maybeRenderHeaderValueSuffix(this.#header)}
       ${showEditHeaderButton ? html`
-        <${Buttons.Button.Button.litTagName}
+        <devtools-button
           title=${i18nString(UIStrings.editHeader)}
           .size=${Buttons.Button.Size.SMALL}
-          .iconUrl=${editIconUrl}
+          .iconName=${'edit'}
           .variant=${Buttons.Button.Variant.ICON}
           @click=${() => {
             this.dispatchEvent(new EnableHeaderEditingEvent());
           }}
           jslog=${VisualLogging.action('enable-header-overrides').track({click: true})}
           class="enable-editing inline-button"
-        ></${Buttons.Button.Button.litTagName}>
-      ` : LitHtml.nothing}
+        ></devtools-button>
+      ` : Lit.nothing}
     `;
     }
     return html`
-      <${EditableSpan.litTagName}
+      <devtools-editable-span
         @focusout=${this.#onHeaderValueFocusOut}
         @input=${this.#onHeaderValueEdit}
         @paste=${this.#onHeaderValueEdit}
         @keydown=${this.#onKeyDown}
-        .data=${{value: this.#header.value || ''} as EditableSpanData}
-      ></${EditableSpan.litTagName}>
+        .data=${{value: this.#header.value || ''}}
+      ></devtools-editable-span>
       ${this.#maybeRenderHeaderValueSuffix(this.#header)}
-      <${Buttons.Button.Button.litTagName}
+      <devtools-button
         title=${i18nString(UIStrings.removeOverride)}
         .size=${Buttons.Button.Size.SMALL}
-        .iconUrl=${trashIconUrl}
+        .iconName=${'bin'}
         .variant=${Buttons.Button.Variant.ICON}
         class="remove-header inline-button"
         @click=${this.#onRemoveOverrideClick}
         jslog=${VisualLogging.action('remove-header-override').track({click: true})}
-      ></${Buttons.Button.Button.litTagName}>
+      ></devtools-button>
     `;
     // clang-format on
   }
 
-  #renderXClientDataHeader(header: HeaderDescriptor): LitHtml.LitTemplate {
+  #renderXClientDataHeader(header: HeaderDescriptor): Lit.LitTemplate {
     const data = ClientVariations.parseClientVariations(header.value || '');
     const output = ClientVariations.formatClientVariations(
         data, i18nString(UIStrings.activeClientExperimentVariation),
@@ -302,29 +303,29 @@ export class HeaderSectionRow extends HTMLElement {
     });
   }
 
-  #maybeRenderHeaderValueSuffix(header: HeaderDescriptor): LitHtml.LitTemplate {
+  #maybeRenderHeaderValueSuffix(header: HeaderDescriptor): Lit.LitTemplate {
     if (header.name === 'set-cookie' && header.setCookieBlockedReasons) {
       const titleText =
           header.setCookieBlockedReasons.map(SDK.NetworkRequest.setCookieBlockedReasonToUiString).join('\n');
       // Disabled until https://crbug.com/1079231 is fixed.
       // clang-format off
       return html`
-        <${IconButton.Icon.Icon.litTagName} class="row-flex-icon" title=${titleText} .data=${{
+        <devtools-icon class="row-flex-icon" title=${titleText} .data=${{
             iconName: 'warning-filled',
             color: 'var(--icon-warning)',
             width: '16px',
             height: '16px',
-          } as IconButton.Icon.IconData}>
-        </${IconButton.Icon.Icon.litTagName}>
+          }}>
+        </devtools-icon>
       `;
       // clang-format on
     }
-    return LitHtml.nothing;
+    return Lit.nothing;
   }
 
-  #maybeRenderBlockedDetails(blockedDetails?: BlockedDetailsDescriptor): LitHtml.LitTemplate {
+  #maybeRenderBlockedDetails(blockedDetails?: BlockedDetailsDescriptor): Lit.LitTemplate {
     if (!blockedDetails) {
-      return LitHtml.nothing;
+      return Lit.nothing;
     }
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
@@ -347,19 +348,19 @@ export class HeaderSectionRow extends HTMLElement {
     // clang-format on
   }
 
-  #maybeRenderBlockedDetailsLink(blockedDetails?: BlockedDetailsDescriptor): LitHtml.LitTemplate {
+  #maybeRenderBlockedDetailsLink(blockedDetails?: BlockedDetailsDescriptor): Lit.LitTemplate {
     if (blockedDetails?.reveal) {
       // Disabled until https://crbug.com/1079231 is fixed.
       // clang-format off
       return html`
         <div class="devtools-link" @click=${blockedDetails.reveal}>
-          <${IconButton.Icon.Icon.litTagName} class="inline-icon" .data=${{
+          <devtools-icon class="inline-icon" .data=${{
             iconName: 'issue-exclamation-filled',
             color: 'var(--icon-warning)',
             width: '16px',
             height: '16px',
-          } as IconButton.Icon.IconData}>
-          </${IconButton.Icon.Icon.litTagName}
+          }}>
+          </devtools-icon
           >${i18nString(UIStrings.learnMoreInTheIssuesTab)}
         </div>
       `;
@@ -370,19 +371,19 @@ export class HeaderSectionRow extends HTMLElement {
       // clang-format off
       return html`
         <x-link href=${blockedDetails.link.url} class="link">
-          <${IconButton.Icon.Icon.litTagName} class="inline-icon" .data=${{
+          <devtools-icon class="inline-icon" .data=${{
             iconName: 'open-externally',
             color: 'var(--icon-link)',
             width: '20px',
             height: '20px',
-          } as IconButton.Icon.IconData}>
-          </${IconButton.Icon.Icon.litTagName}
+          }}>
+          </devtools-icon
           >${i18nString(UIStrings.learnMore)}
         </x-link>
       `;
       // clang-format on
     }
-    return LitHtml.nothing;
+    return Lit.nothing;
   }
 
   #onHeaderValueFocusOut(event: Event): void {
@@ -495,6 +496,7 @@ export class HeaderSectionRow extends HTMLElement {
     if (separatorPosition < 1) {
       // Not processing further either case 'abc' or ':abc'
       nameEl.value = clipboardText;
+      event.preventDefault();
       nameEl.dispatchEvent(new Event('input', {bubbles: true}));
       return;
     }
@@ -545,9 +547,9 @@ interface BlockedDetailsDescriptor {
 }
 
 export const enum EditingAllowedStatus {
-  Disabled = 0,   // Local overrides are currently disabled.
-  Enabled = 1,    // The header is free to be edited.
-  Forbidden = 2,  // Editing this header is forbidden even when local overrides are enabled.
+  DISABLED = 0,   // Local overrides are currently disabled.
+  ENABLED = 1,    // The header is free to be edited.
+  FORBIDDEN = 2,  // Editing this header is forbidden even when local overrides are enabled.
 }
 
 export interface HeaderDetailsDescriptor {

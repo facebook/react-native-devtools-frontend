@@ -30,7 +30,7 @@ const UIStrings = {
    *@description Title for the issues count in the Issues Error Counter shown in the main toolbar (top-left in DevTools). The issues count refers to the number of issues in the issues tab.
    */
   openIssuesToView: '{n, plural, =1 {Open Issues to view # issue:} other {Open Issues to view # issues:}}',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/console_counters/WarningErrorCounter.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
@@ -46,10 +46,11 @@ export class WarningErrorCounter implements UI.Toolbar.Provider {
     WarningErrorCounter.instanceForTest = this;
 
     const countersWrapper = document.createElement('div');
+    countersWrapper.classList.add('status-buttons');
     this.toolbarItem = new UI.Toolbar.ToolbarItemWithCompactLayout(countersWrapper);
     this.toolbarItem.setVisible(false);
     this.toolbarItem.addEventListener(
-        UI.Toolbar.ToolbarItemWithCompactLayoutEvents.CompactLayoutUpdated, this.onSetCompactLayout, this);
+        UI.Toolbar.ToolbarItemWithCompactLayoutEvents.COMPACT_LAYOUT_UPDATED, this.onSetCompactLayout, this);
 
     this.consoleCounter = new IconButton.IconButton.IconButton();
     this.consoleCounter.setAttribute('jslog', `${VisualLogging.counter('console').track({click: true})}`);
@@ -69,11 +70,11 @@ export class WarningErrorCounter implements UI.Toolbar.Provider {
     countersWrapper.appendChild(this.issueCounter);
     this.issueCounter.data = {
       clickHandler: () => {
-        Host.userMetrics.issuesPanelOpenedFrom(Host.UserMetrics.IssueOpener.StatusBarIssuesCounter);
+        Host.userMetrics.issuesPanelOpenedFrom(Host.UserMetrics.IssueOpener.STATUS_BAR_ISSUES_COUNTER);
         void UI.ViewManager.ViewManager.instance().showView('issues-pane');
       },
       issuesManager,
-      displayMode: IssueCounter.IssueCounter.DisplayMode.OnlyMostImportant,
+      displayMode: IssueCounter.IssueCounter.DisplayMode.ONLY_MOST_IMPORTANT,
     };
 
     this.throttler = new Common.Throttler.Throttler(100);
@@ -85,7 +86,7 @@ export class WarningErrorCounter implements UI.Toolbar.Provider {
     SDK.TargetManager.TargetManager.instance().addModelListener(
         SDK.ConsoleModel.ConsoleModel, SDK.ConsoleModel.Events.MessageUpdated, this.update, this);
 
-    issuesManager.addEventListener(IssuesManager.IssuesManager.Events.IssuesCountUpdated, this.update, this);
+    issuesManager.addEventListener(IssuesManager.IssuesManager.Events.ISSUES_COUNT_UPDATED, this.update, this);
 
     this.update();
   }

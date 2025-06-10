@@ -14,7 +14,6 @@ import {
   waitForFunction,
   waitForNone,
 } from '../../shared/helper.js';
-import {describe, it} from '../../shared/mocha-extensions.js';
 import {elementContainsTextWithSelector} from '../helpers/network-helpers.js';
 import {openGoToLineQuickOpen} from '../helpers/quick_open-helpers.js';
 import {togglePreferenceInSettingsTab} from '../helpers/settings-helpers.js';
@@ -110,11 +109,11 @@ describe('The Sources Tab', function() {
         '}',
       ];
       const actualPrettyText = await retrieveCodeMirrorEditorContent();
-      assert.deepStrictEqual(expectedPrettyLines, actualPrettyText);
+      assert.deepEqual(expectedPrettyLines, actualPrettyText);
     });
 
     await step('can highlight the pretty-printed text', async () => {
-      assert.isTrue(await isPrettyPrinted());
+      await waitForFunction(isPrettyPrinted);
       assert.isTrue(await elementContainsTextWithSelector(editor, '"Value1"', '.token-string'));
 
       assert.isTrue(await elementContainsTextWithSelector(editor, 'true', '.token-atom'));
@@ -129,7 +128,7 @@ describe('The Sources Tab', function() {
     });
 
     await step('can highlight the un-pretty-printed text', async () => {
-      assert.isFalse(await isPrettyPrinted());
+      await waitForFunction(async () => !(await isPrettyPrinted()));
       assert.isTrue(await elementContainsTextWithSelector(editor, '"Value1"', '.token-string'));
 
       assert.isTrue(await elementContainsTextWithSelector(editor, 'true', '.token-atom'));
@@ -203,7 +202,7 @@ describe('The Sources Tab', function() {
   it('automatically pretty-prints minified code (by default)', async () => {
     await openSourceCodeEditorForFile('minified-sourcecode-1.min.js', 'minified-sourcecode-1.html');
     const lines = await retrieveCodeMirrorEditorContent();
-    assert.strictEqual(lines.length, 23);
+    assert.lengthOf(lines, 23);
   });
 
   it('does not automatically pretty-print minified code (when disabled via settings)', async () => {
@@ -211,13 +210,13 @@ describe('The Sources Tab', function() {
 
     await openSourceCodeEditorForFile('minified-sourcecode-1.min.js', 'minified-sourcecode-1.html');
     const lines = await retrieveCodeMirrorEditorContent();
-    assert.strictEqual(lines.length, 3);
+    assert.lengthOf(lines, 3);
   });
 
   it('does not automatically pretty-print authored code', async () => {
     await openSourceCodeEditorForFile('minified-sourcecode-1.js', 'minified-sourcecode-1.html');
     const lines = await retrieveCodeMirrorEditorContent();
-    assert.strictEqual(lines.length, 2);
+    assert.lengthOf(lines, 2);
   });
 
   it('shows execution position and inline variables in large pretty-printed minified code', async () => {

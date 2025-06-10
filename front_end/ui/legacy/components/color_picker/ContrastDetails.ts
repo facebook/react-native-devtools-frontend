@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../legacy.js';
+
 import * as Common from '../../../../core/common/common.js';
 import * as Host from '../../../../core/host/host.js';
 import * as i18n from '../../../../core/i18n/i18n.js';
@@ -59,7 +61,7 @@ const UIStrings = {
    *@description Text to show less content
    */
   showLess: 'Show less',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/components/color_picker/ContrastDetails.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class ContrastDetails extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
@@ -98,7 +100,7 @@ export class ContrastDetails extends Common.ObjectWrapper.ObjectWrapper<EventTyp
       expandedChangedCallback: () => void, colorSelectedCallback: (arg0: Common.Color.Legacy) => void) {
     super();
     this.contrastInfo = contrastInfo;
-    this.elementInternal = contentElement.createChild('div', 'spectrum-contrast-details collapsed') as HTMLElement;
+    this.elementInternal = contentElement.createChild('div', 'spectrum-contrast-details collapsed');
 
     this.toggleMainColorPicker = toggleMainColorPickerCallback;
 
@@ -138,9 +140,9 @@ export class ContrastDetails extends Common.ObjectWrapper.ObjectWrapper<EventTyp
       event.consume(false);
     }));
 
-    const expandToolbar = new UI.Toolbar.Toolbar('expand', contrastValueRowContents);
+    const expandToolbar = contrastValueRowContents.createChild('devtools-toolbar', 'expand');
     this.expandButton = new UI.Toolbar.ToolbarButton(i18nString(UIStrings.showMore), 'chevron-down');
-    this.expandButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, this.expandButtonClicked.bind(this));
+    this.expandButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.expandButtonClicked.bind(this));
     UI.ARIAUtils.setExpanded(this.expandButton.element, false);
     expandToolbar.appendToolbarItem(this.expandButton);
 
@@ -163,17 +165,17 @@ export class ContrastDetails extends Common.ObjectWrapper.ObjectWrapper<EventTyp
 
     const bgColorContainer = this.expandedDetails.createChild('div', 'background-color');
 
-    const pickerToolbar = new UI.Toolbar.Toolbar('spectrum-eye-dropper', bgColorContainer);
+    const pickerToolbar = bgColorContainer.createChild('devtools-toolbar', 'spectrum-eye-dropper');
     this.bgColorPickerButton = new UI.Toolbar.ToolbarToggle(
         i18nString(UIStrings.toggleBackgroundColorPicker), 'color-picker', 'color-picker-filled');
     this.bgColorPickerButton.addEventListener(
-        UI.Toolbar.ToolbarButton.Events.Click, this.toggleBackgroundColorPickerInternal.bind(this, undefined, true));
+        UI.Toolbar.ToolbarButton.Events.CLICK, this.toggleBackgroundColorPickerInternal.bind(this, undefined, true));
     pickerToolbar.appendToolbarItem(this.bgColorPickerButton);
     this.bgColorPickedBound = this.bgColorPicked.bind(this);
 
     this.bgColorSwatch = new Swatch(bgColorContainer);
 
-    this.contrastInfo.addEventListener(ContrastInfoEvents.ContrastInfoUpdated, this.update.bind(this));
+    this.contrastInfo.addEventListener(ContrastInfoEvents.CONTRAST_INFO_UPDATED, this.update.bind(this));
   }
 
   private showNoContrastInfoAvailableMessage(): void {
@@ -217,7 +219,7 @@ export class ContrastDetails extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   private createFixColorButton(parent: Element, suggestedColor: Common.Color.Color): HTMLElement {
-    const button = parent.createChild('button', 'contrast-fix-button') as HTMLElement;
+    const button = parent.createChild('button', 'contrast-fix-button');
     const formattedColor = suggestedColor.asString(this.contrastInfo.colorFormat());
     const suggestedColorString = formattedColor ? formattedColor + ' ' : '';
     const label = i18nString(UIStrings.useSuggestedColorStoFixLow, {PH1: suggestedColorString});
@@ -367,8 +369,7 @@ export class ContrastDetails extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   private static showHelp(): void {
-    Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(UI.UIUtils.addReferrerToURL(
-        'https://web.dev/color-and-contrast-accessibility/' as Platform.DevToolsPath.UrlString));
+    UI.UIUtils.openInNewTab('https://web.dev/color-and-contrast-accessibility/');
   }
 
   setVisible(visible: boolean): void {
@@ -431,7 +432,7 @@ export class ContrastDetails extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   backgroundColorPickerEnabled(): boolean {
-    return this.bgColorPickerButton.toggled();
+    return this.bgColorPickerButton.isToggled();
   }
 
   toggleBackgroundColorPicker(enabled: boolean): void {
@@ -440,12 +441,11 @@ export class ContrastDetails extends Common.ObjectWrapper.ObjectWrapper<EventTyp
 
   private toggleBackgroundColorPickerInternal(enabled?: boolean, shouldTriggerEvent: boolean|undefined = true): void {
     if (enabled === undefined) {
-      enabled = !this.bgColorPickerButton.toggled();
+      enabled = this.bgColorPickerButton.isToggled();
     }
-    this.bgColorPickerButton.setToggled(enabled);
 
     if (shouldTriggerEvent) {
-      this.dispatchEventToListeners(Events.BackgroundColorPickerWillBeToggled, enabled);
+      this.dispatchEventToListeners(Events.BACKGROUND_COLOR_PICKER_WILL_BE_TOGGLED, enabled);
     }
 
     Host.InspectorFrontendHost.InspectorFrontendHostInstance.setEyeDropperActive(enabled);
@@ -470,12 +470,12 @@ export class ContrastDetails extends Common.ObjectWrapper.ObjectWrapper<EventTyp
 }
 
 export const enum Events {
-  BackgroundColorPickerWillBeToggled = 'BackgroundColorPickerWillBeToggled',
+  BACKGROUND_COLOR_PICKER_WILL_BE_TOGGLED = 'BackgroundColorPickerWillBeToggled',
 }
 
-export type EventTypes = {
-  [Events.BackgroundColorPickerWillBeToggled]: boolean,
-};
+export interface EventTypes {
+  [Events.BACKGROUND_COLOR_PICKER_WILL_BE_TOGGLED]: boolean;
+}
 
 export class Swatch {
   private readonly parentElement: Element;
@@ -485,14 +485,14 @@ export class Swatch {
   constructor(parentElement: Element) {
     this.parentElement = parentElement;
     this.swatchElement = parentElement.createChild('span', 'swatch contrast swatch-inner-white');
-    this.swatchInnerElement = this.swatchElement.createChild('span', 'swatch-inner') as HTMLElement;
-    this.textPreview = this.swatchElement.createChild('div', 'text-preview') as HTMLElement;
+    this.swatchInnerElement = this.swatchElement.createChild('span', 'swatch-inner');
+    this.textPreview = this.swatchElement.createChild('div', 'text-preview');
     this.textPreview.textContent = 'Aa';
   }
 
   setColors(fgColor: Common.Color.Legacy, bgColor: Common.Color.Legacy): void {
-    this.textPreview.style.color = fgColor.asString(Common.Color.Format.RGBA) as string;
-    this.swatchInnerElement.style.backgroundColor = bgColor.asString(Common.Color.Format.RGBA) as string;
+    this.textPreview.style.color = fgColor.asString(Common.Color.Format.RGBA);
+    this.swatchInnerElement.style.backgroundColor = bgColor.asString(Common.Color.Format.RGBA);
     // Show border if the swatch is white.
     this.swatchElement.classList.toggle('swatch-inner-white', bgColor.as(Common.Color.Format.HSL).l > 0.9);
   }
