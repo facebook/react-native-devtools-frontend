@@ -62,7 +62,7 @@ const UIStrings = {
    *@description Text that refers to closure as a programming term
    */
   closure: 'Closure',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/sources/ScopeChainSidebarPane.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 let scopeChainSidebarPaneInstance: ScopeChainSidebarPane;
@@ -76,9 +76,11 @@ export class ScopeChainSidebarPane extends UI.Widget.VBox implements UI.ContextF
 
   private constructor() {
     super(true);
+    this.registerRequiredCSS(scopeChainSidebarPaneStyles);
 
     this.contentElement.setAttribute('jslog', `${VisualLogging.section('sources.scope-chain')}`);
     this.treeOutline = new ObjectUI.ObjectPropertiesSection.ObjectPropertiesSectionsTreeOutline();
+    this.treeOutline.registerRequiredCSS(scopeChainSidebarPaneStyles);
     this.treeOutline.hideOverflow();
 
     this.treeOutline.setShowSelectionOnKeyboardFocus(/* show */ true);
@@ -113,7 +115,7 @@ export class ScopeChainSidebarPane extends UI.Widget.VBox implements UI.ContextF
 
       this.#scopeChainModel = new SourceMapScopes.ScopeChainModel.ScopeChainModel(callFrame);
       this.#scopeChainModel.addEventListener(
-          SourceMapScopes.ScopeChainModel.Events.ScopeChainUpdated, event => this.buildScopeTreeOutline(event.data),
+          SourceMapScopes.ScopeChainModel.Events.SCOPE_CHAIN_UPDATED, event => this.buildScopeTreeOutline(event.data),
           this);
     } else {
       this.infoElement.textContent = i18nString(UIStrings.notPaused);
@@ -193,7 +195,7 @@ export class ScopeChainSidebarPane extends UI.Widget.VBox implements UI.ContextF
     titleElement.createChild('div', 'scope-chain-sidebar-pane-section-title').textContent = title;
 
     const section = new ObjectUI.ObjectPropertiesSection.RootElement(
-        scope.object(), this.linkifier, emptyPlaceholder, ObjectUI.ObjectPropertiesSection.ObjectPropertiesMode.All,
+        scope.object(), this.linkifier, emptyPlaceholder, ObjectUI.ObjectPropertiesSection.ObjectPropertiesMode.ALL,
         scope.extraProperties());
     section.title = titleElement;
     section.listItemElement.classList.add('scope-chain-sidebar-pane-section');
@@ -204,10 +206,5 @@ export class ScopeChainSidebarPane extends UI.Widget.VBox implements UI.ContextF
   }
 
   private sidebarPaneUpdatedForTest(): void {
-  }
-  override wasShown(): void {
-    super.wasShown();
-    this.treeOutline.registerCSSFiles([scopeChainSidebarPaneStyles]);
-    this.registerCSSFiles([scopeChainSidebarPaneStyles]);
   }
 }

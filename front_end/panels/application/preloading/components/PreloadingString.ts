@@ -32,11 +32,6 @@ const UIStrings = {
    */
   PrefetchFailedNon2XX: 'The prefetch failed because of a non-2xx HTTP response status code.',
   /**
-   *@description  Description text for Prefetch status PrefetchFailedPerPageLimitExceeded.
-   */
-  PrefetchFailedPerPageLimitExceeded:
-      'The prefetch was not performed because the initiating page already has too many prefetches ongoing.',
-  /**
    *@description  Description text for Prefetch status PrefetchIneligibleRetryAfter.
    */
   PrefetchIneligibleRetryAfter:
@@ -378,6 +373,10 @@ const UIStrings = {
    */
   prerenderFinalStatusAllPrerenderingCanceled:
       'All prerendered pages were unloaded by the browser for some reason (For example, WebViewCompat.addWebMessageListener() was called during prerendering.)',
+  /**
+   * Description text for PrenderFinalStatus::kWindowClosed.
+   */
+  prerenderFinalStatusWindowClosed: 'The prerendered page was unloaded because it called window.close().',
 
   /**
    *@description Text in grid and details: Preloading attempt is not yet triggered.
@@ -403,41 +402,43 @@ const UIStrings = {
    *@description Text in grid and details: Preloading failed.
    */
   statusFailure: 'Failure',
-};
+} as const;
 
 const str_ = i18n.i18n.registerUIStrings('panels/application/preloading/components/PreloadingString.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export const PrefetchReasonDescription: {[key: string]: {name: () => Platform.UIString.LocalizedString}} = {
-  'PrefetchFailedIneligibleRedirect': {name: i18nLazyString(UIStrings.PrefetchFailedIneligibleRedirect)},
-  'PrefetchFailedInvalidRedirect': {name: i18nLazyString(UIStrings.PrefetchFailedInvalidRedirect)},
-  'PrefetchFailedMIMENotSupported': {name: i18nLazyString(UIStrings.PrefetchFailedMIMENotSupported)},
-  'PrefetchFailedNetError': {name: i18nLazyString(UIStrings.PrefetchFailedNetError)},
-  'PrefetchFailedNon2XX': {name: i18nLazyString(UIStrings.PrefetchFailedNon2XX)},
-  'PrefetchFailedPerPageLimitExceeded': {name: i18nLazyString(UIStrings.PrefetchFailedPerPageLimitExceeded)},
-  'PrefetchIneligibleRetryAfter': {name: i18nLazyString(UIStrings.PrefetchIneligibleRetryAfter)},
-  'PrefetchIsPrivacyDecoy': {name: i18nLazyString(UIStrings.PrefetchIsPrivacyDecoy)},
-  'PrefetchIsStale': {name: i18nLazyString(UIStrings.PrefetchIsStale)},
-  'PrefetchNotEligibleBrowserContextOffTheRecord':
+  PrefetchFailedIneligibleRedirect: {name: i18nLazyString(UIStrings.PrefetchFailedIneligibleRedirect)},
+  PrefetchFailedInvalidRedirect: {name: i18nLazyString(UIStrings.PrefetchFailedInvalidRedirect)},
+  PrefetchFailedMIMENotSupported: {name: i18nLazyString(UIStrings.PrefetchFailedMIMENotSupported)},
+  PrefetchFailedNetError: {name: i18nLazyString(UIStrings.PrefetchFailedNetError)},
+  PrefetchFailedNon2XX: {name: i18nLazyString(UIStrings.PrefetchFailedNon2XX)},
+  PrefetchIneligibleRetryAfter: {name: i18nLazyString(UIStrings.PrefetchIneligibleRetryAfter)},
+  PrefetchIsPrivacyDecoy: {name: i18nLazyString(UIStrings.PrefetchIsPrivacyDecoy)},
+  PrefetchIsStale: {name: i18nLazyString(UIStrings.PrefetchIsStale)},
+  PrefetchNotEligibleBrowserContextOffTheRecord:
       {name: i18nLazyString(UIStrings.PrefetchNotEligibleBrowserContextOffTheRecord)},
-  'PrefetchNotEligibleDataSaverEnabled': {name: i18nLazyString(UIStrings.PrefetchNotEligibleDataSaverEnabled)},
-  'PrefetchNotEligibleExistingProxy': {name: i18nLazyString(UIStrings.PrefetchNotEligibleExistingProxy)},
-  'PrefetchNotEligibleHostIsNonUnique': {name: i18nLazyString(UIStrings.PrefetchNotEligibleHostIsNonUnique)},
-  'PrefetchNotEligibleNonDefaultStoragePartition':
+  PrefetchNotEligibleDataSaverEnabled: {name: i18nLazyString(UIStrings.PrefetchNotEligibleDataSaverEnabled)},
+  PrefetchNotEligibleExistingProxy: {name: i18nLazyString(UIStrings.PrefetchNotEligibleExistingProxy)},
+  PrefetchNotEligibleHostIsNonUnique: {name: i18nLazyString(UIStrings.PrefetchNotEligibleHostIsNonUnique)},
+  PrefetchNotEligibleNonDefaultStoragePartition:
       {name: i18nLazyString(UIStrings.PrefetchNotEligibleNonDefaultStoragePartition)},
-  'PrefetchNotEligibleSameSiteCrossOriginPrefetchRequiredProxy':
+  PrefetchNotEligibleSameSiteCrossOriginPrefetchRequiredProxy:
       {name: i18nLazyString(UIStrings.PrefetchNotEligibleSameSiteCrossOriginPrefetchRequiredProxy)},
-  'PrefetchNotEligibleSchemeIsNotHttps': {name: i18nLazyString(UIStrings.PrefetchNotEligibleSchemeIsNotHttps)},
-  'PrefetchNotEligibleUserHasCookies': {name: i18nLazyString(UIStrings.PrefetchNotEligibleUserHasCookies)},
-  'PrefetchNotEligibleUserHasServiceWorker': {name: i18nLazyString(UIStrings.PrefetchNotEligibleUserHasServiceWorker)},
-  'PrefetchNotUsedCookiesChanged': {name: i18nLazyString(UIStrings.PrefetchNotUsedCookiesChanged)},
-  'PrefetchProxyNotAvailable': {name: i18nLazyString(UIStrings.PrefetchProxyNotAvailable)},
-  'PrefetchNotUsedProbeFailed': {name: i18nLazyString(UIStrings.PrefetchNotUsedProbeFailed)},
-  'PrefetchEvictedForNewerPrefetch': {name: i18nLazyString(UIStrings.PrefetchEvictedForNewerPrefetch)},
-  'PrefetchEvictedAfterCandidateRemoved': {name: i18nLazyString(UIStrings.PrefetchEvictedAfterCandidateRemoved)},
-  'PrefetchNotEligibleBatterySaverEnabled': {name: i18nLazyString(UIStrings.PrefetchNotEligibleBatterySaverEnabled)},
-  'PrefetchNotEligiblePreloadingDisabled': {name: i18nLazyString(UIStrings.PrefetchNotEligiblePreloadingDisabled)},
+  PrefetchNotEligibleSchemeIsNotHttps: {name: i18nLazyString(UIStrings.PrefetchNotEligibleSchemeIsNotHttps)},
+  PrefetchNotEligibleUserHasCookies: {name: i18nLazyString(UIStrings.PrefetchNotEligibleUserHasCookies)},
+  PrefetchNotEligibleUserHasServiceWorker: {name: i18nLazyString(UIStrings.PrefetchNotEligibleUserHasServiceWorker)},
+  PrefetchNotUsedCookiesChanged: {name: i18nLazyString(UIStrings.PrefetchNotUsedCookiesChanged)},
+  PrefetchProxyNotAvailable: {name: i18nLazyString(UIStrings.PrefetchProxyNotAvailable)},
+  PrefetchNotUsedProbeFailed: {name: i18nLazyString(UIStrings.PrefetchNotUsedProbeFailed)},
+  PrefetchEvictedForNewerPrefetch: {name: i18nLazyString(UIStrings.PrefetchEvictedForNewerPrefetch)},
+  PrefetchEvictedAfterCandidateRemoved: {name: i18nLazyString(UIStrings.PrefetchEvictedAfterCandidateRemoved)},
+  PrefetchNotEligibleBatterySaverEnabled: {name: i18nLazyString(UIStrings.PrefetchNotEligibleBatterySaverEnabled)},
+  PrefetchNotEligiblePreloadingDisabled: {name: i18nLazyString(UIStrings.PrefetchNotEligiblePreloadingDisabled)},
+  PrefetchNotEligibleUserHasServiceWorkerNoFetchHandler: {name: () => i18n.i18n.lockedString('Unknown')},
+  PrefetchNotEligibleRedirectFromServiceWorker: {name: () => i18n.i18n.lockedString('Unknown')},
+  PrefetchNotEligibleRedirectToServiceWorker: {name: () => i18n.i18n.lockedString('Unknown')},
 };
 
 // Decoding PrefetchFinalStatus prefetchAttempt to failure description.
@@ -474,8 +475,6 @@ export function prefetchFailureReason({prefetchStatus}: SDK.PreloadingModel.Pref
       return PrefetchReasonDescription['PrefetchFailedNetError'].name();
     case Protocol.Preload.PrefetchStatus.PrefetchFailedNon2XX:
       return PrefetchReasonDescription['PrefetchFailedNon2XX'].name();
-    case Protocol.Preload.PrefetchStatus.PrefetchFailedPerPageLimitExceeded:
-      return PrefetchReasonDescription['PrefetchFailedPerPageLimitExceeded'].name();
     case Protocol.Preload.PrefetchStatus.PrefetchIneligibleRetryAfter:
       return PrefetchReasonDescription['PrefetchIneligibleRetryAfter'].name();
     case Protocol.Preload.PrefetchStatus.PrefetchEvictedForNewerPrefetch:
@@ -514,6 +513,15 @@ export function prefetchFailureReason({prefetchStatus}: SDK.PreloadingModel.Pref
       return PrefetchReasonDescription['PrefetchNotEligibleBatterySaverEnabled'].name();
     case Protocol.Preload.PrefetchStatus.PrefetchNotEligiblePreloadingDisabled:
       return PrefetchReasonDescription['PrefetchNotEligiblePreloadingDisabled'].name();
+    case Protocol.Preload.PrefetchStatus.PrefetchNotEligibleUserHasServiceWorkerNoFetchHandler:
+      return PrefetchReasonDescription['PrefetchNotEligibleUserHasServiceWorkerNoFetchHandler'].name();
+    case Protocol.Preload.PrefetchStatus.PrefetchNotEligibleRedirectFromServiceWorker:
+      return PrefetchReasonDescription['PrefetchNotEligibleRedirectFromServiceWorker'].name();
+    case Protocol.Preload.PrefetchStatus.PrefetchNotEligibleRedirectToServiceWorker:
+      return PrefetchReasonDescription['PrefetchNotEligibleRedirectToServiceWorker'].name();
+    case Protocol.Preload.PrefetchStatus.PrefetchEvictedAfterBrowsingDataRemoved:
+      // TODO(crbug.com/40262310): Add description.
+      return null;
     default:
       // Note that we use switch and exhaustiveness check to prevent to
       // forget updating these strings, but allow to handle unknown
@@ -688,15 +696,19 @@ export function prerenderFailureReason(attempt: SDK.PreloadingModel.PrerenderAtt
     case Protocol.Preload.PrerenderFinalStatus.AllPrerenderingCanceled:
       return i18nString(UIStrings.prerenderFinalStatusAllPrerenderingCanceled);
     case Protocol.Preload.PrerenderFinalStatus.WindowClosed:
+      return i18nString(UIStrings.prerenderFinalStatusWindowClosed);
+    case Protocol.Preload.PrerenderFinalStatus.SlowNetwork:
+    case Protocol.Preload.PrerenderFinalStatus.OtherPrerenderedPageActivated:
+    case Protocol.Preload.PrerenderFinalStatus.V8OptimizerDisabled:
+    case Protocol.Preload.PrerenderFinalStatus.PrerenderFailedDuringPrefetch:
       // TODO(crbug.com/350870118): Add message for this.
       return '';
     default:
       // Note that we use switch and exhaustiveness check to prevent to
       // forget updating these strings, but allow to handle unknown
       // PrerenderFinalStatus at runtime.
-      return i18n.i18n.lockedString(`Unknown failure reason: ${
-          attempt.prerenderStatus as
-          'See https://docs.google.com/document/d/1PnrfowsZMt62PX1EvvTp2Nqs3ji1zrklrAEe1JYbkTk'}`);
+      // See https://docs.google.com/document/d/1PnrfowsZMt62PX1EvvTp2Nqs3ji1zrklrAEe1JYbkTk'
+      return i18n.i18n.lockedString(`Unknown failure reason: ${attempt.prerenderStatus as string}`);
   }
 }
 
@@ -719,24 +731,24 @@ export function capitalizedAction(action: Protocol.Preload.SpeculationAction): C
 export function status(status: SDK.PreloadingModel.PreloadingStatus): string {
   // See content/public/browser/preloading.h PreloadingAttemptOutcome.
   switch (status) {
-    case SDK.PreloadingModel.PreloadingStatus.NotTriggered:
+    case SDK.PreloadingModel.PreloadingStatus.NOT_TRIGGERED:
       return i18nString(UIStrings.statusNotTriggered);
-    case SDK.PreloadingModel.PreloadingStatus.Pending:
+    case SDK.PreloadingModel.PreloadingStatus.PENDING:
       return i18nString(UIStrings.statusPending);
-    case SDK.PreloadingModel.PreloadingStatus.Running:
+    case SDK.PreloadingModel.PreloadingStatus.RUNNING:
       return i18nString(UIStrings.statusRunning);
-    case SDK.PreloadingModel.PreloadingStatus.Ready:
+    case SDK.PreloadingModel.PreloadingStatus.READY:
       return i18nString(UIStrings.statusReady);
-    case SDK.PreloadingModel.PreloadingStatus.Success:
+    case SDK.PreloadingModel.PreloadingStatus.SUCCESS:
       return i18nString(UIStrings.statusSuccess);
-    case SDK.PreloadingModel.PreloadingStatus.Failure:
+    case SDK.PreloadingModel.PreloadingStatus.FAILURE:
       return i18nString(UIStrings.statusFailure);
       // NotSupported is used to handle unreachable case. For example,
       // there is no code path for
       // PreloadingTriggeringOutcome::kTriggeredButPending in prefetch,
       // which is mapped to NotSupported. So, we regard it as an
       // internal error.
-    case SDK.PreloadingModel.PreloadingStatus.NotSupported:
+    case SDK.PreloadingModel.PreloadingStatus.NOT_SUPPORTED:
       return i18n.i18n.lockedString('Internal error');
   }
 }
@@ -744,7 +756,7 @@ export function status(status: SDK.PreloadingModel.PreloadingStatus): string {
 export function composedStatus(attempt: SDK.PreloadingModel.PreloadingAttempt): string {
   const short = status(attempt.status);
 
-  if (attempt.status !== SDK.PreloadingModel.PreloadingStatus.Failure) {
+  if (attempt.status !== SDK.PreloadingModel.PreloadingStatus.FAILURE) {
     return short;
   }
 

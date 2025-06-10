@@ -26,10 +26,11 @@ import '../../panels/web_audio/web_audio-meta.js';
 import '../../panels/webauthn/webauthn-meta.js';
 import '../../panels/layer_viewer/layer_viewer-meta.js';
 import '../../panels/recorder/recorder-meta.js';
+import '../../panels/whats_new/whats_new-meta.js';
 
 import * as Root from '../../core/root/root.js';
 import * as Main from '../main/main.js';
 
-// @ts-ignore Exposed for legacy layout tests
+// @ts-expect-error Exposed for legacy layout tests
 self.runtime = Root.Runtime.Runtime.instance({forceNew: true});
 new Main.MainImpl.MainImpl();

@@ -4,7 +4,7 @@
 
 import type * as Common from '../../../../core/common/common.js';
 import type * as Platform from '../../../../core/platform/platform.js';
-import * as TraceEngine from '../../../../models/trace/trace.js';
+import * as Trace from '../../../../models/trace/trace.js';
 import {renderElementIntoDOM} from '../../../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
 import {
@@ -18,11 +18,11 @@ describeWithEnvironment('FlameChart', () => {
   it('sorts decorations, putting candy striping before warning triangles', async () => {
     const decorations: PerfUI.FlameChart.FlameChartDecoration[] = [
       {type: PerfUI.FlameChart.FlameChartDecorationType.WARNING_TRIANGLE},
-      {type: PerfUI.FlameChart.FlameChartDecorationType.CANDY, startAtTime: TraceEngine.Types.Timing.MicroSeconds(10)},
+      {type: PerfUI.FlameChart.FlameChartDecorationType.CANDY, startAtTime: Trace.Types.Timing.Micro(10)},
     ];
     PerfUI.FlameChart.sortDecorationsForRenderingOrder(decorations);
     assert.deepEqual(decorations, [
-      {type: PerfUI.FlameChart.FlameChartDecorationType.CANDY, startAtTime: TraceEngine.Types.Timing.MicroSeconds(10)},
+      {type: PerfUI.FlameChart.FlameChartDecorationType.CANDY, startAtTime: Trace.Types.Timing.Micro(10)},
       {type: PerfUI.FlameChart.FlameChartDecorationType.WARNING_TRIANGLE},
     ]);
   });
@@ -165,7 +165,7 @@ describeWithEnvironment('FlameChart', () => {
       renderChart(chartInstance);
 
       const highlightedEventListener = sinon.stub();
-      chartInstance.addEventListener(PerfUI.FlameChart.Events.EntryHighlighted, highlightedEventListener);
+      chartInstance.addEventListener(PerfUI.FlameChart.Events.ENTRY_HOVERED, highlightedEventListener);
 
       // Nothing highlighted, so the highlightElement should be hidden.
       assert.isTrue(chartInstance.highlightElement.classList.contains('hidden'));
@@ -196,7 +196,7 @@ describeWithEnvironment('FlameChart', () => {
       renderChart(chartInstance);
 
       const highlightedEventListener = sinon.stub();
-      chartInstance.addEventListener(PerfUI.FlameChart.Events.EntryHighlighted, highlightedEventListener);
+      chartInstance.addEventListener(PerfUI.FlameChart.Events.ENTRY_HOVERED, highlightedEventListener);
       chartInstance.highlightEntry(2);
       chartInstance.highlightEntry(2);
       // Ensure that there is only one event listener called, despite the
@@ -217,7 +217,7 @@ describeWithEnvironment('FlameChart', () => {
       renderChart(chartInstance);
 
       const highlightedEventListener = sinon.stub();
-      chartInstance.addEventListener(PerfUI.FlameChart.Events.EntryHighlighted, highlightedEventListener);
+      chartInstance.addEventListener(PerfUI.FlameChart.Events.ENTRY_HOVERED, highlightedEventListener);
       chartInstance.highlightEntry(2);
       // No calls because entryColor returned a false value.
       assert.strictEqual(highlightedEventListener.callCount, 0);
@@ -230,7 +230,7 @@ describeWithEnvironment('FlameChart', () => {
       renderChart(chartInstance);
 
       const highlightedEventListener = sinon.stub();
-      chartInstance.addEventListener(PerfUI.FlameChart.Events.EntryHighlighted, highlightedEventListener);
+      chartInstance.addEventListener(PerfUI.FlameChart.Events.ENTRY_HOVERED, highlightedEventListener);
       chartInstance.highlightEntry(2);
       chartInstance.hideHighlight();
       // Ensure the argument to the last event listener call was -1

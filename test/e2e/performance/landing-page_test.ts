@@ -7,10 +7,11 @@ import type * as puppeteer from 'puppeteer-core';
 
 import {
   $$,
-  enableExperiment,
+  click,
   getBrowserAndPages,
   getResourcesPath,
   goTo,
+  goToHtml,
   goToResource,
   goToResourceWithCustomHost,
   waitFor,
@@ -18,18 +19,24 @@ import {
   waitForNone,
   waitForVisible,
 } from '../../shared/helper.js';
-import {describe, it} from '../../shared/mocha-extensions.js';
+import {getCurrentConsoleMessages} from '../helpers/console-helpers.js';
+import {reloadDevTools, tabExistsInDrawer} from '../helpers/cross-tool-helper.js';
 import {
-  navigateToPerformanceTab,
-} from '../helpers/performance-helpers.js';
+  getCategoryRow,
+  navigateToMemoryTab,
+  setClassFilter,
+  takeHeapSnapshot,
+  waitForNonEmptyHeapSnapshotData,
+} from '../helpers/memory-helpers.js';
 
-const READY_LOCAL_METRIC_SELECTOR = '[slot="local-value"] .metric-value:not(.waiting)';
-const READY_FIELD_METRIC_SELECTOR = '[slot="field-value"] .metric-value:not(.waiting)';
-const WAITING_LOCAL_METRIC_SELECTOR = '[slot="local-value"] .metric-value.waiting';
+const READY_LOCAL_METRIC_SELECTOR = '#local-value .metric-value:not(.waiting)';
+const READY_FIELD_METRIC_SELECTOR = '#field-value .metric-value:not(.waiting)';
+const WAITING_LOCAL_METRIC_SELECTOR = '#local-value .metric-value.waiting';
 const INTERACTION_SELECTOR = '.interaction';
-const HISTOGRAM_SELECTOR = '.field-data-histogram';
-const SETUP_FIELD_BUTTON_SELECTOR = 'devtools-button[jslogcontext="field-data-setup"]';
-const ENABLE_FIELD_BUTTON_SELECTOR = 'devtools-button[jslogcontext="field-data-enable"]';
+const LAYOUT_SHIFT_SELECTOR = '.layout-shift';
+const HISTOGRAM_SELECTOR = '.bucket-summaries.histogram';
+const SETUP_FIELD_BUTTON_SELECTOR = 'devtools-button[data-field-data-setup]';
+const ENABLE_FIELD_BUTTON_SELECTOR = 'devtools-button[data-field-data-enable]';
 const ADVANCED_DETAILS_SELECTOR = '.content summary';
 const OVERRIDE_FIELD_CHECKBOX_SELECTOR = '.content input[type="checkbox"]';
 const OVERRIDE_FIELD_TEXT_SELECTOR = '.content input[type="text"]';
@@ -61,13 +68,11 @@ async function setCruxRawResponse(path: string) {
 
 describe('The Performance panel landing page', () => {
   beforeEach(async () => {
-    await enableExperiment('timeline-observations');
+    await reloadDevTools({selectedPanel: {name: 'timeline'}});
   });
 
   it('displays live metrics', async () => {
     const {target, frontend} = await getBrowserAndPages();
-
-    await navigateToPerformanceTab();
 
     await target.bringToFront();
 
@@ -84,7 +89,10 @@ describe('The Performance panel landing page', () => {
 
       const [lcpValueElem, clsValueElem, inpValueElem] = await waitForMany(READY_LOCAL_METRIC_SELECTOR, 3);
       const interactions = await $$<HTMLElement>(INTERACTION_SELECTOR);
-      assert.lengthOf(interactions, 2);
+      assert.isAtLeast(interactions.length, 2);
+
+      const layoutShifts = await $$<HTMLElement>(LAYOUT_SHIFT_SELECTOR);
+      assert.lengthOf(layoutShifts, 1);
 
       const lcpValue = await lcpValueElem.evaluate(el => el.textContent) || '';
       assert.match(lcpValue, /[0-9\.]+ (s|ms)/);
@@ -97,7 +105,12 @@ describe('The Performance panel landing page', () => {
 
       for (const interaction of interactions) {
         const interactionText = await interaction.evaluate(el => el.innerText) || '';
-        assert.match(interactionText, /pointer\n[\d.]+ (s|ms)/);
+        assert.match(interactionText, /pointer( INP)?\n[\d.]+ (s|ms)/);
+      }
+
+      for (const layoutShift of layoutShifts) {
+        const layoutShiftText = await layoutShift.evaluate(el => el.innerText) || '';
+        assert.match(layoutShiftText, /Layout shift score: [\d.]+/);
       }
     } finally {
       await targetSession.detach();
@@ -129,11 +142,13 @@ describe('The Performance panel landing page', () => {
       await executionContextPromise;
 
       await frontend.bringToFront();
-      await navigateToPerformanceTab();
 
       const [lcpValueElem, clsValueElem, inpValueElem] = await waitForMany(READY_LOCAL_METRIC_SELECTOR, 3);
       const interactions = await $$<HTMLElement>(INTERACTION_SELECTOR);
-      assert.lengthOf(interactions, 2);
+      assert.isAtLeast(interactions.length, 2);
+
+      const layoutShifts = await $$<HTMLElement>(LAYOUT_SHIFT_SELECTOR);
+      assert.lengthOf(layoutShifts, 1);
 
       const lcpValue = await lcpValueElem.evaluate(el => el.textContent) || '';
       assert.match(lcpValue, /[0-9\.]+ (s|ms)/);
@@ -143,11 +158,6 @@ describe('The Performance panel landing page', () => {
 
       const inpValue = await inpValueElem.evaluate(el => el.textContent) || '';
       assert.match(inpValue, /[0-9\.]+ (s|ms)/);
-
-      for (const interaction of interactions) {
-        const interactionText = await interaction.evaluate(el => el.innerText) || '';
-        assert.match(interactionText, /pointer\n[\d.]+ (s|ms)/);
-      }
     } finally {
       await targetSession.detach();
     }
@@ -155,8 +165,6 @@ describe('The Performance panel landing page', () => {
 
   it('treats bfcache restoration like a regular navigation', async () => {
     const {target, frontend} = await getBrowserAndPages();
-
-    await navigateToPerformanceTab();
 
     await target.bringToFront();
 
@@ -175,14 +183,16 @@ describe('The Performance panel landing page', () => {
 
       await waitForMany(READY_LOCAL_METRIC_SELECTOR, 3);
       const interactions1 = await $$<HTMLElement>(INTERACTION_SELECTOR);
-      assert.lengthOf(interactions1, 2);
+      assert.isAtLeast(interactions1.length, 2);
+
+      const layoutShifts1 = await $$<HTMLElement>(LAYOUT_SHIFT_SELECTOR);
+      assert.lengthOf(layoutShifts1, 1);
 
       await target.bringToFront();
 
       const waitForLCP2 = await installLCPListener(targetSession);
       await goTo('chrome://terms');
       await waitForLCP2();
-      await target.click('body');
       await target.evaluate(() => new Promise(r => requestAnimationFrame(r)));
       await target.evaluate(() => new Promise(r => requestAnimationFrame(r)));
 
@@ -190,7 +200,10 @@ describe('The Performance panel landing page', () => {
 
       await waitForMany(READY_LOCAL_METRIC_SELECTOR, 3);
       const interactions2 = await $$<HTMLElement>(INTERACTION_SELECTOR);
-      assert.lengthOf(interactions2, 1);
+      assert.lengthOf(interactions2, 0);
+
+      const layoutShifts2 = await $$<HTMLElement>(LAYOUT_SHIFT_SELECTOR);
+      assert.lengthOf(layoutShifts2, 0);
 
       await target.bringToFront();
 
@@ -204,17 +217,76 @@ describe('The Performance panel landing page', () => {
       await waitForMany(READY_LOCAL_METRIC_SELECTOR, 2);
 
       // INP and interactions should be reset
-      await waitFor(`#inp ${WAITING_LOCAL_METRIC_SELECTOR}`);
+      const inpCard = await waitFor('#inp devtools-metric-card');
+      await waitFor(WAITING_LOCAL_METRIC_SELECTOR, inpCard);
+
       const interactions3 = await $$<HTMLElement>(INTERACTION_SELECTOR);
       assert.lengthOf(interactions3, 0);
+
+      const layoutShifts3 = await $$<HTMLElement>(LAYOUT_SHIFT_SELECTOR);
+      assert.lengthOf(layoutShifts3, 0);
+    } finally {
+      await targetSession.detach();
+    }
+  });
+
+  it('ignores metrics from iframes', async () => {
+    const {target, frontend} = await getBrowserAndPages();
+
+    await target.bringToFront();
+
+    const targetSession = await target.createCDPSession();
+
+    try {
+      const framePromise = new Promise<puppeteer.Frame>(resolve => {
+        target.once('frameattached', resolve);
+      });
+
+      let executionContexts: puppeteer.Protocol.Runtime.ExecutionContextDescription[] = [];
+      targetSession.on('Runtime.executionContextCreated', event => {
+        executionContexts.push(event.context);
+      });
+      targetSession.on('Runtime.executionContextsCleared', () => {
+        executionContexts = [];
+      });
+
+      await targetSession.send('Runtime.enable');
+
+      const waitForLCP = await installLCPListener(targetSession);
+      await goToResource('performance/frame-metrics/index.html');
+      await waitForLCP();
+
+      const frame = await framePromise;
+
+      // Interactions from an iframe should be ignored
+      const h1El = await frame.waitForSelector('h1');
+      await h1El!.click();
+      await h1El!.click();
+      await frame.evaluate(() => new Promise(r => requestAnimationFrame(r)));
+      await frame.evaluate(() => new Promise(r => requestAnimationFrame(r)));
+
+      // This should be the only interaction that shows up
+      await target.click('h1');
+      await target.evaluate(() => new Promise(r => requestAnimationFrame(r)));
+      await target.evaluate(() => new Promise(r => requestAnimationFrame(r)));
+
+      await frontend.bringToFront();
+
+      await waitForMany(READY_LOCAL_METRIC_SELECTOR, 3);
+      const interactions = await $$<HTMLElement>(INTERACTION_SELECTOR);
+      assert.isAtLeast(interactions.length, 1);
+
+      // b/40884049
+      // Extra execution contexts can be created sometimes when dealing with iframes.
+      // We try to avoid that if possible.
+      const liveMetricContexts = executionContexts.filter(e => e.name === 'DevTools Performance Metrics');
+      assert.lengthOf(liveMetricContexts, 2);
     } finally {
       await targetSession.detach();
     }
   });
 
   it('gets field data automatically', async () => {
-    await navigateToPerformanceTab();
-
     await setCruxRawResponse('performance/crux-none.rawresponse');
     await goToResource('performance/fake-website.html');
 
@@ -226,11 +298,11 @@ describe('The Performance panel landing page', () => {
 
     {
       const [lcpHistogram, clsHistogram, inpHistogram] = await waitForMany(HISTOGRAM_SELECTOR, 3);
-      assert.deepStrictEqual(
+      assert.deepEqual(
           await lcpHistogram.$$eval('.histogram-percent', els => els.map(el => el.textContent)), ['-', '-', '-']);
-      assert.deepStrictEqual(
+      assert.deepEqual(
           await clsHistogram.$$eval('.histogram-percent', els => els.map(el => el.textContent)), ['-', '-', '-']);
-      assert.deepStrictEqual(
+      assert.deepEqual(
           await inpHistogram.$$eval('.histogram-percent', els => els.map(el => el.textContent)), ['-', '-', '-']);
     }
 
@@ -245,11 +317,11 @@ describe('The Performance panel landing page', () => {
 
     {
       const [lcpHistogram, clsHistogram, inpHistogram] = await waitForMany(HISTOGRAM_SELECTOR, 3);
-      assert.deepStrictEqual(
+      assert.deepEqual(
           await lcpHistogram.$$eval('.histogram-percent', els => els.map(el => el.textContent)), ['96%', '3%', '1%']);
-      assert.deepStrictEqual(
+      assert.deepEqual(
           await clsHistogram.$$eval('.histogram-percent', els => els.map(el => el.textContent)), ['100%', '0%', '0%']);
-      assert.deepStrictEqual(
+      assert.deepEqual(
           await inpHistogram.$$eval('.histogram-percent', els => els.map(el => el.textContent)), ['98%', '2%', '1%']);
     }
 
@@ -259,18 +331,16 @@ describe('The Performance panel landing page', () => {
 
     {
       const [lcpHistogram, clsHistogram, inpHistogram] = await waitForMany(HISTOGRAM_SELECTOR, 3);
-      assert.deepStrictEqual(
+      assert.deepEqual(
           await lcpHistogram.$$eval('.histogram-percent', els => els.map(el => el.textContent)), ['-', '-', '-']);
-      assert.deepStrictEqual(
+      assert.deepEqual(
           await clsHistogram.$$eval('.histogram-percent', els => els.map(el => el.textContent)), ['-', '-', '-']);
-      assert.deepStrictEqual(
+      assert.deepEqual(
           await inpHistogram.$$eval('.histogram-percent', els => els.map(el => el.textContent)), ['-', '-', '-']);
     }
   });
 
   it('uses URL override for field data', async () => {
-    await navigateToPerformanceTab();
-
     await setCruxRawResponse('performance/crux-valid.rawresponse');
     await goToResource('performance/fake-website.html');
 
@@ -310,4 +380,170 @@ describe('The Performance panel landing page', () => {
       assert.strictEqual(await inpFieldValue.evaluate(el => el.textContent) || '', '49 ms');
     }
   });
+
+  it('combines interaction entries correctly', async () => {
+    const {target, frontend} = await getBrowserAndPages();
+
+    await target.bringToFront();
+
+    const targetSession = await target.createCDPSession();
+    try {
+      // The # of interactions in other tests can vary depending on which interaction events happen to
+      // occur in the same frame. This test is designed to control when specific interaction events happen
+      // so that we can observe the results in the interaction log.
+      await goToResource('performance/interaction-tester.html');
+
+      // Delay ensures pointerdown and pointerup are in separate frames
+      await target.click('#long-click', {delay: 200});
+
+      // No delay ensures pointerdown and pointerup are in the same frame
+      await target.click('#long-click');
+
+      // Delay ensures keydown and keyup are in separate frames
+      await target.type('#long-type', 'hi', {delay: 200});
+
+      await target.evaluate(() => new Promise(r => requestAnimationFrame(r)));
+      await target.evaluate(() => new Promise(r => requestAnimationFrame(r)));
+
+      await frontend.bringToFront();
+
+      {
+        const interactions = await waitForMany(INTERACTION_SELECTOR, 7);
+        const interactionTypes = await Promise.all(
+            interactions.map(el => el.$eval('.interaction-type', el => (el as HTMLElement).innerText)));
+        assert.deepEqual(interactionTypes, [
+          'pointer',
+          'pointer INP',
+          'pointer',
+          'keyboard',
+          'keyboard',
+          'keyboard',
+          'keyboard',
+        ]);
+      }
+    } finally {
+      await targetSession.detach();
+    }
+  });
+
+  it('logs extra interaction details to console', async () => {
+    const {target, frontend} = await getBrowserAndPages();
+
+    await target.bringToFront();
+
+    const targetSession = await target.createCDPSession();
+    try {
+      await goToResource('performance/interaction-tester.html');
+
+      await target.click('#long-click');
+
+      await target.evaluate(() => new Promise(r => requestAnimationFrame(r)));
+      await target.evaluate(() => new Promise(r => requestAnimationFrame(r)));
+
+      await frontend.bringToFront();
+
+      const interaction = await waitFor(INTERACTION_SELECTOR);
+      await click('summary', {root: interaction});
+
+      await click('.log-extra-details-button', {root: interaction});
+
+      await tabExistsInDrawer('#tab-console-view');
+      const messages = await getCurrentConsoleMessages();
+      assert.lengthOf(messages, 4);
+      assert.match(messages[0], /^\[DevTools\] Long animation frames for \d+ms pointer interaction$/);
+      assert.strictEqual(messages[1], 'Scripts:');
+      assert.strictEqual(messages[2], 'Array(3)');
+      assert.strictEqual(messages[3], 'Intersecting long animation frame events: [{…}]');
+    } finally {
+      await targetSession.detach();
+    }
+  });
+
+  // Flaking.
+  it.skip('[crbug.com/405356930]: does not retain interaction nodes in memory', async () => {
+    const {target, frontend} = getBrowserAndPages();
+
+    await target.bringToFront();
+
+    const targetSession = await target.createCDPSession();
+    try {
+      await goToHtml('<button>Click me!</button>');
+
+      const button = await target.waitForSelector('button');
+      await button!.click();
+
+      // This ensures that the interaction has time to make it's way through web-vitals.js and
+      // be detected by the live metrics model in DevTools.
+      //
+      // If any unnecessary JS references to the node get created they will be created in this time period.
+      await target.evaluate(() => new Promise(requestAnimationFrame));
+      await target.evaluate(() => new Promise(requestAnimationFrame));
+      await frontend.bringToFront();
+      await waitFor(INTERACTION_SELECTOR);
+      await target.bringToFront();
+
+      // Attempt to remove the node from memory
+      await button!.evaluate(async el => {
+        el.remove();
+        await new Promise(requestAnimationFrame);
+      });
+      await button!.dispose();
+
+      // Ensure the node is not preserved in a detached state
+      const hasNoDetachedNodes = await retryUntilExpected(async () => {
+        const {detachedNodes} = await targetSession.send('DOM.getDetachedDomNodes');
+        return detachedNodes.length === 0;
+      });
+      assert.isTrue(hasNoDetachedNodes, 'detached nodes were found after retries');
+
+      await frontend.bringToFront();
+
+      // For redundancy, ensure the button node is removed from the memory heap
+      await navigateToMemoryTab();
+      await takeHeapSnapshot();
+      await waitForNonEmptyHeapSnapshotData();
+      await setClassFilter('Detached <button>');
+      const row = await getCategoryRow('Detached <button>', false);
+      assert.isNull(row);
+    } finally {
+      await targetSession.detach();
+    }
+  });
 });
+
+/**
+ * Retries the function a number of times until it returns true, or hits the max retries.
+ * Note that this is different to our waitForFunction helpers which run the
+ * function in the context of the target page. This runs in the execution of the
+ * test file itself.
+ */
+async function retryUntilExpected(asyncFunction: () => Promise<boolean>, maxRetries = 5): Promise<boolean> {
+  let retries = 0;
+
+  async function attempt(): Promise<boolean> {
+    try {
+      const result = await asyncFunction();
+      if (result === true) {
+        return true;
+      }
+      // Silently retry
+      if (retries < maxRetries) {
+        retries++;
+        await new Promise(resolve => setTimeout(resolve, 100));
+        return await attempt();
+      }
+      return false;  // Max retries exceeded
+
+    } catch {
+      // Silently retry even if there is an error
+      if (retries < maxRetries) {
+        retries++;
+        await new Promise(resolve => setTimeout(resolve, 100));
+        return await attempt();
+      }
+      return false;  // Max retries exceeded
+    }
+  }
+
+  return await attempt();
+}

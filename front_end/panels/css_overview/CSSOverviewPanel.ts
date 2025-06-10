@@ -2,21 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as CSSOverviewComponents from './components/components.js';
-import cssOverviewStyles from './cssOverview.css.js';
 import type * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as SDK from '../../core/sdk/sdk.js';
-import * as UI from '../../ui/legacy/legacy.js';
 import type * as Protocol from '../../generated/protocol.js';
+import * as UI from '../../ui/legacy/legacy.js';
 
-import {CSSOverviewCompletedView, type ContrastIssue} from './CSSOverviewCompletedView.js';
-
+import * as CSSOverviewComponents from './components/components.js';
+import cssOverviewStyles from './cssOverview.css.js';
+import {type ContrastIssue, CSSOverviewCompletedView} from './CSSOverviewCompletedView.js';
 import {Events, type OverviewController} from './CSSOverviewController.js';
-
 import {CSSOverviewModel, type GlobalStyleStats} from './CSSOverviewModel.js';
 import {CSSOverviewProcessingView} from './CSSOverviewProcessingView.js';
-import {type UnusedDeclaration} from './CSSOverviewUnusedDeclarations.js';
+import type {UnusedDeclaration} from './CSSOverviewUnusedDeclarations.js';
 
 export class CSSOverviewPanel extends UI.Panel.Panel implements SDK.TargetManager.Observer {
   readonly #controller: OverviewController;
@@ -37,25 +35,26 @@ export class CSSOverviewPanel extends UI.Panel.Panel implements SDK.TargetManage
 
   constructor(controller: OverviewController) {
     super('css-overview');
+    this.registerRequiredCSS(cssOverviewStyles);
 
     this.element.classList.add('css-overview-panel');
 
     this.#controller = controller;
     this.#startView = new CSSOverviewComponents.CSSOverviewStartView.CSSOverviewStartView();
     this.#startView.addEventListener(
-        'overviewstartrequested', () => this.#controller.dispatchEventToListeners(Events.RequestOverviewStart));
+        'overviewstartrequested', () => this.#controller.dispatchEventToListeners(Events.REQUEST_OVERVIEW_START));
     this.#processingView = new CSSOverviewProcessingView(this.#controller);
     this.#completedView = new CSSOverviewCompletedView(this.#controller);
 
     SDK.TargetManager.TargetManager.instance().observeTargets(this);
 
-    this.#controller.addEventListener(Events.RequestOverviewStart, _event => {
+    this.#controller.addEventListener(Events.REQUEST_OVERVIEW_START, _event => {
       Host.userMetrics.actionTaken(Host.UserMetrics.Action.CaptureCssOverviewClicked);
       void this.#startOverview();
     }, this);
-    this.#controller.addEventListener(Events.OverviewCompleted, this.#overviewCompleted, this);
-    this.#controller.addEventListener(Events.Reset, this.#reset, this);
-    this.#controller.addEventListener(Events.RequestNodeHighlight, this.#requestNodeHighlight, this);
+    this.#controller.addEventListener(Events.OVERVIEW_COMPLETED, this.#overviewCompleted, this);
+    this.#controller.addEventListener(Events.RESET, this.#reset, this);
+    this.#controller.addEventListener(Events.REQUEST_NODE_HIGHLIGHT, this.#requestNodeHighlight, this);
 
     this.#reset();
   }
@@ -196,14 +195,10 @@ export class CSSOverviewPanel extends UI.Panel.Panel implements SDK.TargetManage
       this.#unusedDeclarations = unusedDeclarations;
     }
 
-    this.#controller.dispatchEventToListeners(Events.OverviewCompleted);
+    this.#controller.dispatchEventToListeners(Events.OVERVIEW_COMPLETED);
   }
 
   #overviewCompleted(): void {
     this.#renderOverviewCompletedView();
-  }
-  override wasShown(): void {
-    super.wasShown();
-    this.registerCSSFiles([cssOverviewStyles]);
   }
 }

@@ -146,10 +146,6 @@ export function markAsRadioGroup(element: Element): void {
   element.setAttribute('role', 'radiogroup');
 }
 
-export function markAsHidden(element: Element): void {
-  element.setAttribute('aria-hidden', 'true');
-}
-
 export function markAsSlider(element: Element, min: number|undefined = 0, max: number|undefined = 100): void {
   element.setAttribute('role', 'slider');
   element.setAttribute('aria-valuemin', String(min));
@@ -166,10 +162,6 @@ export function markAsPoliteLiveRegion(element: Element, isAtomic: boolean): voi
   if (isAtomic) {
     element.setAttribute('aria-atomic', 'true');
   }
-}
-
-export function markAsLog(element: Element): void {
-  element.setAttribute('role', 'log');
 }
 
 export function hasRole(element: Element): boolean {
@@ -246,7 +238,7 @@ export function unsetExpandable(element: Element): void {
 }
 
 export function setHidden(element: Element, value: boolean): void {
-  element.setAttribute('aria-hidden', (Boolean(value)).toString());
+  element.setAttribute('aria-hidden', value.toString());
 }
 
 export function setLevel(element: Element, level: number): void {
@@ -254,14 +246,14 @@ export function setLevel(element: Element, level: number): void {
 }
 
 export const enum AutocompleteInteractionModel {
-  Inline = 'inline',
-  List = 'list',
-  Both = 'both',
-  None = 'none',
+  INLINE = 'inline',
+  LIST = 'list',
+  BOTH = 'both',
+  NONE = 'none',
 }
 
 export function setAutocomplete(
-    element: Element, interactionModel: AutocompleteInteractionModel = AutocompleteInteractionModel.None): void {
+    element: Element, interactionModel: AutocompleteInteractionModel = AutocompleteInteractionModel.NONE): void {
   element.setAttribute('aria-autocomplete', interactionModel);
 }
 
@@ -270,17 +262,17 @@ export function clearAutocomplete(element: Element): void {
 }
 
 export const enum PopupRole {
-  False = 'false',      // (default) Indicates the element does not have a popup.
-  True = 'true',        // Indicates the popup is a menu.
-  Menu = 'menu',        // Indicates the popup is a menu.
-  ListBox = 'listbox',  // Indicates the popup is a listbox.
-  Tree = 'tree',        // Indicates the popup is a tree.
-  Grid = 'grid',        // Indicates the popup is a grid.
-  Dialog = 'dialog',    // Indicates the popup is a dialog.
+  FALSE = 'false',       // (default) Indicates the element does not have a popup.
+  TRUE = 'true',         // Indicates the popup is a menu.
+  MENU = 'menu',         // Indicates the popup is a menu.
+  LIST_BOX = 'listbox',  // Indicates the popup is a listbox.
+  TREE = 'tree',         // Indicates the popup is a tree.
+  GRID = 'grid',         // Indicates the popup is a grid.
+  DIALOG = 'dialog',     // Indicates the popup is a dialog.
 }
 
-export function setHasPopup(element: Element, value: PopupRole = PopupRole.False): void {
-  if (value !== PopupRole.False) {
+export function setHasPopup(element: Element, value: PopupRole = PopupRole.FALSE): void {
+  if (value !== PopupRole.FALSE) {
     element.setAttribute('aria-haspopup', value);
   } else {
     element.removeAttribute('aria-haspopup');
@@ -380,11 +372,11 @@ function hideFromLayout(element: HTMLElement): void {
   element.style.overflow = 'hidden';
 }
 
-type AlertState = {
-  one: HTMLDivElement,
-  two: HTMLDivElement,
-  alertToggle: boolean,
-};
+interface AlertState {
+  one: HTMLDivElement;
+  two: HTMLDivElement;
+  alertToggle: boolean;
+}
 const alertElements = new WeakMap<HTMLElement, AlertState>();
 
 function createAlertElement(container: HTMLElement): HTMLDivElement {
@@ -392,7 +384,7 @@ function createAlertElement(container: HTMLElement): HTMLDivElement {
   hideFromLayout(element);
   element.setAttribute('role', 'alert');
   element.setAttribute('aria-atomic', 'true');
-  return element as HTMLDivElement;
+  return element;
 }
 
 export function getOrCreateAlertElements(container: HTMLElement = document.body): AlertState {
@@ -430,6 +422,6 @@ export function alertElementInstance(container = document.body): HTMLElement {
  */
 export function alert(message: string): void {
   const dialog = Dialog.getInstance();
-  const element = alertElementInstance(dialog && dialog.isShowing() ? dialog.contentElement : undefined);
+  const element = alertElementInstance(dialog?.isShowing() ? dialog.contentElement : undefined);
   element.textContent = Platform.StringUtilities.trimEndWithMaxLength(message, 10000);
 }

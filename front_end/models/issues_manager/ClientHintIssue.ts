@@ -7,11 +7,10 @@ import type * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 
 import {Issue, IssueCategory, IssueKind} from './Issue.js';
-
 import {
-  resolveLazyDescription,
-  type MarkdownIssueDescription,
   type LazyMarkdownIssueDescription,
+  type MarkdownIssueDescription,
+  resolveLazyDescription,
 } from './MarkdownIssueDescription.js';
 
 const UIStrings = {
@@ -19,7 +18,7 @@ const UIStrings = {
    *@description Title for Client Hint specification url link
    */
   clientHintsInfrastructure: 'Client Hints Infrastructure',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/ClientHintIssue.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
@@ -37,7 +36,7 @@ export class ClientHintIssue extends Issue {
   }
 
   getCategory(): IssueCategory {
-    return IssueCategory.Other;
+    return IssueCategory.OTHER;
   }
 
   details(): Protocol.Audits.ClientHintIssueDetails {
@@ -61,7 +60,7 @@ export class ClientHintIssue extends Issue {
   }
 
   getKind(): IssueKind {
-    return IssueKind.BreakingChange;
+    return IssueKind.BREAKING_CHANGE;
   }
 
   static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):
@@ -75,7 +74,7 @@ export class ClientHintIssue extends Issue {
   }
 }
 
-const issueDescriptions: Map<Protocol.Audits.ClientHintIssueReason, LazyMarkdownIssueDescription> = new Map([
+const issueDescriptions = new Map<Protocol.Audits.ClientHintIssueReason, LazyMarkdownIssueDescription>([
   [
     Protocol.Audits.ClientHintIssueReason.MetaTagAllowListInvalidOrigin,
     {

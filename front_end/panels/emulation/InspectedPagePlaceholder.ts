@@ -5,7 +5,7 @@
 import * as Common from '../../core/common/common.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
-import inspectedPagePlaceholderStyles from './inspectedPagePlaceholder.css.legacy.js';
+import inspectedPagePlaceholderStyles from './inspectedPagePlaceholder.css.js';
 
 let inspectedPagePlaceholderInstance: InspectedPagePlaceholder;
 
@@ -15,7 +15,7 @@ export class InspectedPagePlaceholder extends Common.ObjectWrapper.eventMixin<Ev
   constructor() {
     super(true);
     this.registerRequiredCSS(inspectedPagePlaceholderStyles);
-    UI.ZoomManager.ZoomManager.instance().addEventListener(UI.ZoomManager.Events.ZoomChanged, this.onResize, this);
+    UI.ZoomManager.ZoomManager.instance().addEventListener(UI.ZoomManager.Events.ZOOM_CHANGED, this.onResize, this);
     this.restoreMinimumSize();
   }
 
@@ -75,15 +75,15 @@ export class InspectedPagePlaceholder extends Common.ObjectWrapper.eventMixin<Ev
     if (force) {
       // Short term fix for Lighthouse interop.
       --bounds.height;
-      this.dispatchEventToListeners(Events.Update, bounds);
+      this.dispatchEventToListeners(Events.UPDATE, bounds);
       ++bounds.height;
     }
-    this.dispatchEventToListeners(Events.Update, bounds);
+    this.dispatchEventToListeners(Events.UPDATE, bounds);
   }
 }
 
 export const enum Events {
-  Update = 'Update',
+  UPDATE = 'Update',
 }
 
 export interface Bounds {
@@ -93,6 +93,6 @@ export interface Bounds {
   width: number;
 }
 
-export type EventTypes = {
-  [Events.Update]: Bounds,
-};
+export interface EventTypes {
+  [Events.UPDATE]: Bounds;
+}

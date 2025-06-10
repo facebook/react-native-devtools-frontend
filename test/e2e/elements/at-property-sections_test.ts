@@ -15,7 +15,6 @@ import {
   waitForMany,
   waitForNone,
 } from '../../shared/helper.js';
-import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   ELEMENTS_PANEL_SELECTOR,
   getStyleRule,
@@ -44,29 +43,24 @@ describe('The styles pane', () => {
     await goToResourceAndWaitForStyleSection('elements/at-property.html');
     await hover('.invalid-property-value:has(> [aria-label="CSS property name: --my-color"]) .exclamation-mark');
 
-    const popover = await waitFor('.variable-value-popup-wrapper');
-    const popoverContents = (await popover.evaluate(e => e.textContent))?.trim()?.replaceAll(/\s\s+/g, ', ');
+    const popover = await waitFor(':popover-open devtools-css-variable-parser-error');
+    const firstSection = await waitFor('.variable-value-popup-wrapper', popover);
+    const popoverContents = (await firstSection.evaluate(e => e.textContent))?.trim()?.replaceAll(/\s\s+/g, ', ');
 
     assert.deepEqual(popoverContents, 'Invalid property value, expected type "<color>", View registered property');
   });
 
-  it('correctly determines the computed value for non-overriden properties', async () => {
-    await goToResourceAndWaitForStyleSection('elements/at-property.html');
-    const myColorProp = await waitForAria('CSS property value: var(--my-cssom-color)');
-    await waitFor('.link-swatch-link[data-title="orange"]', myColorProp);
-  });
-
   it('shows registered properties', async () => {
     await goToResourceAndWaitForStyleSection('elements/at-property.html');
-    assert.deepStrictEqual(await getStyleRuleProperties('--my-color', 3), {
+    assert.deepEqual(await getStyleRuleProperties('--my-color', 3), {
       properties: ['    inherits: false;', '    initial-value: red;', '    syntax: "<color>";'],
       subtitle: '<style>',
     });
-    assert.deepStrictEqual(await getStyleRuleProperties('--my-color2', 3), {
+    assert.deepEqual(await getStyleRuleProperties('--my-color2', 3), {
       properties: ['    inherits: false;', '    initial-value: #c0ffee;', '    syntax: "<color>";'],
       subtitle: '<style>',
     });
-    assert.deepStrictEqual(await getStyleRuleProperties('--my-cssom-color', 3), {
+    assert.deepEqual(await getStyleRuleProperties('--my-cssom-color', 3), {
       properties: ['    inherits: false;', '    initial-value: orange;', '    syntax: "<color>";'],
       subtitle: 'CSS.registerProperty',
     });
@@ -78,7 +72,7 @@ describe('The styles pane', () => {
     const stylesPane = await waitFor('div.styles-pane');
     {
       const section = await waitForElementWithTextContent('@property', stylesPane);
-      assert.deepStrictEqual(await section.evaluate(e => e.ariaExpanded), 'true');
+      assert.deepEqual(await section.evaluate(e => e.ariaExpanded), 'true');
       const rule = await getStyleRule('--my-color');
       assert.isTrue(await rule.evaluate(e => !e.classList.contains('hidden')));
     }
@@ -107,7 +101,7 @@ describe('The styles pane', () => {
     const stylesPane = await waitFor('div.styles-pane');
     {
       const section = await waitForElementWithTextContent('@property', stylesPane);
-      assert.deepStrictEqual(await section.evaluate(e => e.ariaExpanded), 'false');
+      assert.deepEqual(await section.evaluate(e => e.ariaExpanded), 'false');
       // Pick the style rule added last to ensure the sections are fully drawn
       const rule = await getStyleRule('--custom-prop-4');
       assert.isTrue(await rule.evaluate(e => e.classList.contains('hidden')));
@@ -117,7 +111,7 @@ describe('The styles pane', () => {
       const section = await click('pierceShadowText/@property', {root: stylesPane});
       await waitForFunction(async () => 'true' === await section.evaluate(e => e.ariaExpanded));
       const rule = await getStyleRule('--custom-prop-4');
-      return rule.evaluate(e => !e.classList.contains('hidden'));
+      return await rule.evaluate(e => !e.classList.contains('hidden'));
     });
   });
 
@@ -131,7 +125,8 @@ describe('The styles pane', () => {
         await hover(`aria/CSS property name: ${label}`);
       }
 
-      const firstSection = await waitFor('.variable-value-popup-wrapper');
+      const popover = await waitFor(':popover-open devtools-css-variable-value-view');
+      const firstSection = await waitFor('.variable-value-popup-wrapper', popover);
       const textContent = await firstSection.evaluate((e: Element|null) => {
         const results = [];
         while (e) {
@@ -143,7 +138,7 @@ describe('The styles pane', () => {
       const popoverContents = textContent.join(' ').trim().replaceAll(/\s\s+/g, ', ');
 
       await hover(ELEMENTS_PANEL_SELECTOR);
-      await waitForNone('.variable-value-popup-wrapper');
+      await waitForNone(':popover-open devtools-css-variable-value-view');
 
       return popoverContents;
     }

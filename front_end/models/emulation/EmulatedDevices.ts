@@ -25,7 +25,7 @@ const UIStrings = {
    *@description Title of the Laptop with MDPI screen device
    */
   laptopWithMDPIScreen: 'Laptop with MDPI screen',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('models/emulation/EmulatedDevices.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
@@ -59,7 +59,7 @@ export class EmulatedDevice {
     this.vertical = {width: 0, height: 0, outlineInsets: null, outlineImage: null, hinge: null};
     this.horizontal = {width: 0, height: 0, outlineInsets: null, outlineImage: null, hinge: null};
     this.deviceScaleFactor = 1;
-    this.capabilities = [Capability.Touch, Capability.Mobile];
+    this.capabilities = [Capability.TOUCH, Capability.MOBILE];
     this.userAgent = '';
     this.userAgentMetadata = null;
     this.modes = [];
@@ -124,7 +124,7 @@ export class EmulatedDevice {
           throw new Error('color has wrong a value: ' + result.a);
         }
 
-        return result as SDK.OverlayModel.HighlightColor;
+        return result;
       }
 
       function parseHinge(json: any): SDK.OverlayModel.Hinge {
@@ -158,7 +158,7 @@ export class EmulatedDevice {
           result.outlineColor = parseRGBA(json['outlineColor']);
         }
 
-        return result as SDK.OverlayModel.Hinge;
+        return result;
       }
 
       function parseOrientation(json: any): Orientation {
@@ -187,7 +187,7 @@ export class EmulatedDevice {
           result.hinge = parseHinge(parseValue(json, 'hinge', 'object', undefined));
         }
 
-        return result as Orientation;
+        return result;
       }
 
       const result = new EmulatedDevice();
@@ -233,8 +233,8 @@ export class EmulatedDevice {
       }
 
       const modes = parseValue(json, 'modes', 'object', [
-        {'title': 'default', 'orientation': 'vertical'},
-        {'title': 'default', 'orientation': 'horizontal'},
+        {title: 'default', orientation: 'vertical'},
+        {title: 'default', orientation: 'horizontal'},
       ]);
       if (!Array.isArray(modes)) {
         throw new Error('Emulated device modes must be an array');
@@ -266,7 +266,7 @@ export class EmulatedDevice {
       result.#showInternal = show;
 
       return result;
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -348,13 +348,13 @@ export class EmulatedDevice {
     json['modes'] = [] as JSONMode[];
     for (let i = 0; i < this.modes.length; ++i) {
       const mode: JSONMode = {
-        'title': this.modes[i].title,
-        'orientation': this.modes[i].orientation,
-        'insets': {
-          'left': this.modes[i].insets.left,
-          'top': this.modes[i].insets.top,
-          'right': this.modes[i].insets.right,
-          'bottom': this.modes[i].insets.bottom,
+        title: this.modes[i].title,
+        orientation: this.modes[i].orientation,
+        insets: {
+          left: this.modes[i].insets.left,
+          top: this.modes[i].insets.top,
+          right: this.modes[i].insets.right,
+          bottom: this.modes[i].insets.bottom,
         },
         image: this.modes[i].image || undefined,
       };
@@ -380,20 +380,20 @@ export class EmulatedDevice {
     if (orientation.outlineInsets) {
       json.outline = {
         insets: {
-          'left': orientation.outlineInsets.left,
-          'top': orientation.outlineInsets.top,
-          'right': orientation.outlineInsets.right,
-          'bottom': orientation.outlineInsets.bottom,
+          left: orientation.outlineInsets.left,
+          top: orientation.outlineInsets.top,
+          right: orientation.outlineInsets.right,
+          bottom: orientation.outlineInsets.bottom,
         },
         image: orientation.outlineImage,
       } as {image: string | null, insets: {left: number, right: number, top: number, bottom: number}};
     }
     if (orientation.hinge) {
       json.hinge = {
-        'width': orientation.hinge.width,
-        'height': orientation.hinge.height,
-        'x': orientation.hinge.x,
-        'y': orientation.hinge.y,
+        width: orientation.hinge.width,
+        height: orientation.hinge.height,
+        x: orientation.hinge.x,
+        y: orientation.hinge.y,
         contentColor: undefined,
         outlineColor: undefined,
       } as {
@@ -407,18 +407,18 @@ export class EmulatedDevice {
 
       if (orientation.hinge.contentColor) {
         json.hinge.contentColor = {
-          'r': orientation.hinge.contentColor.r,
-          'g': orientation.hinge.contentColor.g,
-          'b': orientation.hinge.contentColor.b,
-          'a': orientation.hinge.contentColor.a,
+          r: orientation.hinge.contentColor.r,
+          g: orientation.hinge.contentColor.g,
+          b: orientation.hinge.contentColor.b,
+          a: orientation.hinge.contentColor.a,
         };
       }
       if (orientation.hinge.outlineColor) {
         json.hinge.outlineColor = {
-          'r': orientation.hinge.outlineColor.r,
-          'g': orientation.hinge.outlineColor.g,
-          'b': orientation.hinge.outlineColor.b,
-          'a': orientation.hinge.outlineColor.a,
+          r: orientation.hinge.outlineColor.r,
+          g: orientation.hinge.outlineColor.g,
+          b: orientation.hinge.outlineColor.b,
+          a: orientation.hinge.outlineColor.a,
         };
       }
     }
@@ -468,11 +468,11 @@ export class EmulatedDevice {
   }
 
   touch(): boolean {
-    return this.capabilities.indexOf(Capability.Touch) !== -1;
+    return this.capabilities.indexOf(Capability.TOUCH) !== -1;
   }
 
   mobile(): boolean {
-    return this.capabilities.indexOf(Capability.Mobile) !== -1;
+    return this.capabilities.indexOf(Capability.MOBILE) !== -1;
   }
 }
 
@@ -482,22 +482,26 @@ export const HorizontalSpanned = 'horizontal-spanned';
 export const VerticalSpanned = 'vertical-spanned';
 
 enum Type {
+  /* eslint-disable @typescript-eslint/naming-convention -- Indexed access. */
   Phone = 'phone',
   Tablet = 'tablet',
   Notebook = 'notebook',
   Desktop = 'desktop',
   Unknown = 'unknown',
+  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
 export const enum Capability {
-  Touch = 'touch',
-  Mobile = 'mobile',
+  TOUCH = 'touch',
+  MOBILE = 'mobile',
 }
 
 enum Show {
+  /* eslint-disable @typescript-eslint/naming-convention -- Indexed access. */
   Always = 'Always',
   Default = 'Default',
   Never = 'Never',
+  /* eslint-enable @typescript-eslint/naming-convention */
 }
 
 let emulatedDevicesListInstance: EmulatedDevicesList;
@@ -531,8 +535,8 @@ export class EmulatedDevicesList extends Common.ObjectWrapper.ObjectWrapper<Even
 
   private updateStandardDevices(): void {
     const devices = new Set<EmulatedDevice>();
-    for (const extension of emulatedDevices) {
-      const device = EmulatedDevice.fromJSONV1(extension);
+    for (const emulatedDevice of emulatedDevices) {
+      const device = EmulatedDevice.fromJSONV1(emulatedDevice);
       if (device) {
         devices.add(device);
       }
@@ -562,6 +566,10 @@ export class EmulatedDevicesList extends Common.ObjectWrapper.ObjectWrapper<Even
     return success;
   }
 
+  static rawEmulatedDevicesForTest(): typeof emulatedDevices {
+    return emulatedDevices;
+  }
+
   standard(): EmulatedDevice[] {
     return [...this.#standardInternal];
   }
@@ -589,7 +597,7 @@ export class EmulatedDevicesList extends Common.ObjectWrapper.ObjectWrapper<Even
     this.#customInternal.forEach(device => json.push(device.toJSON()));
 
     this.#customSetting.set(json);
-    this.dispatchEventToListeners(Events.CustomDevicesUpdated);
+    this.dispatchEventToListeners(Events.CUSTOM_DEVICES_UPDATED);
   }
 
   saveStandardDevices(): void {
@@ -597,7 +605,7 @@ export class EmulatedDevicesList extends Common.ObjectWrapper.ObjectWrapper<Even
     this.#standardInternal.forEach(device => json.push(device.toJSON()));
 
     this.#standardSetting.set(json);
-    this.dispatchEventToListeners(Events.StandardDevicesUpdated);
+    this.dispatchEventToListeners(Events.STANDARD_DEVICES_UPDATED);
   }
 
   private copyShowValues(from: Set<EmulatedDevice>, to: Set<EmulatedDevice>): void {
@@ -616,14 +624,14 @@ export class EmulatedDevicesList extends Common.ObjectWrapper.ObjectWrapper<Even
 }
 
 export const enum Events {
-  CustomDevicesUpdated = 'CustomDevicesUpdated',
-  StandardDevicesUpdated = 'StandardDevicesUpdated',
+  CUSTOM_DEVICES_UPDATED = 'CustomDevicesUpdated',
+  STANDARD_DEVICES_UPDATED = 'StandardDevicesUpdated',
 }
 
-export type EventTypes = {
-  [Events.CustomDevicesUpdated]: void,
-  [Events.StandardDevicesUpdated]: void,
-};
+export interface EventTypes {
+  [Events.CUSTOM_DEVICES_UPDATED]: void;
+  [Events.STANDARD_DEVICES_UPDATED]: void;
+}
 
 export interface Mode {
   title: string;
@@ -650,6 +658,8 @@ export interface JSONMode {
   };
 }
 
+// These props should quoted for the script to work properly
+/* eslint-disable @stylistic/quote-props */
 const emulatedDevices = [
   // This is used by a python script to keep this list up-to-date with
   // chromedriver native code.
@@ -752,7 +762,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Linux; Android 11; Pixel 3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.181 Mobile Safari/537.36',
+        'Mozilla/5.0 (Linux; Android 11; Pixel 3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36',
     'user-agent-metadata':
         {'platform': 'Android', 'platformVersion': '11', 'architecture': '', 'model': 'Pixel 3', 'mobile': true},
     'type': 'phone',
@@ -774,7 +784,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36',
+        'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36',
     'user-agent-metadata':
         {'platform': 'Android', 'platformVersion': '13', 'architecture': '', 'model': 'Pixel 5', 'mobile': true},
     'type': 'phone',
@@ -796,7 +806,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36',
+        'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36',
     'user-agent-metadata':
         {'platform': 'Android', 'platformVersion': '8.0.0', 'architecture': '', 'model': 'SM-G955U', 'mobile': true},
     'type': 'phone',
@@ -818,7 +828,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Linux; Android 13; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36',
+        'Mozilla/5.0 (Linux; Android 13; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36',
     'user-agent-metadata':
         {'platform': 'Android', 'platformVersion': '13', 'architecture': '', 'model': 'SM-G981B', 'mobile': true},
     'type': 'phone',
@@ -900,7 +910,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36',
     'type': 'tablet',
   },
   {
@@ -1027,7 +1037,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch'],
     'user-agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36',
     'user-agent-metadata':
         {'platform': 'Windows', 'platformVersion': '11.0', 'architecture': '', 'model': 'UX9702AA', 'mobile': false},
     'type': 'tablet',
@@ -1063,7 +1073,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36',
+        'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36',
     'user-agent-metadata':
         {'platform': 'Android', 'platformVersion': '8.0.0', 'architecture': '', 'model': 'SM-G955U', 'mobile': true},
     'type': 'phone',
@@ -1089,7 +1099,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.188 Safari/537.36 CrKey/1.54.250320',
+        'Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36 CrKey/1.54.250320',
     'type': 'tablet',
     'modes': [{'title': 'default', 'orientation': 'horizontal'}],
   },
@@ -1114,7 +1124,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.109 Safari/537.36 CrKey/1.54.248666',
+        'Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36 CrKey/1.54.248666',
     'user-agent-metadata':
         {'platform': 'Android', 'platformVersion': '', 'architecture': '', 'model': '', 'mobile': false},
     'type': 'tablet',
@@ -1479,7 +1489,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Linux; Android 9; Pixel 3 Build/PQ1A.181105.017.A1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/66.0.3359.158 Mobile Safari/537.36',
+        'Mozilla/5.0 (Linux; Android 9; Pixel 3 Build/PQ1A.181105.017.A1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36',
     'user-agent-metadata':
         {'platform': 'Android', 'platformVersion': '9', 'architecture': '', 'model': 'Pixel 3', 'mobile': true},
     'type': 'phone',
@@ -1494,7 +1504,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Linux; Android 10; Pixel 4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Mobile Safari/537.36',
+        'Mozilla/5.0 (Linux; Android 10; Pixel 4) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36',
     'user-agent-metadata':
         {'platform': 'Android', 'platformVersion': '10', 'architecture': '', 'model': 'Pixel 4', 'mobile': true},
     'type': 'phone',
@@ -1550,7 +1560,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Windows Phone 10.0; Android 4.2.1; Microsoft; Lumia 550) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2486.0 Mobile Safari/537.36 Edge/14.14263',
+        'Mozilla/5.0 (Windows Phone 10.0; Android 4.2.1; Microsoft; Lumia 550) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36 Edge/14.14263',
     'user-agent-metadata':
         {'platform': 'Android', 'platformVersion': '4.2.1', 'architecture': '', 'model': 'Lumia 550', 'mobile': true},
     'type': 'phone',
@@ -1565,7 +1575,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Windows Phone 10.0; Android 4.2.1; Microsoft; Lumia 950) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/46.0.2486.0 Mobile Safari/537.36 Edge/14.14263',
+        'Mozilla/5.0 (Windows Phone 10.0; Android 4.2.1; Microsoft; Lumia 950) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36 Edge/14.14263',
     'user-agent-metadata':
         {'platform': 'Android', 'platformVersion': '4.2.1', 'architecture': '', 'model': 'Lumia 950', 'mobile': true},
     'type': 'phone',
@@ -1611,7 +1621,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Linux; Android 7.0; SM-G950U Build/NRD90M) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.84 Mobile Safari/537.36',
+        'Mozilla/5.0 (Linux; Android 7.0; SM-G950U Build/NRD90M) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36',
     'user-agent-metadata':
         {'platform': 'Android', 'platformVersion': '7.0', 'architecture': '', 'model': 'SM-G950U', 'mobile': true},
     'type': 'phone',
@@ -1626,7 +1636,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Linux; Android 8.0.0; SM-G965U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.111 Mobile Safari/537.36',
+        'Mozilla/5.0 (Linux; Android 8.0.0; SM-G965U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36',
     'user-agent-metadata':
         {'platform': 'Android', 'platformVersion': '8.0.0', 'architecture': '', 'model': 'SM-G965U', 'mobile': true},
     'type': 'phone',
@@ -1641,7 +1651,7 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Linux; Android 8.1.0; SM-T837A) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.80 Safari/537.36',
+        'Mozilla/5.0 (Linux; Android 8.1.0; SM-T837A) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Safari/537.36',
     'user-agent-metadata':
         {'platform': 'Android', 'platformVersion': '8.1.0', 'architecture': '', 'model': 'SM-T837A', 'mobile': false},
     'type': 'phone',
@@ -1925,3 +1935,4 @@ const emulatedDevices = [
   },
   // DEVICE-LIST-END
 ];
+/* eslint-enable @stylistic/quote-props */

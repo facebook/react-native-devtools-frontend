@@ -32,24 +32,24 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+import '../../ui/legacy/legacy.js';
+
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
-import * as Bindings from '../../models/bindings/bindings.js';
 import type * as Extensions from '../../models/extensions/extensions.js';
 import * as Logs from '../../models/logs/logs.js';
-import * as TraceEngine from '../../models/trace/trace.js';
+import * as Trace from '../../models/trace/trace.js';
 import * as Workspace from '../../models/workspace/workspace.js';
-import type * as NetworkForward from '../../panels/network/forward/forward.js';
+import * as NetworkForward from '../../panels/network/forward/forward.js';
 import * as PerfUI from '../../ui/legacy/components/perf_ui/perf_ui.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 import * as MobileThrottling from '../mobile_throttling/mobile_throttling.js';
 import * as Search from '../search/search.js';
-import * as TimelineUtils from '../timeline/utils/utils.js';
 
 import {Events, type RequestActivatedEvent} from './NetworkDataGridNode.js';
 import {NetworkItemView} from './NetworkItemView.js';
@@ -79,7 +79,7 @@ const UIStrings = {
   /**
    *@description Text to disable cache while DevTools is open
    */
-  disableCacheWhileDevtoolsIsOpen: 'Disable cache (while DevTools is open)',
+  disableCacheWhileDevtoolsIsOpen: 'Disable cache while DevTools is open',
   /**
    *@description Text in Network Config View of the Network panel
    */
@@ -93,7 +93,7 @@ const UIStrings = {
    */
   showMoreInformationInRequestRows: 'Show more information in request rows',
   /**
-   *@description Text in Network Panel of the Network panel
+   *@description Text in Network Panel used to toggle the "big request rows" setting.
    */
   useLargeRequestRows: 'Big request rows',
   /**
@@ -101,7 +101,7 @@ const UIStrings = {
    */
   showOverviewOfNetworkRequests: 'Show overview of network requests',
   /**
-   *@description Text in Network Panel of the Network panel
+   *@description Text in Network Panel used to show the overview for a given network request.
    */
   showOverview: 'Overview',
   /**
@@ -109,7 +109,7 @@ const UIStrings = {
    */
   groupRequestsByTopLevelRequest: 'Group requests by top level request frame',
   /**
-   *@description Text in Network Panel of the Network panel
+   *@description Text for group by frame network setting
    */
   groupByFrame: 'Group by frame',
   /**
@@ -126,37 +126,66 @@ const UIStrings = {
    */
   importHarFile: 'Import `HAR` file...',
   /**
-   * @description Tooltip text that appears when hovering over the largeicon download button in the
-   * Network Panel. HAR is a file format (HTTP Archive) and should not be translated. This action
-   * triggers the download of a HAR file.
+   * @description Tooltip text that appears when hovering over the download button in the Network
+   * panel, when the setting to allow generating HAR files with sensitive data is enabled. HAR is
+   * a file format (HTTP Archive) and should not be translated. This action triggers a context
+   * menu with two options, one to download HAR sanitized and one to download HAR with sensitive
+   * data.
    */
-  exportHar: 'Export `HAR`...',
+  exportHar: 'Export `HAR` (either sanitized or with sensitive data)',
+  /**
+   * @description Tooltip text that appears when hovering over the download button in the Network
+   * panel, when the setting to allow generating HAR files with sensitive data is disabled. HAR is
+   * a file format (HTTP Archive) and should not be translated. This action triggers the download
+   * of a HAR file.
+   *
+   * This string is also used as the first item in the context menu for the download button in
+   * the Network panel, when the setting to allow generating HAR files with sensitive data is
+   * enabled.
+   */
+  exportHarSanitized: 'Export `HAR` (sanitized)...',
+  /**
+   * @description Context menu item in the context menu for the download button of the Network panel,
+   * which is only available when the Network setting to allow generating HAR with sensitive data
+   * is active. HAR is a file format (HTTP Archive) and should not be translated. This action
+   * triggers the download of a HAR file with sensitive data included.
+   */
+  exportHarWithSensitiveData: 'Export `HAR` (with sensitive data)...',
   /**
    *@description Text for throttling the network
    */
   throttling: 'Throttling',
   /**
-   *@description Text in Network Panel of the Network panel
+   *@description Text in Network Panel to tell the user to reload the page to capture screenshots.
    *@example {Ctrl + R} PH1
    */
   hitSToReloadAndCaptureFilmstrip: 'Hit {PH1} to reload and capture filmstrip.',
   /**
-   *@description A context menu item in the Network Panel of the Network panel
+   * @description A context menu item that is shown for resources in other panels
+   * to open them in the Network panel.
    */
-  revealInNetworkPanel: 'Reveal in Network panel',
+  openInNetworkPanel: 'Open in Network panel',
   /**
-   *@description Text in Network Panel of the Network panel
+   * @description A context menu item that is shown for resources in other panels
+   * to open them in the Network panel, but when there's no associated network
+   * request. This context menu item is always disabled and only provided to give
+   * the developer an idea of why they cannot open the resource in the Network
+   * panel.
+   */
+  openInNetworkPanelMissingRequest: 'Open in Network panel (missing request)',
+  /**
+   *@description Text in Network Panel that is displayed whilst the recording is in progress.
    */
   recordingFrames: 'Recording frames...',
   /**
-   *@description Text in Network Panel of the Network panel
+   *@description Text in Network Panel that is displayed when frames are being fetched.
    */
   fetchingFrames: 'Fetching frames...',
   /**
    * @description Text of a button in the Network panel's toolbar that open Network Conditions panel in the drawer.
    */
   moreNetworkConditions: 'More network conditions…',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/network/NetworkPanel.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 let networkPanelInstance: NetworkPanel;
@@ -177,7 +206,6 @@ export class NetworkPanel extends UI.Panel.Panel implements
   private readonly panelToolbar: UI.Toolbar.Toolbar;
   private readonly rightToolbar: UI.Toolbar.Toolbar;
   private readonly filterBar: UI.FilterBar.FilterBar;
-  private readonly settingsPane: UI.Widget.HBox;
   private showSettingsPaneSetting: Common.Settings.Setting<boolean>;
   private readonly filmStripPlaceholderElement: HTMLElement;
   private readonly overviewPane: PerfUI.TimelineOverviewPane.TimelineOverviewPane;
@@ -190,7 +218,7 @@ export class NetworkPanel extends UI.Panel.Panel implements
   networkLogView: NetworkLogView;
   private readonly fileSelectorElement: HTMLElement;
   private readonly detailsWidget: UI.Widget.VBox;
-  private readonly closeButtonElement: HTMLDivElement;
+  private readonly closeButtonElement: UI.UIUtils.DevToolsCloseButton;
   private preserveLogSetting: Common.Settings.Setting<boolean>;
   recordLogSetting: Common.Settings.Setting<boolean>;
   private readonly throttlingSelect: UI.Toolbar.ToolbarComboBox;
@@ -199,6 +227,7 @@ export class NetworkPanel extends UI.Panel.Panel implements
 
   constructor(displayScreenshotDelay: number) {
     super('network');
+    this.registerRequiredCSS(networkPanelStyles);
 
     // [RN] Used to scope down available features for React Native targets
     this.isReactNative = Root.Runtime.experiments.isEnabled(
@@ -221,32 +250,52 @@ export class NetworkPanel extends UI.Panel.Panel implements
     const panel = new UI.Widget.VBox();
 
     const networkToolbarContainer = panel.contentElement.createChild('div', 'network-toolbar-container');
-    this.panelToolbar = new UI.Toolbar.Toolbar('', networkToolbarContainer);
-    this.panelToolbar.makeWrappable(true);
-    this.panelToolbar.element.setAttribute('jslog', `${VisualLogging.toolbar('network-main')}`);
-    this.rightToolbar = new UI.Toolbar.Toolbar('', networkToolbarContainer);
+    networkToolbarContainer.role = 'toolbar';
+    this.panelToolbar = networkToolbarContainer.createChild('devtools-toolbar');
+    this.panelToolbar.role = 'presentation';
+    this.panelToolbar.wrappable = true;
+    this.panelToolbar.setAttribute('jslog', `${VisualLogging.toolbar('network-main')}`);
+    this.rightToolbar = networkToolbarContainer.createChild('devtools-toolbar');
+    this.rightToolbar.role = 'presentation';
 
     this.filterBar = new UI.FilterBar.FilterBar('network-panel', true);
     this.filterBar.show(panel.contentElement);
-    this.filterBar.addEventListener(UI.FilterBar.FilterBarEvents.Changed, this.handleFilterChanged.bind(this));
+    this.filterBar.addEventListener(UI.FilterBar.FilterBarEvents.CHANGED, this.handleFilterChanged.bind(this));
 
-    this.settingsPane = new UI.Widget.HBox();
-    this.settingsPane.element.classList.add('network-settings-pane');
-    this.settingsPane.show(panel.contentElement);
+    const settingsPane = panel.contentElement.createChild('div', 'network-settings-pane');
+    settingsPane.append(
+        UI.SettingsUI.createSettingCheckbox(
+            i18nString(UIStrings.useLargeRequestRows), this.networkLogLargeRowsSetting,
+            i18nString(UIStrings.showMoreInformationInRequestRows)),
+        UI.SettingsUI.createSettingCheckbox(
+            i18nString(UIStrings.groupByFrame),
+            Common.Settings.Settings.instance().moduleSetting('network.group-by-frame'),
+            i18nString(UIStrings.groupRequestsByTopLevelRequest)),
+        UI.SettingsUI.createSettingCheckbox(
+            i18nString(UIStrings.showOverview), this.networkLogShowOverviewSetting,
+            i18nString(UIStrings.showOverviewOfNetworkRequests)),
+    );
+    // [RN] Disable capture screenshots toggle
+    if (!this.isReactNative) {
+      settingsPane.append(
+          UI.SettingsUI.createSettingCheckbox(
+              i18nString(UIStrings.captureScreenshots), this.networkRecordFilmStripSetting,
+              i18nString(UIStrings.captureScreenshotsWhenLoadingA)),
+      );
+    }
     this.showSettingsPaneSetting =
         Common.Settings.Settings.instance().createSetting('network-show-settings-toolbar', false);
-    this.showSettingsPaneSetting.addChangeListener(this.updateSettingsPaneVisibility.bind(this));
-    this.updateSettingsPaneVisibility();
+    settingsPane.classList.toggle('hidden', !this.showSettingsPaneSetting.get());
+    this.showSettingsPaneSetting.addChangeListener(
+        () => settingsPane.classList.toggle('hidden', !this.showSettingsPaneSetting.get()));
 
     this.filmStripPlaceholderElement = panel.contentElement.createChild('div', 'network-film-strip-placeholder');
 
     // Create top overview component.
     this.overviewPane = new PerfUI.TimelineOverviewPane.TimelineOverviewPane('network');
     this.overviewPane.addEventListener(
-        PerfUI.TimelineOverviewPane.Events.OverviewPaneWindowChanged, this.onWindowChanged.bind(this));
+        PerfUI.TimelineOverviewPane.Events.OVERVIEW_PANE_WINDOW_CHANGED, this.onWindowChanged.bind(this));
     this.overviewPane.element.id = 'network-overview-panel';
-    this.overviewPane.element.setAttribute(
-        'jslog', `${VisualLogging.pane('network-overview').track({click: true, drag: true})}`);
     this.networkOverview = new NetworkOverview();
     this.overviewPane.setOverviewControls([this.networkOverview]);
     this.overviewPlaceholderElement = panel.contentElement.createChild('div');
@@ -280,7 +329,7 @@ export class NetworkPanel extends UI.Panel.Panel implements
       void VisualLogging.logKeyDown(event.currentTarget, event, 'hide-sidebar');
     });
     const closeSidebar = new UI.Toolbar.ToolbarButton(i18nString(UIStrings.close), 'cross');
-    closeSidebar.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, () => splitWidget.hideSidebar());
+    closeSidebar.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, () => splitWidget.hideSidebar());
     closeSidebar.element.setAttribute('jslog', `${VisualLogging.close().track({click: true})}`);
     tabbedPane.rightToolbar().appendToolbarItem(closeSidebar);
     splitWidget.setSidebarWidget(tabbedPane);
@@ -302,7 +351,7 @@ export class NetworkPanel extends UI.Panel.Panel implements
     this.detailsWidget.element.classList.add('network-details-view');
     this.splitWidget.setMainWidget(this.detailsWidget);
 
-    this.closeButtonElement = document.createElement('div', {is: 'dt-close-button'});
+    this.closeButtonElement = document.createElement('dt-close-button');
     this.closeButtonElement.addEventListener('click', async () => {
       const action = UI.ActionRegistry.ActionRegistry.instance().getAction('network.hide-request-details');
       await action.execute();
@@ -351,10 +400,10 @@ export class NetworkPanel extends UI.Panel.Panel implements
     return networkPanelInstance;
   }
 
-  static revealAndFilter(filters: {
-    filterType: NetworkForward.UIFilter.FilterType|null,
+  static revealAndFilter(filters: Array<{
+    filterType: NetworkForward.UIFilter.FilterType | null,
     filterValue: string,
-  }[]): Promise<void> {
+  }>): Promise<void> {
     const panel = NetworkPanel.instance();
     let filterString = '';
     for (const filter of filters) {
@@ -366,13 +415,6 @@ export class NetworkPanel extends UI.Panel.Panel implements
     }
     panel.networkLogView.setTextFilterValue(filterString);
     return UI.ViewManager.ViewManager.instance().showView('network');
-  }
-
-  static async selectAndShowRequest(
-      request: SDK.NetworkRequest.NetworkRequest, tab: NetworkForward.UIRequestLocation.UIRequestTabs,
-      options?: NetworkForward.UIRequestLocation.FilterOptions): Promise<void> {
-    const panel = NetworkPanel.instance();
-    await panel.selectAndActivateRequest(request, tab, options);
   }
 
   throttlingSelectForTest(): UI.Toolbar.ToolbarComboBox {
@@ -402,20 +444,20 @@ export class NetworkPanel extends UI.Panel.Panel implements
   private setupToolbarButtons(splitWidget: UI.SplitWidget.SplitWidget): void {
     const searchToggle = new UI.Toolbar.ToolbarToggle(i18nString(UIStrings.search), 'search', undefined, 'search');
     function updateSidebarToggle(): void {
-      const isSidebarShowing = splitWidget.showMode() !== UI.SplitWidget.ShowMode.OnlyMain;
+      const isSidebarShowing = splitWidget.showMode() !== UI.SplitWidget.ShowMode.ONLY_MAIN;
       searchToggle.setToggled(isSidebarShowing);
       if (!isSidebarShowing) {
         (searchToggle.element as HTMLElement).focus();
       }
     }
     this.panelToolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButton(this.toggleRecordAction));
-    this.panelToolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButtonForId('network.clear'));
+    this.panelToolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButton('network.clear'));
     this.panelToolbar.appendSeparator();
 
     this.panelToolbar.appendToolbarItem(this.filterBar.filterButton());
     updateSidebarToggle();
-    splitWidget.addEventListener(UI.SplitWidget.Events.ShowModeChanged, updateSidebarToggle);
-    searchToggle.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, () => {
+    splitWidget.addEventListener(UI.SplitWidget.Events.SHOW_MODE_CHANGED, updateSidebarToggle);
+    searchToggle.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, () => {
       void this.searchToggleClick();
     });
     this.panelToolbar.appendToolbarItem(searchToggle);
@@ -436,7 +478,7 @@ export class NetworkPanel extends UI.Panel.Panel implements
 
       const networkConditionsButton = new UI.Toolbar.ToolbarButton(
           i18nString(UIStrings.moreNetworkConditions), 'network-settings', undefined, 'network-conditions');
-      networkConditionsButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, () => {
+      networkConditionsButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, () => {
         void UI.ViewManager.ViewManager.instance().showView('network.config');
       }, this);
       this.panelToolbar.appendToolbarItem(networkConditionsButton);
@@ -448,50 +490,51 @@ export class NetworkPanel extends UI.Panel.Panel implements
         this.showSettingsPaneSetting, 'gear', i18nString(UIStrings.networkSettings), 'gear-filled',
         'network-settings'));
 
-    const settingsToolbarLeft = new UI.Toolbar.Toolbar('', this.settingsPane.element);
-    settingsToolbarLeft.makeVertical();
-    settingsToolbarLeft.appendToolbarItem(new UI.Toolbar.ToolbarSettingCheckbox(
-        this.networkLogLargeRowsSetting, i18nString(UIStrings.showMoreInformationInRequestRows),
-        i18nString(UIStrings.useLargeRequestRows)));
-    settingsToolbarLeft.appendToolbarItem(new UI.Toolbar.ToolbarSettingCheckbox(
-        this.networkLogShowOverviewSetting, i18nString(UIStrings.showOverviewOfNetworkRequests),
-        i18nString(UIStrings.showOverview)));
-
-    const settingsToolbarRight = new UI.Toolbar.Toolbar('', this.settingsPane.element);
-    settingsToolbarRight.makeVertical();
-    settingsToolbarRight.appendToolbarItem(new UI.Toolbar.ToolbarSettingCheckbox(
-        Common.Settings.Settings.instance().moduleSetting('network.group-by-frame'),
-        i18nString(UIStrings.groupRequestsByTopLevelRequest), i18nString(UIStrings.groupByFrame)));
-    // [RN] Disable capture screenshots toggle
-    if (!this.isReactNative) {
-      settingsToolbarRight.appendToolbarItem(new UI.Toolbar.ToolbarSettingCheckbox(
-          this.networkRecordFilmStripSetting, i18nString(UIStrings.captureScreenshotsWhenLoadingA),
-          i18nString(UIStrings.captureScreenshots)));
-    }
+    const exportHarContextMenu = (contextMenu: UI.ContextMenu.ContextMenu): void => {
+      contextMenu.defaultSection().appendItem(
+          i18nString(UIStrings.exportHarSanitized),
+          this.networkLogView.exportAll.bind(this.networkLogView, {sanitize: true}),
+          {jslogContext: 'export-har'},
+      );
+      contextMenu.defaultSection().appendItem(
+          i18nString(UIStrings.exportHarWithSensitiveData),
+          this.networkLogView.exportAll.bind(this.networkLogView, {sanitize: false}),
+          {jslogContext: 'export-har-with-sensitive-data'},
+      );
+    };
 
     this.panelToolbar.appendSeparator();
     const importHarButton =
         new UI.Toolbar.ToolbarButton(i18nString(UIStrings.importHarFile), 'import', undefined, 'import-har');
     importHarButton.addEventListener(
-        UI.Toolbar.ToolbarButton.Events.Click, () => this.fileSelectorElement.click(), this);
+        UI.Toolbar.ToolbarButton.Events.CLICK, () => this.fileSelectorElement.click(), this);
     this.panelToolbar.appendToolbarItem(importHarButton);
     const exportHarButton =
-        new UI.Toolbar.ToolbarButton(i18nString(UIStrings.exportHar), 'download', undefined, 'export-har');
-    exportHarButton.addEventListener(UI.Toolbar.ToolbarButton.Events.Click, _event => {
-      void this.networkLogView.exportAll();
-    }, this);
+        new UI.Toolbar.ToolbarButton(i18nString(UIStrings.exportHarSanitized), 'download', undefined, 'export-har');
+    exportHarButton.addEventListener(
+        UI.Toolbar.ToolbarButton.Events.CLICK,
+        this.networkLogView.exportAll.bind(this.networkLogView, {sanitize: true}), this);
     this.panelToolbar.appendToolbarItem(exportHarButton);
-  }
+    const exportHarMenuButton = new UI.Toolbar.ToolbarMenuButton(
+        exportHarContextMenu, /* isIconDropdown */ true, /* useSoftMenu */ false, 'export-har-menu', 'download');
+    exportHarMenuButton.setTitle(i18nString(UIStrings.exportHar));
+    this.panelToolbar.appendToolbarItem(exportHarMenuButton);
 
-  private updateSettingsPaneVisibility(): void {
-    this.settingsPane.element.classList.toggle('hidden', !this.showSettingsPaneSetting.get());
+    const networkShowOptionsToGenerateHarWithSensitiveData = Common.Settings.Settings.instance().createSetting(
+        'network.show-options-to-generate-har-with-sensitive-data', false);
+    const updateShowOptionsToGenerateHarWithSensitiveData = (): void => {
+      const showOptionsToGenerateHarWithSensitiveData = networkShowOptionsToGenerateHarWithSensitiveData.get();
+      exportHarButton.setVisible(!showOptionsToGenerateHarWithSensitiveData);
+      exportHarMenuButton.setVisible(showOptionsToGenerateHarWithSensitiveData);
+    };
+    networkShowOptionsToGenerateHarWithSensitiveData.addChangeListener(updateShowOptionsToGenerateHarWithSensitiveData);
+    updateShowOptionsToGenerateHarWithSensitiveData();
   }
 
   private createThrottlingConditionsSelect(): UI.Toolbar.ToolbarComboBox {
     const toolbarItem = new UI.Toolbar.ToolbarComboBox(null, i18nString(UIStrings.throttling));
     toolbarItem.setMaxWidth(160);
-    MobileThrottling.ThrottlingManager.throttlingManager().decorateSelectWithNetworkThrottling(
-        toolbarItem.selectElement());
+    MobileThrottling.ThrottlingManager.throttlingManager().createNetworkThrottlingSelector(toolbarItem.element);
     return toolbarItem;
   }
 
@@ -507,13 +550,13 @@ export class NetworkPanel extends UI.Panel.Panel implements
     }
   }
 
-  private filmStripAvailable(filmStrip: TraceEngine.Extras.FilmStrip.Data): void {
+  private filmStripAvailable(filmStrip: Trace.Extras.FilmStrip.Data): void {
     if (this.filmStripView) {
       this.filmStripView.setModel(filmStrip);
     }
     const timestamps = filmStrip.frames.map(frame => {
       // The network view works in seconds.
-      return TraceEngine.Helpers.Timing.microSecondsToSeconds(frame.screenshotEvent.ts);
+      return Trace.Helpers.Timing.microToSeconds(frame.screenshotEvent.ts);
     });
 
     this.networkLogView.addFilmStripFrames(timestamps);
@@ -541,7 +584,7 @@ export class NetworkPanel extends UI.Panel.Panel implements
   }
 
   private load(): void {
-    if (this.filmStripRecorder && this.filmStripRecorder.isRecording()) {
+    if (this.filmStripRecorder?.isRecording()) {
       if (this.pendingStopTimer) {
         window.clearTimeout(this.pendingStopTimer);
       }
@@ -575,12 +618,12 @@ export class NetworkPanel extends UI.Panel.Panel implements
     if (toggled && !this.filmStripRecorder) {
       this.filmStripView = new PerfUI.FilmStripView.FilmStripView();
       this.filmStripView.element.classList.add('network-film-strip');
-      this.filmStripView.element.setAttribute('jslog', `${VisualLogging.pane('network-film-strip')}`);
+      this.filmStripView.element.setAttribute('jslog', `${VisualLogging.section('film-strip')}`);
       this.filmStripRecorder = new FilmStripRecorder(this.networkLogView.timeCalculator(), this.filmStripView);
       this.filmStripView.show(this.filmStripPlaceholderElement);
-      this.filmStripView.addEventListener(PerfUI.FilmStripView.Events.FrameSelected, this.onFilmFrameSelected, this);
-      this.filmStripView.addEventListener(PerfUI.FilmStripView.Events.FrameEnter, this.onFilmFrameEnter, this);
-      this.filmStripView.addEventListener(PerfUI.FilmStripView.Events.FrameExit, this.onFilmFrameExit, this);
+      this.filmStripView.addEventListener(PerfUI.FilmStripView.Events.FRAME_SELECTED, this.onFilmFrameSelected, this);
+      this.filmStripView.addEventListener(PerfUI.FilmStripView.Events.FRAME_ENTER, this.onFilmFrameEnter, this);
+      this.filmStripView.addEventListener(PerfUI.FilmStripView.Events.FRAME_EXIT, this.onFilmFrameExit, this);
       this.resetFilmStripView();
     }
 
@@ -611,8 +654,8 @@ export class NetworkPanel extends UI.Panel.Panel implements
   }
 
   override wasShown(): void {
+    super.wasShown();
     UI.Context.Context.instance().setFlavor(NetworkPanel, this);
-    this.registerCSSFiles([networkPanelStyles]);
 
     // Record the network tool load time after the panel has loaded.
     Host.userMetrics.panelLoaded('network', 'DevTools.Launch.Network');
@@ -620,6 +663,7 @@ export class NetworkPanel extends UI.Panel.Panel implements
 
   override willHide(): void {
     UI.Context.Context.instance().setFlavor(NetworkPanel, null);
+    super.willHide();
   }
 
   revealAndHighlightRequest(request: SDK.NetworkRequest.NetworkRequest): void {
@@ -650,14 +694,12 @@ export class NetworkPanel extends UI.Panel.Panel implements
     this.hideRequestPanel();
   }
 
-  private onRowSizeChanged(): void {
-    this.updateUI();
-  }
   private onRequestSelected(event: Common.EventTarget.EventTargetEvent<SDK.NetworkRequest.NetworkRequest|null>): void {
     const request = event.data;
     this.currentRequest = request;
     this.networkOverview.setHighlightedRequest(request);
     this.updateNetworkItemView();
+    UI.Context.Context.instance().setFlavor(SDK.NetworkRequest.NetworkRequest, request);
   }
 
   private onRequestActivated(event: Common.EventTarget.EventTargetEvent<RequestActivatedEvent>): void {
@@ -670,7 +712,7 @@ export class NetworkPanel extends UI.Panel.Panel implements
   }
 
   private showRequestPanel(shownTab?: NetworkForward.UIRequestLocation.UIRequestTabs, takeFocus?: boolean): void {
-    if (this.splitWidget.showMode() === UI.SplitWidget.ShowMode.Both && !shownTab && !takeFocus) {
+    if (this.splitWidget.showMode() === UI.SplitWidget.ShowMode.BOTH && !shownTab && !takeFocus) {
       // If panel is already shown, and we are not forcing a specific tab, return.
       return;
     }
@@ -691,7 +733,7 @@ export class NetworkPanel extends UI.Panel.Panel implements
   }
 
   private updateNetworkItemView(): void {
-    if (this.splitWidget.showMode() === UI.SplitWidget.ShowMode.Both) {
+    if (this.splitWidget.showMode() === UI.SplitWidget.ShowMode.BOTH) {
       this.clearNetworkItemView();
       this.createNetworkItemView();
       this.updateUI();
@@ -729,15 +771,32 @@ export class NetworkPanel extends UI.Panel.Panel implements
   appendApplicableItems(
       this: NetworkPanel, event: Event, contextMenu: UI.ContextMenu.ContextMenu,
       target: SDK.NetworkRequest.NetworkRequest|SDK.Resource.Resource|Workspace.UISourceCode.UISourceCode|
-      TimelineUtils.NetworkRequest.TimelineNetworkRequest): void {
+      SDK.TraceObject.RevealableNetworkRequest): void {
     const appendRevealItem = (request: SDK.NetworkRequest.NetworkRequest): void => {
       contextMenu.revealSection().appendItem(
-          i18nString(UIStrings.revealInNetworkPanel),
+          i18nString(UIStrings.openInNetworkPanel),
           () => UI.ViewManager.ViewManager.instance()
                     .showView('network')
                     .then(this.networkLogView.resetFilter.bind(this.networkLogView))
                     .then(this.revealAndHighlightRequest.bind(this, request)),
           {jslogContext: 'reveal-in-network'});
+    };
+    const appendRevealItemMissingData = (): void => {
+      contextMenu.revealSection().appendItem(i18nString(UIStrings.openInNetworkPanelMissingRequest), () => {}, {
+        disabled: true,
+        jslogContext: 'reveal-in-network',
+      });
+    };
+    const appendRevealItemAndSelect = (request: SDK.TraceObject.RevealableNetworkRequest): void => {
+      contextMenu.revealSection().appendItem(
+          i18nString(UIStrings.openInNetworkPanel),
+          () => UI.ViewManager.ViewManager.instance()
+                    .showView('network')
+                    .then(this.networkLogView.resetFilter.bind(this.networkLogView))
+                    .then(this.selectAndActivateRequest.bind(
+                        this, request.networkRequest, NetworkForward.UIRequestLocation.UIRequestTabs.HEADERS_COMPONENT,
+                        /* FilterOptions= */ undefined)),
+          {jslogContext: 'timeline.reveal-in-network'});
     };
 
     if ((event.target as Node).isSelfOrDescendant(this.element)) {
@@ -747,20 +806,22 @@ export class NetworkPanel extends UI.Panel.Panel implements
     if (target instanceof SDK.Resource.Resource) {
       if (target.request) {
         appendRevealItem(target.request);
+      } else {
+        appendRevealItemMissingData();
       }
       return;
     }
     if (target instanceof Workspace.UISourceCode.UISourceCode) {
-      const resource = Bindings.ResourceUtils.resourceForURL(target.url());
-      if (resource && resource.request) {
+      const resource = SDK.ResourceTreeModel.ResourceTreeModel.resourceForURL(target.url());
+      if (resource?.request) {
         appendRevealItem(resource.request);
+      } else {
+        appendRevealItemMissingData();
       }
       return;
     }
-    if (target instanceof TimelineUtils.NetworkRequest.TimelineNetworkRequest) {
-      if (target.request) {
-        appendRevealItem(target.request);
-      }
+    if (target instanceof SDK.TraceObject.RevealableNetworkRequest) {
+      appendRevealItemAndSelect(target);
       return;
     }
 
@@ -793,8 +854,8 @@ export class NetworkPanel extends UI.Panel.Panel implements
     this.calculator.updateBoundaries(request);
     // FIXME: Unify all time units across the frontend!
     this.overviewPane.setBounds(
-        TraceEngine.Types.Timing.MilliSeconds(this.calculator.minimumBoundary() * 1000),
-        TraceEngine.Types.Timing.MilliSeconds(this.calculator.maximumBoundary() * 1000));
+        Trace.Types.Timing.Milli(this.calculator.minimumBoundary() * 1000),
+        Trace.Types.Timing.Milli(this.calculator.maximumBoundary() * 1000));
     this.networkOverview.updateRequest(request);
   }
 
@@ -834,19 +895,19 @@ export class NetworkLogWithFilterRevealer implements
   }
 }
 
-export class FilmStripRecorder implements TraceEngine.TracingManager.TracingManagerClient {
-  private tracingManager: TraceEngine.TracingManager.TracingManager|null;
+export class FilmStripRecorder implements Trace.TracingManager.TracingManagerClient {
+  private tracingManager: Trace.TracingManager.TracingManager|null;
   private resourceTreeModel: SDK.ResourceTreeModel.ResourceTreeModel|null;
   private readonly timeCalculator: NetworkTimeCalculator;
   private readonly filmStripView: PerfUI.FilmStripView.FilmStripView;
-  private callback: ((filmStrip: TraceEngine.Extras.FilmStrip.Data) => void)|null;
+  private callback: ((filmStrip: Trace.Extras.FilmStrip.Data) => void)|null;
   // Used to fetch screenshots of the page load and show them in the panel.
-  #traceEngine: TraceEngine.TraceModel.Model;
-  #collectedTraceEvents: TraceEngine.Types.TraceEvents.TraceEventData[] = [];
+  #traceEngine: Trace.TraceModel.Model;
+  #collectedTraceEvents: Trace.Types.Events.Event[] = [];
 
   constructor(timeCalculator: NetworkTimeCalculator, filmStripView: PerfUI.FilmStripView.FilmStripView) {
-    this.#traceEngine = TraceEngine.TraceModel.Model.createWithSubsetOfHandlers({
-      Screenshots: TraceEngine.Handlers.ModelHandlers.Screenshots,
+    this.#traceEngine = Trace.TraceModel.Model.createWithSubsetOfHandlers({
+      Screenshots: Trace.Handlers.ModelHandlers.Screenshots,
     });
 
     this.tracingManager = null;
@@ -856,7 +917,7 @@ export class FilmStripRecorder implements TraceEngine.TracingManager.TracingMana
     this.callback = null;
   }
 
-  traceEventsCollected(events: TraceEngine.Types.TraceEvents.TraceEventData[]): void {
+  traceEventsCollected(events: Trace.Types.Events.Event[]): void {
     this.#collectedTraceEvents.push(...events);
   }
 
@@ -867,14 +928,14 @@ export class FilmStripRecorder implements TraceEngine.TracingManager.TracingMana
     this.tracingManager = null;
     await this.#traceEngine.parse(this.#collectedTraceEvents);
 
-    const data = this.#traceEngine.traceParsedData(this.#traceEngine.size() - 1) as
-        TraceEngine.Extras.FilmStrip.HandlerDataWithScreenshots;
+    const data = this.#traceEngine.parsedTrace(this.#traceEngine.size() - 1) as
+        Trace.Extras.FilmStrip.HandlerDataWithScreenshots;
     if (!data) {
       return;
     }
-    const zeroTimeInSeconds = TraceEngine.Types.Timing.Seconds(this.timeCalculator.minimumBoundary());
-    const filmStrip = TraceEngine.Extras.FilmStrip.fromTraceData(
-        data, TraceEngine.Helpers.Timing.secondsToMicroseconds(zeroTimeInSeconds));
+    const zeroTimeInSeconds = Trace.Types.Timing.Seconds(this.timeCalculator.minimumBoundary());
+    const filmStrip =
+        Trace.Extras.FilmStrip.fromParsedTrace(data, Trace.Helpers.Timing.secondsToMicro(zeroTimeInSeconds));
 
     if (this.callback) {
       this.callback(filmStrip);
@@ -902,7 +963,7 @@ export class FilmStripRecorder implements TraceEngine.TracingManager.TracingMana
     this.filmStripView.reset();
     this.filmStripView.setStatusText(i18nString(UIStrings.recordingFrames));
     const tracingManager =
-        SDK.TargetManager.TargetManager.instance().scopeTarget()?.model(TraceEngine.TracingManager.TracingManager);
+        SDK.TargetManager.TargetManager.instance().scopeTarget()?.model(Trace.TracingManager.TracingManager);
     if (this.tracingManager || !tracingManager) {
       return;
     }
@@ -918,7 +979,7 @@ export class FilmStripRecorder implements TraceEngine.TracingManager.TracingMana
     return Boolean(this.tracingManager);
   }
 
-  stopRecording(callback: (filmStrip: TraceEngine.Extras.FilmStrip.Data) => void): void {
+  stopRecording(callback: (filmStrip: Trace.Extras.FilmStrip.Data) => void): void {
     if (!this.tracingManager) {
       return;
     }

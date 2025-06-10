@@ -7,10 +7,13 @@
 .list {
   flex: auto 0 1;
   overflow-y: auto;
-  border: 1px solid var(--sys-color-divider);
   flex-direction: column;
 
   --override-background-list-item-color: hsl(0deg 0% 96%);
+
+  &:has(div) {
+    border: var(--sys-size-1) solid var(--sys-color-divider);
+  }
 }
 
 .theme-with-dark-background .list,
@@ -51,10 +54,14 @@
 
 .controls-gradient {
   flex: 0 1 50px;
-}
 
-.list-item:focus-within:not(:active) .controls-gradient {
-  background-image: linear-gradient(90deg, transparent, var(--override-background-list-item-color));
+  .list-item:hover & {
+    background-image: linear-gradient(90deg, transparent, var(--sys-color-cdt-base-container));
+  }
+
+  .list-item:focus-within:not(:active) & {
+    background-image: linear-gradient(90deg, transparent, var(--override-background-list-item-color));
+  }
 }
 
 .controls-buttons {
@@ -69,11 +76,11 @@
   .list-item:hover & {
     visibility: visible;
   }
-}
 
-.list-item:focus-within:not(:active) .controls-buttons {
-  background-color: var(--override-background-list-item-color);
-  visibility: visible;
+  .list-item:focus-within:not(:active) & {
+    background-color: var(--override-background-list-item-color);
+    visibility: visible;
+  }
 }
 
 .editor-container {

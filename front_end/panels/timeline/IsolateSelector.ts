@@ -17,15 +17,15 @@ const UIStrings = {
    *@description Text in isolate selector in Performance panel
    */
   selectJavascriptVmInstance: 'Select JavaScript VM instance',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/IsolateSelector.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class IsolateSelector extends UI.Toolbar.ToolbarItem implements SDK.IsolateManager.Observer {
   menu: Menus.SelectMenu.SelectMenu;
-  options?: {index: number, isolate: SDK.IsolateManager.Isolate}[];
+  options?: Array<{index: number, isolate: SDK.IsolateManager.Isolate}>;
   items?: Menus.Menu.MenuItem[];
-  readonly itemByIsolate: Map<SDK.IsolateManager.Isolate, Menus.Menu.MenuItem> = new Map();
+  readonly itemByIsolate = new Map<SDK.IsolateManager.Isolate, Menus.Menu.MenuItem>();
 
   constructor() {
     const menu = new Menus.SelectMenu.SelectMenu();
@@ -40,9 +40,9 @@ export class IsolateSelector extends UI.Toolbar.ToolbarItem implements SDK.Isola
 
     SDK.IsolateManager.IsolateManager.instance().observeIsolates(this);
     SDK.TargetManager.TargetManager.instance().addEventListener(
-        SDK.TargetManager.Events.NameChanged, this.targetChanged, this);
+        SDK.TargetManager.Events.NAME_CHANGED, this.targetChanged, this);
     SDK.TargetManager.TargetManager.instance().addEventListener(
-        SDK.TargetManager.Events.InspectedURLChanged, this.targetChanged, this);
+        SDK.TargetManager.Events.INSPECTED_URL_CHANGED, this.targetChanged, this);
   }
 
   #updateIsolateItem(isolate: SDK.IsolateManager.Isolate, itemForIsolate: Menus.Menu.MenuItem): void {
@@ -79,7 +79,8 @@ export class IsolateSelector extends UI.Toolbar.ToolbarItem implements SDK.Isola
         const model = isolate.runtimeModel();
         UI.Context.Context.instance().setFlavor(
             SDK.CPUProfilerModel.CPUProfilerModel,
-            model && model.target().model(SDK.CPUProfilerModel.CPUProfilerModel));
+            model?.target().model(SDK.CPUProfilerModel.CPUProfilerModel) ?? null,
+        );
       }
     });
   }

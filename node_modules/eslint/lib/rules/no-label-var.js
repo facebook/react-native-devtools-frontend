@@ -23,7 +23,8 @@ module.exports = {
         docs: {
             description: "Disallow labels that share a name with a variable",
             recommended: false,
-            url: "https://eslint.org/docs/rules/no-label-var"
+            frozen: true,
+            url: "https://eslint.org/docs/latest/rules/no-label-var"
         },
 
         schema: [],
@@ -34,6 +35,7 @@ module.exports = {
     },
 
     create(context) {
+        const sourceCode = context.sourceCode;
 
         //--------------------------------------------------------------------------
         // Helpers
@@ -59,7 +61,7 @@ module.exports = {
             LabeledStatement(node) {
 
                 // Fetch the innermost scope.
-                const scope = context.getScope();
+                const scope = sourceCode.getScope(node);
 
                 /*
                  * Recursively find the identifier walking up the scope, starting

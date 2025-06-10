@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as TextUtils from '../../models/text_utils/text_utils.js';
 import type * as Protocol from '../../generated/protocol.js';
+import * as TextUtils from '../../models/text_utils/text_utils.js';
 
-import {type CSSModel} from './CSSModel.js';
+import type {CSSModel} from './CSSModel.js';
 import {CSSQuery} from './CSSQuery.js';
 
 export class CSSSupports extends CSSQuery {
@@ -13,7 +13,7 @@ export class CSSSupports extends CSSQuery {
     return payload.map(supports => new CSSSupports(cssModel, supports));
   }
 
-  #active: boolean = true;
+  #active = true;
 
   constructor(cssModel: CSSModel, payload: Protocol.CSS.CSSSupports) {
     super(cssModel);

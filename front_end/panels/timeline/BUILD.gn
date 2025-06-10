@@ -7,7 +7,7 @@ import("../../../scripts/build/ninja/devtools_module.gni")
 import("../../../scripts/build/ninja/devtools_pre_built.gni")
 import("../../../scripts/build/ninja/generate_css.gni")
 import("../../../scripts/build/ninja/node.gni")
-import("../../../third_party/typescript/typescript.gni")
+import("../../../scripts/build/typescript/typescript.gni")
 import("../visibility.gni")
 
 node_action("generate_easter_egg_file") {
@@ -39,13 +39,13 @@ devtools_pre_built("easter-egg") {
 
 generate_css("css_files") {
   sources = [
-    "historyToolbarButton.css",
     "timelineFlameChartView.css",
     "timelineFlamechartPopover.css",
     "timelineHistoryManager.css",
     "timelineMiniMap.css",
     "timelinePaintProfiler.css",
     "timelinePanel.css",
+    "timelineSelectorStatsView.css",
     "timelineStatusDialog.css",
   ]
 }
@@ -54,15 +54,15 @@ devtools_module("timeline") {
   sources = [
     "ActiveFilters.ts",
     "AnimationsTrackAppender.ts",
+    "AnnotationHelpers.ts",
     "AppenderUtils.ts",
     "BenchmarkEvents.ts",
     "CLSLinkifier.ts",
     "CompatibilityTracksAppender.ts",
     "CountersGraph.ts",
-    "EventUICategory.ts",
+    "EntriesFilter.ts",
     "EventsSerializer.ts",
     "EventsTimelineTreeView.ts",
-    "ExtensionDataGatherer.ts",
     "ExtensionTrackAppender.ts",
     "FreshRecording.ts",
     "GPUTrackAppender.ts",
@@ -73,8 +73,8 @@ devtools_module("timeline") {
     "ModificationsManager.ts",
     "NetworkTrackAppender.ts",
     "SaveFileFormatter.ts",
-    "SourceMapsResolver.ts",
     "TargetForEvent.ts",
+    "ThirdPartyTreeView.ts",
     "ThreadAppender.ts",
     "TimelineController.ts",
     "TimelineDetailsView.ts",
@@ -84,7 +84,6 @@ devtools_module("timeline") {
     "TimelineFlameChartNetworkDataProvider.ts",
     "TimelineFlameChartView.ts",
     "TimelineHistoryManager.ts",
-    "TimelineLandingPage.ts",
     "TimelineLayersView.ts",
     "TimelineLoader.ts",
     "TimelineMiniMap.ts",
@@ -95,6 +94,7 @@ devtools_module("timeline") {
     "TimelineTreeView.ts",
     "TimelineUIUtils.ts",
     "TimingsTrackAppender.ts",
+    "TracingLayerTree.ts",
     "UIDevtoolsController.ts",
     "UIDevtoolsUtils.ts",
   ]
@@ -107,7 +107,6 @@ devtools_module("timeline") {
     "../../models/cpu_profile:bundle",
     "../../models/extensions:bundle",
     "../../models/source_map_scopes:bundle",
-    "../../models/timeline_model:bundle",
     "../../models/trace:bundle",
     "../../models/workspace:bundle",
     "../../panels/coverage:bundle",
@@ -117,7 +116,6 @@ devtools_module("timeline") {
     "../../services/trace_bounds:bundle",
     "../../ui/components/buttons:bundle",
     "../../ui/components/code_highlighter:bundle",  # trace event highlighting
-    "../../ui/components/data_grid:bundle",
     "../../ui/components/icon_button:bundle",
     "../../ui/components/linkifier:bundle",
     "../../ui/components/menus:bundle",
@@ -126,7 +124,7 @@ devtools_module("timeline") {
     "../../ui/legacy/components/perf_ui:bundle",
     "../../ui/legacy/components/utils:bundle",
     "../../ui/legacy/theme_support:bundle",
-    "../../ui/lit-html:bundle",
+    "../../ui/lit:bundle",
     "./components:bundle",
     "./extensions:bundle",
     "./overlays:bundle",
@@ -150,6 +148,7 @@ devtools_entrypoint("bundle") {
     "../../../test/perf/*",
     "../../entrypoints/*",
     "../../models/trace/handlers:unittests",
+    "../../panels/ai_assistance/*",
     "../../testing",
     "../../testing/*",
     "../../ui/components/docs/performance_panel/*",
@@ -183,13 +182,15 @@ ts_library("unittests") {
   testonly = true
 
   sources = [
+    "AnnotationHelpers.test.ts",
     "Breadcrumbs.test.ts",
+    "EntriesFilter.test.ts",
     "EventsSerializer.test.ts",
     "FreshRecording.test.ts",
     "Initiators.test.ts",
     "ModificationsManager.test.ts",
     "SaveFileFormatter.test.ts",
-    "SourceMapsResolver.test.ts",
+    "ThirdPartyTreeView.test.ts",
     "TimelineController.test.ts",
     "TimelineDetailsView.test.ts",
     "TimelineFilters.test.ts",
@@ -199,6 +200,7 @@ ts_library("unittests") {
     "TimelineHistoryManager.test.ts",
     "TimelineLoader.test.ts",
     "TimelineMiniMap.test.ts",
+    "TimelinePanel.test.ts",
     "TimelineSelection.test.ts",
     "TimelineTreeView.test.ts",
     "TimelineUIUtils.test.ts",
@@ -210,7 +212,6 @@ ts_library("unittests") {
     "../../core/root:bundle",
     "../../core/sdk:bundle",
     "../../models/bindings:bundle",
-    "../../models/timeline_model:bundle",
     "../../models/trace:bundle",
     "../../models/workspace:bundle",
     "../../testing",

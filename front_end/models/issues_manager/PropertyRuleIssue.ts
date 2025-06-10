@@ -6,7 +6,7 @@ import type * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 
 import {Issue, IssueCategory, IssueKind} from './Issue.js';
-import {type MarkdownIssueDescription} from './MarkdownIssueDescription.js';
+import type {MarkdownIssueDescription} from './MarkdownIssueDescription.js';
 
 export class PropertyRuleIssue extends Issue {
   readonly #issueDetails: Protocol.Audits.PropertyRuleIssueDetails;
@@ -18,7 +18,7 @@ export class PropertyRuleIssue extends Issue {
     this.#issueDetails = issueDetails;
   }
 
-  override sources(): Array<Protocol.Audits.SourceCodeLocation> {
+  override sources(): Protocol.Audits.SourceCodeLocation[] {
     return [this.#issueDetails.sourceCodeLocation];
   }
 
@@ -59,11 +59,11 @@ export class PropertyRuleIssue extends Issue {
   }
 
   getCategory(): IssueCategory {
-    return IssueCategory.Other;
+    return IssueCategory.OTHER;
   }
 
   getKind(): IssueKind {
-    return IssueKind.PageError;
+    return IssueKind.PAGE_ERROR;
   }
 
   static fromInspectorIssue(issueModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):

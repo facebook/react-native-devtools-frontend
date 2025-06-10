@@ -5,7 +5,7 @@
  */
 import type {Protocol} from 'devtools-protocol';
 
-import type {CDPSession} from '../api/CDPSession.js';
+import {CDPSessionEvent, type CDPSession} from '../api/CDPSession.js';
 import type {Realm} from '../api/Realm.js';
 import {TargetType} from '../api/Target.js';
 import {WebWorker} from '../api/WebWorker.js';
@@ -22,14 +22,14 @@ import {CdpJSHandle} from './JSHandle.js';
 export type ConsoleAPICalledCallback = (
   eventType: string,
   handles: CdpJSHandle[],
-  trace?: Protocol.Runtime.StackTrace
+  trace?: Protocol.Runtime.StackTrace,
 ) => void;
 
 /**
  * @internal
  */
 export type ExceptionThrownCallback = (
-  event: Protocol.Runtime.ExceptionThrownEvent
+  event: Protocol.Runtime.ExceptionThrownEvent,
 ) => void;
 
 /**
@@ -47,7 +47,7 @@ export class CdpWebWorker extends WebWorker {
     targetId: string,
     targetType: TargetType,
     consoleAPICalled: ConsoleAPICalledCallback,
-    exceptionThrown: ExceptionThrownCallback
+    exceptionThrown: ExceptionThrownCallback,
   ) {
     super(url);
     this.#id = targetId;
@@ -57,23 +57,26 @@ export class CdpWebWorker extends WebWorker {
 
     this.#client.once('Runtime.executionContextCreated', async event => {
       this.#world.setContext(
-        new ExecutionContext(client, event.context, this.#world)
+        new ExecutionContext(client, event.context, this.#world),
       );
     });
-    this.#client.on('Runtime.consoleAPICalled', async event => {
+    this.#world.emitter.on('consoleapicalled', async event => {
       try {
         return consoleAPICalled(
           event.type,
           event.args.map((object: Protocol.Runtime.RemoteObject) => {
             return new CdpJSHandle(this.#world, object);
           }),
-          event.stackTrace
+          event.stackTrace,
         );
       } catch (err) {
         debugError(err);
       }
     });
     this.#client.on('Runtime.exceptionThrown', exceptionThrown);
+    this.#client.once(CDPSessionEvent.Disconnected, () => {
+      this.#world.dispose();
+    });
 
     // This might fail if the target is closed before we receive all execution contexts.
     this.#client.send('Runtime.enable').catch(debugError);

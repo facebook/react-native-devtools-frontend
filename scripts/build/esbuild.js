@@ -4,13 +4,16 @@
 
 // @ts-check
 
+const os = require('os');
 const path = require('path');
 
 const devtools_paths = require('../devtools_paths.js');
+
 const devtools_plugin = require('./devtools_plugin.js');
 
 // esbuild module uses binary in this path.
-process.env.ESBUILD_BINARY_PATH = path.join(devtools_paths.devtoolsRootPath(), 'third_party', 'esbuild', 'esbuild');
+const binaryName = os.type() === 'Windows_NT' ? 'esbuild.exe' : 'esbuild';
+process.env.ESBUILD_BINARY_PATH = path.join(devtools_paths.devtoolsRootPath(), 'third_party', 'esbuild', binaryName);
 
 const entryPoints = [process.argv[2]];
 const outfile = process.argv[3];

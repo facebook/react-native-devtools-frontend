@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../../ui/components/icon_button/icon_button.js';
+
 import * as Common from '../../../core/common/common.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import type * as Platform from '../../../core/platform/platform.js';
@@ -9,12 +11,17 @@ import type * as SDK from '../../../core/sdk/sdk.js';
 import type * as Protocol from '../../../generated/protocol.js';
 import type * as Logs from '../../../models/logs/logs.js';
 import * as NetworkForward from '../../../panels/network/forward/forward.js';
-import * as IconButton from '../../../ui/components/icon_button/icon_button.js';
-import * as Coordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
-import * as LitHtml from '../../../ui/lit-html/lit-html.js';
+import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
+import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import requestLinkIconStyles from './requestLinkIcon.css.js';
+import requestLinkIconStylesRaw from './requestLinkIcon.css.js';
+
+// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
+const requestLinkIconStyles = new CSSStyleSheet();
+requestLinkIconStyles.replaceSync(requestLinkIconStylesRaw.cssText);
+
+const {html} = Lit;
 
 const UIStrings = {
   /**
@@ -30,16 +37,14 @@ const UIStrings = {
    * @description Label for the shortened URL displayed in a link to show a request in the network panel
    */
   shortenedURL: 'Shortened URL',
-};
+} as const;
 const str_ = i18n.i18n.registerUIStrings('ui/components/request_link_icon/RequestLinkIcon.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-
-const coordinator = Coordinator.RenderCoordinator.RenderCoordinator.instance();
 
 export interface RequestLinkIconData {
   linkToPreflight?: boolean;
   request?: SDK.NetworkRequest.NetworkRequest|null;
-  affectedRequest?: {requestId: Protocol.Network.RequestId, url?: string};
+  affectedRequest?: {requestId?: Protocol.Network.RequestId, url?: string};
   highlightHeader?: {section: NetworkForward.UIRequestLocation.UIHeaderSection, name: string};
   networkTab?: NetworkForward.UIRequestLocation.UIRequestTabs;
   requestResolver?: Logs.RequestResolver.RequestResolver;
@@ -58,7 +63,6 @@ export const extractShortPath = (path: Platform.DevToolsPath.UrlString): string 
 };
 
 export class RequestLinkIcon extends HTMLElement {
-  static readonly litTagName = LitHtml.literal`devtools-request-link-icon`;
   readonly #shadow = this.attachShadow({mode: 'open'});
   #linkToPreflight?: boolean;
   // The value `null` indicates that the request is not available,
@@ -66,10 +70,10 @@ export class RequestLinkIcon extends HTMLElement {
   #request?: SDK.NetworkRequest.NetworkRequest|null;
   #highlightHeader?: {section: NetworkForward.UIRequestLocation.UIHeaderSection, name: string};
   #requestResolver?: Logs.RequestResolver.RequestResolver;
-  #displayURL: boolean = false;
+  #displayURL = false;
   #urlToDisplay?: string;
   #networkTab?: NetworkForward.UIRequestLocation.UIRequestTabs;
-  #affectedRequest?: {requestId: Protocol.Network.RequestId, url?: string};
+  #affectedRequest?: {requestId?: Protocol.Network.RequestId, url?: string};
   #additionalOnClickAction?: () => void;
   #reveal = Common.Revealer.reveal;
 
@@ -88,7 +92,7 @@ export class RequestLinkIcon extends HTMLElement {
     if (data.revealOverride) {
       this.#reveal = data.revealOverride;
     }
-    if (!this.#request && data.affectedRequest) {
+    if (!this.#request && typeof data.affectedRequest?.requestId !== 'undefined') {
       if (!this.#requestResolver) {
         throw new Error('A `RequestResolver` must be provided if an `affectedRequest` is provided.');
       }
@@ -137,7 +141,7 @@ export class RequestLinkIcon extends HTMLElement {
       void this.#reveal(requestLocation);
     } else {
       const requestLocation = NetworkForward.UIRequestLocation.UIRequestLocation.tab(
-          linkedRequest, this.#networkTab ?? NetworkForward.UIRequestLocation.UIRequestTabs.HeadersComponent);
+          linkedRequest, this.#networkTab ?? NetworkForward.UIRequestLocation.UIRequestTabs.HEADERS_COMPONENT);
       void this.#reveal(requestLocation);
     }
     this.#additionalOnClickAction?.();
@@ -151,44 +155,49 @@ export class RequestLinkIcon extends HTMLElement {
     return i18nString(UIStrings.requestUnavailableInTheNetwork);
   }
 
-  #getUrlForDisplaying(): Platform.DevToolsPath.UrlString|undefined {
-    if (!this.#request) {
-      return this.#affectedRequest?.url as Platform.DevToolsPath.UrlString;
+  #getUrlForDisplaying(): string|undefined {
+    if (!this.#displayURL) {
+      return undefined;
     }
-    return this.#request.url();
+    if (this.#request) {
+      return this.#request.url();
+    }
+    return this.#affectedRequest?.url;
   }
 
-  #maybeRenderURL(): LitHtml.LitTemplate {
-    if (!this.#displayURL) {
-      return LitHtml.nothing;
-    }
-
+  #maybeRenderURL(): Lit.LitTemplate {
     const url = this.#getUrlForDisplaying();
     if (!url) {
-      return LitHtml.nothing;
+      return Lit.nothing;
     }
 
     if (this.#urlToDisplay) {
-      return LitHtml.html`<span title=${url}>${this.#urlToDisplay}</span>`;
+      return html`<span title=${url}>${this.#urlToDisplay}</span>`;
     }
 
-    const filename = extractShortPath(url);
-    return LitHtml.html`<span aria-label=${i18nString(UIStrings.shortenedURL)} title=${url}>${filename}</span>`;
+    const filename = extractShortPath(url as Platform.DevToolsPath.UrlString);
+    return html`<span aria-label=${i18nString(UIStrings.shortenedURL)} title=${url}>${filename}</span>`;
   }
 
   async #render(): Promise<void> {
-    return coordinator.write(() => {
-      // clang-format off
-      LitHtml.render(LitHtml.html`
-      <button class=${LitHtml.Directives.classMap({'link': Boolean(this.#request)})}
-              title=${this.#getTooltip()}
-              jslog=${VisualLogging.link('request').track({click: true})}
-              @click=${this.handleClick}>
-        <${IconButton.Icon.Icon.litTagName} name="arrow-up-down-circle"></${IconButton.Icon.Icon.litTagName}>
-        ${this.#maybeRenderURL()}
-      </button>`,
-      this.#shadow, {host: this});
-      // clang-format on
+    return await RenderCoordinator.write(() => {
+      // By default we render just the URL for the request link. If we also know
+      // the concrete network request, or at least its request ID, we surround
+      // the URL with a button, that opens the request in the Network panel.
+      let template = this.#maybeRenderURL();
+      if (this.#request || this.#affectedRequest?.requestId !== undefined) {
+        // clang-format off
+        template = html`
+          <button class=${Lit.Directives.classMap({link: Boolean(this.#request)})}
+                  title=${this.#getTooltip()}
+                  jslog=${VisualLogging.link('request').track({click: true})}
+                  @click=${this.handleClick}>
+            <devtools-icon name="arrow-up-down-circle"></devtools-icon>
+            ${template}
+          </button>`;
+        // clang-format on
+      }
+      Lit.render(template, this.#shadow, {host: this});
     });
   }
 }

@@ -39,7 +39,7 @@ let pendingLoAFs = [];
 // that are known to not match INP are removed.
 let pendingEntriesGroups = [];
 // The `processingEnd` time of most recently-processed event, chronologically.
-let latestProcessingEnd;
+let latestProcessingEnd = 0;
 // A WeakMap to look up the event-timing-entries group of a given entry.
 // Note that this only maps from "important" entries: either the first input or
 // those with an `interactionId`.
@@ -60,11 +60,15 @@ const handleLoAFEntries = (entries) => {
 // Get a reference to the interaction target element in case it's removed
 // from the DOM later.
 const saveInteractionTarget = (entry) => {
-    if (entry.interactionId &&
-        entry.target &&
-        !interactionTargetMap.has(entry.interactionId)) {
-        interactionTargetMap.set(entry.interactionId, entry.target);
-    }
+    // TODO(b/376777343): Remove this modification when web-vitals.js doesn't retain DOM nodes anymore
+    // Although it is useful for DevTools to retain nodes for diagnostic purposes, it is not preferable
+    // to retaining Nodes in memory when the user does not expect them to.
+    //
+    // if (entry.interactionId &&
+    //     entry.target &&
+    //     !interactionTargetMap.has(entry.interactionId)) {
+    //     interactionTargetMap.set(entry.interactionId, entry.target);
+    // }
 };
 /**
  * Groups entries that were presented within the same animation frame by
@@ -139,7 +143,7 @@ const cleanupEntries = () => {
     });
     // Keep all pending LoAF entries that either:
     // 1) intersect with entries in the newly cleaned up `pendingEntriesGroups`
-    // 2) occur after the most recently-processed event entry.
+    // 2) occur after the most recently-processed event entry (for up to MAX_PREVIOUS_FRAMES)
     const loafsToKeep = new Set();
     for (let i = 0; i < pendingEntriesGroups.length; i++) {
         const group = pendingEntriesGroups[i];
@@ -147,16 +151,14 @@ const cleanupEntries = () => {
             loafsToKeep.add(loaf);
         });
     }
-    for (let i = 0; i < MAX_PREVIOUS_FRAMES; i++) {
-        // Look at pending LoAF in reverse order so the most recent are first.
-        const loaf = pendingLoAFs[pendingLoAFs.length - 1 - i];
-        // If we reach LoAFs that overlap with event processing,
-        // we can assume all previous ones have already been handled.
-        if (!loaf || loaf.startTime < latestProcessingEnd)
-            break;
-        loafsToKeep.add(loaf);
-    }
-    pendingLoAFs = Array.from(loafsToKeep);
+    const prevFrameIndexCutoff = pendingLoAFs.length - 1 - MAX_PREVIOUS_FRAMES;
+    // Filter `pendingLoAFs` to preserve LoAF order.
+    pendingLoAFs = pendingLoAFs.filter((loaf, index) => {
+        if (loaf.startTime > latestProcessingEnd && index > prevFrameIndexCutoff) {
+            return true;
+        }
+        return loafsToKeep.has(loaf);
+    });
     // Reset the idle callback handle so it can be queued again.
     idleHandle = -1;
 };
@@ -176,7 +178,7 @@ const getIntersectingLoAFs = (start, end) => {
     }
     return intersectingLoAFs;
 };
-const attributeINP = (metric) => {
+export const attributeINP = (metric) => {
     const firstEntry = metric.entries[0];
     const group = entryToEntriesGroupMap.get(firstEntry);
     const processingStart = firstEntry.processingStart;

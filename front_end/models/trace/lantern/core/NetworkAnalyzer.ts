@@ -13,7 +13,7 @@ class UrlUtils {
    * As a result, the network URL (chrome://chrome/settings/) doesn't match the final document URL (chrome://settings/).
    */
   static rewriteChromeInternalUrl(url: string): string {
-    if (!url || !url.startsWith('chrome://')) {
+    if (!url?.startsWith('chrome://')) {
       return url;
     }
     // Chrome adds a trailing slash to `chrome://` URLs, but the spec does not.
@@ -37,7 +37,7 @@ class UrlUtils {
       urlb.hash = '';
 
       return urla.href === urlb.href;
-    } catch (e) {
+    } catch {
       return false;
     }
   }
@@ -70,11 +70,11 @@ interface RTTEstimateOptions {
   useHeadersEndEstimates?: boolean;
 }
 
-type RequestInfo = {
-  request: Lantern.NetworkRequest,
-  timing: Lantern.ResourceTiming,
-  connectionReused?: boolean,
-};
+interface RequestInfo {
+  request: Lantern.NetworkRequest;
+  timing: Lantern.ResourceTiming;
+  connectionReused?: boolean;
+}
 
 const INITIAL_CWD = 14 * 1024;
 
@@ -141,7 +141,7 @@ class NetworkAnalyzer {
     return summaryByKey;
   }
 
-  static _estimateValueByOrigin(
+  static estimateValueByOrigin(
       requests: Lantern.NetworkRequest[],
       iteratee: (e: RequestInfo) => number | number[] | undefined): Map<string, number[]> {
     const connectionWasReused = NetworkAnalyzer.estimateIfConnectionWasReused(requests);
@@ -184,7 +184,7 @@ class NetworkAnalyzer {
    * single handshake.
    * This is the most accurate and preferred method of measurement when the data is available.
    */
-  static _estimateRTTViaConnectionTiming(info: RequestInfo): number[]|number|undefined {
+  static estimateRTTViaConnectionTiming(info: RequestInfo): number[]|number|undefined {
     const {timing, connectionReused, request} = info;
     if (connectionReused) {
       return;
@@ -211,7 +211,7 @@ class NetworkAnalyzer {
    * NOTE: this will tend to overestimate the actual RTT quite significantly as the download can be
    * slow for other reasons as well such as bandwidth constraints.
    */
-  static _estimateRTTViaDownloadTiming(info: RequestInfo): number|undefined {
+  static estimateRTTViaDownloadTiming(info: RequestInfo): number|undefined {
     const {timing, connectionReused, request} = info;
     if (connectionReused) {
       return;
@@ -245,7 +245,7 @@ class NetworkAnalyzer {
    * NOTE: this will tend to overestimate the actual RTT as the request can be delayed for other
    * reasons as well such as more SSL handshakes if TLS False Start is not enabled.
    */
-  static _estimateRTTViaSendStartTiming(info: RequestInfo): number|undefined {
+  static estimateRTTViaSendStartTiming(info: RequestInfo): number|undefined {
     const {timing, connectionReused, request} = info;
     if (connectionReused) {
       return;
@@ -274,7 +274,7 @@ class NetworkAnalyzer {
    * NOTE: this is the most inaccurate way to estimate the RTT, but in some environments it's all
    * we have access to :(
    */
-  static _estimateRTTViaHeadersEndTiming(info: RequestInfo): number|undefined {
+  static estimateRTTViaHeadersEndTiming(info: RequestInfo): number|undefined {
     const {timing, connectionReused, request} = info;
     if (!Number.isFinite(timing.receiveHeadersEnd) || timing.receiveHeadersEnd < 0) {
       return;
@@ -310,9 +310,9 @@ class NetworkAnalyzer {
   /**
    * Given the RTT to each origin, estimates the observed server response times.
    */
-  static _estimateResponseTimeByOrigin(records: Lantern.NetworkRequest[], rttByOrigin: Map<string, number>):
+  static estimateResponseTimeByOrigin(records: Lantern.NetworkRequest[], rttByOrigin: Map<string, number>):
       Map<string, number[]> {
-    return NetworkAnalyzer._estimateValueByOrigin(records, ({request, timing}) => {
+    return NetworkAnalyzer.estimateValueByOrigin(records, ({request, timing}) => {
       if (request.serverResponseTime !== undefined) {
         return request.serverResponseTime;
       }
@@ -408,11 +408,10 @@ class NetworkAnalyzer {
     for (const [origin, originRequests] of groupedByOrigin.entries()) {
       const originEstimates: number[] = [];
 
-      // eslint-disable-next-line no-inner-declarations
       function collectEstimates(estimator: (e: RequestInfo) => number[] | number | undefined, multiplier = 1): void {
         for (const request of originRequests) {
           const timing = request.timing;
-          if (!timing) {
+          if (!timing || !request.transferSize) {
             continue;
           }
 
@@ -434,7 +433,7 @@ class NetworkAnalyzer {
       }
 
       if (!forceCoarseEstimates) {
-        collectEstimates(this._estimateRTTViaConnectionTiming);
+        collectEstimates(this.estimateRTTViaConnectionTiming);
       }
 
       // Connection timing can be missing for a few reasons:
@@ -444,13 +443,13 @@ class NetworkAnalyzer {
       // - Not provided in LR netstack.
       if (!originEstimates.length) {
         if (useDownloadEstimates) {
-          collectEstimates(this._estimateRTTViaDownloadTiming, coarseEstimateMultiplier);
+          collectEstimates(this.estimateRTTViaDownloadTiming, coarseEstimateMultiplier);
         }
         if (useSendStartEstimates) {
-          collectEstimates(this._estimateRTTViaSendStartTiming, coarseEstimateMultiplier);
+          collectEstimates(this.estimateRTTViaSendStartTiming, coarseEstimateMultiplier);
         }
         if (useHeadersEndEstimates) {
-          collectEstimates(this._estimateRTTViaHeadersEndTiming, coarseEstimateMultiplier);
+          collectEstimates(this.estimateRTTViaHeadersEndTiming, coarseEstimateMultiplier);
         }
       }
 
@@ -472,7 +471,7 @@ class NetworkAnalyzer {
   static estimateServerResponseTimeByOrigin(records: Lantern.NetworkRequest[], options?: RTTEstimateOptions&{
     rttByOrigin?: Map<string, number>,
   }): Map<string, Summary> {
-    let rttByOrigin = (options || {}).rttByOrigin;
+    let rttByOrigin = options?.rttByOrigin;
     if (!rttByOrigin) {
       rttByOrigin = new Map();
 
@@ -482,16 +481,16 @@ class NetworkAnalyzer {
       }
     }
 
-    const estimatesByOrigin = NetworkAnalyzer._estimateResponseTimeByOrigin(records, rttByOrigin);
+    const estimatesByOrigin = NetworkAnalyzer.estimateResponseTimeByOrigin(records, rttByOrigin);
     return NetworkAnalyzer.summarize(estimatesByOrigin);
   }
 
   /**
    * Computes the average throughput for the given requests in bits/second.
    * Excludes data URI, failed or otherwise incomplete, and cached requests.
-   * Returns Infinity if there were no analyzable network requests.
+   * Returns null if there were no analyzable network requests.
    */
-  static estimateThroughput(records: Lantern.NetworkRequest[]): number {
+  static estimateThroughput(records: Lantern.NetworkRequest[]): number|null {
     let totalBytes = 0;
 
     // We will measure throughput by summing the total bytes downloaded by the total time spent
@@ -518,7 +517,7 @@ class NetworkAnalyzer {
                                .sort((a, b) => a.time - b.time);
 
     if (!timeBoundaries.length) {
-      return Infinity;
+      return null;
     }
 
     let inflight = 0;
@@ -576,25 +575,29 @@ class NetworkAnalyzer {
     };
   }
 
-  static analyze(records: Lantern.NetworkRequest[]): Lantern.Simulation.Settings['networkAnalysis'] {
+  static analyze(records: Lantern.NetworkRequest[]): Lantern.Simulation.Settings['networkAnalysis']|null {
     const throughput = NetworkAnalyzer.estimateThroughput(records);
+    if (throughput === null) {
+      return null;
+    }
+
     return {
       throughput,
       ...NetworkAnalyzer.computeRTTAndServerResponseTime(records),
     };
   }
 
-  static findResourceForUrl<T extends Lantern.NetworkRequest>(records: Array<T>, resourceUrl: string): T|undefined {
+  static findResourceForUrl<T extends Lantern.NetworkRequest>(records: T[], resourceUrl: string): T|undefined {
     // equalWithExcludedFragments is expensive, so check that the resourceUrl starts with the request url first
     return records.find(
         request => resourceUrl.startsWith(request.url) && UrlUtils.equalWithExcludedFragments(request.url, resourceUrl),
     );
   }
 
-  static findLastDocumentForUrl<T extends Lantern.NetworkRequest>(records: Array<T>, resourceUrl: string): T|undefined {
+  static findLastDocumentForUrl<T extends Lantern.NetworkRequest>(records: T[], resourceUrl: string): T|undefined {
     // equalWithExcludedFragments is expensive, so check that the resourceUrl starts with the request url first
     const matchingRequests = records.filter(
-        request => request.resourceType === 'Document' &&
+        request => request.resourceType === 'Document' && !request.failed &&
             // Note: `request.url` should never have a fragment, else this optimization gives wrong results.
             resourceUrl.startsWith(request.url) && UrlUtils.equalWithExcludedFragments(request.url, resourceUrl),
     );

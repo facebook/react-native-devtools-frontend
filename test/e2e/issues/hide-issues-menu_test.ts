@@ -11,7 +11,6 @@ import {
   goToResource,
   waitFor,
 } from '../../shared/helper.js';
-import {describe, it} from '../../shared/mocha-extensions.js';
 import {
   getGroupByKindChecked,
   getHiddenIssuesRow,
@@ -29,21 +28,21 @@ import {
 describe('Hide issues menu', () => {
   it('should become visible on hovering over the issue header', async () => {
     const {frontend} = getBrowserAndPages();
-    frontend.evaluate(() => {
+    await frontend.evaluate(() => {
       const issue = {
-        'code': 'HeavyAdIssue',
-        'details': {
-          'heavyAdIssueDetails': {
-            'resolution': 'HeavyAdBlocked',
-            'reason': 'NetworkTotalLimit',
-            'frame': {frameId: 'main'},
+        code: 'HeavyAdIssue',
+        details: {
+          heavyAdIssueDetails: {
+            resolution: 'HeavyAdBlocked',
+            reason: 'NetworkTotalLimit',
+            frame: {frameId: 'main'},
           },
         },
       };
-      // @ts-ignore
+      // @ts-expect-error
       window.addIssueForTest(issue);
     });
-    frontend.evaluate(() => {
+    await frontend.evaluate(() => {
       const issue = {
         code: 'DeprecationIssue',
         details: {
@@ -57,7 +56,7 @@ describe('Hide issues menu', () => {
           },
         },
       };
-      // @ts-ignore
+      // @ts-expect-error
       window.addIssueForTest(issue);
     });
 
@@ -84,7 +83,7 @@ describe('Hide issues menu', () => {
                         .toString()
                         .replace('localhost', 'devtools.oopif.test');
         await fetch(url, {credentials: 'include'});
-      } catch (e) {
+      } catch {
       }
     });
     await navigateToIssuesTab();
