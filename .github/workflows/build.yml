@@ -4,39 +4,56 @@ on:
   workflow_call:
 
 jobs:
-  build:
+  build-debug:
+    # We are running front_end test against the debug build
+    # We have to lock Ubuntu image version, because of AppArmor issues in latest versions
+    # https://pptr.dev/troubleshooting#issues-with-apparmor-on-ubuntu
+    # https://github.com/puppeteer/puppeteer/issues/12818
+    # https://issues.chromium.org/issues/373753919
     runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          path: src-debug
+      - name: setup-depot-tools
+        uses: newkdev/setup-depot-tools@v1.0.1
+      - name: Sync gclient workspace
+        run: |
+          gclient config --unmanaged src-debug --name src-debug
+          gclient sync --no-history
+      - name: Build DevTools frontend (debug)
+        run: |
+          cd src-debug
+          gn gen out/Default
+          autoninja -C out/Default
+      - uses: ./src-debug/.github/actions/upload-artifact
+        with:
+          name: dist-front_end
+          path: src-debug/out/Default/gen/front_end
+      - name: Run front_end tests
+        run: |
+          cd src-debug
+          npm run test -- front_end
+  build-release:
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
       with:
-        path: src
+        path: src-release
     - name: setup-depot-tools
       uses: newkdev/setup-depot-tools@v1.0.1
     - name: Sync gclient workspace
       run: |
-        gclient config --unmanaged src --name src
+        gclient config --unmanaged src-release --name src-release
         gclient sync --no-history
-    - name: Build DevTools frontend (debug)
-      run: |
-        cd src
-        gn gen out/Default
-        autoninja -C out/Default
-    - uses: ./src/.github/actions/upload-artifact
-      with:
-        name: dist-front_end
-        path: src/out/Default/gen/front_end
     - name: Build DevTools frontend (release)
       run: |
-        cd src
+        cd src-release
         mkdir -p out/Release
         echo 'is_official_build=true' > out/Release/args.gn
         gn gen out/Release
         autoninja -C out/Release
-    - uses: ./src/.github/actions/upload-artifact
+    - uses: ./src-release/.github/actions/upload-artifact
       with:
         name: dist-Release-front_end
-        path: src/out/Release/gen/front_end
-    - name: Run front_end tests
-      run: |
-        cd src
-        npm run test -- front_end
+        path: src-release/out/Release/gen/front_end
