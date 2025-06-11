@@ -65,6 +65,7 @@ import {Tracker} from './FreshRecording.js';
 import {IsolateSelector} from './IsolateSelector.js';
 import {AnnotationModifiedEvent, ModificationsManager} from './ModificationsManager.js';
 import * as Overlays from './overlays/overlays.js';
+import {ReactNativeTimelineLandingPage} from './ReactNativeTimelineLandingPage.js';
 import {cpuprofileJsonGenerator, traceJsonGenerator} from './SaveFileFormatter.js';
 import {type Client, TimelineController} from './TimelineController.js';
 import {Tab} from './TimelineDetailsView.js';
@@ -2250,9 +2251,13 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
       return;
     }
 
-    const liveMetrics = new TimelineComponents.LiveMetricsView.LiveMetricsView();
-    liveMetrics.isNode = isNode;
-    this.landingPage = LegacyWrapper.LegacyWrapper.legacyWrapper(UI.Widget.Widget, liveMetrics);
+    if (isReactNative) {
+      this.landingPage = new ReactNativeTimelineLandingPage(this.toggleRecordAction);
+    } else {
+      const liveMetrics = new TimelineComponents.LiveMetricsView.LiveMetricsView();
+      liveMetrics.isNode = isNode;
+      this.landingPage = LegacyWrapper.LegacyWrapper.legacyWrapper(UI.Widget.Widget, liveMetrics);
+    }
     this.landingPage.element.classList.add('timeline-landing-page', 'fill');
     this.landingPage.contentElement.classList.add('fill');
     this.landingPage.show(this.statusPaneContainer);
