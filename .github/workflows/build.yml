@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           path: src-debug
-      - name: setup-depot-tools
+      - name: Set up depot-tools
         uses: newkdev/setup-depot-tools@v1.0.1
       - name: Sync gclient workspace
         run: |
@@ -40,7 +40,7 @@ jobs:
     - uses: actions/checkout@v3
       with:
         path: src-release
-    - name: setup-depot-tools
+    - name: Set up depot-tools
       uses: newkdev/setup-depot-tools@v1.0.1
     - name: Sync gclient workspace
       run: |
