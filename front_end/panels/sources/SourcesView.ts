@@ -8,6 +8,7 @@ import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
+import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import * as Persistence from '../../models/persistence/persistence.js';
@@ -150,16 +151,18 @@ export class SourcesView extends Common.ObjectWrapper.eventMixin<EventTypes, typ
     const placeholder = document.createElement('div');
     placeholder.classList.add('sources-placeholder');
 
-    const workspaceElement = placeholder.createChild('div', 'tabbed-pane-placeholder-row');
-    workspaceElement.classList.add('workspace');
+    if (Root.Runtime.Runtime.isDescriptorEnabled({experiment: undefined, condition: Root.Runtime.conditions.notSourcesHideAddFolder})) {
+      const workspaceElement = placeholder.createChild('div', 'tabbed-pane-placeholder-row');
+      workspaceElement.classList.add('workspace');
 
-    const icon = IconButton.Icon.create('sync', 'sync-icon');
-    workspaceElement.createChild('span', 'icon-container').appendChild(icon);
-    const text = workspaceElement.createChild('span');
-    text.textContent = UIStrings.workspaceDropInAFolderToSyncSources;
-    const browseButton = text.createChild('button');
-    browseButton.textContent = i18nString(UIStrings.selectFolder);
-    browseButton.addEventListener('click', this.addFileSystemClicked.bind(this));
+      const icon = IconButton.Icon.create('sync', 'sync-icon');
+      workspaceElement.createChild('span', 'icon-container').appendChild(icon);
+      const text = workspaceElement.createChild('span');
+      text.textContent = UIStrings.workspaceDropInAFolderToSyncSources;
+      const browseButton = text.createChild('button');
+      browseButton.textContent = i18nString(UIStrings.selectFolder);
+      browseButton.addEventListener('click', this.addFileSystemClicked.bind(this));
+    }
 
     const shortcuts = [
       {actionId: 'quick-open.show', description: i18nString(UIStrings.openFile)},
