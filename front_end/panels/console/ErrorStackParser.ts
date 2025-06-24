@@ -75,7 +75,7 @@ export function parseSourcePositionsFromErrorStack(
 
     const linkCandidate = line.substring(left, right);
     const splitResult = Common.ParsedURL.ParsedURL.splitLineAndColumn(linkCandidate);
-    if (splitResult.url === '<anonymous>') {
+    if (splitResult.url === '<anonymous>' || splitResult.url === 'native') {
       if (linkInfos.length && linkInfos[linkInfos.length - 1].isCallFrame && !linkInfos[linkInfos.length - 1].link) {
         // Combine builtin frames.
         linkInfos[linkInfos.length - 1].line += `\n${line}`;
