@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
+import * as Host from '../../core/host/host.js';
 import type * as Platform from '../../core/platform/platform.js';
 import type * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
@@ -43,6 +44,7 @@ export function parseSourcePositionsFromErrorStack(
     const match = /^\s*at\s(async\s)?/.exec(line);
     if (!match) {
       if (linkInfos.length && linkInfos[linkInfos.length - 1].isCallFrame) {
+        Host.rnPerfMetrics.stackTraceSymbolicationFailed(stack, line, '"at (url)" not found');
         return null;
       }
       linkInfos.push({line});
@@ -59,6 +61,7 @@ export function parseSourcePositionsFromErrorStack(
       do {
         left = line.indexOf(' (', left);
         if (left < 0) {
+          Host.rnPerfMetrics.stackTraceSymbolicationFailed(stack, line, 'left "(" not found');
           return null;
         }
         left += 2;
@@ -68,6 +71,7 @@ export function parseSourcePositionsFromErrorStack(
         left += 8;
         right = line.lastIndexOf(', ', right) - 1;
         if (right < 0) {
+          Host.rnPerfMetrics.stackTraceSymbolicationFailed(stack, line, 'right "(" not found');
           return null;
         }
       } while (true);
@@ -89,6 +93,7 @@ export function parseSourcePositionsFromErrorStack(
       url = parseOrScriptMatch(debuggerModel, Common.ParsedURL.ParsedURL.completeURL(baseURL, splitResult.url));
     }
     if (!url) {
+      Host.rnPerfMetrics.stackTraceSymbolicationFailed(stack, line, 'url parsing failed');
       return null;
     }
 
