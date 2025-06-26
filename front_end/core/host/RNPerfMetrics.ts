@@ -259,6 +259,17 @@ class RNPerfMetrics {
     });
   }
 
+  stackTraceSymbolicationFailed(stackTrace: string, line: string, reason: string): void {
+    this.sendEvent({
+      eventName: 'StackTraceSymbolicationFailed',
+      params: {
+        stackTrace,
+        line,
+        reason,
+      },
+    });
+  }
+
   panelShown(_panelName: string, _isLaunching?: boolean): void {
     // no-op
     // We only care about the "main" and "drawer" panels for now via panelShownInLocation(…)
@@ -423,10 +434,19 @@ export type PanelClosedEvent = Readonly<{
   }>,
 }>;
 
+export type StackTraceSymbolicationFailed = Readonly<{
+  eventName: 'StackTraceSymbolicationFailed',
+  params: Readonly<{
+    stackTrace: string,
+    line: string,
+    reason: string,
+  }>,
+}>;
+
 export type ReactNativeChromeDevToolsEvent =
     EntrypointLoadingStartedEvent|EntrypointLoadingFinishedEvent|DebuggerReadyEvent|BrowserVisibilityChangeEvent|
     BrowserErrorEvent|RemoteDebuggingTerminatedEvent|DeveloperResourceLoadingStartedEvent|
     DeveloperResourceLoadingFinishedEvent|FuseboxSetClientMetadataStartedEvent|FuseboxSetClientMetadataFinishedEvent|
-    MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent|PanelShownEvent|PanelClosedEvent;
+    MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent|PanelShownEvent|PanelClosedEvent|StackTraceSymbolicationFailed;
 
 export type DecoratedReactNativeChromeDevToolsEvent = CommonEventFields&ReactNativeChromeDevToolsEvent;
