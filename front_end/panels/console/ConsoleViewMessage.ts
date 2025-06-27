@@ -1006,6 +1006,9 @@ export class ConsoleViewMessage implements ConsoleViewportElement {
       if (cause && cause.subtype === 'error') {
         await formatErrorStack(cause, /* includeCausedByPrefix */ true);
       } else if (cause && cause.type === 'string') {
+        if (errorElementType === 'span') {
+          result.append(document.createElement('br'));
+        }
         result.append(`Caused by: ${cause.value}`);
       }
     };
