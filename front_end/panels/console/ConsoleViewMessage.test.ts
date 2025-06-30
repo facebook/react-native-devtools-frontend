@@ -23,6 +23,20 @@ import consoleViewStyles from './consoleView.css.js';
 
 const {urlString} = Platform.DevToolsPath;
 
+function errorMessageForStack(stack: Protocol.Runtime.StackTrace, withBuiltinFrames?: boolean) {
+  const lines = [
+    'Error:',
+    ...(stack.callFrames.flatMap(frame => {
+      const line = `    at ${frame.functionName} (${frame.url}:${frame.lineNumber}:${frame.columnNumber})`;
+      if (withBuiltinFrames) {
+        return [line, '    at JSON.parse (<anonymous>)'];
+      }
+      return [line];
+    })),
+  ];
+  return lines.join('\n');
+}
+
 describe('ConsoleViewMessage', () => {
   describe('concatErrorDescriptionAndIssueSummary', () => {
     const {concatErrorDescriptionAndIssueSummary} = Console.ConsoleViewMessage;
@@ -206,20 +220,6 @@ describeWithMockConnection('ConsoleViewMessage', () => {
       assert.isTrue(showLess.checkVisibility());
     }
 
-    function errorMessageForStack(stack: Protocol.Runtime.StackTrace, withBuiltinFrames?: boolean) {
-      const lines = [
-        'Error:',
-        ...(stack.callFrames.flatMap(frame => {
-          const line = `    at ${frame.functionName} (${frame.url}:${frame.lineNumber}:${frame.columnNumber})`;
-          if (withBuiltinFrames) {
-            return [line, '    at JSON.parse (<anonymous>)'];
-          }
-          return [line];
-        })),
-      ];
-      return lines.join('\n');
-    }
-
     function getCallFrames(element: HTMLElement): string[] {
       const results = [];
       for (const line of element.querySelectorAll('.formatted-stack-frame,.formatted-builtin-stack-frame')) {
@@ -255,7 +255,7 @@ describeWithMockConnection('ConsoleViewMessage', () => {
     }
 
     async function createConsoleMessageWithIgnoreListing(
-        ignoreListFn: (url: string) => boolean, withBuiltinFrames?: boolean): Promise<HTMLElement> {
+        ignoreListFn: (url: string) => boolean, withBuiltinFrames?: boolean, cause?: unknown): Promise<HTMLElement> {
       const target = createTarget();
       const runtimeModel = target.model(SDK.RuntimeModel.RuntimeModel);
       const stackTrace = createStackTrace([
@@ -264,16 +264,27 @@ describeWithMockConnection('ConsoleViewMessage', () => {
         'APP_ID::entry::http://example.com/app.js::25::10',
       ]);
       const stackTraceMessage = errorMessageForStack(stackTrace, withBuiltinFrames);
+
+      const errorRemoteObject = {
+        type: 'object',
+        subtype: 'error',
+        className: 'Error',
+        description: stackTraceMessage,
+        objectId: '100',
+      } as Protocol.Runtime.RemoteObject;
+
+      const errImp = SDK.RemoteObject.RemoteObjectImpl.fromLocalObject(errorRemoteObject);
+
       const messageDetails = {
         type: Protocol.Runtime.ConsoleAPICalledEventType.Error,
         stackTrace,
-        parameters: [{
-          type: 'object',
-          subtype: 'error',
-          className: 'Error',
-          description: stackTraceMessage,
-        } as Protocol.Runtime.RemoteObject],
+        parameters: [errorRemoteObject],
       };
+
+      const causeValue = SDK.RemoteObject.RemoteObject.fromLocalObject(cause);
+      const properties = [new SDK.RemoteObject.RemoteObjectProperty('cause', causeValue)];
+      sinon.stub(errImp, 'getAllProperties').returns(Promise.resolve({internalProperties: null, properties}));
+
       const rawMessage = new SDK.ConsoleModel.ConsoleMessage(
           runtimeModel, Common.Console.FrontendMessageSource.ConsoleAPI, Protocol.Log.LogEntryLevel.Error,
           stackTraceMessage, messageDetails);
@@ -428,6 +439,19 @@ describeWithMockConnection('ConsoleViewMessage', () => {
       assertShowAllLink(element);
       assert.deepEqual(getStructuredCallFrames(element), COLLAPSED_STRUCTURED);
       assert.deepEqual(getCallFrames(element), COLLAPSED_UNSTRUCTURED_WITH_BUILTIN);
+    });
+
+    describe('with cause', () => {
+      const selectErrorMessageElement = (element: HTMLElement) => element.querySelectorAll('.object-value-error > *');
+
+      it('string cause', async () => {
+        const element = await createConsoleMessageWithIgnoreListing(url => url.includes('/app.js'), true, 'aaa');
+
+        const errorMessageElement = selectErrorMessageElement(element);
+        assert.lengthOf(errorMessageElement, 2);
+        assert.deepEqual(errorMessageElement[0].nodeName, 'SPAN');
+        assert.deepEqual(errorMessageElement[1].nodeName, 'DIV');
+      });
     });
   });
 });
