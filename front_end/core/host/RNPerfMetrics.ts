@@ -270,6 +270,15 @@ class RNPerfMetrics {
     });
   }
 
+  stackTraceSymbolicationSucceeded(specialHermesFrameTypes: string[]): void {
+    this.sendEvent({
+      eventName: 'StackTraceSymbolicationSucceeded',
+      params: {
+        specialHermesFrameTypes,
+      },
+    });
+  }
+
   panelShown(_panelName: string, _isLaunching?: boolean): void {
     // no-op
     // We only care about the "main" and "drawer" panels for now via panelShownInLocation(…)
@@ -443,10 +452,18 @@ export type StackTraceSymbolicationFailed = Readonly<{
   }>,
 }>;
 
+export type StackTraceSymbolicationSucceeded = Readonly<{
+  eventName: 'StackTraceSymbolicationSucceeded',
+  params: Readonly<{
+    specialHermesFrameTypes: string[],
+  }>,
+}>;
+
 export type ReactNativeChromeDevToolsEvent =
     EntrypointLoadingStartedEvent|EntrypointLoadingFinishedEvent|DebuggerReadyEvent|BrowserVisibilityChangeEvent|
     BrowserErrorEvent|RemoteDebuggingTerminatedEvent|DeveloperResourceLoadingStartedEvent|
     DeveloperResourceLoadingFinishedEvent|FuseboxSetClientMetadataStartedEvent|FuseboxSetClientMetadataFinishedEvent|
-    MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent|PanelShownEvent|PanelClosedEvent|StackTraceSymbolicationFailed;
+    MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent|PanelShownEvent|PanelClosedEvent|
+    StackTraceSymbolicationFailed|StackTraceSymbolicationSucceeded;
 
 export type DecoratedReactNativeChromeDevToolsEvent = CommonEventFields&ReactNativeChromeDevToolsEvent;
