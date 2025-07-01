@@ -59,6 +59,8 @@ export function parseSourcePositionsFromErrorStack(
 
   const lines = stack.split('\n');
   const linkInfos = [];
+  const specialHermesFramesParsed = new Set<SpecialHermesStackTraceFrameTypes>();
+
   for (const line of lines) {
     const match = /^\s*at\s(async\s)?/.exec(line);
     if (!match) {
@@ -106,6 +108,9 @@ export function parseSourcePositionsFromErrorStack(
       } else {
         linkInfos.push({line, isCallFrame});
       }
+      if (specialHermesFrameType !== null) {
+        specialHermesFramesParsed.add(specialHermesFrameType);
+      }
       continue;
     }
     let url = parseOrScriptMatch(debuggerModel, splitResult.url);
@@ -130,6 +135,11 @@ export function parseSourcePositionsFromErrorStack(
       },
     });
   }
+
+  if (linkInfos?.length) {
+    Host.rnPerfMetrics.stackTraceSymbolicationSucceeded(Array.from(specialHermesFramesParsed));
+  }
+
   return linkInfos;
 }
 
