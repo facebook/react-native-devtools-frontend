@@ -21,6 +21,37 @@ export interface ParsedErrorFrame {
   };
 }
 
+export type SpecialHermesStackTraceFrameTypes = 'native' | 'address at' | 'empty url';
+
+function getSpecialHermesStackTraceFrameType({
+    url,
+}: {
+  url: Platform.DevToolsPath.UrlString,
+}): SpecialHermesStackTraceFrameTypes | null {
+  // functions implemented in c++.
+  // TODO: these might be enhanced to include the C++ loc for the frame
+  // so that a debugger could stitch together a hybrid cross-language call stack
+  if (url === 'native') {
+    return 'native';
+  }
+
+  // frames with empty url
+  // TODO: these seem to be happening due to a bug that needs to be investigated
+  // and produce an actual script URL instead
+  if (url === '') {
+    return 'empty url';
+  }
+
+  // frames pointing to a bytecode locations
+  // TODO: these could be symbolicated and link to source files with the help of
+  // a bytecode source maps once they are available.
+  if (url.startsWith?.('address at ')) {
+    return 'address at';
+  }
+
+  return null;
+}
+
 /**
  * Takes a V8 Error#stack string and extracts source position information.
  *
@@ -79,7 +110,8 @@ export function parseSourcePositionsFromErrorStack(
 
     const linkCandidate = line.substring(left, right);
     const splitResult = Common.ParsedURL.ParsedURL.splitLineAndColumn(linkCandidate);
-    if (splitResult.url === '<anonymous>' || splitResult.url === 'native') {
+    const specialHermesFrameType = getSpecialHermesStackTraceFrameType(splitResult);
+    if (splitResult.url === '<anonymous>' || specialHermesFrameType !== null) {
       if (linkInfos.length && linkInfos[linkInfos.length - 1].isCallFrame && !linkInfos[linkInfos.length - 1].link) {
         // Combine builtin frames.
         linkInfos[linkInfos.length - 1].line += `\n${line}`;
