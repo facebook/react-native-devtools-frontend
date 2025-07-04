@@ -21,6 +21,25 @@ export interface ParsedErrorFrame {
   };
 }
 
+export type SpecialHermesStackTraceFrameTypes = 'native' | 'address at' | 'empty url';
+
+function getSpecialHermesStackTraceFrameType({
+    url,
+}: {
+  url: Platform.DevToolsPath.UrlString,
+}): SpecialHermesStackTraceFrameTypes | null {
+  if (url === 'native') {
+    return 'native';
+  }
+  if (url === '') {
+    return 'empty url';
+  }
+  if (url.startsWith?.('address at ')) {
+    return 'address at';
+  }
+  return null;
+}
+
 /**
  * Takes a V8 Error#stack string and extracts source position information.
  *
@@ -40,6 +59,8 @@ export function parseSourcePositionsFromErrorStack(
 
   const lines = stack.split('\n');
   const linkInfos = [];
+  const specialHermesFramesParsed = new Set<SpecialHermesStackTraceFrameTypes>();
+
   for (const line of lines) {
     const match = /^\s*at\s(async\s)?/.exec(line);
     if (!match) {
@@ -79,12 +100,16 @@ export function parseSourcePositionsFromErrorStack(
 
     const linkCandidate = line.substring(left, right);
     const splitResult = Common.ParsedURL.ParsedURL.splitLineAndColumn(linkCandidate);
-    if (splitResult.url === '<anonymous>' || splitResult.url === 'native') {
+    const specialHermesFrameType = getSpecialHermesStackTraceFrameType(splitResult);
+    if (splitResult.url === '<anonymous>' || specialHermesFrameType !== null) {
       if (linkInfos.length && linkInfos[linkInfos.length - 1].isCallFrame && !linkInfos[linkInfos.length - 1].link) {
         // Combine builtin frames.
         linkInfos[linkInfos.length - 1].line += `\n${line}`;
       } else {
         linkInfos.push({line, isCallFrame});
+      }
+      if (specialHermesFrameType !== null) {
+        specialHermesFramesParsed.add(specialHermesFrameType);
       }
       continue;
     }
@@ -110,6 +135,11 @@ export function parseSourcePositionsFromErrorStack(
       },
     });
   }
+
+  if (linkInfos?.length) {
+    Host.rnPerfMetrics.stackTraceSymbolicationSucceeded(Array.from(specialHermesFramesParsed));
+  }
+
   return linkInfos;
 }
 
