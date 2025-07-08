@@ -30,6 +30,10 @@ class RNPerfMetrics {
   // map of panel location to panel name
   #currentPanels = new Map<PanelLocation, string>();
 
+  isEnabled(): boolean {
+    return globalThis.enableReactNativePerfMetrics === true;
+  }
+
   addEventListener(listener: RNReliabilityEventListener): UnsubscribeFn {
     this.#listeners.add(listener);
 
@@ -259,6 +263,15 @@ class RNPerfMetrics {
     });
   }
 
+  stackTraceSymbolicationSucceeded(specialHermesFrameTypes: string[]): void {
+    this.sendEvent({
+      eventName: 'StackTraceSymbolicationSucceeded',
+      params: {
+        specialHermesFrameTypes,
+      },
+    });
+  }
+
   stackTraceSymbolicationFailed(stackTrace: string, line: string, reason: string): void {
     this.sendEvent({
       eventName: 'StackTraceSymbolicationFailed',
@@ -270,11 +283,17 @@ class RNPerfMetrics {
     });
   }
 
-  stackTraceSymbolicationSucceeded(specialHermesFrameTypes: string[]): void {
+  stackTraceFrameUrlResolutionSucceeded(): void {
     this.sendEvent({
-      eventName: 'StackTraceSymbolicationSucceeded',
+      eventName: 'StackTraceFrameUrlResolutionSucceeded',
+    });
+  }
+
+  stackTraceFrameUrlResolutionFailed(uniqueUrls: string[]): void {
+    this.sendEvent({
+      eventName: 'StackTraceFrameUrlResolutionFailed',
       params: {
-        specialHermesFrameTypes,
+        uniqueUrls,
       },
     });
   }
@@ -443,6 +462,13 @@ export type PanelClosedEvent = Readonly<{
   }>,
 }>;
 
+export type StackTraceSymbolicationSucceeded = Readonly<{
+  eventName: 'StackTraceSymbolicationSucceeded',
+  params: Readonly<{
+    specialHermesFrameTypes: string[],
+  }>,
+}>;
+
 export type StackTraceSymbolicationFailed = Readonly<{
   eventName: 'StackTraceSymbolicationFailed',
   params: Readonly<{
@@ -452,10 +478,14 @@ export type StackTraceSymbolicationFailed = Readonly<{
   }>,
 }>;
 
-export type StackTraceSymbolicationSucceeded = Readonly<{
-  eventName: 'StackTraceSymbolicationSucceeded',
+export type StackTraceFrameUrlResolutionSucceeded = Readonly<{
+  eventName: 'StackTraceFrameUrlResolutionSucceeded',
+}>;
+
+export type StackTraceFrameUrlResolutionFailed = Readonly<{
+  eventName: 'StackTraceFrameUrlResolutionFailed',
   params: Readonly<{
-    specialHermesFrameTypes: string[],
+    uniqueUrls: string[],
   }>,
 }>;
 
@@ -464,6 +494,7 @@ export type ReactNativeChromeDevToolsEvent =
     BrowserErrorEvent|RemoteDebuggingTerminatedEvent|DeveloperResourceLoadingStartedEvent|
     DeveloperResourceLoadingFinishedEvent|FuseboxSetClientMetadataStartedEvent|FuseboxSetClientMetadataFinishedEvent|
     MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent|PanelShownEvent|PanelClosedEvent|
-    StackTraceSymbolicationFailed|StackTraceSymbolicationSucceeded;
+    StackTraceSymbolicationSucceeded|StackTraceSymbolicationFailed|StackTraceFrameUrlResolutionSucceeded|
+    StackTraceFrameUrlResolutionFailed;
 
 export type DecoratedReactNativeChromeDevToolsEvent = CommonEventFields&ReactNativeChromeDevToolsEvent;
