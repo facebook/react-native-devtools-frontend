@@ -264,6 +264,7 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
     const {columnNumber, className = ''} = linkifyURLOptions;
     if (sourceURL) {
       fallbackAnchor = Linkifier.linkifyURL(sourceURL, linkifyURLOptions);
+      fallbackAnchor.dataset.fallbackAnchor = '1';
     }
     if (!target || target.isDisposed()) {
       return fallbackAnchor;
