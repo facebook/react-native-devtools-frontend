@@ -19,6 +19,11 @@ This repository is a fork of [ChromeDevTools/devtools-frontend](https://github.c
 
 ### Build-and-run options
 
+Run prebuild to set up the out dir:
+```
+npm run prebuild
+```
+
 1. Build continuously with a file watcher:
 
     ```sh
