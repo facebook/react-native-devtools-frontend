@@ -173,10 +173,11 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
             </x-link>
           </div>
           ${launchId ? html`
-            <div class="rn-session-id">
+            <div class="rn-session-id-message">
               ${i18nString(UIStrings.sessionIdMessage)}
-              <br/>
-              ${launchId}
+              <div class="rn-session-id">
+                ${launchId}
+              </div>
             </div>
           ` : ''}
           ${this.#reactNativeVersion !== null && this.#reactNativeVersion !== undefined ? html`
