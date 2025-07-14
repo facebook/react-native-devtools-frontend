@@ -21,7 +21,7 @@ const UIStrings = {
   /**
    * @description Message for the "settings changed" banner shown when a reload is required for the Network panel.
    */
-  reloadRequiredForNetworkPanelMessage: 'Network panel is now available for dogfooding. Please reload to access it.',
+  reloadRequiredForNetworkPanelMessage: 'The Network panel is now available for dogfooding. Please reload to access it.',
 } as const;
 
 const str_ = i18n.i18n.registerUIStrings('entrypoints/rn_fusebox/FuseboxExperimentsObserver.ts', UIStrings);
