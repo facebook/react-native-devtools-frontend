@@ -12,5 +12,5 @@
 
 <!-- Pick one: -->
 
-- [ ] This commit should be sent as a patch to the upstream `devtools-frontend` repo. I've reviewed the [contribution guide](https://docs.google.com/document/d/1WNF-KqRSzPLUUfZqQG5AFeU_Ll8TfWYcJasa_XGf7ro/edit#heading=h.9kj7femz1xg5).
+- [ ] This commit should be sent as a patch to the upstream `devtools-frontend` repo following the [contribution guide for Meta employees](https://fburl.com/wiki/43s6yft1) OR [contribution guide](https://chromium.googlesource.com/devtools/devtools-frontend/+/main/docs/contributing/README.md).
 - [ ] This commit is React Native-specific and cannot be upstreamed.
