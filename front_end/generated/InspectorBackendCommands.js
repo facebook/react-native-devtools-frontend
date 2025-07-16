@@ -44,6 +44,7 @@ export function registerCommands(inspectorBackend) {
 inspectorBackend.registerEvent("ReactNativeApplication.metadataUpdated", ["appDisplayName", "appIdentifier", "deviceName", "integrationName", "platform", "reactNativeVersion", "unstable_isProfilingBuild", "unstable_networkInspectionEnabled"]);
 inspectorBackend.registerCommand("ReactNativeApplication.disable", [], [], "Disables events from backend.");
 inspectorBackend.registerCommand("ReactNativeApplication.enable", [], [], "Enables events from backend.");
+inspectorBackend.registerCommand("ReactNativeApplication.reloadAndStartTracing", [], [], "Requests the Host to reload React Native instance and start tracing right away.");
 
 // Accessibility.
 inspectorBackend.registerEnum("Accessibility.AXValueType", {Boolean: "boolean", Tristate: "tristate", BooleanOrUndefined: "booleanOrUndefined", Idref: "idref", IdrefList: "idrefList", Integer: "integer", Node: "node", NodeList: "nodeList", Number: "number", String: "string", ComputedString: "computedString", Token: "token", TokenList: "tokenList", DomRelation: "domRelation", Role: "role", InternalRole: "internalRole", ValueUndefined: "valueUndefined"});

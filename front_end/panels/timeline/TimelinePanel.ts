@@ -373,8 +373,7 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
   private recordingPageReload: boolean;
   private readonly millisecondsToRecordAfterLoadEvent: number;
   private readonly toggleRecordAction: UI.ActionRegistration.Action;
-  // Null for React Native entrypoints, see https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
-  private readonly recordReloadAction: UI.ActionRegistration.Action | null;
+  private readonly recordReloadAction: UI.ActionRegistration.Action;
   readonly #historyManager: TimelineHistoryManager;
   private disableCaptureJSProfileSetting: Common.Settings.Setting<boolean>;
   private readonly captureLayersAndPicturesSetting: Common.Settings.Setting<boolean>;
@@ -521,8 +520,7 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     this.recordingPageReload = false;
     this.millisecondsToRecordAfterLoadEvent = 5000;
     this.toggleRecordAction = UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.toggle-recording');
-    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
-    this.recordReloadAction = isReactNative ? null : UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.record-reload');
+    this.recordReloadAction = UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.record-reload');
 
     this.#historyManager = new TimelineHistoryManager(this.#minimapComponent, isNode);
 
@@ -1080,10 +1078,7 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
   private populateToolbar(): void {
     // Record
     this.panelToolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButton(this.toggleRecordAction));
-    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
-    if (!isReactNative && this.recordReloadAction !== null) {
-      this.panelToolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButton(this.recordReloadAction));
-    }
+    this.panelToolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButton(this.recordReloadAction));
     this.clearButton = new UI.Toolbar.ToolbarButton(i18nString(UIStrings.clear), 'clear', undefined, 'timeline.clear');
     this.clearButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, () => this.onClearButton());
     this.panelToolbar.appendToolbarItem(this.clearButton);
@@ -1764,6 +1759,21 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     }
   }
 
+  private async reactNativeReloadAndStartRecording(): Promise<void> {
+    const primaryPageTarget = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
+    if (primaryPageTarget === null) {
+      throw new Error('');
+    }
+    const reactNativeApplicationModel =
+        primaryPageTarget.model(SDK.ReactNativeApplicationModel.ReactNativeApplicationModel);
+    if (reactNativeApplicationModel === null || reactNativeApplicationModel === undefined) {
+      throw new Error();
+    }
+
+    await reactNativeApplicationModel.requestReloadAndStartTracing();
+    await this.startRecording();
+  }
+
   private async startRecording(): Promise<void> {
     console.assert(!this.statusPane, 'Status pane is already opened.');
     this.setState(State.START_PENDING);
@@ -1885,6 +1895,17 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     }
     this.recordingPageReload = true;
     void this.startRecording();
+    Host.userMetrics.actionTaken(Host.UserMetrics.Action.TimelinePageReloadStarted);
+  }
+
+  reactNativeRecordReload(): void {
+    if (this.state !== State.IDLE) {
+      return;
+    }
+    // [RN] This flag is used by CDT for navigating to about:blank and recording navigation events of the page.
+    // We don't need to toggle it for React Native: this won't affect the UI in any way.
+    this.recordingPageReload = false;
+    void this.reactNativeReloadAndStartRecording();
     Host.userMetrics.actionTaken(Host.UserMetrics.Action.TimelinePageReloadStarted);
   }
 
@@ -3031,7 +3052,11 @@ export class ActionDelegate implements UI.ActionRegistration.ActionDelegate {
         void panel.toggleRecording();
         return true;
       case 'timeline.record-reload':
-        panel.recordReload();
+        if (isReactNative) {
+          panel.reactNativeRecordReload();
+        } else {
+          panel.recordReload();
+        }
         return true;
       case 'timeline.save-to-file':
         void panel.saveToFile();

@@ -51,6 +51,15 @@ export class ReactNativeApplicationModel extends SDKModel<EventTypes> implements
     this.metadataCached = metadata;
     this.dispatchEventToListeners(Events.METADATA_UPDATED, metadata);
   }
+
+  async requestReloadAndStartTracing(): Promise<void> {
+    if (!this.#enabled) {
+      throw new Error('Attempted to invoke reloadAndStartTracing on disabled ReactNativeApplicationModel.');
+    }
+
+    await this.#agent.invoke_reloadAndStartTracing();
+    return;
+  }
 }
 
 export const enum Events {

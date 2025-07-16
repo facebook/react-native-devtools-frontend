@@ -10,6 +10,9 @@ experimental domain ReactNativeApplication
   # Enables events from backend.
   command enable
 
+  # Requests the Host to reload React Native instance and start tracing right away.
+  command reloadAndStartTracing
+
   # Issued once after the domain is enabled. Contains metadata about the
   # device, application, and debugger integration.
   event metadataUpdated

@@ -313,11 +313,7 @@ export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableCompon
   #cruxManager = CrUXManager.CrUXManager.instance();
 
   #toggleRecordAction: UI.ActionRegistration.Action;
-  // [RN] Used to scope down available features for React Native targets
-  // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
-  #recordReloadAction: UI.ActionRegistration.Action|null = null;
-
-  #isReactNative: boolean;
+  #recordReloadAction: UI.ActionRegistration.Action;
 
   #logsEl?: LiveMetricsLogs;
   #tooltipContainerEl?: Element;
@@ -329,16 +325,8 @@ export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableCompon
   constructor() {
     super();
 
-    this.#isReactNative = Root.Runtime.experiments.isEnabled(
-        Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
-    );
-
     this.#toggleRecordAction = UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.toggle-recording');
-    // [RN] Used to scope down available features for React Native targets
-    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
-    if (!this.#isReactNative) {
-      this.#recordReloadAction = UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.record-reload');
-    }
+    this.#recordReloadAction = UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.record-reload');
   }
 
   set isNode(isNode: boolean) {
@@ -1152,9 +1140,9 @@ export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableCompon
             <div id="record" class="record-action-card">
               ${this.#renderRecordAction(this.#toggleRecordAction)}
             </div>
-            ${this.#recordReloadAction !== null ? html`<div id="record-page-load" class="record-action-card">
+            <div id="record-page-load" class="record-action-card">
               ${this.#renderRecordAction(this.#recordReloadAction)}
-            </div>` : nothing}
+            </div>
           </aside>
         </div>
       </div>

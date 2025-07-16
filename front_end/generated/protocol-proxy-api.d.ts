@@ -247,6 +247,11 @@ declare namespace ProtocolProxyApi {
      */
     invoke_enable(): Promise<Protocol.ProtocolResponseWithError>;
 
+    /**
+     * Requests the Host to reload React Native instance and start tracing right away.
+     */
+    invoke_reloadAndStartTracing(): Promise<Protocol.ProtocolResponseWithError>;
+
   }
   export interface ReactNativeApplicationDispatcher {
     /**

@@ -16,6 +16,10 @@
                 {
                     "name": "enable",
                     "description": "Enables events from backend."
+                },
+                {
+                    "name": "reloadAndStartTracing",
+                    "description": "Requests the Host to reload React Native instance and start tracing right away."
                 }
             ],
             "events": [

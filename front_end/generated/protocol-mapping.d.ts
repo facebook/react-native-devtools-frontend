@@ -846,6 +846,13 @@ export namespace ProtocolMapping {
       returnType: void;
     };
     /**
+     * Requests the Host to reload React Native instance and start tracing right away.
+     */
+    'ReactNativeApplication.reloadAndStartTracing': {
+      paramsType: [];
+      returnType: void;
+    };
+    /**
      * Disables the accessibility domain.
      */
     'Accessibility.disable': {
