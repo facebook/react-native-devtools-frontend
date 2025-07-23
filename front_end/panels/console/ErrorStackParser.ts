@@ -27,6 +27,11 @@ export type SpecialHermesStackTraceFrameTypes =
   // for the frame so that a debugger could stitch together a
   // hybrid cross-language call stack
   'native' |
+  // e.g "(eval:1:2)"- Seem to be reported when there's a
+  // ReferenceError or TypeError during the initial bundle code execution.
+  // TODO: Understand exactly where these originate from and what further work
+  // should be done in regards to them
+  'eval' |
   // e.g "(:3:4)"- Frames with empty url
   // TODO: Seems to be happening due to a bug that needs to be investigated
   // and produce an actual script URL instead
@@ -42,6 +47,10 @@ export type SpecialHermesStackTraceFrameTypes =
 function getSpecialHermesFrameBasedOnURL(url: string): SpecialHermesStackTraceFrameTypes | null {
   if (url === 'native') {
     return 'native';
+  }
+
+  if (url === 'eval') {
+    return 'eval';
   }
 
   if (url === '') {
@@ -89,7 +98,7 @@ export function parseSourcePositionsFromErrorStack(
     if (!match) {
       if (linkInfos.length && linkInfos[linkInfos.length - 1].isCallFrame) {
         const specialHermesFrameType = getSpecialHermesFrameBasedOnLine(line);
-        if (specialHermesFrameType) {
+        if (specialHermesFrameType !== null) {
           specialHermesFramesParsed.add(specialHermesFrameType);
           if (!linkInfos[linkInfos.length - 1].link) {
             // Combine builtin frames.
@@ -136,7 +145,7 @@ export function parseSourcePositionsFromErrorStack(
     const linkCandidate = line.substring(left, right);
     const splitResult = Common.ParsedURL.ParsedURL.splitLineAndColumn(linkCandidate);
     const specialHermesFrameType = getSpecialHermesFrameBasedOnURL(splitResult.url);
-    if (specialHermesFrameType) {
+    if (specialHermesFrameType !== null) {
       specialHermesFramesParsed.add(specialHermesFrameType);
     }
 
