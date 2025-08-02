@@ -571,6 +571,11 @@ export class MainImpl {
       Timeline.TimelinePanel.LoadTimelineHandler.instance().handleQueryParam(value);
     }
 
+    const landingView = Root.Runtime.Runtime.queryParam('landingView');
+    if (landingView !== null) {
+      UI.ViewManager.ViewManager.instance().showView(landingView);
+    }
+
     // Initialize ARIAUtils.alert Element
     UI.ARIAUtils.getOrCreateAlertElements();
     UI.DockController.DockController.instance().announceDockLocation();
