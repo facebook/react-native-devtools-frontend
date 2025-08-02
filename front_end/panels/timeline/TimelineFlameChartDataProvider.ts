@@ -615,9 +615,7 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
     // In CPU Profiles the trace data will not have frames nor
     // screenshots, so we can keep this call as it will be a no-op in
     // these cases.
-    if (!this.isReactNative) {
-      this.#appendFramesAndScreenshotsTrack();
-    }
+    this.#appendFramesAndScreenshotsTrack();
 
     const weight = (track: {type?: string, forMainFrame?: boolean, appenderName?: TrackAppenderName}): number => {
       switch (track.appenderName) {
