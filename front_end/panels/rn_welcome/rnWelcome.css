@@ -101,10 +101,12 @@
   border-right: 1px solid var(--sys-color-on-base-divider);
 }
 
-.rn-session-id {
-  display: flex;
-  align-items: center;
+.rn-session-id-message {
+  display: block;
   margin-top: 24px;
+}
+
+.rn-session-id-message > .rn-session-id {
   user-select: all;
 }
 

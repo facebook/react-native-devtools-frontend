@@ -21,32 +21,52 @@ export interface ParsedErrorFrame {
   };
 }
 
-export type SpecialHermesStackTraceFrameTypes = 'native' | 'address at' | 'empty url';
+export type SpecialHermesStackTraceFrameTypes =
+  // e.g "(native)"- Functions implemented on the native side.
+  // TODO: Might be enhanced to include the native (C++/Java/etc) loc
+  // for the frame so that a debugger could stitch together a
+  // hybrid cross-language call stack
+  'native' |
+  // e.g "(eval:1:2)"- Seem to be reported when there's a
+  // ReferenceError or TypeError during the initial bundle code execution.
+  // TODO: Understand exactly where these originate from and what further work
+  // should be done in regards to them
+  'eval' |
+  // e.g "(:3:4)"- Frames with empty url
+  // TODO: Seems to be happening due to a bug that needs to be investigated
+  // and produce an actual script URL instead
+  'empty url' |
+  // e.g "(address at InternalBytecode.js:5:6)"- Frames pointing to bytecode locations
+  // TODO: Could be symbolicated and link to source files with the help of
+  // a bytecode source maps once they are available.
+  'address at' |
+  // e.g " ... skipping 7 frames" - Frames collapsed in the middle of a stack trace
+  // for very long stack traces
+  'skipping x frames' ;
 
-function getSpecialHermesStackTraceFrameType({
-    url,
-}: {
-  url: Platform.DevToolsPath.UrlString,
-}): SpecialHermesStackTraceFrameTypes | null {
-  // functions implemented in c++.
-  // TODO: these might be enhanced to include the C++ loc for the frame
-  // so that a debugger could stitch together a hybrid cross-language call stack
+function getSpecialHermesFrameBasedOnURL(url: string): SpecialHermesStackTraceFrameTypes | null {
   if (url === 'native') {
     return 'native';
   }
 
-  // frames with empty url
-  // TODO: these seem to be happening due to a bug that needs to be investigated
-  // and produce an actual script URL instead
+  if (url === 'eval') {
+    return 'eval';
+  }
+
   if (url === '') {
     return 'empty url';
   }
 
-  // frames pointing to a bytecode locations
-  // TODO: these could be symbolicated and link to source files with the help of
-  // a bytecode source maps once they are available.
   if (url.startsWith?.('address at ')) {
     return 'address at';
+  }
+
+  return null;
+}
+
+function getSpecialHermesFrameBasedOnLine(line: string): SpecialHermesStackTraceFrameTypes | null {
+  if (/^\s*... skipping \d+ frames$/.exec(line)) {
+    return 'skipping x frames';
   }
 
   return null;
@@ -71,10 +91,24 @@ export function parseSourcePositionsFromErrorStack(
 
   const lines = stack.split('\n');
   const linkInfos = [];
+  const specialHermesFramesParsed = new Set<SpecialHermesStackTraceFrameTypes>();
+
   for (const line of lines) {
     const match = /^\s*at\s(async\s)?/.exec(line);
     if (!match) {
       if (linkInfos.length && linkInfos[linkInfos.length - 1].isCallFrame) {
+        const specialHermesFrameType = getSpecialHermesFrameBasedOnLine(line);
+        if (specialHermesFrameType !== null) {
+          specialHermesFramesParsed.add(specialHermesFrameType);
+          if (!linkInfos[linkInfos.length - 1].link) {
+            // Combine builtin frames.
+            linkInfos[linkInfos.length - 1].line += `\n${line}`;
+          } else {
+            linkInfos.push({line, isCallFrame: false});
+          }
+          continue;
+        }
+
         Host.rnPerfMetrics.stackTraceSymbolicationFailed(stack, line, '"at (url)" not found');
         return null;
       }
@@ -110,7 +144,11 @@ export function parseSourcePositionsFromErrorStack(
 
     const linkCandidate = line.substring(left, right);
     const splitResult = Common.ParsedURL.ParsedURL.splitLineAndColumn(linkCandidate);
-    const specialHermesFrameType = getSpecialHermesStackTraceFrameType(splitResult);
+    const specialHermesFrameType = getSpecialHermesFrameBasedOnURL(splitResult.url);
+    if (specialHermesFrameType !== null) {
+      specialHermesFramesParsed.add(specialHermesFrameType);
+    }
+
     if (splitResult.url === '<anonymous>' || specialHermesFrameType !== null) {
       if (linkInfos.length && linkInfos[linkInfos.length - 1].isCallFrame && !linkInfos[linkInfos.length - 1].link) {
         // Combine builtin frames.
@@ -142,6 +180,11 @@ export function parseSourcePositionsFromErrorStack(
       },
     });
   }
+
+  if (linkInfos?.length) {
+    Host.rnPerfMetrics.stackTraceSymbolicationSucceeded(Array.from(specialHermesFramesParsed));
+  }
+
   return linkInfos;
 }
 

@@ -1844,6 +1844,21 @@ export class ConsoleViewMessage implements ConsoleViewportElement {
           });
     }
 
+    if (Host.rnPerfMetrics.isEnabled()) {
+      const unresolvedScriptUrls = formattedResult
+        .querySelectorAll("[data-fallback-anchor='1']")
+        .values()
+        .map(element => element.getAttribute('title') || '')
+        .map(title => title.replace(/\:\d+(?:\:\d+)?$/, '')) // row and column e.g :11:11
+        .toArray();
+      if (unresolvedScriptUrls.length === 0) {
+        Host.rnPerfMetrics.stackTraceFrameUrlResolutionSucceeded();
+      } else {
+        const uniqueUrls = Array.from(new Set(unresolvedScriptUrls));
+        Host.rnPerfMetrics.stackTraceFrameUrlResolutionFailed(uniqueUrls);
+      }
+    }
+
     return formattedResult;
   }
 
