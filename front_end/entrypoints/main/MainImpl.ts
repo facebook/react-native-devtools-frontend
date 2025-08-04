@@ -571,6 +571,12 @@ export class MainImpl {
       Timeline.TimelinePanel.LoadTimelineHandler.instance().handleQueryParam(value);
     }
 
+    // Allow &landingView query param to override the default landing view.
+    const landingView = Root.Runtime.Runtime.queryParam('landingView');
+    if (landingView !== null) {
+      await UI.ViewManager.ViewManager.instance().showView(landingView);
+    }
+
     // Initialize ARIAUtils.alert Element
     UI.ARIAUtils.getOrCreateAlertElements();
     UI.DockController.DockController.instance().announceDockLocation();
