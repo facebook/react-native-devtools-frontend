@@ -71,6 +71,10 @@
                             "type": "boolean"
                         }
                     ]
+                },
+                {
+                    "name": "traceRequested",
+                    "description": "Fired when React Native requests Chrome DevTools to prepare for displaying the captured Trace."
                 }
             ]
         },

@@ -51,12 +51,18 @@ export class ReactNativeApplicationModel extends SDKModel<EventTypes> implements
     this.metadataCached = metadata;
     this.dispatchEventToListeners(Events.METADATA_UPDATED, metadata);
   }
+
+  traceRequested(): void {
+    this.dispatchEventToListeners(Events.TRACE_REQUESTED);
+  }
 }
 
 export const enum Events {
   METADATA_UPDATED = 'MetadataUpdated',
+  TRACE_REQUESTED = 'TraceRequested',
 }
 
 export interface EventTypes {
   [Events.METADATA_UPDATED]: Protocol.ReactNativeApplication.MetadataUpdatedEvent;
+  [Events.TRACE_REQUESTED]: void;
 }

@@ -99,6 +99,11 @@ export class TracingManager extends SDK.SDKModel.SDKModel<void> {
     this.#finishing = true;
     void this.#tracingAgent.invoke_end();
   }
+
+  rnPrepareForTraceCapturedInBackground(client: TracingManagerClient): void {
+    this.#activeClient = client;
+    this.#finishing = true;
+  }
 }
 
 export interface TracingManagerClient {

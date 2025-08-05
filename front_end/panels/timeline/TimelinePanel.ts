@@ -700,6 +700,19 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     this.#showLandingPage();
     this.updateTimelineControls();
 
+    if (isReactNative) {
+      SDK.TargetManager.TargetManager.instance().observeModels(
+        SDK.ReactNativeApplicationModel.ReactNativeApplicationModel,
+        {
+          modelAdded: (model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel) => {
+            model.addEventListener(
+              SDK.ReactNativeApplicationModel.Events.TRACE_REQUESTED, () => this.rnPrepareForTraceCapturedInBackground());
+          },
+          modelRemoved: (_model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel) => {},
+        },
+      );
+    }
+
     SDK.TargetManager.TargetManager.instance().addEventListener(
         SDK.TargetManager.Events.SUSPEND_STATE_CHANGED, this.onSuspendStateChanged, this);
     const profilerModels = SDK.TargetManager.TargetManager.instance().models(SDK.CPUProfilerModel.CPUProfilerModel);
@@ -729,6 +742,31 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
       },
       targetRemoved: (_: SDK.Target.Target) => {},
     });
+  }
+
+  private async rnPrepareForTraceCapturedInBackground(): Promise<void> {
+    this.setUIControlsEnabled(false);
+
+    if (this.statusPane) {
+      this.statusPane.finish();
+      this.statusPane.updateStatus(i18nString(UIStrings.stoppingTimeline));
+      this.statusPane.updateProgressBar(i18nString(UIStrings.received), 0);
+    }
+    this.setState(State.STOP_PENDING);
+
+    const rootTarget = SDK.TargetManager.TargetManager.instance().rootTarget();
+    if (!rootTarget) {
+      throw new Error('Could not load root target.');
+    }
+    const primaryPageTarget = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
+    if (!primaryPageTarget) {
+      throw new Error('Could not load primary page target.');
+    }
+
+    this.controller = new TimelineController(rootTarget, primaryPageTarget, this);
+    await this.controller.rnPrepareForTraceCapturedInBackground();
+
+    this.setUIControlsEnabled(true);
   }
 
   #setActiveInsight(insight: TimelineComponents.Sidebar.ActiveInsight|null): void {
