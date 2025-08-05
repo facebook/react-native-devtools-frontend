@@ -42,6 +42,7 @@ export function registerCommands(inspectorBackend) {
 
 // ReactNativeApplication.
 inspectorBackend.registerEvent("ReactNativeApplication.metadataUpdated", ["appDisplayName", "appIdentifier", "deviceName", "integrationName", "platform", "reactNativeVersion", "unstable_isProfilingBuild", "unstable_networkInspectionEnabled"]);
+inspectorBackend.registerEvent("ReactNativeApplication.traceRequested", []);
 inspectorBackend.registerCommand("ReactNativeApplication.disable", [], [], "Disables events from backend.");
 inspectorBackend.registerCommand("ReactNativeApplication.enable", [], [], "Enables events from backend.");
 

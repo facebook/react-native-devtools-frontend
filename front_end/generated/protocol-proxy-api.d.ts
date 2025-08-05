@@ -255,6 +255,11 @@ declare namespace ProtocolProxyApi {
      */
     metadataUpdated(params: Protocol.ReactNativeApplication.MetadataUpdatedEvent): void;
 
+    /**
+     * Fired when React Native requests Chrome DevTools to prepare for displaying the captured Trace.
+     */
+    traceRequested(): void;
+
   }
 
   export interface AccessibilityApi {
