@@ -40,6 +40,9 @@ export const DevToolsStubErrorCode = -32015;
 const GenericErrorCode = -32000;
 const ConnectionClosedErrorCode = -32001;
 
+const COOLBACK_BETWEEN_PINGS = 3000;
+const LOW_PING_THRESHOLD = 200;
+
 interface MessageParams {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [x: string]: any;
@@ -260,6 +263,9 @@ export class SessionRouter {
     proxyConnection: ((Connection | undefined)|null),
   }>();
   #pendingScripts: Array<() => void> = [];
+  #lastPingSentMs = 0;
+  #currentPing = 0;
+  #consecutiveLowPingReadings = 0;
 
   constructor(connection: Connection) {
     this.#connectionInternal = connection;
@@ -275,6 +281,13 @@ export class SessionRouter {
         session.target.dispose(reason);
       }
     });
+
+    this.sendHeartbeat();
+  }
+
+  private sendHeartbeat(): void {
+    this.#lastPingSentMs = Date.now();
+    this.#connectionInternal.sendRawMessage('ping');
   }
 
   registerSession(target: TargetBase, sessionId: string, proxyConnection?: Connection|null): void {
@@ -371,6 +384,19 @@ export class SessionRouter {
     if (test.onMessageReceived) {
       const messageObjectCopy = JSON.parse((typeof message === 'string') ? message : JSON.stringify(message));
       test.onMessageReceived(messageObjectCopy, this.getTargetBySessionId(messageObjectCopy.sessionId));
+    }
+
+    if (message === 'pong') {
+      this.#currentPing = Date.now() - this.#lastPingSentMs;
+      setTimeout(() => this.sendHeartbeat(), COOLBACK_BETWEEN_PINGS);
+      if (this.#currentPing <= LOW_PING_THRESHOLD) {
+        this.#consecutiveLowPingReadings++;
+      } else {
+        this.#consecutiveLowPingReadings = 0;
+      }
+      // eslint-disable-next-line
+      console.log('currentPing' + this.#currentPing + ' consecutiveLowPingReadings: ' + this.#consecutiveLowPingReadings);
+      return;
     }
 
     const messageObject = ((typeof message === 'string') ? JSON.parse(message) : message) as Message;
