@@ -308,7 +308,37 @@ export class DebuggerPlugin extends Plugin {
       }),
       CodeMirror.lineNumbers({
         domEventHandlers: {
-          click: (view, block, event) => this.handleGutterClick(view.state.doc.lineAt(block.from), event as MouseEvent),
+          click: (view, block, event) => {
+            if (Host.rnPerfMetrics.isEnabled()) {
+              const element = (event.target as Element);
+              const isClickAddingBreakpoint = (
+                element.classList &&
+                element.classList.contains('cm-gutterElement') &&
+                !element.classList.contains('cm-breakpoint')
+              );
+              if (isClickAddingBreakpoint) {
+                const setBreakpointStartMs = Date.now();
+                const observer = new MutationObserver(mutations => {
+                  mutations.forEach(mutation => {
+                    if (
+                      mutation.type === 'attributes' &&
+                      mutation.attributeName === 'class'
+                    ) {
+                      if (element.classList.contains('cm-breakpoint')) {
+                        Host.rnPerfMetrics.manualBreakpointSetSucceeded(Date.now() - setBreakpointStartMs);
+                        observer.disconnect();
+                      }
+                    }
+                  });
+                });
+                observer.observe(element, { attributes: true });
+                // if there's no breakpoint set on the line in 3 seconds, don't track the event.
+                // this could happen due to a different line getting the breakpoint, or an error.
+                setTimeout(() => observer.disconnect(), 3000);
+              }
+            }
+            return this.handleGutterClick(view.state.doc.lineAt(block.from), event as MouseEvent);
+          },
         },
       }),
       breakpointMarkers,
