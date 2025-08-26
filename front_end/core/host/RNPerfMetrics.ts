@@ -298,6 +298,15 @@ class RNPerfMetrics {
     });
   }
 
+  manualBreakpointSetSucceeded(bpSettingDuration: number): void {
+    this.sendEvent({
+      eventName: 'ManualBreakpointSetSucceeded',
+      params: {
+        bpSettingDuration
+      }
+    });
+  }
+
   panelShown(_panelName: string, _isLaunching?: boolean): void {
     // no-op
     // We only care about the "main" and "drawer" panels for now via panelShownInLocation(…)
@@ -489,12 +498,19 @@ export type StackTraceFrameUrlResolutionFailed = Readonly<{
   }>,
 }>;
 
+export type ManualBreakpointSetSucceeded = Readonly<{
+  eventName: 'ManualBreakpointSetSucceeded',
+  params: Readonly<{
+    bpSettingDuration: number,
+  }>,
+}>;
+
 export type ReactNativeChromeDevToolsEvent =
     EntrypointLoadingStartedEvent|EntrypointLoadingFinishedEvent|DebuggerReadyEvent|BrowserVisibilityChangeEvent|
     BrowserErrorEvent|RemoteDebuggingTerminatedEvent|DeveloperResourceLoadingStartedEvent|
     DeveloperResourceLoadingFinishedEvent|FuseboxSetClientMetadataStartedEvent|FuseboxSetClientMetadataFinishedEvent|
     MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent|PanelShownEvent|PanelClosedEvent|
     StackTraceSymbolicationSucceeded|StackTraceSymbolicationFailed|StackTraceFrameUrlResolutionSucceeded|
-    StackTraceFrameUrlResolutionFailed;
+    StackTraceFrameUrlResolutionFailed|ManualBreakpointSetSucceeded;
 
 export type DecoratedReactNativeChromeDevToolsEvent = CommonEventFields&ReactNativeChromeDevToolsEvent;
