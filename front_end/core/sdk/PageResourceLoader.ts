@@ -82,6 +82,7 @@ interface LoadQueueEntry {
  */
 export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
   #currentlyLoading = 0;
+  #reportedAllInitialResourcesLoaded = false;
   #currentlyLoadingPerTarget = new Map<Protocol.Target.TargetID|'main', number>();
   readonly #maxConcurrentLoads: number;
   #pageResources = new Map<string, PageResource>();
@@ -354,6 +355,15 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
     }
     Host.rnPerfMetrics.developerResourceLoadingFinished(
         parsedURL, Host.UserMetrics.DeveloperResourceLoaded.FALLBACK_AFTER_FAILURE, result);
+
+    // Will be decreased to 0 right after this function in "releaseLoadSlot".
+    // Tracking it here so it is next to the rest of "rnPerfMetrics" in this file.
+    const allResourcesLoaded = this.#currentlyLoading === 1;
+    if (allResourcesLoaded && !this.#reportedAllInitialResourcesLoaded) {
+      Host.rnPerfMetrics.allInitialDeveloperResourcesLoadingFinished(this.getNumberOfResources().resources);
+      this.#reportedAllInitialResourcesLoaded = true;
+    }
+
     return result;
   }
 
