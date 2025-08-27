@@ -15,6 +15,9 @@ import * as UI from '../../ui/legacy/legacy.js';
 
 import nodeIconStyles from './nodeIcon.css.js';
 
+const COOLDOWN_BETWEEN_PINGS = 3000;
+const LOW_PING_THRESHOLD = 200;
+
 const UIStrings = {
   /**
    * @description Text that refers to the main target. The main target is the primary webpage that
@@ -46,6 +49,8 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 let inspectorMainImplInstance: InspectorMainImpl;
 
 export class InspectorMainImpl implements Common.Runnable.Runnable {
+  #consecutiveLowPing = 0;
+
   static instance(opts: {
     forceNew: boolean|null,
   } = {forceNew: null}): InspectorMainImpl {
@@ -55,6 +60,28 @@ export class InspectorMainImpl implements Common.Runnable.Runnable {
     }
 
     return inspectorMainImplInstance;
+  }
+
+  async #measureMainConnectionPing(debuggerModel: SDK.DebuggerModel.DebuggerModel): Promise<void> {
+    if (!debuggerModel.debuggerEnabled()) {
+      return;
+    }
+
+    const startMs = Date.now();
+    await debuggerModel.syncDebuggerId();
+    const ping = Date.now() - startMs;
+
+    if (ping > LOW_PING_THRESHOLD) {
+      this.#consecutiveLowPing = 0;
+    } else {
+      this.#consecutiveLowPing++;
+    }
+
+    if (this.#consecutiveLowPing > 1) {
+      Host.rnPerfMetrics.firstSteadyPing();
+    } else {
+      setTimeout(() => void this.#measureMainConnectionPing(debuggerModel), COOLDOWN_BETWEEN_PINGS);
+    }
   }
 
   async run(): Promise<void> {
@@ -94,13 +121,14 @@ export class InspectorMainImpl implements Common.Runnable.Runnable {
       }
       firstCall = false;
 
-      if (waitForDebuggerInPage) {
-        const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel);
-        if (debuggerModel) {
-          if (!debuggerModel.isReadyToPause()) {
-            await debuggerModel.once(SDK.DebuggerModel.Events.DebuggerIsReadyToPause);
-          }
-          debuggerModel.pause();
+      const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel);
+      if (debuggerModel) {
+        void this.#measureMainConnectionPing(debuggerModel);
+        if (waitForDebuggerInPage) {
+            if (!debuggerModel.isReadyToPause()) {
+              await debuggerModel.once(SDK.DebuggerModel.Events.DebuggerIsReadyToPause);
+            }
+            debuggerModel.pause();
         }
       }
 

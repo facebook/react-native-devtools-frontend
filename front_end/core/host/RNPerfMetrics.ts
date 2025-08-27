@@ -215,6 +215,12 @@ class RNPerfMetrics {
     }
   }
 
+  firstSteadyPing(): void {
+    this.sendEvent({
+      eventName: 'FirstSteadyPing',
+    });
+  }
+
   heapSnapshotStarted(): void {
     this.sendEvent({
       eventName: 'MemoryPanelActionStarted',
@@ -505,12 +511,16 @@ export type StackTraceFrameUrlResolutionFailed = Readonly<{
   }>,
 }>;
 
+export type FirstSteadyPing = Readonly<{
+  eventName: 'FirstSteadyPing',
+}>;
+
 export type ReactNativeChromeDevToolsEvent =
     EntrypointLoadingStartedEvent|EntrypointLoadingFinishedEvent|DebuggerReadyEvent|BrowserVisibilityChangeEvent|
     BrowserErrorEvent|RemoteDebuggingTerminatedEvent|DeveloperResourceLoadingStartedEvent|
     DeveloperResourceLoadingFinishedEvent|AllInitialDeveloperResourcesLoadingFinished|FuseboxSetClientMetadataStartedEvent|
     FuseboxSetClientMetadataFinishedEvent|MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent|
     PanelShownEvent|PanelClosedEvent|StackTraceSymbolicationSucceeded|StackTraceSymbolicationFailed|
-    StackTraceFrameUrlResolutionSucceeded|StackTraceFrameUrlResolutionFailed;
+    StackTraceFrameUrlResolutionSucceeded|StackTraceFrameUrlResolutionFailed|FirstSteadyPing;
 
 export type DecoratedReactNativeChromeDevToolsEvent = CommonEventFields&ReactNativeChromeDevToolsEvent;
