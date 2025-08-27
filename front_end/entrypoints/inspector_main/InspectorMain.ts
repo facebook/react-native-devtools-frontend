@@ -15,8 +15,8 @@ import * as UI from '../../ui/legacy/legacy.js';
 
 import nodeIconStyles from './nodeIcon.css.js';
 
-const COOLDOWN_BETWEEN_PINGS = 3000;
-const LOW_PING_THRESHOLD = 200;
+const MS_BETWEEN_ROUNDTRIP_MEASUREMENTS = 3000;
+const MS_MAX_LOW_ROUNDTRIP = 200;
 
 const UIStrings = {
   /**
@@ -49,7 +49,7 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 let inspectorMainImplInstance: InspectorMainImpl;
 
 export class InspectorMainImpl implements Common.Runnable.Runnable {
-  #consecutiveLowPing = 0;
+  #consecutiveLowRoundtrips = 0;
 
   static instance(opts: {
     forceNew: boolean|null,
@@ -62,25 +62,37 @@ export class InspectorMainImpl implements Common.Runnable.Runnable {
     return inspectorMainImplInstance;
   }
 
-  async #measureMainConnectionPing(debuggerModel: SDK.DebuggerModel.DebuggerModel): Promise<void> {
+  async #measureMainConnectionRoundtrip(debuggerModel: SDK.DebuggerModel.DebuggerModel): Promise<void> {
     if (!debuggerModel.debuggerEnabled()) {
       return;
     }
 
     const startMs = Date.now();
+    // Issues and waits for a response from a simple "Debugger.enable" when the debugger is enabled
+    // which noops and retuns a truthy response:
+    // https://github.com/facebook/hermes/blob/ae235193b9329867afaa2838183cbffa34aca098/API/hermes/cdp/DebuggerDomainAgent.cpp#L224-L228
+    // https://github.com/facebook/hermes/blob/ae235193b9329867afaa2838183cbffa34aca098/API/hermes/cdp/DebuggerDomainAgent.cpp#L183-L185
+    // It measures the round trip time for CDP message after being queued in the CDP queue in each direction.
     await debuggerModel.syncDebuggerId();
-    const ping = Date.now() - startMs;
+    const roundtripTime = Date.now() - startMs;
 
-    if (ping > LOW_PING_THRESHOLD) {
-      this.#consecutiveLowPing = 0;
+    if (roundtripTime > MS_MAX_LOW_ROUNDTRIP) {
+      this.#consecutiveLowRoundtrips = 0;
     } else {
-      this.#consecutiveLowPing++;
+      this.#consecutiveLowRoundtrips++;
     }
 
-    if (this.#consecutiveLowPing > 1) {
-      Host.rnPerfMetrics.firstSteadyPing();
-    } else {
-      setTimeout(() => void this.#measureMainConnectionPing(debuggerModel), COOLDOWN_BETWEEN_PINGS);
+    let reportedLowRoundrip = false;
+    if (this.#consecutiveLowRoundtrips >= 2) {
+      reportedLowRoundrip = Host.rnPerfMetrics.tryReportingCdpLowRoundtrip(
+        Math.round(performance.now() - ((this.#consecutiveLowRoundtrips - 1) * MS_BETWEEN_ROUNDTRIP_MEASUREMENTS))
+      );
+    }
+
+    if (!reportedLowRoundrip) {
+      setTimeout(() => {
+        void this.#measureMainConnectionRoundtrip(debuggerModel);
+      }, MS_BETWEEN_ROUNDTRIP_MEASUREMENTS);
     }
   }
 
@@ -123,7 +135,7 @@ export class InspectorMainImpl implements Common.Runnable.Runnable {
 
       const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel);
       if (debuggerModel) {
-        void this.#measureMainConnectionPing(debuggerModel);
+        void this.#measureMainConnectionRoundtrip(debuggerModel);
         if (waitForDebuggerInPage) {
             if (!debuggerModel.isReadyToPause()) {
               await debuggerModel.once(SDK.DebuggerModel.Events.DebuggerIsReadyToPause);
