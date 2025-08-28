@@ -665,6 +665,7 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
     infoByAnchor.set(link, linkInfo);
     if (!preventClick) {
       link.addEventListener('click', event => {
+        Host.rnPerfMetrics.stackTraceFrameClicked(linkInfo.liveLocation !== null);
         if (Linkifier.handleClick(event)) {
           event.consume(true);
         }

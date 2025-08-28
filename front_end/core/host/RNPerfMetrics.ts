@@ -298,6 +298,15 @@ class RNPerfMetrics {
     });
   }
 
+  stackTraceFrameClicked(isLinkified: boolean): void {
+    this.sendEvent({
+      eventName: 'StackTraceFrameClicked',
+      params: {
+        isLinkified
+      }
+    });
+  }
+
   panelShown(_panelName: string, _isLaunching?: boolean): void {
     // no-op
     // We only care about the "main" and "drawer" panels for now via panelShownInLocation(…)
@@ -489,12 +498,19 @@ export type StackTraceFrameUrlResolutionFailed = Readonly<{
   }>,
 }>;
 
+export type StackTraceFrameClicked = Readonly<{
+  eventName: 'StackTraceFrameClicked',
+  params: Readonly<{
+    isLinkified: boolean,
+  }>,
+}>;
+
 export type ReactNativeChromeDevToolsEvent =
     EntrypointLoadingStartedEvent|EntrypointLoadingFinishedEvent|DebuggerReadyEvent|BrowserVisibilityChangeEvent|
     BrowserErrorEvent|RemoteDebuggingTerminatedEvent|DeveloperResourceLoadingStartedEvent|
     DeveloperResourceLoadingFinishedEvent|FuseboxSetClientMetadataStartedEvent|FuseboxSetClientMetadataFinishedEvent|
     MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent|PanelShownEvent|PanelClosedEvent|
     StackTraceSymbolicationSucceeded|StackTraceSymbolicationFailed|StackTraceFrameUrlResolutionSucceeded|
-    StackTraceFrameUrlResolutionFailed;
+    StackTraceFrameUrlResolutionFailed|StackTraceFrameClicked;
 
 export type DecoratedReactNativeChromeDevToolsEvent = CommonEventFields&ReactNativeChromeDevToolsEvent;
