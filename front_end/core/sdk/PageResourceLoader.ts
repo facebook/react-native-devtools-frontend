@@ -29,6 +29,8 @@ const UIStrings = {
 const str_ = i18n.i18n.registerUIStrings('core/sdk/PageResourceLoader.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
+const MS_WAIT_ENSURING_ALL_RESOUCES_ARE_LOADED = 3000;
+
 export interface ExtensionInitiator {
   target: null;
   frameId: null;
@@ -82,6 +84,8 @@ interface LoadQueueEntry {
  */
 export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
   #currentlyLoading = 0;
+  #initialResourcesLoadedTimeout: number|null = null;
+  #reportedInitialResourcesLoaded = false;
   #currentlyLoadingPerTarget = new Map<Protocol.Target.TargetID|'main', number>();
   readonly #maxConcurrentLoads: number;
   #pageResources = new Map<string, PageResource>();
@@ -354,6 +358,24 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
     }
     Host.rnPerfMetrics.developerResourceLoadingFinished(
         parsedURL, Host.UserMetrics.DeveloperResourceLoaded.FALLBACK_AFTER_FAILURE, result);
+
+    // Wait for several seconds to ensure no new resources were loaded,
+    // possibly by the resources that just finished loading
+    const resourceLoadingTime = performance.now();
+    if (this.#initialResourcesLoadedTimeout) {
+      window.clearTimeout(this.#initialResourcesLoadedTimeout);
+    }
+    this.#initialResourcesLoadedTimeout = window.setTimeout(() => {
+      const allResourcesLoaded = this.#currentlyLoading === 0;
+      if (allResourcesLoaded && !this.#reportedInitialResourcesLoaded) {
+        Host.rnPerfMetrics.initialResourcesLoaded({
+          count: this.getNumberOfResources().resources,
+          time: Math.round(resourceLoadingTime)
+        });
+        this.#reportedInitialResourcesLoaded = true;
+      }
+    }, MS_WAIT_ENSURING_ALL_RESOUCES_ARE_LOADED);
+
     return result;
   }
 

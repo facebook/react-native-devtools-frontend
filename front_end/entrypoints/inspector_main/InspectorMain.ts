@@ -15,6 +15,9 @@ import * as UI from '../../ui/legacy/legacy.js';
 
 import nodeIconStyles from './nodeIcon.css.js';
 
+const MS_BETWEEN_ROUNDTRIP_MEASUREMENTS = 3000;
+const MS_MAX_LOW_ROUNDTRIP = 200;
+
 const UIStrings = {
   /**
    * @description Text that refers to the main target. The main target is the primary webpage that
@@ -46,6 +49,8 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 let inspectorMainImplInstance: InspectorMainImpl;
 
 export class InspectorMainImpl implements Common.Runnable.Runnable {
+  #consecutiveLowRoundtrips = 0;
+
   static instance(opts: {
     forceNew: boolean|null,
   } = {forceNew: null}): InspectorMainImpl {
@@ -55,6 +60,40 @@ export class InspectorMainImpl implements Common.Runnable.Runnable {
     }
 
     return inspectorMainImplInstance;
+  }
+
+  async #measureMainConnectionRoundtrip(debuggerModel: SDK.DebuggerModel.DebuggerModel): Promise<void> {
+    if (!debuggerModel.debuggerEnabled()) {
+      return;
+    }
+
+    const startMs = Date.now();
+    // Issues and waits for a response from a simple "Debugger.enable" when the debugger is enabled
+    // which noops and retuns a truthy response:
+    // https://github.com/facebook/hermes/blob/ae235193b9329867afaa2838183cbffa34aca098/API/hermes/cdp/DebuggerDomainAgent.cpp#L224-L228
+    // https://github.com/facebook/hermes/blob/ae235193b9329867afaa2838183cbffa34aca098/API/hermes/cdp/DebuggerDomainAgent.cpp#L183-L185
+    // It measures the round trip time for CDP message after being queued in the CDP queue in each direction.
+    await debuggerModel.syncDebuggerId();
+    const roundtripTime = Date.now() - startMs;
+
+    if (roundtripTime > MS_MAX_LOW_ROUNDTRIP) {
+      this.#consecutiveLowRoundtrips = 0;
+    } else {
+      this.#consecutiveLowRoundtrips++;
+    }
+
+    let reportedLowRoundrip = false;
+    if (this.#consecutiveLowRoundtrips >= 2) {
+      reportedLowRoundrip = Host.rnPerfMetrics.tryReportingCdpLowRoundtrip(
+        Math.round(performance.now() - ((this.#consecutiveLowRoundtrips - 1) * MS_BETWEEN_ROUNDTRIP_MEASUREMENTS))
+      );
+    }
+
+    if (!reportedLowRoundrip) {
+      setTimeout(() => {
+        void this.#measureMainConnectionRoundtrip(debuggerModel);
+      }, MS_BETWEEN_ROUNDTRIP_MEASUREMENTS);
+    }
   }
 
   async run(): Promise<void> {
@@ -94,13 +133,14 @@ export class InspectorMainImpl implements Common.Runnable.Runnable {
       }
       firstCall = false;
 
-      if (waitForDebuggerInPage) {
-        const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel);
-        if (debuggerModel) {
-          if (!debuggerModel.isReadyToPause()) {
-            await debuggerModel.once(SDK.DebuggerModel.Events.DebuggerIsReadyToPause);
-          }
-          debuggerModel.pause();
+      const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel);
+      if (debuggerModel) {
+        void this.#measureMainConnectionRoundtrip(debuggerModel);
+        if (waitForDebuggerInPage) {
+            if (!debuggerModel.isReadyToPause()) {
+              await debuggerModel.once(SDK.DebuggerModel.Events.DebuggerIsReadyToPause);
+            }
+            debuggerModel.pause();
         }
       }
 

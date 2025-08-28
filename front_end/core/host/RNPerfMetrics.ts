@@ -29,6 +29,7 @@ class RNPerfMetrics {
   #telemetryInfo: Object = {};
   // map of panel location to panel name
   #currentPanels = new Map<PanelLocation, string>();
+  #initialResourcesLoadedInfo: null|{count: number, time: number} = null;
 
   isEnabled(): boolean {
     return globalThis.enableReactNativePerfMetrics === true;
@@ -186,6 +187,12 @@ class RNPerfMetrics {
     });
   }
 
+  initialResourcesLoaded(info: {count: number, time: number}): void {
+    // eslint-disable-next-line no-console
+    console.info('Initial %d resources are loaded at %sms since launch', info.count, info.time);
+    this.#initialResourcesLoadedInfo = info;
+  }
+
   fuseboxSetClientMetadataStarted(): void {
     this.sendEvent({eventName: 'FuseboxSetClientMetadataStarted'});
   }
@@ -204,6 +211,32 @@ class RNPerfMetrics {
         },
       });
     }
+  }
+
+  tryReportingCdpLowRoundtrip(cdpLowRoundtripStartTime: number): boolean {
+    if (this.#initialResourcesLoadedInfo === null) {
+      return false;
+    }
+
+    // if the roundtrip is fine for a long time, just take the initial resources loading time
+    // if it got better only after the initial resources were loaded, take the cdp low roundtrip time instead
+    const startupTime = Math.max(cdpLowRoundtripStartTime, this.#initialResourcesLoadedInfo.time);
+
+    // eslint-disable-next-line no-console
+    console.info('The app had a low CDP roundtrip at %sms since launch', cdpLowRoundtripStartTime);
+    // eslint-disable-next-line no-console
+    console.info('Startup time is %sms', startupTime);
+
+    this.sendEvent({
+      eventName: 'StartUpFinished',
+      params: {
+        bundleCount: this.#initialResourcesLoadedInfo.count,
+        duration: startupTime,
+        initialResourcesLoadedTime: this.#initialResourcesLoadedInfo.time,
+        cdpLowRoundtripStartTime,
+      }
+    });
+    return true;
   }
 
   heapSnapshotStarted(): void {
@@ -489,12 +522,22 @@ export type StackTraceFrameUrlResolutionFailed = Readonly<{
   }>,
 }>;
 
+export type StartUpFinished = Readonly<{
+  eventName: 'StartUpFinished',
+  params: Readonly<{
+    bundleCount: number,
+    duration: number,
+    initialResourcesLoadedTime: number,
+    cdpLowRoundtripStartTime: number,
+  }>,
+}>;
+
 export type ReactNativeChromeDevToolsEvent =
     EntrypointLoadingStartedEvent|EntrypointLoadingFinishedEvent|DebuggerReadyEvent|BrowserVisibilityChangeEvent|
     BrowserErrorEvent|RemoteDebuggingTerminatedEvent|DeveloperResourceLoadingStartedEvent|
-    DeveloperResourceLoadingFinishedEvent|FuseboxSetClientMetadataStartedEvent|FuseboxSetClientMetadataFinishedEvent|
-    MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent|PanelShownEvent|PanelClosedEvent|
-    StackTraceSymbolicationSucceeded|StackTraceSymbolicationFailed|StackTraceFrameUrlResolutionSucceeded|
-    StackTraceFrameUrlResolutionFailed;
+    DeveloperResourceLoadingFinishedEvent|FuseboxSetClientMetadataStartedEvent|
+    FuseboxSetClientMetadataFinishedEvent|MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent|
+    PanelShownEvent|PanelClosedEvent|StackTraceSymbolicationSucceeded|StackTraceSymbolicationFailed|
+    StackTraceFrameUrlResolutionSucceeded|StackTraceFrameUrlResolutionFailed|StartUpFinished;
 
 export type DecoratedReactNativeChromeDevToolsEvent = CommonEventFields&ReactNativeChromeDevToolsEvent;
