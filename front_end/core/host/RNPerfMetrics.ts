@@ -302,7 +302,16 @@ class RNPerfMetrics {
     this.sendEvent({
       eventName: 'ManualBreakpointSetSucceeded',
       params: {
-        bpSettingDuration
+        bpSettingDuration,
+      }
+    });
+  }
+
+  stackTraceFrameClicked(isLinkified: boolean): void {
+    this.sendEvent({
+      eventName: 'StackTraceFrameClicked',
+      params: {
+        isLinkified,
       }
     });
   }
@@ -498,6 +507,13 @@ export type StackTraceFrameUrlResolutionFailed = Readonly<{
   }>,
 }>;
 
+export type StackTraceFrameClicked = Readonly<{
+  eventName: 'StackTraceFrameClicked',
+  params: Readonly<{
+    isLinkified: boolean,
+  }>,
+}>;
+
 export type ManualBreakpointSetSucceeded = Readonly<{
   eventName: 'ManualBreakpointSetSucceeded',
   params: Readonly<{
@@ -511,6 +527,6 @@ export type ReactNativeChromeDevToolsEvent =
     DeveloperResourceLoadingFinishedEvent|FuseboxSetClientMetadataStartedEvent|FuseboxSetClientMetadataFinishedEvent|
     MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent|PanelShownEvent|PanelClosedEvent|
     StackTraceSymbolicationSucceeded|StackTraceSymbolicationFailed|StackTraceFrameUrlResolutionSucceeded|
-    StackTraceFrameUrlResolutionFailed|ManualBreakpointSetSucceeded;
+    StackTraceFrameUrlResolutionFailed|ManualBreakpointSetSucceeded|StackTraceFrameClicked;
 
 export type DecoratedReactNativeChromeDevToolsEvent = CommonEventFields&ReactNativeChromeDevToolsEvent;
