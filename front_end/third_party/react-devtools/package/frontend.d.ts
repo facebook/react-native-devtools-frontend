@@ -45,14 +45,16 @@ export type CanViewElementSource = (
   source: Source,
   symbolicatedSource: Source | null,
 ) => boolean;
+export type FetchFileWithCaching = (url: string) => Promise<string>;
 
 export type InitializationOptions = {
-  bridge: Bridge,
-  store: Store,
+  bridge: Bridge;
+  store: Store;
   theme?: BrowserTheme,
   viewAttributeSourceFunction?: ViewAttributeSource,
   viewElementSourceFunction?: ViewElementSource,
   canViewElementSourceFunction?: CanViewElementSource,
+  fetchFileWithCaching?: FetchFileWithCaching,
 };
 
 export function initializeComponents(node: Element | Document, options: InitializationOptions): void;

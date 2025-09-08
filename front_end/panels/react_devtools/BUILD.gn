@@ -23,6 +23,7 @@ devtools_module("react_devtools") {
     "../../models/bindings:bundle",
     "../../models/logs:bundle",
     "../../models/react_native:bundle",
+    "../../models/text_utils:bundle",
     "../../third_party/react-devtools:bundle",
     "../../ui/legacy:bundle",
   ]

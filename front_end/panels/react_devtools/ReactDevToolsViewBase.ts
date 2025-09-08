@@ -14,6 +14,7 @@ import * as Workspace from '../../models/workspace/workspace.js';
 import type * as ReactDevToolsTypes from '../../third_party/react-devtools/react-devtools.js';
 import * as ReactDevTools from '../../third_party/react-devtools/react-devtools.js';
 import * as UI from '../../ui/legacy/legacy.js';
+import * as TextUtils from '../../models/text_utils/text_utils.js';
 
 import {
   Events as ReactDevToolsModelEvents,
@@ -70,6 +71,28 @@ function viewElementSourceFunction(source: ReactDevToolsTypes.Source, symbolicat
 
   // We use 1-based line and column, Chrome expects them 0-based.
   void openResource(sourceURL as Platform.DevToolsPath.UrlString, line - 1, column - 1);
+}
+
+async function fetchFileWithCaching(sourceURL: string): Promise<string> {
+  // Source Maps are stored there.
+  const resources = SDK.PageResourceLoader.PageResourceLoader.instance().getResourcesLoaded();
+  const resource = resources.get(sourceURL);
+
+  if (resource) {
+
+  }
+
+  const uiSourceCode = Workspace.Workspace.WorkspaceImpl.instance().uiSourceCodeForURL(sourceURL as Platform.DevToolsPath.UrlString);
+  if (uiSourceCode === null) {
+    return Promise.reject(new Error('Could not find resource for ' + sourceURL));
+  }
+
+  const contentDataOrError = await uiSourceCode.requestContentData();
+  if (TextUtils.ContentData.ContentData.isError(contentDataOrError)) {
+    return Promise.reject(new Error('Could not fetch content for ' + sourceURL));
+  }
+
+  return contentDataOrError.text;
 }
 
 export class ReactDevToolsViewBase extends UI.View.SimpleView implements
@@ -167,6 +190,7 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
       theme: usingDarkTheme ? 'dark' : 'light',
       canViewElementSourceFunction: () => true,
       viewElementSourceFunction,
+      fetchFileWithCaching,
     });
   }
 
