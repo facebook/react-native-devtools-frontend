@@ -20,6 +20,8 @@ import {
 import type {Target} from './Target.js';
 import {TargetManager} from './TargetManager.js';
 
+const STARTUP_RESOURCES_LOADED_COOLDOWN = 3000;
+
 const UIStrings = {
   /**
    *@description Error message for canceled source map loads
@@ -82,6 +84,8 @@ interface LoadQueueEntry {
  */
 export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
   #currentlyLoading = 0;
+  #startupResourcesLoadedReported = false;
+  #startupResourcesLoadedTimeout: number|undefined = undefined;
   #currentlyLoadingPerTarget = new Map<Protocol.Target.TargetID|'main', number>();
   readonly #maxConcurrentLoads: number;
   #pageResources = new Map<string, PageResource>();
@@ -354,6 +358,22 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
     }
     Host.rnPerfMetrics.developerResourceLoadingFinished(
         parsedURL, Host.UserMetrics.DeveloperResourceLoaded.FALLBACK_AFTER_FAILURE, result);
+
+    if (!this.#startupResourcesLoadedReported) {
+      // if no new resource was set to be loaded for a certain time
+      // we consider all startup resources to be loaded
+      window.clearTimeout(this.#startupResourcesLoadedTimeout);
+      this.#startupResourcesLoadedTimeout = window.setTimeout(() => {
+        if (!this.#startupResourcesLoadedReported && this.#currentlyLoading === 0) {
+          Host.rnPerfMetrics.developerResourcesStartupLoadingFinishedEvent(
+            this.getNumberOfResources().resources /* numResources */,
+            performance.now() - STARTUP_RESOURCES_LOADED_COOLDOWN /* timeSinceLaunch */,
+          );
+          this.#startupResourcesLoadedReported = true;
+        }
+      }, STARTUP_RESOURCES_LOADED_COOLDOWN);
+    }
+
     return result;
   }
 
