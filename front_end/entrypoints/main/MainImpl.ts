@@ -569,6 +569,12 @@ export class MainImpl {
       // would request and evaluate the Timeline panel dep tree, slowing down the UI's load.
       const Timeline = await import('../../panels/timeline/timeline.js');
       Timeline.TimelinePanel.LoadTimelineHandler.instance().handleQueryParam(value);
+    } else {
+      const panel = Root.Runtime.Runtime.queryParam('panel');
+      if (panel === 'timeline') {
+        // [RN] If panel is specified, we need Timeline to be ready and be subscribed to the events that will be emitted.
+        await import('../../panels/timeline/timeline.js');
+      }
     }
 
     // Initialize ARIAUtils.alert Element
