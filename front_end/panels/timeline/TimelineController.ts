@@ -203,12 +203,11 @@ export class TimelineController implements Trace.TracingManager.TracingManagerCl
   }
 
   async rnPrepareForTraceCapturedInBackground(): Promise<void> {
-    await LiveMetrics.LiveMetrics.instance().disable();
-
     if (this.tracingManager) {
       this.tracingManager.rnPrepareForTraceCapturedInBackground(this);
     }
 
+    await LiveMetrics.LiveMetrics.instance().disable();
     this.client.loadingStarted();
     await this.allSourcesFinished();
     await LiveMetrics.LiveMetrics.instance().enable();
