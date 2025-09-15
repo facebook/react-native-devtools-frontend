@@ -104,6 +104,7 @@ devtools_module("timeline") {
     ":easter-egg",
     "../../core/host:bundle",
     "../../core/i18n:bundle",
+    "../../core/root:bundle",
     "../../generated:protocol",
     "../../models/cpu_profile:bundle",
     "../../models/extensions:bundle",
