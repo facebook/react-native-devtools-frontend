@@ -5,6 +5,8 @@
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
+import * as Root from '../../core/root/root.js';
+import * as SDK from '../../core/sdk/sdk.js';
 import * as Trace from '../../models/trace/trace.js';
 import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as UI from '../../ui/legacy/legacy.js';
@@ -339,7 +341,14 @@ export class TimelineHistoryManager {
       parsedTraceIndex: number, parsedTrace: Trace.Handlers.Types.ParsedTrace, metadata: Trace.Types.File.MetaData|null,
       filmStrip: Trace.Extras.FilmStrip.Data|null): HTMLDivElement {
     const parsedURL = Common.ParsedURL.ParsedURL.fromString(parsedTrace.Meta.mainFrameURL);
-    const domain = parsedURL ? parsedURL.host : '';
+    let domain = parsedURL ? parsedURL.host : '';
+    // [RN] React Native doesn't have a URL as a concept for Frame, we will use Application name as a fallback.
+    if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI)) {
+      const reactNativeApplicationModel = SDK.TargetManager.TargetManager.instance().primaryPageTarget()?.model(SDK.ReactNativeApplicationModel.ReactNativeApplicationModel);
+      if (reactNativeApplicationModel !== null && reactNativeApplicationModel !== undefined) {
+        domain = reactNativeApplicationModel.metadataCached?.appDisplayName || '';
+      }
+    }
 
     const sequenceNumber = this.nextNumberByDomain.get(domain) || 1;
     const titleWithSequenceNumber = i18nString(UIStrings.sD, {PH1: domain, PH2: sequenceNumber});
