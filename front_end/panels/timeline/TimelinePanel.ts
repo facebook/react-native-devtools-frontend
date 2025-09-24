@@ -772,7 +772,7 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
   #setActiveInsight(insight: TimelineComponents.Sidebar.ActiveInsight|null): void {
     // When an insight is selected, ensure that the 3P checkbox is disabled
     // to avoid dimming interference.
-    if (insight) {
+    if (insight && !Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI)) {
       this.#splitWidget.showBoth();
     }
     this.#sideBar.setActiveInsight(insight);
@@ -2183,6 +2183,10 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
   #showSidebarIfRequired(): void {
     if (Root.Runtime.Runtime.queryParam('disable-auto-performance-sidebar-reveal') !== null) {
       // Used in interaction tests & screenshot tests.
+      return;
+    }
+    // [RN] Keep sidebar collapsed by default
+    if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI)) {
       return;
     }
     const needToRestore = this.#restoreSidebarVisibilityOnTraceLoad;
