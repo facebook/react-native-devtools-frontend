@@ -143,11 +143,6 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
   constructor() {
     super();
 
-    // [RN] Used to scope down available features for React Native targets
-    this.isReactNative = Root.Runtime.experiments.isEnabled(
-      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
-    );
-
     this.reset();
 
     this.droppedFramePatternCanvas = document.createElement('canvas');
