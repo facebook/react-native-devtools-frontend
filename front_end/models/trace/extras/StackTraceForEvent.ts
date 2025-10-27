@@ -50,6 +50,46 @@ export function get(event: Types.Events.Event, parsedTrace: Handlers.Types.Parse
   return result;
 }
 
+export function getForReactNative(event: Types.Events.Event, parsedTrace: Handlers.Types.ParsedTrace): Protocol.Runtime.StackTrace |
+null {
+  let cacheForTrace = stackTraceForEventInTrace.get(parsedTrace);
+  if (!cacheForTrace) {
+    cacheForTrace = new Map();
+    stackTraceForEventInTrace.set(parsedTrace, cacheForTrace);
+  }
+  const resultFromCache = cacheForTrace.get(event);
+  if (resultFromCache) {
+    return resultFromCache;
+  }
+  let result: Protocol.Runtime.StackTrace|null = null;
+
+  if (Types.Events.isUserTiming(event) && Types.Events.isPerformanceMeasureBegin(event)) {
+    result = extractStackTraceForReactNative(event);
+  } else if (Types.Extensions.isSyntheticExtensionEntry(event)) {
+    result = extractStackTraceForReactNative(event.rawSourceEvent);
+  } else if (Types.Events.isConsoleTimeStamp(event)) {
+    result = extractStackTraceForReactNative(event);
+  }
+
+  if (result) {
+    cacheForTrace.set(event, result);
+  }
+  return result;
+}
+
+export function extractStackTraceForReactNative(event: Types.Events.Event): Protocol.Runtime.StackTrace | null {
+  const data = event.args?.data;
+  if (!data) {
+    return null;
+  }
+
+  if (!data.rnStackTrace) {
+    return null;
+  }
+
+  return data.rnStackTrace;
+}
+
 function getForProfileCall(
     event: Types.Events.SyntheticProfileCall, parsedTrace: Handlers.Types.ParsedTrace): Protocol.Runtime.StackTrace {
   // When working with a CPU profile the renderer handler won't have
