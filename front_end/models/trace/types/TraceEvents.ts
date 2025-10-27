@@ -93,6 +93,8 @@ export interface Args {
 
 export interface ArgsData {
   stackTrace?: CallFrame[];
+  // [RN] Custom field for linking stack traces to User Timings and TimeStamp events.
+  rnStackTrace?: Protocol.Runtime.StackTrace;
   sampleTraceId?: number;
   url?: string;
   navigationId?: string;
