@@ -4,7 +4,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-PROJECT_NAME=rn-chrome-devtools-frontend
+PROJECT_NAME=react-native-devtools-frontend
 WORKSPACE_DIR="${PROJECT_NAME}__workspace"
 
 sync_workspace() {
