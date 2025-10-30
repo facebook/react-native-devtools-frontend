@@ -305,7 +305,6 @@ export const experiments = new ExperimentsSupport();
 export enum RNExperimentName {
   REACT_NATIVE_SPECIFIC_UI = 'react-native-specific-ui',
   JS_HEAP_PROFILER_ENABLE = 'js-heap-profiler-enable',
-  ENABLE_PERFORMANCE_PANEL = 'enable-performance-panel',
   ENABLE_NETWORK_PANEL = 'enable-network-panel',
 }
 
@@ -341,7 +340,6 @@ export const enum ExperimentName {
   JS_HEAP_PROFILER_ENABLE = RNExperimentName.JS_HEAP_PROFILER_ENABLE,
   REACT_NATIVE_SPECIFIC_UI = RNExperimentName.REACT_NATIVE_SPECIFIC_UI,
   NOT_REACT_NATIVE_SPECIFIC_UI = '!' + RNExperimentName.REACT_NATIVE_SPECIFIC_UI,
-  ENABLE_PERFORMANCE_PANEL = RNExperimentName.ENABLE_PERFORMANCE_PANEL,
   ENABLE_NETWORK_PANEL = RNExperimentName.ENABLE_NETWORK_PANEL,
 }
 

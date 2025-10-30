@@ -88,7 +88,6 @@ UI.ViewManager.registerViewExtension({
   title: i18nLazyString(UIStrings.performance),
   commandPrompt: i18nLazyString(UIStrings.showPerformance),
   order: 50,
-  experiment: globalThis.FB_ONLY__enablePerformance === true ? undefined : Root.Runtime.ExperimentName.ENABLE_PERFORMANCE_PANEL,
   async loadView() {
     const Timeline = await loadTimelineModule();
     return Timeline.TimelinePanel.TimelinePanel.instance();
