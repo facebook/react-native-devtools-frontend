@@ -307,6 +307,7 @@ export enum RNExperimentName {
   JS_HEAP_PROFILER_ENABLE = 'js-heap-profiler-enable',
   ENABLE_PERFORMANCE_PANEL = 'enable-performance-panel',
   ENABLE_NETWORK_PANEL = 'enable-network-panel',
+  ENABLE_TIMELINE_FRAMES = 'enable-timeline-frames',
 }
 
 export enum ConditionName {
@@ -332,7 +333,6 @@ export const enum ExperimentName {
   TIMELINE_DEBUG_MODE = 'timeline-debug-mode',
   TIMELINE_ENHANCED_TRACES = 'timeline-enhanced-traces',
   TIMELINE_COMPILED_SOURCES = 'timeline-compiled-sources',
-  TIMELINE_FRAMES = 'timeline-frames',
   TIMELINE_EXPERIMENTAL_INSIGHTS = 'timeline-experimental-insights',
   TIMELINE_DIM_UNRELATED_EVENTS = 'timeline-dim-unrelated-events',
   TIMELINE_ALTERNATIVE_NAVIGATION = 'timeline-alternative-navigation',
@@ -344,6 +344,7 @@ export const enum ExperimentName {
   NOT_REACT_NATIVE_SPECIFIC_UI = '!' + RNExperimentName.REACT_NATIVE_SPECIFIC_UI,
   ENABLE_PERFORMANCE_PANEL = RNExperimentName.ENABLE_PERFORMANCE_PANEL,
   ENABLE_NETWORK_PANEL = RNExperimentName.ENABLE_NETWORK_PANEL,
+  ENABLE_TIMELINE_FRAMES = RNExperimentName.ENABLE_TIMELINE_FRAMES,
 }
 
 export enum GenAiEnterprisePolicyValue {
