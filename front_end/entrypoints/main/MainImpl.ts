@@ -301,6 +301,8 @@ export class MainImpl {
     Root.Runtime.experiments.register(
         Root.Runtime.ExperimentName.TIMELINE_DEBUG_MODE,
         'Performance panel: Enable debug mode (trace event details, etc)', true);
+    Root.Runtime.experiments.register(
+        Root.Runtime.ExperimentName.TIMELINE_FRAMES, 'Performance panel: Enable frames track', true);
 
     // Debugging
     Root.Runtime.experiments.register('instrumentation-breakpoints', 'Enable instrumentation breakpoints', true);

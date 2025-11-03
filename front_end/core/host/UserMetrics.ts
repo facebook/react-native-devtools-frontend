@@ -985,10 +985,11 @@ export enum DevtoolsExperiments {
   'timeline-alternative-navigation' = 104,
   // 106 was historically used [https://chromium-review.googlesource.com/c/devtools/devtools-frontend/+/6230097]
   // next experiment should be 107
+  'timeline-frames' = 108,
   /* eslint-enable @typescript-eslint/naming-convention */
 
   // Increment this when new experiments are added.
-  MAX_VALUE = 106,
+  MAX_VALUE = 108,
 }
 
 // Update DevToolsIssuesPanelIssueExpanded from tools/metrics/histograms/enums.xml if new enum is added.
