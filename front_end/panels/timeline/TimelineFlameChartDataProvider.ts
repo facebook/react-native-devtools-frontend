@@ -608,7 +608,7 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
     // In CPU Profiles the trace data will not have frames nor
     // screenshots, so we can keep this call as it will be a no-op in
     // these cases.
-    if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.TIMELINE_FRAMES)) {
+    if (Root.Runtime.experiments.isEnabled(Root.Runtime.RNExperimentName.ENABLE_TIMELINE_FRAMES)) {
       this.#appendFramesAndScreenshotsTrack();
     }
 

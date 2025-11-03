@@ -128,7 +128,6 @@ const REGISTERED_EXPERIMENTS = [
   Root.Runtime.ExperimentName.TIMELINE_EXPERIMENTAL_INSIGHTS,
   Root.Runtime.ExperimentName.TIMELINE_DIM_UNRELATED_EVENTS,
   Root.Runtime.ExperimentName.TIMELINE_ALTERNATIVE_NAVIGATION,
-  Root.Runtime.ExperimentName.TIMELINE_FRAMES,
   Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
   Root.Runtime.ExperimentName.NOT_REACT_NATIVE_SPECIFIC_UI,
 ];

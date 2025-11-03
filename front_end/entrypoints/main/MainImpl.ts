@@ -302,7 +302,7 @@ export class MainImpl {
         Root.Runtime.ExperimentName.TIMELINE_DEBUG_MODE,
         'Performance panel: Enable debug mode (trace event details, etc)', true);
 
-        // Debugging
+    // Debugging
     Root.Runtime.experiments.register('instrumentation-breakpoints', 'Enable instrumentation breakpoints', true);
     Root.Runtime.experiments.register('use-source-map-scopes', 'Use scope information from source maps', true);
 
