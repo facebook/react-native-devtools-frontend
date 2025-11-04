@@ -700,6 +700,19 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     this.#showLandingPage();
     this.updateTimelineControls();
 
+    if (isReactNative) {
+      SDK.TargetManager.TargetManager.instance().observeModels(
+        SDK.ReactNativeApplicationModel.ReactNativeApplicationModel,
+        {
+          modelAdded: (model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel) => {
+            model.addEventListener(
+              SDK.ReactNativeApplicationModel.Events.TRACE_REQUESTED, () => this.rnPrepareForTraceCapturedInBackground());
+          },
+          modelRemoved: (_model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel) => {},
+        },
+      );
+    }
+
     SDK.TargetManager.TargetManager.instance().addEventListener(
         SDK.TargetManager.Events.SUSPEND_STATE_CHANGED, this.onSuspendStateChanged, this);
     const profilerModels = SDK.TargetManager.TargetManager.instance().models(SDK.CPUProfilerModel.CPUProfilerModel);
@@ -731,10 +744,35 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     });
   }
 
+  private async rnPrepareForTraceCapturedInBackground(): Promise<void> {
+    this.setUIControlsEnabled(false);
+
+    if (this.statusPane) {
+      this.statusPane.finish();
+      this.statusPane.updateStatus(i18nString(UIStrings.stoppingTimeline));
+      this.statusPane.updateProgressBar(i18nString(UIStrings.received), 0);
+    }
+    this.setState(State.STOP_PENDING);
+
+    const rootTarget = SDK.TargetManager.TargetManager.instance().rootTarget();
+    if (!rootTarget) {
+      throw new Error('Could not load root target.');
+    }
+    const primaryPageTarget = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
+    if (!primaryPageTarget) {
+      throw new Error('Could not load primary page target.');
+    }
+
+    this.controller = new TimelineController(rootTarget, primaryPageTarget, this);
+    await this.controller.rnPrepareForTraceCapturedInBackground();
+
+    this.setUIControlsEnabled(true);
+  }
+
   #setActiveInsight(insight: TimelineComponents.Sidebar.ActiveInsight|null): void {
     // When an insight is selected, ensure that the 3P checkbox is disabled
     // to avoid dimming interference.
-    if (insight) {
+    if (insight && !Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI)) {
       this.#splitWidget.showBoth();
     }
     this.#sideBar.setActiveInsight(insight);
@@ -2145,6 +2183,10 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
   #showSidebarIfRequired(): void {
     if (Root.Runtime.Runtime.queryParam('disable-auto-performance-sidebar-reveal') !== null) {
       // Used in interaction tests & screenshot tests.
+      return;
+    }
+    // [RN] Keep sidebar collapsed by default
+    if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI)) {
       return;
     }
     const needToRestore = this.#restoreSidebarVisibilityOnTraceLoad;

@@ -202,6 +202,17 @@ export class TimelineController implements Trace.TracingManager.TracingManagerCl
     await LiveMetrics.LiveMetrics.instance().enable();
   }
 
+  async rnPrepareForTraceCapturedInBackground(): Promise<void> {
+    if (this.tracingManager) {
+      this.tracingManager.rnPrepareForTraceCapturedInBackground(this);
+    }
+
+    await LiveMetrics.LiveMetrics.instance().disable();
+    this.client.loadingStarted();
+    await this.allSourcesFinished();
+    await LiveMetrics.LiveMetrics.instance().enable();
+  }
+
   private async fetchFieldData(): Promise<CrUXManager.PageResult[]|null> {
     const cruxManager = CrUXManager.CrUXManager.instance();
     if (!cruxManager.isEnabled() || !navigator.onLine) {

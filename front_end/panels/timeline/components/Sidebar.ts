@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import * as Common from '../../../core/common/common.js';
+import * as Root from '../../../core/root/root.js';
 import type * as Trace from '../../../models/trace/trace.js';
 import * as UI from '../../../ui/legacy/legacy.js';
 
@@ -68,16 +69,21 @@ export class SidebarWidget extends UI.Widget.VBox {
   constructor() {
     super();
     this.setMinimumSize(MIN_SIDEBAR_WIDTH_PX, 0);
-    this.#tabbedPane.appendTab(
-        SidebarTabs.INSIGHTS, 'Insights', this.#insightsView, undefined, undefined, false, false, 0,
-        'timeline.insights-tab');
+
+    // [RN] Disable Insights tab
+    const showInsightsTab = !Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI);
+
+    if (showInsightsTab) {
+      this.#tabbedPane.appendTab(
+          SidebarTabs.INSIGHTS, 'Insights', this.#insightsView, undefined, undefined, false, false, 0,
+          'timeline.insights-tab');
+    }
+
     this.#tabbedPane.appendTab(
         SidebarTabs.ANNOTATIONS, 'Annotations', this.#annotationsView, undefined, undefined, false, false, 1,
         'timeline.annotations-tab');
 
-    // Default the selected tab to Insights. In wasShown() we will change this
-    // if this is a trace that has no insights.
-    this.#tabbedPane.selectTab(SidebarTabs.INSIGHTS);
+    this.#tabbedPane.selectTab(showInsightsTab ? SidebarTabs.INSIGHTS : SidebarTabs.ANNOTATIONS);
   }
 
   override wasShown(): void {

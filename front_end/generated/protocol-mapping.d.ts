@@ -18,6 +18,10 @@ export namespace ProtocolMapping {
      */
     'ReactNativeApplication.metadataUpdated': [Protocol.ReactNativeApplication.MetadataUpdatedEvent];
     /**
+     * Fired when React Native requests Chrome DevTools to prepare for displaying the captured Trace.
+     */
+    'ReactNativeApplication.traceRequested': [];
+    /**
      * The loadComplete event mirrors the load complete event sent by the browser to assistive
      * technology when the web page has finished loading.
      */

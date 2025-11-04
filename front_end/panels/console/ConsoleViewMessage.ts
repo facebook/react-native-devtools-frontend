@@ -989,7 +989,7 @@ export class ConsoleViewMessage implements ConsoleViewportElement {
     // The Exceptiondetails include script IDs for stack frames, which allows more accurate
     // linking.
     const formatErrorStack =
-        async(errorObj: SDK.RemoteObject.RemoteObject, includeCausedByPrefix = false): Promise<void> => {
+        async(errorObj: SDK.RemoteObject.RemoteObject, includeCausedByPrefix: boolean): Promise<void> => {
       const error = SDK.RemoteObject.RemoteError.objectAsError(errorObj);
       const [details, cause] = await Promise.all([error.exceptionDetails(), error.cause()]);
       let errorElement = this.tryFormatAsError(error.errorStack, details);
@@ -1015,7 +1015,7 @@ export class ConsoleViewMessage implements ConsoleViewportElement {
       }
     };
 
-    this.#formatErrorStackPromiseForTest = formatErrorStack(output);
+    this.#formatErrorStackPromiseForTest = formatErrorStack(output, /* includeCausedByPrefix */ false);
 
     return result;
   }

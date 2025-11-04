@@ -30,3 +30,6 @@ experimental domain ReactNativeApplication
       optional boolean unstable_isProfilingBuild
       # Enables the Network Panel.
       optional boolean unstable_networkInspectionEnabled
+
+  # Fired when React Native requests Chrome DevTools to prepare for displaying the captured Trace.
+  event traceRequested

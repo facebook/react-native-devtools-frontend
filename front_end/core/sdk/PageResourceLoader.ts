@@ -20,6 +20,8 @@ import {
 import type {Target} from './Target.js';
 import {TargetManager} from './TargetManager.js';
 
+const RNDT_STARTUP_RESOURCES_LOADED_COOLDOWN = 3000;
+
 const UIStrings = {
   /**
    *@description Error message for canceled source map loads
@@ -82,6 +84,8 @@ interface LoadQueueEntry {
  */
 export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
   #currentlyLoading = 0;
+  #rndtStartupResourcesLoadedReported = false;
+  #rndtStartupResourcesLoadedTimeout: number|undefined = undefined;
   #currentlyLoadingPerTarget = new Map<Protocol.Target.TargetID|'main', number>();
   readonly #maxConcurrentLoads: number;
   #pageResources = new Map<string, PageResource>();
@@ -261,6 +265,23 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
       await this.acquireLoadSlot(initiator.target);
       const resultPromise = this.dispatchLoad(url, initiator);
       const result = await resultPromise;
+
+      if (!this.#rndtStartupResourcesLoadedReported) {
+        // If, after initial load, no new resources are scheduled for
+        // RNDT_STARTUP_RESOURCES_LOADED_COOLDOWN,
+        // we consider all startup resources to be loaded + settled.
+        window.clearTimeout(this.#rndtStartupResourcesLoadedTimeout);
+        this.#rndtStartupResourcesLoadedTimeout = window.setTimeout(() => {
+          if (!this.#rndtStartupResourcesLoadedReported && this.#currentlyLoading === 0) {
+            Host.rnPerfMetrics.developerResourcesStartupLoadingFinishedEvent(
+              this.getNumberOfResources().resources /* numResources */,
+              performance.now() - RNDT_STARTUP_RESOURCES_LOADED_COOLDOWN /* timeSinceLaunch */,
+            );
+            this.#rndtStartupResourcesLoadedReported = true;
+          }
+        }, RNDT_STARTUP_RESOURCES_LOADED_COOLDOWN);
+      }
+
       pageResource.errorMessage = result.errorDescription.message;
       pageResource.success = result.success;
       if (result.success) {
@@ -354,6 +375,7 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
     }
     Host.rnPerfMetrics.developerResourceLoadingFinished(
         parsedURL, Host.UserMetrics.DeveloperResourceLoaded.FALLBACK_AFTER_FAILURE, result);
+
     return result;
   }
 

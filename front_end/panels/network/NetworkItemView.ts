@@ -230,7 +230,7 @@ export class NetworkItemView extends UI.TabbedPane.TabbedPane {
       }
     }
 
-    if (!this.isReactNative) {
+    if (!this.isReactNative || Root.Runtime.experiments.isEnabled(Root.Runtime.RNExperimentName.ENABLE_NETWORK_PANEL)) {
       this.appendTab(
           NetworkForward.UIRequestLocation.UIRequestTabs.INITIATOR, i18nString(UIStrings.initiator),
           new RequestInitiatorView(request), i18nString(UIStrings.requestInitiatorCallStack));

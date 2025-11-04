@@ -21,7 +21,5 @@ declare global {
     var reactNativeOpenInEditorButtonImage: string|undefined;
     // eslint-disable-next-line no-var,@typescript-eslint/naming-convention
     var FB_ONLY__reactNativeFeedbackLink: string|undefined;
-    // eslint-disable-next-line no-var,@typescript-eslint/naming-convention
-    var FB_ONLY__enablePerformance: unknown;
   }
 }

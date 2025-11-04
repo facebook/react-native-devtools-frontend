@@ -186,6 +186,16 @@ class RNPerfMetrics {
     });
   }
 
+  developerResourcesStartupLoadingFinishedEvent(numResources: number, timeSinceLaunch: DOMHighResTimeStamp): void {
+    this.sendEvent({
+      eventName: 'DeveloperResources.StartupLoadingFinished',
+      params: {
+        numResources,
+        timeSinceLaunch,
+      },
+    });
+  }
+
   fuseboxSetClientMetadataStarted(): void {
     this.sendEvent({eventName: 'FuseboxSetClientMetadataStarted'});
   }
@@ -295,6 +305,24 @@ class RNPerfMetrics {
       params: {
         uniqueUrls,
       },
+    });
+  }
+
+  manualBreakpointSetSucceeded(bpSettingDuration: number): void {
+    this.sendEvent({
+      eventName: 'ManualBreakpointSetSucceeded',
+      params: {
+        bpSettingDuration,
+      }
+    });
+  }
+
+  stackTraceFrameClicked(isLinkified: boolean): void {
+    this.sendEvent({
+      eventName: 'StackTraceFrameClicked',
+      params: {
+        isLinkified,
+      }
     });
   }
 
@@ -417,6 +445,14 @@ export type DeveloperResourceLoadingFinishedEvent = Readonly<{
   }>,
 }>;
 
+export type DeveloperResourcesStartupLoadingFinishedEvent = Readonly<{
+  eventName: 'DeveloperResources.StartupLoadingFinished',
+  params: Readonly<{
+    numResources: number,
+    timeSinceLaunch: DOMHighResTimeStamp,
+  }>,
+}>;
+
 export type FuseboxSetClientMetadataStartedEvent = Readonly<{
   eventName: 'FuseboxSetClientMetadataStarted',
 }>;
@@ -489,12 +525,26 @@ export type StackTraceFrameUrlResolutionFailed = Readonly<{
   }>,
 }>;
 
+export type StackTraceFrameClicked = Readonly<{
+  eventName: 'StackTraceFrameClicked',
+  params: Readonly<{
+    isLinkified: boolean,
+  }>,
+}>;
+
+export type ManualBreakpointSetSucceeded = Readonly<{
+  eventName: 'ManualBreakpointSetSucceeded',
+  params: Readonly<{
+    bpSettingDuration: number,
+  }>,
+}>;
+
 export type ReactNativeChromeDevToolsEvent =
     EntrypointLoadingStartedEvent|EntrypointLoadingFinishedEvent|DebuggerReadyEvent|BrowserVisibilityChangeEvent|
-    BrowserErrorEvent|RemoteDebuggingTerminatedEvent|DeveloperResourceLoadingStartedEvent|
-    DeveloperResourceLoadingFinishedEvent|FuseboxSetClientMetadataStartedEvent|FuseboxSetClientMetadataFinishedEvent|
-    MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent|PanelShownEvent|PanelClosedEvent|
-    StackTraceSymbolicationSucceeded|StackTraceSymbolicationFailed|StackTraceFrameUrlResolutionSucceeded|
-    StackTraceFrameUrlResolutionFailed;
+    BrowserErrorEvent|RemoteDebuggingTerminatedEvent|DeveloperResourcesStartupLoadingFinishedEvent|
+    DeveloperResourceLoadingStartedEvent|DeveloperResourceLoadingFinishedEvent|FuseboxSetClientMetadataStartedEvent|
+    FuseboxSetClientMetadataFinishedEvent|MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent|PanelShownEvent|
+    PanelClosedEvent|StackTraceSymbolicationSucceeded|StackTraceSymbolicationFailed|StackTraceFrameUrlResolutionSucceeded|
+    StackTraceFrameUrlResolutionFailed|ManualBreakpointSetSucceeded|StackTraceFrameClicked;
 
 export type DecoratedReactNativeChromeDevToolsEvent = CommonEventFields&ReactNativeChromeDevToolsEvent;

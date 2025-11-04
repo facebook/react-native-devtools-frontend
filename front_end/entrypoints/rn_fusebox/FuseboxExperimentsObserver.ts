@@ -14,11 +14,6 @@ import {FuseboxWindowTitleManager} from './FuseboxWindowTitleManager.js';
 
 const UIStrings = {
   /**
-   * @description Message for the "settings changed" banner shown when a reload is required for the Performance panel.
-   */
-  reloadRequiredForPerformancePanelMessage:
-      '[Profiling build first run] One or more settings have changed. Please reload to access the Performance panel.',
-  /**
    * @description Message for the "settings changed" banner shown when a reload is required for the Network panel.
    */
   reloadRequiredForNetworkPanelMessage: 'The Network panel is now available for dogfooding. Please reload to access it.',
@@ -55,7 +50,6 @@ export class FuseboxFeatureObserver implements
     if (unstable_isProfilingBuild) {
       FuseboxWindowTitleManager.instance().setSuffix('[PROFILING]');
       this.#hideUnsupportedFeaturesForProfilingBuilds();
-      this.#ensurePerformancePanelEnabled();
     }
 
     if (unstable_networkInspectionEnabled) {
@@ -89,26 +83,6 @@ export class FuseboxFeatureObserver implements
           }
         });
       });
-  }
-
-  #ensurePerformancePanelEnabled(): void {
-    if (
-      !Root.Runtime.experiments.isEnabled(
-        Root.Runtime.ExperimentName.ENABLE_PERFORMANCE_PANEL,
-      )
-    ) {
-      Root.Runtime.experiments.setEnabled(
-        Root.Runtime.ExperimentName.ENABLE_PERFORMANCE_PANEL,
-        true,
-      );
-
-      const inspectorView = UI.InspectorView?.InspectorView?.instance();
-      if (inspectorView) {
-        inspectorView.displayReloadRequiredWarning(
-            i18nString(UIStrings.reloadRequiredForPerformancePanelMessage),
-        );
-      }
-    }
   }
 
   #ensureNetworkPanelEnabled(): void {

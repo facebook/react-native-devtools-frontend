@@ -1838,22 +1838,32 @@ export class TimelineUIUtils {
     const {startTime} = Trace.Helpers.Timing.eventTimingsMilliSeconds(event);
     let initiatorStackLabel = i18nString(UIStrings.initiatorStackTrace);
     let stackLabel = i18nString(UIStrings.stackTrace);
-    const stackTraceForEvent = Trace.Extras.StackTraceForEvent.get(event, parsedTrace);
+
     // [RN] Used to scope down available features for React Native targets
     // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
     const isReactNative = Root.Runtime.experiments.isEnabled(
         Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
     );
-    if (stackTraceForEvent && !isReactNative) {
-      contentHelper.addSection(i18nString(UIStrings.stackTrace));
-      contentHelper.createChildStackTraceElement(stackTraceForEvent);
-      // TODO(andoli): also build stack trace component for other events
-      // that have a stack trace using the StackTraceForEvent helper.
-    } else if (!isReactNative) {
-      const stackTrace = Trace.Helpers.Trace.getZeroIndexedStackTraceForEvent(event);
-      if (stackTrace?.length) {
-        contentHelper.addSection(stackLabel);
-        contentHelper.createChildStackTraceElement(TimelineUIUtils.stackTraceFromCallFrames(stackTrace));
+    if (isReactNative) {
+      const rnStackTrace = Trace.Extras.StackTraceForEvent.getForReactNative(event, parsedTrace);
+
+      if (rnStackTrace) {
+        contentHelper.addSection(i18nString(UIStrings.stackTrace));
+        contentHelper.createChildStackTraceElement(rnStackTrace);
+      }
+    } else {
+      const stackTraceForEvent = Trace.Extras.StackTraceForEvent.get(event, parsedTrace);
+      if (stackTraceForEvent) {
+        contentHelper.addSection(i18nString(UIStrings.stackTrace));
+        contentHelper.createChildStackTraceElement(stackTraceForEvent);
+        // TODO(andoli): also build stack trace component for other events
+        // that have a stack trace using the StackTraceForEvent helper.
+      } else {
+        const stackTrace = Trace.Helpers.Trace.getZeroIndexedStackTraceForEvent(event);
+        if (stackTrace?.length) {
+          contentHelper.addSection(stackLabel);
+          contentHelper.createChildStackTraceElement(TimelineUIUtils.stackTraceFromCallFrames(stackTrace));
+        }
       }
     }
     switch (event.name) {
