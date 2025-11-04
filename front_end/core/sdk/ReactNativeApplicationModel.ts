@@ -52,6 +52,10 @@ export class ReactNativeApplicationModel extends SDKModel<EventTypes> implements
     this.dispatchEventToListeners(Events.METADATA_UPDATED, metadata);
   }
 
+  systemStateChanged(params: Protocol.ReactNativeApplication.SystemStateChangedEvent): void {
+    this.dispatchEventToListeners(Events.SYSTEM_STATE_CHANGED, params);
+  }
+
   traceRequested(): void {
     this.dispatchEventToListeners(Events.TRACE_REQUESTED);
   }
@@ -59,10 +63,12 @@ export class ReactNativeApplicationModel extends SDKModel<EventTypes> implements
 
 export const enum Events {
   METADATA_UPDATED = 'MetadataUpdated',
+  SYSTEM_STATE_CHANGED = 'SystemStateChanged',
   TRACE_REQUESTED = 'TraceRequested',
 }
 
 export interface EventTypes {
   [Events.METADATA_UPDATED]: Protocol.ReactNativeApplication.MetadataUpdatedEvent;
+  [Events.SYSTEM_STATE_CHANGED]: Protocol.ReactNativeApplication.SystemStateChangedEvent;
   [Events.TRACE_REQUESTED]: void;
 }

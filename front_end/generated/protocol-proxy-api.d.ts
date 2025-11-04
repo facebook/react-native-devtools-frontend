@@ -256,6 +256,11 @@ declare namespace ProtocolProxyApi {
     metadataUpdated(params: Protocol.ReactNativeApplication.MetadataUpdatedEvent): void;
 
     /**
+     * Emitted when assertions about the debugger backend have changed.
+     */
+    systemStateChanged(params: Protocol.ReactNativeApplication.SystemStateChangedEvent): void;
+
+    /**
      * Fired when React Native requests Chrome DevTools to prepare for displaying the captured Trace.
      */
     traceRequested(): void;
