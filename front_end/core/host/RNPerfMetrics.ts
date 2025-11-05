@@ -216,6 +216,10 @@ class RNPerfMetrics {
     }
   }
 
+  traceRequested(): void {
+    this.sendEvent({eventName: 'Tracing.TraceRequested'});
+  }
+
   heapSnapshotStarted(): void {
     this.sendEvent({
       eventName: 'MemoryPanelActionStarted',
@@ -539,12 +543,17 @@ export type ManualBreakpointSetSucceeded = Readonly<{
   }>,
 }>;
 
+export type TracingTraceRequestedEvent = Readonly<{
+  eventName: 'Tracing.TraceRequested',
+}>;
+
 export type ReactNativeChromeDevToolsEvent =
     EntrypointLoadingStartedEvent|EntrypointLoadingFinishedEvent|DebuggerReadyEvent|BrowserVisibilityChangeEvent|
     BrowserErrorEvent|RemoteDebuggingTerminatedEvent|DeveloperResourcesStartupLoadingFinishedEvent|
     DeveloperResourceLoadingStartedEvent|DeveloperResourceLoadingFinishedEvent|FuseboxSetClientMetadataStartedEvent|
-    FuseboxSetClientMetadataFinishedEvent|MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent|PanelShownEvent|
-    PanelClosedEvent|StackTraceSymbolicationSucceeded|StackTraceSymbolicationFailed|StackTraceFrameUrlResolutionSucceeded|
-    StackTraceFrameUrlResolutionFailed|ManualBreakpointSetSucceeded|StackTraceFrameClicked;
+    FuseboxSetClientMetadataFinishedEvent|TracingTraceRequestedEvent|MemoryPanelActionStartedEvent|MemoryPanelActionFinishedEvent|
+    PanelShownEvent|PanelClosedEvent|StackTraceSymbolicationSucceeded|StackTraceSymbolicationFailed|
+    StackTraceFrameUrlResolutionSucceeded|StackTraceFrameUrlResolutionFailed|ManualBreakpointSetSucceeded|
+    StackTraceFrameClicked;
 
 export type DecoratedReactNativeChromeDevToolsEvent = CommonEventFields&ReactNativeChromeDevToolsEvent;
