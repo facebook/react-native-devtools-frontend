@@ -57,6 +57,7 @@ export class ReactNativeApplicationModel extends SDKModel<EventTypes> implements
   }
 
   traceRequested(): void {
+    Host.rnPerfMetrics.traceRequested();
     this.dispatchEventToListeners(Events.TRACE_REQUESTED);
   }
 }
