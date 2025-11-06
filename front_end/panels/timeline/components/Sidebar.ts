@@ -9,7 +9,7 @@ import * as UI from '../../../ui/legacy/legacy.js';
 
 import {SidebarAnnotationsTab} from './SidebarAnnotationsTab.js';
 import {SidebarInsightsTab} from './SidebarInsightsTab.js';
-import {SidebarRNPerfIssuesTab} from './SidebarRNPerfIssuesTab.js';
+import {SidebarRNPerfSignalsTab} from './SidebarRNPerfSignalsTab.js';
 
 export interface ActiveInsight {
   model: Trace.Insights.Types.InsightModel;
@@ -41,7 +41,7 @@ declare global {
 export const enum SidebarTabs {
   INSIGHTS = 'insights',
   ANNOTATIONS = 'annotations',
-  PERF_ISSUES = 'perf-issues',
+  PERF_SIGNALS = 'perf-signals',
 }
 export const DEFAULT_SIDEBAR_TAB = SidebarTabs.INSIGHTS;
 
@@ -55,7 +55,7 @@ export class SidebarWidget extends UI.Widget.VBox {
   #annotationsView = new AnnotationsView();
 
   #perfIssuesTabEnabled = false;
-  #rnPerfIssuesView = new RNPerfIssuesView();
+  #rnPerfSignalsView = new RNPerfSignalsView();
 
   /**
    * Track if the user has opened the sidebar before. We do this so that the
@@ -121,25 +121,25 @@ export class SidebarWidget extends UI.Widget.VBox {
 
   setParsedTrace(parsedTrace: Trace.Handlers.Types.ParsedTrace|null, metadata: Trace.Types.File.MetaData|null): void {
     this.#insightsView.setParsedTrace(parsedTrace, metadata);
-    this.#rnPerfIssuesView.setParsedTrace(parsedTrace);
+    this.#rnPerfSignalsView.setParsedTrace(parsedTrace);
 
     // [RN] Show or remove the Perf Issues tab if there are issues present
     if (this.#perfIssuesTabEnabled) {
-      const hasIssues = this.#rnPerfIssuesView.hasIssues();
-      const tabExists = this.#tabbedPane.hasTab(SidebarTabs.PERF_ISSUES);
+      const hasIssues = this.#rnPerfSignalsView.hasIssues();
+      const tabExists = this.#tabbedPane.hasTab(SidebarTabs.PERF_SIGNALS);
 
       if (hasIssues && !tabExists) {
         this.#tabbedPane.appendTab(
-            SidebarTabs.PERF_ISSUES, 'Performance Signals', this.#rnPerfIssuesView, undefined, undefined, false, true);
-        this.#tabbedPane.selectTab(SidebarTabs.PERF_ISSUES);
+            SidebarTabs.PERF_SIGNALS, 'Performance Signals', this.#rnPerfSignalsView, undefined, undefined, false, true);
+        this.#tabbedPane.selectTab(SidebarTabs.PERF_SIGNALS);
       } else if (!hasIssues && tabExists) {
-        this.#tabbedPane.closeTab(SidebarTabs.PERF_ISSUES);
+        this.#tabbedPane.closeTab(SidebarTabs.PERF_SIGNALS);
       }
     }
   }
 
   setSelectTimelineEventCallback(callback: (event: Trace.Types.Events.Event) => void): void {
-    this.#rnPerfIssuesView.setSelectTimelineEventCallback(callback);
+    this.#rnPerfSignalsView.setSelectTimelineEventCallback(callback);
   }
 
   setInsights(insights: Trace.Insights.Types.TraceInsightSets|null): void {
@@ -212,13 +212,13 @@ class AnnotationsView extends UI.Widget.VBox {
   }
 }
 
-/** [RN] Experimental view for Performance Issues. */
-class RNPerfIssuesView extends UI.Widget.VBox {
-  #component = new SidebarRNPerfIssuesTab();
+/** [RN] Experimental view for Performance Signals. */
+class RNPerfSignalsView extends UI.Widget.VBox {
+  #component = new SidebarRNPerfSignalsTab();
 
   constructor() {
     super();
-    this.element.classList.add('sidebar-perf-issues');
+    this.element.classList.add('sidebar-perf-signals');
     this.element.appendChild(this.#component);
   }
 

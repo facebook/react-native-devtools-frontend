@@ -55,7 +55,7 @@ devtools_module("components") {
     "SidebarAnnotationsTab.ts",
     "SidebarInsightsTab.ts",
     "SidebarRNPerfIssueItem.ts",
-    "SidebarRNPerfIssuesTab.ts",
+    "SidebarRNPerfSignalsTab.ts",
     "SidebarSingleInsightSet.ts",
     "TimelineSummary.ts",
     "Utils.ts",

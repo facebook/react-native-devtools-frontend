@@ -31,10 +31,10 @@ const UIStrings = {
   emptyStateDetail: 'No issues found',
 } as const;
 
-const str_ = i18n.i18n.registerUIStrings('panels/timeline/components/SidebarRNPerfIssuesTab.ts', UIStrings);
+const str_ = i18n.i18n.registerUIStrings('panels/timeline/components/SidebarRNPerfSignalsTab.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-export class SidebarRNPerfIssuesTab extends HTMLElement {
+export class SidebarRNPerfSignalsTab extends HTMLElement {
   readonly #boundRender = this.#render.bind(this);
   readonly #shadow = this.attachShadow({mode: 'open'});
 
@@ -162,10 +162,10 @@ export class SidebarRNPerfIssuesTab extends HTMLElement {
   }
 }
 
-customElements.define('devtools-performance-sidebar-perf-issues', SidebarRNPerfIssuesTab);
+customElements.define('devtools-performance-sidebar-perf-signals', SidebarRNPerfSignalsTab);
 
 declare global {
   interface HTMLElementTagNameMap {
-    'devtools-performance-sidebar-perf-issues': SidebarRNPerfIssuesTab;
+    'devtools-performance-sidebar-perf-signals': SidebarRNPerfSignalsTab;
   }
 }
