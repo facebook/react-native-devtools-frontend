@@ -31,5 +31,13 @@ experimental domain ReactNativeApplication
       # Enables the Network Panel.
       optional boolean unstable_networkInspectionEnabled
 
+  # Emitted when assertions about the debugger backend have changed.
+  event systemStateChanged
+    parameters
+      # Whether the application has a single React Native host. If an app or
+      # framework intantiates multiple hosts, some debugger features will not
+      # behave safely and should be dynamically disabled.
+      boolean isSingleHost
+
   # Fired when React Native requests Chrome DevTools to prepare for displaying the captured Trace.
   event traceRequested

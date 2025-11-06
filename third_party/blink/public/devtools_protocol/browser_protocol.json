@@ -73,6 +73,17 @@
                     ]
                 },
                 {
+                    "name": "systemStateChanged",
+                    "description": "Emitted when assertions about the debugger backend have changed.",
+                    "parameters": [
+                        {
+                            "name": "isSingleHost",
+                            "description": "Whether the application has a single React Native host. If an app or\nframework intantiates multiple hosts, some debugger features will not\n behave safely and should be dynamically disabled.",
+                            "type": "boolean"
+                        }
+                    ]
+                },
+                {
                     "name": "traceRequested",
                     "description": "Fired when React Native requests Chrome DevTools to prepare for displaying the captured Trace."
                 }

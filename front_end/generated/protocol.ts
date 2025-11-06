@@ -62,6 +62,18 @@ export namespace ReactNativeApplication {
      */
     unstable_networkInspectionEnabled?: boolean;
   }
+
+  /**
+   * Emitted when assertions about the debugger backend have changed.
+   */
+  export interface SystemStateChangedEvent {
+    /**
+     * Whether the application has a single React Native host. If an app or
+     * framework intantiates multiple hosts, some debugger features will not
+     * behave safely and should be dynamically disabled.
+     */
+    isSingleHost: boolean;
+  }
 }
 
 export namespace Accessibility {
