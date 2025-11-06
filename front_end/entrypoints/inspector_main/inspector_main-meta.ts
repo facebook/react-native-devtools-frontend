@@ -207,7 +207,7 @@ UI.ActionRegistration.registerActionExtension({
 });
 
 Common.Settings.registerSettingExtension({
-  category: Common.Settings.SettingCategory.NETWORK,
+  category: Common.Settings.SettingCategory.NETWORK_UNLESS_RN,
   title: i18nLazyString(UIStrings.forceAdBlocking),
   settingName: 'network.ad-blocking-enabled',
   settingType: Common.Settings.SettingType.BOOLEAN,
