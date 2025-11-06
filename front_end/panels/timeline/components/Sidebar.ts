@@ -9,6 +9,7 @@ import * as UI from '../../../ui/legacy/legacy.js';
 
 import {SidebarAnnotationsTab} from './SidebarAnnotationsTab.js';
 import {SidebarInsightsTab} from './SidebarInsightsTab.js';
+import {SidebarRNPerfSignalsTab} from './SidebarRNPerfSignalsTab.js';
 
 export interface ActiveInsight {
   model: Trace.Insights.Types.InsightModel;
@@ -40,6 +41,7 @@ declare global {
 export const enum SidebarTabs {
   INSIGHTS = 'insights',
   ANNOTATIONS = 'annotations',
+  PERF_SIGNALS = 'perf-signals',
 }
 export const DEFAULT_SIDEBAR_TAB = SidebarTabs.INSIGHTS;
 
@@ -51,6 +53,9 @@ export class SidebarWidget extends UI.Widget.VBox {
 
   #insightsView = new InsightsView();
   #annotationsView = new AnnotationsView();
+
+  #perfIssuesTabEnabled = false;
+  #rnPerfSignalsView = new RNPerfSignalsView();
 
   /**
    * Track if the user has opened the sidebar before. We do this so that the
@@ -72,6 +77,8 @@ export class SidebarWidget extends UI.Widget.VBox {
 
     // [RN] Disable Insights tab
     const showInsightsTab = !Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI);
+    // [RN] Show experimental Performance Issues tab
+    this.#perfIssuesTabEnabled = Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI);
 
     if (showInsightsTab) {
       this.#tabbedPane.appendTab(
@@ -114,6 +121,25 @@ export class SidebarWidget extends UI.Widget.VBox {
 
   setParsedTrace(parsedTrace: Trace.Handlers.Types.ParsedTrace|null, metadata: Trace.Types.File.MetaData|null): void {
     this.#insightsView.setParsedTrace(parsedTrace, metadata);
+    this.#rnPerfSignalsView.setParsedTrace(parsedTrace);
+
+    // [RN] Show or remove the Perf Issues tab if there are issues present
+    if (this.#perfIssuesTabEnabled) {
+      const hasIssues = this.#rnPerfSignalsView.hasIssues();
+      const tabExists = this.#tabbedPane.hasTab(SidebarTabs.PERF_SIGNALS);
+
+      if (hasIssues && !tabExists) {
+        this.#tabbedPane.appendTab(
+            SidebarTabs.PERF_SIGNALS, 'Performance Signals', this.#rnPerfSignalsView, undefined, undefined, false, true);
+        this.#tabbedPane.selectTab(SidebarTabs.PERF_SIGNALS);
+      } else if (!hasIssues && tabExists) {
+        this.#tabbedPane.closeTab(SidebarTabs.PERF_SIGNALS);
+      }
+    }
+  }
+
+  setSelectTimelineEventCallback(callback: (event: Trace.Types.Events.Event) => void): void {
+    this.#rnPerfSignalsView.setSelectTimelineEventCallback(callback);
   }
 
   setInsights(insights: Trace.Insights.Types.TraceInsightSets|null): void {
@@ -183,5 +209,28 @@ class AnnotationsView extends UI.Widget.VBox {
    */
   deduplicatedAnnotations(): readonly Trace.Types.File.Annotation[] {
     return this.#component.deduplicatedAnnotations();
+  }
+}
+
+/** [RN] Experimental view for Performance Signals. */
+class RNPerfSignalsView extends UI.Widget.VBox {
+  #component = new SidebarRNPerfSignalsTab();
+
+  constructor() {
+    super();
+    this.element.classList.add('sidebar-perf-signals');
+    this.element.appendChild(this.#component);
+  }
+
+  setParsedTrace(parsedTrace: Trace.Handlers.Types.ParsedTrace|null): void {
+    this.#component.parsedTrace = parsedTrace;
+  }
+
+  setSelectTimelineEventCallback(callback: (event: Trace.Types.Events.Event) => void): void {
+    this.#component.setSelectTimelineEventCallback(callback);
+  }
+
+  hasIssues(): boolean {
+    return this.#component.hasIssues();
   }
 }
