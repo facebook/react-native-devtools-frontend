@@ -882,7 +882,10 @@ export class NetworkRequestNode extends NetworkNode {
   }
 
   override displayName(): string {
-    return this.requestInternal.name();
+    // [RN] Check for x-fb-friendly-name header in response or request headers
+    const friendlyName = this.requestInternal.responseHeaderValue('x-fb-friendly-name') ||
+        this.requestInternal.requestHeaderValue('x-fb-friendly-name');
+    return friendlyName || this.requestInternal.name();
   }
 
   override request(): SDK.NetworkRequest.NetworkRequest {
@@ -1126,7 +1129,10 @@ export class NetworkRequestNode extends NetworkNode {
           cell.appendChild(secondIconElement);
         }
       }
-      const name = Platform.StringUtilities.trimMiddle(this.requestInternal.name(), 100);
+      // [RN] Check for x-fb-friendly-name header in response or request headers
+      const friendlyName = this.requestInternal.responseHeaderValue('x-fb-friendly-name') ||
+          this.requestInternal.requestHeaderValue('x-fb-friendly-name');
+      const name = Platform.StringUtilities.trimMiddle(friendlyName || this.requestInternal.name(), 100);
       const networkManager = SDK.NetworkManager.NetworkManager.forRequest(this.requestInternal);
       UI.UIUtils.createTextChild(cell, networkManager ? networkManager.target().decorateLabel(name) : name);
       this.appendSubtitle(cell, this.requestInternal.path());
