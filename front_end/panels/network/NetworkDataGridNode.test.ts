@@ -506,4 +506,69 @@ describeWithEnvironment('NetworkLogView', () => {
     const backgroundColorOfIcon = iconStyle.backgroundColor.toString();
     assert.strictEqual(backgroundColorOfIcon, 'var(--icon-warning)');
   });
+
+  it('uses x-fb-friendly-name from response headers when present', async () => {
+    const request = SDK.NetworkRequest.NetworkRequest.create(
+        'requestId' as Protocol.Network.RequestId, urlString`https://www.example.com/api/v1/users/12345`, urlString``,
+        null, null, null);
+    request.statusCode = 200;
+    request.responseHeaders = [{name: 'x-fb-friendly-name', value: 'GetUserProfile'}];
+
+    const networkRequestNode = new Network.NetworkDataGridNode.NetworkRequestNode(
+        {} as Network.NetworkDataGridNode.NetworkLogViewInterface, request);
+    const el = document.createElement('div');
+    networkRequestNode.renderCell(el, 'name');
+
+    // The cell should contain the friendly name instead of the default URL name
+    assert.include(el.textContent, 'GetUserProfile');
+  });
+
+  it('uses x-fb-friendly-name from request headers when not in response', async () => {
+    const request = SDK.NetworkRequest.NetworkRequest.create(
+        'requestId' as Protocol.Network.RequestId, urlString`https://www.example.com/graphql`, urlString``, null, null,
+        null);
+    request.statusCode = 200;
+    request.setRequestHeaders([{name: 'x-fb-friendly-name', value: 'CreatePost'}]);
+
+    const networkRequestNode = new Network.NetworkDataGridNode.NetworkRequestNode(
+        {} as Network.NetworkDataGridNode.NetworkLogViewInterface, request);
+    const el = document.createElement('div');
+    networkRequestNode.renderCell(el, 'name');
+
+    // The cell should contain the friendly name from request headers
+    assert.include(el.textContent, 'CreatePost');
+  });
+
+  it('uses default name when x-fb-friendly-name is not present', async () => {
+    const request = SDK.NetworkRequest.NetworkRequest.create(
+        'requestId' as Protocol.Network.RequestId, urlString`https://www.example.com/test.js`, urlString``, null, null,
+        null);
+    request.statusCode = 200;
+
+    const networkRequestNode = new Network.NetworkDataGridNode.NetworkRequestNode(
+        {} as Network.NetworkDataGridNode.NetworkLogViewInterface, request);
+    const el = document.createElement('div');
+    networkRequestNode.renderCell(el, 'name');
+
+    // The cell should contain the default name (test.js)
+    assert.include(el.textContent, 'test.js');
+  });
+
+  it('prefers response header x-fb-friendly-name over request header', async () => {
+    const request = SDK.NetworkRequest.NetworkRequest.create(
+        'requestId' as Protocol.Network.RequestId, urlString`https://www.example.com/api/data`, urlString``, null, null,
+        null);
+    request.statusCode = 200;
+    request.responseHeaders = [{name: 'x-fb-friendly-name', value: 'ResponseName'}];
+    request.setRequestHeaders([{name: 'x-fb-friendly-name', value: 'RequestName'}]);
+
+    const networkRequestNode = new Network.NetworkDataGridNode.NetworkRequestNode(
+        {} as Network.NetworkDataGridNode.NetworkLogViewInterface, request);
+    const el = document.createElement('div');
+    networkRequestNode.renderCell(el, 'name');
+
+    // The cell should contain the response header value, not the request header value
+    assert.include(el.textContent, 'ResponseName');
+    assert.notInclude(el.textContent, 'RequestName');
+  });
 });
