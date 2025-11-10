@@ -18,10 +18,6 @@ const {html, render} = Lit;
 
 const UIStrings = {
   /**
-   * @description Message for the "settings changed" banner shown when a reload is required for the Network panel.
-   */
-  reloadRequiredForNetworkPanelMessage: 'The Network panel is now available for dogfooding. Please reload to access it.',
-  /**
    * @description Title shown when Network inspection is disabled due to multiple React Native hosts.
    */
   networkInspectionUnavailable: 'Network inspection is unavailable',
@@ -86,8 +82,10 @@ export class FuseboxFeatureObserver implements
       this.#hideUnsupportedFeaturesForProfilingBuilds();
     }
 
-    if (unstable_networkInspectionEnabled) {
-      this.#ensureNetworkPanelEnabled();
+    // Hide Network panel entirely if backend support is disabled
+    // TODO(huntie): Remove after fbsource rollout is complete
+    if (!unstable_networkInspectionEnabled && !Root.Runtime.conditions.reactNativeExpoNetworkPanel()) {
+      this.#hideNetworkPanel();
     }
   }
 
@@ -127,19 +125,11 @@ export class FuseboxFeatureObserver implements
       });
   }
 
-  #ensureNetworkPanelEnabled(): void {
-    if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.ENABLE_NETWORK_PANEL)) {
-      return;
-    }
-
-    Root.Runtime.experiments.setEnabled(
-        Root.Runtime.ExperimentName.ENABLE_NETWORK_PANEL,
-        true,
-    );
-
-    UI.InspectorView?.InspectorView?.instance()?.displayReloadRequiredWarning(
-        i18nString(UIStrings.reloadRequiredForNetworkPanelMessage),
-    );
+  #hideNetworkPanel(): void {
+    const viewManager = UI.ViewManager.ViewManager.instance();
+    void viewManager.resolveLocation(UI.ViewManager.ViewLocationValues.PANEL).then(location => {
+      location?.removeView(viewManager.view('network'));
+    });
   }
 
   #disableSingleHostOnlyFeatures(): void {
