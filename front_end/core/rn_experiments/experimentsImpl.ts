@@ -186,13 +186,6 @@ Instance.register({
 });
 
 Instance.register({
-  name: RNExperimentName.ENABLE_NETWORK_PANEL,
-  title: 'Enable Network panel',
-  unstable: true,
-  enabledByDefault: () => false,
-});
-
-Instance.register({
   name: RNExperimentName.ENABLE_TIMELINE_FRAMES,
   title: 'Enable performance frames track',
   unstable: true,
