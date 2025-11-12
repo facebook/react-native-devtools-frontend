@@ -27,7 +27,7 @@ import * as UI from '../../ui/legacy/legacy.js';
 import * as Main from '../main/main.js';
 
 import * as FuseboxAppMetadataObserverModule from './FuseboxAppMetadataObserver.js';
-import * as FuseboxFeatureObserverModule from './FuseboxExperimentsObserver.js';
+import * as FuseboxFeatureObserverModule from './FuseboxFeatureObserver.js';
 import * as FuseboxReconnectDeviceButtonModule from './FuseboxReconnectDeviceButton.js';
 
 // To ensure accurate timing measurements, please make sure these perf metrics

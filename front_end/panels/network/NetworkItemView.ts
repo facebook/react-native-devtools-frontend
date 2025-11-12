@@ -151,17 +151,11 @@ export class NetworkItemView extends UI.TabbedPane.TabbedPane {
   private readonly responseView: RequestResponseView|undefined;
   private cookiesView: RequestCookiesView|null;
   private initialTab?: NetworkForward.UIRequestLocation.UIRequestTabs;
-  private readonly isReactNative: boolean = false;
 
   constructor(
       request: SDK.NetworkRequest.NetworkRequest, calculator: NetworkTimeCalculator,
       initialTab?: NetworkForward.UIRequestLocation.UIRequestTabs) {
     super();
-
-    // [RN] Used to scope down available features for React Native targets
-    this.isReactNative = Root.Runtime.experiments.isEnabled(
-      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
-    );
 
     this.requestInternal = request;
     this.element.classList.add('network-item-view');
@@ -230,7 +224,7 @@ export class NetworkItemView extends UI.TabbedPane.TabbedPane {
       }
     }
 
-    if (!this.isReactNative || Root.Runtime.experiments.isEnabled(Root.Runtime.RNExperimentName.ENABLE_NETWORK_PANEL)) {
+    if (!Root.Runtime.conditions.reactNativeExpoNetworkPanel()) {
       this.appendTab(
           NetworkForward.UIRequestLocation.UIRequestTabs.INITIATOR, i18nString(UIStrings.initiator),
           new RequestInitiatorView(request), i18nString(UIStrings.requestInitiatorCallStack));

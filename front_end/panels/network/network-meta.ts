@@ -24,9 +24,9 @@ const UIStrings = {
    */
   network: 'Network',
   /**
-   *@description Title of the Network tool (Expo, unstable)
+   *@description Title of the Network tool (Expo implementation)
    */
-  networkExpoUnstable: 'Network (Expo, unstable)',
+  networkExpoUnstable: 'Expo Network',
   /**
    *@description Command for showing the 'Network request blocking' tool
    */
@@ -167,12 +167,10 @@ UI.ViewManager.registerViewExtension({
   location: UI.ViewManager.ViewLocationValues.PANEL,
   id: 'network',
   commandPrompt: i18nLazyString(UIStrings.showNetwork),
-  title: () => Root.Runtime.experiments.isEnabled(Root.Runtime.RNExperimentName.ENABLE_NETWORK_PANEL) ?
-      i18nString(UIStrings.network) :
-      i18nString(UIStrings.networkExpoUnstable),
+  title: () => Root.Runtime.conditions.reactNativeExpoNetworkPanel() ?
+      i18nString(UIStrings.networkExpoUnstable) :
+      i18nString(UIStrings.network),
   order: 40,
-  isPreviewFeature: true,
-  condition: Root.Runtime.conditions.reactNativeUnstableNetworkPanel,
   async loadView() {
     const Network = await loadNetworkModule();
     return Network.NetworkPanel.NetworkPanel.instance();

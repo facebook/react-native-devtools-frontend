@@ -1009,7 +1009,7 @@ Common.Settings.registerSettingExtension({
 });
 
 Common.Settings.registerSettingExtension({
-  category: Common.Settings.SettingCategory.NETWORK,
+  category: Common.Settings.SettingCategory.NETWORK_UNLESS_RN,
   title: i18nLazyString(UIStrings.networkRequestBlocking),
   settingName: 'request-blocking-enabled',
   settingType: Common.Settings.SettingType.BOOLEAN,

@@ -623,6 +623,13 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     this.#splitWidget.enableShowModeSaving();
     this.#splitWidget.show(this.element);
 
+    // [RN] Set up callback for Performance Issue selection
+    this.#sideBar.setSelectTimelineEventCallback((event: Trace.Types.Events.Event) => {
+      const selection = selectionFromEvent(event);
+      this.flameChart.setSelectionAndReveal(selection);
+      this.flameChart.updatePerfIssueFlameChartDimmer(event);
+    });
+
     this.flameChart.overlays().addEventListener(Overlays.Overlays.TimeRangeMouseOverEvent.eventName, event => {
       const {overlay} = event as Overlays.Overlays.TimeRangeMouseOverEvent;
       const overlayBounds = Overlays.Overlays.traceWindowContainingOverlays([overlay]);
@@ -2183,10 +2190,6 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
   #showSidebarIfRequired(): void {
     if (Root.Runtime.Runtime.queryParam('disable-auto-performance-sidebar-reveal') !== null) {
       // Used in interaction tests & screenshot tests.
-      return;
-    }
-    // [RN] Keep sidebar collapsed by default
-    if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI)) {
       return;
     }
     const needToRestore = this.#restoreSidebarVisibilityOnTraceLoad;

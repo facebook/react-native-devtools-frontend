@@ -178,6 +178,7 @@ export class TimelineFlameChartView extends Common.ObjectWrapper.eventMixin<Even
   #treeRowClickDimmer = this.#registerFlameChartDimmer({inclusive: false, outline: false});
   #activeInsightDimmer = this.#registerFlameChartDimmer({inclusive: false, outline: true});
   #thirdPartyCheckboxDimmer = this.#registerFlameChartDimmer({inclusive: true, outline: false});
+  #performanceIssuesDimmer = this.#registerFlameChartDimmer({inclusive: false, outline: false});
 
   constructor(delegate: TimelineModeViewDelegate) {
     super();
@@ -531,6 +532,26 @@ export class TimelineFlameChartView extends Common.ObjectWrapper.eventMixin<Even
 
     this.mainFlameChart.enableDimming(dimmer.mainChartIndices, dimmer.inclusive, mainOutline);
     this.networkFlameChart.enableDimming(dimmer.networkChartIndices, dimmer.inclusive, networkOutline);
+  }
+
+  /**
+   * [RN] Apply highlighting/dimming to a specific Performance Issue event.
+   */
+  updatePerfIssueFlameChartDimmer(event: Trace.Types.Events.Event): void {
+    this.#flameChartDimmers.forEach(dimmer => {
+      dimmer.active = false;
+    });
+
+    const mainIndex = this.mainDataProvider.indexForEvent(event);
+    const networkIndex = this.networkDataProvider.indexForEvent(event);
+    const mainChartIndices = mainIndex !== null && mainIndex >= 0 ? [mainIndex] : [];
+    const networkChartIndices = networkIndex !== null && networkIndex >= 0 ? [networkIndex] : [];
+
+    this.#updateFlameChartDimmerWithIndices(this.#performanceIssuesDimmer, mainChartIndices, networkChartIndices);
+  }
+
+  #clearPerformanceIssuesDimmer(): void {
+    this.#updateFlameChartDimmerWithEvents(this.#performanceIssuesDimmer, null);
   }
 
   #dimInsightRelatedEvents(relatedEvents: Trace.Types.Events.Event[]): void {
@@ -1594,6 +1615,9 @@ export class TimelineFlameChartView extends Common.ObjectWrapper.eventMixin<Even
         VisualLogging.logClick(loggable, new MouseEvent('click'));
       }
     }
+
+    // [RN] Clear Performance Issues dimmer when clicking directly on the timeline
+    this.#clearPerformanceIssuesDimmer();
 
     dataProvider.buildFlowForInitiator(entryIndex);
     this.delegate.select(dataProvider.createSelection(entryIndex));

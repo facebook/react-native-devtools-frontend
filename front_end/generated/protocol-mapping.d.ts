@@ -18,6 +18,10 @@ export namespace ProtocolMapping {
      */
     'ReactNativeApplication.metadataUpdated': [Protocol.ReactNativeApplication.MetadataUpdatedEvent];
     /**
+     * Emitted when assertions about the debugger backend have changed.
+     */
+    'ReactNativeApplication.systemStateChanged': [Protocol.ReactNativeApplication.SystemStateChangedEvent];
+    /**
      * Fired when React Native requests Chrome DevTools to prepare for displaying the captured Trace.
      */
     'ReactNativeApplication.traceRequested': [];

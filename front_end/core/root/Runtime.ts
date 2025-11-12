@@ -305,8 +305,6 @@ export const experiments = new ExperimentsSupport();
 export enum RNExperimentName {
   REACT_NATIVE_SPECIFIC_UI = 'react-native-specific-ui',
   JS_HEAP_PROFILER_ENABLE = 'js-heap-profiler-enable',
-  ENABLE_NETWORK_PANEL = 'enable-network-panel',
-  ENABLE_TIMELINE_FRAMES = 'enable-timeline-frames',
 }
 
 export enum ConditionName {
@@ -517,7 +515,5 @@ export type Condition = (config?: HostConfig) => boolean;
 export const conditions = {
   canDock: () => Boolean(Runtime.queryParam('can_dock')),
   notSourcesHideAddFolder: () => Boolean(Runtime.queryParam(ConditionName.NOT_SOURCES_HIDE_ADD_FOLDER)),
-  reactNativeUnstableNetworkPanel: () =>
-      Boolean(Runtime.queryParam(ConditionName.REACT_NATIVE_UNSTABLE_NETWORK_PANEL)) ||
-      experiments.isEnabled(ExperimentName.ENABLE_NETWORK_PANEL),
+  reactNativeExpoNetworkPanel: () => Boolean(Runtime.queryParam(ConditionName.REACT_NATIVE_UNSTABLE_NETWORK_PANEL)),
 };
