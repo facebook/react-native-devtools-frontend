@@ -106,6 +106,8 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectWrapper<EventTypes> implements
     PerfUI.FlameChart.FlameChartDataProvider {
+  private isReactNative = false;
+
   private droppedFramePatternCanvas: HTMLCanvasElement;
   private partialFramePatternCanvas: HTMLCanvasElement;
   private timelineDataInternal: PerfUI.FlameChart.FlameChartTimelineData|null = null;
@@ -142,6 +144,11 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
 
   constructor() {
     super();
+
+    // [RN] Used to scope down available features for React Native targets
+    this.isReactNative = Root.Runtime.experiments.isEnabled(
+      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+    );
 
     this.reset();
 
@@ -608,7 +615,7 @@ export class TimelineFlameChartDataProvider extends Common.ObjectWrapper.ObjectW
     // In CPU Profiles the trace data will not have frames nor
     // screenshots, so we can keep this call as it will be a no-op in
     // these cases.
-    if (Root.Runtime.experiments.isEnabled(Root.Runtime.RNExperimentName.ENABLE_TIMELINE_FRAMES)) {
+    if (Root.Runtime.experiments.isEnabled(Root.Runtime.RNExperimentName.ENABLE_TIMELINE_FRAMES) || !this.isReactNative) {
       this.#appendFramesAndScreenshotsTrack();
     }
 
