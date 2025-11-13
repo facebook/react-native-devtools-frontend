@@ -184,3 +184,10 @@ Instance.register({
   unstable: false,
   enabledByDefault: ({ isReactNativeEntryPoint }) => isReactNativeEntryPoint,
 });
+
+Instance.register({
+  name: RNExperimentName.ENABLE_TIMELINE_FRAMES,
+  title: 'Enable performance frames track',
+  unstable: true,
+  enabledByDefault: () => globalThis.enableTimelineFrames ?? false,
+});
