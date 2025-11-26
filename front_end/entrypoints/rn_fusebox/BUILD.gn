@@ -50,6 +50,7 @@ devtools_entrypoint("entrypoint") {
     "../../panels/react_devtools:components_meta",
     "../../panels/react_devtools:profiler_meta",
     "../../panels/rn_welcome:meta",
+    "../../panels/livemate:meta",
     "../../panels/security:meta",
     "../../panels/sensors:meta",
     "../../panels/timeline:meta",
