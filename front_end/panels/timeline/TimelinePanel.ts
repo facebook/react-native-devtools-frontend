@@ -573,7 +573,7 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     this.panelToolbar.wrappable = true;
     this.panelRightToolbar = timelineToolbarContainer.createChild('devtools-toolbar');
     this.panelRightToolbar.role = 'presentation';
-    if (!isNode && !isReactNative) {
+    if (!isNode) {
       this.createSettingsPane();
       this.updateShowSettingsToolbarButton();
     }
@@ -1225,7 +1225,7 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     }
 
     // Settings
-    if (!isNode && !isReactNative) {
+    if (!isNode) {
       this.panelRightToolbar.appendSeparator();
       this.panelRightToolbar.appendToolbarItem(this.showSettingsPaneButton);
     }
@@ -1334,22 +1334,24 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
         this.disableCaptureJSProfileSetting.title(), this.disableCaptureJSProfileSetting,
         i18nString(UIStrings.disablesJavascriptSampling)));
 
-    const cpuThrottlingPane = this.settingsPane.createChild('div');
-    cpuThrottlingPane.append(i18nString(UIStrings.cpu));
-    this.cpuThrottlingSelect = MobileThrottling.ThrottlingManager.throttlingManager().createCPUThrottlingSelector();
-    cpuThrottlingPane.append(this.cpuThrottlingSelect.control.element);
+    if (!isReactNative) {
+      const cpuThrottlingPane = this.settingsPane.createChild('div');
+      cpuThrottlingPane.append(i18nString(UIStrings.cpu));
+      this.cpuThrottlingSelect = MobileThrottling.ThrottlingManager.throttlingManager().createCPUThrottlingSelector();
+      cpuThrottlingPane.append(this.cpuThrottlingSelect.control.element);
 
-    this.settingsPane.append(UI.SettingsUI.createSettingCheckbox(
-        this.captureLayersAndPicturesSetting.title(), this.captureLayersAndPicturesSetting,
-        i18nString(UIStrings.capturesAdvancedPaint)));
+      this.settingsPane.append(UI.SettingsUI.createSettingCheckbox(
+          this.captureLayersAndPicturesSetting.title(), this.captureLayersAndPicturesSetting,
+          i18nString(UIStrings.capturesAdvancedPaint)));
 
-    const networkThrottlingPane = this.settingsPane.createChild('div');
-    networkThrottlingPane.append(i18nString(UIStrings.network));
-    networkThrottlingPane.append(this.createNetworkConditionsSelectToolbarItem().element);
+      const networkThrottlingPane = this.settingsPane.createChild('div');
+      networkThrottlingPane.append(i18nString(UIStrings.network));
+      networkThrottlingPane.append(this.createNetworkConditionsSelectToolbarItem().element);
 
-    this.settingsPane.append(UI.SettingsUI.createSettingCheckbox(
-        this.captureSelectorStatsSetting.title(), this.captureSelectorStatsSetting,
-        i18nString(UIStrings.capturesSelectorStats)));
+      this.settingsPane.append(UI.SettingsUI.createSettingCheckbox(
+          this.captureSelectorStatsSetting.title(), this.captureSelectorStatsSetting,
+          i18nString(UIStrings.capturesSelectorStats)));
+    }
 
     const thirdPartyCheckbox =
         this.createSettingCheckbox(this.#thirdPartyTracksSetting, i18nString(UIStrings.showDataAddedByExtensions));
@@ -1618,7 +1620,7 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
   }
 
   private updateSettingsPaneVisibility(): void {
-    if (isNode || isReactNative) {
+    if (isNode) {
       return;
     }
     if (this.showSettingsPaneSetting.get()) {
