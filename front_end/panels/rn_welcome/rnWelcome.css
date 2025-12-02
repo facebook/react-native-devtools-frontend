@@ -111,6 +111,7 @@
   background: var(--sys-color-surface2);
   color: var(--color-text-secondary);
   font-size: 11px;
+  z-index: 10;
 }
 
 .rn-welcome-docsfeed {
@@ -133,6 +134,24 @@
     padding-right: 80px;
     overflow: auto;
   }
+}
+
+.rn-welcome-docsfeed-highlight {
+  display: flex;
+  justify-content: stretch;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  margin: 8px -16px;
+  margin-top: 16px;
+  padding: 4px 16px;
+  border-radius: 16px;
+  flex-shrink: 0;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--sys-color-blue-bright), transparent 92%) 0%,
+    color-mix(in srgb, var(--sys-color-purple-bright), transparent 88%) 100%
+  );
 }
 
 .rn-welcome-h2 {
