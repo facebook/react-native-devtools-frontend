@@ -1189,7 +1189,7 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
 
     // View
     this.panelToolbar.appendSeparator();
-    if (!isNode && !isReactNative) {
+    if (!isNode && (Root.Runtime.experiments.isEnabled(Root.Runtime.RNExperimentName.ENABLE_TIMELINE_FRAMES) || !isReactNative)) {
       this.showScreenshotsToolbarCheckbox =
           this.createSettingCheckbox(this.showScreenshotsSetting, i18nString(UIStrings.captureScreenshots));
       this.panelToolbar.appendToolbarItem(this.showScreenshotsToolbarCheckbox);
