@@ -465,6 +465,11 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
   #restoreSidebarVisibilityOnTraceLoad = false;
 
   /**
+   * Store React Native platform metadata (Android, iOS, etc.)
+   */
+  #platformMetadata: Protocol.ReactNativeApplication.MetadataUpdatedEvent | null = null;
+
+  /**
    * Used to track an aria announcement that we need to alert for
    * screen-readers. We track these because we debounce announcements to not
    * overwhelm.
@@ -713,7 +718,21 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
         {
           modelAdded: (model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel) => {
             model.addEventListener(
+              SDK.ReactNativeApplicationModel.Events.METADATA_UPDATED,
+              (event: Common.EventTarget.EventTargetEvent<Protocol.ReactNativeApplication.MetadataUpdatedEvent>) => {
+                this.#platformMetadata = event.data;
+                if (this.#platformMetadata.platform === 'android') {
+                  this.showScreenshotsToolbarCheckbox?.setVisible(true);
+                }
+              }
+            );
+            model.addEventListener(
               SDK.ReactNativeApplicationModel.Events.TRACE_REQUESTED, () => this.rnPrepareForTraceCapturedInBackground());
+
+            // Check if cached metadata is already available
+            if (model.metadataCached) {
+              this.#platformMetadata = model.metadataCached;
+            }
           },
           modelRemoved: (_model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel) => {},
         },
@@ -1192,6 +1211,7 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     if (!isNode && !isReactNative) {
       this.showScreenshotsToolbarCheckbox =
           this.createSettingCheckbox(this.showScreenshotsSetting, i18nString(UIStrings.captureScreenshots));
+      this.showScreenshotsToolbarCheckbox.setVisible(false);
       this.panelToolbar.appendToolbarItem(this.showScreenshotsToolbarCheckbox);
     }
 
@@ -1387,6 +1407,13 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     this.fileSelectorElement =
         UI.UIUtils.createFileSelectorElement(this.loadFromFile.bind(this), '.json,.gz,.gzip,.cpuprofile');
     this.timelinePane.element.appendChild(this.fileSelectorElement);
+  }
+
+  /**
+   * Helper method to check if the platform is Android
+   */
+  #isAndroid(): boolean {
+    return this.#platformMetadata?.platform === 'Android';
   }
 
   private contextMenu(event: Event): void {
