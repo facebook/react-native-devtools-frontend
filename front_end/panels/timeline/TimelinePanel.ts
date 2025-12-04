@@ -1201,9 +1201,16 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
       this.showScreenshotsToolbarCheckbox =
           this.createSettingCheckbox(this.showScreenshotsSetting, i18nString(UIStrings.captureScreenshots));
 
-      // Hide this for now, this is to solve a timing problem with getting the platform metadata.
-      // This will be set back to visible only on Android.
-      this.showScreenshotsToolbarCheckbox.setVisible(false);
+      let showScreenshotsToggle = false;
+
+      const reactNativeApplicationModel = SDK.TargetManager.TargetManager.instance().primaryPageTarget()?.model(SDK.ReactNativeApplicationModel.ReactNativeApplicationModel);
+      if (reactNativeApplicationModel !== null && reactNativeApplicationModel !== undefined) {
+        showScreenshotsToggle = reactNativeApplicationModel.metadataCached?.platform === 'android';
+      }
+
+      // Only show this toggle if we are on android, to address a possible race condition with the platform metadata,
+      // this is also checked again on SDK.ReactNativeApplicationModel.Events.METADATA_UPDATED
+      this.showScreenshotsToolbarCheckbox.setVisible(showScreenshotsToggle);
       this.panelToolbar.appendToolbarItem(this.showScreenshotsToolbarCheckbox);
     }
 
