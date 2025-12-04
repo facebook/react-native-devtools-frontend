@@ -27,7 +27,7 @@ const UIStrings = {
   /** @description "What's new" link */
   whatsNewLabel: 'What\'s new',
   /** @description Description for sharing the session ID of the current session with the user */
-  sessionIdMessage: '[FB-only] The ID for this React Native DevTools session is:',
+  sessionIdMessage: '[FB-only] React Native DevTools session ID:',
   /** @description "Debugging Basics" title (docs item 1) */
   docsDebuggingBasics: 'Debugging Basics',
   /** @description "Debugging Basics" item detail */
@@ -40,6 +40,10 @@ const UIStrings = {
   docsNativeDebugging: 'Native Debugging',
   /** @description "Native Debugging" item detail */
   docsNativeDebuggingDetail: 'Find out more about native debugging tools',
+  /** @description Title for the "What's New" highlighted item */
+  whatsNewHighlightTitle: 'React Native 0.83 - Performance & Network debugging, improved desktop experience',
+  /** @description Detail for the "What's New" highlighted item */
+  whatsNewHighlightDetail: 'Learn about the latest debugging features in 0.83',
 } as const;
 
 const str_ = i18n.i18n.registerUIStrings('panels/rn_welcome/RNWelcome.ts', UIStrings);
@@ -127,6 +131,10 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
       '../../Images/react_native/welcomeIcon.png',
       import.meta.url,
     ).toString();
+    const whatsNewImageUrl = new URL(
+      '../../Images/react_native/whats-new-083.jpg',
+      import.meta.url,
+    ).toString();
     const docsImage1Url = new URL(
       '../../Images/react_native/learn-debugging-basics.jpg',
       import.meta.url,
@@ -188,6 +196,16 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
         </header>
         ${showDocs ? html`
           <section class="rn-welcome-docsfeed">
+            <div class="rn-welcome-docsfeed-highlight">
+              <h2 class="rn-welcome-h2">What's new</h2>
+              <button class="rn-welcome-docsfeed-item" type="button" role="link" @click=${this.#handleLinkPress.bind(this, 'https:\/\/reactnative.dev/blog')} title=${i18nString(UIStrings.docsDebuggingBasics)}>
+                <div class="rn-welcome-image" style="background-image: url('${whatsNewImageUrl}')"></div>
+                <div>
+                  <p class="devtools-link">${i18nString(UIStrings.whatsNewHighlightTitle)}</p>
+                  <p>${i18nString(UIStrings.whatsNewHighlightDetail)}</p>
+                </div>
+              </button>
+            </div>
             <h2 class="rn-welcome-h2">Learn</h2>
             <button class="rn-welcome-docsfeed-item" type="button" role="link" @click=${this.#handleLinkPress.bind(this, 'https:\/\/reactnative.dev/docs/debugging')} title=${i18nString(UIStrings.docsDebuggingBasics)}>
               <div class="rn-welcome-image" style="background-image: url('${docsImage1Url}')"></div>
