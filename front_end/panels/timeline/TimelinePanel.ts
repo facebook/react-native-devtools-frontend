@@ -713,6 +713,14 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
         {
           modelAdded: (model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel) => {
             model.addEventListener(
+              SDK.ReactNativeApplicationModel.Events.METADATA_UPDATED,
+              (event: Common.EventTarget.EventTargetEvent<Protocol.ReactNativeApplication.MetadataUpdatedEvent>) => {
+                if (event.data.platform === 'android') {
+                  this.showScreenshotsToolbarCheckbox?.setVisible(true);
+                }
+              }
+            );
+            model.addEventListener(
               SDK.ReactNativeApplicationModel.Events.TRACE_REQUESTED, () => this.rnPrepareForTraceCapturedInBackground());
           },
           modelRemoved: (_model: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel) => {},
@@ -1192,6 +1200,17 @@ export class TimelinePanel extends UI.Panel.Panel implements Client, TimelineMod
     if (!isNode && (Root.Runtime.experiments.isEnabled(Root.Runtime.RNExperimentName.ENABLE_TIMELINE_FRAMES) || !isReactNative)) {
       this.showScreenshotsToolbarCheckbox =
           this.createSettingCheckbox(this.showScreenshotsSetting, i18nString(UIStrings.captureScreenshots));
+
+      let showScreenshotsToggle = false;
+
+      const reactNativeApplicationModel = SDK.TargetManager.TargetManager.instance().primaryPageTarget()?.model(SDK.ReactNativeApplicationModel.ReactNativeApplicationModel);
+      if (reactNativeApplicationModel !== null && reactNativeApplicationModel !== undefined) {
+        showScreenshotsToggle = reactNativeApplicationModel.metadataCached?.platform === 'android';
+      }
+
+      // Only show this toggle if we are on android, to address a possible race condition with the platform metadata,
+      // this is also checked again on SDK.ReactNativeApplicationModel.Events.METADATA_UPDATED
+      this.showScreenshotsToolbarCheckbox.setVisible(showScreenshotsToggle);
       this.panelToolbar.appendToolbarItem(this.showScreenshotsToolbarCheckbox);
     }
 
