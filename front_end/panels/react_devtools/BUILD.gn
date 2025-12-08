@@ -38,6 +38,7 @@ devtools_entrypoint("bundle") {
   visibility = [
     ":*",
     "../../entrypoints/*",
+    "../livemate/*",
   ]
 
   visibility += devtools_panels_visibility
