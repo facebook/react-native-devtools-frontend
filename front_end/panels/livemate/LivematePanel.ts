@@ -1,13 +1,12 @@
-// Copyright (c) Meta Platforms, Inc. and affiliates.
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as UI from '../../ui/legacy/legacy.js';
-import livematePanelStyles from './livematePanel.css.js';
-import * as SDK from '../../core/sdk/sdk.js';
-import { ReactDevToolsViewBase } from '../react_devtools/ReactDevToolsViewBase.js';
+import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import { ReactDevToolsViewBase } from '../react_devtools/ReactDevToolsViewBase.js';
+
+import livematePanelStyles from './livematePanel.css.js';
 
 let livematePanelInstance: LivematePanel;
 
@@ -17,7 +16,10 @@ const UIStrings = {
    */
   title: '⚛️ Livemate',
 } as const;
-const str_ = i18n.i18n.registerUIStrings('panels/livemate/LivematePanel.ts', UIStrings);
+const str_ = i18n.i18n.registerUIStrings(
+  'panels/livemate/LivematePanel.ts',
+  UIStrings
+);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class LivematePanel extends ReactDevToolsViewBase {
@@ -28,48 +30,56 @@ export class LivematePanel extends ReactDevToolsViewBase {
     return livematePanelInstance;
   }
 
-    constructor() {
+  constructor() {
     super('components', i18nString(UIStrings.title));
+    this.registerRequiredCSS(livematePanelStyles);
   }
 
   override renderDevToolsView(): void {
     this.clearView();
 
-    const model = this.model;
-    if (model === null) {
-      throw new Error('Attempted to render React DevTools panel, but the model was null');
-    }
+    this.contentElement.classList.add('livemate-panel');
 
-    const bridge = model.getBridgeOrThrow();
+    const promptSection = this.contentElement.createChild(
+      'div',
+      'livemate-prompt-section'
+    );
 
-    const button = document.createElement('button');
-    button.textContent = 'Start Inspecting Host';
+    const promptTextarea = document.createElement('textarea');
+    promptTextarea.className = 'livemate-prompt-input';
+    promptTextarea.placeholder = 'Ask Devmate anything about this app...';
+    promptSection.appendChild(promptTextarea);
 
-    bridge.addListener('selectElement', (element: any) => {console.log(element)});
+    const sendButton = promptSection.createChild(
+      'button',
+      'livemate-send-button'
+    );
+    sendButton.textContent = 'Send to Devmate';
 
-    let inspecting = false;
+    const statusArea = promptSection.createChild('div', 'livemate-status');
 
-    button.onclick = () => {
-      if (inspecting) {
-        (bridge as any).send('stopInspectingHost');
-        button.textContent= 'Start Inspecting Host';
-        inspecting = false;
-      } else {
-        (bridge as any).send('startInspectingHost', false);
-        button.textContent= 'Stop Inspecting Host';
-        inspecting = true;
+    const handleSend = (): void => {
+      const prompt = promptTextarea.value.trim();
+      if (!prompt) {
+        statusArea.textContent = 'Please enter a prompt';
+        statusArea.className = 'livemate-status error';
+        return;
       }
-    }
+      statusArea.textContent = 'Sending to Devmate...';
+      statusArea.className = 'livemate-status pending';
 
-    this.contentElement.appendChild(button);
+      (
+        Host.InspectorFrontendHost.InspectorFrontendHostInstance as unknown as {
+          sendToDevmate: (prompt: string) => void,
+        }
+      ).sendToDevmate(prompt);
+    };
 
-
-
-    // bridge.send('stopInspectingHost');
+    sendButton.addEventListener('click', handleSend);
+    promptTextarea.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        handleSend();
+      }
+    });
   }
-
-    // this.contentElement.removeChildren();
-
-    // const header = this.contentElement.createChild('div', 'livemate-header');
-    // header.textContent = 'Livemate Panel';
 }

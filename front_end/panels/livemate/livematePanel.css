@@ -1,20 +1,88 @@
 .livemate-panel {
   display: flex;
   flex-direction: column;
-  overflow: auto;
-  padding: 12px;
+  height: 100%;
+  padding: 16px;
   background-color: var(--sys-color-cdt-base-container);
+  box-sizing: border-box;
 }
 
-.livemate-header {
-  font-size: 18px;
-  font-weight: 500;
-  margin-bottom: 16px;
-  color: var(--sys-color-on-surface);
+.livemate-prompt-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 600px;
+  width: 100%;
+  margin: 0 auto;
 }
 
-.livemate-content {
+.livemate-prompt-input {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  border: 1px solid var(--sys-color-divider);
+  border-radius: 8px;
+  font-family: inherit;
   font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+  background-color: var(--sys-color-surface);
   color: var(--sys-color-on-surface);
-  line-height: 1.6;
+  box-sizing: border-box;
+}
+
+.livemate-prompt-input::placeholder {
+  color: var(--sys-color-state-disabled-container);
+}
+
+.livemate-prompt-input:focus {
+  outline: none;
+  border-color: var(--sys-color-primary);
+  box-shadow: 0 0 0 1px var(--sys-color-primary);
+}
+
+.livemate-send-button {
+  align-self: flex-start;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 4px;
+  border: none;
+  background-color: var(--sys-color-primary);
+  color: var(--sys-color-on-primary);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.livemate-send-button:hover {
+  background-color: var(--sys-color-primary-hover);
+}
+
+.livemate-send-button:active {
+  background-color: var(--sys-color-primary-pressed);
+}
+
+.livemate-status {
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.livemate-status:empty {
+  display: none;
+}
+
+.livemate-status.error {
+  background-color: var(--sys-color-error-container);
+  color: var(--sys-color-error);
+}
+
+.livemate-status.success {
+  background-color: var(--sys-color-green-container);
+  color: var(--sys-color-green);
+}
+
+.livemate-status.pending {
+  background-color: var(--sys-color-tonal-container);
+  color: var(--sys-color-primary);
 }

@@ -141,6 +141,9 @@ export class InspectorFrontendHostStub implements InspectorFrontendHostAPI {
   bringToFront(): void {
   }
 
+  sendToDevmate(prompt: string): void {
+  }
+
   closeWindow(): void {
   }
 

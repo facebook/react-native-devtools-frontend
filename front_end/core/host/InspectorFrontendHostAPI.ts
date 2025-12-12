@@ -297,6 +297,8 @@ export interface InspectorFrontendHostAPI {
 
   bringToFront(): void;
 
+  sendToDevmate(prompt: string): void;
+
   closeWindow(): void;
 
   copyText(text: string|null|undefined): void;
@@ -451,6 +453,12 @@ export interface SyncInformation {
   accountFullName?: string;
   /** Whether Chrome Sync is paused, equivalent to the user being logged out automatically */
   isSyncPaused?: boolean;
+}
+
+export interface FileWriteResult {
+  success: boolean;
+  path: string|null;
+  error?: string;
 }
 
 /**
