@@ -83,6 +83,7 @@ const META_CODE_PATHS = [
   'entrypoints/shell/browser_compatibility_guard.ts',
   'global_typings/react_native.d.ts',
   'models/react_native',
+  'panels/network/components/NetworkEventCoverageInfobar.ts',
   'panels/react_devtools',
   'panels/rn_welcome',
   'panels/timeline/ReactNativeTimelineLandingPage.ts',

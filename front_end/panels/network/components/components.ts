@@ -4,6 +4,7 @@
 
 import * as EditableSpan from './EditableSpan.js';
 import * as HeaderSectionRow from './HeaderSectionRow.js';
+import * as NetworkEventCoverageInfobar from './NetworkEventCoverageInfobar.js';
 import * as RequestHeaderSection from './RequestHeaderSection.js';
 import * as RequestHeadersView from './RequestHeadersView.js';
 import * as RequestTrustTokensView from './RequestTrustTokensView.js';
@@ -13,6 +14,7 @@ import * as WebBundleInfoView from './WebBundleInfoView.js';
 export {
   EditableSpan,
   HeaderSectionRow,
+  NetworkEventCoverageInfobar,
   RequestHeaderSection,
   RequestHeadersView,
   RequestTrustTokensView,
