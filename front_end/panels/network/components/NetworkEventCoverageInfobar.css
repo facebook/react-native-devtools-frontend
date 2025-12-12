@@ -1,0 +1,61 @@
+/*
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ * Copyright 2024 The Chromium Authors. All rights reserved.
+ * Use of this source code is governed by a BSD-style license that can be
+ * found in the LICENSE file.
+ */
+
+:host {
+  display: block;
+}
+
+.infobar {
+  background-color: var(--sys-color-surface-yellow);
+  color: var(--sys-color-on-surface-yellow);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin: 6px;
+  font-size: 11px;
+  max-width: 320px;
+}
+
+.infobar-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.arrow-icon {
+  display: inline-block;
+  mask-image: var(--image-file-triangle-right);
+  background-color: var(--icon-default);
+  height: 12px;
+  width: 12px;
+  transition: transform 200ms;
+  flex-shrink: 0;
+}
+
+.arrow-icon.expanded {
+  transform: rotate(90deg);
+}
+
+.infobar-message {
+  font-weight: 500;
+}
+
+.info-icon {
+  flex-shrink: 0;
+}
+
+.close-button {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.infobar-details {
+  margin-top: 6px;
+  margin-left: 17px;
+  color: var(--sys-color-on-surface-subtle);
+}

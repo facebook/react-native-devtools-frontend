@@ -65,6 +65,7 @@ import {
   type NetworkNode,
   NetworkRequestNode,
 } from './NetworkDataGridNode.js';
+import './components/NetworkEventCoverageInfobar.js';
 import {NetworkFrameGrouper} from './NetworkFrameGrouper.js';
 import networkLogViewStyles from './networkLogView.css.js';
 import {NetworkLogViewColumns} from './NetworkLogViewColumns.js';
@@ -570,6 +571,12 @@ export class NetworkLogView extends Common.ObjectWrapper.eventMixin<EventTypes, 
     this.timeCalculatorInternal = new NetworkTransferTimeCalculator();
     this.durationCalculator = new NetworkTransferDurationCalculator();
     this.calculatorInternal = this.timeCalculatorInternal;
+
+    // [RN][FB-only] Add network event coverage info banner
+    if (globalThis.FB_ONLY__enableNetworkCoverageNotice) {
+      const infobar = document.createElement('devtools-network-event-coverage-infobar');
+      this.element.appendChild(infobar);
+    }
 
     this.columnsInternal = new NetworkLogViewColumns(
         this, this.timeCalculatorInternal, this.durationCalculator, networkLogLargeRowsSetting);
@@ -1136,6 +1143,12 @@ export class NetworkLogView extends Common.ObjectWrapper.eventMixin<EventTypes, 
         variant: Buttons.Button.Variant.TONAL,
       });
       this.recordingHint.contentElement.appendChild(button);
+    }
+
+    // [RN][FB-only] Add network event coverage info banner
+    if (globalThis.FB_ONLY__enableNetworkCoverageNotice) {
+      const infobar = document.createElement('devtools-network-event-coverage-infobar');
+      this.recordingHint.element.prepend(infobar);
     }
 
     this.recordingHint.show(this.element);
