@@ -12,6 +12,7 @@ generate_css("css_files") {
   sources = [
     "EditableSpan.css",
     "HeaderSectionRow.css",
+    "NetworkEventCoverageInfobar.css",
     "RequestHeaderSection.css",
     "RequestHeadersView.css",
     "RequestTrustTokensView.css",
@@ -24,6 +25,7 @@ devtools_module("components") {
   sources = [
     "EditableSpan.ts",
     "HeaderSectionRow.ts",
+    "NetworkEventCoverageInfobar.ts",
     "RequestHeaderSection.ts",
     "RequestHeadersView.ts",
     "RequestTrustTokensView.ts",
