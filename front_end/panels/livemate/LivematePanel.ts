@@ -40,10 +40,12 @@ export class LivematePanel extends ReactDevToolsViewBase {
 
     this.contentElement.classList.add('livemate-panel');
 
-    const promptSection = this.contentElement.createChild(
-      'div',
-      'livemate-prompt-section'
-    );
+    const model = this.model;
+    if (model === null) {
+      throw new Error('Attempted to render React DevTools panel, but the model was null');
+    }
+
+    const bridge = model.getBridgeOrThrow();
 
     // Create outer wrapper for centering
     const outerWrapper = document.createElement('div');
@@ -53,25 +55,9 @@ export class LivematePanel extends ReactDevToolsViewBase {
     const toolbarContainer = document.createElement('div');
     toolbarContainer.setAttribute('style', 'display: flex; flex-direction: column; padding: 20px; gap: 12px; max-width: 800px; width: 100%; margin: 0 20px; border: 1px solid var(--sys-color-divider); border-radius: 8px; background: var(--sys-color-surface);');
 
-    // First row: Inspect button and breadcrumb
+    // First row: breadcrumb
     const topRow = document.createElement('div');
     topRow.setAttribute('style', 'display: flex; align-items: center; gap: 8px;');
-
-    // Inspect button
-    const inspectButton = document.createElement('button');
-    inspectButton.textContent = 'Inspect';
-    inspectButton.setAttribute('style', 'padding: 4px 12px; cursor: pointer;');
-    let isInspecting = false;
-    inspectButton.addEventListener('click', () => {
-      isInspecting = !isInspecting;
-      if (isInspecting) {
-        (bridge as any).send('startInspectingNative');
-        inspectButton.textContent = 'Stop Inspecting';
-      } else {
-        (bridge as any).send('stopInspectingNative');
-        inspectButton.textContent = 'Inspect';
-      }
-    });
 
     // Breadcrumb view
     const breadcrumb = document.createElement('div');
@@ -81,6 +67,9 @@ export class LivematePanel extends ReactDevToolsViewBase {
     const selectedComponentBox = document.createElement('div');
     selectedComponentBox.setAttribute('style', 'padding: 4px 8px; border: 1px solid var(--sys-color-divider); border-radius: 4px; background: var(--sys-color-surface-variant); font-family: monospace; font-size: 12px; color: var(--sys-color-on-surface);');
     selectedComponentBox.textContent = '';
+
+    // Track the current hierarchy for prompt context
+    let currentHierarchy: Array<{name: string}> = [];
 
     // Function to update breadcrumb with component data
     const updateBreadcrumb = (components: Array<{name: string}>): void => {
@@ -123,10 +112,10 @@ export class LivematePanel extends ReactDevToolsViewBase {
 
     // Listen for component data from React DevTools
     bridge.addListener('viewDataAtPoint', (data: unknown) => {
-      updateBreadcrumb(data as Array<{name: string}>);
+      currentHierarchy = data as Array<{name: string}>;
+      updateBreadcrumb(currentHierarchy);
     });
 
-    topRow.appendChild(inspectButton);
     topRow.appendChild(breadcrumb);
     topRow.appendChild(selectedComponentBox);
 
@@ -139,23 +128,40 @@ export class LivematePanel extends ReactDevToolsViewBase {
     queryInput.setAttribute('placeholder', 'Query to modify component...');
     queryInput.setAttribute('style', 'flex: 1; padding: 12px 16px; border: 1px solid var(--sys-color-divider); border-radius: 4px; background: var(--sys-color-cdt-base-container); color: var(--sys-color-on-surface); font-size: 14px; min-height: 100px; resize: vertical; font-family: inherit;');
 
-    // Send to devmate button
-    const sendButton = document.createElement('button');
-    sendButton.textContent = 'Send to Devmate';
-    sendButton.setAttribute('style', 'padding: 4px 12px; cursor: pointer; align-self: flex-end;');
-    sendButton.addEventListener('click', () => {
+    // Function to send query to Devmate
+    const sendQueryToDevmate = (): void => {
       const query = queryInput.value;
       if (query.trim()) {
-        console.log('Sending to Devmate:', query);
-      // statusArea.textContent = 'Sending to Devmate...';
-      // statusArea.className = 'livemate-status pending';
+        // Build the prompt with focused component and hierarchy information
+        let prompt = query;
+        if (currentHierarchy.length > 0) {
+          // The focused component is the last item in the hierarchy (leaf node)
+          const focusedComponent = currentHierarchy[currentHierarchy.length - 1].name;
+          const hierarchyStr = currentHierarchy.map(c => c.name).join(' > ');
+          prompt = `Focused component: ${focusedComponent}\nComponent hierarchy: ${hierarchyStr}\n\nQuery: ${query}`;
+        }
         (
           Host.InspectorFrontendHost.InspectorFrontendHostInstance as unknown as {
             sendToDevmate: (prompt: string) => void,
           }
-        ).sendToDevmate(query);
+        ).sendToDevmate(prompt);
+        queryInput.value = '';
+      }
+    };
+
+    // Handle Enter key to send prompt (Shift+Enter for newline)
+    queryInput.addEventListener('keydown', (event: KeyboardEvent) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendQueryToDevmate();
       }
     });
+
+    // Send to devmate button
+    const sendButton = document.createElement('button');
+    sendButton.textContent = 'Send to Devmate';
+    sendButton.setAttribute('style', 'padding: 4px 12px; cursor: pointer; align-self: flex-end;');
+    sendButton.addEventListener('click', sendQueryToDevmate);
 
     bottomRow.appendChild(queryInput);
     bottomRow.appendChild(sendButton);
