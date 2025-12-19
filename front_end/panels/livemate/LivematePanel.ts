@@ -55,9 +55,18 @@ export class LivematePanel extends ReactDevToolsViewBase {
     const toolbarContainer = document.createElement('div');
     toolbarContainer.setAttribute('style', 'display: flex; flex-direction: column; padding: 20px; gap: 12px; max-width: 800px; width: 100%; margin: 0 20px; border: 1px solid var(--sys-color-divider); border-radius: 8px; background: var(--sys-color-surface);');
 
-    // First row: breadcrumb
+    // First row: pick component button and breadcrumb
     const topRow = document.createElement('div');
     topRow.setAttribute('style', 'display: flex; align-items: center; gap: 8px;');
+
+    // Pick component button
+    const pickComponentButton = document.createElement('button');
+    pickComponentButton.textContent = 'Pick component';
+    pickComponentButton.setAttribute('style', 'padding: 4px 12px; cursor: pointer;');
+    pickComponentButton.addEventListener('click', () => {
+      (bridge as unknown as {send: (event: string) => void}).send('startInspector');
+    });
+    topRow.appendChild(pickComponentButton);
 
     // Breadcrumb view
     const breadcrumb = document.createElement('div');
@@ -80,10 +89,10 @@ export class LivematePanel extends ReactDevToolsViewBase {
       }
 
       // Set the selected component to the first one (most specific)
-      selectedComponentBox.textContent = components[0].name;
+      // selectedComponentBox.textContent = components[0].name;
 
       // Show remaining components as breadcrumb (skip the first since it's in the selected box)
-      const breadcrumbComponents = components.slice(1);
+      const breadcrumbComponents = components.slice(-5);
 
       breadcrumbComponents.forEach((component, index) => {
         const componentSpan = document.createElement('span');
