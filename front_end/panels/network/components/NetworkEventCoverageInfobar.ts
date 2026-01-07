@@ -90,7 +90,9 @@ export class NetworkEventCoverageInfobar extends HTMLElement {
   }
 }
 
-customElements.define('devtools-network-event-coverage-infobar', NetworkEventCoverageInfobar);
+if (!customElements.get('devtools-network-event-coverage-infobar')) {
+  customElements.define('devtools-network-event-coverage-infobar', NetworkEventCoverageInfobar);
+}
 
 declare global {
   interface HTMLElementTagNameMap {
