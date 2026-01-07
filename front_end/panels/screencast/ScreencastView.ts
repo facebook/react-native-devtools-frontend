@@ -93,6 +93,7 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
   private resourceTreeModel: SDK.ResourceTreeModel.ResourceTreeModel|null;
   private networkManager: SDK.NetworkManager.NetworkManager|null;
   private readonly inputModel: InputModel|null;
+  private readonly reactNativeModel: SDK.ReactNativeApplicationModel.ReactNativeApplicationModel|null;
   private shortcuts: {[x: number]: (arg0?: Event|undefined) => boolean};
   private scrollOffsetX: number;
   private scrollOffsetY: number;
@@ -134,6 +135,14 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
   private historyEntries?: Protocol.Page.NavigationEntry[];
   private isCasting = false;
   private screencastOperationId?: number;
+  private rnElementResult: SDK.ReactNativeApplicationModel.ElementAtPointResult|null = null;
+  private deviceWidth = 0;
+  private deviceHeight = 0;
+  private promptBubble?: HTMLElement;
+  private promptInput?: HTMLInputElement;
+  private promptSubmitButton?: HTMLButtonElement;
+  private isPromptVisible = false;
+  private isPromptSubmitting = false;
   constructor(screenCaptureModel: SDK.ScreenCaptureModel.ScreenCaptureModel) {
     super();
     this.registerRequiredCSS(screencastViewStyles);
@@ -143,6 +152,8 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
     this.resourceTreeModel = screenCaptureModel.target().model(SDK.ResourceTreeModel.ResourceTreeModel);
     this.networkManager = screenCaptureModel.target().model(SDK.NetworkManager.NetworkManager);
     this.inputModel = screenCaptureModel.target().model(InputModel);
+    this.reactNativeModel =
+        screenCaptureModel.target().model(SDK.ReactNativeApplicationModel.ReactNativeApplicationModel);
 
     this.setMinimumSize(150, 150);
 
@@ -191,6 +202,9 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
     this.imageElement = new Image();
     this.context = this.canvasElement.getContext('2d') as CanvasRenderingContext2D;
     this.checkerboardPattern = this.createCheckerboardPattern(this.context);
+
+    // Create prompt input bubble
+    this.createPromptBubble();
 
     this.shortcuts[UI.KeyboardShortcut.KeyboardShortcut.makeKey('l', UI.KeyboardShortcut.Modifiers.Ctrl.value)] =
         this.focusNavigationBar.bind(this);
@@ -253,6 +267,8 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
       this.screenOffsetTop = metadata.offsetTop;
       this.scrollOffsetX = metadata.scrollOffsetX;
       this.scrollOffsetY = metadata.scrollOffsetY;
+      this.deviceWidth = metadata.deviceWidth;
+      this.deviceHeight = metadata.deviceHeight;
 
       const deviceSizeRatio = metadata.deviceHeight / metadata.deviceWidth;
       const dimensionsCSS = this.viewportDimensions();
@@ -310,7 +326,24 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
       event.consume();
       return;
     }
-    if (!this.pageScaleFactor || !this.domModel) {
+    if (!this.pageScaleFactor) {
+      return;
+    }
+
+    // Handle React Native element highlighting via findElementAtPoint
+    if (this.reactNativeModel && event.type === 'mousemove') {
+      void this.handleRNElementHighlight(event);
+    }
+
+    // Handle click on highlighted element to show prompt bubble
+    if (this.reactNativeModel && event.type === 'click' && this.rnElementResult) {
+      this.showPromptBubble(event);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    if (!this.domModel) {
       return;
     }
     if (!this.inspectModeConfig) {
@@ -338,6 +371,31 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
       this.domModel.overlayModel().nodeHighlightRequested({nodeId: node.id});
     } else if (event.type === 'click') {
       this.domModel.overlayModel().inspectNodeRequested({backendNodeId: node.backendNodeId()});
+    }
+  }
+
+  private async handleRNElementHighlight(event: MouseEvent): Promise<void> {
+    if (!this.reactNativeModel || !this.deviceWidth || !this.deviceHeight) {
+      return;
+    }
+
+    const position = this.convertIntoScreenSpace(event);
+    // Convert screen space coordinates to device-independent pixels (DIP)
+    // screenZoom is the ratio between canvas pixels and DIP
+    const dipX = position.x / this.screenZoom;
+    const dipY = position.y / this.screenZoom;
+
+    // Only query if within device bounds
+    if (dipX < 0 || dipX > this.deviceWidth || dipY < 0 || dipY > this.deviceHeight) {
+      // Don't clear the element info when moving outside - let it persist
+      return;
+    }
+
+    const elementResult = await this.reactNativeModel.findElementAtPoint(dipX, dipY);
+    // Only update and repaint if we got a new element
+    if (elementResult) {
+      this.rnElementResult = elementResult;
+      this.repaint();
     }
   }
 
@@ -517,7 +575,391 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
     this.context.drawImage(
         this.imageElement, 0, this.screenOffsetTop * this.screenZoom, this.imageElement.naturalWidth * this.imageZoom,
         this.imageElement.naturalHeight * this.imageZoom);
+
+    // Draw React Native element highlight
+    this.drawRNElementHighlight();
+
     this.context.restore();
+  }
+
+  private drawRNElementHighlight(): void {
+    if (!this.rnElementResult || !this.screenZoom) {
+      return;
+    }
+
+    const {bounds, displayName} = this.rnElementResult;
+    // Convert DIP coordinates to canvas coordinates
+    // screenZoom is the ratio between canvas pixels and DIP
+    const offsetTop = this.screenOffsetTop * this.screenZoom;
+
+    const x = bounds.x * this.screenZoom;
+    const y = bounds.y * this.screenZoom + offsetTop;
+    const width = bounds.width * this.screenZoom;
+    const height = bounds.height * this.screenZoom;
+
+    this.context.save();
+
+    // Draw outer glow/shadow effect
+    this.context.shadowColor = 'rgba(59, 130, 246, 0.6)';
+    this.context.shadowBlur = 12;
+    this.context.shadowOffsetX = 0;
+    this.context.shadowOffsetY = 0;
+
+    // Draw filled rectangle with gradient-like appearance
+    this.context.fillStyle = 'rgba(59, 130, 246, 0.15)';
+    this.context.fillRect(x, y, width, height);
+
+    // Reset shadow for border
+    this.context.shadowColor = 'transparent';
+    this.context.shadowBlur = 0;
+
+    // Draw main border with rounded corners effect (using multiple strokes)
+    this.context.strokeStyle = 'rgba(59, 130, 246, 0.9)';
+    this.context.lineWidth = 2;
+    this.context.strokeRect(x, y, width, height);
+
+    // Draw inner highlight line
+    this.context.strokeStyle = 'rgba(147, 197, 253, 0.5)';
+    this.context.lineWidth = 1;
+    this.context.strokeRect(x + 1, y + 1, width - 2, height - 2);
+
+    // Draw element name label if available
+    if (displayName) {
+      this.drawRNElementLabel(displayName, x, y, height);
+    }
+
+    this.context.restore();
+  }
+
+  private drawRNElementLabel(displayName: string, x: number, y: number, boxHeight: number): void {
+    const padding = 6;
+    const fontSize = 11;
+    const fontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+
+    this.context.font = `600 ${fontSize}px ${fontFamily}`;
+    const textMetrics = this.context.measureText(displayName);
+    const textWidth = textMetrics.width;
+    const labelWidth = textWidth + padding * 2;
+    const labelHeight = fontSize + padding * 1.5;
+
+    // Position label above the element by default
+    let labelX = x;
+    let labelY = y - labelHeight - 4;
+
+    // If label would go off the top, position it below the element
+    const screenTop = this.screenOffsetTop * this.screenZoom;
+    if (labelY < screenTop) {
+      labelY = y + boxHeight + 4;
+    }
+
+    // Ensure label doesn't go off the left edge
+    if (labelX < 0) {
+      labelX = 0;
+    }
+
+    // Draw label background with shadow
+    this.context.shadowColor = 'rgba(0, 0, 0, 0.3)';
+    this.context.shadowBlur = 8;
+    this.context.shadowOffsetX = 0;
+    this.context.shadowOffsetY = 2;
+
+    // Rounded rectangle background
+    const radius = 4;
+    this.context.beginPath();
+    this.context.moveTo(labelX + radius, labelY);
+    this.context.lineTo(labelX + labelWidth - radius, labelY);
+    this.context.quadraticCurveTo(labelX + labelWidth, labelY, labelX + labelWidth, labelY + radius);
+    this.context.lineTo(labelX + labelWidth, labelY + labelHeight - radius);
+    this.context.quadraticCurveTo(
+        labelX + labelWidth, labelY + labelHeight, labelX + labelWidth - radius, labelY + labelHeight);
+    this.context.lineTo(labelX + radius, labelY + labelHeight);
+    this.context.quadraticCurveTo(labelX, labelY + labelHeight, labelX, labelY + labelHeight - radius);
+    this.context.lineTo(labelX, labelY + radius);
+    this.context.quadraticCurveTo(labelX, labelY, labelX + radius, labelY);
+    this.context.closePath();
+
+    // Fill with dark background
+    this.context.fillStyle = 'rgba(30, 41, 59, 0.95)';
+    this.context.fill();
+
+    // Reset shadow for text
+    this.context.shadowColor = 'transparent';
+    this.context.shadowBlur = 0;
+
+    // Draw border
+    this.context.strokeStyle = 'rgba(59, 130, 246, 0.8)';
+    this.context.lineWidth = 1;
+    this.context.stroke();
+
+    // Draw text
+    this.context.fillStyle = 'rgba(226, 232, 240, 1)';
+    this.context.textBaseline = 'middle';
+    this.context.fillText(displayName, labelX + padding, labelY + labelHeight / 2);
+  }
+
+  private createPromptBubble(): void {
+    if (!this.canvasContainerElement) {
+      return;
+    }
+
+    // Create the bubble container
+    this.promptBubble = document.createElement('div');
+    this.promptBubble.className = 'screencast-prompt-bubble';
+    this.promptBubble.style.cssText = `
+      position: absolute;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      padding: 12px;
+      background: rgba(15, 23, 42, 0.98);
+      border: 1px solid rgba(59, 130, 246, 0.5);
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      min-width: 280px;
+      max-width: 400px;
+    `;
+
+    // Create header with element name
+    const header = document.createElement('div');
+    header.style.cssText = `
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    `;
+
+    const icon = document.createElement('span');
+    icon.textContent = '✨';
+    icon.style.fontSize = '14px';
+    header.appendChild(icon);
+
+    const title = document.createElement('span');
+    title.className = 'prompt-bubble-title';
+    title.style.cssText = `
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(148, 163, 184, 1);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    `;
+    title.textContent = 'Ask about this element';
+    header.appendChild(title);
+
+    this.promptBubble.appendChild(header);
+
+    // Create input container
+    const inputContainer = document.createElement('div');
+    inputContainer.style.cssText = `
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+    `;
+
+    // Create textarea for input
+    this.promptInput = document.createElement('input');
+    this.promptInput.type = 'text';
+    this.promptInput.placeholder = 'Enter your prompt...';
+    this.promptInput.classList.add('screencast-prompt-input');
+    this.promptInput.style.cssText = `
+      flex: 1;
+      padding: 10px 12px;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(71, 85, 105, 0.5);
+      border-radius: 8px;
+      color: rgba(248, 250, 252, 1);
+      font-size: 13px;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    `;
+    this.promptInput.addEventListener('focus', () => {
+      if (this.promptInput) {
+        this.promptInput.style.borderColor = 'rgba(59, 130, 246, 0.8)';
+        this.promptInput.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.2)';
+      }
+    });
+    this.promptInput.addEventListener('blur', () => {
+      if (this.promptInput) {
+        this.promptInput.style.borderColor = 'rgba(71, 85, 105, 0.5)';
+        this.promptInput.style.boxShadow = 'none';
+      }
+    });
+    this.promptInput.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        this.submitPrompt();
+      } else if (e.key === 'Escape') {
+        this.hidePromptBubble();
+      }
+    });
+
+    inputContainer.appendChild(this.promptInput);
+
+    // Create submit button
+    this.promptSubmitButton = document.createElement('button');
+    this.promptSubmitButton.innerHTML = '→';
+    this.promptSubmitButton.classList.add('screencast-prompt-submit');
+    this.promptSubmitButton.style.cssText = `
+      padding: 10px 14px;
+      background: linear-gradient(135deg, rgba(59, 130, 246, 1), rgba(37, 99, 235, 1));
+      border: none;
+      border-radius: 8px;
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.2s;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+      min-width: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    `;
+    this.promptSubmitButton.addEventListener('mouseenter', () => {
+      if (this.promptSubmitButton && !this.isPromptSubmitting) {
+        this.promptSubmitButton.style.transform = 'scale(1.05)';
+        this.promptSubmitButton.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.4)';
+      }
+    });
+    this.promptSubmitButton.addEventListener('mouseleave', () => {
+      if (this.promptSubmitButton && !this.isPromptSubmitting) {
+        this.promptSubmitButton.style.transform = 'scale(1)';
+        this.promptSubmitButton.style.boxShadow = '0 2px 8px rgba(59, 130, 246, 0.3)';
+      }
+    });
+    this.promptSubmitButton.addEventListener('click', () => this.submitPrompt());
+
+    inputContainer.appendChild(this.promptSubmitButton);
+    this.promptBubble.appendChild(inputContainer);
+
+    // Create hint text
+    const hint = document.createElement('div');
+    hint.style.cssText = `
+      font-size: 11px;
+      color: rgba(100, 116, 139, 1);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    `;
+    hint.textContent = 'Press Enter to submit, Escape to cancel';
+    this.promptBubble.appendChild(hint);
+
+    this.canvasContainerElement.appendChild(this.promptBubble);
+
+    // Close bubble when clicking outside
+    document.addEventListener('click', (e: MouseEvent) => {
+      if (this.isPromptVisible && this.promptBubble && !this.promptBubble.contains(e.target as Node)) {
+        // Check if click was on the canvas (to allow showing new bubble)
+        if (e.target !== this.canvasElement) {
+          this.hidePromptBubble();
+        }
+      }
+    });
+  }
+
+  private showPromptBubble(event: MouseEvent): void {
+    if (!this.promptBubble || !this.promptInput || !this.rnElementResult || !this.canvasContainerElement) {
+      return;
+    }
+
+    // Calculate position relative to canvas container
+    const containerRect = this.canvasContainerElement.getBoundingClientRect();
+    const clickX = event.clientX - containerRect.left;
+    const clickY = event.clientY - containerRect.top;
+
+    // Position the bubble near the click, but ensure it stays within bounds
+    let bubbleX = clickX + 10;
+    let bubbleY = clickY + 10;
+
+    // Show bubble to measure its size
+    this.promptBubble.style.display = 'flex';
+    const bubbleRect = this.promptBubble.getBoundingClientRect();
+
+    // Adjust position if bubble would go off screen
+    if (bubbleX + bubbleRect.width > containerRect.width) {
+      bubbleX = clickX - bubbleRect.width - 10;
+    }
+    if (bubbleY + bubbleRect.height > containerRect.height) {
+      bubbleY = clickY - bubbleRect.height - 10;
+    }
+
+    // Ensure minimum position
+    bubbleX = Math.max(10, bubbleX);
+    bubbleY = Math.max(10, bubbleY);
+
+    this.promptBubble.style.left = `${bubbleX}px`;
+    this.promptBubble.style.top = `${bubbleY}px`;
+
+    // Update title with element name
+    const titleEl = this.promptBubble.querySelector('.prompt-bubble-title');
+    if (titleEl) {
+      if (this.rnElementResult.displayName) {
+        titleEl.textContent = `Ask about "${this.rnElementResult.displayName}"`;
+      } else {
+        titleEl.textContent = 'Ask about this element';
+      }
+    }
+
+    this.isPromptVisible = true;
+
+    // Focus the input after a short delay to ensure it's visible
+    setTimeout(() => {
+      this.promptInput?.focus();
+    }, 50);
+  }
+
+  private hidePromptBubble(): void {
+    if (this.promptBubble) {
+      this.promptBubble.style.display = 'none';
+    }
+    if (this.promptInput) {
+      this.promptInput.value = '';
+    }
+    this.isPromptVisible = false;
+  }
+
+  private submitPrompt(): void {
+    if (!this.promptInput || !this.rnElementResult || this.isPromptSubmitting) {
+      return;
+    }
+
+    const promptText = this.promptInput.value.trim();
+    if (!promptText) {
+      return;
+    }
+
+    this.setPromptSubmitting(true);
+
+    // TODO: Integrate with AI service or other prompt handling
+    // For now, show a confirmation in the DevTools console
+    Common.Console.Console.instance().log(
+      `Prompt for "${this.rnElementResult.displayName || 'element'}": ${promptText}`
+    );
+
+    // Simulate async operation - replace with actual API call
+    setTimeout(() => {
+      this.setPromptSubmitting(false);
+      this.hidePromptBubble();
+    }, 1000);
+  }
+
+  private setPromptSubmitting(submitting: boolean): void {
+    this.isPromptSubmitting = submitting;
+    if (!this.promptSubmitButton || !this.promptInput) {
+      return;
+    }
+
+    if (submitting) {
+      this.promptSubmitButton.innerHTML = '<span class="screencast-spinner"></span>';
+      this.promptSubmitButton.style.cursor = 'not-allowed';
+      this.promptSubmitButton.style.opacity = '0.8';
+      this.promptInput.disabled = true;
+    } else {
+      this.promptSubmitButton.innerHTML = '→';
+      this.promptSubmitButton.style.cursor = 'pointer';
+      this.promptSubmitButton.style.opacity = '1';
+      this.promptInput.disabled = false;
+    }
   }
 
   private cssColor(color: Protocol.DOM.RGBA): string {

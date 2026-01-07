@@ -16,6 +16,36 @@
                 {
                     "name": "enable",
                     "description": "Enables events from backend."
+                },
+                {
+                    "name": "findElementAtPoint",
+                    "description": "Finds the element at the given point coordinates in device-independent pixels (DIP).\nReturns the bounding box of the element if found.",
+                    "parameters": [
+                        {
+                            "name": "x",
+                            "description": "X coordinate in device-independent pixels (DIP).",
+                            "type": "number"
+                        },
+                        {
+                            "name": "y",
+                            "description": "Y coordinate in device-independent pixels (DIP).",
+                            "type": "number"
+                        }
+                    ],
+                    "returns": [
+                        {
+                            "name": "elementBounds",
+                            "description": "The bounding box of the element at the point, if found.",
+                            "optional": true,
+                            "$ref": "ElementBounds"
+                        },
+                        {
+                            "name": "displayName",
+                            "description": "Display name of the element (e.g. component name).",
+                            "optional": true,
+                            "type": "string"
+                        }
+                    ]
                 }
             ],
             "events": [
@@ -78,7 +108,7 @@
                     "parameters": [
                         {
                             "name": "isSingleHost",
-                            "description": "Whether the application has a single React Native host. If an app or\nframework intantiates multiple hosts, some debugger features will not\n behave safely and should be dynamically disabled.",
+                            "description": "Whether the application has a single React Native host. If an app or\nframework intantiates multiple hosts, some debugger features will not\nbehave safely and should be dynamically disabled.",
                             "type": "boolean"
                         }
                     ]
@@ -86,6 +116,35 @@
                 {
                     "name": "traceRequested",
                     "description": "Fired when React Native requests Chrome DevTools to prepare for displaying the captured Trace."
+                }
+            ],
+            "types": [
+                {
+                    "id": "ElementBounds",
+                    "description": "Bounding box of an element in device-independent pixels (DIP).",
+                    "type": "object",
+                    "properties": [
+                        {
+                            "name": "x",
+                            "description": "X coordinate of the top-left corner in DIP.",
+                            "type": "number"
+                        },
+                        {
+                            "name": "y",
+                            "description": "Y coordinate of the top-left corner in DIP.",
+                            "type": "number"
+                        },
+                        {
+                            "name": "width",
+                            "description": "Width of the bounding box in DIP.",
+                            "type": "number"
+                        },
+                        {
+                            "name": "height",
+                            "description": "Height of the bounding box in DIP.",
+                            "type": "number"
+                        }
+                    ]
                 }
             ]
         },

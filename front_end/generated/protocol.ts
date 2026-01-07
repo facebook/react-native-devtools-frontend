@@ -25,6 +25,50 @@ type OpaqueIdentifier<RepresentationType, Tag extends string> = RepresentationTy
 export namespace ReactNativeApplication {
 
   /**
+   * Bounding box of an element in device-independent pixels (DIP).
+   */
+  export interface ElementBounds {
+    /**
+     * X coordinate of the top-left corner in DIP.
+     */
+    x: number;
+    /**
+     * Y coordinate of the top-left corner in DIP.
+     */
+    y: number;
+    /**
+     * Width of the bounding box in DIP.
+     */
+    width: number;
+    /**
+     * Height of the bounding box in DIP.
+     */
+    height: number;
+  }
+
+  export interface FindElementAtPointRequest {
+    /**
+     * X coordinate in device-independent pixels (DIP).
+     */
+    x: number;
+    /**
+     * Y coordinate in device-independent pixels (DIP).
+     */
+    y: number;
+  }
+
+  export interface FindElementAtPointResponse extends ProtocolResponseWithError {
+    /**
+     * The bounding box of the element at the point, if found.
+     */
+    elementBounds?: ElementBounds;
+    /**
+     * Display name of the element (e.g. component name).
+     */
+    displayName?: string;
+  }
+
+  /**
    * Issued once after the domain is enabled. Contains metadata about the
    * device, application, and debugger integration.
    */

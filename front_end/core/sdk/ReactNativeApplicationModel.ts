@@ -60,6 +60,22 @@ export class ReactNativeApplicationModel extends SDKModel<EventTypes> implements
     Host.rnPerfMetrics.traceRequested();
     this.dispatchEventToListeners(Events.TRACE_REQUESTED);
   }
+
+  async findElementAtPoint(x: number, y: number): Promise<ElementAtPointResult|null> {
+    const response = await this.#agent.invoke_findElementAtPoint({x, y});
+    if (response.getError() || !response.elementBounds) {
+      return null;
+    }
+    return {
+      bounds: response.elementBounds,
+      displayName: response.displayName,
+    };
+  }
+}
+
+export interface ElementAtPointResult {
+  bounds: Protocol.ReactNativeApplication.ElementBounds;
+  displayName?: string;
 }
 
 export const enum Events {

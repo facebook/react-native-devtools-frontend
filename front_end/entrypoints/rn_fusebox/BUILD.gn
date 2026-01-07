@@ -10,8 +10,8 @@ import("../visibility.gni")
 devtools_module("rn_fusebox") {
   sources = [
     "FuseboxAppMetadataObserver.ts",
-    "FuseboxReconnectDeviceButton.ts",
     "FuseboxFeatureObserver.ts",
+    "FuseboxReconnectDeviceButton.ts",
     "FuseboxWindowTitleManager.ts",
   ]
 
@@ -28,6 +28,7 @@ devtools_entrypoint("entrypoint") {
   entrypoint = "rn_fusebox.ts"
 
   deps = [
+    ":rn_fusebox",
     "../../core/rn_experiments:bundle",
     "../../entrypoints/inspector_main:meta",
     "../../panels/accessibility:meta",
@@ -46,10 +47,11 @@ devtools_entrypoint("entrypoint") {
     "../../panels/mobile_throttling:meta",
     "../../panels/network:meta",
     "../../panels/performance_monitor:meta",
-    "../../panels/recorder:meta",
     "../../panels/react_devtools:components_meta",
     "../../panels/react_devtools:profiler_meta",
+    "../../panels/recorder:meta",
     "../../panels/rn_welcome:meta",
+    "../../panels/screencast:meta",
     "../../panels/security:meta",
     "../../panels/sensors:meta",
     "../../panels/timeline:meta",
@@ -57,7 +59,6 @@ devtools_entrypoint("entrypoint") {
     "../../panels/webauthn:meta",
     "../main:bundle",
     "../shell",
-    ":rn_fusebox",
   ]
 
   visibility = [ "../../:*" ]

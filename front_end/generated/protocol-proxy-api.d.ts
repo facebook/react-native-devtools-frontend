@@ -247,6 +247,12 @@ declare namespace ProtocolProxyApi {
      */
     invoke_enable(): Promise<Protocol.ProtocolResponseWithError>;
 
+    /**
+     * Finds the element at the given point coordinates in device-independent pixels (DIP).
+     * Returns the bounding box of the element if found.
+     */
+    invoke_findElementAtPoint(params: Protocol.ReactNativeApplication.FindElementAtPointRequest): Promise<Protocol.ReactNativeApplication.FindElementAtPointResponse>;
+
   }
   export interface ReactNativeApplicationDispatcher {
     /**

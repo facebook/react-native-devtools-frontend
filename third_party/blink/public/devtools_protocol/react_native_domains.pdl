@@ -41,3 +41,29 @@ experimental domain ReactNativeApplication
 
   # Fired when React Native requests Chrome DevTools to prepare for displaying the captured Trace.
   event traceRequested
+
+  # Finds the element at the given point coordinates in device-independent pixels (DIP).
+  # Returns the bounding box of the element if found.
+  command findElementAtPoint
+    parameters
+      # X coordinate in device-independent pixels (DIP).
+      number x
+      # Y coordinate in device-independent pixels (DIP).
+      number y
+    returns
+      # The bounding box of the element at the point, if found.
+      optional ElementBounds elementBounds
+      # Display name of the element (e.g. component name).
+      optional string displayName
+
+  # Bounding box of an element in device-independent pixels (DIP).
+  type ElementBounds extends object
+    properties
+      # X coordinate of the top-left corner in DIP.
+      number x
+      # Y coordinate of the top-left corner in DIP.
+      number y
+      # Width of the bounding box in DIP.
+      number width
+      # Height of the bounding box in DIP.
+      number height

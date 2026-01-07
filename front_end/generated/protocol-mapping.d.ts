@@ -854,6 +854,14 @@ export namespace ProtocolMapping {
       returnType: void;
     };
     /**
+     * Finds the element at the given point coordinates in device-independent pixels (DIP).
+     * Returns the bounding box of the element if found.
+     */
+    'ReactNativeApplication.findElementAtPoint': {
+      paramsType: [Protocol.ReactNativeApplication.FindElementAtPointRequest];
+      returnType: Protocol.ReactNativeApplication.FindElementAtPointResponse;
+    };
+    /**
      * Disables the accessibility domain.
      */
     'Accessibility.disable': {
