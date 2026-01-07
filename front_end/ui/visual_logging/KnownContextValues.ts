@@ -2434,7 +2434,6 @@ export const knownContextValues = new Set([
   'network-conditions.network-mid-tier-mobile',
   'network-conditions.network-offline',
   'network-conditions.network-online',
-  'network-event-coverage-infobar',
   'network-event-source-message-filter',
   'network-film-strip',
   'network-hide-chrome-extensions',
