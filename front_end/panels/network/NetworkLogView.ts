@@ -65,7 +65,6 @@ import {
   type NetworkNode,
   NetworkRequestNode,
 } from './NetworkDataGridNode.js';
-import './components/NetworkEventCoverageInfobar.js';
 import {NetworkFrameGrouper} from './NetworkFrameGrouper.js';
 import networkLogViewStyles from './networkLogView.css.js';
 import {NetworkLogViewColumns} from './NetworkLogViewColumns.js';
