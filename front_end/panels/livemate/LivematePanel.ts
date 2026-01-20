@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import { ReactDevToolsViewBase } from '../react_devtools/ReactDevToolsViewBase.js';
 
@@ -129,54 +128,15 @@ export class LivematePanel extends ReactDevToolsViewBase {
     bottomRow.setAttribute('style', 'display: flex; align-items: center; gap: 8px;');
 
     // AI query text box
-    const queryInput = document.createElement('textarea');
+    const queryInput: HTMLTextAreaElement = document.createElement('textarea');
     queryInput.setAttribute('placeholder', 'Query to modify component...');
     queryInput.setAttribute('style', 'flex: 1; padding: 12px 16px; border: 1px solid var(--sys-color-divider); border-radius: 4px; background: var(--sys-color-cdt-base-container); color: var(--sys-color-on-surface); font-size: 14px; min-height: 100px; resize: vertical; font-family: inherit;');
 
-    // Function to send query to Devmate
-    const sendQueryToDevmate = (): void => {
-      const query = queryInput.value;
-      if (query.trim()) {
-        // Build the prompt with focused component and hierarchy information
-        let prompt = query;
-        if (currentHierarchy.length > 0) {
-          // The focused component is the last item in the hierarchy (leaf node)
-          const focusedComponent = currentHierarchy[currentHierarchy.length - 1].name;
-          const hierarchyStr = currentHierarchy.map(c => c.name).join(' > ');
-          prompt = `Focused component: ${focusedComponent}\nComponent hierarchy: ${hierarchyStr}\n\nQuery: ${query}`;
-        }
-        (
-          Host.InspectorFrontendHost.InspectorFrontendHostInstance as unknown as {
-            sendToDevmate: (prompt: string) => void,
-          }
-        ).sendToDevmate(prompt);
-
-        // Disable input and button with grayed out appearance
-        queryInput.disabled = true;
-        queryInput.style.opacity = '0.5';
-        queryInput.style.cursor = 'not-allowed';
-        sendButton.disabled = true;
-        sendButton.style.opacity = '0.5';
-        sendButton.style.cursor = 'not-allowed';
-
-        // Re-enable and clear after 3 seconds
-        setTimeout(() => {
-          queryInput.value = '';
-          queryInput.disabled = false;
-          queryInput.style.opacity = '1';
-          queryInput.style.cursor = 'text';
-          sendButton.disabled = false;
-          sendButton.style.opacity = '1';
-          sendButton.style.cursor = 'pointer';
-        }, 3000);
-      }
-    };
-
     // Handle Enter key to send prompt (Shift+Enter for newline)
-    queryInput.addEventListener('keydown', (event: KeyboardEvent) => {
+    queryInput.addEventListener('keydown', async (event: KeyboardEvent) => {
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
-        sendQueryToDevmate();
+        await sendCommandToMetro(queryInput, currentHierarchy);
       }
     });
 
@@ -184,7 +144,9 @@ export class LivematePanel extends ReactDevToolsViewBase {
     const sendButton = document.createElement('button');
     sendButton.textContent = 'Send to Devmate';
     sendButton.setAttribute('style', 'padding: 4px 12px; cursor: pointer; align-self: flex-end;');
-    sendButton.addEventListener('click', sendQueryToDevmate);
+    sendButton.addEventListener('click', async () => {
+      await sendCommandToMetro(queryInput, currentHierarchy);
+    });
 
     bottomRow.appendChild(queryInput);
     bottomRow.appendChild(sendButton);
@@ -194,8 +156,66 @@ export class LivematePanel extends ReactDevToolsViewBase {
 
     outerWrapper.appendChild(toolbarContainer);
     this.contentElement.appendChild(outerWrapper);
+  }
+}
 
+async function sendCommandToMetro(
+  input: HTMLTextAreaElement,
+  currentHierarchy: Array<{name: string}> = [],
+  timeoutMs = 5000
+): Promise<{success: boolean; output?: string; error?: string}> {
+  const query = input.value;
+  let prompt;
+  if (query.trim()) {
+    prompt = query;
+    if (currentHierarchy.length > 0) {
+      const focusedComponent = currentHierarchy[currentHierarchy.length - 1].name;
+      const hierarchyStr = currentHierarchy.map(c => c.name).join(' > ');
+      prompt = `Focused component: ${focusedComponent}\nComponent hierarchy: ${hierarchyStr}\n\nQuery: ${query}`;
+    }
+  }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
+  try {
+    const response = await fetch('http://localhost:8081/livemate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({prompt}),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      input.value = '';
+      return {
+        success: false,
+        error: `HTTP ${response.status}: ${errorText}`,
+      };
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (e) {
+    clearTimeout(timeoutId);
+
+    if (e instanceof Error && e.name === 'AbortError') {
+      input.value = '';
+      return {
+        success: false,
+        error: 'Request timeout',
+      };
+    }
+
+    input.value = '';
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : 'Unknown error',
+    };
   }
 }
