@@ -64,7 +64,7 @@ export class LivematePanel extends ReactDevToolsViewBase {
     pickComponentButton.textContent = 'Pick component';
     pickComponentButton.setAttribute('style', 'padding: 4px 12px; cursor: pointer;');
     pickComponentButton.addEventListener('click', () => {
-      (bridge as unknown as {send: (event: string) => void}).send('startInspector');
+      (bridge as unknown as {send: (event: string) => void}).send('startInspectingHost');
     });
     topRow.appendChild(pickComponentButton);
 
@@ -73,9 +73,9 @@ export class LivematePanel extends ReactDevToolsViewBase {
     breadcrumb.setAttribute('style', 'flex: 1; font-family: monospace; font-size: 12px; color: var(--sys-color-on-surface); display: flex; align-items: center; gap: 4px; flex-wrap: wrap;');
 
     // Selected component box
-    const selectedComponentBox = document.createElement('div');
-    selectedComponentBox.setAttribute('style', 'padding: 4px 8px; border: 1px solid var(--sys-color-divider); border-radius: 4px; background: var(--sys-color-surface-variant); font-family: monospace; font-size: 12px; color: var(--sys-color-on-surface);');
-    selectedComponentBox.textContent = '';
+    // const selectedComponentBox = document.createElement('div');
+    // selectedComponentBox.setAttribute('style', 'padding: 4px 8px; border: 1px solid var(--sys-color-divider); border-radius: 4px; background: var(--sys-color-surface-variant); font-family: monospace; font-size: 12px; color: var(--sys-color-on-surface);');
+    // selectedComponentBox.textContent = '';
 
     // Track the current hierarchy for prompt context
     let currentHierarchy: Array<{name: string}> = [];
@@ -98,9 +98,6 @@ export class LivematePanel extends ReactDevToolsViewBase {
         const componentSpan = document.createElement('span');
         componentSpan.textContent = component.name;
         componentSpan.setAttribute('style', 'cursor: pointer; color: var(--sys-color-primary); text-decoration: underline;');
-        componentSpan.addEventListener('click', () => {
-          selectedComponentBox.textContent = component.name;
-        });
         componentSpan.addEventListener('mouseenter', () => {
           componentSpan.style.opacity = '0.7';
         });
@@ -126,7 +123,6 @@ export class LivematePanel extends ReactDevToolsViewBase {
     });
 
     topRow.appendChild(breadcrumb);
-    topRow.appendChild(selectedComponentBox);
 
     // Second row: AI query input and send button
     const bottomRow = document.createElement('div');
@@ -154,7 +150,25 @@ export class LivematePanel extends ReactDevToolsViewBase {
             sendToDevmate: (prompt: string) => void,
           }
         ).sendToDevmate(prompt);
-        queryInput.value = '';
+
+        // Disable input and button with grayed out appearance
+        queryInput.disabled = true;
+        queryInput.style.opacity = '0.5';
+        queryInput.style.cursor = 'not-allowed';
+        sendButton.disabled = true;
+        sendButton.style.opacity = '0.5';
+        sendButton.style.cursor = 'not-allowed';
+
+        // Re-enable and clear after 3 seconds
+        setTimeout(() => {
+          queryInput.value = '';
+          queryInput.disabled = false;
+          queryInput.style.opacity = '1';
+          queryInput.style.cursor = 'text';
+          sendButton.disabled = false;
+          sendButton.style.opacity = '1';
+          sendButton.style.cursor = 'pointer';
+        }, 3000);
       }
     };
 
