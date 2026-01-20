@@ -75,7 +75,7 @@ function viewElementSourceFunction(source: ReactDevToolsTypes.Source, symbolicat
 export class ReactDevToolsViewBase extends UI.View.SimpleView implements
     SDK.TargetManager.SDKModelObserver<ReactDevToolsModel> {
   readonly #tab: string;
-  model: ReactDevToolsModel | null = null;
+  #model: ReactDevToolsModel | null = null;
 
   constructor(
     tab: 'components' | 'profiler',
@@ -92,7 +92,7 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
   }
 
   modelAdded(model: ReactDevToolsModel): void {
-    this.model = model;
+    this.#model = model;
 
     model.addEventListener(
         ReactDevToolsModelEvents.INITIALIZATION_COMPLETED,
@@ -113,7 +113,7 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
     if (model.isInitialized()) {
       // Already initialized from another rendered React DevTools panel - render
       // from initialized state
-      this.renderDevToolsView();
+      this.#renderDevToolsView();
     } else {
       // Once initialized, it will emit InitializationCompleted event
       model.ensureInitialized();
@@ -139,7 +139,7 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
   }
 
   #handleInitializationCompleted(): void {
-    this.renderDevToolsView();
+    this.#renderDevToolsView();
   }
 
   #handleInitializationFailed({data: errorMessage}: ReactDevToolsInitializationFailedEvent): void {
@@ -150,10 +150,10 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
     this.#renderLoader();
   }
 
-  renderDevToolsView(): void {
-    this.clearView();
+  #renderDevToolsView(): void {
+    this.#clearView();
 
-    const model = this.model;
+    const model = this.#model;
     if (model === null) {
       throw new Error('Attempted to render React DevTools panel, but the model was null');
     }
@@ -171,7 +171,7 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
   }
 
   #renderLoader(): void {
-    this.clearView();
+    this.#clearView();
 
     const loaderContainer = document.createElement('div');
     loaderContainer.setAttribute('style', 'display: flex; flex: 1; justify-content: center; align-items: center');
@@ -184,7 +184,7 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
   }
 
   #renderErrorView(errorMessage: string): void {
-    this.clearView();
+    this.#clearView();
 
     const errorContainer = document.createElement('div');
     errorContainer.setAttribute('style', 'display: flex; flex: 1; flex-direction: column; justify-content: center; align-items: center');
@@ -210,7 +210,7 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
     }
   }
 
-  clearView(): void {
+  #clearView(): void {
     this.contentElement.removeChildren();
   }
 }
