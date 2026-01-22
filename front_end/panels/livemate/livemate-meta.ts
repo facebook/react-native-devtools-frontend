@@ -4,6 +4,7 @@
 // found in the LICENSE file.
 
 import * as i18n from '../../core/i18n/i18n.js';
+import * as Root from '../../core/root/root.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import type * as Livemate from './livemate.js';
 
@@ -36,6 +37,7 @@ UI.ViewManager.registerViewExtension({
   title: i18nLazyString(UIStrings.livemate),
   commandPrompt: i18nLazyString(UIStrings.showLivemate),
   order: 100,
+  experiment: Root.Runtime.ExperimentName.ENABLE_LIVEMATE_PANEL,
   async loadView() {
     const Livemate = await loadLivemateModule();
     return Livemate.LivematePanel.LivematePanel.instance();

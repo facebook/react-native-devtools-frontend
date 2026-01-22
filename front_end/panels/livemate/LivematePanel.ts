@@ -34,7 +34,7 @@ export class LivematePanel extends ReactDevToolsViewBase {
     this.registerRequiredCSS(livematePanelStyles);
   }
 
-  override renderDevToolsView(): void {
+  protected override renderDevToolsView(): void {
     this.clearView();
 
     this.contentElement.classList.add('livemate-panel');
@@ -71,11 +71,6 @@ export class LivematePanel extends ReactDevToolsViewBase {
     const breadcrumb = document.createElement('div');
     breadcrumb.setAttribute('style', 'flex: 1; font-family: monospace; font-size: 12px; color: var(--sys-color-on-surface); display: flex; align-items: center; gap: 4px; flex-wrap: wrap;');
 
-    // Selected component box
-    // const selectedComponentBox = document.createElement('div');
-    // selectedComponentBox.setAttribute('style', 'padding: 4px 8px; border: 1px solid var(--sys-color-divider); border-radius: 4px; background: var(--sys-color-surface-variant); font-family: monospace; font-size: 12px; color: var(--sys-color-on-surface);');
-    // selectedComponentBox.textContent = '';
-
     // Track the current hierarchy for prompt context
     let currentHierarchy: Array<{name: string}> = [];
 
@@ -87,13 +82,7 @@ export class LivematePanel extends ReactDevToolsViewBase {
         return;
       }
 
-      // Set the selected component to the first one (most specific)
-      // selectedComponentBox.textContent = components[0].name;
-
-      // Show remaining components as breadcrumb (skip the first since it's in the selected box)
-      const breadcrumbComponents = components.slice(-5);
-
-      breadcrumbComponents.forEach((component, index) => {
+      components.forEach((component: {name: string}, index: number) => {
         const componentSpan = document.createElement('span');
         componentSpan.textContent = component.name;
         componentSpan.setAttribute('style', 'cursor: pointer; color: var(--sys-color-primary); text-decoration: underline;');
@@ -106,17 +95,17 @@ export class LivematePanel extends ReactDevToolsViewBase {
 
         breadcrumb.appendChild(componentSpan);
 
-        if (index < breadcrumbComponents.length - 1) {
+        if (index < components.length - 1) {
           const separator = document.createElement('span');
           separator.textContent = '>';
-          separator.setAttribute('style', 'color: var(--sys-color-on-surface); opacity: 0.6;');
+          separator.setAttribute('style', 'opacity: 0.6;');
           breadcrumb.appendChild(separator);
         }
       });
     };
 
     // Listen for component data from React DevTools
-    bridge.addListener('viewDataAtPoint', (data: unknown) => {
+    bridge.addListener('selectElementWithViewData', (data: unknown) => {
       currentHierarchy = data as Array<{name: string}>;
       updateBreadcrumb(currentHierarchy);
     });

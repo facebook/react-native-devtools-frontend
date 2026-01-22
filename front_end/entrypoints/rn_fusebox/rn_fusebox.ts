@@ -79,6 +79,7 @@ RNExperiments.RNExperimentsImpl.setIsReactNativeEntryPoint(true);
 RNExperiments.RNExperimentsImpl.Instance.enableExperimentsByDefault([
   Root.Runtime.ExperimentName.JS_HEAP_PROFILER_ENABLE,
   Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+  Root.Runtime.ExperimentName.ENABLE_LIVEMATE_PANEL,
 ]);
 
 document.addEventListener('visibilitychange', () => {

@@ -191,3 +191,10 @@ Instance.register({
   unstable: true,
   enabledByDefault: () => globalThis.enableTimelineFrames ?? false,
 });
+
+Instance.register({
+  name: RNExperimentName.ENABLE_LIVEMATE_PANEL,
+  title: 'Enable Livemate Panel',
+  unstable: true,
+  enabledByDefault: false,
+});

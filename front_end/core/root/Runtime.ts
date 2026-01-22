@@ -306,6 +306,7 @@ export enum RNExperimentName {
   REACT_NATIVE_SPECIFIC_UI = 'react-native-specific-ui',
   JS_HEAP_PROFILER_ENABLE = 'js-heap-profiler-enable',
   ENABLE_TIMELINE_FRAMES = 'enable-timeline-frames',
+  ENABLE_LIVEMATE_PANEL = 'enable-livemate-panel',
 }
 
 export enum ConditionName {
@@ -341,6 +342,7 @@ export const enum ExperimentName {
   REACT_NATIVE_SPECIFIC_UI = RNExperimentName.REACT_NATIVE_SPECIFIC_UI,
   NOT_REACT_NATIVE_SPECIFIC_UI = '!' + RNExperimentName.REACT_NATIVE_SPECIFIC_UI,
   ENABLE_TIMELINE_FRAMES = RNExperimentName.ENABLE_TIMELINE_FRAMES,
+  ENABLE_LIVEMATE_PANEL = RNExperimentName.ENABLE_LIVEMATE_PANEL,
 }
 
 export enum GenAiEnterprisePolicyValue {
