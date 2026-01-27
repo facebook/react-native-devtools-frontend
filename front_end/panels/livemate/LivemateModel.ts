@@ -1,11 +1,15 @@
+// Copyright 2026 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 // Copyright 2025 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
-import * as SDK from '../../core/sdk/sdk.js';
 import * as ProtocolClient from '../../core/protocol_client/protocol_client.js';
+import * as SDK from '../../core/sdk/sdk.js';
 
 import {
   LivemateEventType,
@@ -214,7 +218,7 @@ export class LivemateModel extends Common.ObjectWrapper.ObjectWrapper<EventTypes
    * Handles incoming CDP messages, filtering for Livemate.inspectionDataReceived events.
    */
   #handleCdpMessage(message: object): void {
-    const msg = message as {method?: string; params?: {payload?: string}};
+    const msg = message as {method?: string, params?: {payload?: string}};
 
     if (msg.method !== LivemateDomain.INSPECTION_DATA_RECEIVED) {
       return;

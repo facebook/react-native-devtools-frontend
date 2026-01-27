@@ -1,19 +1,23 @@
+// Copyright 2026 The Chromium Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 // Copyright 2025 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import type * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
 import * as UI from '../../ui/legacy/legacy.js';
-import * as Common from '../../core/common/common.js';
 
-import livematePanelStyles from './livematePanel.css.js';
 import {
   LivemateModel,
   Events as LivemateModelEvents,
   type EventTypes as LivemateModelEventTypes,
 } from './LivemateModel.js';
+import livematePanelStyles from './livematePanel.css.js';
 import type {ComponentInfo} from './LivemateSpec.js';
 
 let livematePanelInstance: LivematePanel;
@@ -35,14 +39,6 @@ const UIStrings = {
    * @description Button text for sending to devmate
    */
   sendToDevmate: 'Send to Devmate',
-  /**
-   * @description Loading state message
-   */
-  loading: 'Connecting to React Native...',
-  /**
-   * @description Error state message
-   */
-  connectionError: 'Failed to connect to React Native runtime',
 } as const;
 
 const str_ = i18n.i18n.registerUIStrings(
@@ -245,7 +241,7 @@ export class LivematePanel extends UI.View.SimpleView {
     });
   }
 
-  async #sendCommand(): Promise<{success: boolean; output?: string; error?: string}> {
+  async #sendCommand(): Promise<{success: boolean, output?: string, error?: string}> {
     const input = this.#queryInput;
     if (!input) {
       return {success: false, error: 'Input not available'};
