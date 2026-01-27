@@ -196,5 +196,5 @@ Instance.register({
   name: RNExperimentName.ENABLE_LIVEMATE_PANEL,
   title: 'Enable Livemate Panel',
   unstable: true,
-  enabledByDefault: false,
+  enabledByDefault: () => globalThis.enableLivematePanel ?? false,
 });

@@ -77,10 +77,6 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
   readonly #tab: string;
   #model: ReactDevToolsModel | null = null;
 
-  protected get model(): ReactDevToolsModel | null {
-    return this.#model;
-  }
-
   constructor(
     tab: 'components' | 'profiler',
     title: Platform.UIString.LocalizedString,
@@ -216,13 +212,5 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
 
   #clearView(): void {
     this.contentElement.removeChildren();
-  }
-
-  protected clearView(): void {
-    this.#clearView();
-  }
-
-  protected renderDevToolsView(): void {
-    this.#renderDevToolsView();
   }
 }

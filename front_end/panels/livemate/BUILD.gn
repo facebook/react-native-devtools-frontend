@@ -13,11 +13,19 @@ generate_css("css_files") {
 }
 
 devtools_module("livemate") {
-  sources = [ "LivematePanel.ts" ]
+  sources = [
+    "LivemateModel.ts",
+    "LivematePanel.ts",
+    "LivemateSpec.ts",
+  ]
 
   deps = [
+    "../../core/common:bundle",
+    "../../core/i18n:bundle",
+    "../../core/platform:bundle",
+    "../../core/sdk:bundle",
+    "../../generated:protocol",
     "../../ui/legacy:bundle",
-    "../react_devtools:bundle",
   ]
 }
 
@@ -26,7 +34,6 @@ devtools_entrypoint("bundle") {
 
   deps = [
     ":css_files",
-    "../react_devtools:bundle",
     ":livemate",
   ]
 
