@@ -14,6 +14,7 @@ import '../../panels/network/network-meta.js';
 import '../../panels/react_devtools/react_devtools_components-meta.js';
 import '../../panels/react_devtools/react_devtools_profiler-meta.js';
 import '../../panels/rn_welcome/rn_welcome-meta.js';
+import '../../panels/livemate/livemate-meta.js';
 import '../../panels/timeline/timeline-meta.js';
 
 import * as Host from '../../core/host/host.js';
