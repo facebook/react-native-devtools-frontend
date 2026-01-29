@@ -106,6 +106,9 @@ export class UISourceCodeFrame extends
 
         fetch('/open-stack-frame', {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify(body),
         }).catch(e => console.error(e));
       });
