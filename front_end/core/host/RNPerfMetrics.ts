@@ -25,7 +25,7 @@ class RNPerfMetrics {
   #listeners = new Set<RNReliabilityEventListener>();
   #launchId: string|null = null;
   #appId: string|null = null;
-  #entryPoint: EntryPoint = 'rn_inspector';
+  #entryPoint: EntryPoint = 'rn_fusebox';
   #telemetryInfo: Object = {};
   // map of panel location to panel name
   #currentPanels = new Map<PanelLocation, string>();
@@ -381,7 +381,7 @@ function maybeWrapError(baseMessage: string, error: unknown): [string, Error] {
   return [message, new Error(message, {cause: error})];
 }
 
-type EntryPoint = 'rn_fusebox'|'rn_inspector';
+type EntryPoint = 'rn_fusebox';
 
 type CommonEventFields = Readonly<{
   timestamp: DOMHighResTimeStamp,

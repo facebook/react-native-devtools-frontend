@@ -24,8 +24,8 @@
 // - define it in the RNExperiments enum and Experiments enum (in Runtime.ts)
 // - register it in this file (rn_experiments.ts)
 //   - set `enabledByDefault` as appropriate
-// - optionally, configure it further in each RN-specific entry point
-//   (rn_inspector.ts, rn_fusebox.ts)
+// - optionally, configure it further in the RN-specific entry point
+//   (rn_fusebox.ts)
 //
 // React Native-specific experiments are merged into the main ExperimentsSupport
 // object in MainImpl and can't be configured further afterwards (except

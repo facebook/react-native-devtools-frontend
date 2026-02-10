@@ -71,7 +71,6 @@ devtools_entrypoint("meta") {
     "../devtools_app/*",
     "../rehydrated_devtools_app/*",
     "../rn_fusebox:*",
-    "../rn_inspector:*",
   ]
 }
 

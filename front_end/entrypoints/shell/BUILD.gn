@@ -47,7 +47,6 @@ devtools_entrypoint("shell") {
     "../ndb_app:*",
     "../node_app:*",
     "../rn_fusebox:*",
-    "../rn_inspector:*",
     "../worker_app:*",
   ]
 
