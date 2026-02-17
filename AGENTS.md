@@ -2,7 +2,7 @@
 
 This is the React Native DevTools frontend, a fork of [Chrome DevTools](https://github.com/ChromeDevTools/devtools-frontend).
 
- Changes should generally be scoped to the `front_end/` directory. Do not edit `front_end/generated/`.
+Changes should generally be scoped to the `front_end/` directory. Do not edit `front_end/generated/`.
 
 ## Guidelines
 
