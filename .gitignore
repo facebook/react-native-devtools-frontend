@@ -58,3 +58,6 @@ test/perf/.generated
 .eslintcache
 .stylelintcache
 **/tsconfig.tsbuildinfo
+
+# Agents
+**/CLAUDE.local.md
