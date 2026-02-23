@@ -7,7 +7,6 @@ Changes should generally be scoped to the `front_end/` directory. Do not edit `f
 ## Guidelines
 
 - Make minimal edits. No speculative refactors.
-- Run `npm test` (unit tests) and `npm run lint` (ESLint, Stylelint, lit-analyzer) to validate changes.
 - Use `.js` extensions in TypeScript imports. Use `type` imports where possible (`import type`).
 - New files in Meta-owned paths must prepend `// Copyright (c) Meta Platforms, Inc. and affiliates.` as the first line of the license header, above the Chromium Authors license. Keep in sync with `META_CODE_PATHS` in `scripts/eslint_rules/lib/check-license-header.js`.
 
@@ -23,7 +22,7 @@ Each module directory has a `BUILD.gn` file. Update these when adding new files 
 
 ## Architecture
 
-- **UI components** extend `HTMLElement`, use Lit `html` templates (from `../../ui/lit/lit.js`), and locate styles in one adjacent CSS file. Prefix custom elements with `devtools-`. Example: `front_end/ui/components/cards/Card.ts`.
+- **UI components** extend `HTMLElement`, use Lit `html` templates (from `front_end/ui/lit/lit.js`), and locate styles in one adjacent CSS file. Prefix custom elements with `devtools-`. Example: `front_end/ui/components/cards/Card.ts`.
 - **Panels** extend `UI.Widget.VBox` and are registered via a `-meta.ts` file using `UI.ViewManager.registerViewExtension()`, which lazily loads the panel implementation.
-- **Entrypoints**: `front_end/entrypoints/rn_fusebox/` is the primary RN entry point.
+- **Entrypoints**: `front_end/entrypoints/rn_fusebox/` is the primary React Native entry point.
 - **RN-specific code** lives in paths listed in `META_CODE_PATHS` (e.g. `panels/rn_welcome/`, `panels/react_devtools/`, `models/react_native/`, `core/rn_experiments/`).
