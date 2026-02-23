@@ -73,7 +73,6 @@ devtools_entrypoint("meta") {
     "../../entrypoints/devtools_app:*",
     "../../entrypoints/inspector:*",
     "../../entrypoints/rn_fusebox:*",
-    "../../entrypoints/rn_inspector:*",
   ]
 }
 

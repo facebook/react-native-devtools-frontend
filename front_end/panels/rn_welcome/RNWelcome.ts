@@ -16,10 +16,6 @@ import {html, render} from '../../ui/lit/lit.js';
 import rnWelcomeStyles from './rnWelcome.css.js';
 
 const UIStrings = {
-  /** @description Beta label */
-  betaLabel: 'Beta',
-  /** @description Tech Preview label */
-  techPreviewLabel: 'Tech Preview',
   /** @description Welcome text */
   welcomeMessage: 'Welcome to debugging in React Native',
   /** @description "Debugging docs" link */
@@ -49,8 +45,6 @@ let rnWelcomeImplInstance: RNWelcomeImpl;
 
 interface RNWelcomeOptions {
   debuggerBrandName: () => Platform.UIString.LocalizedString;
-  showBetaLabel?: boolean;
-  showTechPreviewLabel?: boolean;
   showDocs?: boolean;
 }
 
@@ -119,8 +113,6 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
   render(): void {
     const {
       debuggerBrandName,
-      showBetaLabel = false,
-      showTechPreviewLabel = false,
       showDocs = false,
     } = this.options;
     const welcomeIconUrl = new URL(
@@ -150,16 +142,6 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
             <h1 class="rn-welcome-title">
               ${debuggerBrandName()}
             </h1>
-            ${showBetaLabel ? html`
-              <div class="rn-welcome-title-accessory">
-                ${i18nString(UIStrings.betaLabel)}
-              </div>
-            ` : null}
-            ${showTechPreviewLabel ? html`
-              <div class="rn-welcome-title-accessory rn-welcome-title-accessory-purple">
-                ${i18nString(UIStrings.techPreviewLabel)}
-              </div>
-            ` : null}
           </div>
           <div class="rn-welcome-tagline">
             ${i18nString(UIStrings.welcomeMessage)}

@@ -48,7 +48,7 @@ This can then be served from a static web server to test locally:
 python3 -m http.server 8000 --directory out/Default/gen/front_end
 ```
 
-The frontend will be available at `http://localhost:8000/inspector.html` (or `http://localhost:8000/rn_inspector.html` for the RN-specific entry point).
+The frontend will be available at `http://localhost:8000/inspector.html` (or `http://localhost:8000/rn_fusebox.html` for the RN-specific entry point).
 
 ### Syncing with the upstream repo
 

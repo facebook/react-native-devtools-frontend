@@ -57,7 +57,6 @@ devtools_entrypoint("bundle") {
     "../node_app:*",
     "../rehydrated_devtools_app:*",
     "../rn_fusebox:*",
-    "../rn_inspector:*",
     "../worker_app:*",
   ]
 

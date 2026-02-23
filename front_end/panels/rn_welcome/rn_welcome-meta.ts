@@ -48,7 +48,6 @@ UI.ViewManager.registerViewExtension({
     const RNWelcome = await loadRNWelcomeModule();
     return RNWelcome.RNWelcome.RNWelcomeImpl.instance({
       debuggerBrandName: i18nLazyString(UIStrings.debuggerBrandName),
-      showBetaLabel: false,
       showDocs: true,
     });
   },

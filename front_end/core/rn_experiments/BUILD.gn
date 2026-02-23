@@ -25,7 +25,6 @@ devtools_entrypoint("bundle") {
 
   visibility = [
     "../../entrypoints/rn_fusebox:*",
-    "../../entrypoints/rn_inspector:*",
     "../../entrypoints/main:*",
   ]
 }
