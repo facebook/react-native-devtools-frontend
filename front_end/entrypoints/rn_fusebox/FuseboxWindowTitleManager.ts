@@ -41,7 +41,10 @@ export class FuseboxWindowTitleManager {
     if (this.#suffix) {
       parts.push(this.#suffix);
     }
-    parts.push('- React Native DevTools');
+    // On macOS, window titles conventionally omit the app name
+    if (!(navigator.userAgent.includes('Electron') && navigator.userAgent.includes('Macintosh'))) {
+      parts.push('- React Native DevTools');
+    }
 
     document.title = parts.join(' ');
   }
