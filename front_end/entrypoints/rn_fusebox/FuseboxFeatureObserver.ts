@@ -30,6 +30,12 @@ const UIStrings = {
    */
   multiHostFeatureUnavailableTitle: 'Feature is unavailable',
   /**
+   * @description Message for the "settings changed" banner shown when a reload
+   * is required for frame timings in the Performance panel.
+   */
+  reloadRequiredForTimelineFramesMessage:
+      'Frame timings and screenshots are now available in the Performance panel. Please reload to enable.',
+  /**
    * @description Detail message shown when a feature is disabled due to multiple React Native hosts.
    */
   multiHostFeatureDisabledDetail: 'This feature is disabled as the app or framework has registered multiple React Native hosts, which is not currently supported.',
@@ -75,7 +81,7 @@ export class FuseboxFeatureObserver implements
   #handleMetadataUpdated(
       event: Common.EventTarget.EventTargetEvent<Protocol.ReactNativeApplication.MetadataUpdatedEvent>): void {
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    const {unstable_isProfilingBuild, unstable_networkInspectionEnabled} = event.data;
+    const {unstable_isProfilingBuild, unstable_networkInspectionEnabled, unstable_frameRecordingEnabled} = event.data;
 
     if (unstable_isProfilingBuild) {
       FuseboxWindowTitleManager.instance().setSuffix('[PROFILING]');
@@ -86,6 +92,10 @@ export class FuseboxFeatureObserver implements
     // TODO(huntie): Remove after fbsource rollout is complete
     if (!unstable_networkInspectionEnabled && !Root.Runtime.conditions.reactNativeExpoNetworkPanel()) {
       this.#hideNetworkPanel();
+    }
+
+    if (unstable_frameRecordingEnabled) {
+      void this.#ensureTimelineFramesEnabled();
     }
   }
 
@@ -130,6 +140,14 @@ export class FuseboxFeatureObserver implements
     void viewManager.resolveLocation(UI.ViewManager.ViewLocationValues.PANEL).then(location => {
       location?.removeView(viewManager.view('network'));
     });
+  }
+
+  async #ensureTimelineFramesEnabled(): Promise<void> {
+    if (!Root.Runtime.experiments.isEnabled(Root.Runtime.RNExperimentName.ENABLE_TIMELINE_FRAMES)) {
+      Root.Runtime.experiments.setEnabled(Root.Runtime.RNExperimentName.ENABLE_TIMELINE_FRAMES, true);
+      UI.InspectorView?.InspectorView?.instance()?.displayReloadRequiredWarning(
+          i18nString(UIStrings.reloadRequiredForTimelineFramesMessage));
+    }
   }
 
   #disableSingleHostOnlyFeatures(): void {
