@@ -69,6 +69,12 @@
                             "description": "Enables the Network Panel.",
                             "optional": true,
                             "type": "boolean"
+                        },
+                        {
+                            "name": "unstable_frameRecordingEnabled",
+                            "description": "Whether Frame Timings and screenshots are supported in performance traces.",
+                            "optional": true,
+                            "type": "boolean"
                         }
                     ]
                 },
