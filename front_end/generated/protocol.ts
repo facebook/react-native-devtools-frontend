@@ -61,6 +61,11 @@ export namespace ReactNativeApplication {
      * Enables the Network Panel.
      */
     unstable_networkInspectionEnabled?: boolean;
+    /**
+     * Whether Frame Timings and screenshots are supported in performance
+     * traces.
+     */
+    unstable_frameRecordingEnabled?: boolean;
   }
 
   /**
