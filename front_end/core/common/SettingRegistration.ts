@@ -101,6 +101,10 @@ export function getRegisteredSettings(): SettingRegistration[] {
   return registeredSettings.filter(setting => Root.Runtime.Runtime.isDescriptorEnabled(setting));
 }
 
+export function getAllRegisteredSettings(): SettingRegistration[] {
+  return registeredSettings;
+}
+
 export function registerSettingsForTest(settings: SettingRegistration[], forceReset = false): void {
   if (registeredSettings.length === 0 || forceReset) {
     registeredSettings = settings;

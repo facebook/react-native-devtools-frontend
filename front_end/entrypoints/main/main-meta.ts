@@ -6,6 +6,7 @@ import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
+import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Workspace from '../../models/workspace/workspace.js';
 import * as Components from '../../ui/legacy/components/utils/utils.js';
@@ -329,6 +330,7 @@ UI.ActionRegistration.registerActionExtension({
 
 UI.ActionRegistration.registerActionExtension({
   category: UI.ActionRegistration.ActionCategory.GLOBAL,
+  experiment: Root.Runtime.ExperimentName.NOT_REACT_NATIVE_SPECIFIC_UI,
   title: i18nLazyString(UIStrings.restoreLastDockPosition),
   actionId: 'main.toggle-dock',
   async loadActionDelegate() {
@@ -711,6 +713,7 @@ Common.Settings.registerSettingExtension({
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.GLOBAL,
+  experiment: Root.Runtime.ExperimentName.NOT_REACT_NATIVE_SPECIFIC_UI,
   settingName: 'currentDockState',
   settingType: Common.Settings.SettingType.ENUM,
   defaultValue: 'right',

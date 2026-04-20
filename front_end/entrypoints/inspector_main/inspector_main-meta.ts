@@ -4,6 +4,7 @@
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import * as Root from '../../core/root/root.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import type * as InspectorMain from './inspector_main.js';
@@ -123,6 +124,7 @@ UI.ViewManager.registerViewExtension({
   title: i18nLazyString(UIStrings.rendering),
   commandPrompt: i18nLazyString(UIStrings.showRendering),
   persistence: UI.ViewManager.ViewPersistence.CLOSEABLE,
+  experiment: Root.Runtime.ExperimentName.NOT_REACT_NATIVE_SPECIFIC_UI,
   order: 50,
   async loadView() {
     const InspectorMain = await loadInspectorMainModule();
@@ -199,6 +201,7 @@ UI.ActionRegistration.registerActionExtension({
 UI.ActionRegistration.registerActionExtension({
   actionId: 'rendering.toggle-prefers-color-scheme',
   category: UI.ActionRegistration.ActionCategory.RENDERING,
+  experiment: Root.Runtime.ExperimentName.NOT_REACT_NATIVE_SPECIFIC_UI,
   title: i18nLazyString(UIStrings.toggleCssPrefersColorSchemeMedia),
   async loadActionDelegate() {
     const InspectorMain = await loadInspectorMainModule();

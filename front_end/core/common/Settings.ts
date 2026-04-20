@@ -36,6 +36,7 @@ import type {EventDescriptor, EventTargetEvent, GenericEvents} from './EventTarg
 import {ObjectWrapper} from './Object.js';
 import {
   getLocalizedSettingsCategory,
+  getAllRegisteredSettings,
   getRegisteredSettings as getRegisteredSettingsInternal,
   type LearnMore,
   maybeRemoveSettingExtension,
@@ -68,7 +69,9 @@ export class Settings {
   ) {
     this.#logSettingAccess = logSettingAccess;
 
-    for (const registration of this.getRegisteredSettings()) {
+    // [RN] Register all settings unconditionally so moduleSetting() lookups
+    // succeed at runtime. Experiment gating only affects command menu visibility.
+    for (const registration of getAllRegisteredSettings()) {
       const {settingName, defaultValue, storageType} = registration;
       const isRegex = registration.settingType === SettingType.REGEX;
 

@@ -70,6 +70,7 @@ devtools_entrypoint("meta") {
     ":bundle",
     "../../core/common:bundle",
     "../../core/i18n:bundle",
+    "../../core/root:bundle",
     "../../core/sdk:bundle",
     "../../entrypoints/inspector_main:bundle",
     "../../models/workspace:bundle",
