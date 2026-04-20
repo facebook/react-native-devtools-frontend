@@ -110,7 +110,11 @@ export class ActionDelegate implements UI.ActionRegistration.ActionDelegate {
   handleAction(context: UI.Context.Context, actionId: string): boolean {
     switch (actionId) {
       case 'emulation.capture-screenshot':
-        return DeviceModeWrapper.instance().captureScreenshot();
+        if (deviceModeWrapperInstance) {
+          return DeviceModeWrapper.instance().captureScreenshot();
+        }
+        void captureScreenshotDirect();
+        return true;
 
       case 'emulation.capture-node-screenshot': {
         const node = context.flavor(SDK.DOMModel.DOMNode);
@@ -163,4 +167,22 @@ export class ActionDelegate implements UI.ActionRegistration.ActionDelegate {
     }
     return false;
   }
+}
+
+async function captureScreenshotDirect(): Promise<void> {
+  const target = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
+  const screenCaptureModel = target?.model(SDK.ScreenCaptureModel.ScreenCaptureModel);
+  if (!screenCaptureModel) {
+    return;
+  }
+  const screenshot = await screenCaptureModel.captureScreenshot(
+      'png' as Protocol.Page.CaptureScreenshotRequestFormat, 100,
+      SDK.ScreenCaptureModel.ScreenshotMode.FROM_VIEWPORT);
+  if (!screenshot) {
+    return;
+  }
+  const link = document.createElement('a');
+  link.download = 'screenshot.png';
+  link.href = 'data:image/png;base64,' + screenshot;
+  link.click();
 }
