@@ -30,6 +30,8 @@ experimental domain ReactNativeApplication
       optional boolean unstable_isProfilingBuild
       # Enables the Network Panel.
       optional boolean unstable_networkInspectionEnabled
+      # Whether Frame Timings and screenshots are supported in performance traces.
+      optional boolean unstable_frameRecordingEnabled
 
   # Emitted when assertions about the debugger backend have changed.
   event systemStateChanged
