@@ -90,7 +90,7 @@
     "terser": "5.37.0",
     "ts-lit-plugin": "2.0.2",
     "typescript": "5.8.2",
-    "uuid": "11.1.0",
+    "uuid": "14.0.0",
     "webidl2": "24.4.1",
     "yargs": "17.7.2"
   },
