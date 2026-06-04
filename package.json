@@ -36,7 +36,7 @@
   "devDependencies": {
     "@rollup/plugin-node-resolve": "15.3.0",
     "@rollup/plugin-terser": "1.0.0",
-    "@rollup/wasm-node": "4.24.3",
+    "@rollup/wasm-node": "4.59.0",
     "@stylistic/eslint-plugin": "4.2.0",
     "@types/chai": "4.3.15",
     "@types/codemirror": "5.60.15",
@@ -96,6 +96,9 @@
   },
   "overrides": {
     "@types/estree": "1.0.6",
+    "mocha": {
+      "minimatch": "4.2.5"
+    },
     "nanoid": "3.3.8",
     "serialize-javascript": "7.0.5",
     "ws": "8.18.0"
