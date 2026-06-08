@@ -1,21 +1,22 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as SDK from '../../core/sdk/sdk.js';
 import {
   getCleanTextContentFromElements,
   getElementWithinComponent,
   renderElementIntoDOM,
 } from '../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../testing/EnvironmentHelpers.js';
 import * as RenderCoordinator from '../../ui/components/render_coordinator/render_coordinator.js';
 import * as ReportView from '../../ui/components/report_view/report_view.js';
+import * as ObjectUI from '../../ui/legacy/components/object_ui/object_ui.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import * as Application from './application.js';
 
 // Disabled due to flakiness
-describeWithLocale.skip('[crbug.com/1473557]: IDBDatabaseView', () => {
+describe.skip('[crbug.com/1473557]: IDBDatabaseView', () => {
   it('renders with a title and top-level site', async function() {
     if (this.timeout() > 0) {
       this.timeout(10000);
@@ -141,6 +142,56 @@ describeWithLocale.skip('[crbug.com/1473557]: IDBDatabaseView', () => {
     ]);
   });
 
+  it('renders only minimal fields for a default bucket', async function() {
+    if (this.timeout() > 0) {
+      this.timeout(10000);
+    }
+    const defaultBucketDatabaseId =
+        new Application.IndexedDBModel.DatabaseId({storageKey: 'https://example.com/^112345^267890'}, '');
+    const defaultBucketDatabase = new Application.IndexedDBModel.Database(defaultBucketDatabaseId, 1);
+    const defaultBucketModel = {
+      target: () => ({
+        model: () => ({
+          getBucketByName: () => ({
+            bucket: {storageKey: 'https://example.com/^112345^267890', name: ''},  // Default bucket
+            quota: 1024,
+            expiration: 42,
+            durability: 'strict',
+          }),
+        }),
+      }),
+    } as unknown as Application.IndexedDBModel.IndexedDBModel;
+    const defaultBucketComponent =
+        new Application.IndexedDBViews.IDBDatabaseView(defaultBucketModel, defaultBucketDatabase);
+    renderElementIntoDOM(defaultBucketComponent);
+
+    assert.isNotNull(defaultBucketComponent.shadowRoot);
+    await RenderCoordinator.done();
+    const defaultReport =
+        getElementWithinComponent(defaultBucketComponent, 'devtools-report', ReportView.ReportView.Report);
+    assert.isNotNull(defaultReport.shadowRoot);
+
+    const defaultKeys = getCleanTextContentFromElements(defaultBucketComponent.shadowRoot, 'devtools-report-key');
+    assert.deepEqual(defaultKeys, [
+      'Origin',
+      'Is third-party',
+      'Is opaque',
+      'Bucket name',
+      'Version',
+      'Object stores',
+    ]);
+
+    const defaultValues = getCleanTextContentFromElements(defaultBucketComponent.shadowRoot, 'devtools-report-value');
+    assert.deepEqual(defaultValues, [
+      'https://example.com',
+      'Yes, because the storage key is opaque',
+      'Yes',
+      'Default bucket',
+      '1',
+      '0',
+    ]);
+  });
+
   it('renders buttons', async function() {
     if (this.timeout() > 0) {
       this.timeout(10000);
@@ -170,13 +221,29 @@ describeWithLocale.skip('[crbug.com/1473557]: IDBDatabaseView', () => {
     assert.strictEqual(buttons[0].textContent?.trim(), 'Delete database');
     const showDialog = sinon.stub(UI.UIUtils.ConfirmDialog, 'show').resolves(true);
     buttons[0].click();
-    assert.isTrue(showDialog.calledOnce);
+    sinon.assert.calledOnce(showDialog);
     await new Promise(resolve => setTimeout(resolve, 0));
-    assert.isTrue(model.deleteDatabase.calledOnceWithExactly(databaseId));
+    sinon.assert.calledOnceWithExactly(model.deleteDatabase, databaseId);
 
     assert.instanceOf(buttons[1], HTMLElement);
     assert.strictEqual(buttons[1].textContent?.trim(), 'Refresh database');
     buttons[1].click();
-    assert.isTrue(model.refreshDatabase.calledOnceWithExactly(databaseId));
+    sinon.assert.calledOnceWithExactly(model.refreshDatabase, databaseId);
+  });
+});
+
+describe('IDBDataGridNode', () => {
+  it('creates a read-only object properties section for value column', async () => {
+    const remoteObject = SDK.RemoteObject.RemoteObject.fromLocalObject({foo: 'bar'});
+    const node = new Application.IndexedDBViews.IDBDataGridNode({value: remoteObject});
+
+    node.createCell('value');
+
+    assert.exists(node.valueObjectPresentation);
+    const rootElement = node.valueObjectPresentation.objectTreeElement();
+    await rootElement.onpopulate();
+    const child = rootElement.childAt(0);
+    assert.instanceOf(child, ObjectUI.ObjectPropertiesSection.ObjectPropertyTreeElement);
+    assert.isFalse(child.editable);
   });
 });

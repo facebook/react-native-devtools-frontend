@@ -1,8 +1,8 @@
-# Copyright 2024 The Chromium Authors. All rights reserved.
+# Copyright 2024 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# Copyright 2019 The Chromium Authors.  All rights reserved.
+# Copyright 2019 The Chromium Authors  All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -38,7 +38,7 @@ assert(!devtools_skip_typecheck || !is_official_build,
 #
 #   ts_library("unittest") {
 #     testonly = true
-#     sources = [ "bar_test.ts" ]
+#     sources = [ "bar.test.ts" ]
 #     deps = [ "../../../../front_end/common" ]
 #   }
 #
@@ -54,11 +54,15 @@ template("ts_library") {
                              "deps",
                              "public_deps",
                              "inputs",
+                             "data_deps",
+                             "metadata",
                            ])
+    if (!defined(inputs)) {
+      inputs = []
+    }
 
     inputs += [
       "//third_party/node/node.py",
-      "//third_party/node/node_modules.py",
       devtools_location_prepend + "scripts/devtools_paths.py",
       devtools_location_prepend + "config/typescript/tsconfig.base.json",
       devtools_location_prepend + "node_modules/typescript/lib/tsc.js",
@@ -73,21 +77,26 @@ template("ts_library") {
       inputs += [ "//third_party/node/linux/node-linux-x64/bin/node" ]
     }
 
-    _typescript_config_name = target_name
-
-    if (defined(invoker.typescript_config_name)) {
-      _typescript_config_name = invoker.typescript_config_name
-    }
-
     args = [
       "--tsconfig_output_location",
       rebase_path(target_gen_dir, root_build_dir) +
-          "/$_typescript_config_name-tsconfig.json",
+          "/$target_name-tsconfig.json",
     ]
 
     assert(
         defined(sources) || defined(deps) || defined(invoker.sourceslist),
         "You must either specify an array of 'sources' or 'deps' or a 'sourceslist' for $target_name")
+
+    if (defined(invoker.es_target)) {
+      args += [
+        "--es-target",
+        invoker.es_target,
+      ]
+    }
+
+    if (defined(invoker.es_libs)) {
+      args += [ "--es-libs" ] + invoker.es_libs
+    }
 
     _test_only = defined(invoker.testonly) && invoker.testonly
     _no_emit = defined(invoker.no_emit) && invoker.no_emit
@@ -160,16 +169,13 @@ template("ts_library") {
       args += [ "--verify-lib-check" ]
     }
 
-    if (defined(invoker.module)) {
-      args += [ "--module=" + invoker.module ]
+    if (defined(invoker.runs_in)) {
+      assert(invoker.runs_in == "node_cjs" || invoker.runs_in == "node_esm")
+      args += [ "--runs-in=" + invoker.runs_in ]
     }
 
     if (defined(invoker.reset_timestamps) && invoker.reset_timestamps) {
       args += [ "--reset_timestamps" ]
-    }
-
-    if (defined(invoker.is_web_worker) && invoker.is_web_worker) {
-      args += [ "--is_web_worker" ]
     }
 
     if (devtools_skip_typecheck) {
@@ -182,16 +188,13 @@ template("ts_library") {
       }
     }
 
-    output_files = [ "$target_gen_dir/$_typescript_config_name-tsconfig.json" ]
+    output_files = [ "$target_gen_dir/$target_name-tsconfig.json" ]
 
     if (defined(sources)) {
       args += [ "--sources" ] + rebase_path(sources, root_build_dir)
 
       foreach(src, sources) {
         _extension = get_path_info(src, "extension")
-        _relative_file_name = rebase_path(src, _rootdir)
-        _fileName = get_path_info(_relative_file_name, "dir") + "/" +
-                    get_path_info(_relative_file_name, "name")
 
         # Any .d.ts file does not generate a corresponding a .js file, but we
         # copy it over into the generated build folder instead, as tsc doesn't
@@ -203,6 +206,10 @@ template("ts_library") {
           # generating a js file in the gen folder
         } else if (_extension == "js" || _extension == "ts") {
           if (!_no_emit) {
+            _relative_file_name = rebase_path(src, _rootdir)
+            _fileName = get_path_info(_relative_file_name, "dir") + "/" +
+                        get_path_info(_relative_file_name, "name")
+
             output_files += [
               "$target_gen_dir/$_fileName.js",
               "$target_gen_dir/$_fileName.js.map",
@@ -213,7 +220,7 @@ template("ts_library") {
                  "Incorrect extension on '$src' with extension '$_extension'")
         }
 
-        if (!devtools_skip_typecheck) {
+        if (!devtools_skip_typecheck && !_no_emit) {
           output_files += [ "$target_gen_dir/$_fileName.d.ts" ]
         }
       }
@@ -235,16 +242,22 @@ template("ts_library") {
       ts_files = rebase_path(sources, root_build_dir)
     }
 
-    metadata = {
-      typescript_files = ts_files
-      tests = filter_include(output_files,
-                             [
-                               "*.test.js",
-                               "*_test.js",
-                             ])
+    if (!defined(metadata)) {
+      metadata = {
+      }
     }
 
-    if (is_debug) {
+    assert(!defined(metadata.typescript_files))
+    assert(!defined(metadata.tests))
+
+    metadata.typescript_files = ts_files
+    metadata.tests = filter_include(output_files,
+                                    [
+                                      "*.test.js",
+                                      "*_test.js",
+                                    ])
+
+    if (!devtools_bundle) {
       metadata.grd_files = _javascript_implementation_files
     }
   }
@@ -254,12 +267,11 @@ set_defaults("ts_library") {
   # Build output should be private and directories should export all relevant
   # components in a group
   visibility = [ "*" ]
-  inputs = []
 }
 
 template("node_ts_library") {
   ts_library(target_name) {
-    module = "commonjs"
+    runs_in = "node_cjs"
     testonly = true
     reset_timestamps = true
 
@@ -271,6 +283,8 @@ template("node_ts_library") {
                              "sources",
                              "visibility",
                              "deps",
+                             "data_deps",
+                             "public_deps",
                              "additional_type_definitions",
                            ])
   }
@@ -278,12 +292,14 @@ template("node_ts_library") {
 template("ts_e2e_library") {
   node_ts_library(target_name) {
     additional_type_definitions =
-        [ devtools_location_prepend + "test/e2e_non_hosted/types.d.ts" ]
+        [ devtools_location_prepend + "test/e2e/types.d.ts" ]
     forward_variables_from(invoker,
                            [
                              "sources",
                              "visibility",
                              "deps",
+                             "data_deps",
+                             "public_deps",
                            ])
   }
 }

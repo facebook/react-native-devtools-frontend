@@ -1,32 +1,6 @@
-/*
- * Copyright (C) 2012 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2012 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 // See http://www.softwareishard.com/blog/har-12-spec/
 // for HAR specification.
@@ -146,15 +120,11 @@ export class Entry {
     }
 
     const entry: EntryDTO = {
-      _connectionId: undefined,
-      _fromCache: undefined,
       _initiator: exportedInitiator,
       _priority: harEntry.request.priority(),
       _resourceType: harEntry.request.resourceType().name(),
-      _webSocketMessages: undefined,
       cache: {},
       connection,
-      pageref: undefined,
       request: await harEntry.buildRequest(),
       response: harEntry.buildResponse(),
       // IPv6 address should not have square brackets per (https://tools.ietf.org/html/rfc2373#section-2.2).
@@ -206,6 +176,26 @@ export class Entry {
       delete entry._webSocketMessages;
     }
 
+    const eventSourceMessages = harEntry.request.eventSourceMessages();
+    if (eventSourceMessages?.length) {
+      const messages = [];
+      for (const message of eventSourceMessages) {
+        const messageDTO: EventSourceMessageDTO = {
+          time: message.time,
+          eventName: message.eventName,
+          eventId: message.eventId,
+        };
+        if (!options.sanitize) {
+          // Omit the data when sanitizing, as it could contain sensitive information.
+          messageDTO.data = message.data;
+        }
+        messages.push(messageDTO);
+      }
+      entry._eventSourceMessages = messages;
+    } else {
+      delete entry._eventSourceMessages;
+    }
+
     return entry;
   }
 
@@ -221,7 +211,6 @@ export class Entry {
           this.request.includedRequestCookies().map(includedRequestCookie => includedRequestCookie.cookie)),
       headersSize: headersText ? headersText.length : -1,
       bodySize: await this.requestBodySize(),
-      postData: undefined,
     };
     const postData = await this.buildPostData();
     if (postData) {
@@ -258,11 +247,10 @@ export class Entry {
   }
 
   private buildContent(): Content {
-    const content = ({
+    const content: Content = {
       size: this.request.resourceSize,
       mimeType: this.request.mimeType || 'x-unknown',
-      compression: undefined,
-    } as Content);
+    };
     const compression = this.responseCompression;
     if (typeof compression === 'number') {
       content.compression = compression;
@@ -287,7 +275,6 @@ export class Entry {
       wait: 0,
       receive: 0,
       _blocked_queueing: -1,
-      _blocked_proxy: undefined,
     };
 
     const queuedTime = (issueTime < startTime) ? startTime - issueTime : -1;
@@ -399,8 +386,6 @@ export class Entry {
       expires: cookie.expiresDate(Log.pseudoWallTime(this.request, this.request.startTime)),
       httpOnly: cookie.httpOnly(),
       secure: cookie.secure(),
-      sameSite: undefined,
-      partitionKey: undefined,
     };
     if (cookie.sameSite()) {
       c.sameSite = cookie.sameSite();
@@ -525,6 +510,7 @@ export interface EntryDTO {
   _priority: Protocol.Network.ResourcePriority|null;
   _resourceType: string;
   _webSocketMessages?: Object[];
+  _eventSourceMessages?: EventSourceMessageDTO[];
   cache: Object;
   connection?: string;
   pageref?: string;
@@ -574,4 +560,11 @@ export interface LogDTO {
   creator: Creator;
   pages: Page[];
   entries: EntryDTO[];
+}
+
+export interface EventSourceMessageDTO {
+  time: number;
+  eventName: string;
+  eventId: string;
+  data?: string;
 }

@@ -52,13 +52,13 @@ To get an overview of all available build options, run `./tools/bootstrap.py -he
 You can load the extension to Chrome directly from the DevTools repository root with the following command:
 
 ```bash
-third_party/chrome/chrome-linux/chrome --load-extension=$PWD/out/DevTools_CXX_Debugging.stage2/src
+third_party/chrome/chrome-linux/chrome-linux64/chrome --load-extension=$PWD/out/DevTools_CXX_Debugging.stage2/src
 ```
 
 ## Unittests
 
 The extension contains TypeScript and general front-end components, which are tested via
-`karma`-based tests located in the `tests/` folder. They follow the `foo_test.ts` naming convention used in DevTools front-end.
+`karma`-based tests located in the `tests/` folder. They follow the `foo.test.ts` naming convention used in DevTools front-end.
 
 These tests are automatically run by default by `tools/bootstrap.py` unless you pass the `-no-check`
 argument there.

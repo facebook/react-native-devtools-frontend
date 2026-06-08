@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -211,7 +211,6 @@ describe('TreeHelpers', () => {
       const nodeE = [...tree.roots].at(1);
       if (!nodeA || !nodeE) {
         assert(false, 'Root nodes were not found');
-        return;
       }
       const taskA = nodeA.entry;
       const taskE = nodeE.entry;
@@ -219,7 +218,6 @@ describe('TreeHelpers', () => {
       const nodeB = [...nodeA.children].at(0);
       if (!nodeB || !nodeD) {
         assert(false, 'Child nodes were not found');
-        return;
       }
       const taskD = nodeD.entry;
       const taskB = nodeB.entry;
@@ -228,47 +226,31 @@ describe('TreeHelpers', () => {
 
       if (!nodeC) {
         assert(false, 'Child nodes were not found');
-        return;
       }
       const taskC = nodeC.entry;
 
       const taskCTotalTime = taskC.dur;
-      if (taskCTotalTime === undefined) {
-        assert.fail('Total time for task was not found');
-        return;
-      }
+      assert.exists(taskCTotalTime, 'Total time for task was not found');
       assert.strictEqual(taskCTotalTime, Trace.Types.Timing.Micro(1));
       assert.strictEqual(nodeC.selfTime, taskCTotalTime);
 
       const taskBTotalTime = taskB.dur;
-      if (taskBTotalTime === undefined) {
-        assert.fail('Total time for task was not found');
-        return;
-      }
+      assert.exists(taskBTotalTime, 'Total time for task was not found');
       assert.strictEqual(taskBTotalTime, Trace.Types.Timing.Micro(3));
       assert.strictEqual(nodeB.selfTime, Trace.Types.Timing.Micro(taskBTotalTime - taskCTotalTime));
 
       const taskDTotalTime = taskD.dur;
-      if (taskDTotalTime === undefined) {
-        assert.fail('Total time for task was not found');
-        return;
-      }
+      assert.exists(taskDTotalTime, 'Total time for task was not found');
       assert.strictEqual(taskDTotalTime, Trace.Types.Timing.Micro(3));
       assert.strictEqual(nodeD.selfTime, taskDTotalTime);
 
       const taskATotalTime = taskA.dur;
-      if (taskATotalTime === undefined) {
-        assert.fail('Total time for task was not found');
-        return;
-      }
+      assert.exists(taskATotalTime, 'Total time for task was not found');
       assert.strictEqual(taskATotalTime, Trace.Types.Timing.Micro(10));
       assert.strictEqual(nodeA.selfTime, Trace.Types.Timing.Micro(taskATotalTime - taskBTotalTime - taskDTotalTime));
 
       const taskETotalTime = taskE.dur;
-      if (taskETotalTime === undefined) {
-        assert.fail('Total time for task was not found');
-        return;
-      }
+      assert.exists(taskETotalTime, 'Total time for task was not found');
       assert.strictEqual(taskETotalTime, Trace.Types.Timing.Micro(3));
       assert.strictEqual(nodeD.selfTime, taskETotalTime);
     });

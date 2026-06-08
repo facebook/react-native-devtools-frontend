@@ -1,10 +1,13 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as AddSourceMapURLDialog from './AddSourceMapURLDialog.js';
+import * as AiCodeCompletionPlugin from './AiCodeCompletionPlugin.js';
 import * as AiWarningInfobarPlugin from './AiWarningInfobarPlugin.js';
 import * as BreakpointEditDialog from './BreakpointEditDialog.js';
+import * as BreakpointsView from './BreakpointsView.js';
+import * as BreakpointsViewUtils from './BreakpointsViewUtils.js';
 import * as CallStackSidebarPane from './CallStackSidebarPane.js';
 import * as CategorizedBreakpointL10n from './CategorizedBreakpointL10n.js';
 import * as CoveragePlugin from './CoveragePlugin.js';
@@ -19,6 +22,7 @@ import * as InplaceFormatterEditorAction from './InplaceFormatterEditorAction.js
 import * as NavigatorView from './NavigatorView.js';
 import * as OpenFileQuickOpen from './OpenFileQuickOpen.js';
 import * as OutlineQuickOpen from './OutlineQuickOpen.js';
+import * as PersistenceActions from './PersistenceActions.js';
 import * as Plugin from './Plugin.js';
 import * as ResourceOriginPlugin from './ResourceOriginPlugin.js';
 import * as ScopeChainSidebarPane from './ScopeChainSidebarPane.js';
@@ -35,8 +39,11 @@ import * as WatchExpressionsSidebarPane from './WatchExpressionsSidebarPane.js';
 
 export {
   AddSourceMapURLDialog,
+  AiCodeCompletionPlugin,
   AiWarningInfobarPlugin,
   BreakpointEditDialog,
+  BreakpointsView,
+  BreakpointsViewUtils,
   CallStackSidebarPane,
   CategorizedBreakpointL10n,
   CoveragePlugin,
@@ -51,6 +58,7 @@ export {
   NavigatorView,
   OpenFileQuickOpen,
   OutlineQuickOpen,
+  PersistenceActions,
   Plugin,
   ResourceOriginPlugin,
   ScopeChainSidebarPane,

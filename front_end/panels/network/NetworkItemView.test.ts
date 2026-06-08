@@ -1,10 +1,12 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as Common from '../../core/common/common.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
+import * as NetworkTimeCalculator from '../../models/network_time_calculator/network_time_calculator.js';
 import {renderElementIntoDOM} from '../../testing/DOMHelpers.js';
 import {
   deinitializeGlobalVars,
@@ -12,7 +14,6 @@ import {
 } from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
 import {setUpEnvironment} from '../../testing/OverridesHelpers.js';
-import type * as UI from '../../ui/legacy/legacy.js';
 
 import * as NetworkForward from './forward/forward.js';
 import * as Network from './network.js';
@@ -26,7 +27,7 @@ function renderNetworkItemView(request?: SDK.NetworkRequest.NetworkRequest): Net
         null);
   }
   const networkItemView =
-      new Network.NetworkItemView.NetworkItemView(request, {} as Network.NetworkTimeCalculator.NetworkTimeCalculator);
+      new Network.NetworkItemView.NetworkItemView(request, new NetworkTimeCalculator.NetworkTimeCalculator(true));
   const div = document.createElement('div');
   renderElementIntoDOM(div);
   networkItemView.markAsRoot();
@@ -34,8 +35,8 @@ function renderNetworkItemView(request?: SDK.NetworkRequest.NetworkRequest): Net
   return networkItemView;
 }
 
-function getOverrideIndicator(tabs: UI.TabbedPane.TabbedPaneTab[], tabId: string): HTMLElement|null {
-  const tab = tabs.find(tab => tab.id === tabId)?.tabElement;
+function getOverrideIndicator(view: Network.NetworkItemView.NetworkItemView, tabId: string): HTMLElement|null {
+  const tab = view.tabsById.get(tabId)?.tabElement;
   const statusDot = tab?.querySelector('.status-dot');
 
   return statusDot ? statusDot as HTMLElement : null;
@@ -53,14 +54,15 @@ describeWithMockConnection('NetworkItemView', () => {
   it('reveals header in RequestHeadersView', async () => {
     const networkItemView = renderNetworkItemView();
     const headersViewComponent = networkItemView.getHeadersViewComponent();
+    assert.exists(headersViewComponent);
     const headersViewComponentSpy = sinon.spy(headersViewComponent, 'revealHeader');
 
-    assert.isTrue(headersViewComponentSpy.notCalled);
+    sinon.assert.notCalled(headersViewComponentSpy);
 
     networkItemView.revealHeader(NetworkForward.UIRequestLocation.UIHeaderSection.RESPONSE, 'headerName');
 
-    assert.isTrue(
-        headersViewComponentSpy.calledWith(NetworkForward.UIRequestLocation.UIHeaderSection.RESPONSE, 'headerName'));
+    sinon.assert.calledWith(
+        headersViewComponentSpy, NetworkForward.UIRequestLocation.UIHeaderSection.RESPONSE, 'headerName');
     networkItemView.detach();
   });
 });
@@ -74,15 +76,15 @@ describeWithEnvironment('NetworkItemView', () => {
     request.statusCode = 200;
   });
 
-  it('shows indicator for overriden headers and responses', () => {
+  it('shows indicator for overridden headers and responses', () => {
     request.setWasIntercepted(true);
     request.hasOverriddenContent = true;
     request.responseHeaders = [{name: 'foo', value: 'overridden'}];
     request.originalResponseHeaders = [{name: 'foo', value: 'original'}];
 
     const networkItemView = renderNetworkItemView(request);
-    const headersIndicator = getOverrideIndicator(networkItemView['tabs'], 'headers-component');
-    const responseIndicator = getOverrideIndicator(networkItemView['tabs'], 'response');
+    const headersIndicator = getOverrideIndicator(networkItemView, 'headers-component');
+    const responseIndicator = getOverrideIndicator(networkItemView, 'response');
 
     networkItemView.detach();
 
@@ -90,14 +92,14 @@ describeWithEnvironment('NetworkItemView', () => {
     assert.isNotNull(responseIndicator);
   });
 
-  it('shows indicator for overriden headers', () => {
+  it('shows indicator for overridden headers', () => {
     request.setWasIntercepted(true);
     request.responseHeaders = [{name: 'foo', value: 'overridden'}];
     request.originalResponseHeaders = [{name: 'foo', value: 'original'}];
 
     const networkItemView = renderNetworkItemView(request);
-    const headersIndicator = getOverrideIndicator(networkItemView['tabs'], 'headers-component');
-    const responseIndicator = getOverrideIndicator(networkItemView['tabs'], 'response');
+    const headersIndicator = getOverrideIndicator(networkItemView, 'headers-component');
+    const responseIndicator = getOverrideIndicator(networkItemView, 'response');
 
     networkItemView.detach();
 
@@ -105,13 +107,13 @@ describeWithEnvironment('NetworkItemView', () => {
     assert.isNull(responseIndicator);
   });
 
-  it('shows indicator for overriden content', () => {
+  it('shows indicator for overridden content', () => {
     request.setWasIntercepted(true);
     request.hasOverriddenContent = true;
 
     const networkItemView = renderNetworkItemView(request);
-    const headersIndicator = getOverrideIndicator(networkItemView['tabs'], 'headers-component');
-    const responseIndicator = getOverrideIndicator(networkItemView['tabs'], 'response');
+    const headersIndicator = getOverrideIndicator(networkItemView, 'headers-component');
+    const responseIndicator = getOverrideIndicator(networkItemView, 'response');
 
     networkItemView.detach();
 
@@ -121,8 +123,8 @@ describeWithEnvironment('NetworkItemView', () => {
 
   it('does not show indicator for unoverriden request', () => {
     const networkItemView = renderNetworkItemView(request);
-    const headersIndicator = getOverrideIndicator(networkItemView['tabs'], 'headers-component');
-    const responseIndicator = getOverrideIndicator(networkItemView['tabs'], 'response');
+    const headersIndicator = getOverrideIndicator(networkItemView, 'headers-component');
+    const responseIndicator = getOverrideIndicator(networkItemView, 'response');
 
     networkItemView.detach();
 
@@ -136,6 +138,31 @@ describeWithEnvironment('NetworkItemView', () => {
 
     assert.isTrue(networkItemView.hasTab(NetworkForward.UIRequestLocation.UIRequestTabs.EVENT_SOURCE));
     assert.isTrue(networkItemView.hasTab(NetworkForward.UIRequestLocation.UIRequestTabs.RESPONSE));
+
+    networkItemView.detach();
+  });
+
+  it('shows the ConnectionInfo tab for DirectSocket requests', () => {
+    request.setResourceType(Common.ResourceType.resourceTypes.DirectSocket);
+    request.directSocketInfo = {
+      type: SDK.NetworkRequest.DirectSocketType.TCP,
+      status: SDK.NetworkRequest.DirectSocketStatus.OPENING,
+      createOptions: {
+        remoteAddr: '127.0.0.1',
+        remotePort: 2545,
+        noDelay: false,
+        keepAliveDelay: 1000,
+        sendBufferSize: 1002,
+        receiveBufferSize: 1003,
+        dnsQueryType: undefined,
+      }
+    };
+
+    const networkItemView = renderNetworkItemView(request);
+
+    assert.isTrue(networkItemView.hasTab(NetworkForward.UIRequestLocation.UIRequestTabs.DIRECT_SOCKET_CONNECTION));
+    assert.isTrue(networkItemView.hasTab(NetworkForward.UIRequestLocation.UIRequestTabs.INITIATOR));
+    assert.isTrue(networkItemView.hasTab(NetworkForward.UIRequestLocation.UIRequestTabs.TIMING));
 
     networkItemView.detach();
   });

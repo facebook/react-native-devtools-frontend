@@ -5,11 +5,11 @@
 
 import '../../../ui/components/buttons/buttons.js';
 import '../../../ui/components/icon_button/icon_button.js';
+import '../../../ui/kit/kit.js';
 
 import type * as Platform from '../../../core/platform/platform.js';
 import type * as Trace from '../../../models/trace/trace.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
-import * as UI from '../../../ui/legacy/legacy.js';
 import * as Lit from '../../../ui/lit/lit.js';
 
 import type {AggregatedPerfIssue, PerfIssueEvent, PerfIssueSeverity} from './RNPerfIssueTypes.js';
@@ -89,7 +89,7 @@ export class SidebarRNPerfIssueItem extends HTMLElement {
       style: 'decimal',
     });
     const contents = html`
-      <style>${styles.cssText}</style>
+      <style>${styles}</style>
       <details ?open=${this.#isOpen}>
         <summary @click=${(e: Event) => this.#toggleOpen(e)} class="issue-summary">
           ${this.#renderDropdownIcon(this.#isOpen)}
@@ -100,7 +100,7 @@ export class SidebarRNPerfIssueItem extends HTMLElement {
             ${issue.description ? html`<div class="issue-description">${issue.description}</div>` : ''}
             ${issue.learnMoreUrl ? html`
               <div class="issue-learn-more">
-                ${UI.XLink.XLink.create(issue.learnMoreUrl as Platform.DevToolsPath.UrlString, 'Learn more')}
+                <devtools-link href=${issue.learnMoreUrl as Platform.DevToolsPath.UrlString}>Learn more</devtools-link>
               </div>
             ` : ''}
           </div>

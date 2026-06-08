@@ -6,7 +6,7 @@
  * ANY CHANGES WILL BE LOST ON THE NEXT BUILD *
  *                                            *
  *   MAKE CHANGES TO ast-spec AND THEN RUN    *
- *                 yarn build                 *
+ *                 pnpm run build             *
  **********************************************/
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AST_TOKEN_TYPES = exports.AST_NODE_TYPES = void 0;
@@ -186,6 +186,7 @@ var AST_TOKEN_TYPES;
     AST_TOKEN_TYPES["Boolean"] = "Boolean";
     AST_TOKEN_TYPES["Identifier"] = "Identifier";
     AST_TOKEN_TYPES["JSXIdentifier"] = "JSXIdentifier";
+    AST_TOKEN_TYPES["PrivateIdentifier"] = "PrivateIdentifier";
     AST_TOKEN_TYPES["JSXText"] = "JSXText";
     AST_TOKEN_TYPES["Keyword"] = "Keyword";
     AST_TOKEN_TYPES["Null"] = "Null";

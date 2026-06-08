@@ -1,8 +1,7 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// eslint-disable-next-line rulesdir/no-imports-in-directory
 import type * as SDK from '../../../core/sdk/sdk.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
 import * as Trace from '../trace.js';
@@ -12,7 +11,7 @@ describe('ScriptsHandler', () => {
     Trace.Handlers.ModelHandlers.Meta.reset();
     Trace.Handlers.ModelHandlers.NetworkRequests.reset();
     Trace.Handlers.ModelHandlers.Scripts.reset();
-    const events = await TraceLoader.rawEvents(this, 'enhanced-traces.json.gz');
+    const events = await TraceLoader.rawEvents(this, 'enhanced-traces.json');
     for (const event of events) {
       Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
       Trace.Handlers.ModelHandlers.NetworkRequests.handleEvent(event);
@@ -21,6 +20,7 @@ describe('ScriptsHandler', () => {
     await Trace.Handlers.ModelHandlers.Meta.finalize();
     await Trace.Handlers.ModelHandlers.NetworkRequests.finalize();
     await Trace.Handlers.ModelHandlers.Scripts.finalize({
+      allTraceEvents: events,
       async resolveSourceMap(params: Trace.Types.Configuration.ResolveSourceMapParams):
           Promise<SDK.SourceMap.SourceMap> {
             // Don't need to actually make a source map.
@@ -37,12 +37,42 @@ describe('ScriptsHandler', () => {
     const data = Trace.Handlers.ModelHandlers.Scripts.data();
     assert.deepEqual([...data.scripts], [
       {
+        frame: '',
+        inline: true,
+        isolate: '12345',
+        request: undefined,
+        scriptId: '3',
+        sourceMapUrl: 'http://localhost:8080/source.map.json',
+        ts: 50442438976,
+        url: 'http://localhost:8080/index.html',
+      },
+      {
+        frame: '',
+        inline: true,
+        isolate: '12345',
+        request: undefined,
+        scriptId: '4',
+        sourceMapUrl: 'http://localhost:8080/source.map.json',
+        ts: 50442438976,
+        url: 'http://localhost:8080/index.html',
+      },
+      {
+        frame: '',
+        inline: true,
+        isolate: '1357',
+        request: undefined,
+        scriptId: '1',
+        sourceMapUrl: 'http://localhost:8080/source.map.json',
+        ts: 50442438976,
+        url: 'http://localhost:8080/index.html',
+      },
+      {
         isolate: '12345',
         scriptId: '1',
         frame: '21D58E83A5C17916277166140F6A464B',
         request: undefined,
         ts: 50442438976,
-        inline: false,
+        inline: true,
         url: 'http://localhost:8080/index.html',
         content: 'source text 1',
         sourceMapUrl: 'http://localhost:8080/source.map.json',
@@ -54,7 +84,7 @@ describe('ScriptsHandler', () => {
         frame: '21D58E83A5C17916277166140F6A464B',
         request: undefined,
         ts: 50442438976,
-        inline: false,
+        inline: true,
         url: 'http://localhost:8080/index.html',
         content: 'source text 2'
       },
@@ -65,9 +95,9 @@ describe('ScriptsHandler', () => {
         content: ' text ',
         request: undefined,
         ts: 50442438976,
-        inline: false,
+        inline: true,
         url: 'http://localhost:8080/index.html',
-      }
+      },
     ]);
   });
 });

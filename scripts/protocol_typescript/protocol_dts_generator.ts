@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,13 @@
  * this script was taken from https://github.com/ChromeDevTools/devtools-protocol/tree/master/scripts
  * and adjusted slightly to fit within devtools-frontend
  */
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+
+import protocolJson from '../../third_party/blink/public/devtools_protocol/browser_protocol.json' with {type : 'json'};
 
 import type {Protocol} from './protocol_schema.js';
 
-const PROTOCOL_JSON_PATH = path.resolve(
-    __dirname, path.join('..', '..', 'third_party', 'blink', 'public', 'devtools_protocol', 'browser_protocol.json'));
-
-const protocolJson = require(PROTOCOL_JSON_PATH);
 const removedDomains = new Set(['Console']);
 const protocolDomains: Protocol.Domain[] = protocolJson.domains.filter(({domain}) => !removedDomains.has(domain));
 
@@ -51,7 +49,7 @@ const emitCloseBlock = (closeChar = '}') => {
 };
 
 const emitHeaderComments = () => {
-  emitLine('// Copyright (c) 2020 The Chromium Authors. All rights reserved.');
+  emitLine('// Copyright 2020 The Chromium Authors');
   emitLine('// Use of this source code is governed by a BSD-style license that can be');
   emitLine('// found in the LICENSE file.');
   emitLine();
@@ -86,7 +84,7 @@ const emitGlobalTypeDefs = () => {
 const emitDomain = (domain: Protocol.Domain) => {
   const domainName = toTitleCase(domain.domain);
   emitLine();
-  emitDescription(domain.description);
+  emitTsComment(domain);
   emitOpenBlock(`export namespace ${domainName}`);
   if (domain.types) {
     domain.types.forEach(emitDomainType.bind(null, domain));
@@ -101,14 +99,25 @@ const emitDomain = (domain: Protocol.Domain) => {
 };
 
 const getCommentLines = (description: string) => {
-  const lines = description.split(/\r?\n/g).map(line => line && ` * ${line}` || ' *');
-  return ['/**', ...lines, ' */'];
+  return description.split(/\r?\n/g).map(l => l ? l : '');
 };
 
-const emitDescription = (description?: string) => {
-  if (description) {
-    getCommentLines(description).map(l => emitLine(l));
-  }
+const emitTsComment =
+    (object: Protocol.Event|Protocol.PropertyType|Protocol.DomainType|Protocol.Command|Protocol.Domain) => {
+      const commentLines = object.description ? getCommentLines(object.description) : [];
+      if ('deprecated' in object && object.deprecated) {
+        commentLines.push('@deprecated');
+      }
+
+      if (commentLines.length) {
+        emitDescription(commentLines);
+      }
+    };
+
+const emitDescription = (lines: string[]) => {
+  emitLine('/**');
+  lines.map(l => l ? emitLine(` * ${l.replaceAll('*/', '*\\/')}`) : emitLine(' *'));
+  emitLine(' */');
 };
 
 const isPropertyInlineEnum = (prop: Protocol.ProtocolType): boolean => {
@@ -154,7 +163,7 @@ const getPropertyType = (interfaceName: string, prop: Protocol.ProtocolType): st
 };
 
 const emitProperty = (interfaceName: string, prop: Protocol.PropertyType) => {
-  emitDescription(prop.description);
+  emitTsComment(prop);
   emitLine(`${getPropertyDef(interfaceName, prop)};`);
 };
 
@@ -207,7 +216,7 @@ const emitInlineEnums = (prefix: string, propertyTypes?: Protocol.PropertyType[]
     if (isPropertyInlineEnum(type)) {
       emitLine();
       const enumName = prefix + toTitleCase(type.name);
-      emitEnum(enumName, (type as Protocol.StringType).enum);
+      emitEnum(enumName, (type as Protocol.StringType).enum ?? []);
     }
   }
 };
@@ -221,7 +230,7 @@ const identifierTypesOverride = new Map([
 function isIdentifierTypeName(identifierName: string): boolean {
   const looksLikeIdentifierName = identifierName.endsWith('Id') || identifierName.endsWith('ID');
   const override = identifierTypesOverride.get(identifierName);
-  return looksLikeIdentifierName && override !== false || override;
+  return looksLikeIdentifierName && override !== false || override || false;
 }
 
 const emitDomainType = (domain: Protocol.Domain, type: Protocol.DomainType) => {
@@ -230,7 +239,7 @@ const emitDomainType = (domain: Protocol.Domain, type: Protocol.DomainType) => {
   emitInlineEnumForDomainType(type);
 
   emitLine();
-  emitDescription(type.description);
+  emitTsComment(type);
 
   if (type.type === 'object') {
     emitInterface(type.id, type.properties);
@@ -278,7 +287,7 @@ const emitEvent = (event: Protocol.Event) => {
   emitInlineEnumsForEvents(event);
 
   emitLine();
-  emitDescription(event.description);
+  emitTsComment(event);
   emitInterface(toEventPayloadName(event.name), event.parameters);
 };
 
@@ -327,27 +336,32 @@ const getCommandMapping = (command: Protocol.Command, domainName: string,
   };
 };
 
-const flatten = <T>(arr: T[][]) => ([] as T[]).concat(...arr);
-
 const emitMapping = (moduleName: string, protocolModuleName: string, domains: Protocol.Domain[]) => {
   moduleName = toTitleCase(moduleName);
   emitHeaderComments();
-  emitDescription('Mappings from protocol event and command names to the types required for them.');
+  emitLine();
+  emitLine('import type * as Protocol from \'./protocol.js\'');
+  emitLine();
+  emitDescription(['Mappings from protocol event and command names to the types required for them.']);
   emitOpenBlock(`export namespace ${moduleName}`);
 
   const protocolModulePrefix = toTitleCase(protocolModuleName);
-  const eventDefs = flatten(domains.map(d => {
-    const domainName = toTitleCase(d.domain);
-    return (d.events || []).map(e => getEventMapping(e, domainName, protocolModulePrefix));
-  }));
+  const eventDefs = domains
+                        .map(d => {
+                          const domainName = toTitleCase(d.domain);
+                          return (d.events || []).map(e => getEventMapping(e, domainName, protocolModulePrefix));
+                        })
+                        .flat();
   emitInterface('Events', eventDefs);
 
   emitLine();
 
-  const commandDefs = flatten(domains.map(d => {
-    const domainName = toTitleCase(d.domain);
-    return (d.commands || []).map(c => getCommandMapping(c, domainName, protocolModulePrefix));
-  }));
+  const commandDefs = domains
+                          .map(d => {
+                            const domainName = toTitleCase(d.domain);
+                            return (d.commands || []).map(c => getCommandMapping(c, domainName, protocolModulePrefix));
+                          })
+                          .flat();
   emitInterface('Commands', commandDefs);
 
   emitCloseBlock();
@@ -357,7 +371,7 @@ const emitMapping = (moduleName: string, protocolModuleName: string, domains: Pr
 
 const emitApiCommand = (command: Protocol.Command, domainName: string, modulePrefix: string) => {
   const prefix = `${modulePrefix}.${domainName}.`;
-  emitDescription(command.description);
+  emitTsComment(command);
   const params = command.parameters ? `params: ${prefix}${toCmdRequestName(command.name)}` : '';
   const response =
       command.returns ? `${prefix}${toCmdResponseName(command.name)}` : 'Protocol.ProtocolResponseWithError';
@@ -367,7 +381,7 @@ const emitApiCommand = (command: Protocol.Command, domainName: string, modulePre
 
 const emitApiEvent = (event: Protocol.Event, domainName: string, modulePrefix: string) => {
   const prefix = `${modulePrefix}.${domainName}.`;
-  emitDescription(event.description);
+  emitTsComment(event);
   const params = event.parameters ? `params: ${prefix}${toEventPayloadName(event.name)}` : '';
   emitLine(`${event.name}(${params}): void;`);
   emitLine();
@@ -398,7 +412,7 @@ const emitApi = (moduleName: string, protocolModuleName: string, domains: Protoc
   emitLine();
   emitLine('import type * as Protocol from \'./protocol.js\'');
   emitLine();
-  emitDescription('API generated from Protocol commands and events.');
+  emitDescription(['API generated from Protocol commands and events.']);
   emitOpenBlock(`declare namespace ${moduleName}`);
 
   emitLine();
@@ -436,7 +450,7 @@ const flushEmitToFile = (path: string) => {
 };
 
 const main = () => {
-  const FRONTEND_GENERATED_DIR = path.resolve(__dirname, path.join('../../front_end/generated'));
+  const FRONTEND_GENERATED_DIR = path.resolve(import.meta.dirname, path.join('../../front_end/generated'));
 
   const destProtocolFilePath = path.join(FRONTEND_GENERATED_DIR, 'protocol.ts');
   const protocolModuleName = path.basename(destProtocolFilePath, '.ts');

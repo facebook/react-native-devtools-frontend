@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@ import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
-import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as LegacyWrapper from '../../ui/components/legacy_wrapper/legacy_wrapper.js';
+import {createIcon} from '../../ui/kit/kit.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import {IndexedDBTreeElement} from './ApplicationPanelSidebar.js';
@@ -19,20 +19,20 @@ import {ServiceWorkerCacheTreeElement} from './ServiceWorkerCacheTreeElement.js'
 
 const UIStrings = {
   /**
-   *@description Label for an item in the Application Panel Sidebar of the Application panel
+   * @description Label for an item in the Application Panel Sidebar of the Application panel
    * Storage Buckets allow developers to separate site data into buckets so that they can be
    * deleted independently.
    */
   storageBuckets: 'Storage buckets',
   /**
-   *@description Text for an item in the Application Panel
+   * @description Text for an item in the Application Panel
    * if no storage buckets are available to show. Storage Buckets allow developers to separate
    * site data into buckets so that they can be
    * deleted independently. https://developer.chrome.com/docs/web-platform/storage-buckets.
    */
   noStorageBuckets: 'No storage buckets detected',
   /**
-   *@description Description text in the Application Panel describing the storage buckets tab.
+   * @description Description text in the Application Panel describing the storage buckets tab.
    * Storage Buckets allow developers to separate site data into buckets so that they can be
    * deleted independently. https://developer.chrome.com/docs/web-platform/storage-buckets.
    */
@@ -49,7 +49,7 @@ export class StorageBucketsTreeParentElement extends ExpandableApplicationPanelT
     super(
         storagePanel, i18nString(UIStrings.storageBuckets), i18nString(UIStrings.noStorageBuckets),
         i18nString(UIStrings.storageBucketsDescription), 'storage-buckets');
-    const icon = IconButton.Icon.create('database');
+    const icon = createIcon('bucket');
     this.setLeadingIcons([icon]);
     this.setLink(
         'https://github.com/WICG/storage-buckets/blob/gh-pages/explainer.md' as Platform.DevToolsPath.UrlString);
@@ -153,7 +153,7 @@ export class StorageBucketsTreeElement extends ExpandableApplicationPanelTreeEle
     super(resourcesPanel, `${bucket.name} - ${origin}`, '', '', 'storage-bucket');
     this.bucketModel = model;
     this.storageBucketInfo = bucketInfo;
-    const icon = IconButton.Icon.create('database');
+    const icon = createIcon('database');
     this.setLeadingIcons([icon]);
   }
 

@@ -60,6 +60,7 @@ below.**
 
 ### Policies
 
+*   [Chromium DevTools Console Policy](./policy/console-policy.md)
 *   [Chromium DevTools Slow-Close Policy](./policy/slow-close.md)
 *   [DevTools Page Zoom Accessibility Policy](./policy/gar-page-zoom-policy.md)
 
@@ -69,9 +70,9 @@ below.**
 
 Formats all code using clang-format.
 
-`npm run check`
+`npm test`
 
-Runs all static analysis checks on DevTools code.
+Runs all tests on DevTools code.
 
 
 ## Creating Documentation

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 The Chromium Authors. All rights reserved.
+ * Copyright 2014 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -28,6 +28,7 @@
 }
 
 .adorner-reveal {
+  vertical-align: middle;
   margin: 0 3px;
 }
 
@@ -216,14 +217,25 @@ select {
 }
 
 .elements-gutter-decoration {
-  position: absolute;
-  top: 3px;
-  left: 2px;
   height: 9px;
   width: 9px;
   border-radius: 5px;
-  border: 1px solid var(--sys-color-orange-bright);
-  background-color: var(--sys-color-orange-bright);
+  border: 1px solid var(--decoration-color); /* stylelint-disable-line plugin/use_theme_colors */
+  background-color: var(--decoration-color); /* stylelint-disable-line plugin/use_theme_colors */
+}
+
+.elements-gutter-decoration-container {
+  display: flex;
+  position: absolute;
+  top: 0;
+  left: 1px;
+  width: 15px;
+  height: 15px;
+  align-items: center;
+}
+
+.elements-gutter-decoration + .elements-gutter-decoration {
+  margin-left: -6px;
 }
 
 .elements-gutter-decoration.elements-has-decorated-children {
@@ -242,7 +254,7 @@ select {
 }
 
 .elements-disclosure .elements-tree-nowrap li {
-  word-wrap: normal;
+  overflow-wrap: normal;
 }
 /* DOM update highlight */
 @keyframes dom-update-highlight-animation {
@@ -371,4 +383,43 @@ li.hovered:not(.always-parent) + ol.children:not(.shadow-root) {
   background-repeat: repeat-x;
   background-position: bottom;
   padding-bottom: 1px;
+}
+
+/* Ad Provenance Tooltip */
+.ad-provenance-tooltip {
+  user-select: text;
+}
+
+.ad-provenance-tooltip-title {
+  color: var(--sys-color-on-surface-subtle);
+  margin-top: 4px;
+}
+
+.ad-provenance-tooltip-title:first-child {
+  margin-top: 0;
+}
+
+.ad-provenance-tooltip-content {
+  padding-left: 16px;
+}
+
+.elements-disclosure.elements-tree-truncated {
+  /* 1.36 is the line-height, 15px is the min-height */
+  max-height: calc(var(--max-rows) * 1.36em + 5px);
+  overflow: hidden;
+}
+
+.elements-tree-show-all {
+  border: none;
+  color: var(--sys-color-primary);
+  cursor: pointer;
+  display: block;
+  font-size: 12px;
+  padding: 4px 12px;
+  text-align: center;
+  width: 100%;
+}
+
+.elements-tree-show-all.hidden {
+  display: none;
 }

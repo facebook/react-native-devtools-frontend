@@ -1,10 +1,11 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../../../core/common/common.js';
 import * as i18n from '../../../../core/i18n/i18n.js';
-import {createFakeSetting, describeWithLocale} from '../../../../testing/EnvironmentHelpers.js';
+import {createFakeSetting} from '../../../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../../../testing/LocaleHelpers.js';
 import {ListModel} from '../../legacy.js';
 
 import * as QuickOpen from './quick_open.js';
@@ -42,7 +43,8 @@ async function testMatch(inputs: string[], query: string, expectedSelection: num
   assert.deepEqual(expectedMatches, listModelReplaceAll.lastCall.args[0]);
 }
 
-describeWithLocale('FilteredListWidget', () => {
+describe('FilteredListWidget', () => {
+  setupLocaleHooks();
   beforeEach(() => {
     sinon.reset();
   });
@@ -82,7 +84,7 @@ describeWithLocale('FilteredListWidget', () => {
     const filteredListWidget = new QuickOpen.FilteredListWidget.FilteredListWidget(provider, [], () => undefined);
     const keyboardEvent = new KeyboardEvent('keydown', {key: 'Enter'});
     filteredListWidget.contentElement.dispatchEvent(keyboardEvent);
-    assert.isTrue(selectItem.notCalled);
+    sinon.assert.notCalled(selectItem);
   });
 
   it('empty query matches everything', async () => {
@@ -108,4 +110,5 @@ describeWithLocale('FilteredListWidget', () => {
   it('dangerous input escaping', async () => {
     await testMatch(['^[]{}()\\.$*+?|', '0123456789abcdef'], '^[]{}()\\.$*+?|', 0, [0]);
   });
+
 });

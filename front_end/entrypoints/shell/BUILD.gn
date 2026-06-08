@@ -1,4 +1,4 @@
-# Copyright 2021 The Chromium Authors. All rights reserved.
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 import("../../../scripts/build/ninja/devtools_entrypoint.gni")
@@ -16,11 +16,11 @@ devtools_entrypoint("shell") {
   deps = [
     ":shell_utils",
     "../../Images:optimize_images",
-    "../../core/dom_extension:bundle",
     "../../core/sdk:meta",
     "../../entrypoints/main:meta",
     "../../models/logs:meta",
     "../../models/persistence:meta",
+    "../../models/workspace:meta",
     "../../panels/ai_assistance:meta",
     "../../panels/application:meta",
     "../../panels/changes:meta",
@@ -33,6 +33,7 @@ devtools_entrypoint("shell") {
     "../../panels/protocol_monitor:meta",
     "../../panels/settings:meta",
     "../../panels/sources:meta",
+    "../../ui/dom_extension:bundle",
     "../../ui/legacy/components/object_ui:meta",
     "../../ui/legacy/components/perf_ui:meta",
     "../../ui/legacy/components/quick_open:meta",
@@ -43,6 +44,7 @@ devtools_entrypoint("shell") {
     "../..:*",
     "../../testing/*",
     "../devtools_app:*",
+    "../greendev_floaty:*",
     "../js_app:*",
     "../ndb_app:*",
     "../node_app:*",

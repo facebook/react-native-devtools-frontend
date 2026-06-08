@@ -1,7 +1,8 @@
-# Copyright 2021 The Chromium Authors. All rights reserved.
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+import("../../../../scripts/build/ninja/component_doc.gni")
 import("../../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../../scripts/build/ninja/devtools_module.gni")
 import("../../../../scripts/build/ninja/generate_css.gni")
@@ -11,6 +12,7 @@ import("../visibility.gni")
 generate_css("css_files") {
   sources = [
     "button.css",
+    "floatingButton.css",
     "textButton.css",
   ]
 }
@@ -19,13 +21,16 @@ copy_to_gen("copy_stylesheets_for_server") {
   sources = [ "textButton.css" ]
 }
 
-devtools_module("button") {
-  sources = [ "Button.ts" ]
+devtools_ui_module("button") {
+  sources = [
+    "Button.ts",
+    "FloatingButton.ts",
+  ]
 
   deps = [
     "../../../ui/lit:bundle",
     "../../../ui/visual_logging:bundle",
-    "../icon_button:bundle",
+    "../../kit:bundle",
   ]
 }
 
@@ -37,12 +42,15 @@ devtools_entrypoint("bundle") {
     ":css_files",
   ]
 
-  visibility = [ "../../../entrypoints/main/*" ]
+  visibility = [
+    "../../../entrypoints/main/*",
+    "../../../entrypoints/node_app/app/*",
+  ]
 
   visibility += default_components_visibility
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [ "Button.test.ts" ]
@@ -51,4 +59,9 @@ ts_library("unittests") {
     ":bundle",
     "../../../testing",
   ]
+}
+
+component_doc("docs") {
+  sources = [ "Button.docs.ts" ]
+  deps = [ ":bundle" ]
 }

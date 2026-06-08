@@ -3,6 +3,7 @@
  * Copyright 2020 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
+import type { Protocol } from 'devtools-protocol';
 import type { Frame } from '../api/Frame.js';
 import type { JSHandle } from '../api/JSHandle.js';
 /**
@@ -36,7 +37,7 @@ export declare class ConsoleMessage {
     /**
      * @internal
      */
-    constructor(type: ConsoleMessageType, text: string, args: JSHandle[], stackTraceLocations: ConsoleMessageLocation[], frame?: Frame);
+    constructor(type: ConsoleMessageType, text: string, args: JSHandle[], stackTraceLocations: ConsoleMessageLocation[], frame?: Frame, rawStackTrace?: Protocol.Runtime.StackTrace, targetId?: string);
     /**
      * The type of the console message.
      */
@@ -57,5 +58,17 @@ export declare class ConsoleMessage {
      * The array of locations on the stack of the console message.
      */
     stackTrace(): ConsoleMessageLocation[];
+    /**
+     * The underlying protocol stack trace if available.
+     *
+     * @internal
+     */
+    _rawStackTrace(): Protocol.Runtime.StackTrace | undefined;
+    /**
+     * The targetId from which this console message originated.
+     *
+     * @internal
+     */
+    _targetId(): string | undefined;
 }
 //# sourceMappingURL=ConsoleMessage.d.ts.map

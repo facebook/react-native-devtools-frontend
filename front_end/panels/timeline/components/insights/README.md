@@ -17,10 +17,9 @@ When creating your component, extend the `BaseInsightComponent` class (defined i
 
 In your component you can access all this data via `this.data.X`, where `X` is one of the keys listed above.
 
-You will have to define 4 properties on your component:
+You will have to define some properties on your component:
 
-1. `static readonly litTagName` is the HTML tag name given to your element (define this just as you do for all custom elements).
-2. `override internalName: string` is a name used to identify the insight. It **must be unique across all insights** and is used to track if it is active or not.
+1. `override internalName: string` is a name used to identify the insight. It **must be unique across all insights** and is used to track if it is active or not.
 
 > Go to KnownContextValues.ts and add your insight: `timeline.toggle-insight.your-insight-name` and `timeline.insights.your-insight-name`.
 
@@ -52,7 +51,7 @@ override renderContent(): LitHtml.LitTemplate {
 
 If your component should render overlays when it is expanded, you will need to define those in the `createOverlays` method.
 
-This should return an array of `Overlays.Overlays.TimelineOverlay` objects. When your insight is expanded/collapsed, they will automatically be created / destroyed.
+This should return an array of `Trace.Types.Overlays.TimelineOverlay` objects. When your insight is expanded/collapsed, they will automatically be created / destroyed.
 
 ## 4. Custom styling
 
@@ -71,9 +70,8 @@ override connectedCallback(): void {
 
 Add your insight to the UI in `SidebarSingleInsightSet.ts` in the `INSIGHT_NAME_TO_COMPONENT` method.
 
-
 ## 6. Before you submit your CL
 
-- Add your related VE loggine context values in the `KnownContextValues.ts`
+- Add your related VE logging context values in the `KnownContextValues.ts`
 - Update the tests in `SidebarSingleInsightSet.test.ts`
 - WHen you want to ship the insight, make sure it is not in the experiments: `EXPERIMENTAL_INSIGHTS`.

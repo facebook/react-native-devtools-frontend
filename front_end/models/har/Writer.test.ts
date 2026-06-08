@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,10 +6,10 @@ import * as Common from '../../core/common/common.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
-import {describeWithLocale} from '../../testing/EnvironmentHelpers.js';
-import * as UI from '../../ui/legacy/legacy.js';
-import * as HAR from '../har/har.js';
+import {setupLocaleHooks} from '../../testing/LocaleHelpers.js';
 import * as TextUtils from '../text_utils/text_utils.js';
+
+import * as HAR from './har.js';
 
 const {urlString} = Platform.DevToolsPath;
 const simulateRequestWithStartTime = (startTime: number) => {
@@ -22,7 +22,8 @@ const simulateRequestWithStartTime = (startTime: number) => {
   return request;
 };
 
-describeWithLocale('HARWriter', () => {
+describe('HARWriter', () => {
+  setupLocaleHooks();
   it('can correctly sort exported requests logs', async () => {
     const req1Time = new Date(2020, 0, 3);
     const req2Time = new Date(2020, 1, 3);
@@ -31,8 +32,8 @@ describeWithLocale('HARWriter', () => {
     const req2 = simulateRequestWithStartTime(req2Time.getTime() / 1000);
     const req3 = simulateRequestWithStartTime(req3Time.getTime() / 1000);
 
-    const progressIndicator = new UI.ProgressIndicator.ProgressIndicator();
-    const compositeProgress = new Common.Progress.CompositeProgress(progressIndicator);
+    const progress = new Common.Progress.Progress();
+    const compositeProgress = new Common.Progress.CompositeProgress(progress);
     const result = await HAR.Writer.Writer.harStringForRequests(
         [
           req3,
@@ -44,5 +45,25 @@ describeWithLocale('HARWriter', () => {
     assert.strictEqual(resultEntries[0].startedDateTime, req1Time.toJSON(), 'earlier request should come first');
     assert.strictEqual(resultEntries[1].startedDateTime, req2Time.toJSON(), 'earlier request should come first');
     assert.strictEqual(resultEntries[2].startedDateTime, req3Time.toJSON(), 'earlier request should come first');
+  });
+
+  it('exports multiple EventSource messages for an unfinished request', async () => {
+    const request = simulateRequestWithStartTime(Date.now() / 1000);
+    request.finished = false;
+    request.mimeType = 'text/event-stream';
+    request.addEventSourceMessage(
+        1773352390.598671, 'session', '',
+        '{"sid":"11111111-2222-3333-4444-555555555555","tenant":"66666666-7777-8888-9999-000000000000"}');
+    request.addEventSourceMessage(1773352391.102345, 'message', '2', '{"role":"assistant","content":"hello"}');
+
+    const progress = new Common.Progress.Progress();
+    const compositeProgress = new Common.Progress.CompositeProgress(progress);
+    const result = await HAR.Writer.Writer.harStringForRequests([request], {sanitize: false}, compositeProgress);
+    const resultEntries = JSON.parse(result).log.entries;
+
+    assert.lengthOf(resultEntries, 1);
+    assert.lengthOf(resultEntries[0]._eventSourceMessages, 2);
+    assert.strictEqual(resultEntries[0]._eventSourceMessages[0].eventName, 'session');
+    assert.strictEqual(resultEntries[0]._eventSourceMessages[1].eventId, '2');
   });
 });

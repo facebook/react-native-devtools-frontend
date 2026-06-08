@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -53,7 +53,7 @@ async function addScript(
   const parsedScriptSourceDonePromise = expectCall(scriptParsedSpy);
   const script = debuggerModel.parsedScriptSource(
       'scriptId' as Protocol.Runtime.ScriptId, url, 0, 0, 3, 3, executionContext.id, '', undefined, false, undefined,
-      false, false, 0, false, null, null, null, null, null);
+      false, false, 0, false, null, null, null, null, null, null);
 
   await parsedScriptSourceDonePromise;
   scriptParsedSpy.restore();
@@ -73,7 +73,7 @@ async function addStyleSheet(
   const styleSheetAddedSpy = sinon.stub(helper, 'styleSheetAddedForTest');
   const styleSheetAddedDonePromise = expectCall(styleSheetAddedSpy);
   const header: Protocol.CSS.CSSStyleSheetHeader = {
-    styleSheetId: 'styleSheet' as Protocol.CSS.StyleSheetId,
+    styleSheetId: 'styleSheet' as Protocol.DOM.StyleSheetId,
     frameId: 'frameId' as Protocol.Page.FrameId,
     sourceURL: url,
     origin: Protocol.CSS.StyleSheetOrigin.Regular,
@@ -120,8 +120,14 @@ describeWithMockConnection('PresentationConsoleMessageHelper', () => {
     const workspace = Workspace.Workspace.WorkspaceImpl.instance();
     const targetManager = target.targetManager();
     const resourceMapping = new Bindings.ResourceMapping.ResourceMapping(targetManager, workspace);
-    Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance(
-        {forceNew: true, resourceMapping, targetManager});
+    const ignoreListManager = Workspace.IgnoreListManager.IgnoreListManager.instance({forceNew: true});
+    Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance({
+      forceNew: true,
+      resourceMapping,
+      targetManager,
+      ignoreListManager,
+      workspace,
+    });
     Bindings.CSSWorkspaceBinding.CSSWorkspaceBinding.instance({forceNew: true, resourceMapping, targetManager});
   });
 

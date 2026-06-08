@@ -1,15 +1,15 @@
 {
+  "extends": "../tsconfig.json",
   "compilerOptions": {
-    "module": "commonjs",
-    "baseUrl": ".",
-
-    "checkJs": false,
-    "allowJs": false
+    "baseUrl": "."
   },
+  "include": [".", "../e2e/types.d.ts"],
   "references": [
+    {
+      "path": "../e2e/tsconfig.json"
+    },
     {
       "path": "../shared/tsconfig.json"
     }
-  ],
-  "extends": "../../config/typescript/tsconfig.base.json"
+  ]
 }

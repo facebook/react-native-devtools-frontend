@@ -1,25 +1,28 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {createHash} from 'crypto';
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
+import {createHash} from 'node:crypto';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
-interface ArtifactGroup {
-  [key: string]: {
-    filePath: string,
-  };
-}
+import * as DiffUtils from './diff-utils.js';
+import {GEN_DIR, SOURCE_ROOT} from './paths.js';
+
+export type ArtifactGroup = Record<string, {
+  filePath: string,
+}>;
 
 export class ScreenshotError extends Error {
   // The max length of the summary is 4000, but we need to leave some room for
   // the rest of the HTML formatting (e.g. <pre> and </pre>).
   static readonly SUMMARY_LENGTH_CUTOFF = 3900;
+  static errors: ScreenshotError[] = [];
   readonly screenshots: ArtifactGroup;
+  screenshotPath?: string;
 
-  private constructor(screenshots: ArtifactGroup, message?: string, cause?: Error) {
+  private constructor(screenshots: ArtifactGroup, message?: string, cause?: Error, screenshotPath?: string) {
     message = [message, cause?.message, (cause?.cause as Error)?.message].filter(x => x).join('\n\n');
     super(message);
     this.cause = cause;
@@ -36,67 +39,83 @@ export class ScreenshotError extends Error {
     this.expected = cause?.expected;
     // @ts-expect-error forwarding error properties for Mocha.
     this.operator = cause?.operator;
+    this.screenshotPath = screenshotPath;
   }
 
   /**
    * Creates a ScreenshotError when a reference golden does not exists.
    */
-  static fromMessage(message: string, generatedImgPath: string) {
+  static fromGeneratedScreenshot(message: string, generatedImgPath: string) {
     const screenshots = {
       generated: {filePath: this.stashArtifact(generatedImgPath, 'generated')},
     };
-    return new ScreenshotError(screenshots, message, undefined);
+    const screenshotPath =
+        path.join('test/goldens', path.relative(path.join(GEN_DIR, 'test/.generated'), generatedImgPath));
+    return new ScreenshotError(screenshots, message, undefined, screenshotPath);
   }
 
   /**
    * Creates a ScreenshotError when a generated screenshot is different from
    * the golden.
    */
-  static fromError(error: Error, goldenImgPath: string, generatedImgPath: string, diffImgPath: string) {
+  static fromScreenshotAssertionError(
+      error: Error, goldenImgPath: string, generatedImgPath: string, diffImgPath: string) {
     const screenshots = {
       expected_image: {filePath: this.stashArtifact(goldenImgPath, 'expected')},
       actual_image: {filePath: this.stashArtifact(generatedImgPath, 'actual')},
       image_diff: {filePath: this.stashArtifact(diffImgPath, 'diff')},
     };
-    return new ScreenshotError(screenshots, undefined, error);
+    const screenshotPath = path.relative(SOURCE_ROOT, goldenImgPath);
+    return new ScreenshotError(screenshots, undefined, error, screenshotPath);
   }
 
   /**
-   * Creates a ScreenshotError an unexpected error occurs. Screenshots are
-   * were taken for both the target and the frontend.
+   * Creates a ScreenshotError when an unexpected error occurs. Screenshots are
+   * taken for both the inspected page and the DevTools page.
    */
-  static fromBase64Images(error: Error, targetScreenshot?: string, frontendScreenshot?: string) {
-    if (!targetScreenshot || !frontendScreenshot) {
+  static fromBase64Images(
+      error: Error, inspectedPageScreenshot?: string, devToolsPageScreenshot?: string,
+      collectedScreenshots?: Record<string, string>): Error {
+    if (!inspectedPageScreenshot || !devToolsPageScreenshot) {
       console.error('No artifacts to save.');
       return error;
     }
-    const screenshots = {
-      target: {filePath: this.saveArtifact(targetScreenshot)},
-      frontend: {filePath: this.saveArtifact(frontendScreenshot)},
+    const screenshots: ArtifactGroup = {
+      inspectedPage: {filePath: this.saveArtifact(inspectedPageScreenshot)},
+      devToolsPage: {filePath: this.saveArtifact(devToolsPageScreenshot)},
+      ...ScreenshotError.saveArtifacts(collectedScreenshots)
     };
     return new ScreenshotError(screenshots, undefined, error);
   }
 
+  static saveArtifacts(collectedScreenshots: Record<string, string>|undefined) {
+    const screenshots: ArtifactGroup = {};
+    for (const name in collectedScreenshots) {
+      screenshots[name] = {filePath: this.saveArtifact(collectedScreenshots[name])};
+    }
+    return screenshots;
+  }
+
   /**
-   * Costructs artifact group and summary for Milo
-   * at resultdb publication time.
+   * Costructs a summary for Milo at resultdb publication time.
    */
-  toMiloArtifacts(): [ArtifactGroup, string] {
-    let summary: string;
+  toMiloSummary(): string {
     if ('expected_image' in this.screenshots) {
       // no summary; autogenerated by Milo based on artifact name convention
-      summary = '';
-    } else if ('generated' in this.screenshots) {
-      // TODO(liviurau): embed image once Milo supports it
-      summary = '<pre>' + this.message.slice(0, ScreenshotError.SUMMARY_LENGTH_CUTOFF) +
-          '</pre><p>Screenshot generated (see below)</p>';
-    } else {
-      // TODO(liviurau): embed images once Milo supports it
-      const message = (this.message + '\n\n' + this.stack).slice(0, ScreenshotError.SUMMARY_LENGTH_CUTOFF);
-      summary = '<pre>' + message + '</pre><p>Unexpected error. See target and frontend screenshots ' +
-          'below.</p>';
+      return '';
     }
-    return [this.screenshots, summary];
+    if ('generated' in this.screenshots) {
+      // TODO(liviurau): embed image once Milo supports it
+      return '<pre>' + this.message.slice(0, ScreenshotError.SUMMARY_LENGTH_CUTOFF) +
+          '</pre><p>Screenshot generated (see below)</p>';
+    }
+    // TODO(liviurau): embed images once Milo supports it
+    const message = (this.message + '\n\n' + this.stack);
+    const assertionDiff = DiffUtils.resultAssertionsDiff([this]);
+    const diffText = DiffUtils.formatDiffText(assertionDiff);
+    let summary = DiffUtils.formatSummary(message, diffText, ScreenshotError.SUMMARY_LENGTH_CUTOFF);
+    summary += '<p>Unexpected error. See inspected and DevTools pages screenshots below.</p>';
+    return summary;
   }
 
   /**
@@ -122,3 +141,18 @@ export class ScreenshotError extends Error {
     return artifactPath;
   }
 }
+
+/* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+export const ScreenshotErrorReporter = function(this: any, baseReporterDecorator: (arg0: unknown) => void) {
+  const JSON_PATH = path.join(GEN_DIR, 'test', '.generated', 'errors.js');
+
+  baseReporterDecorator(this);
+  this.onRunComplete = () => {
+    const screenshotErrors = ScreenshotError.errors.splice(0).map(
+        /* eslint-disable-next-line @typescript-eslint/naming-convention */
+        ({screenshotPath, screenshots: {expected_image, actual_image, image_diff}}) =>
+            ({screenshotPath, expected_image, actual_image, image_diff}));
+    fs.writeFileSync(JSON_PATH, `window.SCREENSHOT_ERRORS = ${JSON.stringify(screenshotErrors)}`);
+  };
+};
+ScreenshotErrorReporter.$inject = ['baseReporterDecorator'];

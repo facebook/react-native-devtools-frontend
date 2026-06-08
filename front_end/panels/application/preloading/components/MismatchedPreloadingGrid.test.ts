@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,10 +10,10 @@ import {
   getCellByIndexes,
 } from '../../../../testing/DataGridHelpers.js';
 import {
+  raf,
   renderElementIntoDOM,
 } from '../../../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
-import * as RenderCoordinator from '../../../../ui/components/render_coordinator/render_coordinator.js';
 
 import * as PreloadingComponents from './components.js';
 
@@ -28,11 +28,16 @@ async function renderMismatchedPreloadingGrid(
     data: PreloadingComponents.MismatchedPreloadingGrid.MismatchedPreloadingGridData): Promise<HTMLElement> {
   const component = new PreloadingComponents.MismatchedPreloadingGrid.MismatchedPreloadingGrid();
   component.data = data;
+  component.markAsRoot();
   renderElementIntoDOM(component);
-  assert.isNotNull(component.shadowRoot);
-  await RenderCoordinator.done();
+  assert.isNotNull(component.element.shadowRoot);
 
-  return component;
+  // wait for Widget render
+  await component.updateComplete;
+  // and for its data grid component to render
+  await raf();
+
+  return component.element;
 }
 
 function assertDiff(
@@ -53,12 +58,7 @@ const FG_GREEN = 'color:var(--sys-color-green);text-decoration:line-through';
 const FG_RED = 'color:var(--sys-color-error);';
 
 describeWithEnvironment('MismatchedPreloadingGrid', () => {
-  // Disabled due to flakiness
-  it.skip('[crbug.com/1473557]: renderes no diff in URL', async function() {
-    if (this.timeout() > 0) {
-      this.timeout(10000);
-    }
-
+  it('renderes no diff in URL', async function() {
     const data: PreloadingComponents.MismatchedPreloadingGrid.MismatchedPreloadingGridData = {
       pageURL: urlString`https://example.com/prefetched.html`,
       rows: [{

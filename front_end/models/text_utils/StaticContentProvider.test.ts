@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,7 @@ describe('StaticContentProvider', () => {
     assert.instanceOf(provider, TextUtils.StaticContentProvider.StaticContentProvider);
   });
 
-  it('lazily fetches its contents when requestContent is called', async () => {
+  it('lazily fetches its contents when requestContentData is called', async () => {
     const jsonContent = '{ "hello": "world" }';
     const provider =
         TextUtils.StaticContentProvider.StaticContentProvider.fromString(testUrl, jsonResource, jsonContent);

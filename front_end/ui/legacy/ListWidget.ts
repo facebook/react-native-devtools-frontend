@@ -1,6 +1,8 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
+/* eslint-disable @devtools/no-lit-render-outside-of-view */
 
 import './Toolbar.js';
 
@@ -18,23 +20,23 @@ import {VBox} from './Widget.js';
 
 const UIStrings = {
   /**
-   *@description Text on a button to start editing text
+   * @description Text on a button to start editing text
    */
   editString: 'Edit',
   /**
-   *@description Label for an item to remove something
+   * @description Label for an item to remove something
    */
   removeString: 'Remove',
   /**
-   *@description Text to save something
+   * @description Text to save something
    */
   saveString: 'Save',
   /**
-   *@description Text to add something
+   * @description Text to add something
    */
   addString: 'Add',
   /**
-   *@description Text to cancel something
+   * @description Text to cancel something
    */
   cancelString: 'Cancel',
   /**
@@ -54,16 +56,16 @@ export class ListWidget<T> extends VBox {
   private readonly list: HTMLElement;
   private lastSeparator: boolean;
   private focusRestorer: ElementFocusRestorer|null;
-  private items: T[];
+  #items: T[];
   private editable: boolean[];
-  private elements: Element[];
+  private elements: HTMLElement[];
   private editor: Editor<T>|null;
   private editItem: T|null;
-  private editElement: Element|null;
+  private editElement: HTMLElement|null;
   private emptyPlaceholder: Element|null;
   private isTable: boolean;
-  constructor(delegate: Delegate<T>, delegatesFocus: boolean|undefined = true, isTable = false) {
-    super(true, delegatesFocus);
+  constructor(delegate: Delegate<T>, delegatesFocus = true, isTable = false) {
+    super({useShadowDom: true, delegatesFocus});
     this.registerRequiredCSS(listWidgetStyles);
     this.delegate = delegate;
 
@@ -71,7 +73,7 @@ export class ListWidget<T> extends VBox {
 
     this.lastSeparator = false;
     this.focusRestorer = null;
-    this.items = [];
+    this.#items = [];
     this.editable = [];
     this.elements = [];
     this.editor = null;
@@ -88,8 +90,12 @@ export class ListWidget<T> extends VBox {
     this.updatePlaceholder();
   }
 
+  get items(): T[] {
+    return this.#items;
+  }
+
   clear(): void {
-    this.items = [];
+    this.#items = [];
     this.editable = [];
     this.elements = [];
     this.lastSeparator = false;
@@ -98,8 +104,34 @@ export class ListWidget<T> extends VBox {
     this.stopEditing();
   }
 
-  appendItem(item: T, editable: boolean): void {
-    if (this.lastSeparator && this.items.length) {
+  updateItem(index: number, newItem: T, editable: boolean, focusable = true, controlLabels: {
+    edit?: string,
+    delete?: string,
+  } = {}): void {
+    if (index < 0 || index >= this.#items.length) {
+      this.appendItem(newItem, editable, focusable, controlLabels);
+      return;
+    }
+
+    this.#items[index] = newItem;
+    this.editable[index] = editable;
+    const element = this.elements[index];
+    const [content, controls] = element.children;
+    if (controls) {
+      element.removeChild(controls);
+    }
+    this.delegate.updateItem?.(content, newItem, editable, index);
+    element.classList.toggle('editable', editable);
+    if (editable) {
+      if (focusable) {
+        element.tabIndex = 0;
+      }
+      element.appendChild(this.createControls(newItem, element, controlLabels));
+    }
+  }
+
+  appendItem(item: T, editable: boolean, focusable = true, controlLabels: {edit?: string, delete?: string} = {}): void {
+    if (this.lastSeparator && this.#items.length) {
       const element = document.createElement('div');
       element.classList.add('list-separator');
       if (this.isTable) {
@@ -109,22 +141,24 @@ export class ListWidget<T> extends VBox {
     }
     this.lastSeparator = false;
 
-    this.items.push(item);
+    this.#items.push(item);
     this.editable.push(editable);
 
     const element = this.list.createChild('div', 'list-item');
     if (this.isTable) {
       element.role = 'rowgroup';
     }
-    const content = this.delegate.renderItem(item, editable);
+    const content = this.delegate.renderItem(item, editable, this.#items.length - 1);
     if (!content.hasAttribute('jslog')) {
-      element.setAttribute('jslog', `${VisualLogging.item()}`);
+      element.setAttribute('jslog', `${VisualLogging.item().track({resize: true})}`);
     }
     element.appendChild(content);
     if (editable) {
       element.classList.add('editable');
-      element.tabIndex = 0;
-      element.appendChild(this.createControls(item, element));
+      if (focusable) {
+        element.tabIndex = 0;
+      }
+      element.appendChild(this.createControls(item, element, controlLabels));
     }
     this.elements.push(element);
     this.updatePlaceholder();
@@ -135,7 +169,7 @@ export class ListWidget<T> extends VBox {
   }
 
   removeItem(index: number): void {
-    if (this.editItem === this.items[index]) {
+    if (this.editItem === this.#items[index]) {
       this.stopEditing();
     }
 
@@ -156,7 +190,7 @@ export class ListWidget<T> extends VBox {
     element.remove();
 
     this.elements.splice(index, 1);
-    this.items.splice(index, 1);
+    this.#items.splice(index, 1);
     this.editable.splice(index, 1);
     this.updatePlaceholder();
   }
@@ -170,7 +204,7 @@ export class ListWidget<T> extends VBox {
     this.updatePlaceholder();
   }
 
-  private createControls(item: T, element: Element): Element {
+  private createControls(item: T, element: HTMLElement, controlLabels: {edit?: string, delete?: string}): Element {
     const controls = document.createElement('div');
     controls.classList.add('controls-container');
     controls.classList.add('fill');
@@ -183,13 +217,13 @@ export class ListWidget<T> extends VBox {
           <devtools-button class=toolbar-button
                            .iconName=${'edit'}
                            .jslogContext=${'edit-item'}
-                           .title=${i18nString(UIStrings.editString)}
+                           .title=${controlLabels?.edit ?? i18nString(UIStrings.editString)}
                            .variant=${Buttons.Button.Variant.ICON}
                            @click=${onEditClicked}></devtools-button>
           <devtools-button class=toolbar-button
                            .iconName=${'bin'}
                            .jslogContext=${'remove-item'}
-                           .title=${i18nString(UIStrings.removeString)}
+                           .title=${controlLabels?.delete ?? i18nString(UIStrings.removeString)}
                            .variant=${Buttons.Button.Variant.ICON}
                            @click=${onRemoveClicked}></devtools-button>
         </devtools-toolbar>
@@ -207,8 +241,8 @@ export class ListWidget<T> extends VBox {
     function onRemoveClicked(this: ListWidget<T>): void {
       const index = this.elements.indexOf(element);
       this.element.focus();
-      this.delegate.removeItemRequested(this.items[index], index);
-      ARIAUtils.alert(i18nString(UIStrings.removedItem));
+      this.delegate.removeItemRequested(this.#items[index], index);
+      ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.removedItem));
       if (this.elements.length >= 1) {
         // focus on the next item in the list, or the last item if we're removing the last item
         (this.elements[Math.min(index, this.elements.length - 1)] as HTMLElement).focus();
@@ -233,7 +267,7 @@ export class ListWidget<T> extends VBox {
     }
   }
 
-  private startEditing(item: T, element: Element|null, insertionPoint: Element|null): void {
+  private startEditing(item: T, element: HTMLElement|null, insertionPoint: Element|null): void {
     if (element && this.editElement === element) {
       return;
     }
@@ -267,7 +301,7 @@ export class ListWidget<T> extends VBox {
     this.stopEditing();
     if (editItem !== null) {
       this.delegate.commitEdit(editItem, editor, isNew);
-      ARIAUtils.alert(i18nString(UIStrings.changesSaved));
+      ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.changesSaved));
       if (this.elements[focusElementIndex]) {
         (this.elements[focusElementIndex] as HTMLElement).focus();
       }
@@ -295,7 +329,8 @@ export class ListWidget<T> extends VBox {
 }
 
 export interface Delegate<T> {
-  renderItem(item: T, editable: boolean): Element;
+  updateItem?(content: Element, newItem: T, editable: boolean, index: number): void;
+  renderItem(item: T, editable: boolean, index: number): Element;
   removeItemRequested(item: T, index: number): void;
   beginEdit(item: T): Editor<T>;
   commitEdit(item: T, editor: Editor<T>, isNew: boolean): void;
@@ -310,7 +345,7 @@ export type EditorControl<T = string> = (HTMLInputElement|HTMLSelectElement|Cust
 
 export class Editor<T> {
   element: HTMLDivElement;
-  private readonly contentElementInternal: HTMLElement;
+  readonly #contentElement: HTMLElement;
   private commitButton: Buttons.Button.Button;
   private readonly cancelButton: Buttons.Button.Button;
   private errorMessageContainer: HTMLElement;
@@ -329,8 +364,8 @@ export class Editor<T> {
     this.element.addEventListener(
         'keydown', onKeyDown.bind(null, Platform.KeyboardUtilities.isEscKey, this.cancelClicked.bind(this)), false);
 
-    this.contentElementInternal = this.element.createChild('div', 'editor-content');
-    this.contentElementInternal.addEventListener('keydown', onKeyDown.bind(null, event => {
+    this.#contentElement = this.element.createChild('div', 'editor-content');
+    this.#contentElement.addEventListener('keydown', onKeyDown.bind(null, event => {
       if (event.key !== 'Enter') {
         return false;
       }
@@ -366,7 +401,7 @@ export class Editor<T> {
   }
 
   contentElement(): Element {
-    return this.contentElementInternal;
+    return this.#contentElement;
   }
 
   createInput(

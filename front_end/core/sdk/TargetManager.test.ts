@@ -1,25 +1,39 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import {
   createTarget,
 } from '../../testing/EnvironmentHelpers.js';
-import {
-  describeWithMockConnection,
-} from '../../testing/MockConnection.js';
+import {setupRuntimeHooks} from '../../testing/RuntimeHelpers.js';
+import {setupSettingsHooks} from '../../testing/SettingsHelpers.js';
+import * as Common from '../common/common.js';
 import * as Host from '../host/host.js';
 import * as Platform from '../platform/platform.js';
+import * as Root from '../root/root.js';
 
 import * as SDK from './sdk.js';
 
 const {urlString} = Platform.DevToolsPath;
 
-describeWithMockConnection('TargetManager', () => {
+describe('TargetManager', () => {
   let targetManager: SDK.TargetManager.TargetManager;
+  let inspectedURLChangedHostApi: sinon.SinonStub;
+
+  setupRuntimeHooks();
+  setupSettingsHooks();
 
   beforeEach(() => {
-    targetManager = SDK.TargetManager.TargetManager.instance();
+    targetManager = SDK.TargetManager.TargetManager.instance({forceNew: true});
+
+    // TODO(crbug.com/451502260): Add Node.js specific host bindings. For now, we don't execute
+    //                            the InspectorFrontendHostStub, it only updates the document.title anyway.
+    inspectedURLChangedHostApi =
+        sinon.stub(Host.InspectorFrontendHost.InspectorFrontendHostInstance, 'inspectedURLChanged');
+  });
+
+  afterEach(() => {
+    Root.DevToolsContext.setGlobalInstance(null);
   });
 
   function resourceTreeModel(target: SDK.Target.Target): SDK.ResourceTreeModel.ResourceTreeModel {
@@ -34,14 +48,14 @@ describeWithMockConnection('TargetManager', () => {
     targetManager.observeTargets(observer);
     assert.isTrue(observer.targetAdded.calledOnceWith(target1));
     const target2 = createTarget();
-    assert.isTrue(observer.targetAdded.calledTwice);
-    assert.isTrue(observer.targetAdded.calledWith(target2));
+    sinon.assert.calledTwice(observer.targetAdded);
+    sinon.assert.calledWith(observer.targetAdded, target2);
     target2.dispose('YOLO!');
     assert.isTrue(observer.targetRemoved.calledOnceWith(target2));
 
     targetManager.unobserveTargets(observer);
     createTarget();
-    assert.isTrue(observer.targetAdded.calledTwice);
+    sinon.assert.calledTwice(observer.targetAdded);
   });
 
   it('allows observing models', () => {
@@ -50,14 +64,24 @@ describeWithMockConnection('TargetManager', () => {
     targetManager.observeModels(SDK.ResourceTreeModel.ResourceTreeModel, observer);
     assert.isTrue(observer.modelAdded.calledOnceWith(resourceTreeModel(target1)));
     const target2 = createTarget();
-    assert.isTrue(observer.modelAdded.calledTwice);
-    assert.isTrue(observer.modelAdded.calledWith(resourceTreeModel(target2)));
+    sinon.assert.calledTwice(observer.modelAdded);
+    sinon.assert.calledWith(observer.modelAdded, resourceTreeModel(target2));
     target2.dispose('YOLO!');
     assert.isTrue(observer.modelRemoved.calledOnceWith(resourceTreeModel(target2)));
 
     targetManager.unobserveModels(SDK.ResourceTreeModel.ResourceTreeModel, observer);
     createTarget();
-    assert.isTrue(observer.modelAdded.calledTwice);
+    sinon.assert.calledTwice(observer.modelAdded);
+  });
+
+  it('allows overriding which models to autostart', () => {
+    const context = new Root.DevToolsContext.WritableDevToolsContext();
+    context.set(Common.Settings.Settings, Common.Settings.Settings.instance());
+    const targetManager = new SDK.TargetManager.TargetManager(context, new Set([SDK.DebuggerModel.DebuggerModel]));
+    const target = createTarget({targetManager});
+
+    assert.isTrue(target.models().has(SDK.DebuggerModel.DebuggerModel));
+    assert.isFalse(target.models().has(SDK.DOMModel.DOMModel));
   });
 
   it('allows listening to models', () => {
@@ -69,17 +93,17 @@ describeWithMockConnection('TargetManager', () => {
     targetManager.addModelListener(SDK.ResourceTreeModel.ResourceTreeModel, WillReloadPage, listener, thisObject);
 
     resourceTreeModel(target1).dispatchEventToListeners(WillReloadPage);
-    assert.isTrue(listener.calledOnce);
-    assert.isTrue(listener.calledOn(thisObject));
+    sinon.assert.calledOnce(listener);
+    sinon.assert.calledOn(listener, thisObject);
 
     const target2 = createTarget();
     resourceTreeModel(target2).dispatchEventToListeners(WillReloadPage);
-    assert.isTrue(listener.calledTwice);
-    assert.isTrue(listener.calledOn(thisObject));
+    sinon.assert.calledTwice(listener);
+    sinon.assert.calledOn(listener, thisObject);
 
     targetManager.removeModelListener(SDK.ResourceTreeModel.ResourceTreeModel, WillReloadPage, listener, thisObject);
     resourceTreeModel(target1).dispatchEventToListeners(WillReloadPage);
-    assert.isTrue(listener.calledTwice);
+    sinon.assert.calledTwice(listener);
   });
 
   it('allows observing targets in scope', () => {
@@ -95,8 +119,8 @@ describeWithMockConnection('TargetManager', () => {
     assert.isTrue(observer.targetAdded.calledOnceWith(target1));
 
     const subtarget1 = createTarget({parentTarget: target1});
-    assert.isTrue(observer.targetAdded.calledTwice);
-    assert.isTrue(observer.targetAdded.calledWith(subtarget1));
+    sinon.assert.calledTwice(observer.targetAdded);
+    sinon.assert.calledWith(observer.targetAdded, subtarget1);
   });
 
   it('allows observing models in scope', () => {
@@ -109,11 +133,11 @@ describeWithMockConnection('TargetManager', () => {
     assert.isTrue(observer.modelAdded.calledOnceWith(resourceTreeModel(target1)));
 
     createTarget({parentTarget: target2});
-    assert.isTrue(observer.modelAdded.calledOnce);
+    sinon.assert.calledOnce(observer.modelAdded);
 
     const subtarget1 = createTarget({parentTarget: target1});
-    assert.isTrue(observer.modelAdded.calledTwice);
-    assert.isTrue(observer.modelAdded.calledWith(resourceTreeModel(subtarget1)));
+    sinon.assert.calledTwice(observer.modelAdded);
+    sinon.assert.calledWith(observer.modelAdded, resourceTreeModel(subtarget1));
   });
 
   it('calls second observers even if the first is changing the scope', () => {
@@ -128,8 +152,8 @@ describeWithMockConnection('TargetManager', () => {
     targetManager.observeModels(SDK.RuntimeModel.RuntimeModel, observer2, {scoped: true});
 
     target1.dispose('YOLO!');
-    assert.isTrue(observer1.modelRemoved.calledOnce);
-    assert.isTrue(observer2.modelRemoved.calledOnce);
+    sinon.assert.calledOnce(observer1.modelRemoved);
+    sinon.assert.calledOnce(observer2.modelRemoved);
   });
 
   it('allows listening to models in scope', () => {
@@ -143,23 +167,23 @@ describeWithMockConnection('TargetManager', () => {
         SDK.ResourceTreeModel.ResourceTreeModel, WillReloadPage, listener, thisObject, {scoped: true});
 
     resourceTreeModel(target1).dispatchEventToListeners(WillReloadPage);
-    assert.isTrue(listener.calledOnce);
-    assert.isTrue(listener.calledOn(thisObject));
+    sinon.assert.calledOnce(listener);
+    sinon.assert.calledOn(listener, thisObject);
 
     const target2 = createTarget();
     resourceTreeModel(target2).dispatchEventToListeners(WillReloadPage);
-    assert.isTrue(listener.calledOnce);
+    sinon.assert.calledOnce(listener);
 
     const subtarget1 = createTarget({parentTarget: target1});
     resourceTreeModel(subtarget1).dispatchEventToListeners(WillReloadPage);
-    assert.isTrue(listener.calledTwice);
+    sinon.assert.calledTwice(listener);
 
     targetManager.setScopeTarget(target2);
     resourceTreeModel(target1).dispatchEventToListeners(WillReloadPage);
-    assert.isTrue(listener.calledTwice);
+    sinon.assert.calledTwice(listener);
 
     resourceTreeModel(target2).dispatchEventToListeners(WillReloadPage);
-    assert.isTrue(listener.calledThrice);
+    sinon.assert.calledThrice(listener);
   });
 
   it('can transition between scopes', () => {
@@ -174,22 +198,22 @@ describeWithMockConnection('TargetManager', () => {
     targetManager.addScopeChangeListener(scopeChangeListener);
 
     assert.isTrue(targetObserver.targetAdded.calledOnceWith(target1));
-    assert.isTrue(modelObserver.modelAdded.calledOnce);
-    assert.isFalse(targetObserver.targetRemoved.called);
-    assert.isFalse(modelObserver.modelRemoved.called);
-    assert.isFalse(scopeChangeListener.called);
+    sinon.assert.calledOnce(modelObserver.modelAdded);
+    sinon.assert.notCalled(targetObserver.targetRemoved);
+    sinon.assert.notCalled(modelObserver.modelRemoved);
+    sinon.assert.notCalled(scopeChangeListener);
 
     targetObserver.targetAdded.resetHistory();
     modelObserver.modelAdded.resetHistory();
 
     targetManager.setScopeTarget(target2);
     assert.isTrue(targetObserver.targetRemoved.calledOnceWith(target1));
-    assert.isTrue(modelObserver.modelRemoved.calledOnce);
+    sinon.assert.calledOnce(modelObserver.modelRemoved);
     assert.isTrue(targetObserver.targetAdded.calledOnceWith(target2));
-    assert.isTrue(modelObserver.modelAdded.calledOnce);
+    sinon.assert.calledOnce(modelObserver.modelAdded);
     assert.isTrue(targetObserver.targetAdded.calledAfter(targetObserver.targetRemoved));
     assert.isTrue(modelObserver.modelAdded.calledAfter(modelObserver.modelRemoved));
-    assert.isTrue(scopeChangeListener.called);
+    sinon.assert.called(scopeChangeListener);
 
     targetObserver.targetAdded.resetHistory();
     targetObserver.targetRemoved.resetHistory();
@@ -198,11 +222,11 @@ describeWithMockConnection('TargetManager', () => {
     scopeChangeListener.resetHistory();
 
     targetManager.setScopeTarget(null);
-    assert.isFalse(targetObserver.targetAdded.called);
+    sinon.assert.notCalled(targetObserver.targetAdded);
     assert.isFalse(modelObserver.modelAdded.calledOnce);
     assert.isTrue(targetObserver.targetRemoved.calledOnceWith(target1));
-    assert.isTrue(modelObserver.modelRemoved.called);
-    assert.isTrue(scopeChangeListener.called);
+    sinon.assert.called(modelObserver.modelRemoved);
+    sinon.assert.called(scopeChangeListener);
 
     targetObserver.targetAdded.resetHistory();
     targetObserver.targetRemoved.resetHistory();
@@ -211,14 +235,14 @@ describeWithMockConnection('TargetManager', () => {
     scopeChangeListener.resetHistory();
 
     const target3 = createTarget();
-    assert.isFalse(targetObserver.targetAdded.called);
-    assert.isFalse(modelObserver.modelAdded.called);
-    assert.isFalse(scopeChangeListener.called);
+    sinon.assert.notCalled(targetObserver.targetAdded);
+    sinon.assert.notCalled(modelObserver.modelAdded);
+    sinon.assert.notCalled(scopeChangeListener);
 
     targetManager.setScopeTarget(target3);
-    assert.isTrue(targetObserver.targetAdded.called);
-    assert.isTrue(modelObserver.modelAdded.called);
-    assert.isTrue(scopeChangeListener.called);
+    sinon.assert.called(targetObserver.targetAdded);
+    sinon.assert.called(modelObserver.modelAdded);
+    sinon.assert.called(scopeChangeListener);
   });
 
   it('short-cicuits setting the same scope target', () => {
@@ -233,16 +257,14 @@ describeWithMockConnection('TargetManager', () => {
     modelObserver.modelRemoved.resetHistory();
 
     targetManager.setScopeTarget(target1);
-    assert.isFalse(targetObserver.targetAdded.called);
-    assert.isFalse(modelObserver.modelAdded.called);
-    assert.isFalse(targetObserver.targetRemoved.called);
-    assert.isFalse(modelObserver.modelRemoved.called);
+    sinon.assert.notCalled(targetObserver.targetAdded);
+    sinon.assert.notCalled(modelObserver.modelAdded);
+    sinon.assert.notCalled(targetObserver.targetRemoved);
+    sinon.assert.notCalled(modelObserver.modelRemoved);
   });
 
   it('notifies about inspected URL change', () => {
     const targets = [createTarget(), createTarget()];
-    const inspectedURLChangedHostApi =
-        sinon.spy(Host.InspectorFrontendHost.InspectorFrontendHostInstance, 'inspectedURLChanged');
     const inspectedURLChangedEventListener = sinon.spy();
     targetManager.addEventListener(SDK.TargetManager.Events.INSPECTED_URL_CHANGED, inspectedURLChangedEventListener);
 
@@ -271,8 +293,8 @@ describeWithMockConnection('TargetManager', () => {
     assert.strictEqual(inspectedURLChangedEventListener.lastCall.firstArg.data, targets[1]);
 
     targets.forEach(t => t.setInspectedURL(urlString`${`https://c.com/${t.id()}`}`));
-    assert.strictEqual(inspectedURLChangedHostApi.callCount, 4);
-    assert.strictEqual(inspectedURLChangedEventListener.callCount, 4);
+    sinon.assert.callCount(inspectedURLChangedHostApi, 4);
+    sinon.assert.callCount(inspectedURLChangedEventListener, 4);
     assert.strictEqual(inspectedURLChangedHostApi.lastCall.firstArg, `https://c.com/${targets[1].id()}`);
     assert.strictEqual(inspectedURLChangedEventListener.lastCall.firstArg.data, targets[1]);
   });

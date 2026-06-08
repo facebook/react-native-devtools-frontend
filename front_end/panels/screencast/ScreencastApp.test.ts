@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,8 +10,13 @@ import {describeWithMockConnection} from '../../testing/MockConnection.js';
 import * as Screencast from './screencast.js';
 
 describeWithMockConnection('ScreencastApp', () => {
+  let screencastApp: Screencast.ScreencastApp.ScreencastApp|undefined;
+
+  afterEach(() => {
+    screencastApp?.rootView?.detach();
+  });
   it('can start casting', async () => {
-    const screencastApp = new Screencast.ScreencastApp.ScreencastApp();
+    screencastApp = new Screencast.ScreencastApp.ScreencastApp();
     screencastApp.presentUI(document);
     const tabTarget = createTarget({type: SDK.Target.Type.TAB});
     createTarget({parentTarget: tabTarget, subtype: 'prerender'});
@@ -19,6 +24,5 @@ describeWithMockConnection('ScreencastApp', () => {
     const screenCaptureModel = target.model(SDK.ScreenCaptureModel.ScreenCaptureModel);
     assert.exists(screenCaptureModel);
     await expectCall(sinon.stub(screenCaptureModel, 'startScreencast'));
-    screencastApp.rootView?.detach();
   });
 });

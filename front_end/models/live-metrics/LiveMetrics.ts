@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -62,7 +62,29 @@ export class LiveMetrics extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
 
   private constructor() {
     super();
-    SDK.TargetManager.TargetManager.instance().observeTargets(this);
+    const targetManager = SDK.TargetManager.TargetManager.instance();
+    targetManager.observeTargets(this, {scoped: true});
+    // Listen for target info changes to detect prerender activation.
+    // Scoped observers don't receive events when a prerendered target becomes
+    // primary because setScopeTarget() isn't called during that transition.
+    targetManager.addEventListener(
+        SDK.TargetManager.Events.AVAILABLE_TARGETS_CHANGED, this.#onAvailableTargetsChanged, this);
+  }
+
+  #onAvailableTargetsChanged(): void {
+    const primaryTarget = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
+    if (primaryTarget && primaryTarget !== this.#target) {
+      // Primary target changed (e.g., prerender activation). Switch to it.
+      void this.#switchToTarget(primaryTarget);
+    }
+  }
+
+  async #switchToTarget(newTarget: SDK.Target.Target): Promise<void> {
+    if (this.#target) {
+      await this.disable();
+    }
+    this.#target = newTarget;
+    await this.enable();
   }
 
   static instance(opts: {forceNew?: boolean} = {forceNew: false}): LiveMetrics {
@@ -163,7 +185,8 @@ export class LiveMetrics extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
    * DOM nodes can't be sent over a runtime binding, so we have to retrieve
    * them separately.
    */
-  async #resolveNodeRef(index: number, executionContextId: Protocol.Runtime.ExecutionContextId): Promise<NodeRef|null> {
+  async #resolveNodeRef(index: number, executionContextId: Protocol.Runtime.ExecutionContextId):
+      Promise<SDK.DOMModel.DOMNode|null> {
     if (!this.#target) {
       return null;
     }
@@ -195,8 +218,7 @@ export class LiveMetrics extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
         return null;
       }
 
-      const link = await Common.Linkifier.Linkifier.linkify(node);
-      return {node, link};
+      return node;
     } catch {
       return null;
     } finally {
@@ -236,26 +258,23 @@ export class LiveMetrics extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
       ...this.#layoutShifts.flatMap(shift => shift.affectedNodeRefs),
     ].filter(nodeRef => !!nodeRef);
 
-    const idsToRefresh = new Set(toRefresh.map(nodeRef => nodeRef.node.backendNodeId()));
+    const idsToRefresh = new Set(toRefresh.map(nodeRef => nodeRef.backendNodeId()));
     const nodes = await domModel.pushNodesByBackendIdsToFrontend(idsToRefresh);
     if (!nodes) {
       return;
     }
 
-    const allPromises = toRefresh.map(async nodeRef => {
-      const refreshedNode = nodes.get(nodeRef.node.backendNodeId());
+    for (let i = 0; i < toRefresh.length; i++) {
+      const refreshedNode = nodes.get(toRefresh[i].backendNodeId());
 
       // It is possible for the refreshed node to be undefined even though it was defined previously.
       // We should keep the affected nodes consistent from the user perspective, so we will just keep the stale node instead of removing it.
       if (!refreshedNode) {
-        return;
+        continue;
       }
 
-      nodeRef.node = refreshedNode;
-      nodeRef.link = await Common.Linkifier.Linkifier.linkify(refreshedNode);
-    });
-
-    await Promise.all(allPromises);
+      toRefresh[i] = refreshedNode;
+    }
 
     this.#sendStatusUpdate();
   }
@@ -374,29 +393,20 @@ export class LiveMetrics extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
     this.#sendStatusUpdate();
   }
 
-  async #getFrameForExecutionContextId(executionContextId: Protocol.Runtime.ExecutionContextId):
-      Promise<SDK.ResourceTreeModel.ResourceTreeFrame|null> {
+  #isPrimaryFrameExecutionContext(executionContextId: Protocol.Runtime.ExecutionContextId): boolean {
     if (!this.#target) {
-      return null;
+      return false;
     }
 
     const runtimeModel = this.#target.model(SDK.RuntimeModel.RuntimeModel);
-    if (!runtimeModel) {
-      return null;
+    const executionContext = runtimeModel?.executionContext(executionContextId);
+    if (!executionContext?.frameId) {
+      return false;
     }
 
-    const executionContext = runtimeModel.executionContext(executionContextId);
-    if (!executionContext) {
-      return null;
-    }
-
-    const frameId = executionContext.frameId;
-    if (!frameId) {
-      return null;
-    }
-
-    const frameManager = SDK.FrameManager.FrameManager.instance();
-    return await frameManager.getOrWaitForFrame(frameId);
+    const resourceTreeModel = this.#target.model(SDK.ResourceTreeModel.ResourceTreeModel);
+    const primaryFrameId = resourceTreeModel?.mainFrame?.id;
+    return Boolean(primaryFrameId && executionContext.frameId === primaryFrameId);
   }
 
   async #onBindingCalled(event: {data: Protocol.Runtime.BindingCalledEvent}): Promise<void> {
@@ -410,23 +420,15 @@ export class LiveMetrics extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
     await this.#mutex.run(async () => {
       const webVitalsEvent = JSON.parse(data.payload) as Spec.WebVitalsEvent;
 
-      // This ensures that `#lastResetContextId` will always be an execution context on the
-      // primary frame. If we receive events from this execution context then we automatically
-      // know that they are for the primary frame.
-      if (this.#lastResetContextId !== data.executionContextId) {
-        if (webVitalsEvent.name !== 'reset') {
+      if (webVitalsEvent.name === 'reset') {
+        if (!this.#isPrimaryFrameExecutionContext(data.executionContextId)) {
           return;
         }
-
-        // We should avoid calling this function for every event.
-        // If an interaction triggers a pre-rendered navigation then the old primary frame could
-        // be removed before we reach this point, and then it will hang forever.
-        const frame = await this.#getFrameForExecutionContextId(data.executionContextId);
-        if (!frame?.isPrimaryFrame()) {
-          return;
-        }
-
         this.#lastResetContextId = data.executionContextId;
+      }
+
+      if (this.#lastResetContextId !== data.executionContextId) {
+        return;
       }
 
       await this.#handleWebVitalsEvent(webVitalsEvent, data.executionContextId);
@@ -467,6 +469,7 @@ export class LiveMetrics extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
   }
 
   async targetAdded(target: SDK.Target.Target): Promise<void> {
+    // Scoped observers can also receive events for OOPIFs and workers.
     if (target !== SDK.TargetManager.TargetManager.instance().primaryPageTarget()) {
       return;
     }
@@ -475,20 +478,12 @@ export class LiveMetrics extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
   }
 
   async targetRemoved(target: SDK.Target.Target): Promise<void> {
+    // Scoped observers can also receive events for OOPIFs and workers.
     if (target !== this.#target) {
       return;
     }
     await this.disable();
     this.#target = undefined;
-
-    // If the user navigates to a page that was pre-rendered then the primary page target
-    // will be swapped and the old target will be removed. We should ensure live metrics
-    // remain enabled on the new primary page target.
-    const primaryPageTarget = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
-    if (primaryPageTarget) {
-      this.#target = primaryPageTarget;
-      await this.enable();
-    }
   }
 
   async enable(): Promise<void> {
@@ -534,7 +529,13 @@ export class LiveMetrics extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
 
     const source = await InjectedScript.get();
 
-    const {identifier} = await this.#target.pageAgent().invoke_addScriptToEvaluateOnNewDocument({
+    // Extra check in case the target was removed while we were initializing.
+    // It's possible to be halfway-through enabling when the target is removed
+    // eg try loading 'devtools://devtools/bundled/devtools_app.html?ws=127.0.0.1:99/blah'
+    if (!this.#target) {
+      return;
+    }
+    const {identifier} = await this.#target?.pageAgent().invoke_addScriptToEvaluateOnNewDocument({
       source,
       worldName: LIVE_METRICS_WORLD_NAME,
       runImmediately: true,
@@ -551,6 +552,10 @@ export class LiveMetrics extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
     if (!this.#target || !this.#enabled) {
       return;
     }
+
+    // Reset to ensure clean state when re-enabling on a new target.
+    // See crbug.com/478832430.
+    this.#lastResetContextId = undefined;
 
     await this.#killAllLiveMetricContexts();
 
@@ -593,14 +598,9 @@ export interface MetricValue {
   warnings?: string[];
 }
 
-export interface NodeRef {
-  node: SDK.DOMModel.DOMNode;
-  link: Node;
-}
-
 export interface LcpValue extends MetricValue {
   phases: Spec.LcpPhases;
-  nodeRef?: NodeRef;
+  nodeRef?: SDK.DOMModel.DOMNode;
 }
 
 export interface InpValue extends MetricValue {
@@ -615,7 +615,7 @@ export interface ClsValue extends MetricValue {
 export interface LayoutShift {
   score: number;
   uniqueLayoutShiftId: Spec.UniqueLayoutShiftId;
-  affectedNodeRefs: NodeRef[];
+  affectedNodeRefs: SDK.DOMModel.DOMNode[];
 }
 
 export interface Interaction {
@@ -627,7 +627,7 @@ export interface Interaction {
   nextPaintTime: number;
   phases: Spec.InpPhases;
   longAnimationFrameTimings: Spec.PerformanceLongAnimationFrameTimingJSON[];
-  nodeRef?: NodeRef;
+  nodeRef?: SDK.DOMModel.DOMNode;
 }
 
 export interface StatusEvent {

@@ -1,6 +1,7 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 /*
  * Copyright (C) 2007, 2008, 2010 Apple Inc.  All rights reserved.
@@ -36,11 +37,12 @@ import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
+import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import * as IssuesManager from '../../models/issues_manager/issues_manager.js';
-import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as LegacyWrapper from '../../ui/components/legacy_wrapper/legacy_wrapper.js';
+import {createIcon} from '../../ui/kit/kit.js';
 import * as SourceFrame from '../../ui/legacy/components/source_frame/source_frame.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
@@ -50,13 +52,15 @@ import {BackForwardCacheTreeElement} from './BackForwardCacheTreeElement.js';
 import {BackgroundServiceModel} from './BackgroundServiceModel.js';
 import {BackgroundServiceView} from './BackgroundServiceView.js';
 import {BounceTrackingMitigationsTreeElement} from './BounceTrackingMitigationsTreeElement.js';
-import * as ApplicationComponents from './components/components.js';
+import {DeviceBoundSessionsModel} from './DeviceBoundSessionsModel.js';
+import {RootTreeElement as DeviceBoundSessionsRootTreeElement} from './DeviceBoundSessionsTreeElement.js';
 import {type DOMStorage, DOMStorageModel, Events as DOMStorageModelEvents} from './DOMStorageModel.js';
 import {
   Events as ExtensionStorageModelEvents,
   type ExtensionStorage,
   ExtensionStorageModel,
 } from './ExtensionStorageModel.js';
+import {FrameDetailsReportView} from './FrameDetailsView.js';
 import {
   type Database as IndexedDBModelDatabase,
   type DatabaseId,
@@ -88,181 +92,169 @@ import {SharedStorageTreeElement} from './SharedStorageTreeElement.js';
 import {StorageBucketsTreeParentElement} from './StorageBucketsTreeElement.js';
 import {StorageView} from './StorageView.js';
 import {TrustTokensTreeElement} from './TrustTokensTreeElement.js';
+import {WebMCPTreeElement} from './WebMCPTreeElement.js';
 
 const UIStrings = {
   /**
-   *@description Text in Application Panel Sidebar of the Application panel
+   * @description Text in Application Panel Sidebar of the Application panel
    */
   application: 'Application',
   /**
-   *@description Text in Application Panel Sidebar of the Application panel
+   * @description Text in Application Panel Sidebar of the Application panel
    */
   storage: 'Storage',
   /**
-   *@description Text in Application Panelthat shows if no local storage
+   * @description Text in Application Panelthat shows if no local storage
    *             can be shown.
    */
   noLocalStorage: 'No local storage detected',
   /**
-   *@description Text in Application Panel Sidebar of the Application panel
+   * @description Text in Application Panel Sidebar of the Application panel
    */
   localStorage: 'Local storage',
   /**
-   *@description Text in the Application panel describing the local storage tab.
+   * @description Text in the Application panel describing the local storage tab.
    */
   localStorageDescription: 'On this page you can view, add, edit, and delete local storage key-value pairs.',
   /**
-   *@description Text in Application Panel Sidebar of the Application panel
+   * @description Text in Application Panel Sidebar of the Application panel
    */
   sessionStorage: 'Session storage',
   /**
-   *@description Text in Application Panel if no session storage can be shown.
+   * @description Text in Application Panel if no session storage can be shown.
    */
   noSessionStorage: 'No session storage detected',
   /**
-   *@description Text in the Application panel describing the session storage tab.
+   * @description Text in the Application panel describing the session storage tab.
    */
   sessionStorageDescription: 'On this page you can view, add, edit, and delete session storage key-value pairs.',
   /**
-   *@description Text in Application Panel Sidebar of the Application panel
+   * @description Text in Application Panel Sidebar of the Application panel
    */
   extensionStorage: 'Extension storage',
   /**
-   *@description Text in Application Panel if no extension storage can be shown
+   * @description Text in Application Panel if no extension storage can be shown
    */
   noExtensionStorage: 'No extension storage detected',
   /**
-   *@description Text in the Application panel describing the extension storage tab.
+   * @description Text in the Application panel describing the extension storage tab.
    */
   extensionStorageDescription: 'On this page you can view, add, edit, and delete extension storage key-value pairs.',
   /**
-   *@description Text for extension session storage in Application panel
+   * @description Text for extension session storage in Application panel
    */
   extensionSessionStorage: 'Session',
   /**
-   *@description Text for extension local storage in Application panel
+   * @description Text for extension local storage in Application panel
    */
   extensionLocalStorage: 'Local',
   /**
-   *@description Text for extension sync storage in Application panel
+   * @description Text for extension sync storage in Application panel
    */
   extensionSyncStorage: 'Sync',
   /**
-   *@description Text for extension managed storage in Application panel
+   * @description Text for extension managed storage in Application panel
    */
   extensionManagedStorage: 'Managed',
   /**
-   *@description Text for web cookies
+   * @description Text for web cookies
    */
   cookies: 'Cookies',
   /**
-   *@description Text in the Application Panel if no cookies are set
+   * @description Text in the Application Panel if no cookies are set
    */
   noCookies: 'No cookies set',
   /**
-   *@description Text for web cookies
+   * @description Text for web cookies
    */
   cookiesDescription: 'On this page you can view, add, edit, and delete cookies.',
   /**
-   *@description Text in Application Panel Sidebar of the Application panel
+   * @description Text in Application Panel Sidebar of the Application panel
    */
   backgroundServices: 'Background services',
   /**
-   *@description Text for rendering frames
+   * @description Text for rendering frames
    */
   frames: 'Frames',
   /**
-   *@description Text that appears on a button for the manifest resource type filter.
+   * @description Text that appears on a button for the manifest resource type filter.
    */
   manifest: 'Manifest',
   /**
-   *@description Text in App Manifest View of the Application panel
-   */
-  noManifestDetected: 'No manifest detected',
-  /**
-   *@description Description text on manifests in App Manifest View of the Application panel which describes the app manifest view tab
-   */
-  manifestDescription:
-      'A manifest defines how your app appears on phone’s home screens and what the app looks like on launch.',
-  /**
-   *@description Text in App Manifest View of the Application panel
-   */
-  appManifest: 'Manifest',
-  /**
-   *@description Text in Application Panel Sidebar of the Application panel
+   * @description Text in Application Panel Sidebar of the Application panel
    */
   indexeddb: 'IndexedDB',
   /**
-   *@description Text in Application Panel if no indexedDB is detected
+   * @description Text in Application Panel if no indexedDB is detected
    */
   noIndexeddb: 'No indexedDB detected',
   /**
-   *@description Text in the Application panel describing the extension storage tab.
+   * @description Text in the Application panel describing the extension storage tab.
    */
   indexeddbDescription: 'On this page you can view and delete indexedDB key-value pairs and databases.',
   /**
-   *@description A context menu item in the Application Panel Sidebar of the Application panel
+   * @description A context menu item in the Application Panel Sidebar of the Application panel
    */
   refreshIndexeddb: 'Refresh IndexedDB',
   /**
-   *@description Tooltip in Application Panel Sidebar of the Application panel
-   *@example {1.0} PH1
+   * @description Tooltip in Application Panel Sidebar of the Application panel
+   * @example {1.0} PH1
    */
   versionSEmpty: 'Version: {PH1} (empty)',
   /**
-   *@description Tooltip in Application Panel Sidebar of the Application panel
-   *@example {1.0} PH1
+   * @description Tooltip in Application Panel Sidebar of the Application panel
+   * @example {1.0} PH1
    */
   versionS: 'Version: {PH1}',
   /**
-   *@description Text to clear content
+   * @description Text to clear content
    */
   clear: 'Clear',
   /**
-   *@description Text in Application Panel Sidebar of the Application panel
-   *@example {"key path"} PH1
+   * @description Text in Application Panel Sidebar of the Application panel
+   * @example {"key path"} PH1
    */
   keyPathS: 'Key path: {PH1}',
   /**
-   *@description Text in Application Panel Sidebar of the Application panel
+   * @description Text in Application Panel Sidebar of the Application panel
    */
   localFiles: 'Local Files',
   /**
-   *@description Tooltip in Application Panel Sidebar of the Application panel
-   *@example {https://example.com} PH1
+   * @description Tooltip in Application Panel Sidebar of the Application panel
+   * @example {https://example.com} PH1
    */
   cookiesUsedByFramesFromS: 'Cookies used by frames from {PH1}',
   /**
-   *@description Text in Frames View of the Application panel
+   * @description Text in Frames View of the Application panel
    */
   openedWindows: 'Opened Windows',
   /**
-   *@description Text in Frames View of the Application panel
+   * @description Text in Frames View of the Application panel
    */
   openedWindowsDescription: 'On this page you can view windows opened via window\.open\(\).',
   /**
-   *@description Label for plural of worker type: web workers
+   * @description Label for plural of worker type: web workers
    */
   webWorkers: 'Web Workers',
   /**
-   *@description Label in frame tree for unavailable document
+   * @description Label in frame tree for unavailable document
    */
   documentNotAvailable: 'No document detected',
   /**
-   *@description Description of content of unavailable document in Application panel
+   * @description Description of content of unavailable document in Application panel
    */
   theContentOfThisDocumentHasBeen:
       'The content of this document has been generated dynamically via \'document.write()\'.',
   /**
-   *@description Text in Frames View of the Application panel
+   * @description Text in Frames View of the Application panel
    */
   windowWithoutTitle: 'Window without title',
   /**
-   *@description Default name for worker
+   * @description Default name for worker
    */
   worker: 'worker',
   /**
-   *@description Description text for describing the dedicated worker tab.
+   * @description Description text for describing the dedicated worker tab.
    */
   workerDescription: 'On this page you can view dedicated workers that are created by the parent frame.',
   /**
@@ -284,8 +276,8 @@ const UIStrings = {
    */
   applicationSidebarPanel: 'Application panel sidebar',
   /**
-   *@description Tooltip in Application Panel Sidebar of the Application panel
-   *@example {https://example.com} PH1
+   * @description Tooltip in Application Panel Sidebar of the Application panel
+   * @example {https://example.com} PH1
    */
   thirdPartyPhaseout: 'Cookies from {PH1} may have been blocked due to third-party cookie phaseout.',
   /**
@@ -355,6 +347,9 @@ export class ApplicationPanelSidebar extends UI.Widget.VBox implements SDK.Targe
   periodicBackgroundSyncTreeElement: BackgroundServiceTreeElement;
   pushMessagingTreeElement: BackgroundServiceTreeElement;
   reportingApiTreeElement: ReportingApiTreeElement;
+  webMcpTreeElement?: WebMCPTreeElement;
+  deviceBoundSessionsRootTreeElement: DeviceBoundSessionsRootTreeElement|undefined;
+  deviceBoundSessionsModel: DeviceBoundSessionsModel|undefined;
   preloadingSummaryTreeElement: PreloadingSummaryTreeElement|undefined;
   private readonly resourcesSection: ResourcesSection;
   private domStorageTreeElements: Map<DOMStorage, DOMStorageTreeElement>;
@@ -362,9 +357,7 @@ export class ApplicationPanelSidebar extends UI.Widget.VBox implements SDK.Targe
   private extensionStorageModels: ExtensionStorageModel[];
   private extensionStorageTreeElements: Map<string, ExtensionStorageTreeElement>;
   private sharedStorageTreeElements: Map<string, SharedStorageTreeElement>;
-  private domains: {
-    [x: string]: boolean,
-  };
+  private domains: Record<string, boolean>;
   // Holds main frame target.
   private target?: SDK.Target.Target;
   private previousHoveredElement?: FrameTreeElement;
@@ -378,7 +371,7 @@ export class ApplicationPanelSidebar extends UI.Widget.VBox implements SDK.Targe
     this.sidebarTree = new UI.TreeOutline.TreeOutlineInShadow(UI.TreeOutline.TreeVariant.NAVIGATION_TREE);
     this.sidebarTree.registerRequiredCSS(resourcesSidebarStyles);
     this.sidebarTree.element.classList.add('resources-sidebar');
-    this.sidebarTree.hideOverflow();
+    this.sidebarTree.setHideOverflow(true);
 
     this.sidebarTree.element.classList.add('filter-all');
     // Listener needs to have been set up before the elements are added
@@ -399,6 +392,10 @@ export class ApplicationPanelSidebar extends UI.Widget.VBox implements SDK.Targe
     this.applicationTreeElement.appendChild(this.serviceWorkersTreeElement);
     const clearStorageTreeElement = new ClearStorageTreeElement(panel);
     this.applicationTreeElement.appendChild(clearStorageTreeElement);
+    if (Root.Runtime.hostConfig.devToolsWebMCPSupport?.enabled) {
+      this.webMcpTreeElement = new WebMCPTreeElement(panel);
+      this.applicationTreeElement.appendChild(this.webMcpTreeElement);
+    }
 
     const storageSectionTitle = i18nString(UIStrings.storage);
     const storageTreeElement = this.addSidebarSection(storageSectionTitle, 'storage');
@@ -406,9 +403,8 @@ export class ApplicationPanelSidebar extends UI.Widget.VBox implements SDK.Targe
         panel, i18nString(UIStrings.localStorage), i18nString(UIStrings.noLocalStorage),
         i18nString(UIStrings.localStorageDescription), 'local-storage');
     this.localStorageListTreeElement.setLink(
-        'https://developer.chrome.com/docs/devtools/storage/localstorage/?utm_source=devtools' as
-        Platform.DevToolsPath.UrlString);
-    const localStorageIcon = IconButton.Icon.create('table');
+        'https://developer.chrome.com/docs/devtools/storage/localstorage/' as Platform.DevToolsPath.UrlString);
+    const localStorageIcon = createIcon('table');
     this.localStorageListTreeElement.setLeadingIcons([localStorageIcon]);
 
     storageTreeElement.appendChild(this.localStorageListTreeElement);
@@ -416,9 +412,8 @@ export class ApplicationPanelSidebar extends UI.Widget.VBox implements SDK.Targe
         panel, i18nString(UIStrings.sessionStorage), i18nString(UIStrings.noSessionStorage),
         i18nString(UIStrings.sessionStorageDescription), 'session-storage');
     this.sessionStorageListTreeElement.setLink(
-        'https://developer.chrome.com/docs/devtools/storage/sessionstorage/?utm_source=devtools' as
-        Platform.DevToolsPath.UrlString);
-    const sessionStorageIcon = IconButton.Icon.create('table');
+        'https://developer.chrome.com/docs/devtools/storage/sessionstorage/' as Platform.DevToolsPath.UrlString);
+    const sessionStorageIcon = createIcon('table');
     this.sessionStorageListTreeElement.setLeadingIcons([sessionStorageIcon]);
 
     storageTreeElement.appendChild(this.sessionStorageListTreeElement);
@@ -427,26 +422,23 @@ export class ApplicationPanelSidebar extends UI.Widget.VBox implements SDK.Targe
         panel, i18nString(UIStrings.extensionStorage), i18nString(UIStrings.noExtensionStorage),
         i18nString(UIStrings.extensionStorageDescription), 'extension-storage');
     this.extensionStorageListTreeElement.setLink(
-        'https://developer.chrome.com/docs/extensions/reference/api/storage/?utm_source=devtools' as
-        Platform.DevToolsPath.UrlString);
-    const extensionStorageIcon = IconButton.Icon.create('table');
+        'https://developer.chrome.com/docs/extensions/reference/api/storage/' as Platform.DevToolsPath.UrlString);
+    const extensionStorageIcon = createIcon('table');
     this.extensionStorageListTreeElement.setLeadingIcons([extensionStorageIcon]);
 
     storageTreeElement.appendChild(this.extensionStorageListTreeElement);
 
     this.indexedDBListTreeElement = new IndexedDBTreeElement(panel);
     this.indexedDBListTreeElement.setLink(
-        'https://developer.chrome.com/docs/devtools/storage/indexeddb/?utm_source=devtools' as
-        Platform.DevToolsPath.UrlString);
+        'https://developer.chrome.com/docs/devtools/storage/indexeddb/' as Platform.DevToolsPath.UrlString);
     storageTreeElement.appendChild(this.indexedDBListTreeElement);
 
     this.cookieListTreeElement = new ExpandableApplicationPanelTreeElement(
         panel, i18nString(UIStrings.cookies), i18nString(UIStrings.noCookies), i18nString(UIStrings.cookiesDescription),
         'cookies');
     this.cookieListTreeElement.setLink(
-        'https://developer.chrome.com/docs/devtools/storage/cookies/?utm_source=devtools' as
-        Platform.DevToolsPath.UrlString);
-    const cookieIcon = IconButton.Icon.create('cookie');
+        'https://developer.chrome.com/docs/devtools/storage/cookies/' as Platform.DevToolsPath.UrlString);
+    const cookieIcon = createIcon('cookie');
     this.cookieListTreeElement.setLeadingIcons([cookieIcon]);
     storageTreeElement.appendChild(this.cookieListTreeElement);
 
@@ -499,6 +491,13 @@ export class ApplicationPanelSidebar extends UI.Widget.VBox implements SDK.Targe
     backgroundServiceTreeElement.appendChild(this.pushMessagingTreeElement);
     this.reportingApiTreeElement = new ReportingApiTreeElement(panel);
     backgroundServiceTreeElement.appendChild(this.reportingApiTreeElement);
+
+    if (Root.Runtime.hostConfig.deviceBoundSessionsDebugging?.enabled) {
+      this.deviceBoundSessionsModel = new DeviceBoundSessionsModel();
+      this.deviceBoundSessionsRootTreeElement =
+          new DeviceBoundSessionsRootTreeElement(panel, this.deviceBoundSessionsModel);
+      backgroundServiceTreeElement.appendChild(this.deviceBoundSessionsRootTreeElement);
+    }
 
     const resourcesSectionTitle = i18nString(UIStrings.frames);
     const resourcesTreeElement = this.addSidebarSection(resourcesSectionTitle, 'frames');
@@ -646,8 +645,8 @@ export class ApplicationPanelSidebar extends UI.Widget.VBox implements SDK.Targe
 
     this.cacheStorageListTreeElement.initialize();
     const backgroundServiceModel = this.target?.model(BackgroundServiceModel) || null;
-    this.backgroundFetchTreeElement && this.backgroundFetchTreeElement.initialize(backgroundServiceModel);
-    this.backgroundSyncTreeElement && this.backgroundSyncTreeElement.initialize(backgroundServiceModel);
+    this.backgroundFetchTreeElement.initialize(backgroundServiceModel);
+    this.backgroundSyncTreeElement.initialize(backgroundServiceModel);
     this.notificationsTreeElement.initialize(backgroundServiceModel);
     this.paymentHandlerTreeElement.initialize(backgroundServiceModel);
     this.periodicBackgroundSyncTreeElement.initialize(backgroundServiceModel);
@@ -779,6 +778,8 @@ export class ApplicationPanelSidebar extends UI.Widget.VBox implements SDK.Targe
     this.domains = {};
     this.cookieListTreeElement.removeChildren();
     this.interestGroupTreeElement.clearEvents();
+    this.deviceBoundSessionsModel?.clearVisibleSites();
+    this.deviceBoundSessionsModel?.clearEvents();
   }
 
   private frameNavigated(event: Common.EventTarget.EventTargetEvent<SDK.ResourceTreeModel.ResourceTreeFrame>): void {
@@ -810,6 +811,21 @@ export class ApplicationPanelSidebar extends UI.Widget.VBox implements SDK.Targe
       this.domains[domain] = true;
       const cookieDomainTreeElement = new CookieTreeElement(this.panel, frame, parsedURL);
       this.cookieListTreeElement.appendChild(cookieDomainTreeElement);
+
+      // Update device bound session visibility for new cookie domain.
+      if (this.deviceBoundSessionsModel) {
+        const target = frame.resourceTreeModel().target();
+        const networkAgent = target.networkAgent();
+        void networkAgent.invoke_fetchSchemefulSite({origin: domain}).then(response => {
+          if (response.getError() || !this.deviceBoundSessionsModel) {
+            return;
+          }
+          // Confirm the domain is still present first.
+          if (this.domains[domain]) {
+            this.deviceBoundSessionsModel.addVisibleSite(response.schemefulSite);
+          }
+        });
+      }
     }
   }
 
@@ -1003,10 +1019,6 @@ export class ApplicationPanelSidebar extends UI.Widget.VBox implements SDK.Targe
     this.resourcesSection.revealAndSelectFrame(frame);
   }
 
-  private innerShowView(view: UI.Widget.Widget): void {
-    this.panel.showView(view);
-  }
-
   showPreloadingRuleSetView(revealInfo: PreloadingHelper.PreloadingForward.RuleSetView): void {
     if (this.preloadingSummaryTreeElement) {
       this.preloadingSummaryTreeElement.expandAndRevealRuleSet(revealInfo);
@@ -1016,6 +1028,14 @@ export class ApplicationPanelSidebar extends UI.Widget.VBox implements SDK.Targe
   showPreloadingAttemptViewWithFilter(filter: PreloadingHelper.PreloadingForward.AttemptViewWithFilter): void {
     if (this.preloadingSummaryTreeElement) {
       this.preloadingSummaryTreeElement.expandAndRevealAttempts(filter);
+    }
+  }
+
+  showStorageBucket(bucketInfo: Protocol.Storage.StorageBucketInfo): void {
+    const bucketsModel = SDK.TargetManager.TargetManager.instance().primaryPageTarget()?.model(
+        SDK.StorageBucketsModel.StorageBucketsModel);
+    if (bucketsModel) {
+      this.storageBucketsTreeElement?.getBucketTreeElement(bucketsModel, bucketInfo)?.revealAndSelect(true);
     }
   }
 
@@ -1058,7 +1078,7 @@ export class BackgroundServiceTreeElement extends ApplicationPanelTreeElement {
   private serviceName: Protocol.BackgroundService.ServiceName;
   private view: BackgroundServiceView|null;
   private model: BackgroundServiceModel|null;
-  private selectedInternal: boolean;
+  #selected: boolean;
 
   constructor(storagePanel: ResourcesPanel, serviceName: Protocol.BackgroundService.ServiceName) {
     super(
@@ -1068,13 +1088,13 @@ export class BackgroundServiceTreeElement extends ApplicationPanelTreeElement {
     this.serviceName = serviceName;
 
     /* Whether the element has been selected. */
-    this.selectedInternal = false;
+    this.#selected = false;
 
     this.view = null;
 
     this.model = null;
 
-    const backgroundServiceIcon = IconButton.Icon.create(this.getIconType());
+    const backgroundServiceIcon = createIcon(this.getIconType());
     this.setLeadingIcons([backgroundServiceIcon]);
   }
 
@@ -1101,7 +1121,7 @@ export class BackgroundServiceTreeElement extends ApplicationPanelTreeElement {
   initialize(model: BackgroundServiceModel|null): void {
     this.model = model;
     // Show the view if the model was initialized after selection.
-    if (this.selectedInternal && !this.view) {
+    if (this.#selected && !this.view) {
       this.onselect(false);
     }
   }
@@ -1119,7 +1139,7 @@ export class BackgroundServiceTreeElement extends ApplicationPanelTreeElement {
 
   override onselect(selectedByUser?: boolean): boolean {
     super.onselect(selectedByUser);
-    this.selectedInternal = true;
+    this.#selected = true;
 
     if (!this.model) {
       return false;
@@ -1140,7 +1160,7 @@ export class ServiceWorkersTreeElement extends ApplicationPanelTreeElement {
 
   constructor(storagePanel: ResourcesPanel) {
     super(storagePanel, i18n.i18n.lockedString('Service workers'), false, 'service-workers');
-    const icon = IconButton.Icon.create('gears');
+    const icon = createIcon('gears');
     this.setLeadingIcons([icon]);
   }
 
@@ -1163,14 +1183,10 @@ export class AppManifestTreeElement extends ApplicationPanelTreeElement {
   private view: AppManifestView;
   constructor(storagePanel: ResourcesPanel) {
     super(storagePanel, i18nString(UIStrings.manifest), true, 'manifest');
-    const icon = IconButton.Icon.create('document');
+    const icon = createIcon('document');
     this.setLeadingIcons([icon]);
     self.onInvokeElement(this.listItemElement, this.onInvoke.bind(this));
-    const emptyView = new UI.EmptyWidget.EmptyWidget(
-        i18nString(UIStrings.noManifestDetected), i18nString(UIStrings.manifestDescription));
-    // TODO(crbug.com/1156978): Replace UI.ReportView.ReportView with ReportView.ts web component.
-    const reportView = new UI.ReportView.ReportView(i18nString(UIStrings.appManifest));
-    this.view = new AppManifestView(emptyView, reportView, new Common.Throttler.Throttler(1000));
+    this.view = new AppManifestView();
     UI.ARIAUtils.setLabel(this.listItemElement, i18nString(UIStrings.onInvokeManifestAlert));
     const handleExpansion = (hasManifest: boolean): void => {
       this.setExpandable(hasManifest);
@@ -1192,70 +1208,37 @@ export class AppManifestTreeElement extends ApplicationPanelTreeElement {
   generateChildren(): void {
     const staticSections = this.view.getStaticSections();
     for (const section of staticSections) {
-      const sectionElement = section.getTitleElement();
-      const childTitle = section.title();
-      const sectionFieldElement = section.getFieldElement();
-      const child = new ManifestChildTreeElement(
-          this.resourcesPanel, sectionElement, childTitle, sectionFieldElement, section.jslogContext || '');
+      const childTitle = section.title;
+      const child = new ApplicationPanelTreeElement(this.resourcesPanel, childTitle, false, section.jslogContext || '');
+      child.onselect = (selectedByUser?: boolean): boolean => {
+        if (selectedByUser) {
+          this.showView(this.view);
+          this.view.scrollToSection(childTitle);
+        }
+        return true;
+      };
+
+      const icon = createIcon('document');
+      child.setLeadingIcons([icon]);
+
+      child.listItemElement.addEventListener('keydown', (event: Event) => {
+        if ((event as KeyboardEvent).key !== 'Tab' || (event as KeyboardEvent).shiftKey) {
+          return;
+        }
+
+        if (this.view.focusOnSection(childTitle)) {
+          event.consume(true);
+        }
+      });
+      UI.ARIAUtils.setLabel(
+          child.listItemElement, i18nString(UIStrings.beforeInvokeAlert, {PH1: child.listItemElement.title}));
       this.appendChild(child);
     }
   }
 
   onInvoke(): void {
     this.view.getManifestElement().scrollIntoView();
-    UI.ARIAUtils.alert(i18nString(UIStrings.onInvokeAlert, {PH1: this.listItemElement.title}));
-  }
-
-  showManifestView(): void {
-    this.showView(this.view);
-  }
-}
-
-export class ManifestChildTreeElement extends ApplicationPanelTreeElement {
-  #sectionElement: Element;
-  #sectionFieldElement: HTMLElement;
-  constructor(
-      storagePanel: ResourcesPanel, element: Element, childTitle: string, fieldElement: HTMLElement,
-      jslogContext: string) {
-    super(storagePanel, childTitle, false, jslogContext);
-    const icon = IconButton.Icon.create('document');
-    this.setLeadingIcons([icon]);
-    this.#sectionElement = element;
-    this.#sectionFieldElement = fieldElement;
-    self.onInvokeElement(this.listItemElement, this.onInvoke.bind(this));
-    this.listItemElement.addEventListener('keydown', this.onInvokeElementKeydown.bind(this));
-    UI.ARIAUtils.setLabel(
-        this.listItemElement, i18nString(UIStrings.beforeInvokeAlert, {PH1: this.listItemElement.title}));
-  }
-
-  override get itemURL(): Platform.DevToolsPath.UrlString {
-    return 'manifest://' + this.title as Platform.DevToolsPath.UrlString;
-  }
-
-  onInvoke(): void {
-    (this.parent as AppManifestTreeElement)?.showManifestView();
-    this.#sectionElement.scrollIntoView();
-    UI.ARIAUtils.alert(i18nString(UIStrings.onInvokeAlert, {PH1: this.listItemElement.title}));
-  }
-  // direct focus to the corresponding element
-  onInvokeElementKeydown(event: KeyboardEvent): void {
-    if (event.key !== 'Tab' || event.shiftKey) {
-      return;
-    }
-    const checkBoxElement = this.#sectionFieldElement.querySelector('.mask-checkbox');
-    let focusableElement: HTMLElement|null = this.#sectionFieldElement.querySelector('[tabindex="0"]');
-    if (checkBoxElement?.shadowRoot) {
-      focusableElement = checkBoxElement.shadowRoot.querySelector('input') || null;
-    } else if (!focusableElement) {
-      // special case for protocol handler section since it is a custom Element and has different structure than the others
-      focusableElement = this.#sectionFieldElement.querySelector('devtools-protocol-handlers-view')
-                             ?.shadowRoot?.querySelector('[tabindex="0"]') ||
-          null;
-    }
-    if (focusableElement) {
-      focusableElement?.focus();
-      event.consume(true);
-    }
+    UI.ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.onInvokeAlert, {PH1: this.listItemElement.title}));
   }
 }
 
@@ -1263,7 +1246,7 @@ export class ClearStorageTreeElement extends ApplicationPanelTreeElement {
   private view?: StorageView;
   constructor(storagePanel: ResourcesPanel) {
     super(storagePanel, i18nString(UIStrings.storage), false, 'storage');
-    const icon = IconButton.Icon.create('database');
+    const icon = createIcon('database');
     this.setLeadingIcons([icon]);
   }
 
@@ -1289,7 +1272,7 @@ export class IndexedDBTreeElement extends ExpandableApplicationPanelTreeElement 
     super(
         storagePanel, i18nString(UIStrings.indexeddb), i18nString(UIStrings.noIndexeddb),
         i18nString(UIStrings.indexeddbDescription), 'indexed-db');
-    const icon = IconButton.Icon.create('database');
+    const icon = createIcon('database');
     this.setLeadingIcons([icon]);
     this.idbDatabaseTreeElements = [];
     this.storageBucket = storageBucket;
@@ -1432,7 +1415,7 @@ export class IDBDatabaseTreeElement extends ApplicationPanelTreeElement {
     this.model = model;
     this.databaseId = databaseId;
     this.idbObjectStoreTreeElements = new Map();
-    const icon = IconButton.Icon.create('database');
+    const icon = createIcon('database');
     this.setLeadingIcons([icon]);
     this.model.addEventListener(IndexedDBModelEvents.DatabaseNamesRefreshed, this.refreshIndexedDB, this);
   }
@@ -1557,7 +1540,7 @@ export class IDBObjectStoreTreeElement extends ApplicationPanelTreeElement {
     this.idbIndexTreeElements = new Map();
     this.objectStore = objectStore;
     this.view = null;
-    const icon = IconButton.Icon.create('table');
+    const icon = createIcon('table');
     this.setLeadingIcons([icon]);
   }
 
@@ -1769,7 +1752,7 @@ export class DOMStorageTreeElement extends ApplicationPanelTreeElement {
                                 i18nString(UIStrings.localFiles),
         false, domStorage.isLocalStorage ? 'local-storage-for-domain' : 'session-storage-for-domain');
     this.domStorage = domStorage;
-    const icon = IconButton.Icon.create('table');
+    const icon = createIcon('table');
     this.setLeadingIcons([icon]);
   }
 
@@ -1804,7 +1787,7 @@ export class ExtensionStorageTreeElement extends ApplicationPanelTreeElement {
     super(
         storagePanel, nameForExtensionStorageArea(extensionStorage.storageArea), false, 'extension-storage-for-domain');
     this.extensionStorage = extensionStorage;
-    const icon = IconButton.Icon.create('table');
+    const icon = createIcon('table');
     this.setLeadingIcons([icon]);
   }
 
@@ -1842,7 +1825,7 @@ export class ExtensionStorageTreeParentElement extends ApplicationPanelTreeEleme
   constructor(storagePanel: ResourcesPanel, extensionId: string, extensionName: string) {
     super(storagePanel, extensionName || extensionId, true, 'extension-storage-for-domain');
     this.extensionId = extensionId;
-    const icon = IconButton.Icon.create('table');
+    const icon = createIcon('table');
     this.setLeadingIcons([icon]);
   }
 
@@ -1853,31 +1836,30 @@ export class ExtensionStorageTreeParentElement extends ApplicationPanelTreeEleme
 
 export class CookieTreeElement extends ApplicationPanelTreeElement {
   private readonly target: SDK.Target.Target;
-  private readonly cookieDomainInternal: string;
+  readonly #cookieDomain: string;
 
   constructor(
       storagePanel: ResourcesPanel, frame: SDK.ResourceTreeModel.ResourceTreeFrame,
       cookieUrl: Common.ParsedURL.ParsedURL) {
     super(storagePanel, cookieUrl.securityOrigin() || i18nString(UIStrings.localFiles), false, 'cookies-for-frame');
     this.target = frame.resourceTreeModel().target();
-    this.cookieDomainInternal = cookieUrl.securityOrigin();
-    this.tooltip = i18nString(UIStrings.cookiesUsedByFramesFromS, {PH1: this.cookieDomainInternal});
-    const icon = IconButton.Icon.create('cookie');
+    this.#cookieDomain = cookieUrl.securityOrigin();
+    this.tooltip = i18nString(UIStrings.cookiesUsedByFramesFromS, {PH1: this.#cookieDomain});
+    const icon = createIcon('cookie');
     // Note that we cannot use `cookieDomainInternal` here since it contains scheme.
     if (IssuesManager.RelatedIssue.hasThirdPartyPhaseoutCookieIssueForDomain(cookieUrl.domain())) {
       icon.name = 'warning-filled';
-      icon.classList.add('warn-icon');
-      this.tooltip = i18nString(UIStrings.thirdPartyPhaseout, {PH1: this.cookieDomainInternal});
+      this.tooltip = i18nString(UIStrings.thirdPartyPhaseout, {PH1: this.#cookieDomain});
     }
     this.setLeadingIcons([icon]);
   }
 
   override get itemURL(): Platform.DevToolsPath.UrlString {
-    return 'cookies://' + this.cookieDomainInternal as Platform.DevToolsPath.UrlString;
+    return 'cookies://' + this.#cookieDomain as Platform.DevToolsPath.UrlString;
   }
 
   cookieDomain(): string {
-    return this.cookieDomainInternal;
+    return this.#cookieDomain;
   }
 
   override onattach(): void {
@@ -1888,14 +1870,14 @@ export class CookieTreeElement extends ApplicationPanelTreeElement {
   private handleContextMenuEvent(event: Event): void {
     const contextMenu = new UI.ContextMenu.ContextMenu(event);
     contextMenu.defaultSection().appendItem(
-        i18nString(UIStrings.clear), () => this.resourcesPanel.clearCookies(this.target, this.cookieDomainInternal),
+        i18nString(UIStrings.clear), () => this.resourcesPanel.clearCookies(this.target, this.#cookieDomain),
         {jslogContext: 'clear'});
     void contextMenu.show();
   }
 
   override onselect(selectedByUser?: boolean): boolean {
     super.onselect(selectedByUser);
-    this.resourcesPanel.showCookies(this.target, this.cookieDomainInternal);
+    this.resourcesPanel.showCookies(this.target, this.#cookieDomain);
     Host.userMetrics.panelShown(Host.UserMetrics.PanelCodes[Host.UserMetrics.PanelCodes.cookies]);
     return false;
   }
@@ -1903,14 +1885,12 @@ export class CookieTreeElement extends ApplicationPanelTreeElement {
 
 export class StorageCategoryView extends UI.Widget.VBox {
   private emptyWidget: UI.EmptyWidget.EmptyWidget;
-  private linkElement: HTMLElement|null;
 
   constructor() {
     super();
 
     this.element.classList.add('storage-view');
     this.emptyWidget = new UI.EmptyWidget.EmptyWidget('', '');
-    this.linkElement = null;
     this.emptyWidget.show(this.element);
   }
 
@@ -1923,17 +1903,7 @@ export class StorageCategoryView extends UI.Widget.VBox {
   }
 
   setLink(link: Platform.DevToolsPath.UrlString|null): void {
-    if (link && !this.linkElement) {
-      this.linkElement = this.emptyWidget.appendLink(link);
-    }
-    if (!link && this.linkElement) {
-      this.linkElement.classList.add('hidden');
-    }
-    if (link && this.linkElement) {
-      this.linkElement.setAttribute('href', link);
-      this.linkElement.setAttribute('title', link);
-      this.linkElement.classList.remove('hidden');
-    }
+    this.emptyWidget.link = link;
   }
 }
 
@@ -1960,17 +1930,19 @@ export class ResourcesSection implements SDK.TargetManager.Observer {
     frameManager.addEventListener(
         SDK.FrameManager.Events.RESOURCE_ADDED, event => this.resourceAdded(event.data.resource), this);
 
-    SDK.TargetManager.TargetManager.instance().addModelListener(
-        SDK.ChildTargetManager.ChildTargetManager, SDK.ChildTargetManager.Events.TARGET_CREATED, this.windowOpened,
-        this, {scoped: true});
-    SDK.TargetManager.TargetManager.instance().addModelListener(
-        SDK.ChildTargetManager.ChildTargetManager, SDK.ChildTargetManager.Events.TARGET_INFO_CHANGED,
-        this.windowChanged, this, {scoped: true});
-    SDK.TargetManager.TargetManager.instance().addModelListener(
-        SDK.ChildTargetManager.ChildTargetManager, SDK.ChildTargetManager.Events.TARGET_DESTROYED, this.windowDestroyed,
-        this, {scoped: true});
+    if (this.panel.mode !== 'node') {
+      SDK.TargetManager.TargetManager.instance().addModelListener(
+          SDK.ChildTargetManager.ChildTargetManager, SDK.ChildTargetManager.Events.TARGET_CREATED, this.windowOpened,
+          this, {scoped: true});
+      SDK.TargetManager.TargetManager.instance().addModelListener(
+          SDK.ChildTargetManager.ChildTargetManager, SDK.ChildTargetManager.Events.TARGET_INFO_CHANGED,
+          this.windowChanged, this, {scoped: true});
+      SDK.TargetManager.TargetManager.instance().addModelListener(
+          SDK.ChildTargetManager.ChildTargetManager, SDK.ChildTargetManager.Events.TARGET_DESTROYED,
+          this.windowDestroyed, this, {scoped: true});
 
-    SDK.TargetManager.TargetManager.instance().observeTargets(this, {scoped: true});
+      SDK.TargetManager.TargetManager.instance().observeTargets(this, {scoped: true});
+    }
   }
 
   private initialize(): void {
@@ -2169,19 +2141,16 @@ export class ResourcesSection implements SDK.TargetManager.Observer {
 export class FrameTreeElement extends ApplicationPanelTreeElement {
   private section: ResourcesSection;
   private frame: SDK.ResourceTreeModel.ResourceTreeFrame;
-  private frameId: string;
   private readonly categoryElements: Map<string, ExpandableApplicationPanelTreeElement>;
   private readonly treeElementForResource: Map<string, FrameResourceTreeElement>;
   private treeElementForWindow: Map<Protocol.Target.TargetID, FrameWindowTreeElement>;
   private treeElementForWorker: Map<Protocol.Target.TargetID, WorkerTreeElement>;
-  private view: LegacyWrapper.LegacyWrapper
-      .LegacyWrapper<UI.Widget.Widget, ApplicationComponents.FrameDetailsView.FrameDetailsReportView>|null;
+  private view: FrameDetailsReportView|null;
 
   constructor(section: ResourcesSection, frame: SDK.ResourceTreeModel.ResourceTreeFrame) {
     super(section.panel, '', false, 'frame');
     this.section = section;
     this.frame = frame;
-    this.frameId = frame.id;
     this.categoryElements = new Map();
     this.treeElementForResource = new Map();
     this.treeElementForWindow = new Map();
@@ -2199,14 +2168,13 @@ export class FrameTreeElement extends ApplicationPanelTreeElement {
   }
 
   async frameNavigated(frame: SDK.ResourceTreeModel.ResourceTreeFrame): Promise<void> {
-    const icon = IconButton.Icon.create(this.getIconTypeForFrame(frame));
+    const icon = createIcon(this.getIconTypeForFrame(frame));
     if (frame.unreachableUrl()) {
       icon.classList.add('red-icon');
     }
     this.setLeadingIcons([icon]);
     this.invalidateChildren();
 
-    this.frameId = frame.id;
     if (this.title !== frame.displayName()) {
       this.title = frame.displayName();
       UI.ARIAUtils.setLabel(this.listItemElement, this.title);
@@ -2222,8 +2190,8 @@ export class FrameTreeElement extends ApplicationPanelTreeElement {
     this.treeElementForWorker.clear();
 
     if (this.selected) {
-      this.view = LegacyWrapper.LegacyWrapper.legacyWrapper(
-          UI.Widget.Widget, new ApplicationComponents.FrameDetailsView.FrameDetailsReportView(this.frame));
+      this.view = new FrameDetailsReportView();
+      this.view.frame = this.frame;
       this.showView(this.view);
     } else {
       this.view = null;
@@ -2260,8 +2228,8 @@ export class FrameTreeElement extends ApplicationPanelTreeElement {
   override onselect(selectedByUser?: boolean): boolean {
     super.onselect(selectedByUser);
     if (!this.view) {
-      this.view = LegacyWrapper.LegacyWrapper.legacyWrapper(
-          UI.Widget.Widget, new ApplicationComponents.FrameDetailsView.FrameDetailsReportView(this.frame));
+      this.view = new FrameDetailsReportView();
+      this.view.frame = this.frame;
     }
     Host.userMetrics.panelShown('frame-details');
     this.showView(this.view);
@@ -2402,7 +2370,7 @@ export class FrameResourceTreeElement extends ApplicationPanelTreeElement {
     this.tooltip = resource.url;
     resourceToFrameResourceTreeElement.set(this.resource, this);
 
-    const icon = IconButton.Icon.create('document', 'navigator-file-tree-item');
+    const icon = createIcon('document', 'navigator-file-tree-item');
     icon.classList.add('navigator-' + resource.resourceType().name() + '-tree-item');
     this.setLeadingIcons([icon]);
   }
@@ -2493,7 +2461,7 @@ class FrameWindowTreeElement extends ApplicationPanelTreeElement {
 
   updateIcon(canAccessOpener: boolean): void {
     const iconType = canAccessOpener ? 'popup' : 'frame';
-    const icon = IconButton.Icon.create(iconType);
+    const icon = createIcon(iconType);
     this.setLeadingIcons([icon]);
   }
 
@@ -2504,7 +2472,7 @@ class FrameWindowTreeElement extends ApplicationPanelTreeElement {
     this.targetInfo = targetInfo;
     if (this.view) {
       this.view.setTargetInfo(targetInfo);
-      this.view.update();
+      this.view.requestUpdate();
     }
   }
 
@@ -2513,7 +2481,7 @@ class FrameWindowTreeElement extends ApplicationPanelTreeElement {
     this.isWindowClosed = true;
     if (this.view) {
       this.view.setIsWindowClosed(true);
-      this.view.update();
+      this.view.requestUpdate();
     }
   }
 
@@ -2522,7 +2490,7 @@ class FrameWindowTreeElement extends ApplicationPanelTreeElement {
     if (!this.view) {
       this.view = new OpenedWindowDetailsView(this.targetInfo, this.isWindowClosed);
     } else {
-      this.view.update();
+      this.view.requestUpdate();
     }
     this.showView(this.view);
     Host.userMetrics.panelShown('frame-window');
@@ -2542,7 +2510,7 @@ class WorkerTreeElement extends ApplicationPanelTreeElement {
     super(storagePanel, targetInfo.title || targetInfo.url || i18nString(UIStrings.worker), false, 'worker');
     this.targetInfo = targetInfo;
     this.view = null;
-    const icon = IconButton.Icon.create('gears', 'navigator-file-tree-item');
+    const icon = createIcon('gears', 'navigator-file-tree-item');
     this.setLeadingIcons([icon]);
   }
 
@@ -2551,7 +2519,7 @@ class WorkerTreeElement extends ApplicationPanelTreeElement {
     if (!this.view) {
       this.view = new WorkerDetailsView(this.targetInfo);
     } else {
-      this.view.update();
+      this.view.requestUpdate();
     }
     this.showView(this.view);
     Host.userMetrics.panelShown('frame-worker');

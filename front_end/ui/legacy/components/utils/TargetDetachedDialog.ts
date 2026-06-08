@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,6 +41,9 @@ export class TargetDetachedDialog extends SDK.SDKModel.SDKModel<void> implements
       TargetDetachedDialog.hideCrashedDialog.call(null);
       TargetDetachedDialog.hideCrashedDialog = null;
     }
+  }
+
+  workerScriptLoaded(): void {
   }
 
   detached({reason}: Protocol.Inspector.DetachedEvent): void {
@@ -98,7 +101,8 @@ export class TargetDetachedDialog extends SDK.SDKModel.SDKModel<void> implements
     dialog.show();
   }
 
-  /** ;
+  /**
+   * ;
    */
   targetReloadedAfterCrash(): void {
     void this.target().runtimeAgent().invoke_runIfWaitingForDebugger();

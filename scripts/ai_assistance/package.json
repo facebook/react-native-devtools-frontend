@@ -1,0 +1,8 @@
+{
+  "type": "module",
+  "scripts": {
+    "auto-run": "node auto-run/auto-run.ts",
+    "auto-run:test": "npx  mocha auto-run/**/*.test.ts",
+    "eval-suite": "node suite/*.eval.ts"
+  }
+}

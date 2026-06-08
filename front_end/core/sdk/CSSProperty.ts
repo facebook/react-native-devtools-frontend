@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,9 +41,9 @@ export class CSSProperty extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
   implicit: boolean;
   text: string|null|undefined;
   range: TextUtils.TextRange.TextRange|null;
-  #active: boolean;
-  #nameRangeInternal: TextUtils.TextRange.TextRange|null;
-  #valueRangeInternal: TextUtils.TextRange.TextRange|null;
+  #active = true;
+  #nameRange: TextUtils.TextRange.TextRange|null = null;
+  #valueRange: TextUtils.TextRange.TextRange|null = null;
   #invalidString?: Common.UIString.LocalizedString;
   #longhandProperties: CSSProperty[] = [];
 
@@ -62,9 +62,6 @@ export class CSSProperty extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
     this.implicit = implicit;  // A longhand, implicitly set by missing values of shorthand.
     this.text = text;
     this.range = range ? TextUtils.TextRange.TextRange.fromObject(range) : null;
-    this.#active = true;
-    this.#nameRangeInternal = null;
-    this.#valueRangeInternal = null;
 
     if (longhandProperties && longhandProperties.length > 0) {
       for (const property of longhandProperties) {
@@ -118,14 +115,14 @@ export class CSSProperty extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
     const matchers = matchedStyles.propertyMatchers(this.ownerStyle, computedStyles);
 
     matchers.push(new CSSWideKeywordMatcher(this, matchedStyles));
-    if (Root.Runtime.experiments.isEnabled('font-editor')) {
+    if (Root.Runtime.experiments.isEnabled(Root.ExperimentNames.ExperimentName.FONT_EDITOR)) {
       matchers.push(new FontMatcher());
     }
     return matchers;
   }
 
   private ensureRanges(): void {
-    if (this.#nameRangeInternal && this.#valueRangeInternal) {
+    if (this.#nameRange && this.#valueRange) {
       return;
     }
     const range = this.range;
@@ -143,8 +140,8 @@ export class CSSProperty extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
     const nameSourceRange = new TextUtils.TextRange.SourceRange(nameIndex, this.name.length);
     const valueSourceRange = new TextUtils.TextRange.SourceRange(valueIndex, this.value.length);
 
-    this.#nameRangeInternal = rebase(text.toTextRange(nameSourceRange), range.startLine, range.startColumn);
-    this.#valueRangeInternal = rebase(text.toTextRange(valueSourceRange), range.startLine, range.startColumn);
+    this.#nameRange = rebase(text.toTextRange(nameSourceRange), range.startLine, range.startColumn);
+    this.#valueRange = rebase(text.toTextRange(valueSourceRange), range.startLine, range.startColumn);
 
     function rebase(oneLineRange: TextUtils.TextRange.TextRange, lineOffset: number, columnOffset: number):
         TextUtils.TextRange.TextRange {
@@ -160,12 +157,12 @@ export class CSSProperty extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
 
   nameRange(): TextUtils.TextRange.TextRange|null {
     this.ensureRanges();
-    return this.#nameRangeInternal;
+    return this.#nameRange;
   }
 
   valueRange(): TextUtils.TextRange.TextRange|null {
     this.ensureRanges();
-    return this.#valueRangeInternal;
+    return this.#valueRange;
   }
 
   rebase(edit: Edit): void {
@@ -228,7 +225,7 @@ export class CSSProperty extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
     const range = this.range.relativeTo(this.ownerStyle.range.startLine, this.ownerStyle.range.startColumn);
     const indentation = this.ownerStyle.cssText ?
         this.detectIndentation(this.ownerStyle.cssText) :
-        Common.Settings.Settings.instance().moduleSetting('text-editor-indent').get();
+        this.ownerStyle.cssModel().target().targetManager().settings.moduleSetting('text-editor-indent').get();
     const endIndentation = this.ownerStyle.cssText ? indentation.substring(0, this.ownerStyle.range.endColumn) : '';
     const text = new TextUtils.Text.Text(this.ownerStyle.cssText || '');
     const newStyleText = text.replaceRange(range, Platform.StringUtilities.sprintf(';%s;', propertyText));
@@ -295,7 +292,7 @@ export class CSSProperty extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
       }
       if (cssMetadata().isGridAreaDefiningProperty(propertyName)) {
         const rowResult = GridAreaRowRegex.exec(token);
-        if (rowResult && rowResult.index === 0 && !propertyText.trimEnd().endsWith(']')) {
+        if (rowResult?.index === 0 && !propertyText.trimEnd().endsWith(']')) {
           propertyText = propertyText.trimEnd() + '\n' + doubleIndent;
         }
       }
@@ -380,5 +377,43 @@ export class CSSProperty extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
 
   getLonghandProperties(): CSSProperty[] {
     return this.#longhandProperties;
+  }
+
+  ignoreErrors(): boolean {
+    function hasUnknownVendorPrefix(string: string): boolean {
+      return !string.startsWith('-webkit-') && /^[-_][\w\d]+-\w/.test(string);
+    }
+
+    const name = this.name.toLowerCase();
+
+    // IE hack.
+    if (name.charAt(0) === '_') {
+      return true;
+    }
+
+    // IE has a different format for this.
+    if (name === 'filter') {
+      return true;
+    }
+
+    // Common IE-specific property prefix.
+    if (name.startsWith('scrollbar-')) {
+      return true;
+    }
+    if (hasUnknownVendorPrefix(name)) {
+      return true;
+    }
+
+    const value = this.value.toLowerCase();
+
+    // IE hack.
+    if (value.endsWith('\\9')) {
+      return true;
+    }
+    if (hasUnknownVendorPrefix(value)) {
+      return true;
+    }
+
+    return false;
   }
 }

@@ -1,15 +1,21 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as Common from '../../core/common/common.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
-import {getCleanTextContentFromElements, renderElementIntoDOM} from '../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../testing/EnvironmentHelpers.js';
+import * as Logs from '../../models/logs/logs.js';
+import * as NetworkTimeCalculator from '../../models/network_time_calculator/network_time_calculator.js';
+import {assertScreenshot, getCleanTextContentFromElements, renderElementIntoDOM} from '../../testing/DOMHelpers.js';
+import {stubNoopSettings} from '../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../testing/LocaleHelpers.js';
+import {createViewFunctionStub} from '../../testing/ViewFunctionHelpers.js';
+import * as ObjectUI from '../../ui/legacy/components/object_ui/object_ui.js';
+import * as UI from '../../ui/legacy/legacy.js';
 
-import * as Network from './NetworkTimeCalculator.js';
-import * as RequestTimingView from './RequestTimingView.js';
+import * as Network from './network.js';
 
 const {urlString} = Platform.DevToolsPath;
 
@@ -58,23 +64,24 @@ function createNetworkRequest(
   return request;
 }
 
-describeWithLocale('ResourceTimingView', () => {
+describe('ResourceTimingView', () => {
+  setupLocaleHooks();
   it('RequestTimeRanges has router evaluation field with SW router source as network', async () => {
     const request = createNetworkRequest(
         Protocol.Network.ServiceWorkerRouterSource.Network, Protocol.Network.ServiceWorkerRouterSource.Network);
     const timingInfo = request.timing as Protocol.Network.ResourceTiming;
-    const timeRanges = RequestTimingView.RequestTimingView.calculateRequestTimeRanges(request, 100);
+    const timeRanges = NetworkTimeCalculator.calculateRequestTimeRanges(request, 100);
     const routerEvaluationTime = timingInfo.workerRouterEvaluationStart as number;
     const sendStart = timingInfo.sendStart;
 
     const routerEvaluation = timeRanges.find(
-        timeRange => timeRange.name === RequestTimingView.RequestTimeRangeNames.SERVICE_WORKER_ROUTER_EVALUATION);
+        timeRange => timeRange.name === NetworkTimeCalculator.RequestTimeRangeNames.SERVICE_WORKER_ROUTER_EVALUATION);
     assert.isTrue(Boolean(routerEvaluation), 'worker router evaluation exists');
     assert.strictEqual(routerEvaluation?.start, timingInfo.requestTime + routerEvaluationTime / 1000);
     assert.strictEqual(routerEvaluation?.end, timingInfo.requestTime + sendStart / 1000);
 
     const cacheLookup = timeRanges.find(
-        timeRange => timeRange.name === RequestTimingView.RequestTimeRangeNames.SERVICE_WORKER_CACHE_LOOKUP);
+        timeRange => timeRange.name === NetworkTimeCalculator.RequestTimeRangeNames.SERVICE_WORKER_CACHE_LOOKUP);
     assert.isFalse(Boolean(cacheLookup), 'worker cache lookup does not exist');
   });
 
@@ -82,18 +89,18 @@ describeWithLocale('ResourceTimingView', () => {
     const request = createNetworkRequest(
         Protocol.Network.ServiceWorkerRouterSource.FetchEvent, Protocol.Network.ServiceWorkerRouterSource.FetchEvent);
     const timingInfo = request.timing as Protocol.Network.ResourceTiming;
-    const timeRanges = RequestTimingView.RequestTimingView.calculateRequestTimeRanges(request, 100);
+    const timeRanges = NetworkTimeCalculator.calculateRequestTimeRanges(request, 100);
     const routerEvaluationTime = timingInfo.workerRouterEvaluationStart as number;
     const workerStart = timingInfo.workerStart;
 
     const routerEvaluation = timeRanges.find(
-        timeRange => timeRange.name === RequestTimingView.RequestTimeRangeNames.SERVICE_WORKER_ROUTER_EVALUATION);
+        timeRange => timeRange.name === NetworkTimeCalculator.RequestTimeRangeNames.SERVICE_WORKER_ROUTER_EVALUATION);
     assert.isTrue(Boolean(routerEvaluation), 'worker router evaluation exists');
     assert.strictEqual(routerEvaluation?.start, timingInfo.requestTime + routerEvaluationTime / 1000);
     assert.strictEqual(routerEvaluation?.end, timingInfo.requestTime + workerStart / 1000);
 
     const cacheLookup = timeRanges.find(
-        timeRange => timeRange.name === RequestTimingView.RequestTimeRangeNames.SERVICE_WORKER_CACHE_LOOKUP);
+        timeRange => timeRange.name === NetworkTimeCalculator.RequestTimeRangeNames.SERVICE_WORKER_CACHE_LOOKUP);
     assert.isFalse(Boolean(cacheLookup), 'worker cache lookup does not exist');
   });
 
@@ -101,18 +108,18 @@ describeWithLocale('ResourceTimingView', () => {
     const request = createNetworkRequest(
         Protocol.Network.ServiceWorkerRouterSource.Cache, Protocol.Network.ServiceWorkerRouterSource.Cache);
     const timingInfo = request.timing as Protocol.Network.ResourceTiming;
-    const timeRanges = RequestTimingView.RequestTimingView.calculateRequestTimeRanges(request, 100);
+    const timeRanges = NetworkTimeCalculator.calculateRequestTimeRanges(request, 100);
     const routerEvaluationTime = timingInfo.workerRouterEvaluationStart as number;
     const cacheLookupStart = timingInfo.workerCacheLookupStart as number;
 
     const routerEvaluation = timeRanges.find(
-        timeRange => timeRange.name === RequestTimingView.RequestTimeRangeNames.SERVICE_WORKER_ROUTER_EVALUATION);
+        timeRange => timeRange.name === NetworkTimeCalculator.RequestTimeRangeNames.SERVICE_WORKER_ROUTER_EVALUATION);
     assert.isTrue(Boolean(routerEvaluation), 'worker router evaluation exists');
     assert.strictEqual(routerEvaluation?.start, timingInfo.requestTime + routerEvaluationTime / 1000);
     assert.strictEqual(routerEvaluation?.end, timingInfo.requestTime + cacheLookupStart / 1000);
 
     const cacheLookup = timeRanges.find(
-        timeRange => timeRange.name === RequestTimingView.RequestTimeRangeNames.SERVICE_WORKER_CACHE_LOOKUP);
+        timeRange => timeRange.name === NetworkTimeCalculator.RequestTimeRangeNames.SERVICE_WORKER_CACHE_LOOKUP);
     assert.isTrue(Boolean(cacheLookup), 'worker cache lookup does not exist');
     assert.strictEqual(cacheLookup?.start, timingInfo.requestTime + cacheLookupStart / 1000);
     assert.strictEqual(cacheLookup?.end, timingInfo.requestTime + timingInfo.receiveHeadersStart / 1000);
@@ -122,32 +129,36 @@ describeWithLocale('ResourceTimingView', () => {
     const request = createNetworkRequest(
         Protocol.Network.ServiceWorkerRouterSource.Cache, Protocol.Network.ServiceWorkerRouterSource.Network);
     const timingInfo = request.timing as Protocol.Network.ResourceTiming;
-    const timeRanges = RequestTimingView.RequestTimingView.calculateRequestTimeRanges(request, 100);
+    const timeRanges = NetworkTimeCalculator.calculateRequestTimeRanges(request, 100);
     const routerEvaluationTime = timingInfo.workerRouterEvaluationStart as number;
     const cacheLookupStart = timingInfo.workerCacheLookupStart as number;
 
     const routerEvaluation = timeRanges.find(
-        timeRange => timeRange.name === RequestTimingView.RequestTimeRangeNames.SERVICE_WORKER_ROUTER_EVALUATION);
+        timeRange => timeRange.name === NetworkTimeCalculator.RequestTimeRangeNames.SERVICE_WORKER_ROUTER_EVALUATION);
     assert.isTrue(Boolean(routerEvaluation), 'worker router evaluation exists');
     assert.strictEqual(routerEvaluation?.start, timingInfo.requestTime + routerEvaluationTime / 1000);
     assert.strictEqual(routerEvaluation?.end, timingInfo.requestTime + cacheLookupStart / 1000);
 
     const cacheLookup = timeRanges.find(
-        timeRange => timeRange.name === RequestTimingView.RequestTimeRangeNames.SERVICE_WORKER_CACHE_LOOKUP);
+        timeRange => timeRange.name === NetworkTimeCalculator.RequestTimeRangeNames.SERVICE_WORKER_CACHE_LOOKUP);
     assert.isTrue(Boolean(cacheLookup), 'worker cache lookup does not exist');
     assert.strictEqual(cacheLookup?.start, timingInfo.requestTime + cacheLookupStart / 1000);
     assert.strictEqual(cacheLookup?.end, timingInfo.requestTime + timingInfo.sendStart / 1000);
   });
 
   it('Timing table has router evaluation field with detail tabs', async () => {
+    stubNoopSettings();
     const request = createNetworkRequest(
         Protocol.Network.ServiceWorkerRouterSource.Network, Protocol.Network.ServiceWorkerRouterSource.Network);
 
-    const component = new RequestTimingView.RequestTimingView(request, new Network.NetworkTimeCalculator(true));
+    const component = Network.RequestTimingView.RequestTimingView.create(
+        request, new NetworkTimeCalculator.NetworkTimeCalculator(true));
     const div = document.createElement('div');
     renderElementIntoDOM(div);
     component.markAsRoot();
     component.show(div);
+
+    await component.updateComplete;
 
     // Test if we correctly set details element
     const routerEvaluationDetailsElement = document.querySelector('.router-evaluation-timing-bar-details');
@@ -168,5 +179,155 @@ describeWithLocale('ResourceTimingView', () => {
     const networkString = String(Protocol.Network.ServiceWorkerRouterSource.Network);
     assert.strictEqual(content[0], `Matched source: ${networkString}`, 'matched source does not match');
     assert.strictEqual(content[1], `Actual source: ${networkString}`, 'actual source does not match');
+  });
+
+  it('Timing table shows throttling indicator', async () => {
+    stubNoopSettings();
+    const container = document.createElement('div');
+    renderElementIntoDOM(container, {includeCommonStyles: true});
+
+    const request = createNetworkRequest(
+        Protocol.Network.ServiceWorkerRouterSource.Cache, Protocol.Network.ServiceWorkerRouterSource.Cache);
+    const timeRanges = NetworkTimeCalculator.calculateRequestTimeRanges(request, 100);
+
+    const wasThrottled = new SDK.NetworkManager.AppliedNetworkConditions(SDK.NetworkManager.Slow3GConditions, '');
+    const input: Parameters<typeof Network.RequestTimingView.DEFAULT_VIEW>[0] = {
+      requestUnfinished: false,
+      requestStartTime: 0,
+      requestIssueTime: 0,
+      totalDuration: 100,
+      startTime: 0,
+      endTime: 100,
+      timeRanges,
+      calculator: new NetworkTimeCalculator.NetworkTimeCalculator(true),
+      serverTimings: [],
+      wasThrottled
+    };
+
+    Network.RequestTimingView.DEFAULT_VIEW(input, {}, container);
+    await assertScreenshot('network/request-timing-view-throttling.png');
+
+    const icon = container.querySelector<HTMLElement>('devtools-icon[name=watch]');
+    assert.exists(icon);
+    const revealStub = sinon.stub(Common.Revealer.RevealerRegistry.instance(), 'reveal');
+    icon.click();
+    sinon.assert.calledOnceWithExactly(revealStub, wasThrottled, false);
+  });
+
+  it('correctly passes requestUnfinished to the view', async () => {
+    stubNoopSettings();
+    const request = createNetworkRequest(
+        Protocol.Network.ServiceWorkerRouterSource.Network, Protocol.Network.ServiceWorkerRouterSource.Network);
+    request.finished = false;
+    const calculator = new NetworkTimeCalculator.NetworkTimeCalculator(true);
+
+    const viewStub = createViewFunctionStub(Network.RequestTimingView.RequestTimingView);
+    const component = new Network.RequestTimingView.RequestTimingView(undefined, viewStub);
+    renderElementIntoDOM(component);
+
+    component.request = request;
+    component.calculator = calculator;
+
+    const input = await viewStub.nextInput;
+    assert.isTrue(input.requestUnfinished, 'requestUnfinished should be true when request is not finished');
+
+    const requestFinished = createNetworkRequest(
+        Protocol.Network.ServiceWorkerRouterSource.Network, Protocol.Network.ServiceWorkerRouterSource.Network);
+    requestFinished.finished = true;
+
+    component.request = requestFinished;
+
+    const inputFinished = await viewStub.nextInput;
+    assert.isFalse(inputFinished.requestUnfinished, 'requestUnfinished should be false when request is finished');
+  });
+
+  it('shows caution message in DEFAULT_VIEW if and only if requestUnfinished is true', async () => {
+    stubNoopSettings();
+    const container = document.createElement('div');
+    renderElementIntoDOM(container);
+
+    const request = createNetworkRequest(
+        Protocol.Network.ServiceWorkerRouterSource.Network, Protocol.Network.ServiceWorkerRouterSource.Network);
+    const timeRanges = NetworkTimeCalculator.calculateRequestTimeRanges(request, 100);
+    const calculator = new NetworkTimeCalculator.NetworkTimeCalculator(true);
+
+    const baseInput: Parameters<typeof Network.RequestTimingView.DEFAULT_VIEW>[0] = {
+      requestUnfinished: false,
+      requestStartTime: 0,
+      requestIssueTime: 0,
+      totalDuration: 100,
+      startTime: 0,
+      endTime: 100,
+      timeRanges,
+      calculator,
+      serverTimings: [],
+    };
+
+    // Case 1: requestUnfinished = true
+    Network.RequestTimingView.DEFAULT_VIEW({...baseInput, requestUnfinished: true}, {}, container);
+    const cautionElementTrue = container.querySelector('.caution');
+    assert.isNotNull(cautionElementTrue, 'caution element should exist when requestUnfinished is true');
+    assert.include(cautionElementTrue?.textContent, 'CAUTION: request is not finished yet!');
+
+    // Case 2: requestUnfinished = false
+    Network.RequestTimingView.DEFAULT_VIEW({...baseInput, requestUnfinished: false}, {}, container);
+    const cautionElementFalse = container.querySelector('.caution');
+    assert.isNull(cautionElementFalse, 'caution element should not exist when requestUnfinished is false');
+  });
+
+  it('renders read-only object properties for Service Worker fetch details', async () => {
+    stubNoopSettings();
+    const request = createNetworkRequest(
+        Protocol.Network.ServiceWorkerRouterSource.Network, Protocol.Network.ServiceWorkerRouterSource.Network);
+    request.fetchedViaServiceWorker = true;
+
+    const origRequest = {
+      url: request.url(),
+      method: 'GET',
+      headers: {},
+      initialPriority: Protocol.Network.ResourcePriority.High,
+      referrerPolicy: Protocol.Network.RequestReferrerPolicy.StrictOriginWhenCrossOrigin,
+    } as Protocol.Network.Request;
+
+    const response = {
+      url: request.url(),
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      mimeType: 'text/html',
+      charset: '',
+      connectionReused: false,
+      connectionId: 0,
+      encodedDataLength: 0,
+      securityState: Protocol.Security.SecurityState.Secure,
+    } as Protocol.Network.Response;
+
+    sinon.stub(Logs.NetworkLog.NetworkLog.instance(), 'originalRequestForURL').returns(origRequest);
+    sinon.stub(Logs.NetworkLog.NetworkLog.instance(), 'originalResponseForURL').returns(response);
+
+    const component = Network.RequestTimingView.RequestTimingView.create(
+        request, new NetworkTimeCalculator.NetworkTimeCalculator(true));
+    const div = document.createElement('div');
+    renderElementIntoDOM(div);
+    component.markAsRoot();
+    component.show(div);
+
+    await component.updateComplete;
+
+    const detailsTreeElement = component.contentElement.querySelector('.network-fetch-timing-bar-details > *');
+    assert.exists(detailsTreeElement);
+    assert.exists(detailsTreeElement.shadowRoot);
+
+    const rootElements = detailsTreeElement.shadowRoot.querySelectorAll('li.object-properties-section-root-element');
+    assert.lengthOf(rootElements, 2);
+
+    for (const rootElementNode of rootElements) {
+      const rootElement = UI.TreeOutline.TreeElement.getTreeElementBylistItemNode(rootElementNode);
+      assert.exists(rootElement);
+      await rootElement.onpopulate();
+      const firstProperty = rootElement.childAt(0);
+      assert.instanceOf(firstProperty, ObjectUI.ObjectPropertiesSection.ObjectPropertyTreeElement);
+      assert.isFalse(firstProperty.editable);
+    }
   });
 });

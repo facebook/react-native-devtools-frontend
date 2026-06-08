@@ -3,6 +3,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../ui/kit/kit.js';
+
 import type * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -63,7 +65,7 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
   }
 
   private constructor(options: RNWelcomeOptions) {
-    super(true, true);
+    super({useShadowDom: true, delegatesFocus: true});
     this.registerRequiredCSS(rnWelcomeStyles);
 
     this.options = options;
@@ -147,12 +149,12 @@ export class RNWelcomeImpl extends UI.Widget.VBox implements
             ${i18nString(UIStrings.welcomeMessage)}
           </div>
           <div class="rn-welcome-links">
-            <x-link class="devtools-link" href="https://reactnative.dev/docs/debugging">
+            <devtools-link class="devtools-link" href="https://reactnative.dev/docs/debugging">
               ${i18nString(UIStrings.docsLabel)}
-            </x-link>
-            <x-link class="devtools-link" href="https://reactnative.dev/blog">
+            </devtools-link>
+            <devtools-link class="devtools-link" href="https://reactnative.dev/blog">
               ${i18nString(UIStrings.whatsNewLabel)}
-            </x-link>
+            </devtools-link>
           </div>
           ${launchId ? html`
             <aside>

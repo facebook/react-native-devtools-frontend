@@ -1,10 +1,11 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import type * as Common from '../../core/common/common.js';
 import type * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
+import {assertScreenshot, renderElementIntoDOM} from '../../testing/DOMHelpers.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {
   describeWithMockConnection,
@@ -70,7 +71,7 @@ describeWithMockConnection('ExtensionStorageItemsView', function() {
   const TEST_EXTENSION_ID = 'abc';
   const TEST_EXTENSION_NAME = 'Hello World';
 
-  const EXAMPLE_DATA: {[key: string]: string} = {a: 'foo', b: 'bar'};
+  const EXAMPLE_DATA: Record<string, string> = {a: 'foo', b: 'bar'};
 
   beforeEach(() => {
     target = createTarget();
@@ -80,11 +81,15 @@ describeWithMockConnection('ExtensionStorageItemsView', function() {
         extensionStorageModel, TEST_EXTENSION_ID, TEST_EXTENSION_NAME, Protocol.Extensions.StorageArea.Local);
   });
 
-  function createView():
-      {view: View.ExtensionStorageItemsView, viewFunction: ViewFunctionStub<typeof View.ExtensionStorageItemsView>} {
-    const viewFunction = createViewFunctionStub(View.ExtensionStorageItemsView);
+  function createView(): {
+    view: View.ExtensionStorageItemsView,
+    viewFunction: ViewFunctionStub<typeof View.ExtensionStorageItemsView>,
+    toolbar: Resources.StorageItemsToolbar.StorageItemsToolbar,
+  } {
+    const toolbar = new Resources.StorageItemsToolbar.StorageItemsToolbar();
+    const viewFunction = createViewFunctionStub(View.ExtensionStorageItemsView, {toolbar});
     const view = new View.ExtensionStorageItemsView(extensionStorage, viewFunction);
-    return {view, viewFunction};
+    return {view, viewFunction, toolbar};
   }
 
   it('displays items', async () => {
@@ -126,14 +131,7 @@ describeWithMockConnection('ExtensionStorageItemsView', function() {
 
     for (const {input, parsedValue} of expectedResults) {
       const key = Object.keys(EXAMPLE_DATA)[0];
-      viewFunction.input.onEdit(new CustomEvent('edit', {
-        detail: {
-          node: {dataset: {key}} as unknown as HTMLElement,
-          columnId: 'value',
-          valueBeforeEditing: EXAMPLE_DATA[key],
-          newText: input
-        }
-      }));
+      viewFunction.input.onEdit(key, 'oldValue', 'value', EXAMPLE_DATA[key], input);
 
       await itemsListener.waitForItemsEdited();
       setStorageItems.calledOnceWithExactly(
@@ -143,6 +141,37 @@ describeWithMockConnection('ExtensionStorageItemsView', function() {
     }
 
     await RenderCoordinator.done();
+    view.detach();
+  });
+
+  it('screenshot test', async () => {
+    assert.exists(extensionStorageModel);
+    sinon.stub(extensionStorageModel.agent, 'invoke_getStorageItems')
+        .withArgs({id: TEST_EXTENSION_ID, storageArea: Protocol.Extensions.StorageArea.Local})
+        .resolves({
+          data: EXAMPLE_DATA,
+          getError: () => undefined,
+        });
+
+    const parent = document.createElement('div');
+    parent.style.width = '780px';
+    parent.style.height = '400px';
+    renderElementIntoDOM(parent);
+
+    const view = new View.ExtensionStorageItemsView(extensionStorage);
+    view.markAsRoot();
+    view.show(parent);
+    const target = view.element;
+    target.style.display = 'flex';
+    target.style.width = '780px';
+    target.style.height = '400px';
+
+    const itemsListener = new ExtensionStorageItemsListener(view.extensionStorageItemsDispatcher);
+    await itemsListener.waitForItemsRefreshed();
+
+    await view.updateComplete;
+
+    await assertScreenshot('application/extension-storage-item-view.png');
     view.detach();
   });
 });

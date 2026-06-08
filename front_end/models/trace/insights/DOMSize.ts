@@ -1,7 +1,8 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import type * as Common from '../../../core/common/common.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Handlers from '../handlers/handlers.js';
 import * as Helpers from '../helpers/helpers.js';
@@ -24,7 +25,7 @@ export const UIStrings = {
    * @description Description of an insight that recommends reducing the size of the DOM tree as a means to improve page responsiveness. "DOM" is an acronym and should not be translated. "layout reflows" are when the browser will recompute the layout of content on the page.
    */
   description:
-      'A large DOM can increase the duration of style calculations and layout reflows, impacting page responsiveness. A large DOM will also increase memory usage. [Learn how to avoid an excessive DOM size](https://developer.chrome.com/docs/lighthouse/performance/dom-size/).',
+      'A large DOM can increase the duration of style calculations and layout reflows, impacting page responsiveness. A large DOM will also increase memory usage. [Learn how to avoid an excessive DOM size](https://developer.chrome.com/docs/performance/insights/dom-size).',
   /**
    * @description Header for a column containing the names of statistics as opposed to the actual statistic values.
    */
@@ -49,6 +50,25 @@ export const UIStrings = {
    * @description Label for a value representing the maximum number of child elements of any parent element on the page.
    */
   maxChildren: 'Most children',
+  /**
+   * @description Text for a section.
+   */
+  topUpdatesDescription:
+      'These are the largest layout and style recalculation events. Their performance impact may be reduced by making the DOM simpler.',
+  /**
+   * @description Label used for a time duration.
+   */
+  duration: 'Duration',
+  /**
+   * @description Message displayed in a table detailing how big a layout (rendering) is.
+   * @example {134} PH1
+   */
+  largeLayout: 'Layout ({PH1} objects)',
+  /**
+   * @description Message displayed in a table detailing how big a style recalculation (rendering) is.
+   * @example {134} PH1
+   */
+  largeStyleRecalc: 'Style recalculation ({PH1} elements)',
 } as const;
 
 const str_ = i18n.i18n.registerUIStrings('models/trace/insights/DOMSize.ts', UIStrings);
@@ -64,7 +84,9 @@ const STYLE_RECALC_ELEMENTS_THRESHOLD = 300;
 
 export type DOMSizeInsightModel = InsightModel<typeof UIStrings, {
   largeLayoutUpdates: Types.Events.Layout[],
-  largeStyleRecalcs: Types.Events.UpdateLayoutTree[],
+  largeStyleRecalcs: Types.Events.RecalcStyle[],
+  largeUpdates: Array<
+      {label: Common.UIString.LocalizedString, duration: Types.Timing.Milli, size: number, event: Types.Events.Event}>,
   maxDOMStats?: Types.Events.DOMStats,
 }>;
 
@@ -75,23 +97,27 @@ function finalize(partialModel: PartialInsightModel<DOMSizeInsightModel>): DOMSi
     strings: UIStrings,
     title: i18nString(UIStrings.title),
     description: i18nString(UIStrings.description),
+    docs: 'https://developer.chrome.com/docs/performance/insights/dom-size',
     category: InsightCategory.INP,
-    state: relatedEvents.length > 0 ? 'fail' : 'pass',
+    state: relatedEvents.length > 0 ? 'informative' : 'pass',
     ...partialModel,
     relatedEvents,
   };
 }
 
-export function generateInsight(
-    parsedTrace: Handlers.Types.ParsedTrace, context: InsightSetContext): DOMSizeInsightModel {
+export function isDomSizeInsight(model: InsightModel): model is DOMSizeInsightModel {
+  return model.insightKey === InsightKeys.DOM_SIZE;
+}
+
+export function generateInsight(data: Handlers.Types.HandlerData, context: InsightSetContext): DOMSizeInsightModel {
   const isWithinContext = (event: Types.Events.Event): boolean => Helpers.Timing.eventIsInBounds(event, context.bounds);
 
   const mainTid = context.navigation?.tid;
 
   const largeLayoutUpdates: Types.Events.Layout[] = [];
-  const largeStyleRecalcs: Types.Events.UpdateLayoutTree[] = [];
+  const largeStyleRecalcs: Types.Events.RecalcStyle[] = [];
 
-  const threads = Handlers.Threads.threadsInRenderer(parsedTrace.Renderer, parsedTrace.AuctionWorklets);
+  const threads = Handlers.Threads.threadsInRenderer(data.Renderer, data.AuctionWorklets);
   for (const thread of threads) {
     if (thread.type !== Handlers.Threads.ThreadType.MAIN_THREAD) {
       continue;
@@ -107,12 +133,12 @@ export function generateInsight(
       continue;
     }
 
-    const rendererThread = parsedTrace.Renderer.processes.get(thread.pid)?.threads.get(thread.tid);
+    const rendererThread = data.Renderer.processes.get(thread.pid)?.threads.get(thread.tid);
     if (!rendererThread) {
       continue;
     }
 
-    const {entries, layoutEvents, updateLayoutTreeEvents} = rendererThread;
+    const {entries, layoutEvents, recalcStyleEvents} = rendererThread;
     if (!entries.length) {
       continue;
     }
@@ -136,7 +162,7 @@ export function generateInsight(
       }
     }
 
-    for (const event of updateLayoutTreeEvents) {
+    for (const event of recalcStyleEvents) {
       if (event.dur < DOM_SIZE_DURATION_THRESHOLD || !isWithinContext(event)) {
         continue;
       }
@@ -148,7 +174,22 @@ export function generateInsight(
     }
   }
 
-  const domStatsEvents = parsedTrace.DOMStats.domStatsByFrameId.get(context.frameId)?.filter(isWithinContext) ?? [];
+  const largeUpdates: DOMSizeInsightModel['largeUpdates'] = [
+    ...largeLayoutUpdates.map(event => {
+      const duration = (event.dur / 1000) as Types.Timing.Milli;
+      const size = event.args.beginData.dirtyObjects;
+      const label = i18nString(UIStrings.largeLayout, {PH1: size});
+      return {label, duration, size, event};
+    }),
+    ...largeStyleRecalcs.map(event => {
+      const duration = (event.dur / 1000) as Types.Timing.Milli;
+      const size = event.args.elementCount;
+      const label = i18nString(UIStrings.largeStyleRecalc, {PH1: size});
+      return {label, duration, size, event};
+    }),
+  ].sort((a, b) => b.duration - a.duration).slice(0, 5);
+
+  const domStatsEvents = data.DOMStats.domStatsByFrameId.get(context.frameId)?.filter(isWithinContext) ?? [];
   let maxDOMStats: Types.Events.DOMStats|undefined;
   for (const domStats of domStatsEvents) {
     // While recording a cross-origin navigation, there can be overlapping dom stats from before & after
@@ -167,6 +208,16 @@ export function generateInsight(
   return finalize({
     largeLayoutUpdates,
     largeStyleRecalcs,
+    largeUpdates,
     maxDOMStats,
   });
+}
+
+export function createOverlays(model: DOMSizeInsightModel): Types.Overlays.Overlay[] {
+  const entries = [...model.largeStyleRecalcs, ...model.largeLayoutUpdates];
+  return entries.map(entry => ({
+                       type: 'ENTRY_OUTLINE',
+                       entry,
+                       outlineReason: 'ERROR',
+                     }));
 }

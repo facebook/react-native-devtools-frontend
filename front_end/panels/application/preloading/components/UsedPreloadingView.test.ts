@@ -1,19 +1,15 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Platform from '../../../../core/platform/platform.js';
 import * as SDK from '../../../../core/sdk/sdk.js';
 import * as Protocol from '../../../../generated/protocol.js';
-import {assertGridContents} from '../../../../testing/DataGridHelpers.js';
-import {
-  getElementsWithinComponent,
-  getElementWithinComponent,
-  renderElementIntoDOM,
-} from '../../../../testing/DOMHelpers.js';
+import {assertGridContents, getHeaderCells, getValuesOfAllBodyRows} from '../../../../testing/DataGridHelpers.js';
+import {getElementsWithinComponent, raf, renderElementIntoDOM} from '../../../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
-import * as RenderCoordinator from '../../../../ui/components/render_coordinator/render_coordinator.js';
 import * as ReportView from '../../../../ui/components/report_view/report_view.js';
+import * as UI from '../../../../ui/legacy/legacy.js';
 
 import * as PreloadingComponents from './components.js';
 
@@ -24,10 +20,10 @@ async function renderUsedPreloadingView(data: PreloadingComponents.UsedPreloadin
   const component = new PreloadingComponents.UsedPreloadingView.UsedPreloadingView();
   component.data = data;
   renderElementIntoDOM(component);
-  assert.isNotNull(component.shadowRoot);
-  await RenderCoordinator.done();
+  await component.updateComplete;
+  await raf();  // Wait for the data grid to render.
 
-  return component;
+  return component.element;
 }
 
 describeWithEnvironment('UsedPreloadingView', () => {
@@ -332,9 +328,6 @@ describeWithEnvironment('UsedPreloadingView', () => {
         component, 'devtools-report devtools-report-section-header', ReportView.ReportView.ReportSectionHeader);
     const sections = getElementsWithinComponent(
         component, 'devtools-report devtools-report-section', ReportView.ReportView.ReportSection);
-    const grid = getElementWithinComponent(
-        component, 'devtools-resources-preloading-mismatched-headers-grid',
-        PreloadingComponents.PreloadingMismatchedHeadersGrid.PreloadingMismatchedHeadersGrid);
 
     assert.lengthOf(headers, 4);
     assert.lengthOf(sections, 5);
@@ -350,14 +343,15 @@ describeWithEnvironment('UsedPreloadingView', () => {
         'The prerender was not used because during activation time, different navigation parameters (e.g., HTTP headers) were calculated than during the original prerendering navigation request.');
 
     assert.include(headers[2]?.textContent, 'Mismatched HTTP request headers');
-    assertGridContents(
-        grid,
+    const grid = sections[2].querySelector('devtools-data-grid');
+    assert.deepEqual(
+        getHeaderCells(grid!.shadowRoot!).map(({textContent}) => textContent!.trim()),
         ['Header name', 'Value in initial navigation', 'Value in activation navigation'],
-        [
-          ['sec-ch-ua-platform', 'Linux', 'Android'],
-          ['sec-ch-ua-mobile', '?0', '?1'],
-        ],
     );
+    assert.deepEqual(getValuesOfAllBodyRows(grid!.shadowRoot!), [
+      ['sec-ch-ua-platform', 'Linux', 'Android'],
+      ['sec-ch-ua-mobile', '?0', '?1'],
+    ]);
 
     assert.include(headers[3]?.textContent, 'Speculations initiated by this page');
     const badges = sections[3]?.querySelectorAll('.status-badge span') || [];
@@ -547,10 +541,10 @@ describeWithEnvironment('UsedPreloadingView', () => {
     assert.include(headers[1]?.textContent, 'Current URL');
     assert.include(sections[1]?.textContent, 'https://example.com/prerendered.html#alpha');
     assert.include(headers[2]?.textContent, 'URLs being speculatively loaded by the initiating page');
-    const grid = sections[2].querySelector('devtools-resources-mismatched-preloading-grid');
+    const grid = UI.Widget.Widget.get(sections[2].querySelector('.devtools-resources-mismatched-preloading-grid')!);
     assert.instanceOf(grid, PreloadingComponents.MismatchedPreloadingGrid.MismatchedPreloadingGrid);
     assertGridContents(
-        grid,
+        grid.element,
         ['URL', 'Action', 'Status'],
         [
           ['https://example.com/prerendered.html#betalpha', 'Prerender', 'Ready'],
@@ -619,7 +613,7 @@ describeWithEnvironment('UsedPreloadingView', () => {
     assert.include(headers[1]?.textContent, 'Current URL');
     assert.include(sections[1]?.textContent, 'https://example.com/no-preloads.html');
     assert.include(headers[2]?.textContent, 'URLs being speculatively loaded by the initiating page');
-    assert.exists(sections[2].querySelector('devtools-resources-mismatched-preloading-grid'));
+    assert.exists(sections[2].querySelector('.devtools-resources-mismatched-preloading-grid'));
 
     assert.include(headers[3]?.textContent, 'Speculations initiated by this page');
     const badges = sections[3]?.querySelectorAll('.status-badge span') || [];
@@ -745,6 +739,51 @@ describeWithEnvironment('UsedPreloadingView', () => {
     assert.strictEqual(badges[1]?.textContent?.trim(), '2 in progress');
     assert.strictEqual(badges[2]?.textContent?.trim(), '2 success');
     assert.strictEqual(badges[3]?.textContent?.trim(), '1 failure');
+
+    assert.include(sections[2]?.textContent, 'Learn more: Speculative loading on developer.chrome.com');
+  });
+
+  it('renderes prerender-until-script used', async () => {
+    const data: PreloadingComponents.UsedPreloadingView.UsedPreloadingViewData = {
+      pageURL: urlString`https://example.com/prerendered.html`,
+      previousAttempts: [
+        {
+          action: Protocol.Preload.SpeculationAction.PrerenderUntilScript,
+          key: {
+            loaderId: 'loaderId:1' as Protocol.Network.LoaderId,
+            action: Protocol.Preload.SpeculationAction.PrerenderUntilScript,
+            url: urlString`https://example.com/prerendered.html`,
+          },
+          pipelineId: 'pipelineId:2' as Protocol.Preload.PreloadPipelineId,
+          status: SDK.PreloadingModel.PreloadingStatus.SUCCESS,
+          prerenderStatus: null,
+          disallowedMojoInterface: null,
+          mismatchedHeaders: null,
+          ruleSetIds: ['ruleSetId:1'] as Protocol.Preload.RuleSetId[],
+          nodeIds: [1] as Protocol.DOM.BackendNodeId[],
+        },
+      ],
+      currentAttempts: [],
+    };
+
+    const component = await renderUsedPreloadingView(data);
+    assert.isNotNull(component.shadowRoot);
+    const headers = getElementsWithinComponent(
+        component, 'devtools-report devtools-report-section-header', ReportView.ReportView.ReportSectionHeader);
+    const sections = getElementsWithinComponent(
+        component, 'devtools-report devtools-report-section', ReportView.ReportView.ReportSection);
+
+    assert.lengthOf(headers, 2);
+    assert.lengthOf(sections, 3);
+
+    assert.include(headers[0]?.textContent, 'Speculative loading status');
+    assert.strictEqual(sections[0]?.querySelector('.status-badge span')?.textContent?.trim(), 'Success');
+    assert.include(sections[0]?.textContent, 'This page was successfully prerendered.');
+
+    assert.include(headers[1]?.textContent, 'Speculations initiated by this page');
+    const badges = sections[1]?.querySelectorAll('.status-badge span') || [];
+    assert.lengthOf(badges, 1);
+    assert.strictEqual(badges[0]?.textContent?.trim(), 'No speculative loads');
 
     assert.include(sections[2]?.textContent, 'Learn more: Speculative loading on developer.chrome.com');
   });

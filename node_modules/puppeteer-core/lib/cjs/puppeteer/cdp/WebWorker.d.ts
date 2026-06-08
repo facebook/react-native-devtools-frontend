@@ -7,12 +7,9 @@ import type { Protocol } from 'devtools-protocol';
 import { type CDPSession } from '../api/CDPSession.js';
 import type { Realm } from '../api/Realm.js';
 import { TargetType } from '../api/Target.js';
-import { WebWorker } from '../api/WebWorker.js';
-import { CdpJSHandle } from './JSHandle.js';
-/**
- * @internal
- */
-export type ConsoleAPICalledCallback = (eventType: string, handles: CdpJSHandle[], trace?: Protocol.Runtime.StackTrace) => void;
+import { WebWorker, type WebWorkerEvents } from '../api/WebWorker.js';
+import { EventEmitter } from '../common/EventEmitter.js';
+import type { NetworkManager } from './NetworkManager.js';
 /**
  * @internal
  */
@@ -22,7 +19,8 @@ export type ExceptionThrownCallback = (event: Protocol.Runtime.ExceptionThrownEv
  */
 export declare class CdpWebWorker extends WebWorker {
     #private;
-    constructor(client: CDPSession, url: string, targetId: string, targetType: TargetType, consoleAPICalled: ConsoleAPICalledCallback, exceptionThrown: ExceptionThrownCallback);
+    get internalEmitter(): EventEmitter<WebWorkerEvents>;
+    constructor(client: CDPSession, url: string, targetId: string, targetType: TargetType, exceptionThrown: ExceptionThrownCallback, networkManager?: NetworkManager);
     mainRealm(): Realm;
     get client(): CDPSession;
     close(): Promise<void>;

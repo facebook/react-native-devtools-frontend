@@ -1,0 +1,123 @@
+# DevTools AI Evals Suite
+
+This folder contains the scripts required to execute the DevTools eval suite.
+
+At this time, this is being heavily iterated on and may change rapidly. Chat to jacktfranklin@ if you have any questions or feedback.
+
+## Getting started
+
+### 1: download the outputs from GCP
+
+The actual output files you need to run the suite are hosted in a GCP bucket. The contents are fetched for you by `gclient sync` but only if you set the `checkout_ai_evals` arg in your `.gclient` config:
+
+```
+solutions = [
+  {
+    "name": "devtools-frontend",
+    "url": "https://chromium.googlesource.com/devtools/devtools-frontend.git",
+    "deps_file": "DEPS",
+    "managed": False,
+    "custom_deps": {},
+    "custom_vars": {
+      "checkout_ai_evals": True,
+    }
+  },
+]
+```
+
+Note that you have to be a Google employee to access this.
+
+### 2: set your Gemini API key.
+
+Evaluations that engage an LLM will expect to find a `GEMINI_API_KEY` environment variable defined.
+
+## Defining new evaluations
+
+To define a new evaluation, follow these steps:
+
+1. **Create an example**: There should already be existing examples for most panels. For example, for performance, you can see an example for CLS in `dev-community/client/public/index.html` (look for the "Prompt" comment). These examples are located in the [base-apps repo](https://github.com/ChromeDevTools/base-apps).
+2. **Generate data**: Run the `auto-run` tool with the `--eval` and `--label <label>` flags targeting your example URL. This will generate a `*.eval.json` file in `auto-run/data/`.
+3. **Move data**: Move the generated `*.eval.json` file to the appropriate folder in `suite/outputs/outputs/type/YYYY-MM-DD/`. Ensure the file name starts with your chosen `<label>`. See [Adding new outputs](#adding-new-outputs) for more details on the file structure and how to upload them.
+4. **Create instruction file**: Create a new Markdown file in `scripts/ai_assistance/suite/instructions/<label>.md`. This file should contain the rubrics and criteria for the LLM judge. You can refer to `scoring.md` for standard rubrics.
+5. **Define the test**: Open (or create) the `scripts/ai_assistance/suite/<type>.eval.ts` file and add a new `evalGroup` that matches your `<type>` and `<label>`. Use `itEval` to define specific assertions or LLM-based judgments.
+
+Example:
+```typescript
+await evalGroup(
+    {type: 'performance', label: 'cls-breakdown'},
+    async function() {
+      await itEval({
+        test: 'is an accurate response',
+        judge: example => LLMComparison.judge(example, loadInstructions('cls-breakdown')),
+      });
+    });
+```
+6. **Run the evaluation**: Run `npm run eval-suite` or execute the specific file with `node scripts/ai_assistance/suite/<type>.eval.ts`.
+
+## Running the suite
+
+Run `cd scripts/ai_assistance && npm run eval-suite` to execute the suite.
+
+## Adding new outputs
+
+To get outputs, you should use the auto-run tool but pass the `--eval` flag. This will cause it to output a secondary file named `*.eval.json` that contains the output in the format the evaluation suite expects.
+
+Once you have new outputs you want to put into the set, move them into the right place in the `suite/outputs/outputs` folder.
+
+The structure of files in this folder is like so: `outputs/type/YYYY-MM-DD/label-XYZ.json`.
+
+- Type here should map roughly to an agent, e.g. "performance".
+- For actual outputs, store them as JSON files within a `YYYY-MM-DD` folder.
+- The file name must start with a label - e.g. `lcp-breakdown`. After that, it can have any other content you like. You can have one JSON file with multiple outputs, or you can have multiple files with outputs. If there are multiple files, they will be merged accordingly when the eval suite is run.
+
+Then, run (from the DevTools root directory in this case, but it doesn't matter):
+
+```bash
+node scripts/ai_assistance/suite/upload_to_gcp.ts
+```
+
+This will upload the changes to the GCP bucket and update the `DEPS` file for you, which you should ensure you commit in a CL. The best workflow is:
+
+1. Generate your new output file(s).
+2. Move any new files into `suite/outputs/...`.
+3. Use the `upload_to_gcp.ts` script.
+4. Commit the `DEPS` change and send the CL for review.
+
+If you get any authorisation errors, run `gsutil.py config` to refresh your authentication status.
+
+## Scoring
+
+The evaluation suite uses an LLM-as-a-judge system to score AI responses against several rubrics.
+
+### Multiple Runs
+
+By default, the script judges each conversation once. You can use the `--repeat N` flag to run the evaluation multiple times per query/input:
+
+```bash
+cd scripts/ai_assistance && npm run eval-suite -- --repeat 3
+```
+
+The results will show the **mean** and **standard deviation** for each rubric across all runs.
+
+### Weighted Averages
+
+The **Overall** score is calculated as a weighted average of individual rubric scores. This allows critical rubrics (like Correctness or Safety) to have a higher impact on the final score.
+
+#### Configuring Weights
+
+Weights are defined in the [scoring.md](file:///usr/local/google/home/kimanh/work/devtools/devtools-frontend/scripts/ai_assistance/suite/instructions/scoring.md) file using importance levels. You can add an `Importance:` line directly under a rubric heading:
+
+```markdown
+## Rubric: Correctness
+Importance: Critical
+...
+```
+
+The following importance levels are supported:
+- `Critical`
+- `Important`
+- `Minor` (Default)
+
+If a rubric does not have an importance level specified, it defaults to `Minor`.
+
+The weights are automatically stripped from the prompt before being sent to the LLM to ensure they do not bias the judge's scoring criteria.

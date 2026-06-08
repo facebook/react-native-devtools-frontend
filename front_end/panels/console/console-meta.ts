@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,67 +10,67 @@ import type * as Console from './console.js';
 
 const UIStrings = {
   /**
-   *@description Title of the Console tool
+   * @description Title of the Console tool
    */
   console: 'Console',
   /**
-   *@description Title of an action that shows the console.
+   * @description Title of an action that shows the console.
    */
   showConsole: 'Show Console',
   /**
-   *@description Title of an action that toggles the console.
+   * @description Title of an action that toggles the console.
    */
   toggleConsole: 'Toggle Console',
   /**
-   *@description Text to clear the console
+   * @description Text to clear the console
    */
   clearConsole: 'Clear console',
   /**
-   *@description Title of an action in the console tool to clear
+   * @description Title of an action in the console tool to clear
    */
   clearConsoleHistory: 'Clear console history',
   /**
-   *@description Title of a setting under the Console category that can be invoked through the Command Menu
+   * @description Title of a setting under the Console category that can be invoked through the Command Menu
+   */
+  networkMessages: 'Network messages',
+  /**
+   * @description Title of an option under the Console category that can be invoked through the Command Menu
    */
   hideNetworkMessages: 'Hide network messages',
   /**
-   *@description Title of a setting under the Console category that can be invoked through the Command Menu
+   * @description Title of an option under the Console category that can be invoked through the Command Menu
    */
   showNetworkMessages: 'Show network messages',
   /**
-   *@description Alternative title text of a setting in Console View of the Console panel
+   * @description Alternative title text of a setting in Console View of the Console panel
    */
   selectedContextOnly: 'Selected context only',
   /**
-   *@description Tooltip text that appears on the setting when hovering over it in Console View of the Console panel
+   * @description Tooltip text that appears on the setting when hovering over it in Console View of the Console panel
    */
   onlyShowMessagesFromTheCurrent: 'Only show messages from the current context (`top`, `iframe`, `worker`, extension)',
   /**
-   *@description Title of a setting under the Console category that can be invoked through the Command Menu
+   * @description Title of a setting under the Console category that can be invoked through the Command Menu
    */
   showMessagesFromAllContexts: 'Show messages from all contexts',
   /**
-   *@description Title of a setting under the Console category in Settings
-   */
-  logXmlhttprequests: 'Log XMLHttpRequests',
-  /**
-   *@description Title of a setting under the Console category
+   * @description Title of a setting under the Console category
    */
   timestamps: 'Timestamps',
   /**
-   *@description Title of a setting under the Console category that can be invoked through the Command Menu
+   * @description Title of an option under the Console category that can be invoked through the Command Menu
    */
   showTimestamps: 'Show timestamps',
   /**
-   *@description Title of a setting under the Console category that can be invoked through the Command Menu
+   * @description Title of an option under the Console category that can be invoked through the Command Menu
    */
   hideTimestamps: 'Hide timestamps',
   /**
-   *@description Title of a setting under the Console category that can be invoked through the Command Menu
+   * @description Title of a setting under the Console category that can be invoked through the Command Menu
    */
   autocompleteFromHistory: 'Autocomplete from history',
   /**
-   *@description Title of a setting under the Console category that can be invoked through the Command Menu
+   * @description Title of a setting under the Console category that can be invoked through the Command Menu
    */
   doNotAutocompleteFromHistory: 'Do not autocomplete from history',
   /**
@@ -82,31 +82,35 @@ const UIStrings = {
    */
   doNotAutocompleteOnEnter: 'Do not accept autocomplete suggestion on Enter',
   /**
-   *@description Title of a setting under the Console category that can be invoked through the Command Menu
+   * @description Title of a setting under the Console category that can be invoked through the Command Menu
    */
-  groupSimilarMessagesInConsole: 'Group similar messages in console',
+  groupSimilarMessages: 'Group similar messages',
   /**
-   *@description Title of a setting under the Console category that can be invoked through the Command Menu
+   * @description Title of a setting under the Console category that can be invoked through the Command Menu
    */
-  doNotGroupSimilarMessagesIn: 'Do not group similar messages in console',
+  doNotGroupSimilarMessages: 'Don\'t group similar messages',
   /**
-   *@description Title of a setting under the Console category that can be invoked through the Command Menu
+   * @description Title of a setting under the Console category in Settings
    */
-  showCorsErrorsInConsole: 'Show `CORS` errors in console',
+  corsErrorsInConsole: 'CORS errors in console',
   /**
-   *@description Title of a setting under the Console category that can be invoked through the Command Menu
+   * @description Title of an option under the Console category that can be invoked through the Command Menu
    */
-  doNotShowCorsErrorsIn: 'Do not show `CORS` errors in console',
+  showCorsErrorsInConsole: 'Show CORS errors in console',
   /**
-   *@description Allows code that is executed in the console to do things that usually are only allowed if triggered by a user action
+   * @description Title of an option under the Console category that can be invoked through the Command Menu
+   */
+  doNotShowCorsErrorsIn: 'Don\'t show CORS errors in console',
+  /**
+   * @description Allows code that is executed in the console to do things that usually are only allowed if triggered by a user action
    */
   evaluateTriggersUserActivation: 'Treat code evaluation as user action',
   /**
-   *@description Title of a setting under the Console category that can be invoked through the Command Menu
+   * @description Title of a setting under the Console category that can be invoked through the Command Menu
    */
   treatEvaluationAsUserActivation: 'Treat evaluation as user activation',
   /**
-   *@description Title of a setting under the Console category that can be invoked through the Command Menu
+   * @description Title of a setting under the Console category that can be invoked through the Command Menu
    */
   doNotTreatEvaluationAsUser: 'Do not treat evaluation as user activation',
   /**
@@ -117,6 +121,11 @@ const UIStrings = {
    * @description Title of a setting under the Console category in Settings that controls whether `console.trace()` messages appear collapsed by default.
    */
   collapseConsoleTraceMessagesByDefault: 'Do not automatically expand `console.trace()` messages',
+  /**
+   * @description Title of a setting under the Console category in Settings that controls whether AI summaries should
+   * be shown for console warnings/errors.
+   */
+  consoleInsightTeasers: 'AI summaries for console messages',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/console/console-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
@@ -228,18 +237,18 @@ UI.ActionRegistration.registerActionExtension({
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.CONSOLE,
   storageType: Common.Settings.SettingStorageType.SYNCED,
-  title: i18nLazyString(UIStrings.hideNetworkMessages),
-  settingName: 'hide-network-messages',
+  title: i18nLazyString(UIStrings.networkMessages),
+  settingName: 'network-messages',
   settingType: Common.Settings.SettingType.BOOLEAN,
-  defaultValue: false,
+  defaultValue: true,
   options: [
     {
       value: true,
-      title: i18nLazyString(UIStrings.hideNetworkMessages),
+      title: i18nLazyString(UIStrings.showNetworkMessages),
     },
     {
       value: false,
-      title: i18nLazyString(UIStrings.showNetworkMessages),
+      title: i18nLazyString(UIStrings.hideNetworkMessages),
     },
   ],
 });
@@ -261,15 +270,6 @@ Common.Settings.registerSettingExtension({
       title: i18nLazyString(UIStrings.showMessagesFromAllContexts),
     },
   ],
-});
-
-Common.Settings.registerSettingExtension({
-  category: Common.Settings.SettingCategory.CONSOLE,
-  storageType: Common.Settings.SettingStorageType.SYNCED,
-  title: i18nLazyString(UIStrings.logXmlhttprequests),
-  settingName: 'monitoring-xhr-enabled',
-  settingType: Common.Settings.SettingType.BOOLEAN,
-  defaultValue: false,
 });
 
 Common.Settings.registerSettingExtension({
@@ -331,25 +331,25 @@ Common.Settings.registerSettingExtension({
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.CONSOLE,
   storageType: Common.Settings.SettingStorageType.SYNCED,
-  title: i18nLazyString(UIStrings.groupSimilarMessagesInConsole),
+  title: i18nLazyString(UIStrings.groupSimilarMessages),
   settingName: 'console-group-similar',
   settingType: Common.Settings.SettingType.BOOLEAN,
   defaultValue: true,
   options: [
     {
       value: true,
-      title: i18nLazyString(UIStrings.groupSimilarMessagesInConsole),
+      title: i18nLazyString(UIStrings.groupSimilarMessages),
     },
     {
       value: false,
-      title: i18nLazyString(UIStrings.doNotGroupSimilarMessagesIn),
+      title: i18nLazyString(UIStrings.doNotGroupSimilarMessages),
     },
   ],
 });
 
 Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.CONSOLE,
-  title: i18nLazyString(UIStrings.showCorsErrorsInConsole),
+  title: i18nLazyString(UIStrings.corsErrorsInConsole),
   settingName: 'console-shows-cors-errors',
   settingType: Common.Settings.SettingType.BOOLEAN,
   defaultValue: true,
@@ -421,6 +421,15 @@ Common.Settings.registerSettingExtension({
       title: i18nLazyString(UIStrings.collapseConsoleTraceMessagesByDefault),
     },
   ],
+});
+
+Common.Settings.registerSettingExtension({
+  category: Common.Settings.SettingCategory.CONSOLE,
+  storageType: Common.Settings.SettingStorageType.SYNCED,
+  title: i18nLazyString(UIStrings.consoleInsightTeasers),
+  settingName: 'console-insight-teasers-enabled',
+  settingType: Common.Settings.SettingType.BOOLEAN,
+  defaultValue: true,
 });
 
 Common.Revealer.registerRevealer({

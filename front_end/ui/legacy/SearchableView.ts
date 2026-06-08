@@ -1,6 +1,7 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 /*
  * Copyright (C) 2006, 2007, 2008 Apple Inc.  All rights reserved.
@@ -40,7 +41,7 @@ import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 import * as Buttons from '../components/buttons/buttons.js';
-import * as IconButton from '../components/icon_button/icon_button.js';
+import {createIcon} from '../kit/kit.js';
 
 import * as ARIAUtils from './ARIAUtils.js';
 import {InspectorView} from './InspectorView.js';
@@ -51,76 +52,72 @@ import {VBox} from './Widget.js';
 
 const UIStrings = {
   /**
-   *@description Text on a button to replace one instance with input text for the ctrl+F search bar
+   * @description Text on a button to replace one instance with input text for the ctrl+F search bar
    */
   replace: 'Replace',
   /**
-   *@description Tooltip text on a toggle to enable replacing one instance with input text for the ctrl+F search bar
+   * @description Tooltip text on a toggle to enable replacing one instance with input text for the ctrl+F search bar
    */
   enableFindAndReplace: 'Find and replace',
   /**
-   *@description Tooltip text on a toggle to disable replacing one instance with input text for the ctrl+F search bar
+   * @description Tooltip text on a toggle to disable replacing one instance with input text for the ctrl+F search bar
    */
   disableFindAndReplace: 'Disable find and replace',
   /**
-   *@description Text to find an item
+   * @description Text to find an item
    */
   findString: 'Find',
   /**
-   *@description Tooltip text on a button to search previous instance for the ctrl+F search bar
+   * @description Tooltip text on a button to search previous instance for the ctrl+F search bar
    */
   searchPrevious: 'Show previous result',
   /**
-   *@description Tooltip text on a button to search next instance for the ctrl+F search bar
+   * @description Tooltip text on a button to search next instance for the ctrl+F search bar
    */
   searchNext: 'Show next result',
   /**
-   *@description Tooltip text on a toggle to enable search by matching case of the input
+   * @description Tooltip text on a toggle to enable/disable search by matching the exact case.
    */
-  enableCaseSensitive: 'Enable case sensitive search',
+  matchCase: 'Match case',
   /**
-   *@description Tooltip text on a toggle to disable search by matching case of the input
+   * @description Tooltip text on a toggle to enable/disable search by matching the exact word.
    */
-  disableCaseSensitive: 'Disable case sensitive search',
+  matchWholeWord: 'Match whole word',
   /**
-   *@description Tooltip text on a toggle to enable searching with regular expression
+   * @description Tooltip text on a toggle to enable/disable searching with regular expression.
    */
-  enableRegularExpression: 'Enable regular expressions',
+  useRegularExpression: 'Use regular expression',
   /**
-   *@description Tooltip text on a toggle to disable searching with regular expression
-   */
-  disableRegularExpression: 'Disable regular expressions',
-  /**
-   *@description Tooltip text on a button to close the search bar
+   * @description Tooltip text on a button to close the search bar
    */
   closeSearchBar: 'Close search bar',
   /**
-   *@description Text on a button to replace all instances with input text for the ctrl+F search bar
+   * @description Text on a button to replace all instances with input text for the ctrl+F search bar
    */
   replaceAll: 'Replace all',
   /**
-   *@description Text to indicate the current match index and the total number of matches for the ctrl+F search bar
-   *@example {2} PH1
-   *@example {3} PH2
+   * @description Text to indicate the current match index and the total number of matches for the ctrl+F search bar
+   * @example {2} PH1
+   * @example {3} PH2
    */
   dOfD: '{PH1} of {PH2}',
   /**
-   *@description Tooltip text to indicate the current match index and the total number of matches for the ctrl+F search bar
-   *@example {2} PH1
-   *@example {3} PH2
+   * @description Tooltip text to indicate the current match index and the total number of matches for the ctrl+F search bar
+   * @example {2} PH1
+   * @example {3} PH2
    */
   accessibledOfD: 'Shows result {PH1} of {PH2}',
   /**
-   *@description Text to indicate search result for the ctrl+F search bar
+   * @description Text to indicate search result for the ctrl+F search bar
    */
   matchString: '1 match',
   /**
-   *@description Text to indicate search result for the ctrl+F search bar
-   *@example {2} PH1
+   * @description Text to indicate search result for the ctrl+F search bar
+   * @example {2} PH1
    */
   dMatches: '{PH1} matches',
   /**
-   *@description Text on a button to search previous instance for the ctrl+F search bar
+   * @description Text on a button to search previous instance for the ctrl+F search bar
    */
   clearInput: 'Clear',
 } as const;
@@ -142,7 +139,7 @@ function createClearButton(jslogContext: string): Buttons.Button.Button {
   return button;
 }
 export class SearchableView extends VBox {
-  private searchProvider: Searchable;
+  protected searchProvider: Searchable;
   private replaceProvider: Replaceable|null;
   // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -153,10 +150,12 @@ export class SearchableView extends VBox {
   private replaceToggleButton: ToolbarToggle;
   private searchInputElement: HTMLInputElement;
   private matchesElement: HTMLElement;
+  private matchesElementValue: HTMLElement;
   private searchNavigationPrevElement: ToolbarButton;
   private searchNavigationNextElement: ToolbarButton;
   private readonly replaceInputElement: HTMLInputElement;
   private caseSensitiveButton: Buttons.Button.Button|undefined;
+  private wholeWordButton: Buttons.Button.Button|undefined;
   private regexButton: Buttons.Button.Button|undefined;
   private replaceButtonElement: Buttons.Button.Button;
   private replaceAllButtonElement: Buttons.Button.Button;
@@ -165,8 +164,8 @@ export class SearchableView extends VBox {
   private currentQuery?: string;
   private valueChangedTimeoutId?: number;
 
-  constructor(searchable: Searchable, replaceable: Replaceable|null, settingName?: string) {
-    super(true);
+  constructor(searchable: Searchable, replaceable: Replaceable|null, settingName?: string, element?: HTMLElement) {
+    super(element, {useShadowDom: true});
     this.registerRequiredCSS(searchableViewStyles);
     searchableViewsByElement.set(this.element, this);
 
@@ -191,7 +190,7 @@ export class SearchableView extends VBox {
     // Elements within `searchInputElements` are added according to their expected tab order.
     const searchInputElements = this.footerElement.createChild('div', 'search-inputs');
     const iconAndInput = searchInputElements.createChild('div', 'icon-and-input');
-    const searchIcon = IconButton.Icon.create('search');
+    const searchIcon = createIcon('search');
     iconAndInput.appendChild(searchIcon);
 
     this.searchInputElement = createHistoryInput('search', 'search-replace search');
@@ -227,22 +226,11 @@ export class SearchableView extends VBox {
       this.searchInputElement.focus();
     });
     searchConfigButtons.appendChild(clearButton);
-    if (this.searchProvider.supportsRegexSearch()) {
-      const iconName = 'regular-expression';
-      this.regexButton = new Buttons.Button.Button();
-      this.regexButton.data = {
-        variant: Buttons.Button.Variant.ICON_TOGGLE,
-        size: Buttons.Button.Size.SMALL,
-        iconName,
-        toggledIconName: iconName,
-        toggleType: Buttons.Button.ToggleType.PRIMARY,
-        toggled: false,
-        jslogContext: iconName,
-        title: i18nString(UIStrings.enableCaseSensitive),
-      };
-      this.regexButton.addEventListener('click', () => this.toggleRegexSearch());
-      searchConfigButtons.appendChild(this.regexButton);
-    }
+
+    const saveSettingAndPerformSearch = (): void => {
+      this.saveSetting();
+      this.performSearch(false, true);
+    };
 
     if (this.searchProvider.supportsCaseSensitiveSearch()) {
       const iconName = 'match-case';
@@ -254,11 +242,48 @@ export class SearchableView extends VBox {
         toggledIconName: iconName,
         toggled: false,
         toggleType: Buttons.Button.ToggleType.PRIMARY,
-        title: i18nString(UIStrings.enableCaseSensitive),
+        title: i18nString(UIStrings.matchCase),
         jslogContext: iconName,
       };
-      this.caseSensitiveButton.addEventListener('click', () => this.toggleCaseSensitiveSearch());
+      ARIAUtils.setLabel(this.caseSensitiveButton, i18nString(UIStrings.matchCase));
+      this.caseSensitiveButton.addEventListener('click', saveSettingAndPerformSearch);
       searchConfigButtons.appendChild(this.caseSensitiveButton);
+    }
+
+    if (this.searchProvider.supportsWholeWordSearch()) {
+      const iconName = 'match-whole-word';
+      this.wholeWordButton = new Buttons.Button.Button();
+      this.wholeWordButton.data = {
+        variant: Buttons.Button.Variant.ICON_TOGGLE,
+        size: Buttons.Button.Size.SMALL,
+        iconName,
+        toggledIconName: iconName,
+        toggled: false,
+        toggleType: Buttons.Button.ToggleType.PRIMARY,
+        title: i18nString(UIStrings.matchWholeWord),
+        jslogContext: iconName,
+      };
+      ARIAUtils.setLabel(this.wholeWordButton, i18nString(UIStrings.matchWholeWord));
+      this.wholeWordButton.addEventListener('click', saveSettingAndPerformSearch);
+      searchConfigButtons.appendChild(this.wholeWordButton);
+    }
+
+    if (this.searchProvider.supportsRegexSearch()) {
+      const iconName = 'regular-expression';
+      this.regexButton = new Buttons.Button.Button();
+      this.regexButton.data = {
+        variant: Buttons.Button.Variant.ICON_TOGGLE,
+        size: Buttons.Button.Size.SMALL,
+        iconName,
+        toggledIconName: iconName,
+        toggleType: Buttons.Button.ToggleType.PRIMARY,
+        toggled: false,
+        jslogContext: iconName,
+        title: i18nString(UIStrings.useRegularExpression),
+      };
+      ARIAUtils.setLabel(this.regexButton, i18nString(UIStrings.useRegularExpression));
+      this.regexButton.addEventListener('click', saveSettingAndPerformSearch);
+      searchConfigButtons.appendChild(this.regexButton);
     }
 
     // Introduce a separate element for the background of the `Find` input line (instead of
@@ -290,6 +315,9 @@ export class SearchableView extends VBox {
     this.matchesElement.style.color = 'var(--sys-color-on-surface-subtle)';
     this.matchesElement.style.padding = '0 var(--sys-size-3)';
     this.matchesElement.classList.add('search-results-matches');
+    ARIAUtils.markAsPoliteLiveRegion(this.matchesElement, false);
+    this.matchesElementValue = this.matchesElement.createChild('span');
+    ARIAUtils.setHidden(this.matchesElementValue, true);
     toolbar.appendToolbarItem(matchesText);
 
     const cancelButtonElement = new Buttons.Button.Button();
@@ -335,24 +363,6 @@ export class SearchableView extends VBox {
     return view;
   }
 
-  private toggleCaseSensitiveSearch(): void {
-    if (this.caseSensitiveButton) {
-      this.caseSensitiveButton.title = this.caseSensitiveButton.toggled ? i18nString(UIStrings.disableCaseSensitive) :
-                                                                          i18nString(UIStrings.enableCaseSensitive);
-    }
-    this.saveSetting();
-    this.performSearch(false, true);
-  }
-
-  private toggleRegexSearch(): void {
-    if (this.regexButton) {
-      this.regexButton.title = this.regexButton.toggled ? i18nString(UIStrings.disableRegularExpression) :
-                                                          i18nString(UIStrings.enableRegularExpression);
-    }
-    this.saveSetting();
-    this.performSearch(false, true);
-  }
-
   private toggleReplace(): void {
     const replaceEnabled = this.replaceToggleButton.isToggled();
     const label =
@@ -370,6 +380,9 @@ export class SearchableView extends VBox {
     if (this.caseSensitiveButton) {
       settingValue.caseSensitive = this.caseSensitiveButton.toggled;
     }
+    if (this.wholeWordButton) {
+      settingValue.wholeWord = this.wholeWordButton.toggled;
+    }
     if (this.regexButton) {
       settingValue.isRegex = this.regexButton.toggled;
     }
@@ -378,19 +391,14 @@ export class SearchableView extends VBox {
 
   private loadSetting(): void {
     const settingValue = this.setting ? (this.setting.get() || {}) : {};
-    if (this.searchProvider.supportsCaseSensitiveSearch() && this.caseSensitiveButton) {
+    if (this.caseSensitiveButton) {
       this.caseSensitiveButton.toggled = Boolean(settingValue.caseSensitive);
-      const label = settingValue.caseSensitive ? i18nString(UIStrings.disableCaseSensitive) :
-                                                 i18nString(UIStrings.enableCaseSensitive);
-      this.caseSensitiveButton.title = label;
-      ARIAUtils.setLabel(this.caseSensitiveButton, label);
     }
-    if (this.searchProvider.supportsRegexSearch() && this.regexButton) {
+    if (this.wholeWordButton) {
+      this.wholeWordButton.toggled = Boolean(settingValue.wholeWord);
+    }
+    if (this.regexButton) {
       this.regexButton.toggled = Boolean(settingValue.isRegex);
-      const label = settingValue.regular ? i18nString(UIStrings.disableRegularExpression) :
-                                           i18nString(UIStrings.enableRegularExpression);
-      this.regexButton.title = label;
-      ARIAUtils.setLabel(this.regexButton, label);
     }
   }
 
@@ -410,21 +418,19 @@ export class SearchableView extends VBox {
   }
 
   updateSearchMatchesCount(matches: number): void {
-    // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const untypedSearchProvider = (this.searchProvider as any);
-    if (untypedSearchProvider.currentSearchMatches === matches) {
+    if (this.searchProvider.currentSearchMatches === matches) {
       return;
     }
-    untypedSearchProvider.currentSearchMatches = matches;
-    this.updateSearchMatchesCountAndCurrentMatchIndex(untypedSearchProvider.currentQuery ? matches : 0, -1);
+    this.searchProvider.currentSearchMatches = matches;
+    this.updateSearchMatchesCountAndCurrentMatchIndex(this.searchProvider.currentQuery ? matches : 0, -1);
   }
 
   updateCurrentMatchIndex(currentMatchIndex: number): void {
-    // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const untypedSearchProvider = (this.searchProvider as any);
-    this.updateSearchMatchesCountAndCurrentMatchIndex(untypedSearchProvider.currentSearchMatches, currentMatchIndex);
+    if (!this.searchProvider.currentSearchMatches) {
+      return;
+    }
+
+    this.updateSearchMatchesCountAndCurrentMatchIndex(this.searchProvider.currentSearchMatches, currentMatchIndex);
   }
 
   closeSearch(): void {
@@ -453,7 +459,7 @@ export class SearchableView extends VBox {
   resetSearch(): void {
     this.clearSearch();
     this.updateReplaceVisibility();
-    this.matchesElement.textContent = '';
+    this.matchesElementValue.textContent = '';
   }
 
   refreshSearch(): void {
@@ -496,21 +502,25 @@ export class SearchableView extends VBox {
   private updateSearchNavigationButtonState(enabled: boolean): void {
     this.replaceButtonElement.disabled = !enabled;
     this.replaceAllButtonElement.disabled = !enabled;
-    this.searchNavigationPrevElement.setEnabled(enabled);
-    this.searchNavigationNextElement.setEnabled(enabled);
+    if (this.searchProvider.supportsMatchCounts?.() === true) {
+      this.searchNavigationPrevElement.setEnabled(enabled);
+      this.searchNavigationNextElement.setEnabled(enabled);
+    }
   }
 
   private updateSearchMatchesCountAndCurrentMatchIndex(matches: number, currentMatchIndex: number): void {
     if (!this.currentQuery) {
-      this.matchesElement.textContent = '';
+      this.matchesElementValue.textContent = '';
     } else if (matches === 0 || currentMatchIndex >= 0) {
-      this.matchesElement.textContent = i18nString(UIStrings.dOfD, {PH1: currentMatchIndex + 1, PH2: matches});
+      this.matchesElementValue.textContent = i18nString(UIStrings.dOfD, {PH1: currentMatchIndex + 1, PH2: matches});
       ARIAUtils.setLabel(
           this.matchesElement, i18nString(UIStrings.accessibledOfD, {PH1: currentMatchIndex + 1, PH2: matches}));
     } else if (matches === 1) {
-      this.matchesElement.textContent = i18nString(UIStrings.matchString);
+      this.matchesElementValue.textContent = i18nString(UIStrings.matchString);
+      ARIAUtils.setLabel(this.matchesElement, i18nString(UIStrings.matchString));
     } else {
-      this.matchesElement.textContent = i18nString(UIStrings.dMatches, {PH1: matches});
+      this.matchesElementValue.textContent = i18nString(UIStrings.dMatches, {PH1: matches});
+      ARIAUtils.setLabel(this.matchesElement, i18nString(UIStrings.dMatches, {PH1: matches}));
     }
     this.updateSearchNavigationButtonState(matches > 0);
   }
@@ -547,8 +557,7 @@ export class SearchableView extends VBox {
     }
   }
 
-  private onSearchKeyDown(ev: Event): void {
-    const event = (ev as KeyboardEvent);
+  private onSearchKeyDown(event: KeyboardEvent): void {
     if (Platform.KeyboardUtilities.isEscKey(event)) {
       this.closeSearch();
       event.consume(true);
@@ -592,12 +601,9 @@ export class SearchableView extends VBox {
   }
 
   private clearSearch(): void {
-    // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const untypedSearchProvider = (this.searchProvider as any);
-    delete this.currentQuery;
-    if (Boolean(untypedSearchProvider.currentQuery)) {
-      delete untypedSearchProvider.currentQuery;
+    this.currentQuery = undefined;
+    if (Boolean(this.searchProvider.currentQuery)) {
+      this.searchProvider.currentQuery = undefined;
       this.searchProvider.onSearchCanceled();
     }
     this.updateSearchMatchesCountAndCurrentMatchIndex(0, -1);
@@ -611,9 +617,7 @@ export class SearchableView extends VBox {
     }
 
     this.currentQuery = query;
-    // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.searchProvider as any).currentQuery = query;
+    this.searchProvider.currentQuery = query;
 
     const searchConfig = this.currentSearchConfig();
     this.searchProvider.performSearch(searchConfig, shouldJump, jumpBackwards);
@@ -622,8 +626,9 @@ export class SearchableView extends VBox {
   private currentSearchConfig(): SearchConfig {
     const query = this.searchInputElement.value;
     const caseSensitive = this.caseSensitiveButton ? this.caseSensitiveButton.toggled : false;
+    const wholeWord = this.wholeWordButton ? this.wholeWordButton.toggled : false;
     const isRegex = this.regexButton ? this.regexButton.toggled : false;
-    return new SearchConfig(query, caseSensitive, isRegex);
+    return new SearchConfig(query, caseSensitive, wholeWord, isRegex);
   }
 
   private updateSecondRowVisibility(): void {
@@ -640,17 +645,17 @@ export class SearchableView extends VBox {
 
   private replace(): void {
     if (!this.replaceProvider) {
-      throw new Error('No \'replacable\' provided to SearchableView!');
+      throw new Error('No \'replaceable\' provided to SearchableView!');
     }
     const searchConfig = this.currentSearchConfig();
     this.replaceProvider.replaceSelectionWith(searchConfig, this.replaceInputElement.value);
-    delete this.currentQuery;
+    this.currentQuery = undefined;
     this.performSearch(true, true);
   }
 
   private replaceAll(): void {
     if (!this.replaceProvider) {
-      throw new Error('No \'replacable\' provided to SearchableView!');
+      throw new Error('No \'replaceable\' provided to SearchableView!');
     }
     const searchConfig = this.currentSearchConfig();
     this.replaceProvider.replaceAllWith(searchConfig, this.replaceInputElement.value);
@@ -662,9 +667,7 @@ export class SearchableView extends VBox {
       return;
     }
 
-    if (this.valueChangedTimeoutId) {
-      clearTimeout(this.valueChangedTimeoutId);
-    }
+    clearTimeout(this.valueChangedTimeoutId);
     const timeout = this.searchInputElement.value.length < 3 ? 200 : 0;
     this.valueChangedTimeoutId = window.setTimeout(this.onValueChanged.bind(this), timeout);
   }
@@ -673,7 +676,7 @@ export class SearchableView extends VBox {
     if (!this.searchIsVisible) {
       return;
     }
-    delete this.valueChangedTimeoutId;
+    this.valueChangedTimeoutId = undefined;
     this.performSearch(false, true);
   }
 }
@@ -681,6 +684,9 @@ export class SearchableView extends VBox {
 const searchableViewsByElement = new WeakMap<Element, SearchableView>();
 
 export interface Searchable {
+  supportsMatchCounts?(): boolean;
+  currentQuery?: string;
+  currentSearchMatches?: number;
   onSearchCanceled(): void;
   // Called when the search toolbar is closed
   onSearchClosed?: () => void;
@@ -688,6 +694,7 @@ export interface Searchable {
   jumpToNextSearchResult(): void;
   jumpToPreviousSearchResult(): void;
   supportsCaseSensitiveSearch(): boolean;
+  supportsWholeWordSearch(): boolean;
   supportsRegexSearch(): boolean;
 }
 
@@ -704,11 +711,13 @@ export interface SearchRegexResult {
 export class SearchConfig {
   query: string;
   caseSensitive: boolean;
+  wholeWord: boolean;
   isRegex: boolean;
 
-  constructor(query: string, caseSensitive: boolean, isRegex: boolean) {
+  constructor(query: string, caseSensitive: boolean, wholeWord: boolean, isRegex: boolean) {
     this.query = query;
     this.caseSensitive = caseSensitive;
+    this.wholeWord = wholeWord;
     this.isRegex = isRegex;
   }
 
@@ -737,6 +746,17 @@ export class SearchConfig {
     // Otherwise just do a plain text search.
     if (!regex) {
       regex = Platform.StringUtilities.createPlainTextSearchRegex(query, modifiers);
+    }
+
+    if (this.wholeWord) {
+      let {source} = regex;
+      if (!source.startsWith('^') && !source.startsWith('\\b')) {
+        source = '\\b' + source;
+      }
+      if (!source.endsWith('$') && !source.endsWith('\\b')) {
+        source = source + '\\b';
+      }
+      regex = new RegExp(source, regex.flags);
     }
 
     return {

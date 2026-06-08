@@ -33,7 +33,6 @@ export declare class Converter {
      * @returns the converted ESTreeNode
      */
     constructor(ast: ts.SourceFile, options?: ConverterOptions);
-    private assertModuleSpecifier;
     private convertBindingNameWithTypeAnnotation;
     /**
      * Coverts body Nodes and add a directive field to StringLiterals
@@ -50,6 +49,13 @@ export declare class Converter {
      * @returns the converted ESTree node
      */
     private convertChild;
+    /**
+     * Converts TypeScript node array into an ESTree node list.
+     * @param children the child `ts.NodeArray` or `ts.Node[]`
+     * @param parent parentNode
+     * @returns the converted ESTree node list
+     */
+    private convertChildren;
     /**
      * Converts a TypeScript node into an ESTree node.
      * @param child the child ts.Node
@@ -71,13 +77,13 @@ export declare class Converter {
      * @param node parent used to create this node
      * @returns TypeParameterInstantiation node
      */
-    private convertTypeArgumentsToTypeParameterInstantiation;
+    private convertTypeArguments;
     /**
      * Converts a ts.Node's typeParameters to TSTypeParameterDeclaration node
      * @param typeParameters ts.Node typeParameters
      * @returns TypeParameterDeclaration node
      */
-    private convertTSTypeParametersToTypeParametersDeclaration;
+    private convertTypeParameters;
     /**
      * Converts an array of ts.Node parameters into an array of ESTreeNode params
      * @param parameters An array of ts.Node params to be converted
@@ -134,4 +140,3 @@ export declare class Converter {
      */
     private registerTSNodeInNodeMap;
 }
-//# sourceMappingURL=convert.d.ts.map

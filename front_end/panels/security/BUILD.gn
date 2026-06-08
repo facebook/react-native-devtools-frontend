@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -10,8 +10,6 @@ import("../visibility.gni")
 
 generate_css("css_files") {
   sources = [
-    "cookieControlsView.css",
-    "cookieReportView.css",
     "lockIcon.css",
     "mainView.css",
     "originView.css",
@@ -19,12 +17,8 @@ generate_css("css_files") {
   ]
 }
 
-devtools_module("security") {
+devtools_ui_module("security") {
   sources = [
-    "CookieControlsTreeElement.ts",
-    "CookieControlsView.ts",
-    "CookieReportTreeElement.ts",
-    "CookieReportView.ts",
     "OriginTreeElement.ts",
     "SecurityModel.ts",
     "SecurityPanel.ts",
@@ -36,17 +30,22 @@ devtools_module("security") {
     "../../core/common:bundle",
     "../../core/host:bundle",
     "../../core/i18n:bundle",
+    "../../core/platform:bundle",
     "../../core/root:bundle",
     "../../core/sdk:bundle",
     "../../generated:protocol",
     "../../models/issues_manager:bundle",
+    "../../models/text_utils:bundle",
     "../../panels/network/forward:bundle",
     "../../ui/components/buttons:bundle",
-    "../../ui/components/cards:bundle",
-    "../../ui/components/chrome_link:bundle",
+    "../../ui/components/input:bundle",
     "../../ui/components/switch:bundle",
+    "../../ui/i18n:bundle",
+    "../../ui/kit:bundle",
     "../../ui/legacy:bundle",
     "../../ui/legacy/components/data_grid:bundle",
+    "../../ui/lit:bundle",
+    "../../ui/visual_logging:bundle",
   ]
 }
 
@@ -61,7 +60,6 @@ devtools_entrypoint("bundle") {
   visibility = [
     ":*",
     "../../entrypoints/*",
-    "../console/*",
   ]
 
   visibility += devtools_panels_visibility
@@ -81,12 +79,10 @@ devtools_entrypoint("meta") {
   visibility = [ "../../entrypoints/*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [
-    "CookieControlsView.test.ts",
-    "CookieReportView.test.ts",
     "SecurityModel.test.ts",
     "SecurityPanel.test.ts",
   ]

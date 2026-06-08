@@ -1,44 +1,46 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
-import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 
 import {AttributionReportingIssue} from './AttributionReportingIssue.js';
 import {BounceTrackingIssue} from './BounceTrackingIssue.js';
 import {ClientHintIssue} from './ClientHintIssue.js';
+import {ConnectionAllowlistIssue} from './ConnectionAllowlistIssue.js';
 import {ContentSecurityPolicyIssue} from './ContentSecurityPolicyIssue.js';
 import {CookieDeprecationMetadataIssue} from './CookieDeprecationMetadataIssue.js';
-import {CookieIssue, CookieIssueSubCategory} from './CookieIssue.js';
+import {CookieIssue} from './CookieIssue.js';
 import {CorsIssue} from './CorsIssue.js';
 import {CrossOriginEmbedderPolicyIssue, isCrossOriginEmbedderPolicyIssue} from './CrossOriginEmbedderPolicyIssue.js';
 import {DeprecationIssue} from './DeprecationIssue.js';
+import {ElementAccessibilityIssue} from './ElementAccessibilityIssue.js';
 import {FederatedAuthRequestIssue} from './FederatedAuthRequestIssue.js';
 import {GenericIssue} from './GenericIssue.js';
 import {HeavyAdIssue} from './HeavyAdIssue.js';
 import type {Issue, IssueKind} from './Issue.js';
 import {Events} from './IssuesManagerEvents.js';
-import {LowTextContrastIssue} from './LowTextContrastIssue.js';
 import {MixedContentIssue} from './MixedContentIssue.js';
 import {PartitioningBlobURLIssue} from './PartitioningBlobURLIssue.js';
+import {PermissionElementIssue} from './PermissionElementIssue.js';
 import {PropertyRuleIssue} from './PropertyRuleIssue.js';
 import {QuirksModeIssue} from './QuirksModeIssue.js';
-import {SelectElementAccessibilityIssue} from './SelectElementAccessibilityIssue.js';
+import {SelectivePermissionsInterventionIssue} from './SelectivePermissionsInterventionIssue.js';
 import {SharedArrayBufferIssue} from './SharedArrayBufferIssue.js';
 import {SharedDictionaryIssue} from './SharedDictionaryIssue.js';
 import {SourceFrameIssuesManager} from './SourceFrameIssuesManager.js';
 import {SRIMessageSignatureIssue} from './SRIMessageSignatureIssue.js';
 import {StylesheetLoadingIssue} from './StylesheetLoadingIssue.js';
+import {UnencodedDigestIssue} from './UnencodedDigestIssue.js';
 
 export {Events} from './IssuesManagerEvents.js';
 
 let issuesManagerInstance: IssuesManager|null = null;
 
 function createIssuesForBlockedByResponseIssue(
-    issuesModel: SDK.IssuesModel.IssuesModel,
+    issuesModel: SDK.IssuesModel.IssuesModel|null,
     inspectorIssue: Protocol.Audits.InspectorIssue): CrossOriginEmbedderPolicyIssue[] {
   const blockedByResponseIssueDetails = inspectorIssue.details.blockedByResponseIssueDetails;
   if (!blockedByResponseIssueDetails) {
@@ -53,7 +55,7 @@ function createIssuesForBlockedByResponseIssue(
 
 const issueCodeHandlers = new Map<
     Protocol.Audits.InspectorIssueCode,
-    (model: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue) => Issue[]>([
+    (model: SDK.IssuesModel.IssuesModel|null, inspectorIssue: Protocol.Audits.InspectorIssue) => Issue[]>([
   [
     Protocol.Audits.InspectorIssueCode.CookieIssue,
     CookieIssue.fromInspectorIssue,
@@ -78,10 +80,6 @@ const issueCodeHandlers = new Map<
   [
     Protocol.Audits.InspectorIssueCode.SharedDictionaryIssue,
     SharedDictionaryIssue.fromInspectorIssue,
-  ],
-  [
-    Protocol.Audits.InspectorIssueCode.LowTextContrastIssue,
-    LowTextContrastIssue.fromInspectorIssue,
   ],
   [
     Protocol.Audits.InspectorIssueCode.CorsIssue,
@@ -132,21 +130,41 @@ const issueCodeHandlers = new Map<
     CookieDeprecationMetadataIssue.fromInspectorIssue,
   ],
   [
-    Protocol.Audits.InspectorIssueCode.SelectElementAccessibilityIssue,
-    SelectElementAccessibilityIssue.fromInspectorIssue,
+    Protocol.Audits.InspectorIssueCode.ElementAccessibilityIssue,
+    ElementAccessibilityIssue.fromInspectorIssue,
   ],
   [
     Protocol.Audits.InspectorIssueCode.SRIMessageSignatureIssue,
     SRIMessageSignatureIssue.fromInspectorIssue,
   ],
+  [
+    Protocol.Audits.InspectorIssueCode.UnencodedDigestIssue,
+    UnencodedDigestIssue.fromInspectorIssue,
+  ],
+  [
+    Protocol.Audits.InspectorIssueCode.ConnectionAllowlistIssue,
+    ConnectionAllowlistIssue.fromInspectorIssue,
+  ],
+  [
+    Protocol.Audits.InspectorIssueCode.PermissionElementIssue,
+    PermissionElementIssue.fromInspectorIssue,
+  ],
+  [
+    Protocol.Audits.InspectorIssueCode.SelectivePermissionsInterventionIssue,
+    SelectivePermissionsInterventionIssue.fromInspectorIssue,
+  ],
 ]);
+
+export function isIssueCodeSupported(code: Protocol.Audits.InspectorIssueCode): boolean {
+  return issueCodeHandlers.has(code);
+}
 
 /**
  * Each issue reported by the backend can result in multiple `Issue` instances.
  * Handlers are simple functions hard-coded into a map.
  */
 export function createIssuesFromProtocolIssue(
-    issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue): Issue[] {
+    issuesModel: SDK.IssuesModel.IssuesModel|null, inspectorIssue: Protocol.Audits.InspectorIssue): Issue[] {
   const handler = issueCodeHandlers.get(inspectorIssue.code);
   if (handler) {
     return handler(issuesModel, inspectorIssue);
@@ -163,9 +181,7 @@ export interface IssuesManagerCreationOptions {
   hideIssueSetting?: Common.Settings.Setting<HideIssueMenuSetting>;
 }
 
-export interface HideIssueMenuSetting {
-  [x: string]: IssueStatus;
-}
+export type HideIssueMenuSetting = Record<string, IssueStatus>;
 
 export const enum IssueStatus {
   HIDDEN = 'Hidden',
@@ -200,9 +216,9 @@ export class IssuesManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
   #filteredIssues = new Map<string, Issue>();
   #issueCounts = new Map<IssueKind, number>();
   #hiddenIssueCount = new Map<IssueKind, number>();
+  #thirdPartyCookiePhaseoutIssueCount = new Map<IssueKind, number>();
   #issuesById = new Map<string, Issue>();
   #issuesByOutermostTarget: WeakMap<SDK.Target.Target, Set<Issue>> = new Map();
-  #thirdPartyCookiePhaseoutIssueMessageSent = false;
 
   constructor(
       private readonly showThirdPartyIssuesSetting?: Common.Settings.Setting<boolean>,
@@ -305,7 +321,6 @@ export class IssuesManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
 
   #onIssueAddedEvent(event: Common.EventTarget.EventTargetEvent<SDK.IssuesModel.IssueAddedEvent>): void {
     const {issuesModel, inspectorIssue} = event.data;
-    const isPrivacyUiEnabled = Root.Runtime.hostConfig.devToolsPrivacyUI?.enabled;
 
     const issues = createIssuesFromProtocolIssue(issuesModel, inspectorIssue);
     for (const issue of issues) {
@@ -314,16 +329,7 @@ export class IssuesManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
       if (!message) {
         continue;
       }
-
-      // Only show one message for third-party cookie phaseout issues if the new privacy ui is enabled
-      const is3rdPartyCookiePhaseoutIssue =
-          CookieIssue.getSubCategory(issue.code()) === CookieIssueSubCategory.THIRD_PARTY_PHASEOUT_COOKIE;
-      if (!is3rdPartyCookiePhaseoutIssue || !isPrivacyUiEnabled || !this.#thirdPartyCookiePhaseoutIssueMessageSent) {
-        issuesModel.target().model(SDK.ConsoleModel.ConsoleModel)?.addMessage(message);
-      }
-      if (is3rdPartyCookiePhaseoutIssue && isPrivacyUiEnabled) {
-        this.#thirdPartyCookiePhaseoutIssueMessageSent = true;
-      }
+      issuesModel.target().model(SDK.ConsoleModel.ConsoleModel)?.addMessage(message);
     }
   }
 
@@ -356,9 +362,14 @@ export class IssuesManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
       }
       const values = this.hideIssueSetting?.get();
       this.#updateIssueHiddenStatus(issue, values);
-      if (issue.isHidden()) {
+
+      if (CookieIssue.isThirdPartyCookiePhaseoutRelatedIssue(issue)) {
+        this.#thirdPartyCookiePhaseoutIssueCount.set(
+            issue.getKind(), 1 + (this.#thirdPartyCookiePhaseoutIssueCount.get(issue.getKind()) || 0));
+      } else if (issue.isHidden()) {
         this.#hiddenIssueCount.set(issue.getKind(), 1 + (this.#hiddenIssueCount.get(issue.getKind()) || 0));
       }
+
       this.dispatchEventToListeners(Events.ISSUE_ADDED, {issuesModel, issue});
     }
     // Always fire the "count" event even if the issue was filtered out.
@@ -372,9 +383,10 @@ export class IssuesManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
 
   numberOfIssues(kind?: IssueKind): number {
     if (kind) {
-      return (this.#issueCounts.get(kind) ?? 0) - this.numberOfHiddenIssues(kind);
+      return (this.#issueCounts.get(kind) ?? 0) - this.numberOfHiddenIssues(kind) -
+          this.numberOfThirdPartyCookiePhaseoutIssues(kind);
     }
-    return this.#filteredIssues.size - this.numberOfHiddenIssues();
+    return this.#filteredIssues.size - this.numberOfHiddenIssues() - this.numberOfThirdPartyCookiePhaseoutIssues();
   }
 
   numberOfHiddenIssues(kind?: IssueKind): number {
@@ -383,6 +395,17 @@ export class IssuesManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
     }
     let count = 0;
     for (const num of this.#hiddenIssueCount.values()) {
+      count += num;
+    }
+    return count;
+  }
+
+  numberOfThirdPartyCookiePhaseoutIssues(kind?: IssueKind): number {
+    if (kind) {
+      return this.#thirdPartyCookiePhaseoutIssueCount.get(kind) ?? 0;
+    }
+    let count = 0;
+    for (const num of this.#thirdPartyCookiePhaseoutIssueCount.values()) {
       count += num;
     }
     return count;
@@ -412,12 +435,11 @@ export class IssuesManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
     // In case a user wants to hide a specific issue, the issue code is added to "code" section
     // of our setting and its value is set to IssueStatus.Hidden. Then issue then gets hidden.
     if (values?.[code]) {
-      if (values[code] === IssueStatus.HIDDEN) {
-        issue.setHidden(true);
-        return;
+      const isHidden = values[code] === IssueStatus.HIDDEN;
+      if (issue.isHidden() !== isHidden) {
+        issue.setHidden(isHidden);
+        this.dispatchEventToListeners(Events.ISSUE_HIDDEN_STATUS_UPDATED, {issue});
       }
-      issue.setHidden(false);
-      return;
     }
   }
 
@@ -426,7 +448,7 @@ export class IssuesManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
     this.#issueCounts.clear();
     this.#issuesById.clear();
     this.#hiddenIssueCount.clear();
-    this.#thirdPartyCookiePhaseoutIssueMessageSent = false;
+    this.#thirdPartyCookiePhaseoutIssueCount.clear();
     const values = this.hideIssueSetting?.get();
     for (const [key, issue] of this.#allIssues) {
       if (this.#issueFilter(issue)) {
@@ -448,7 +470,10 @@ export class IssuesManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes
 
   unhideAllIssues(): void {
     for (const issue of this.#allIssues.values()) {
-      issue.setHidden(false);
+      if (issue.isHidden()) {
+        issue.setHidden(false);
+        this.dispatchEventToListeners(Events.ISSUE_HIDDEN_STATUS_UPDATED, {issue});
+      }
     }
     this.hideIssueSetting?.set(defaultHideIssueByCodeSetting());
   }
@@ -463,10 +488,15 @@ export interface IssueAddedEvent {
   issue: Issue;
 }
 
+export interface IssueHiddenStatusUpdatedEvent {
+  issue: Issue;
+}
+
 export interface EventTypes {
   [Events.ISSUES_COUNT_UPDATED]: void;
   [Events.FULL_UPDATE_REQUIRED]: void;
   [Events.ISSUE_ADDED]: IssueAddedEvent;
+  [Events.ISSUE_HIDDEN_STATUS_UPDATED]: IssueHiddenStatusUpdatedEvent;
 }
 
 // @ts-expect-error

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,10 +27,8 @@ describe('ComputedStyleProperty', () => {
         getEventPromise(component, ElementsComponents.ComputedStyleProperty.NavigateToSourceEvent.eventName);
 
     const goto = component.shadowRoot!.querySelector<HTMLElement>('.goto');
-    if (!goto) {
-      assert.fail('goto icon should exist');
-      return;
-    }
+    assert.exists(goto, 'goto icon should exist');
+
     goto.click();
     const event = await navigateEvent;
     assert.exists(event);

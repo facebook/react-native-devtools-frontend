@@ -1,6 +1,7 @@
-// Copyright (c) 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as i18n from '../../core/i18n/i18n.js';
 import * as SDK from '../../core/sdk/sdk.js';
@@ -13,48 +14,48 @@ import xhrBreakpointsSidebarPaneStyles from './xhrBreakpointsSidebarPane.css.js'
 
 const UIStrings = {
   /**
-   *@description Title of the 'XHR/fetch Breakpoints' tool in the bottom sidebar of the Sources tool
+   * @description Title of the 'XHR/fetch Breakpoints' tool in the bottom sidebar of the Sources tool
    */
   xhrfetchBreakpoints: 'XHR/fetch Breakpoints',
   /**
-   *@description Text to indicate there are no breakpoints
+   * @description Text to indicate there are no breakpoints
    */
   noBreakpoints: 'No breakpoints',
   /**
-   *@description Label for a button in the Sources panel that opens the input field to create a new XHR/fetch breakpoint.
+   * @description Label for a button in the Sources panel that opens the input field to create a new XHR/fetch breakpoint.
    */
   addXhrfetchBreakpoint: 'Add XHR/fetch breakpoint',
   /**
-   *@description Text to add a breakpoint
+   * @description Text to add a breakpoint
    */
   addBreakpoint: 'Add breakpoint',
   /**
-   *@description Input element container text content in XHRBreakpoints Sidebar Pane of the JavaScript Debugging pane in the Sources panel or the DOM Breakpoints pane in the Elements panel
+   * @description Input element container text content in XHRBreakpoints Sidebar Pane of the JavaScript Debugging pane in the Sources panel or the DOM Breakpoints pane in the Elements panel
    */
   breakWhenUrlContains: 'Break when URL contains:',
   /**
-   *@description Accessible label for XHR/fetch breakpoint text input
+   * @description Accessible label for XHR/fetch breakpoint text input
    */
   urlBreakpoint: 'URL Breakpoint',
   /**
-   *@description Text in XHRBreakpoints Sidebar Pane of the JavaScript Debugging pane in the Sources panel or the DOM Breakpoints pane in the Elements panel
-   *@example {example.com} PH1
+   * @description Text in XHRBreakpoints Sidebar Pane of the JavaScript Debugging pane in the Sources panel or the DOM Breakpoints pane in the Elements panel
+   * @example {example.com} PH1
    */
   urlContainsS: 'URL contains "{PH1}"',
   /**
-   *@description Text in XHRBreakpoints Sidebar Pane of the JavaScript Debugging pane in the Sources panel or the DOM Breakpoints pane in the Elements panel
+   * @description Text in XHRBreakpoints Sidebar Pane of the JavaScript Debugging pane in the Sources panel or the DOM Breakpoints pane in the Elements panel
    */
   anyXhrOrFetch: 'Any XHR or fetch',
   /**
-   *@description Screen reader description of a hit breakpoint in the Sources panel
+   * @description Screen reader description of a hit breakpoint in the Sources panel
    */
   breakpointHit: 'breakpoint hit',
   /**
-   *@description Text to remove all breakpoints
+   * @description Text to remove all breakpoints
    */
   removeAllBreakpoints: 'Remove all breakpoints',
   /**
-   *@description Text to remove a breakpoint
+   * @description Text to remove a breakpoint
    */
   removeBreakpoint: 'Remove breakpoint',
 } as const;
@@ -62,7 +63,7 @@ const str_ = i18n.i18n.registerUIStrings('panels/browser_debugger/XHRBreakpoints
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 const containerToBreakpointEntry = new WeakMap<Element, HTMLElement>();
 
-const breakpointEntryToCheckbox = new WeakMap<Element, HTMLInputElement>();
+const breakpointEntryToCheckbox = new WeakMap<Element, UI.UIUtils.CheckboxLabel>();
 
 let xhrBreakpointsSidebarPaneInstance: XHRBreakpointsSidebarPane;
 
@@ -79,12 +80,14 @@ export class XHRBreakpointsSidebarPane extends UI.Widget.VBox implements UI.Cont
   #hitBreakpoint?: any;
 
   private constructor() {
-    super(true);
+    super({
+      jslog: `${VisualLogging.section('source.xhr-breakpoints')}`,
+      useShadowDom: true,
+    });
     this.registerRequiredCSS(xhrBreakpointsSidebarPaneStyles);
 
     this.#breakpoints = new UI.ListModel.ListModel();
     this.#list = new UI.ListControl.ListControl(this.#breakpoints, this, UI.ListControl.ListMode.NonViewport);
-    this.contentElement.setAttribute('jslog', `${VisualLogging.section('source.xhr-breakpoints')}`);
     this.contentElement.appendChild(this.#list.element);
     this.#list.element.classList.add('breakpoint-list', 'hidden');
     UI.ARIAUtils.markAsList(this.#list.element);
@@ -192,18 +195,18 @@ export class XHRBreakpointsSidebarPane extends UI.Widget.VBox implements UI.Cont
     element.addEventListener('contextmenu', this.contextMenu.bind(this, item), true);
 
     const title = item ? i18nString(UIStrings.urlContainsS, {PH1: item}) : i18nString(UIStrings.anyXhrOrFetch);
-    const label = UI.UIUtils.CheckboxLabel.create(title, enabled, undefined, undefined, /* small */ true);
-    UI.ARIAUtils.setHidden(label, true);
+    const checkbox = UI.UIUtils.CheckboxLabel.create(title, enabled, undefined, undefined, /* small */ true);
+    UI.ARIAUtils.setHidden(checkbox, true);
     UI.ARIAUtils.setLabel(element, title);
-    element.appendChild(label);
-    label.checkboxElement.addEventListener('click', this.checkboxClicked.bind(this, item, enabled), false);
+    element.appendChild(checkbox);
+    checkbox.addEventListener('click', this.checkboxClicked.bind(this, item, enabled), false);
     element.addEventListener('click', event => {
       if (event.target === element) {
         this.checkboxClicked(item, enabled);
       }
     }, false);
-    breakpointEntryToCheckbox.set(element, label.checkboxElement);
-    label.checkboxElement.tabIndex = -1;
+    breakpointEntryToCheckbox.set(element, checkbox);
+    checkbox.tabIndex = -1;
     element.tabIndex = -1;
     if (item === this.#list.selectedItem()) {
       element.tabIndex = 0;
@@ -229,18 +232,19 @@ export class XHRBreakpointsSidebarPane extends UI.Widget.VBox implements UI.Cont
       UI.ARIAUtils.setDescription(element, i18nString(UIStrings.breakpointHit));
     }
 
-    label.classList.add('cursor-auto');
-    label.textElement.addEventListener('dblclick', this.labelClicked.bind(this, item), false);
+    checkbox.classList.add('cursor-auto');
+    checkbox.addEventListener('dblclick', this.labelClicked.bind(this, item), false);
     this.#breakpointElements.set(item, listItemElement);
     listItemElement.setAttribute('jslog', `${VisualLogging.item().track({
                                    click: true,
                                    dblclick: true,
+                                   resize: true,
                                    keydown: 'ArrowUp|ArrowDown|PageUp|PageDown|Enter|Space',
                                  })}`);
     return listItemElement;
   }
 
-  selectedItemChanged(from: string|null, to: string|null, fromElement: HTMLElement|null, toElement: HTMLElement|null):
+  selectedItemChanged(_from: string|null, _to: string|null, fromElement: HTMLElement|null, toElement: HTMLElement|null):
       void {
     if (fromElement) {
       const breakpointEntryElement = containerToBreakpointEntry.get(fromElement);

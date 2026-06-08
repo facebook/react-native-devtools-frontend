@@ -1,36 +1,62 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
+
+import '../../ui/components/switch/switch.js';
 
 import type * as Common from '../../core/common/common.js';
-import * as Root from '../../core/root/root.js';
+import * as i18n from '../../core/i18n/i18n.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as UI from '../../ui/legacy/legacy.js';
+import * as Lit from '../../ui/lit/lit.js';
 
 import {AXNodeSubPane} from './AccessibilityNodeView.js';
+import accessibilitySidebarViewStyles from './accessibilitySidebarView.css.js';
 import {ARIAAttributesPane} from './ARIAAttributesView.js';
-import {AXBreadcrumbsPane} from './AXBreadcrumbsPane.js';
 import {SourceOrderPane} from './SourceOrderView.js';
+
+const {html, render} = Lit;
+
+const UIStrings = {
+  /**
+   * @description Text for a toggle to turn on the accessibility tree view.
+   */
+  showAccessibilityTree: 'Show accessibility tree',
+} as const;
+const str_ = i18n.i18n.registerUIStrings('panels/accessibility/AccessibilitySidebarView.ts', UIStrings);
+const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 let accessibilitySidebarViewInstance: AccessibilitySidebarView;
 
-export class AccessibilitySidebarView extends UI.ThrottledWidget.ThrottledWidget {
-  private nodeInternal: SDK.DOMModel.DOMNode|null;
-  private axNodeInternal: SDK.AccessibilityModel.AccessibilityNode|null;
+export class AccessibilitySidebarView extends UI.Widget.VBox {
+  #node: SDK.DOMModel.DOMNode|null;
+  #axNode: SDK.AccessibilityModel.AccessibilityNode|null;
   private skipNextPullNode: boolean;
   private readonly sidebarPaneStack: UI.View.ViewLocation;
-  private readonly breadcrumbsSubPane: AXBreadcrumbsPane|null = null;
   private readonly ariaSubPane: ARIAAttributesPane;
   private readonly axNodeSubPane: AXNodeSubPane;
   private readonly sourceOrderSubPane: SourceOrderPane;
-  private constructor(throttlingTimeout?: number) {
-    super(false /* useShadowDom */, throttlingTimeout);
-    this.nodeInternal = null;
-    this.axNodeInternal = null;
+  private readonly toggleContainer: HTMLElement;
+  private readonly toggleAction: UI.ActionRegistration.Action;
+
+  private constructor() {
+    super();
+    this.registerRequiredCSS(accessibilitySidebarViewStyles);
+    this.element.classList.add('accessibility-sidebar-view');
+    this.#node = null;
+    this.#axNode = null;
     this.skipNextPullNode = false;
     this.sidebarPaneStack = UI.ViewManager.ViewManager.instance().createStackLocation();
-    this.breadcrumbsSubPane = new AXBreadcrumbsPane(this);
-    void this.sidebarPaneStack.showView(this.breadcrumbsSubPane);
+
+    this.toggleContainer = document.createElement('div');
+    this.toggleContainer.classList.add('accessibility-toggle-container');
+    this.element.appendChild(this.toggleContainer);
+
+    this.toggleAction = UI.ActionRegistry.ActionRegistry.instance().getAction('elements.toggle-a11y-tree');
+    this.toggleAction.addEventListener(UI.ActionRegistration.Events.TOGGLED, this.updateToggle, this);
+    this.updateToggle();
+
     this.ariaSubPane = new ARIAAttributesPane();
     void this.sidebarPaneStack.showView(this.ariaSubPane);
     this.axNodeSubPane = new AXNodeSubPane();
@@ -42,28 +68,25 @@ export class AccessibilitySidebarView extends UI.ThrottledWidget.ThrottledWidget
     this.pullNode();
   }
 
-  static instance(opts?: {
-    forceNew: boolean,
-    throttlingTimeout: number,
-  }): AccessibilitySidebarView {
+  static instance(opts?: {forceNew: boolean}): AccessibilitySidebarView {
     if (!accessibilitySidebarViewInstance || opts?.forceNew) {
-      accessibilitySidebarViewInstance = new AccessibilitySidebarView(opts?.throttlingTimeout);
+      accessibilitySidebarViewInstance = new AccessibilitySidebarView();
     }
     return accessibilitySidebarViewInstance;
   }
 
   node(): SDK.DOMModel.DOMNode|null {
-    return this.nodeInternal;
+    return this.#node;
   }
 
   axNode(): SDK.AccessibilityModel.AccessibilityNode|null {
-    return this.axNodeInternal;
+    return this.#axNode;
   }
 
   setNode(node: SDK.DOMModel.DOMNode|null, fromAXTree?: boolean): void {
     this.skipNextPullNode = Boolean(fromAXTree);
-    this.nodeInternal = node;
-    this.update();
+    this.#node = node;
+    this.requestUpdate();
   }
 
   accessibilityNodeCallback(axNode: SDK.AccessibilityModel.AccessibilityNode|null): void {
@@ -71,7 +94,7 @@ export class AccessibilitySidebarView extends UI.ThrottledWidget.ThrottledWidget
       return;
     }
 
-    this.axNodeInternal = axNode;
+    this.#axNode = axNode;
 
     if (axNode.isDOMNode()) {
       void this.sidebarPaneStack.showView(this.ariaSubPane, this.axNodeSubPane);
@@ -79,21 +102,13 @@ export class AccessibilitySidebarView extends UI.ThrottledWidget.ThrottledWidget
       this.sidebarPaneStack.removeView(this.ariaSubPane);
     }
 
-    if (this.axNodeSubPane) {
-      this.axNodeSubPane.setAXNode(axNode);
-    }
-    if (this.breadcrumbsSubPane) {
-      this.breadcrumbsSubPane.setAXNode(axNode);
-    }
+    this.axNodeSubPane.setAXNode(axNode);
   }
 
-  override async doUpdate(): Promise<void> {
+  override async performUpdate(): Promise<void> {
     const node = this.node();
     this.axNodeSubPane.setNode(node);
     this.ariaSubPane.setNode(node);
-    if (this.breadcrumbsSubPane) {
-      this.breadcrumbsSubPane.setNode(node);
-    }
     void this.sourceOrderSubPane.setNodeAsync(node);
     if (!node) {
       return;
@@ -101,9 +116,6 @@ export class AccessibilitySidebarView extends UI.ThrottledWidget.ThrottledWidget
     const accessibilityModel = node.domModel().target().model(SDK.AccessibilityModel.AccessibilityModel);
     if (!accessibilityModel) {
       return;
-    }
-    if (!Root.Runtime.experiments.isEnabled('full-accessibility-tree')) {
-      accessibilityModel.clear();
     }
     await accessibilityModel.requestPartialAXTree(node);
     this.accessibilityNodeCallback(accessibilityModel.axNodeForDOMNode(node));
@@ -113,7 +125,7 @@ export class AccessibilitySidebarView extends UI.ThrottledWidget.ThrottledWidget
     super.wasShown();
 
     // Pull down the latest date for this node.
-    void this.doUpdate();
+    void this.performUpdate();
 
     SDK.TargetManager.TargetManager.instance().addModelListener(
         SDK.DOMModel.DOMModel, SDK.DOMModel.Events.AttrModified, this.onNodeChange, this, {scoped: true});
@@ -126,6 +138,7 @@ export class AccessibilitySidebarView extends UI.ThrottledWidget.ThrottledWidget
   }
 
   override willHide(): void {
+    super.willHide();
     SDK.TargetManager.TargetManager.instance().removeModelListener(
         SDK.DOMModel.DOMModel, SDK.DOMModel.Events.AttrModified, this.onNodeChange, this);
     SDK.TargetManager.TargetManager.instance().removeModelListener(
@@ -144,8 +157,33 @@ export class AccessibilitySidebarView extends UI.ThrottledWidget.ThrottledWidget
     this.setNode(UI.Context.Context.instance().flavor(SDK.DOMModel.DOMNode));
   }
 
-  private onNodeChange(event: Common.EventTarget
-                           .EventTargetEvent<{node: SDK.DOMModel.DOMNode, name: string}|SDK.DOMModel.DOMNode>): void {
+  private updateToggle(): void {
+    const isToggled = this.toggleAction.toggled();
+    // eslint-disable-next-line @devtools/no-lit-render-outside-of-view
+    render(
+        html`
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <devtools-switch
+          role="switch"
+          aria-label=${i18nString(UIStrings.showAccessibilityTree)}
+          .checked=${isToggled}
+          .label=${i18nString(UIStrings.showAccessibilityTree)}
+          .jslogContext=${'elements.toggle-a11y-tree'}
+          @switchchange=${this.onToggleChange}
+        ></devtools-switch>
+        <span style="color: var(--sys-color-on-surface);">${i18nString(UIStrings.showAccessibilityTree)}</span>
+      </div>
+    `,
+        this.toggleContainer, {host: this});
+  }
+
+  private onToggleChange(_event: Event): void {
+    void this.toggleAction.execute();
+  }
+
+  private onNodeChange(
+      event: Common.EventTarget.EventTargetEvent<{node: SDK.DOMModel.DOMNode, name: string}|SDK.DOMModel.DOMNode>):
+      void {
     if (!this.node()) {
       return;
     }
@@ -154,6 +192,6 @@ export class AccessibilitySidebarView extends UI.ThrottledWidget.ThrottledWidget
     if (this.node() !== node) {
       return;
     }
-    this.update();
+    this.requestUpdate();
   }
 }

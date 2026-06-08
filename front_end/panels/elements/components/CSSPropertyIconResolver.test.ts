@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as ElementsComponents from './components.js';
 
 describe('CSSPropertyIconResolver', () => {
-  function mapFromStyle(style: {[key: string]: string|undefined}) {
+  function mapFromStyle(style: Record<string, string|undefined>) {
     const result = new Map();
     for (const key of Object.keys(style)) {
       result.set(key, style[key]);
@@ -853,7 +853,7 @@ describe('CSSPropertyIconResolver', () => {
       assert.deepEqual(
           ElementsComponents.CSSPropertyIconResolver.findIcon(
               `flex-wrap: ${test.style['flex-wrap']}`, mapFromStyle(test.style)),
-          ElementsComponents.CSSPropertyIconResolver.roateFlexWrapIcon(test.iconName, test.expected),
+          ElementsComponents.CSSPropertyIconResolver.rotateFlexWrapIcon(test.iconName, test.expected),
           `Test flex-wrap(${JSON.stringify(test.style)}) failed.`);
     }
   });

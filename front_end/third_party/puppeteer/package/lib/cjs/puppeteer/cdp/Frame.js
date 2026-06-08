@@ -40,6 +40,7 @@ var __esDecorate = (this && this.__esDecorate) || function (ctor, descriptorIn, 
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CdpFrame = void 0;
+exports.referrerPolicyToProtocol = referrerPolicyToProtocol;
 const Frame_js_1 = require("../api/Frame.js");
 const Errors_js_1 = require("../common/Errors.js");
 const util_js_1 = require("../common/util.js");
@@ -87,6 +88,7 @@ let CdpFrame = (() => {
         _parentId;
         accessibility;
         worlds;
+        extensionWorlds = {};
         constructor(frameManager, frameId, parentFrameId, client) {
             super();
             this._frameManager = frameManager;
@@ -97,8 +99,8 @@ let CdpFrame = (() => {
             this.#client = client;
             this._loaderId = '';
             this.worlds = {
-                [IsolatedWorlds_js_1.MAIN_WORLD]: new IsolatedWorld_js_1.IsolatedWorld(this, this._frameManager.timeoutSettings),
-                [IsolatedWorlds_js_1.PUPPETEER_WORLD]: new IsolatedWorld_js_1.IsolatedWorld(this, this._frameManager.timeoutSettings),
+                [IsolatedWorlds_js_1.MAIN_WORLD]: new IsolatedWorld_js_1.IsolatedWorld(this, this._frameManager.timeoutSettings, IsolatedWorlds_js_1.MAIN_WORLD),
+                [IsolatedWorlds_js_1.PUPPETEER_WORLD]: new IsolatedWorld_js_1.IsolatedWorld(this, this._frameManager.timeoutSettings, IsolatedWorlds_js_1.PUPPETEER_WORLD),
             };
             this.accessibility = new Accessibility_js_1.Accessibility(this.worlds[IsolatedWorlds_js_1.MAIN_WORLD], frameId);
             this.on(Frame_js_1.FrameEvent.FrameSwappedByActivation, () => {
@@ -106,20 +108,21 @@ let CdpFrame = (() => {
                 this._onLoadingStarted();
                 this._onLoadingStopped();
             });
-            this.worlds[IsolatedWorlds_js_1.MAIN_WORLD].emitter.on('consoleapicalled', this.#onMainWorldConsoleApiCalled.bind(this));
-            this.worlds[IsolatedWorlds_js_1.MAIN_WORLD].emitter.on('bindingcalled', this.#onMainWorldBindingCalled.bind(this));
+            this.registerWorldListeners(this.worlds[IsolatedWorlds_js_1.MAIN_WORLD]);
         }
-        #onMainWorldConsoleApiCalled(event) {
-            this._frameManager.emit(FrameManagerEvents_js_1.FrameManagerEvent.ConsoleApiCalled, [
-                this.worlds[IsolatedWorlds_js_1.MAIN_WORLD],
-                event,
-            ]);
-        }
-        #onMainWorldBindingCalled(event) {
-            this._frameManager.emit(FrameManagerEvents_js_1.FrameManagerEvent.BindingCalled, [
-                this.worlds[IsolatedWorlds_js_1.MAIN_WORLD],
-                event,
-            ]);
+        /**
+         * @internal
+         */
+        registerWorldListeners(world) {
+            world.emitter.on('consoleapicalled', event => {
+                this._frameManager.emit(FrameManagerEvents_js_1.FrameManagerEvent.ConsoleApiCalled, [
+                    world,
+                    event,
+                ]);
+            });
+            world.emitter.on('bindingcalled', event => {
+                this._frameManager.emit(FrameManagerEvents_js_1.FrameManagerEvent.BindingCalled, [world, event]);
+            });
         }
         /**
          * This is used internally in DevTools.
@@ -147,7 +150,7 @@ let CdpFrame = (() => {
             let ensureNewDocumentNavigation = false;
             const watcher = new LifecycleWatcher_js_1.LifecycleWatcher(this._frameManager.networkManager, this, waitUntil, timeout);
             let error = await Deferred_js_1.Deferred.race([
-                navigate(this.#client, url, referer, referrerPolicy, this._id),
+                navigate(this.#client, url, referer, referrerPolicy ? referrerPolicyToProtocol(referrerPolicy) : undefined, this._id),
                 watcher.terminationPromise(),
             ]);
             if (!error) {
@@ -328,6 +331,9 @@ let CdpFrame = (() => {
             this.#detached = true;
             this.worlds[IsolatedWorlds_js_1.MAIN_WORLD][disposable_js_1.disposeSymbol]();
             this.worlds[IsolatedWorlds_js_1.PUPPETEER_WORLD][disposable_js_1.disposeSymbol]();
+            for (const extensionWorld of Object.values(this.extensionWorlds)) {
+                extensionWorld[disposable_js_1.disposeSymbol]();
+            }
         }
         exposeFunction() {
             throw new Errors_js_1.UnsupportedOperation();
@@ -344,7 +350,24 @@ let CdpFrame = (() => {
                 .mainRealm()
                 .adoptBackendNode(backendNodeId));
         }
+        /**
+         * @public
+         */
+        extensionRealms() {
+            return Object.values(this.extensionWorlds);
+        }
     };
 })();
 exports.CdpFrame = CdpFrame;
+/**
+ * @internal
+ */
+function referrerPolicyToProtocol(referrerPolicy) {
+    // See
+    // https://chromedevtools.github.io/devtools-protocol/tot/Page/#type-ReferrerPolicy
+    // We need to conver from Web-facing phase to CDP's camelCase.
+    return referrerPolicy.replaceAll(/-./g, match => {
+        return match[1].toUpperCase();
+    });
+}
 //# sourceMappingURL=Frame.js.map

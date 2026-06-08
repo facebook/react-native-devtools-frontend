@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,8 +40,11 @@ export const logResize = (loggable: Loggable, size: DOMRect): void => {
     return;
   }
   loggingState.size = size;
-  const resizeEvent: Host.InspectorFrontendHostAPI
-      .ResizeEvent = {veid: loggingState.veid, width: loggingState.size.width, height: loggingState.size.height};
+  const resizeEvent: Host.InspectorFrontendHostAPI.ResizeEvent = {
+    veid: loggingState.veid,
+    width: Math.round(loggingState.size.width),
+    height: Math.round(loggingState.size.height)
+  };
   Host.InspectorFrontendHost.InspectorFrontendHostInstance.recordResize(resizeEvent);
   processEventForDebugging('Resize', loggingState, {width: Math.round(size.width), height: Math.round(size.height)});
 };
@@ -61,7 +64,7 @@ export const logClick = (throttler: Common.Throttler.Throttler) => (
     Host.InspectorFrontendHost.InspectorFrontendHostInstance.recordClick(clickEvent);
     processEventForDebugging(
         'Click', loggingState, {mouseButton: clickEvent.mouseButton, doubleClick: clickEvent.doubleClick});
-  });
+  }, Common.Throttler.Scheduling.DELAYED);
 };
 
 export const logHover = (throttler: Common.Throttler.Throttler) => async (event: Event) => {
@@ -178,7 +181,26 @@ export async function logSettingAccess(name: string, value: number|string|boolea
   } else if (typeof value === 'number' || typeof value === 'boolean') {
     numericValue = Number(value);
   }
-  const settingAccessEvent: Host.InspectorFrontendHostAPI.SettingAccessEvent = {name, numericValue, stringValue};
+  const nameHash = await contextAsNumber(name);
+  if (!nameHash) {
+    return;
+  }
+  const settingAccessEvent: Host.InspectorFrontendHostAPI.SettingAccessEvent = {
+    name: nameHash,
+    numeric_value: numericValue,
+    string_value: await contextAsNumber(stringValue),
+  };
   Host.InspectorFrontendHost.InspectorFrontendHostInstance.recordSettingAccess(settingAccessEvent);
   processEventForDebugging('SettingAccess', null, {name, numericValue, stringValue});
+}
+
+export async function logFunctionCall(name: string, context?: string): Promise<void> {
+  const nameHash = await contextAsNumber(name);
+  if (typeof nameHash === 'undefined') {
+    return;
+  }
+  const functionCallEvent:
+      Host.InspectorFrontendHostAPI.FunctionCallEvent = {name: nameHash, context: await contextAsNumber(context)};
+  Host.InspectorFrontendHost.InspectorFrontendHostInstance.recordFunctionCall(functionCallEvent);
+  processEventForDebugging('FunctionCall', null, {name, context});
 }

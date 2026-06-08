@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -13,9 +13,13 @@ generate_css("css_files") {
     "appManifestView.css",
     "backgroundServiceView.css",
     "cookieItemsView.css",
+    "deviceBoundSessionsView.css",
+    "frameDetailsReportView.css",
     "indexedDBViews.css",
     "interestGroupStorageView.css",
     "openedWindowDetailsView.css",
+    "originTrialTokenRows.css",
+    "originTrialTreeView.css",
     "preloading/preloadingView.css",
     "preloading/preloadingViewDropDown.css",
     "resourcesPanel.css",
@@ -25,10 +29,11 @@ generate_css("css_files") {
     "serviceWorkersView.css",
     "sharedStorageEventsView.css",
     "storageView.css",
+    "webMCPView.css",
   ]
 }
 
-devtools_module("application") {
+devtools_ui_module("application") {
   sources = [
     "AppManifestView.ts",
     "ApplicationPanelSidebar.ts",
@@ -38,10 +43,15 @@ devtools_module("application") {
     "BackgroundServiceView.ts",
     "BounceTrackingMitigationsTreeElement.ts",
     "CookieItemsView.ts",
+    "CrashReportContextView.ts",
     "DOMStorageItemsView.ts",
     "DOMStorageModel.ts",
+    "DeviceBoundSessionsModel.ts",
+    "DeviceBoundSessionsTreeElement.ts",
+    "DeviceBoundSessionsView.ts",
     "ExtensionStorageItemsView.ts",
     "ExtensionStorageModel.ts",
+    "FrameDetailsView.ts",
     "IndexedDBModel.ts",
     "IndexedDBViews.ts",
     "InterestGroupStorageModel.ts",
@@ -49,8 +59,8 @@ devtools_module("application") {
     "InterestGroupTreeElement.ts",
     "KeyValueStorageItemsView.ts",
     "OpenedWindowDetailsView.ts",
+    "OriginTrialTreeView.ts",
     "PreloadingTreeElement.ts",
-    "ReportingApiReportsView.ts",
     "ReportingApiTreeElement.ts",
     "ReportingApiView.ts",
     "ResourcesPanel.ts",
@@ -64,9 +74,11 @@ devtools_module("application") {
     "SharedStorageModel.ts",
     "SharedStorageTreeElement.ts",
     "StorageBucketsTreeElement.ts",
-    "StorageItemsView.ts",
+    "StorageItemsToolbar.ts",
     "StorageView.ts",
     "TrustTokensTreeElement.ts",
+    "WebMCPTreeElement.ts",
+    "WebMCPView.ts",
     "preloading/PreloadingView.ts",
   ]
 
@@ -80,25 +92,40 @@ devtools_module("application") {
     "../../core/sdk:bundle",
     "../../generated:protocol",
     "../../models/bindings:bundle",
+    "../../models/geometry:bundle",
     "../../models/issues_manager:bundle",
-    "../../models/logs:bundle",
+    "../../models/stack_trace:bundle",
     "../../models/text_utils:bundle",
+    "../../models/web_mcp:bundle",
     "../../models/workspace:bundle",
     "../../panels/mobile_throttling:bundle",
     "../../panels/network:bundle",
     "../../panels/network/forward:bundle",
+    "../../panels/protocol_monitor:bundle",
+    "../../third_party/csp_evaluator:bundle",
     "../../third_party/json5:bundle",
+    "../../ui/components/adorners:bundle",
     "../../ui/components/buttons:bundle",
     "../../ui/components/expandable_list:bundle",
     "../../ui/components/legacy_wrapper:bundle",
+    "../../ui/components/lists:bundle",
     "../../ui/components/report_view:bundle",
+    "../../ui/components/tree_outline:bundle",
+    "../../ui/i18n:bundle",
+    "../../ui/kit:bundle",
     "../../ui/legacy:bundle",
     "../../ui/legacy/components/cookie_table:bundle",
     "../../ui/legacy/components/data_grid:bundle",
     "../../ui/legacy/components/inline_editor:bundle",
     "../../ui/legacy/components/object_ui:bundle",
+    "../../ui/legacy/components/perf_ui:bundle",
+    "../../ui/legacy/components/settings_ui:bundle",
     "../../ui/legacy/components/source_frame:bundle",
     "../../ui/legacy/components/utils:bundle",
+    "../../ui/lit:bundle",
+    "../../ui/visual_logging:bundle",
+    "../common:bundle",
+    "../network/components:bundle",
     "./components:bundle",
     "./preloading/components:bundle",
     "./preloading/helper:bundle",
@@ -137,24 +164,31 @@ devtools_entrypoint("meta") {
   visibility = [ "../../entrypoints/*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [
     "AppManifestView.test.ts",
     "ApplicationPanelSidebar.test.ts",
     "BackgroundServiceView.test.ts",
+    "CrashReportContextView.test.ts",
     "DOMStorageModel.test.ts",
+    "DeviceBoundSessionsModel.test.ts",
+    "DeviceBoundSessionsTreeElement.test.ts",
+    "DeviceBoundSessionsView.test.ts",
     "ExtensionStorageItemsView.test.ts",
     "ExtensionStorageModel.test.ts",
+    "FrameDetailsView.test.ts",
     "IndexedDBModel.test.ts",
     "IndexedDBViews.test.ts",
     "InterestGroupStorageView.test.ts",
     "InterestGroupTreeElement.test.ts",
     "KeyValueStorageItemsView.test.ts",
+    "OriginTrialTreeView.test.ts",
     "PreloadingTreeElement.test.ts",
-    "ReportingApiReportsView.test.ts",
+    "ReportingApiTreeElement.test.ts",
     "ReportingApiView.test.ts",
+    "ServiceWorkerCacheViews.test.ts",
     "ServiceWorkerUpdateCycleView.test.ts",
     "ServiceWorkersView.test.ts",
     "SharedStorageEventsView.test.ts",
@@ -164,6 +198,7 @@ ts_library("unittests") {
     "SharedStorageTreeElement.test.ts",
     "StorageBucketsTreeElement.test.ts",
     "StorageView.test.ts",
+    "WebMCPView.test.ts",
     "preloading/PreloadingView.test.ts",
   ]
 
@@ -172,6 +207,8 @@ ts_library("unittests") {
     "../../core/sdk:bundle",
     "../../testing",
     "../../ui/components/render_coordinator:bundle",
+    "../../ui/legacy:bundle",
+    "../../ui/legacy/components/object_ui:bundle",
     "./components",
     "./preloading/components",
   ]

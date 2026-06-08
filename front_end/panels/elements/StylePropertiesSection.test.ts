@@ -1,30 +1,37 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
+import * as ComputedStyle from '../../models/computed_style/computed_style.js';
 import type * as TextUtils from '../../models/text_utils/text_utils.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
 import {getMatchedStylesWithBlankRule, getMatchedStylesWithStylesheet} from '../../testing/StyleHelpers.js';
 import * as Components from '../../ui/legacy/components/utils/utils.js';
+import {render} from '../../ui/lit/lit.js';
 
 import * as Elements from './elements.js';
 
 describeWithMockConnection('StylesPropertySection', () => {
-  let computedStyleModel: Elements.ComputedStyleModel.ComputedStyleModel;
+  let computedStyleModel: ComputedStyle.ComputedStyleModel.ComputedStyleModel;
   beforeEach(() => {
-    computedStyleModel = new Elements.ComputedStyleModel.ComputedStyleModel();
+    SDK.PageResourceLoader.PageResourceLoader.instance({forceNew: true, loadOverride: null, maxConcurrentLoads: 1});
+    computedStyleModel = new ComputedStyle.ComputedStyleModel.ComputedStyleModel();
+  });
+
+  afterEach(() => {
+    SDK.PageResourceLoader.PageResourceLoader.removeInstance();
   });
 
   it('contains specificity information', async () => {
     const specificity = {a: 0, b: 1, c: 0};
-    const matchedStyles = await getMatchedStylesWithBlankRule(new SDK.CSSModel.CSSModel(createTarget()));
+    const matchedStyles = await getMatchedStylesWithBlankRule({cssModel: new SDK.CSSModel.CSSModel(createTarget())});
     const section = new Elements.StylePropertiesSection.StylePropertiesSection(
         new Elements.StylesSidebarPane.StylesSidebarPane(computedStyleModel), matchedStyles,
-        matchedStyles.nodeStyles()[0], 0, new Map(), new Map());
+        matchedStyles.nodeStyles()[0], 0, new Map(), new Map(), null);
     section.renderSelectors([{text: '.child', specificity}], [true], new WeakMap());
     const selectorElement = section.element.querySelector('.selector');
     assert.strictEqual(selectorElement?.textContent, '.child');
@@ -32,10 +39,10 @@ describeWithMockConnection('StylesPropertySection', () => {
   });
 
   it('renders selectors correctly', async () => {
-    const matchedStyles = await getMatchedStylesWithBlankRule(new SDK.CSSModel.CSSModel(createTarget()));
+    const matchedStyles = await getMatchedStylesWithBlankRule({cssModel: new SDK.CSSModel.CSSModel(createTarget())});
     const section = new Elements.StylePropertiesSection.StylePropertiesSection(
         new Elements.StylesSidebarPane.StylesSidebarPane(computedStyleModel), matchedStyles,
-        matchedStyles.nodeStyles()[0], 0, new Map(), new Map());
+        matchedStyles.nodeStyles()[0], 0, new Map(), new Map(), null);
     section.renderSelectors(
         [{text: '.child', specificity: {a: 0, b: 2, c: 0}}, {text: '.item', specificity: {a: 0, b: 2, c: 0}}], [true],
         new WeakMap());
@@ -55,7 +62,7 @@ describeWithMockConnection('StylesPropertySection', () => {
     const cssModel = createTarget().model(SDK.CSSModel.CSSModel);
     assert.exists(cssModel);
     const origin = Protocol.CSS.StyleSheetOrigin.Regular;
-    const styleSheetId = '0' as Protocol.CSS.StyleSheetId;
+    const styleSheetId = '0' as Protocol.DOM.StyleSheetId;
     const range = {startLine: 0, endLine: 1, startColumn: 0, endColumn: 0};
     const header =
         {sourceURL: 'constructed.css', isMutable: true, isConstructed: true, hasSourceURL: true, length: 1, ...range};
@@ -69,14 +76,16 @@ describeWithMockConnection('StylesPropertySection', () => {
       matchingSelectors: [0],
     }];
     const matchedStyles =
-        await getMatchedStylesWithStylesheet(cssModel, origin, styleSheetId, header, {matchedPayload});
+        await getMatchedStylesWithStylesheet({cssModel, origin, styleSheetId, ...header, matchedPayload});
 
     const rule = matchedStyles.nodeStyles()[0].parentRule;
     const linkifier = sinon.createStubInstance(Components.Linkifier.Linkifier);
     const originNode =
         Elements.StylePropertiesSection.StylePropertiesSection.createRuleOriginNode(matchedStyles, linkifier, rule);
-    assert.strictEqual(originNode.textContent, '<style>');
-    assert.isTrue(linkifier.linkifyCSSLocation.calledOnce);
+    const div = document.createElement('div');
+    render(originNode, div);
+    assert.strictEqual(div.textContent, '<style>');
+    sinon.assert.calledOnce(linkifier.linkifyCSSLocation);
     assert.strictEqual(linkifier.linkifyCSSLocation.args[0][0].styleSheetId, styleSheetId);
     assert.strictEqual(linkifier.linkifyCSSLocation.args[0][0].url, 'constructed.css');
   });
@@ -85,7 +94,7 @@ describeWithMockConnection('StylesPropertySection', () => {
     const cssModel = createTarget().model(SDK.CSSModel.CSSModel);
     assert.exists(cssModel);
     const origin = Protocol.CSS.StyleSheetOrigin.Regular;
-    const styleSheetId = '0' as Protocol.CSS.StyleSheetId;
+    const styleSheetId = '0' as Protocol.DOM.StyleSheetId;
     const range = {startLine: 0, endLine: 1, startColumn: 0, endColumn: 0};
     const header: Partial<Protocol.CSS.CSSStyleSheetHeader> = {
       sourceMapURL: 'http://example.com/constructed.css.map',
@@ -108,7 +117,7 @@ describeWithMockConnection('StylesPropertySection', () => {
       content: url === header.sourceMapURL ? '{"sources": []}' : '',
     }));
     const matchedStyles =
-        await getMatchedStylesWithStylesheet(cssModel, origin, styleSheetId, header, {matchedPayload});
+        await getMatchedStylesWithStylesheet({cssModel, origin, styleSheetId, ...header, matchedPayload});
 
     const styleSheetHeader = cssModel.styleSheetHeaderForId(styleSheetId);
     assert.exists(styleSheetHeader);
@@ -119,8 +128,10 @@ describeWithMockConnection('StylesPropertySection', () => {
     const linkifier = sinon.createStubInstance(Components.Linkifier.Linkifier);
     const originNode =
         Elements.StylePropertiesSection.StylePropertiesSection.createRuleOriginNode(matchedStyles, linkifier, rule);
-    assert.strictEqual(originNode.textContent, 'constructed stylesheet');
-    assert.isTrue(linkifier.linkifyCSSLocation.calledOnce);
+    const div = document.createElement('div');
+    render(originNode, div);
+    assert.strictEqual(div.textContent, 'constructed stylesheet');
+    sinon.assert.calledOnce(linkifier.linkifyCSSLocation);
     // Since we already asserted that a sourcemap exists for our header, it's sufficient to check that
     // linkifyCSSLocation has been called. Verifying that linkifyCSSLocation applies source mapping is out of scope
     // for this unit under test.
@@ -134,7 +145,7 @@ describeWithMockConnection('StylesPropertySection', () => {
     assert.exists(cssModel);
     const stylesSidebarPane = new Elements.StylesSidebarPane.StylesSidebarPane(computedStyleModel);
     const origin = Protocol.CSS.StyleSheetOrigin.Regular;
-    const styleSheetId = '0' as Protocol.CSS.StyleSheetId;
+    const styleSheetId = '0' as Protocol.DOM.StyleSheetId;
     const range = {startLine: 0, startColumn: 0, endLine: 0, endColumn: 6};
     {
       const matchedPayload: Protocol.CSS.RuleMatch[] = [{
@@ -152,11 +163,11 @@ describeWithMockConnection('StylesPropertySection', () => {
         matchingSelectors: [0],
       }];
       const matchedStyles =
-          await getMatchedStylesWithStylesheet(cssModel, origin, styleSheetId, {...range}, {matchedPayload});
+          await getMatchedStylesWithStylesheet({cssModel, origin, styleSheetId, ...range, matchedPayload});
       const declaration = matchedStyles.nodeStyles()[0];
       assert.exists(declaration);
       const section = new Elements.StylePropertiesSection.StylePropertiesSection(
-          stylesSidebarPane, matchedStyles, declaration, 0, null, null);
+          stylesSidebarPane, matchedStyles, declaration, 0, null, null, null);
       assert.strictEqual(section.element.textContent, 'div {  & ul {    body {      div {      }    }  }}');
     }
 
@@ -175,11 +186,11 @@ describeWithMockConnection('StylesPropertySection', () => {
         matchingSelectors: [0],
       }];
       const matchedStyles =
-          await getMatchedStylesWithStylesheet(cssModel, origin, styleSheetId, {...range}, {matchedPayload});
+          await getMatchedStylesWithStylesheet({cssModel, origin, styleSheetId, ...range, matchedPayload});
       const declaration = matchedStyles.nodeStyles()[0];
       assert.exists(declaration);
       const section = new Elements.StylePropertiesSection.StylePropertiesSection(
-          stylesSidebarPane, matchedStyles, declaration, 0, null, null);
+          stylesSidebarPane, matchedStyles, declaration, 0, null, null, null);
       assert.strictEqual(section.element.textContent, 'div {  body {    }}');
     }
   });
@@ -189,7 +200,7 @@ describeWithMockConnection('StylesPropertySection', () => {
     assert.exists(cssModel);
     const stylesSidebarPane = new Elements.StylesSidebarPane.StylesSidebarPane(computedStyleModel);
     const origin = Protocol.CSS.StyleSheetOrigin.Regular;
-    const styleSheetId = '0' as Protocol.CSS.StyleSheetId;
+    const styleSheetId = '0' as Protocol.DOM.StyleSheetId;
     const range = {startLine: 0, startColumn: 0, endLine: 0, endColumn: 6};
     const propertyName: Protocol.CSS.Value = {text: '--prop', range};
     const propertyRuleStyle: Protocol.CSS.CSSStyle = {
@@ -216,8 +227,8 @@ describeWithMockConnection('StylesPropertySection', () => {
       matchingSelectors: [0],
     }];
 
-    const matchedStyles = await getMatchedStylesWithStylesheet(
-        cssModel, origin, styleSheetId, {...range}, {propertyRules, matchedPayload});
+    const matchedStyles =
+        await getMatchedStylesWithStylesheet({cssModel, origin, styleSheetId, ...range, propertyRules, matchedPayload});
 
     function assertIsPropertyRule(rule: SDK.CSSRule.CSSRule|null): asserts rule is SDK.CSSRule.CSSPropertyRule {
       assert.instanceOf(rule, SDK.CSSRule.CSSPropertyRule);
@@ -235,12 +246,12 @@ describeWithMockConnection('StylesPropertySection', () => {
     await section.setHeaderText(rule, propertyName.text);
 
     assert.isTrue(forceUpdateSpy.calledAfter(setNameSpy));
-    assert.isTrue(setNameSpy.calledOnceWithExactly(
-        styleSheetId,
+    sinon.assert.calledOnceWithExactly(
+        setNameSpy, styleSheetId,
         sinon.match(
             (r: TextUtils.TextRange.TextRange) => r.startLine === range.startLine &&
                 r.startColumn === range.startColumn && r.endLine === range.endLine && r.endColumn === range.endColumn),
-        propertyName.text));
+        propertyName.text);
   });
 
   it('renders braces correctly with a non-style-rule section', async () => {
@@ -249,7 +260,7 @@ describeWithMockConnection('StylesPropertySection', () => {
     assert.exists(cssModel);
     const stylesSidebarPane = new Elements.StylesSidebarPane.StylesSidebarPane(computedStyleModel);
     const origin = Protocol.CSS.StyleSheetOrigin.Regular;
-    const styleSheetId = '0' as Protocol.CSS.StyleSheetId;
+    const styleSheetId = '0' as Protocol.DOM.StyleSheetId;
     const range = {startLine: 0, startColumn: 0, endLine: 0, endColumn: 6};
     const fontPaletteValuesRule = {
       styleSheetId,
@@ -259,18 +270,19 @@ describeWithMockConnection('StylesPropertySection', () => {
         cssProperties: [],
         shorthandEntries: [],
       },
-      fontPaletteName: {
+      name: {
         range,
         text: '--palette-name',
       },
+      type: Protocol.CSS.CSSAtRuleType.FontPaletteValues,
     };
-    const matchedStyles =
-        await getMatchedStylesWithStylesheet(cssModel, origin, styleSheetId, {...range}, {fontPaletteValuesRule});
-    const declaration = matchedStyles.fontPaletteValuesRule()?.style;
+    const matchedStyles = await getMatchedStylesWithStylesheet(
+        {cssModel, origin, styleSheetId, ...range, atRules: [fontPaletteValuesRule]});
+    const declaration = matchedStyles.atRules()[0]?.style;
     assert.exists(declaration);
-    const section = new Elements.StylePropertiesSection.FontPaletteValuesRuleSection(
-        stylesSidebarPane, matchedStyles, declaration, 0);
-    assert.strictEqual(section.element.textContent, '{}');
+    const section =
+        new Elements.StylePropertiesSection.AtRuleSection(stylesSidebarPane, matchedStyles, declaration, 0, true);
+    assert.strictEqual(section.element.textContent, '@font-palette-values --palette-name {}');
   });
 
   it('renders active and inactive position-try rule sections correctly', async () => {
@@ -278,7 +290,7 @@ describeWithMockConnection('StylesPropertySection', () => {
     assert.exists(cssModel);
     const stylesSidebarPane = new Elements.StylesSidebarPane.StylesSidebarPane(computedStyleModel);
     const origin = Protocol.CSS.StyleSheetOrigin.Regular;
-    const styleSheetId = '0' as Protocol.CSS.StyleSheetId;
+    const styleSheetId = '0' as Protocol.DOM.StyleSheetId;
     const range = {startLine: 0, startColumn: 0, endLine: 0, endColumn: 6};
     const positionTryRules = [
       {
@@ -309,7 +321,7 @@ describeWithMockConnection('StylesPropertySection', () => {
       },
     ];
     const matchedStyles =
-        await getMatchedStylesWithStylesheet(cssModel, origin, styleSheetId, {...range}, {positionTryRules});
+        await getMatchedStylesWithStylesheet({cssModel, origin, styleSheetId, ...range, positionTryRules});
     const declaration1 = matchedStyles.positionTryRules()[0].style;
     const declaration2 = matchedStyles.positionTryRules()[1].style;
     assert.exists(declaration1);
@@ -320,5 +332,99 @@ describeWithMockConnection('StylesPropertySection', () => {
         stylesSidebarPane, matchedStyles, declaration1, 1, positionTryRules[1].active);
     assert.isFalse(section1.propertiesTreeOutline.element.classList.contains('no-affect'));
     assert.isTrue(section2.propertiesTreeOutline.element.classList.contains('no-affect'));
+  });
+
+  describe('activeAiSuggestion', () => {
+    let section: Elements.StylePropertiesSection.StylePropertiesSection;
+    let cssProperty: SDK.CSSProperty.CSSProperty;
+    const sourceTreeElement = sinon.createStubInstance(Elements.StylePropertyTreeElement.StylePropertyTreeElement);
+
+    beforeEach(async () => {
+      const matchedStyles = await getMatchedStylesWithBlankRule({cssModel: new SDK.CSSModel.CSSModel(createTarget())});
+      section = new Elements.StylePropertiesSection.StylePropertiesSection(
+          new Elements.StylesSidebarPane.StylesSidebarPane(computedStyleModel), matchedStyles,
+          matchedStyles.nodeStyles()[0], 0, new Map(), new Map(), null);
+      cssProperty = new SDK.CSSProperty.CSSProperty(section.styleInternal, 0, '', '', true, false, true, false);
+      sourceTreeElement.property = cssProperty;
+      sinon.stub(section, 'closestPropertyForEditing').returns(sourceTreeElement);
+    });
+
+    it('setting activeAiSuggestion triggers rendering', async () => {
+      const renderActiveAiSuggestionSpy = sinon.spy(sourceTreeElement, 'renderActiveAiSuggestion');
+      const activeAiSuggestion = {
+        text: 'background-color: white; color: red; font-size: 10px;',
+        properties: [
+          {name: 'background-color', value: 'white'}, {name: 'color', value: 'red'}, {name: 'font-size', value: '10px'}
+        ],
+        cssProperty,
+        cursorPosition: 0,
+      };
+
+      section.activeAiSuggestion = activeAiSuggestion;
+
+      sinon.assert.calledOnce(renderActiveAiSuggestionSpy);
+      assert.deepEqual(renderActiveAiSuggestionSpy.firstCall.args[0], activeAiSuggestion.properties[0]);
+      const ghostElements = section.propertiesTreeOutline.rootElement().children().filter(
+          e => e instanceof Elements.StylePropertyTreeElement.GhostStylePropertyTreeElement);
+      assert.lengthOf(ghostElements, 2);
+      assert.strictEqual(ghostElements[0].property.name, 'color');
+      assert.strictEqual(ghostElements[0].property.value, 'red');
+      assert.strictEqual(ghostElements[1].property.name, 'font-size');
+      assert.strictEqual(ghostElements[1].property.value, '10px');
+    });
+
+    it('clearing activeAiSuggestion triggers cleanup', async () => {
+      const renderActiveAiSuggestionSpy = sinon.spy(sourceTreeElement, 'renderActiveAiSuggestion');
+      const clearActiveAiSuggestionSpy = sinon.spy(sourceTreeElement, 'clearActiveAiSuggestion');
+      const rootElement = section.propertiesTreeOutline.rootElement();
+      const activeAiSuggestion = {
+        text: 'color: red; font-size: 10px;',
+        properties: [{name: 'color', value: 'red'}, {name: 'font-size', value: '10px'}],
+        cssProperty,
+        cursorPosition: 0,
+      };
+
+      section.activeAiSuggestion = activeAiSuggestion;
+
+      sinon.assert.calledOnce(renderActiveAiSuggestionSpy);
+      assert.deepEqual(renderActiveAiSuggestionSpy.firstCall.args[0], activeAiSuggestion.properties[0]);
+      let ghostElements = rootElement.children().filter(
+          e => e instanceof Elements.StylePropertyTreeElement.GhostStylePropertyTreeElement);
+      assert.lengthOf(ghostElements, 1);
+
+      section.activeAiSuggestion = undefined;
+
+      sinon.assert.calledOnce(clearActiveAiSuggestionSpy);
+      ghostElements = rootElement.children().filter(
+          e => e instanceof Elements.StylePropertyTreeElement.GhostStylePropertyTreeElement);
+      assert.lengthOf(ghostElements, 0);
+    });
+
+    it('commitActiveAiSuggestion calls commitAiSuggestion with correct text', async () => {
+      const renderActiveAiSuggestionSpy = sinon.spy(sourceTreeElement, 'renderActiveAiSuggestion');
+      const commitAiSuggestionStub = sinon.stub(sourceTreeElement, 'commitAiSuggestion').resolves();
+      const rootElement = section.propertiesTreeOutline.rootElement();
+      const activeAiSuggestion = {
+        text: 'background-color: white; color: red; font-size: 10px;',
+        properties: [
+          {name: 'background-color', value: 'white'}, {name: 'color', value: 'red'}, {name: 'font-size', value: '10px'}
+        ],
+        cssProperty,
+        cursorPosition: 0,
+      };
+
+      section.activeAiSuggestion = activeAiSuggestion;
+
+      sinon.assert.calledOnce(renderActiveAiSuggestionSpy);
+      assert.deepEqual(renderActiveAiSuggestionSpy.firstCall.args[0], activeAiSuggestion.properties[0]);
+      const ghostElements = rootElement.children().filter(
+          e => e instanceof Elements.StylePropertyTreeElement.GhostStylePropertyTreeElement);
+      assert.lengthOf(ghostElements, 2);
+
+      await section.commitActiveAiSuggestion();
+
+      sinon.assert.calledOnceWithExactly(
+          commitAiSuggestionStub, 'background-color: white; color: red; font-size: 10px;');
+    });
   });
 });

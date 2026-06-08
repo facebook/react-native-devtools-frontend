@@ -1,4 +1,4 @@
-# Copyright 2023 The Chromium Authors. All rights reserved.
+# Copyright 2023 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -36,9 +36,9 @@ foreach(entrypoint IN LISTS EXTENSION_BUNDLE_ENTRYPOINTS)
   list(APPEND EXTENSION_BUNDLED_SOURCES ${CMAKE_CURRENT_BINARY_DIR}/${NAME_WE}.bundle.js)
 endforeach()
 
-configure_file(rollup.config.in.js rollup.config.in.js @ONLY)
-file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/rollup.config.js
-  INPUT ${CMAKE_CURRENT_BINARY_DIR}/rollup.config.in.js)
+configure_file(rollup.config.in.mjs rollup.config.in.mjs @ONLY)
+file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/rollup.config.mjs
+  INPUT ${CMAKE_CURRENT_BINARY_DIR}/rollup.config.in.mjs)
 
 add_custom_command(
   OUTPUT
@@ -50,10 +50,10 @@ add_custom_command(
     python3
     ${DEVTOOLS_SOURCE_DIR}/third_party/node/node.py
     --output
-    ${DEVTOOLS_SOURCE_DIR}/node_modules/.bin/rollup
+    ${DEVTOOLS_SOURCE_DIR}/node_modules/rollup/dist/bin/rollup
     -c --failAfterWarnings
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  MAIN_DEPENDENCY ${CMAKE_CURRENT_BINARY_DIR}/rollup.config.js
+  MAIN_DEPENDENCY ${CMAKE_CURRENT_BINARY_DIR}/rollup.config.mjs
   DEPENDS ${TS_COMPILER_OUTPUTS}
 )
 

@@ -50,5 +50,4 @@ export interface AnalyzeOptions {
 /**
  * Takes an AST and returns the analyzed scopes.
  */
-export declare function analyze(tree: TSESTree.Node, providedOptions?: AnalyzeOptions): ScopeManager;
-//# sourceMappingURL=analyze.d.ts.map
+export declare function analyze(tree: TSESTree.Program, providedOptions?: AnalyzeOptions): ScopeManager;

@@ -1,16 +1,20 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import '../../ui/legacy/legacy.js';
 
 import type * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
+import type * as LHModel from '../../models/lighthouse/lighthouse.js';
 import * as Buttons from '../../ui/components/buttons/buttons.js';
+import {Link} from '../../ui/kit/kit.js';
 import * as UI from '../../ui/legacy/legacy.js';
+import {Directives, html, render} from '../../ui/lit/lit.js';
 
-import {type LighthouseController, type Preset, Presets, RuntimeSettings} from './LighthouseController.js';
+import {getPresets, getRuntimeSettings, type LighthouseController} from './LighthouseController.js';
 import type {LighthousePanel} from './LighthousePanel.js';
 import lighthouseStartViewStyles from './lighthouseStartView.css.js';
 import {RadioSetting} from './RadioSetting.js';
@@ -53,30 +57,102 @@ const UIStrings = {
 const str_ = i18n.i18n.registerUIStrings('panels/lighthouse/LighthouseStartView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
+const renderStartView = (
+    _input: Record<string, never>,
+    output: {
+      helpText?: HTMLElement,
+      warningText?: HTMLElement,
+      modeFormElements?: HTMLElement,
+      deviceTypeFormElements?: HTMLElement,
+      categoriesFormElements?: HTMLElement,
+    },
+    target: HTMLElement,
+    ): void => {
+  // clang-format off
+  render(
+    html`
+      <form class="lighthouse-start-view">
+        <header class="hbox">
+          <div class="lighthouse-logo"></div>
+          <h1 class="lighthouse-title">
+            ${i18nString(UIStrings.generateLighthouseReport)}
+          </h1>
+          <div class="lighthouse-start-button-container"></div>
+        </header>
+        <div
+          ${Directives.ref(e => {
+            output.helpText = e as HTMLElement;
+          })}
+          class="lighthouse-help-text hidden"
+        ></div>
+        <div class="lighthouse-options hbox">
+          <div class="lighthouse-form-section">
+            <div
+              class="lighthouse-form-elements"
+              ${Directives.ref(e => {
+                output.modeFormElements = e as HTMLElement;
+              })}
+            ></div>
+          </div>
+          <div class="lighthouse-form-section">
+            <div
+              class="lighthouse-form-elements"
+              ${Directives.ref(e => {
+                output.deviceTypeFormElements = e as HTMLElement;
+              })}
+            ></div>
+          </div>
+          <div class="lighthouse-form-categories">
+            <fieldset class="lighthouse-form-section lighthouse-form-categories-fieldset">
+              <legend class="lighthouse-form-section-label">
+                ${i18nString(UIStrings.categories)}
+              </legend>
+              <div
+                class="lighthouse-form-elements"
+                ${Directives.ref(e => {
+                  output.categoriesFormElements = e as HTMLElement;
+                })}
+              ></div>
+            </fieldset>
+          </div>
+        </div>
+        <div
+          ${Directives.ref(e => {
+            output.warningText = e as HTMLElement;
+          })}
+          class="lighthouse-warning-text hidden"
+        ></div>
+      </form>
+    `,
+    target,
+  );
+  // clang-format on
+};
+
 export class StartView extends UI.Widget.Widget {
   private controller: LighthouseController;
   private panel: LighthousePanel;
-  private readonly settingsToolbarInternal: UI.Toolbar.Toolbar;
+  readonly #settingsToolbar: UI.Toolbar.Toolbar;
   private startButton!: Buttons.Button.Button;
   private helpText?: Element;
   private warningText?: Element;
-  private checkboxes: Array<{preset: Preset, checkbox: UI.Toolbar.ToolbarCheckbox}> = [];
+  private checkboxes: Array<{preset: LHModel.RunTypes.Preset, checkbox: UI.Toolbar.ToolbarCheckbox}> = [];
 
   changeFormMode?: (mode: string) => void;
 
   constructor(controller: LighthouseController, panel: LighthousePanel) {
-    super(true /* useShadowDom */);
+    super({useShadowDom: true});
     this.registerRequiredCSS(lighthouseStartViewStyles);
 
     this.controller = controller;
     this.panel = panel;
-    this.settingsToolbarInternal = document.createElement('devtools-toolbar');
-    this.settingsToolbarInternal.classList.add('lighthouse-settings-toolbar');
+    this.#settingsToolbar = document.createElement('devtools-toolbar');
+    this.#settingsToolbar.classList.add('lighthouse-settings-toolbar');
     this.render();
   }
 
   private populateRuntimeSettingAsRadio(settingName: string, label: string, parentElement: Element): void {
-    const runtimeSetting = RuntimeSettings.find(item => item.setting.name === settingName);
+    const runtimeSetting = getRuntimeSettings().find(item => item.setting.name === settingName);
     if (!runtimeSetting?.options) {
       throw new Error(`${settingName} is not a setting with options`);
     }
@@ -86,8 +162,8 @@ export class StartView extends UI.Widget.Widget {
     labelEl.textContent = label;
 
     if (runtimeSetting.learnMore) {
-      const link = UI.XLink.XLink.create(
-          runtimeSetting.learnMore, i18nString(UIStrings.learnMore), 'lighthouse-learn-more', undefined, 'learn-more');
+      const link =
+          Link.create(runtimeSetting.learnMore, i18nString(UIStrings.learnMore), 'lighthouse-learn-more', 'learn-more');
       labelEl.append(link);
     }
     parentElement.appendChild(labelEl);
@@ -100,7 +176,7 @@ export class StartView extends UI.Widget.Widget {
   }
 
   private populateRuntimeSettingAsToolbarCheckbox(settingName: string, toolbar: UI.Toolbar.Toolbar): void {
-    const runtimeSetting = RuntimeSettings.find(item => item.setting.name === settingName);
+    const runtimeSetting = getRuntimeSettings().find(item => item.setting.name === settingName);
     if (!runtimeSetting?.title) {
       throw new Error(`${settingName} is not a setting with a title`);
     }
@@ -110,15 +186,15 @@ export class StartView extends UI.Widget.Widget {
         runtimeSetting.setting as Common.Settings.Setting<boolean>, runtimeSetting.description());
     toolbar.appendToolbarItem(control);
     if (runtimeSetting.learnMore) {
-      const link = UI.XLink.XLink.create(
-          runtimeSetting.learnMore, i18nString(UIStrings.learnMore), 'lighthouse-learn-more', undefined, 'learn-more');
+      const link =
+          Link.create(runtimeSetting.learnMore, i18nString(UIStrings.learnMore), 'lighthouse-learn-more', 'learn-more');
       link.style.margin = '5px';
       control.element.appendChild(link);
     }
   }
 
   private populateRuntimeSettingAsToolbarDropdown(settingName: string, toolbar: UI.Toolbar.Toolbar): void {
-    const runtimeSetting = RuntimeSettings.find(item => item.setting.name === settingName);
+    const runtimeSetting = getRuntimeSettings().find(item => item.setting.name === settingName);
     if (!runtimeSetting?.title) {
       throw new Error(`${settingName} is not a setting with a title`);
     }
@@ -134,23 +210,23 @@ export class StartView extends UI.Widget.Widget {
     control.setTitle(runtimeSetting.description());
     toolbar.appendToolbarItem(control);
     if (runtimeSetting.learnMore) {
-      const link = UI.XLink.XLink.create(
-          runtimeSetting.learnMore, i18nString(UIStrings.learnMore), 'lighthouse-learn-more', undefined, 'learn-more');
-      link.style.margin = '5px';
-      control.element.appendChild(link);
+      const link =
+          Link.create(runtimeSetting.learnMore, i18nString(UIStrings.learnMore), 'lighthouse-learn-more', 'learn-more');
+      link.style.marginLeft = '5px';
+      link.style.display = 'inline-flex';
+      link.style.height = 'revert';
+      toolbar.appendToolbarItem(new UI.Toolbar.ToolbarItem(link));
     }
   }
 
-  private populateFormControls(fragment: UI.Fragment.Fragment, mode?: string): void {
+  private populateFormControls(deviceTypeFormElements: Element, categoryFormElements: Element, mode?: string): void {
     // Populate the device type
-    const deviceTypeFormElements = fragment.$('device-type-form-elements');
     this.populateRuntimeSettingAsRadio('lighthouse.device-type', i18nString(UIStrings.device), deviceTypeFormElements);
 
     // Populate the categories
-    const categoryFormElements = fragment.$('categories-form-elements') as HTMLElement;
 
     this.checkboxes = [];
-    for (const preset of Presets) {
+    for (const preset of getPresets()) {
       preset.setting.setTitle(preset.title());
       const checkbox = new UI.Toolbar.ToolbarSettingCheckbox(preset.setting, preset.description());
       const row = categoryFormElements.createChild('div', 'vbox lighthouse-launcher-row');
@@ -162,54 +238,42 @@ export class StartView extends UI.Widget.Widget {
         checkbox.setIndeterminate(true);
       }
     }
-    UI.ARIAUtils.markAsGroup(categoryFormElements);
-    UI.ARIAUtils.setLabel(categoryFormElements, i18nString(UIStrings.categories));
   }
 
   private render(): void {
-    this.populateRuntimeSettingAsToolbarCheckbox('lighthouse.clear-storage', this.settingsToolbarInternal);
-    this.populateRuntimeSettingAsToolbarCheckbox('lighthouse.enable-sampling', this.settingsToolbarInternal);
-    this.populateRuntimeSettingAsToolbarDropdown('lighthouse.throttling', this.settingsToolbarInternal);
+    this.populateRuntimeSettingAsToolbarCheckbox('lighthouse.clear-storage', this.#settingsToolbar);
+    this.populateRuntimeSettingAsToolbarCheckbox('lighthouse.enable-sampling', this.#settingsToolbar);
+    this.populateRuntimeSettingAsToolbarDropdown('lighthouse.throttling', this.#settingsToolbar);
 
     const {mode} = this.controller.getFlags();
-    this.populateStartButton(mode);
 
-    const fragment = UI.Fragment.Fragment.build`
-<form class="lighthouse-start-view">
-  <header class="hbox">
-    <div class="lighthouse-logo"></div>
-    <div class="lighthouse-title">${i18nString(UIStrings.generateLighthouseReport)}</div>
-    <div class="lighthouse-start-button-container" $="start-button-container">${this.startButton}</div>
-  </header>
-  <div $="help-text" class="lighthouse-help-text hidden"></div>
-  <div class="lighthouse-options hbox">
-    <div class="lighthouse-form-section">
-      <div class="lighthouse-form-elements" $="mode-form-elements"></div>
-    </div>
-    <div class="lighthouse-form-section">
-      <div class="lighthouse-form-elements" $="device-type-form-elements"></div>
-    </div>
-    <div class="lighthouse-form-categories">
-      <div class="lighthouse-form-section">
-        <div class="lighthouse-form-section-label">${i18nString(UIStrings.categories)}</div>
-        <div class="lighthouse-form-elements" $="categories-form-elements"></div>
-      </div>
-    </div>
-  </div>
-  <div $="warning-text" class="lighthouse-warning-text hidden"></div>
-</form>
-    `;
+    const output = {
+      helpText: undefined as HTMLElement | undefined,
+      warningText: undefined as HTMLElement | undefined,
+      modeFormElements: undefined as HTMLElement | undefined,
+      deviceTypeFormElements: undefined as HTMLElement | undefined,
+      categoriesFormElements: undefined as HTMLElement | undefined,
+    };
 
-    this.helpText = fragment.$('help-text');
-    this.warningText = fragment.$('warning-text');
+    renderStartView(
+        {},
+        output,
+        this.contentElement,
+    );
 
-    const modeFormElements = fragment.$('mode-form-elements');
+    this.helpText = output.helpText;
+    this.warningText = output.warningText;
+
+    const modeFormElements = output.modeFormElements;
+    const deviceTypeFormElements = output.deviceTypeFormElements;
+    const categoriesFormElements = output.categoriesFormElements;
+
+    if (!modeFormElements || !deviceTypeFormElements || !categoriesFormElements) {
+      throw new Error('Required elements not found in template');
+    }
+
     this.populateRuntimeSettingAsRadio('lighthouse.mode', i18nString(UIStrings.mode), modeFormElements);
-
-    this.populateFormControls(fragment, mode);
-
-    this.contentElement.textContent = '';
-    this.contentElement.append(fragment.element());
+    this.populateFormControls(deviceTypeFormElements, categoriesFormElements, mode);
 
     this.refresh();
   }
@@ -310,6 +374,6 @@ export class StartView extends UI.Widget.Widget {
   }
 
   settingsToolbar(): UI.Toolbar.Toolbar {
-    return this.settingsToolbarInternal;
+    return this.#settingsToolbar;
   }
 }

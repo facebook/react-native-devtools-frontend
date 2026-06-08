@@ -1,7 +1,8 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as Common from '../../core/common/common.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import * as Bindings from '../../models/bindings/bindings.js';
@@ -20,26 +21,30 @@ describeWithEnvironment('DebuggerPausedMessage', () => {
     const workspace = Workspace.Workspace.WorkspaceImpl.instance();
     const targetManager = SDK.TargetManager.TargetManager.instance();
     const resourceMapping = new Bindings.ResourceMapping.ResourceMapping(targetManager, workspace);
+    const ignoreListManager = Workspace.IgnoreListManager.IgnoreListManager.instance({forceNew: true});
     debuggerWorkspaceBinding = Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance({
       forceNew: true,
       resourceMapping,
       targetManager,
+      ignoreListManager,
+      workspace,
     });
     breakpointManager = Breakpoints.BreakpointManager.BreakpointManager.instance({
       forceNew: true,
       targetManager,
       workspace,
       debuggerWorkspaceBinding,
+      settings: Common.Settings.Settings.instance(),
     });
     pausedMessage = new Sources.DebuggerPausedMessage.DebuggerPausedMessage();
   });
 
   function getPausedMessageFromDOM(): {main: string, sub?: string} {
-    const mainElement = pausedMessage.element().shadowRoot?.querySelector('.status-main') ?? null;
+    const mainElement = pausedMessage.element.shadowRoot?.querySelector('.status-main') ?? null;
     assert.instanceOf(mainElement, HTMLDivElement);
     const main = mainElement.textContent;
     assert.exists(main);
-    const sub = pausedMessage.element().shadowRoot?.querySelector('.status-sub')?.textContent ?? undefined;
+    const sub = pausedMessage.element.shadowRoot?.querySelector('.status-sub')?.textContent;
     return {main, sub};
   }
 
@@ -126,7 +131,7 @@ describeWithEnvironment('DebuggerPausedMessage', () => {
             sinon.createStubInstance(SDK.DebuggerModel.DebuggerModel),
             /* callFrames */[], Protocol.Debugger.PausedEventReason.EventListener, auxData, /* breakpointIds */[]);
         await pausedMessage.render(details, debuggerWorkspaceBinding, breakpointManager);
-
+        await pausedMessage.updateComplete;
         const {main, sub} = getPausedMessageFromDOM();
         assert.strictEqual(main, 'Paused on event listener');
         assert.strictEqual(sub, expectedSub);

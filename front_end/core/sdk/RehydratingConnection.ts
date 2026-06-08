@@ -1,4 +1,4 @@
-// Copyright (c) 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,12 +27,13 @@ import type * as Protocol from '../../generated/protocol.js';
 import * as Common from '../common/common.js';
 import * as i18n from '../i18n/i18n.js';
 import type * as Platform from '../platform/platform.js';
-import type * as ProtocolClient from '../protocol_client/protocol_client.js';
+import * as ProtocolClient from '../protocol_client/protocol_client.js';
+import * as Root from '../root/root.js';
 
 import * as EnhancedTraces from './EnhancedTracesParser.js';
 import type {
-  ProtocolMessage, RehydratingExecutionContext, RehydratingScript, RehydratingTarget, ServerMessage, TraceFile} from
-  './RehydratingObject.js';
+  ProtocolMessage, RehydratingExecutionContext, RehydratingResource, RehydratingScript, RehydratingTarget,
+  ServerMessage} from './RehydratingObject.js';
 import {TraceObject} from './TraceObject.js';
 
 const UIStrings = {
@@ -62,74 +63,105 @@ export const enum RehydratingConnectionState {
   REHYDRATED = 3,
 }
 
-export class RehydratingConnection implements ProtocolClient.InspectorBackend.Connection {
+export class RehydratingConnectionTransport implements ProtocolClient.ConnectionTransport.ConnectionTransport {
   rehydratingConnectionState: RehydratingConnectionState = RehydratingConnectionState.UNINITIALIZED;
   onDisconnect: ((arg0: string) => void)|null = null;
   onMessage: ((arg0: Object) => void)|null = null;
-  trace: TraceFile|null = null;
+  trace: TraceObject|null = null;
   sessions = new Map<number, RehydratingSessionBase>();
   #onConnectionLost:
       (connectionLostDetails?: {reason?: Platform.UIString.LocalizedString, code?: string, errorType?: string}) => void;
-  #rehydratingWindow: Window&typeof globalThis;
-  #onReceiveHostWindowPayloadBound = this.#onReceiveHostWindowPayload.bind(this);
+  #rehydratingWindow: Window&typeof globalThis = window;
+  #onReceiveHostWindowPayloadBound = this.onReceiveHostWindowPayload.bind(this);
 
   constructor(
       onConnectionLost: (connectionLostDetails?:
                              {reason?: Platform.UIString.LocalizedString, code?: string, errorType?: string}) => void) {
-    // If we're invoking this class, we're in the rehydrating pop-up window. Rename window for clarity.
+    // If we're invoking this class, we're in the rehydrating pop-up window.
     this.#onConnectionLost = onConnectionLost;
-    this.#rehydratingWindow = window;
-    this.#setupMessagePassing();
+    if (!this.#maybeHandleLoadingFromUrl()) {
+      this.#setupMessagePassing();
+    }
+  }
+
+  /** Returns true if found a trace URL. */
+  #maybeHandleLoadingFromUrl(): boolean {
+    let traceUrl = Root.Runtime.Runtime.queryParam('traceURL');
+
+    if (!traceUrl) {
+      // For compatibility, handle the older loadTimelineFromURL.
+      const timelineUrl = Root.Runtime.Runtime.queryParam('loadTimelineFromURL');
+      if (timelineUrl) {
+        // It was double-URI encoded for some reason.
+        traceUrl = decodeURIComponent(timelineUrl);
+      }
+    }
+
+    if (traceUrl) {
+      void fetch(traceUrl).then(r => r.arrayBuffer()).then(b => Common.Gzip.arrayBufferToString(b)).then(traceJson => {
+        const trace = new TraceObject(JSON.parse(traceJson));
+        void this.startHydration(trace);
+      });
+      return true;
+    }
+
+    return false;
   }
 
   #setupMessagePassing(): void {
     this.#rehydratingWindow.addEventListener('message', this.#onReceiveHostWindowPayloadBound);
-    if (!this.#rehydratingWindow.opener) {
+    if (this.#rehydratingWindow.opener) {
+      this.#rehydratingWindow.opener.postMessage({type: 'REHYDRATING_WINDOW_READY'});
+    } else if (this.#rehydratingWindow !== window.top) {
+      this.#rehydratingWindow.parent.postMessage({type: 'REHYDRATING_IFRAME_READY'}, '*');
+    } else {
       this.#onConnectionLost({reason: i18nString(UIStrings.noHostWindow)});
     }
-    this.#rehydratingWindow.opener.postMessage({type: 'REHYDRATING_WINDOW_READY'});
   }
 
   /**
    * This is a callback for rehydrated session to receive payload from host window. Payload includes but not limited to
    * the trace event and all necessary data to power a rehydrated session.
    */
-  #onReceiveHostWindowPayload(event: MessageEvent): void {
+  onReceiveHostWindowPayload(event: MessageEvent): void {
     if (event.data.type === 'REHYDRATING_TRACE_FILE') {
-      const {traceFile} = event.data;
-      const reader = new FileReader();
-      reader.onload = async(): Promise<void> => {
-        await this.startHydration(reader.result as string);
-      };
-      reader.onerror = (): void => {
+      const traceJson = event.data.traceJson as string;
+      let trace;
+      try {
+        trace = new TraceObject(JSON.parse(traceJson));
+      } catch {
         this.#onConnectionLost({reason: i18nString(UIStrings.errorLoadingLog)});
-      };
-      reader.readAsText(traceFile);
+        return;
+      }
+      void this.startHydration(trace);
     }
     this.#rehydratingWindow.removeEventListener('message', this.#onReceiveHostWindowPayloadBound);
   }
 
-  async startHydration(logPayload: string): Promise<boolean> {
+  async startHydration(trace: TraceObject): Promise<boolean> {
     // OnMessage should've been set before hydration, and the connection should
     // be initialized and not hydrated already.
     if (!this.onMessage || this.rehydratingConnectionState !== RehydratingConnectionState.INITIALIZED) {
       return false;
     }
 
-    const payload = JSON.parse(logPayload) as TraceFile;
-    if (!('traceEvents' in payload)) {
+    if (!('traceEvents' in trace)) {
       console.error('RehydratingConnection failed to initialize due to missing trace events in payload');
       return false;
     }
 
-    this.trace = payload;
-    const enhancedTracesParser = new EnhancedTraces.EnhancedTracesParser(payload);
-    const dataPerTarget = enhancedTracesParser.data();
+    this.trace = trace;
+    const enhancedTracesParser = new EnhancedTraces.EnhancedTracesParser(trace);
+    const hydratingData = enhancedTracesParser.data();
 
     let sessionId = 0;
     // Set up default rehydrating session.
     this.sessions.set(sessionId, new RehydratingSessionBase(this));
-    for (const [target, [executionContexts, scripts]] of dataPerTarget.entries()) {
+    for (const hydratingDataPerTarget of hydratingData) {
+      const target = hydratingDataPerTarget.target;
+      const executionContexts = hydratingDataPerTarget.executionContexts;
+      const scripts = hydratingDataPerTarget.scripts;
+      const resources = hydratingDataPerTarget.resources;
       this.postToFrontend({
         method: 'Target.targetCreated',
         params: {
@@ -144,10 +176,10 @@ export class RehydratingConnection implements ProtocolClient.InspectorBackend.Co
         },
       });
 
-      // Create new session associated to the target created and send
-      // Target.attachedToTarget to frontend.
       sessionId += 1;
-      this.sessions.set(sessionId, new RehydratingSession(sessionId, target, executionContexts, scripts, this));
+      const session = new RehydratingSession(sessionId, target, executionContexts, scripts, resources, this);
+      this.sessions.set(sessionId, session);
+      session.declareSessionAttachedToTarget();
     }
     await this.#onRehydrated();
     return true;
@@ -160,11 +192,10 @@ export class RehydratingConnection implements ProtocolClient.InspectorBackend.Co
 
     this.rehydratingConnectionState = RehydratingConnectionState.REHYDRATED;
     // Use revealer to load trace into performance panel
-    const trace = new TraceObject(this.trace.traceEvents as object[], this.trace.metadata);
-    await Common.Revealer.reveal(trace);
+    await Common.Revealer.reveal(this.trace);
   }
 
-  setOnMessage(onMessage: (arg0: (Object|string)) => void): void {
+  setOnMessage(onMessage: (arg0: Object|string) => void): void {
     this.onMessage = onMessage;
     this.rehydratingConnectionState = RehydratingConnectionState.INITIALIZED;
   }
@@ -211,7 +242,7 @@ export class RehydratingConnection implements ProtocolClient.InspectorBackend.Co
   }
 }
 
-// Default rehydrating session with default responses.
+/** Default rehydrating session with default responses. **/
 class RehydratingSessionBase {
   connection: RehydratingConnectionInterface|null = null;
 
@@ -220,10 +251,10 @@ class RehydratingSessionBase {
   }
 
   sendMessageToFrontend(payload: ServerMessage): void {
-    requestAnimationFrame(() => {
-      if (this.connection) {
-        this.connection.postToFrontend(payload);
-      }
+    // The frontend doesn't expect CDP responses within the same synchronous event loop, so it breaks unexpectedly.
+    //  Any async boundary will do, so we use setTimeout.
+    setTimeout(() => {
+      this.connection?.postToFrontend(payload);
     });
   }
 
@@ -241,16 +272,17 @@ export class RehydratingSession extends RehydratingSessionBase {
   target: RehydratingTarget;
   executionContexts: RehydratingExecutionContext[] = [];
   scripts: RehydratingScript[] = [];
+  resources: RehydratingResource[] = [];
 
   constructor(
       sessionId: number, target: RehydratingTarget, executionContexts: RehydratingExecutionContext[],
-      scripts: RehydratingScript[], connection: RehydratingConnectionInterface) {
+      scripts: RehydratingScript[], resources: RehydratingResource[], connection: RehydratingConnectionInterface) {
     super(connection);
     this.sessionId = sessionId;
     this.target = target;
     this.executionContexts = executionContexts;
     this.scripts = scripts;
-    this.sessionAttachToTarget();
+    this.resources = resources;
   }
 
   override sendMessageToFrontend(payload: ServerMessage, attachSessionId = true): void {
@@ -269,22 +301,44 @@ export class RehydratingSession extends RehydratingSessionBase {
       case 'Debugger.enable':
         this.handleDebuggerEnable(data.id);
         break;
+      case 'CSS.enable':
+        this.sendMessageToFrontend({
+          id: data.id,
+          result: {},
+        });
+        break;
       case 'Debugger.getScriptSource':
         if (data.params) {
           const params = data.params as Protocol.Debugger.GetScriptSourceRequest;
           this.handleDebuggerGetScriptSource(data.id, params.scriptId);
         }
         break;
+      case 'Page.getResourceTree':
+        this.handleGetResourceTree(data.id);
+        break;
+      case 'Page.getResourceContent': {
+        const request = data.params as unknown as Protocol.Page.GetResourceContentRequest;
+        this.handleGetResourceContent(request.frameId, request.url, data.id);
+        break;
+      }
+      case 'CSS.getStyleSheetText': {
+        const request = data.params as unknown as Protocol.CSS.GetStyleSheetTextRequest;
+        this.handleGetStyleSheetText(request.styleSheetId, data.id);
+        break;
+      }
       default:
         this.sendMessageToFrontend({
           id: data.id,
-          result: {},
+          error: {
+            message: `Command ${data.method} not implemented in RehydratingSession.`,
+            code: ProtocolClient.CDPConnection.CDPErrorStatus.DEVTOOLS_STUB_ERROR,
+          }
         });
         break;
     }
   }
 
-  private sessionAttachToTarget(): void {
+  declareSessionAttachedToTarget(): void {
     this.sendMessageToFrontend(
         {
           method: 'Target.attachedToTarget',
@@ -343,7 +397,22 @@ export class RehydratingSession extends RehydratingSessionBase {
   // script parsed event to communicate the current script state and respond with a mock
   // debugger id.
   private handleDebuggerEnable(id: number): void {
+    const htmlResourceUrls = new Set(this.resources.filter(r => r.mimeType === 'text/html').map(r => r.url));
+
     for (const script of this.scripts) {
+      // Handle inline scripts.
+      if (htmlResourceUrls.has(script.url)) {
+        script.embedderName = script.url;
+        // We don't have the actual embedded offset from this trace event. Non-zero
+        // values are important though: that is what `Script.isInlineScript()`
+        // checks. Otherwise these scripts would try to show individually within the
+        // Sources panel.
+        script.startColumn = 1;
+        script.startLine = 1;
+        script.endColumn = 1;
+        script.endLine = 1;
+      }
+
       this.sendMessageToFrontend({
         method: 'Debugger.scriptParsed',
         params: script,
@@ -355,6 +424,77 @@ export class RehydratingSession extends RehydratingSessionBase {
       id,
       result: {
         debuggerId: mockDebuggerId,
+      },
+    });
+  }
+
+  private handleGetResourceTree(id: number): void {
+    const resources = this.resources.filter(r => r.mimeType === 'text/html' || r.mimeType === 'text/css');
+    if (!resources.length) {
+      return;
+    }
+
+    const frameTree = {
+      frame: {
+        id: this.target.targetId,
+        url: this.target.url,
+      },
+      childFrames: [],
+      resources: resources.map(r => ({
+                                 url: r.url,
+                                 type: r.mimeType === 'text/html' ? 'Document' : 'Stylesheet',
+                                 mimeType: r.mimeType,
+                                 contentSize: r.content.length,
+                               })),
+    };
+
+    this.sendMessageToFrontend({
+      id,
+      result: {
+        frameTree,
+      },
+    });
+
+    const stylesheets = this.resources.filter(r => r.mimeType === 'text/css');
+    for (const stylesheet of stylesheets) {
+      this.sendMessageToFrontend({
+        method: 'CSS.styleSheetAdded',
+        params: {
+          header: {
+            styleSheetId: `sheet.${stylesheet.frame}.${stylesheet.url}`,
+            frameId: stylesheet.frame,
+            sourceURL: stylesheet.url,
+          },
+        },
+      });
+    }
+  }
+
+  private handleGetResourceContent(frame: string, url: string, id: number): void {
+    const resource = this.resources.find(r => r.frame === frame && r.url === url);
+    if (!resource) {
+      return;
+    }
+
+    this.sendMessageToFrontend({
+      id,
+      result: {
+        content: resource.content,
+        base64Encoded: false,
+      },
+    });
+  }
+
+  private handleGetStyleSheetText(stylesheetId: string, id: number): void {
+    const resource = this.resources.find(r => `sheet.${r.frame}.${r.url}` === stylesheetId);
+    if (!resource) {
+      return;
+    }
+
+    this.sendMessageToFrontend({
+      id,
+      result: {
+        text: resource.content,
       },
     });
   }

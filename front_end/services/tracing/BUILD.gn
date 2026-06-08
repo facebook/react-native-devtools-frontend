@@ -1,4 +1,4 @@
-# Copyright 2023 The Chromium Authors. All rights reserved.
+# Copyright 2023 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -6,10 +6,16 @@ import("../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../scripts/build/ninja/devtools_module.gni")
 
 devtools_module("tracing") {
-  sources = [ "PerformanceTracing.ts" ]
+  sources = [
+    "FreshRecording.ts",
+    "PerformanceTracing.ts",
+    "TracingManager.ts",
+  ]
 
   deps = [
-    "../../../front_end/core/sdk:bundle",
+    "../../core/sdk:bundle",
+    "../../generated",
+    "../../generated:protocol",
     "../../models/trace:bundle",
   ]
 }
@@ -20,4 +26,19 @@ devtools_entrypoint("bundle") {
   deps = [ ":tracing" ]
 
   visibility = [ "*" ]
+}
+
+ts_library("unittests") {
+  testonly = true
+
+  sources = [
+    "FreshRecording.test.ts",
+    "TracingManager.test.ts",
+  ]
+
+  deps = [
+    ":bundle",
+    "../../models/trace:bundle",
+    "../../testing",
+  ]
 }

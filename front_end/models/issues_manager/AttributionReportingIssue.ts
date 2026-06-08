@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -89,13 +89,10 @@ const structuredHeaderLink = {
   linkTitle: 'Structured Headers RFC',
 };
 
-export class AttributionReportingIssue extends Issue<IssueCode> {
-  issueDetails: Readonly<Protocol.Audits.AttributionReportingIssueDetails>;
-
+export class AttributionReportingIssue extends Issue<Protocol.Audits.AttributionReportingIssueDetails, IssueCode> {
   constructor(
-      issueDetails: Protocol.Audits.AttributionReportingIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel) {
-    super(getIssueCode(issueDetails), issuesModel);
-    this.issueDetails = issueDetails;
+      issueDetails: Protocol.Audits.AttributionReportingIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel|null) {
+    super(getIssueCode(issueDetails), issueDetails, issuesModel);
   }
 
   getCategory(): IssueCategory {
@@ -106,8 +103,9 @@ export class AttributionReportingIssue extends Issue<IssueCode> {
     const url = new URL('https://wicg.github.io/attribution-reporting-api/validate-headers');
     url.searchParams.set('header', name);
 
-    if (this.issueDetails.invalidParameter) {
-      url.searchParams.set('json', this.issueDetails.invalidParameter);
+    const details = this.details();
+    if (details.invalidParameter) {
+      url.searchParams.set('json', details.invalidParameter);
     }
 
     return {
@@ -229,15 +227,16 @@ export class AttributionReportingIssue extends Issue<IssueCode> {
   }
 
   primaryKey(): string {
-    return JSON.stringify(this.issueDetails);
+    return JSON.stringify(this.details());
   }
 
   getKind(): IssueKind {
     return IssueKind.PAGE_ERROR;
   }
 
-  static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):
-      AttributionReportingIssue[] {
+  static fromInspectorIssue(
+      issuesModel: SDK.IssuesModel.IssuesModel|null,
+      inspectorIssue: Protocol.Audits.InspectorIssue): AttributionReportingIssue[] {
     const {attributionReportingIssueDetails} = inspectorIssue.details;
     if (!attributionReportingIssueDetails) {
       console.warn('Attribution Reporting issue without details received.');

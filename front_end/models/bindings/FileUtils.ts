@@ -1,35 +1,10 @@
-/*
- * Copyright (C) 2012 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2012 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
-import type * as Common from '../../core/common/common.js';
+import * as Common from '../../core/common/common.js';
 import type * as Platform from '../../core/platform/platform.js';
+import * as TextUtils from '../text_utils/text_utils.js';
 import * as Workspace from '../workspace/workspace.js';
 
 export interface ChunkedReader {
@@ -43,37 +18,30 @@ export interface ChunkedReader {
 
   error(): DOMError|null;
 }
-interface DecompressionStream extends GenericTransformStream {
-  readonly format: string;
-}
-declare const DecompressionStream: {
-  prototype: DecompressionStream,
-  new (format: string): DecompressionStream,
-};
 
 export class ChunkedFileReader implements ChunkedReader {
   #file: File|null;
-  readonly #fileSizeInternal: number;
-  #loadedSizeInternal: number;
+  readonly #fileSize: number;
+  #loadedSize: number;
   #streamReader: ReadableStreamDefaultReader<Uint8Array<ArrayBuffer>>|null;
   readonly #chunkSize: number;
   readonly #chunkTransferredCallback: ((arg0: ChunkedReader) => void)|undefined;
   readonly #decoder: TextDecoder;
   #isCanceled: boolean;
-  #errorInternal: DOMException|null;
+  #error: DOMException|null;
   #transferFinished!: (arg0: boolean) => void;
   #output?: Common.StringOutputStream.OutputStream;
   #reader?: FileReader|null;
 
   constructor(file: File, chunkSize?: number, chunkTransferredCallback?: ((arg0: ChunkedReader) => void)) {
     this.#file = file;
-    this.#fileSizeInternal = file.size;
-    this.#loadedSizeInternal = 0;
+    this.#fileSize = file.size;
+    this.#loadedSize = 0;
     this.#chunkSize = (chunkSize) ? chunkSize : Number.MAX_VALUE;
     this.#chunkTransferredCallback = chunkTransferredCallback;
     this.#decoder = new TextDecoder();
     this.#isCanceled = false;
-    this.#errorInternal = null;
+    this.#error = null;
     this.#streamReader = null;
   }
 
@@ -83,11 +51,8 @@ export class ChunkedFileReader implements ChunkedReader {
     }
 
     if (this.#file?.type.endsWith('gzip')) {
-      // TypeScript can't tell if to use @types/node or lib.webworker.d.ts
-      // types, so we force it to here.
-      // crbug.com/1392092
-      const fileStream = this.#file.stream() as unknown as ReadableStream<Uint8Array>;
-      const stream = this.decompressStream(fileStream);
+      const fileStream = this.#file.stream();
+      const stream = Common.Gzip.decompressStream(fileStream);
       this.#streamReader = stream.getReader();
     } else {
       this.#reader = new FileReader();
@@ -108,11 +73,11 @@ export class ChunkedFileReader implements ChunkedReader {
   }
 
   loadedSize(): number {
-    return this.#loadedSizeInternal;
+    return this.#loadedSize;
   }
 
   fileSize(): number {
-    return this.#fileSizeInternal;
+    return this.#fileSize;
   }
 
   fileName(): string {
@@ -123,14 +88,7 @@ export class ChunkedFileReader implements ChunkedReader {
   }
 
   error(): DOMException|null {
-    return this.#errorInternal;
-  }
-
-  // Decompress gzip natively thanks to https://wicg.github.io/compression/
-  private decompressStream(stream: ReadableStream): ReadableStream {
-    const ds = new DecompressionStream('gzip');
-    const decompressionStream = stream.pipeThrough(ds);
-    return decompressionStream;
+    return this.#error;
   }
 
   private onChunkLoaded(event: Event): void {
@@ -148,8 +106,8 @@ export class ChunkedFileReader implements ChunkedReader {
     }
 
     const buffer = (this.#reader.result as ArrayBuffer);
-    this.#loadedSizeInternal += buffer.byteLength;
-    const endOfFile = this.#loadedSizeInternal === this.#fileSizeInternal;
+    this.#loadedSize += buffer.byteLength;
+    const endOfFile = this.#loadedSize === this.#fileSize;
     void this.decodeChunkBuffer(buffer, endOfFile);
   }
 
@@ -180,7 +138,7 @@ export class ChunkedFileReader implements ChunkedReader {
     this.#file = null;
     this.#reader = null;
     await this.#output.close();
-    this.#transferFinished(!this.#errorInternal);
+    this.#transferFinished(!this.#error);
   }
 
   private async loadChunk(): Promise<void> {
@@ -197,8 +155,8 @@ export class ChunkedFileReader implements ChunkedReader {
       void this.decodeChunkBuffer(value.buffer, false);
     }
     if (this.#reader) {
-      const chunkStart = this.#loadedSizeInternal;
-      const chunkEnd = Math.min(this.#fileSizeInternal, chunkStart + this.#chunkSize);
+      const chunkStart = this.#loadedSize;
+      const chunkEnd = Math.min(this.#fileSize, chunkStart + this.#chunkSize);
       const nextPart = this.#file.slice(chunkStart, chunkEnd);
       this.#reader.readAsArrayBuffer(nextPart);
     }
@@ -206,7 +164,7 @@ export class ChunkedFileReader implements ChunkedReader {
 
   private onError(event: Event): void {
     const eventTarget = (event.target as FileReader);
-    this.#errorInternal = eventTarget.error;
+    this.#error = eventTarget.error;
     this.#transferFinished(false);
   }
 }
@@ -223,8 +181,8 @@ export class FileOutputStream implements Common.StringOutputStream.OutputStream 
     this.#closed = false;
     this.#writeCallbacks = [];
     this.#fileName = fileName;
-    const saveResponse =
-        await Workspace.FileManager.FileManager.instance().save(this.#fileName, '', true, false /* isBase64 */);
+    const saveResponse = await Workspace.FileManager.FileManager.instance().save(
+        this.#fileName, TextUtils.ContentData.EMPTY_TEXT_CONTENT_DATA, /* forceSaveAs=*/ true);
     if (saveResponse) {
       Workspace.FileManager.FileManager.instance().addEventListener(
           Workspace.FileManager.Events.APPENDED_TO_URL, this.onAppendDone, this);

@@ -1,15 +1,12 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view, @devtools/enforce-custom-element-definitions-location */
 
 import * as Lit from '../../lit/lit.js';
 import * as VisualLogging from '../../visual_logging/visual_logging.js';
 
-import expandableListStylesRaw from './expandableList.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const expandableListStyles = new CSSStyleSheet();
-expandableListStyles.replaceSync(expandableListStylesRaw.cssText);
+import expandableListStyles from './expandableList.css.js';
 
 const {html, Directives: {ifDefined}} = Lit;
 
@@ -19,7 +16,6 @@ export interface ExpandableListData {
 }
 
 export class ExpandableList extends HTMLElement {
-
   readonly #shadow = this.attachShadow({mode: 'open'});
   #expanded = false;
   #rows: Lit.TemplateResult[] = [];
@@ -36,10 +32,6 @@ export class ExpandableList extends HTMLElement {
     this.#render();
   }
 
-  connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [expandableListStyles];
-  }
-
   #render(): void {
     if (this.#rows.length < 1) {
       return;
@@ -49,11 +41,12 @@ export class ExpandableList extends HTMLElement {
     // clang-format off
     Lit.render(
         html`
+      <style>${expandableListStyles}</style>
       <div class="expandable-list-container">
         <div>
           ${this.#rows.length > 1 ?
             html`
-              <button title='${ifDefined(this.#title)}' aria-label='${ifDefined(this.#title)}' aria-expanded=${this.#expanded ? 'true' : 'false'} @click=${() => this.#onArrowClick()} class="arrow-icon-button">
+              <button title=${ifDefined(this.#title)} aria-label=${ifDefined(this.#title)} aria-expanded=${this.#expanded ? 'true' : 'false'} @click=${() => this.#onArrowClick()} class="arrow-icon-button">
                 <span class="arrow-icon ${this.#expanded ? 'expanded' : ''}"
                 jslog=${VisualLogging.expand().track({click: true})}></span>
               </button>

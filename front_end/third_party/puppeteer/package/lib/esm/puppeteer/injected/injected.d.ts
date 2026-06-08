@@ -26,13 +26,13 @@ declare const PuppeteerUtil: Readonly<{
     checkVisibility: (node: Node | null, visible?: boolean) => Node | boolean;
     textQuerySelectorAll: (root: Node, selector: string) => Generator<Element>;
     PCombinator: typeof PQuerySelector.PCombinator;
-    pQuerySelectorAll: (root: Node, selector: string) => import("../index.js").AwaitableIterable<Node>;
+    pQuerySelectorAll: (root: Node, selector: string) => import("../index-browser.js").AwaitableIterable<Node>;
     pQuerySelector: (root: Node, selector: string) => Promise<Node | null>;
     pierceQuerySelector: (root: Node, selector: string) => Element | null;
     pierceQuerySelectorAll: (element: Node, selector: string) => Element[];
     customQuerySelectors: {
-        "__#206@#selectors": Map<string, CustomQuerySelectors.CustomQuerySelector>;
-        register(name: string, handler: import("../index.js").CustomQueryHandler): void;
+        "__#208@#selectors": Map<string, CustomQuerySelectors.CustomQuerySelector>;
+        register(name: string, handler: import("../index-browser.js").CustomQueryHandler): void;
         unregister(name: string): void;
         get(name: string): CustomQuerySelectors.CustomQuerySelector | undefined;
         clear(): void;
@@ -43,7 +43,7 @@ declare const PuppeteerUtil: Readonly<{
 /**
  * @internal
  */
-type PuppeteerUtil = typeof PuppeteerUtil;
+export type PuppeteerInjectedUtil = typeof PuppeteerUtil;
 /**
  * @internal
  */

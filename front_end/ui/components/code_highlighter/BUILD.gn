@@ -1,4 +1,4 @@
-# Copyright 2021 The Chromium Authors. All rights reserved.
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -12,7 +12,7 @@ generate_css("css_files") {
   sources = [ "codeHighlighter.css" ]
 }
 
-devtools_module("code_highlighter") {
+devtools_ui_module("code_highlighter") {
   sources = [ "CodeHighlighter.ts" ]
 
   deps = [ "../../../third_party/codemirror.next:bundle" ]
@@ -30,7 +30,7 @@ devtools_entrypoint("bundle") {
   visibility += default_components_visibility
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [ "CodeHighlighter.test.ts" ]

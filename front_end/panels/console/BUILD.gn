@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,6 +11,7 @@ import("../visibility.gni")
 generate_css("css_files") {
   sources = [
     "consoleContextSelector.css",
+    "consoleInsightTeaser.css",
     "consolePinPane.css",
     "consolePrompt.css",
     "consoleSidebar.css",
@@ -18,11 +19,12 @@ generate_css("css_files") {
   ]
 }
 
-devtools_module("console") {
+devtools_ui_module("console") {
   sources = [
     "ConsoleContextSelector.ts",
     "ConsoleFilter.ts",
     "ConsoleFormat.ts",
+    "ConsoleInsightTeaser.ts",
     "ConsolePanel.ts",
     "ConsolePinPane.ts",
     "ConsolePrompt.ts",
@@ -30,7 +32,8 @@ devtools_module("console") {
     "ConsoleView.ts",
     "ConsoleViewMessage.ts",
     "ConsoleViewport.ts",
-    "ErrorStackParser.ts",
+    "PromptBuilder.ts",
+    "SymbolizedErrorWidget.ts",
   ]
 
   deps = [
@@ -41,23 +44,39 @@ devtools_module("console") {
     "../../core/platform:bundle",
     "../../core/root:bundle",
     "../../core/sdk:bundle",
+    "../../generated:protocol",
+    "../../models/ai_assistance:bundle",
+    "../../models/ai_code_completion:bundle",
+    "../../models/badges:bundle",
     "../../models/bindings:bundle",
+    "../../models/breakpoints:bundle",
+    "../../models/formatter:bundle",
     "../../models/issues_manager:bundle",
     "../../models/logs:bundle",
     "../../models/source_map_scopes:bundle",
+    "../../models/stack_trace:bundle",
     "../../models/text_utils:bundle",
+    "../../models/workspace:bundle",
+    "../../panels/ai_assistance:bundle",
     "../../third_party/codemirror.next:bundle",
+    "../../ui/components/buttons:bundle",
     "../../ui/components/code_highlighter:bundle",
-    "../../ui/components/icon_button:bundle",
+    "../../ui/components/highlighting:bundle",
+    "../../ui/components/issue_counter:bundle",
     "../../ui/components/request_link_icon:bundle",
     "../../ui/components/text_editor:bundle",
+    "../../ui/components/tooltips:bundle",
+    "../../ui/kit:bundle",
     "../../ui/legacy:bundle",
     "../../ui/legacy/components/data_grid:bundle",
     "../../ui/legacy/components/object_ui:bundle",
+    "../../ui/legacy/components/settings_ui:bundle",
     "../../ui/legacy/components/utils:bundle",
     "../../ui/legacy/theme_support:bundle",
+    "../../ui/lit:bundle",
+    "../../ui/visual_logging:bundle",
+    "../common:bundle",
     "../console_counters:bundle",
-    "../security:bundle",
   ]
 }
 
@@ -75,6 +94,7 @@ devtools_entrypoint("bundle") {
     "../../../test/e2e/console/*",
     "../../entrypoints/*",
     "../../panels/explain/*",
+    "../../testing:*",
   ]
 
   visibility += devtools_panels_visibility
@@ -93,16 +113,21 @@ devtools_entrypoint("meta") {
   visibility = [ "../../entrypoints/*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [
     "ConsoleContextSelector.test.ts",
     "ConsoleFormat.test.ts",
+    "ConsoleInsightTeaser.test.ts",
+    "ConsolePinPane.test.ts",
     "ConsolePrompt.test.ts",
+    "ConsoleSidebar.test.ts",
     "ConsoleView.test.ts",
     "ConsoleViewMessage.test.ts",
-    "ErrorStackParser.test.ts",
+    "ConsoleViewport.test.ts",
+    "PromptBuilder.test.ts",
+    "SymbolizedErrorWidget.test.ts",
   ]
 
   deps = [
@@ -113,7 +138,11 @@ ts_library("unittests") {
     "../../models/bindings:bundle",
     "../../models/issues_manager:bundle",
     "../../models/logs:bundle",
+    "../../models/text_utils:bundle",
+    "../../models/workspace:bundle",
     "../../testing",
+    "../../ui/legacy:bundle",
+    "../../ui/legacy/components/object_ui:bundle",
     "../../ui/legacy/components/utils:bundle",
   ]
 }

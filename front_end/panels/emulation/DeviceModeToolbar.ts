@@ -1,6 +1,7 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import '../../ui/legacy/legacy.js';
 
@@ -9,18 +10,24 @@ import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as EmulationModel from '../../models/emulation/emulation.js';
+import * as Buttons from '../../ui/components/buttons/buttons.js';
+import * as uiI18n from '../../ui/i18n/i18n.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 import * as MobileThrottling from '../mobile_throttling/mobile_throttling.js';
 
-import * as EmulationComponents from './components/components.js';
-
 const UIStrings = {
   /**
-   * @description Title of the device dimensions selection iteam in the Device Mode Toolbar.
+   * @description Title of the device dimensions selection item in the Device Mode Toolbar.
    * webpage in pixels.
+   * @example {Responsive} PH1
    */
-  dimensions: 'Dimensions',
+  dimensions: 'Dimensions: {PH1}',
+  /**
+   * @description Title of the device pixel ratio selection item in the Device Mode Toolbar.
+   * @example {2.0} PH1
+   */
+  dpr: 'DPR: {PH1}',
   /**
    * @description Title of the width input textbox in the Device Mode Toolbar, for the width of the
    * webpage in pixels.
@@ -49,24 +56,16 @@ const UIStrings = {
    */
   deviceType: 'Device type',
   /**
-   * @description Tooltip text for a button to disable Experimental Web Platform Features when they are enabled.
-   */
-  experimentalWebPlatformFeature: '"`Experimental Web Platform Feature`" flag is enabled. Click to disable it.',
-  /**
-   * @description Tooltip text for a button to enable Experimental Web Platform Features when they are disabled.
-   */
-  experimentalWebPlatformFeatureFlag: '"`Experimental Web Platform Feature`" flag is disabled. Click to enable it.',
-  /**
    * @description Tooltip text for a 'three dots' style menu button which shows an expanded set of options.
    */
   moreOptions: 'More options',
   /**
-   * @description A context menu item in the Device Mode Toolbar. This is a command to resize the
-   * webpage preview to fit the current window. The placeholder is the percentage of full-size that
-   * will be displayed after fitting.
+   * @description A menu item in the drop-down box that allows the user to select the zoom level.
+   * Labels the value which corresponds to the 'fit to window' zoom level, represented by the
+   * placeholder, which is a number. In the Device Mode Toolbar.
    * @example {30.0} PH1
    */
-  fitToWindowF: 'Fit to window ({PH1}%)',
+  fitToWindowPercentage: '{PH1}% (fit to window)',
   /**
    * @description A checkbox setting that appears in the context menu for the zoom level, in the
    * Device Mode Toolbar.
@@ -78,7 +77,7 @@ const UIStrings = {
    * placeholder, which is a number. In the Device Mode Toolbar.
    * @example {4.3} PH1
    */
-  defaultF: 'Default: {PH1}',
+  defaultF: '{PH1} (default)',
   /**
    * @description Command to hide the frame (like a picture frame) around the mobile device screen.
    */
@@ -163,14 +162,14 @@ const UIStrings = {
    */
   rotate: 'Rotate',
   /**
-   * @description Fallback/default text used for the name of a custom device when no name has been
-   * provided by the user.
-   */
-  none: 'None',
-  /**
    * @description Tooltip of the rotate/screen orientation button.
    */
   screenOrientationOptions: 'Screen orientation options',
+  /**
+   * @description Tooltip shown on the rotate button when screen orientation is locked by the page
+   * via screen.orientation.lock().
+   */
+  screenOrientationLocked: 'Screen orientation is locked by the page',
   /**
    * @description Tooltip for a button which turns on/off dual-screen mode, which emulates devices
    * like tablets which have two screens.
@@ -181,6 +180,10 @@ const UIStrings = {
    * posture e.g. Continuous, Folded.
    */
   devicePosture: 'Device posture',
+  /**
+   * @description Title of the network throttling selection in the Device Mode Toolbar.
+   */
+  throttling: 'Throttling',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/emulation/DeviceModeToolbar.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -191,9 +194,13 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
  * than in the DevTools panel itself. Therefore, we need to fall back to using the
  * built-in tooltip by setting the title attribute on the button's element.
  */
-function setTitleForButton(button: UI.Toolbar.ToolbarButton|UI.Toolbar.ToolbarMenuButton, title: string): void {
-  button.setTitle(title);
-  button.element.title = title;
+function setTitleForButton(button: Buttons.Button.Button|UI.Toolbar.ToolbarMenuButton, title: string): void {
+  if (button instanceof UI.Toolbar.ToolbarMenuButton) {
+    button.setTitle(title);
+    button.element.title = title;
+  } else {
+    button.title = title;
+  }
 }
 
 export class DeviceModeToolbar {
@@ -205,23 +212,22 @@ export class DeviceModeToolbar {
   private readonly showUserAgentTypeSetting: Common.Settings.Setting<boolean>;
   private autoAdjustScaleSetting: Common.Settings.Setting<boolean>;
   private readonly lastMode: Map<EmulationModel.EmulatedDevices.EmulatedDevice, EmulationModel.EmulatedDevices.Mode>;
-  private readonly elementInternal: HTMLDivElement;
+  readonly #element: HTMLDivElement;
   private readonly emulatedDevicesList: EmulationModel.EmulatedDevices.EmulatedDevicesList;
   private readonly persistenceSetting: Common.Settings.Setting<{device: string, orientation: string, mode: string}>;
-  private spanButton!: UI.Toolbar.ToolbarButton;
-  private postureItem!: UI.Toolbar.ToolbarMenuButton;
-  private modeButton!: UI.Toolbar.ToolbarButton;
-  private widthInput: EmulationComponents.DeviceSizeInputElement.SizeInputElement;
-  private heightInput: EmulationComponents.DeviceSizeInputElement.SizeInputElement;
-  private deviceScaleItem!: UI.Toolbar.ToolbarMenuButton;
-  private deviceSelectItem!: UI.Toolbar.ToolbarMenuButton;
-  private scaleItem!: UI.Toolbar.ToolbarMenuButton;
-  private uaItem!: UI.Toolbar.ToolbarMenuButton;
-  private experimentalButton!: UI.Toolbar.ToolbarToggle|null;
+  private spanButton!: Buttons.Button.Button;
+  private postureItem!: HTMLSelectElement;
+  private modeButton!: Buttons.Button.Button;
+  private widthInput: HTMLInputElement;
+  private heightInput: HTMLInputElement;
+  private deviceScaleItem!: HTMLSelectElement;
+  private deviceScaleItems: HTMLElement[] = [];
+  private deviceSelectItem!: HTMLSelectElement;
+  private scaleItem!: HTMLSelectElement;
+  private uaItem!: HTMLSelectElement;
   private cachedDeviceScale!: number|null;
   private cachedUaType!: string|null;
-  private xItem?: UI.Toolbar.ToolbarItem;
-  private throttlingConditionsItem?: UI.Toolbar.ToolbarMenuButton;
+  private xItem?: HTMLElement;
   private cachedModelType?: EmulationModel.DeviceModeModel.Type;
   private cachedScale?: number;
   private cachedModelDevice?: EmulationModel.EmulatedDevices.EmulatedDevice|null;
@@ -249,38 +255,15 @@ export class DeviceModeToolbar {
 
     this.lastMode = new Map();
 
-    this.elementInternal = document.createElement('div');
-    this.elementInternal.classList.add('device-mode-toolbar');
-    this.elementInternal.setAttribute('jslog', `${VisualLogging.toolbar('device-mode').track({resize: true})}`);
+    this.widthInput = this.createSizeInput(i18nString(UIStrings.width), 'width');
+    this.heightInput = this.createSizeInput(i18nString(UIStrings.heightLeaveEmptyForFull), 'height');
 
-    const mainToolbar = this.elementInternal.createChild('devtools-toolbar', 'main-toolbar');
-    this.appendDeviceSelectMenu(mainToolbar);
+    this.#element = document.createElement('div');
+    this.#element.classList.add('device-mode-toolbar');
+    this.#element.setAttribute('jslog', `${VisualLogging.toolbar('device-mode').track({resize: true})}`);
 
-    this.widthInput = new EmulationComponents.DeviceSizeInputElement.SizeInputElement(
-        i18nString(UIStrings.width), {jslogContext: 'width'});
-    this.widthInput.addEventListener('sizechanged', ({size: width}) => {
-      if (this.autoAdjustScaleSetting.get()) {
-        this.model.setWidthAndScaleToFit(width);
-      } else {
-        this.model.setWidth(width);
-      }
-    });
-    this.heightInput = new EmulationComponents.DeviceSizeInputElement.SizeInputElement(
-        i18nString(UIStrings.heightLeaveEmptyForFull), {jslogContext: 'height'});
-    this.heightInput.addEventListener('sizechanged', ({size: height}) => {
-      if (this.autoAdjustScaleSetting.get()) {
-        this.model.setHeightAndScaleToFit(height);
-      } else {
-        this.model.setHeight(height);
-      }
-    });
-    this.appendDimensionInputs(mainToolbar);
-
-    this.appendDisplaySettings(mainToolbar);
-    this.appendDevicePositionItems(mainToolbar);
-    const optionsToolbar = this.elementInternal.createChild('devtools-toolbar', 'device-mode-toolbar-options');
-    optionsToolbar.wrappable = true;
-    this.fillOptionsToolbar(optionsToolbar);
+    const mainToolbar = this.createMainToolbar();
+    const optionsToolbar = this.createOptionsToolbar();
 
     this.emulatedDevicesList = EmulationModel.EmulatedDevices.EmulatedDevicesList.instance();
     this.emulatedDevicesList.addEventListener(
@@ -294,11 +277,25 @@ export class DeviceModeToolbar {
     this.model.toolbarControlsEnabledSetting().addChangeListener(updateToolbarsEnabled);
     updateToolbarsEnabled();
 
+    this.updateDeviceMenuItems();
+    this.updateScaleMenuItems();
+    this.updateDeviceScaleMenuItems();
+    this.updateUserAgentMenuItems();
+    this.updateDevicePostureItems();
+
     function updateToolbarsEnabled(): void {
       const enabled = model.toolbarControlsEnabledSetting().get();
       mainToolbar.setEnabled(enabled);
       optionsToolbar.setEnabled(enabled);
     }
+  }
+
+  private appendOption(parentElement: HTMLElement, title: string, value: string, jslogContext: string): void {
+    const option = document.createElement('option');
+    option.text = title;
+    option.value = value;
+    option.setAttribute('jslog', `${VisualLogging.item(jslogContext).track({click: true})}`);
+    parentElement.appendChild(option);
   }
 
   private createEmptyToolbarElement(): HTMLDivElement {
@@ -307,116 +304,180 @@ export class DeviceModeToolbar {
     return element;
   }
 
-  private appendDeviceSelectMenu(toolbar: UI.Toolbar.Toolbar): void {
-    toolbar.appendToolbarItem(new UI.Toolbar.ToolbarItem(this.createEmptyToolbarElement()));
-    this.deviceSelectItem =
-        new UI.Toolbar.ToolbarMenuButton(this.appendDeviceMenuItems.bind(this), undefined, undefined, 'device');
-    this.deviceSelectItem.turnShrinkable();
-    this.deviceSelectItem.setDarkText();
-    toolbar.appendToolbarItem(this.deviceSelectItem);
+  private createSizeInput(title: string, jslogContext: string): HTMLInputElement {
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.max = String(EmulationModel.DeviceModeModel.MaxDeviceSize);
+    input.min = String(EmulationModel.DeviceModeModel.MinDeviceSize);
+    input.title = title;
+    input.classList.add('device-mode-size-input');
+    input.setAttribute('jslog', `${VisualLogging.textField().track({change: true}).context(jslogContext)}`);
+
+    input.addEventListener('keydown', (event: Event) => {
+      let modifiedValue = UI.UIUtils.modifiedFloatNumber(Number(input.value), event);
+      if (modifiedValue === null) {
+        return;
+      }
+      modifiedValue = Math.min(modifiedValue, EmulationModel.DeviceModeModel.MaxDeviceSize);
+      modifiedValue = Math.max(modifiedValue, EmulationModel.DeviceModeModel.MinDeviceSize);
+
+      event.preventDefault();
+      input.value = String(modifiedValue);
+      input.dispatchEvent(new Event('change'));
+    });
+    return input;
   }
 
-  private appendDimensionInputs(toolbar: UI.Toolbar.Toolbar): void {
-    toolbar.appendToolbarItem(new UI.Toolbar.ToolbarItem(this.widthInput));
+  private createMainToolbar(): UI.Toolbar.Toolbar {
+    const mainToolbar = this.#element.createChild('devtools-toolbar', 'main-toolbar');
 
-    const xElement = document.createElement('div');
-    xElement.classList.add('device-mode-x');
-    xElement.textContent = '×';
-    this.xItem = new UI.Toolbar.ToolbarItem(xElement);
-    toolbar.appendToolbarItem(this.xItem);
+    mainToolbar.append(this.createEmptyToolbarElement());
+    this.deviceSelectItem = document.createElement('select');
+    this.deviceSelectItem.classList.add('dark-text', 'toolbar-has-dropdown-shrinkable');
+    this.deviceSelectItem.title = i18nString(UIStrings.deviceType);
+    UI.ARIAUtils.setLabel(this.deviceSelectItem, i18nString(UIStrings.deviceType));
+    this.deviceSelectItem.addEventListener('change', this.onDeviceChange.bind(this));
+    this.deviceSelectItem.setAttribute('jslog', `${VisualLogging.dropDown().track({change: true}).context('device')}`);
+    const dimensionsSpan = uiI18n.getFormatLocalizedString(str_, UIStrings.dimensions, {PH1: this.deviceSelectItem});
+    mainToolbar.append(...dimensionsSpan.childNodes);
+    mainToolbar.append(this.deviceSelectItem);
 
-    toolbar.appendToolbarItem(new UI.Toolbar.ToolbarItem(this.heightInput));
-  }
+    this.widthInput.addEventListener('change', () => {
+      const width = Number(this.widthInput.value);
+      if (this.autoAdjustScaleSetting.get()) {
+        this.model.setWidthAndScaleToFit(width);
+      } else {
+        this.model.setWidth(width);
+      }
+    });
+    this.heightInput.addEventListener('change', () => {
+      const height = Number(this.heightInput.value);
+      if (this.autoAdjustScaleSetting.get()) {
+        this.model.setHeightAndScaleToFit(height);
+      } else {
+        this.model.setHeight(height);
+      }
+    });
+    mainToolbar.append(this.widthInput);
+    this.xItem = document.createElement('div');
+    this.xItem.classList.add('device-mode-x');
+    this.xItem.textContent = '×';
+    mainToolbar.append(this.xItem);
+    mainToolbar.append(this.heightInput);
 
-  private appendDisplaySettings(toolbar: UI.Toolbar.Toolbar): void {
-    toolbar.appendToolbarItem(new UI.Toolbar.ToolbarItem(this.createEmptyToolbarElement()));
-    this.scaleItem =
-        new UI.Toolbar.ToolbarMenuButton(this.appendScaleMenuItems.bind(this), undefined, undefined, 'scale');
-    setTitleForButton(this.scaleItem, i18nString(UIStrings.zoom));
-    this.scaleItem.turnShrinkable();
-    this.scaleItem.setDarkText();
-    toolbar.appendToolbarItem(this.scaleItem);
+    mainToolbar.append(this.createEmptyToolbarElement());
+    this.scaleItem = document.createElement('select');
+    this.scaleItem.classList.add('dark-text', 'toolbar-has-dropdown-shrinkable');
+    this.scaleItem.title = i18nString(UIStrings.zoom);
+    UI.ARIAUtils.setLabel(this.scaleItem, i18nString(UIStrings.zoom));
+    this.scaleItem.addEventListener('change', this.onScaleChange.bind(this));
+    this.scaleItem.setAttribute('jslog', `${VisualLogging.dropDown().track({change: true}).context('scale')}`);
+    mainToolbar.append(this.scaleItem);
 
-    toolbar.appendToolbarItem(new UI.Toolbar.ToolbarItem(this.createEmptyToolbarElement()));
+    const autoAdjustScaleButton = new UI.Toolbar.ToolbarSettingToggle(
+        this.autoAdjustScaleSetting, 'center-focus-weak', i18nString(UIStrings.autoadjustZoom));
+    mainToolbar.appendToolbarItem(autoAdjustScaleButton);
 
-    this.deviceScaleItem = new UI.Toolbar.ToolbarMenuButton(
-        this.appendDeviceScaleMenuItems.bind(this), undefined, undefined, 'device-pixel-ratio');
-    this.deviceScaleItem.turnShrinkable();
-    this.deviceScaleItem.setVisible(this.showDeviceScaleFactorSetting.get());
-    setTitleForButton(this.deviceScaleItem, i18nString(UIStrings.devicePixelRatio));
-    this.deviceScaleItem.setDarkText();
-    toolbar.appendToolbarItem(this.deviceScaleItem);
+    mainToolbar.append(this.createEmptyToolbarElement());
 
-    toolbar.appendToolbarItem(new UI.Toolbar.ToolbarItem(this.createEmptyToolbarElement()));
-    this.uaItem =
-        new UI.Toolbar.ToolbarMenuButton(this.appendUserAgentMenuItems.bind(this), undefined, undefined, 'device-type');
-    this.uaItem.turnShrinkable();
-    this.uaItem.setVisible(this.showUserAgentTypeSetting.get());
-    setTitleForButton(this.uaItem, i18nString(UIStrings.deviceType));
-    this.uaItem.setDarkText();
-    toolbar.appendToolbarItem(this.uaItem);
+    this.deviceScaleItem = document.createElement('select');
+    this.deviceScaleItem.classList.add('dark-text', 'toolbar-has-dropdown-shrinkable');
+    this.deviceScaleItem.title = i18nString(UIStrings.devicePixelRatio);
+    UI.ARIAUtils.setLabel(this.deviceScaleItem, i18nString(UIStrings.devicePixelRatio));
+    this.deviceScaleItem.addEventListener('change', this.onDeviceScaleChange.bind(this));
+    this.deviceScaleItem.setAttribute(
+        'jslog', `${VisualLogging.dropDown().track({change: true}).context('device-pixel-ratio')}`);
+    const deviceScaleSpan = uiI18n.getFormatLocalizedString(str_, UIStrings.dpr, {PH1: this.deviceScaleItem});
+    for (const node of Array.from(deviceScaleSpan.childNodes)) {
+      if (node === this.deviceScaleItem) {
+        this.deviceScaleItem.classList.toggle('hidden', !this.showDeviceScaleFactorSetting.get());
+        this.deviceScaleItems.push(this.deviceScaleItem);
+        mainToolbar.append(this.deviceScaleItem);
+      } else {
+        const item = new UI.Toolbar.ToolbarText(node.textContent || '');
+        item.setVisible(this.showDeviceScaleFactorSetting.get());
+        this.deviceScaleItems.push(item.element);
+        mainToolbar.appendToolbarItem(item);
+      }
+    }
+    mainToolbar.append(this.createEmptyToolbarElement());
+    this.uaItem = document.createElement('select');
+    this.uaItem.classList.add('dark-text', 'toolbar-has-dropdown-shrinkable');
+    this.uaItem.title = i18nString(UIStrings.deviceType);
+    UI.ARIAUtils.setLabel(this.uaItem, i18nString(UIStrings.deviceType));
+    this.uaItem.addEventListener('change', this.onUAChange.bind(this));
+    this.uaItem.setAttribute('jslog', `${VisualLogging.dropDown().track({change: true}).context('device-type')}`);
+    this.uaItem.classList.toggle('hidden', !this.showUserAgentTypeSetting.get());
+    mainToolbar.append(this.uaItem);
 
-    this.throttlingConditionsItem =
-        MobileThrottling.ThrottlingManager.throttlingManager().createMobileThrottlingButton();
-    this.throttlingConditionsItem.turnShrinkable();
-    toolbar.appendToolbarItem(this.throttlingConditionsItem);
-  }
+    MobileThrottling.NetworkThrottlingSelector.NetworkThrottlingSelect.createForGlobalConditions(
+        mainToolbar, i18nString(UIStrings.throttling));
+    const saveDataItem = MobileThrottling.ThrottlingManager.throttlingManager().createSaveDataOverrideSelector();
+    saveDataItem.classList.add('dark-text', 'toolbar-has-dropdown-shrinkable');
+    mainToolbar.append(saveDataItem);
 
-  private appendDevicePositionItems(toolbar: UI.Toolbar.Toolbar): void {
-    toolbar.appendToolbarItem(new UI.Toolbar.ToolbarItem(this.createEmptyToolbarElement()));
-    this.modeButton = new UI.Toolbar.ToolbarButton('', 'screen-rotation', undefined, 'screen-rotation');
-    this.modeButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.modeMenuClicked, this);
-    toolbar.appendToolbarItem(this.modeButton);
+    mainToolbar.append(this.createEmptyToolbarElement());
+    this.modeButton = new Buttons.Button.Button();
+    this.modeButton.classList.add('toolbar-button');
+    this.modeButton.data = {variant: Buttons.Button.Variant.ICON, iconName: 'screen-rotation'};
+    this.modeButton.setAttribute('jslog', `${VisualLogging.action('screen-rotation').track({click: true})}`);
+    this.modeButton.addEventListener('click', this.modeMenuClicked.bind(this));
+    mainToolbar.append(this.modeButton);
 
     // Show dual screen toolbar.
-    this.spanButton = new UI.Toolbar.ToolbarButton('', 'device-fold', undefined, 'device-fold');
-    this.spanButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.spanClicked, this);
-    toolbar.appendToolbarItem(this.spanButton);
+    this.spanButton = new Buttons.Button.Button();
+    this.spanButton.classList.add('toolbar-button');
+    this.spanButton.data = {variant: Buttons.Button.Variant.ICON, iconName: 'device-fold'};
+    this.spanButton.setAttribute('jslog', `${VisualLogging.action('device-fold').track({click: true})}`);
+    this.spanButton.addEventListener('click', this.spanClicked.bind(this));
+    mainToolbar.append(this.spanButton);
 
     // Show posture toolbar menu for foldable devices.
-    toolbar.appendToolbarItem(new UI.Toolbar.ToolbarItem(this.createEmptyToolbarElement()));
-    this.postureItem = new UI.Toolbar.ToolbarMenuButton(
-        this.appendDevicePostureItems.bind(this), undefined, undefined, 'device-posture');
-    this.postureItem.turnShrinkable();
-    this.postureItem.setDarkText();
-    setTitleForButton(this.postureItem, i18nString(UIStrings.devicePosture));
-    toolbar.appendToolbarItem(this.postureItem);
+    mainToolbar.append(this.createEmptyToolbarElement());
+    this.postureItem = document.createElement('select');
+    this.postureItem.classList.add('dark-text', 'toolbar-has-dropdown-shrinkable');
+    this.postureItem.title = i18nString(UIStrings.devicePosture);
+    UI.ARIAUtils.setLabel(this.postureItem, i18nString(UIStrings.devicePosture));
+    this.postureItem.addEventListener('change', this.onPostureChange.bind(this));
+    this.postureItem.setAttribute(
+        'jslog', `${VisualLogging.dropDown().track({change: true}).context('device-posture')}`);
+    mainToolbar.append(this.postureItem);
 
-    this.createExperimentalButton(toolbar);
+    return mainToolbar;
   }
 
-  private createExperimentalButton(toolbar: UI.Toolbar.Toolbar): void {
-    toolbar.appendToolbarItem(new UI.Toolbar.ToolbarSeparator(true));
-
-    const title = (this.model.webPlatformExperimentalFeaturesEnabled()) ?
-        i18nString(UIStrings.experimentalWebPlatformFeature) :
-        i18nString(UIStrings.experimentalWebPlatformFeatureFlag);
-    this.experimentalButton = new UI.Toolbar.ToolbarToggle(title, 'experiment-check');
-    this.experimentalButton.setToggled(this.model.webPlatformExperimentalFeaturesEnabled());
-    this.experimentalButton.setEnabled(true);
-    this.experimentalButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.experimentalClicked, this);
-
-    toolbar.appendToolbarItem(this.experimentalButton);
-  }
-
-  private experimentalClicked(): void {
-    Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(
-        'chrome://flags/#enable-experimental-web-platform-features' as Platform.DevToolsPath.UrlString);
-  }
-
-  private fillOptionsToolbar(toolbar: UI.Toolbar.Toolbar): void {
-    toolbar.appendToolbarItem(new UI.Toolbar.ToolbarItem(this.createEmptyToolbarElement()));
+  private createOptionsToolbar(): UI.Toolbar.Toolbar {
+    const optionsToolbar = this.#element.createChild('devtools-toolbar', 'device-mode-toolbar-options');
+    optionsToolbar.wrappable = true;
+    optionsToolbar.appendToolbarItem(new UI.Toolbar.ToolbarItem(this.createEmptyToolbarElement()));
     const moreOptionsButton = new UI.Toolbar.ToolbarMenuButton(
         this.appendOptionsMenuItems.bind(this), true, undefined, 'more-options', 'dots-vertical');
     moreOptionsButton.setTitle(i18nString(UIStrings.moreOptions));
-    toolbar.appendToolbarItem(moreOptionsButton);
+    optionsToolbar.appendToolbarItem(moreOptionsButton);
+    return optionsToolbar;
   }
 
-  private appendDevicePostureItems(contextMenu: UI.ContextMenu.ContextMenu): void {
-    for (const title of ['Continuous', 'Folded']) {
-      contextMenu.defaultSection().appendCheckboxItem(
-          title, this.spanClicked.bind(this),
-          {checked: title === this.currentDevicePosture(), jslogContext: title.toLowerCase()});
+  private getDevicePostureOptions(): Array<{title: string, value: string, selected: boolean}> {
+    const currentPosture = this.currentDevicePosture();
+    return ['Continuous', 'Folded'].map(title => ({title, value: title, selected: currentPosture === title}));
+  }
+
+  private updateDevicePostureItems(): void {
+    this.postureItem.replaceChildren();
+    for (const option of this.getDevicePostureOptions()) {
+      this.appendOption(this.postureItem, option.title, option.value, option.title.toLowerCase());
+    }
+    const currentPosture = this.currentDevicePosture();
+    if (this.postureItem.value !== currentPosture) {
+      this.postureItem.value = currentPosture;
+    }
+    this.resizeItem(this.postureItem);
+  }
+
+  private onPostureChange(): void {
+    const value = this.postureItem.value;
+    if (value !== this.currentDevicePosture()) {
+      this.spanClicked();
     }
   }
 
@@ -430,70 +491,138 @@ export class DeviceModeToolbar {
     return 'Continuous';
   }
 
-  private appendScaleMenuItems(contextMenu: UI.ContextMenu.ContextMenu): void {
+  private getScaleOptions(): Array<{title: string, value: number, selected: boolean, jslogContext: string}> {
+    const values = [0.5, 0.75, 1, 1.25, 1.5, 2];
+    let fitValue: number|null = null;
     if (this.model.type() === EmulationModel.DeviceModeModel.Type.Device) {
-      contextMenu.footerSection().appendItem(
-          i18nString(UIStrings.fitToWindowF, {PH1: this.getPrettyFitZoomPercentage()}),
-          this.onScaleMenuChanged.bind(this, this.model.fitScale()), {jslogContext: 'fit-to-window'});
+      fitValue = this.model.fitScale();
+      const fitValuePct = (fitValue * 100).toFixed(0);
+      let found = false;
+      for (let i = 0; i < values.length; ++i) {
+        if ((values[i] * 100).toFixed(0) === fitValuePct) {
+          found = true;
+          values[i] = fitValue;
+          break;
+        }
+      }
+      if (!found) {
+        values.push(fitValue);
+        values.sort((a, b) => a - b);
+      }
     }
-    contextMenu.footerSection().appendCheckboxItem(
-        i18nString(UIStrings.autoadjustZoom), this.onAutoAdjustScaleChanged.bind(this),
-        {checked: this.autoAdjustScaleSetting.get(), jslogContext: 'auto-adjust-zoom'});
-    const boundAppendScaleItem = appendScaleItem.bind(this);
-    boundAppendScaleItem('50%', 0.5);
-    boundAppendScaleItem('75%', 0.75);
-    boundAppendScaleItem('100%', 1);
-    boundAppendScaleItem('125%', 1.25);
-    boundAppendScaleItem('150%', 1.5);
-    boundAppendScaleItem('200%', 2);
 
-    function appendScaleItem(this: DeviceModeToolbar, title: string, value: number): void {
-      contextMenu.defaultSection().appendCheckboxItem(
-          title, this.onScaleMenuChanged.bind(this, value),
-          {checked: this.model.scaleSetting().get() === value, jslogContext: title});
-    }
+    const currentScale = this.model.scaleSetting().get();
+    return values.map(value => {
+      let title = (value * 100).toFixed(0) + '%';
+      let jslogContext = title;
+      if (value === fitValue) {
+        title = i18nString(UIStrings.fitToWindowPercentage, {PH1: (value * 100).toFixed(0)});
+        jslogContext = 'fit-to-window';
+      }
+      return {title, value, selected: currentScale === value, jslogContext};
+    });
   }
 
-  private onScaleMenuChanged(value: number): void {
+  private updateScaleMenuItems(): void {
+    this.scaleItem.replaceChildren();
+    const options = this.getScaleOptions();
+    for (const option of options) {
+      this.appendOption(this.scaleItem, option.title, String(option.value), option.jslogContext);
+    }
+    const selected = options.find(o => o.selected);
+    if (selected) {
+      this.scaleItem.value = String(selected.value);
+    }
+    this.resizeItem(this.scaleItem, true);
+  }
+
+  private onScaleChange(): void {
+    const value = Number(this.scaleItem.value);
     this.model.scaleSetting().set(value);
   }
 
-  private onAutoAdjustScaleChanged(): void {
-    this.autoAdjustScaleSetting.set(!this.autoAdjustScaleSetting.get());
-  }
-
-  private appendDeviceScaleMenuItems(contextMenu: UI.ContextMenu.ContextMenu): void {
+  private getDeviceScaleFactorOptions():
+      Array<{title: string, value: number, selected: boolean, jslogContext: string}> {
     const deviceScaleFactorSetting = this.model.deviceScaleFactorSetting();
     const defaultValue = this.model.uaSetting().get() === EmulationModel.DeviceModeModel.UA.MOBILE ||
             this.model.uaSetting().get() === EmulationModel.DeviceModeModel.UA.MOBILE_NO_TOUCH ?
         EmulationModel.DeviceModeModel.defaultMobileScaleFactor :
         window.devicePixelRatio;
-    appendDeviceScaleFactorItem(
-        contextMenu.headerSection(), i18nString(UIStrings.defaultF, {PH1: defaultValue}), 0, 'dpr-default');
-    appendDeviceScaleFactorItem(contextMenu.defaultSection(), '1', 1, 'dpr-1');
-    appendDeviceScaleFactorItem(contextMenu.defaultSection(), '2', 2, 'dpr-2');
-    appendDeviceScaleFactorItem(contextMenu.defaultSection(), '3', 3, 'dpr-3');
-
-    function appendDeviceScaleFactorItem(
-        section: UI.ContextMenu.Section, title: string, value: number, jslogContext: string): void {
-      section.appendCheckboxItem(
-          title, deviceScaleFactorSetting.set.bind(deviceScaleFactorSetting, value),
-          {checked: deviceScaleFactorSetting.get() === value, jslogContext});
+    const values = [1, 2, 3];
+    if (!values.includes(defaultValue)) {
+      values.push(defaultValue);
+      values.sort((a, b) => a - b);
     }
+
+    const currentDPR = deviceScaleFactorSetting.get();
+    return values.map(value => {
+      let title = String(value);
+      let jslogContext = `dpr-${value}`;
+      if (value === defaultValue) {
+        title = i18nString(UIStrings.defaultF, {PH1: value});
+        jslogContext = 'dpr-default';
+      }
+      return {
+        title,
+        value: value === defaultValue ? 0 : value,
+        selected: currentDPR === value || (value === defaultValue && currentDPR === 0),
+        jslogContext
+      };
+    });
   }
 
-  private appendUserAgentMenuItems(contextMenu: UI.ContextMenu.ContextMenu): void {
-    const uaSetting = this.model.uaSetting();
-    appendUAItem(EmulationModel.DeviceModeModel.UA.MOBILE, EmulationModel.DeviceModeModel.UA.MOBILE);
-    appendUAItem(EmulationModel.DeviceModeModel.UA.MOBILE_NO_TOUCH, EmulationModel.DeviceModeModel.UA.MOBILE_NO_TOUCH);
-    appendUAItem(EmulationModel.DeviceModeModel.UA.DESKTOP, EmulationModel.DeviceModeModel.UA.DESKTOP);
-    appendUAItem(EmulationModel.DeviceModeModel.UA.DESKTOP_TOUCH, EmulationModel.DeviceModeModel.UA.DESKTOP_TOUCH);
-
-    function appendUAItem(title: string, value: EmulationModel.DeviceModeModel.UA): void {
-      contextMenu.defaultSection().appendCheckboxItem(
-          title, uaSetting.set.bind(uaSetting, value),
-          {checked: uaSetting.get() === value, jslogContext: Platform.StringUtilities.toKebabCase(value)});
+  private updateDeviceScaleMenuItems(): void {
+    this.deviceScaleItem.replaceChildren();
+    const options = this.getDeviceScaleFactorOptions();
+    for (const option of options) {
+      this.appendOption(this.deviceScaleItem, option.title, String(option.value), option.jslogContext);
     }
+    const selected = options.find(o => o.selected);
+    if (selected) {
+      this.deviceScaleItem.value = String(selected.value);
+    }
+    this.resizeItem(this.deviceScaleItem, true);
+  }
+
+  private onDeviceScaleChange(): void {
+    const value = Number(this.deviceScaleItem.value);
+    this.model.deviceScaleFactorSetting().set(value);
+  }
+
+  private getUserAgentOptions():
+      Array<{title: string, value: EmulationModel.DeviceModeModel.UA, selected: boolean, jslogContext: string}> {
+    const uaSetting = this.model.uaSetting();
+    const currentUserAgent = uaSetting.get();
+    return [
+      EmulationModel.DeviceModeModel.UA.MOBILE,
+      EmulationModel.DeviceModeModel.UA.MOBILE_NO_TOUCH,
+      EmulationModel.DeviceModeModel.UA.DESKTOP,
+      EmulationModel.DeviceModeModel.UA.DESKTOP_TOUCH,
+    ].map(value => ({
+            title: value,
+            value,
+            selected: currentUserAgent === value,
+            jslogContext: Platform.StringUtilities.toKebabCase(value)
+          }));
+  }
+
+  private updateUserAgentMenuItems(): void {
+    this.uaItem.replaceChildren();
+    const options = this.getUserAgentOptions();
+    for (const option of options) {
+      this.appendOption(this.uaItem, option.title, option.value, option.jslogContext);
+    }
+    const selected = options.find(o => o.selected);
+    if (selected) {
+      this.uaItem.value = selected.value;
+    }
+    this.resizeItem(this.uaItem);
+  }
+
+  private onUAChange(): void {
+    const value = this.uaItem.value as EmulationModel.DeviceModeModel.UA;
+    this.model.uaSetting().set(value);
+    this.resizeItem(this.uaItem);
   }
 
   private appendOptionsMenuItems(contextMenu: UI.ContextMenu.ContextMenu): void {
@@ -577,31 +706,103 @@ export class DeviceModeToolbar {
     return this.standardDevices().concat(this.customDevices());
   }
 
-  private appendDeviceMenuItems(contextMenu: UI.ContextMenu.ContextMenu): void {
-    contextMenu.headerSection().appendCheckboxItem(
-        i18nString(UIStrings.responsive), this.switchToResponsive.bind(this),
-        {checked: this.model.type() === EmulationModel.DeviceModeModel.Type.Responsive, jslogContext: 'responsive'});
-    appendGroup.call(this, this.standardDevices());
-    appendGroup.call(this, this.customDevices());
-    contextMenu.footerSection().appendItem(
-        i18nString(UIStrings.edit), this.emulatedDevicesList.revealCustomSetting.bind(this.emulatedDevicesList),
-        {jslogContext: 'edit'});
+  private getDeviceModeOptions(): {
+    responsive: {title: string, selected: boolean, jslogContext: string},
+    standard: Array<{
+      device: EmulationModel.EmulatedDevices.EmulatedDevice,
+      title: string,
+      selected: boolean,
+      jslogContext: string,
+    }>,
+    custom: Array<{
+      device: EmulationModel.EmulatedDevices.EmulatedDevice,
+      title: string,
+      selected: boolean,
+      jslogContext: string,
+    }>,
+    edit: {title: string, jslogContext: string},
+  } {
+    return {
+      responsive: {
+        title: i18nString(UIStrings.responsive),
+        selected: this.model.type() === EmulationModel.DeviceModeModel.Type.Responsive,
+        jslogContext: 'responsive'
+      },
+      standard: this.standardDevices().map(device => ({
+                                             device,
+                                             title: device.title,
+                                             selected: this.model.device() === device,
+                                             jslogContext: Platform.StringUtilities.toKebabCase(device.title)
+                                           })),
+      custom: this.customDevices().map(device => ({
+                                         device,
+                                         title: device.title,
+                                         selected: this.model.device() === device,
+                                         jslogContext: Platform.StringUtilities.toKebabCase(device.title)
+                                       })),
+      edit: {
+        title: i18nString(UIStrings.edit),
+        jslogContext: 'edit',
+      }
+    };
+  }
 
-    function appendGroup(this: DeviceModeToolbar, devices: EmulationModel.EmulatedDevices.EmulatedDevice[]): void {
-      if (!devices.length) {
+  private updateDeviceMenuItems(): void {
+    this.deviceSelectItem.replaceChildren();
+    const options = this.getDeviceModeOptions();
+
+    this.appendOption(this.deviceSelectItem, options.responsive.title, 'Responsive', options.responsive.jslogContext);
+
+    appendGroup.call(this, options.standard, 'Standard');
+    appendGroup.call(this, options.custom, 'Custom');
+
+    this.appendOption(this.deviceSelectItem, options.edit.title, 'Edit', options.edit.jslogContext);
+
+    this.updateDeviceSelection();
+
+    function appendGroup(
+        this: DeviceModeToolbar, group: Array<{title: string, jslogContext: string}>, label: string): void {
+      if (!group.length) {
         return;
       }
-      const section = contextMenu.section();
-      for (const device of devices) {
-        section.appendCheckboxItem(device.title, this.emulateDevice.bind(this, device), {
-          checked: this.model.device() === device,
-          jslogContext: Platform.StringUtilities.toKebabCase(device.title),
-        });
+      const optGroup = document.createElement('optgroup');
+      optGroup.label = label;
+      for (const item of group) {
+        this.appendOption(optGroup, item.title, item.title, item.jslogContext);
+      }
+      this.deviceSelectItem.appendChild(optGroup);
+    }
+  }
+
+  private updateDeviceSelection(): void {
+    const device = this.model.device();
+    if (this.model.type() === EmulationModel.DeviceModeModel.Type.Responsive) {
+      this.deviceSelectItem.value = 'Responsive';
+    } else if (device) {
+      this.deviceSelectItem.value = device.title;
+    }
+    this.resizeItem(this.deviceSelectItem);
+  }
+
+  private onDeviceChange(): void {
+    const value = this.deviceSelectItem.value;
+    if (value === 'Edit') {
+      this.emulatedDevicesList.revealCustomSetting();
+      this.updateDeviceSelection();
+    } else if (value === 'Responsive') {
+      this.switchToResponsive();
+    } else {
+      for (const device of this.allDevices()) {
+        if (device.title === value) {
+          this.emulateDevice(device);
+          break;
+        }
       }
     }
   }
 
   private deviceListChanged(): void {
+    this.updateDeviceMenuItems();
     const device = this.model.device();
     if (!device) {
       return;
@@ -621,13 +822,21 @@ export class DeviceModeToolbar {
 
   private updateDeviceScaleFactorVisibility(): void {
     if (this.deviceScaleItem) {
-      this.deviceScaleItem.setVisible(this.showDeviceScaleFactorSetting.get());
+      const visible = this.showDeviceScaleFactorSetting.get();
+      this.deviceScaleItem.classList.toggle('hidden', !visible);
+      for (const item of this.deviceScaleItems) {
+        item.classList.toggle('hidden', !visible);
+      }
     }
   }
 
   private updateUserAgentTypeVisibility(): void {
     if (this.uaItem) {
-      this.uaItem.setVisible(this.showUserAgentTypeSetting.get());
+      const visible = this.showUserAgentTypeSetting.get();
+      this.uaItem.classList.toggle('hidden', !visible);
+      if (visible) {
+        this.resizeItem(this.uaItem);
+      }
     }
   }
 
@@ -652,9 +861,10 @@ export class DeviceModeToolbar {
     return;
   }
 
-  private modeMenuClicked(event: {
-    data: Event,
-  }): void {
+  private modeMenuClicked(event: Event): void {
+    if (this.model.isScreenOrientationLocked()) {
+      return;
+    }
     const device = this.model.device();
     const model = this.model;
     const autoAdjustScaleSetting = this.autoAdjustScaleSetting;
@@ -694,10 +904,9 @@ export class DeviceModeToolbar {
       return;
     }
 
-    const contextMenu = new UI.ContextMenu.ContextMenu(event.data, {
-      useSoftMenu: false,
-      x: this.modeButton.element.getBoundingClientRect().left,
-      y: this.modeButton.element.getBoundingClientRect().top + (this.modeButton.element as HTMLElement).offsetHeight,
+    const contextMenu = new UI.ContextMenu.ContextMenu(event, {
+      x: this.modeButton.getBoundingClientRect().left,
+      y: this.modeButton.getBoundingClientRect().top + this.modeButton.offsetHeight,
     });
     addOrientation(EmulationModel.EmulatedDevices.Vertical, i18nString(UIStrings.portrait));
     addOrientation(EmulationModel.EmulatedDevices.Horizontal, i18nString(UIStrings.landscape));
@@ -741,7 +950,7 @@ export class DeviceModeToolbar {
   }
 
   element(): Element {
-    return this.elementInternal;
+    return this.#element;
   }
 
   update(): void {
@@ -750,57 +959,53 @@ export class DeviceModeToolbar {
       this.widthInput.disabled = this.model.type() !== EmulationModel.DeviceModeModel.Type.Responsive;
 
       this.heightInput.disabled = this.model.type() !== EmulationModel.DeviceModeModel.Type.Responsive;
-      this.deviceScaleItem.setEnabled(this.model.type() === EmulationModel.DeviceModeModel.Type.Responsive);
-      this.uaItem.setEnabled(this.model.type() === EmulationModel.DeviceModeModel.Type.Responsive);
+      this.deviceScaleItem.disabled = this.model.type() !== EmulationModel.DeviceModeModel.Type.Responsive;
+      this.uaItem.disabled = this.model.type() !== EmulationModel.DeviceModeModel.Type.Responsive;
 
       if (this.model.type() === EmulationModel.DeviceModeModel.Type.Responsive) {
-        this.modeButton.setEnabled(true);
+        this.modeButton.disabled = false;
         setTitleForButton(this.modeButton, i18nString(UIStrings.rotate));
       } else {
-        this.modeButton.setEnabled(false);
+        this.modeButton.disabled = true;
       }
     }
 
     const size = this.model.appliedDeviceSize();
-    this.widthInput.size = String(size.width);
-    this.heightInput.size =
+    this.widthInput.value = String(size.width);
+    this.heightInput.value =
         this.model.type() === EmulationModel.DeviceModeModel.Type.Responsive && this.model.isFullHeight() ?
         '' :
         String(size.height);
     this.heightInput.placeholder = String(size.height);
 
     if (this.model.scale() !== this.cachedScale) {
-      this.scaleItem.setText(`${this.getPrettyZoomPercentage()}%`);
+      this.updateScaleMenuItems();
       this.cachedScale = this.model.scale();
     }
 
     const deviceScale = this.model.appliedDeviceScaleFactor();
     if (deviceScale !== this.cachedDeviceScale) {
-      this.deviceScaleItem.setText(`DPR: ${deviceScale.toFixed(1)}`);
+      this.deviceScaleItem.value = String(deviceScale);
       this.cachedDeviceScale = deviceScale;
+      this.resizeItem(this.deviceScaleItem, true);
     }
 
     const uaType = this.model.appliedUserAgentType();
     if (uaType !== this.cachedUaType) {
-      this.uaItem.setText(uaType);
+      this.uaItem.value = uaType;
       this.cachedUaType = uaType;
+      this.updateDeviceScaleMenuItems();
+      this.resizeItem(this.uaItem);
     }
 
-    let deviceItemTitle: string = i18nString(UIStrings.none);
-    if (this.model.type() === EmulationModel.DeviceModeModel.Type.Responsive) {
-      deviceItemTitle = i18nString(UIStrings.responsive);
-    }
     const device = this.model.device();
-    if (this.model.type() === EmulationModel.DeviceModeModel.Type.Device && device) {
-      deviceItemTitle = device.title;
-    }
-    this.deviceSelectItem.setText(`${i18nString(UIStrings.dimensions)}: ${deviceItemTitle}`);
+    this.updateDeviceSelection();
 
     if (this.model.device() !== this.cachedModelDevice) {
       const device = this.model.device();
       if (device) {
         const modeCount = device ? device.modes.length : 0;
-        this.modeButton.setEnabled(modeCount >= 2);
+        this.modeButton.disabled = modeCount < 2;
         setTitleForButton(
             this.modeButton,
             modeCount === 2 ? i18nString(UIStrings.rotate) : i18nString(UIStrings.screenOrientationOptions));
@@ -808,25 +1013,18 @@ export class DeviceModeToolbar {
       this.cachedModelDevice = device;
     }
 
-    if (this.experimentalButton) {
-      const device = this.model.device();
-      if (device && (device.isDualScreen || device.isFoldableScreen)) {
-        if (device.isDualScreen) {
-          this.spanButton.setVisible(true);
-          this.postureItem.setVisible(false);
-        } else if (device.isFoldableScreen) {
-          this.spanButton.setVisible(false);
-          this.postureItem.setVisible(true);
-          this.postureItem.setText(this.currentDevicePosture());
-        }
-        this.experimentalButton.setVisible(true);
-      } else {
-        this.spanButton.setVisible(false);
-        this.postureItem.setVisible(false);
-        this.experimentalButton.setVisible(false);
-      }
-      setTitleForButton(this.spanButton, i18nString(UIStrings.toggleDualscreenMode));
+    if (device?.isDualScreen) {
+      this.spanButton.classList.toggle('hidden', false);
+      this.postureItem.classList.toggle('hidden', true);
+    } else if (device?.isFoldableScreen) {
+      this.spanButton.classList.toggle('hidden', true);
+      this.postureItem.classList.toggle('hidden', false);
+      this.updateDevicePostureItems();
+    } else {
+      this.spanButton.classList.toggle('hidden', true);
+      this.postureItem.classList.toggle('hidden', true);
     }
+    setTitleForButton(this.spanButton, i18nString(UIStrings.toggleDualscreenMode));
 
     if (this.model.type() === EmulationModel.DeviceModeModel.Type.Device) {
       this.lastMode.set(
@@ -850,6 +1048,23 @@ export class DeviceModeToolbar {
       }
       this.persistenceSetting.set(value);
     }
+
+    // When screen orientation is locked by the page (via screen.orientation.lock()),
+    // disable the rotate button to prevent user-initiated rotation.
+    // When unlocked, restore the button to its normal state.
+    if (this.model.isScreenOrientationLocked()) {
+      this.modeButton.disabled = true;
+      setTitleForButton(this.modeButton, i18nString(UIStrings.screenOrientationLocked));
+    } else if (this.cachedModelDevice) {
+      const modeCount = this.cachedModelDevice.modes.length;
+      this.modeButton.disabled = modeCount < 2;
+      setTitleForButton(
+          this.modeButton,
+          modeCount === 2 ? i18nString(UIStrings.rotate) : i18nString(UIStrings.screenOrientationOptions));
+    } else if (this.model.type() === EmulationModel.DeviceModeModel.Type.Responsive) {
+      this.modeButton.disabled = false;
+      setTitleForButton(this.modeButton, i18nString(UIStrings.rotate));
+    }
   }
 
   restore(): void {
@@ -867,5 +1082,32 @@ export class DeviceModeToolbar {
     }
 
     this.model.emulate(EmulationModel.DeviceModeModel.Type.Responsive, null, null);
+  }
+
+  private resizeItem(item: HTMLSelectElement, stripParens = false): void {
+    const selectedOption = item.options[item.selectedIndex];
+    if (!selectedOption) {
+      return;
+    }
+
+    const dummySelect = item.cloneNode(false) as HTMLSelectElement;
+    const dummyOption = selectedOption.cloneNode(true) as HTMLOptionElement;
+
+    if (stripParens) {
+      const parensIndex = dummyOption.text.indexOf(' (');
+      if (parensIndex >= 0) {
+        dummyOption.text = dummyOption.text.substring(0, parensIndex);
+      }
+    }
+
+    dummySelect.appendChild(dummyOption);
+    dummySelect.style.width = 'fit-content';
+    dummySelect.style.position = 'absolute';
+    dummySelect.style.visibility = 'hidden';
+    dummySelect.style.pointerEvents = 'none';
+
+    item.parentElement?.appendChild(dummySelect);
+    item.style.width = dummySelect.offsetWidth + 'px';
+    dummySelect.remove();
   }
 }

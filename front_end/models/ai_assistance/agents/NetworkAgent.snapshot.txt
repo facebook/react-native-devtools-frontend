@@ -1,0 +1,57 @@
+Title: NetworkAgent run generates an answer
+Content:
+[
+  {
+    "type": "context",
+    "details": [
+      {
+        "title": "Request",
+        "text": "Request URL: https://www.example.com\n\nRequest headers:\ncontent-type: bar1"
+      },
+      {
+        "title": "Response",
+        "text": "Response headers:\ncontent-type: bar2\nx-forwarded-for: bar3\n\nResponse body:\n{\"request\":\"body\"}\n\nResponse status: 200 \nNetwork request status: pending\n"
+      },
+      {
+        "title": "Timing",
+        "text": "Queued at (timestamp): 0 s\nStarted at (timestamp): 501 s\nQueueing (duration): 501 s\nConnection start (stalled) (duration): 800 ms\nRequest sent (duration): 100 ms\nDuration (duration): 501 s"
+      },
+      {
+        "title": "Request initiator chain",
+        "text": "- URL: <redacted cross-origin initiator URL>\n\t- URL: https://www.example.com\n\t\t- URL: https://www.example.com/1\n\t\t- URL: https://www.example.com/2"
+      }
+    ]
+  },
+  {
+    "type": "querying"
+  },
+  {
+    "type": "answer",
+    "text": "This is the answer",
+    "complete": true,
+    "rpcId": 123
+  }
+]
+=== end content
+
+Title: NetworkAgent run builds historical contexts
+Content:
+[
+  {
+    "parts": [
+      {
+        "text": "# Selected network request \nRequest: https://www.example.com\n\nRequest headers:\ncontent-type: bar1\n\nResponse headers:\ncontent-type: bar2\nx-forwarded-for: bar3\n\nResponse body:\n{\"request\":\"body\"}\n\nResponse status: 200 \nNetwork request status: pending\n\nRequest timing:\nQueued at (timestamp): 0 s\nStarted at (timestamp): 501 s\nQueueing (duration): 501 s\nConnection start (stalled) (duration): 800 ms\nRequest sent (duration): 100 ms\nDuration (duration): 501 s\n\nRequest initiator chain:\n- URL: <redacted cross-origin initiator URL>\n\t- URL: https://www.example.com\n\t\t- URL: https://www.example.com/1\n\t\t- URL: https://www.example.com/2\n\n# User request\n\ntest"
+      }
+    ],
+    "role": 1
+  },
+  {
+    "parts": [
+      {
+        "text": "This is the answer"
+      }
+    ],
+    "role": 2
+  }
+]
+=== end content

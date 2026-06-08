@@ -1,16 +1,13 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view, @devtools/enforce-custom-element-definitions-location */
 
 import * as Common from '../../../core/common/common.js';
 import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 import {html, render} from '../../../ui/lit/lit.js';
 
-import srgbOverlayStylesRaw from './srgbOverlay.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const srgbOverlayStyles = new CSSStyleSheet();
-srgbOverlayStyles.replaceSync(srgbOverlayStylesRaw.cssText);
+import srgbOverlayStyles from './srgbOverlay.css.js';
 
 interface SrgbOverlayProps {
   // [0 - 1] corresponding to HSV hue
@@ -24,7 +21,6 @@ const SRGB_LABEL_BOTTOM = 3;
 const SRGB_TEXT_UPPER_POINT_FROM_BOTTOM = SRGB_LABEL_HEIGHT + SRGB_LABEL_BOTTOM;
 
 const EPSILON = 0.001;
-// TODO(crbug.com/1409892): Use `Color` class here for a better code (and not duplicate isInGamut logic here)
 function isColorInSrgbGamut(hsv: Common.ColorUtils.Color3D): boolean {
   const rgba = Common.Color.hsva2rgba([...hsv, 1]);
   const xyzd50 = Common.ColorConverter.ColorConverter.displayP3ToXyzd50(rgba[0], rgba[1], rgba[2]);
@@ -34,13 +30,6 @@ function isColorInSrgbGamut(hsv: Common.ColorUtils.Color3D): boolean {
 
 export class SrgbOverlay extends HTMLElement {
   readonly #shadow = this.attachShadow({mode: 'open'});
-
-  constructor() {
-    super();
-    this.#shadow.adoptedStyleSheets = [
-      srgbOverlayStyles,
-    ];
-  }
 
   #getLinePoints({hue, width, height}: SrgbOverlayProps): Array<{x: number, y: number}>|null {
     if (width === 0 || height === 0) {
@@ -104,6 +93,7 @@ export class SrgbOverlay extends HTMLElement {
 
       render(
           html`
+          <style>${srgbOverlayStyles}</style>
           <span class="label" style="right: ${width - closestPoint.x}px">sRGB</span>
           <svg>
             <polyline points=${

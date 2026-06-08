@@ -1,13 +1,14 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../scripts/build/ninja/devtools_module.gni")
+import("../../../scripts/build/ninja/devtools_worker.gni")
 import("../../../scripts/build/typescript/typescript.gni")
 import("../visibility.gni")
 
-devtools_module("formatter_worker") {
+devtools_foundation_module("formatter_worker") {
   sources = [
     "AcornTokenizer.ts",
     "CSSFormatter.ts",
@@ -28,7 +29,7 @@ devtools_module("formatter_worker") {
     "../../core/platform:bundle",
     "../../core/root:bundle",
     "../../models/text_utils:bundle",
-    "../../third_party/acorn:acorn",
+    "../../third_party/acorn",
     "../../third_party/acorn:bundle",
     "../../third_party/codemirror",
     "../../third_party/codemirror:codemirror-legacy-types",
@@ -38,9 +39,17 @@ devtools_module("formatter_worker") {
 devtools_entrypoint("bundle") {
   entrypoint = "formatter_worker.ts"
 
-  deps = [ ":formatter_worker" ]
+  deps = [
+    ":formatter_worker",
+    "../../third_party/codemirror",
+    "../../third_party/codemirror:codemirror-legacy-types",
+  ]
 
-  visibility = [ ":*" ]
+  visibility = [
+    ":*",
+    "../../panels/sources/*",
+    "../../ui/legacy/components/source_frame",
+  ]
 
   visibility += devtools_entrypoints_visibility
 }
@@ -61,7 +70,7 @@ devtools_entrypoint("formatter_actions") {
 devtools_entrypoint("worker_entrypoint") {
   entrypoint = "formatter_worker-entrypoint.ts"
 
-  is_web_worker = true
+  forward_variables_from(devtools_worker_config, "*")
 
   deps = [
     ":bundle",
@@ -77,7 +86,7 @@ devtools_entrypoint("worker_entrypoint") {
   visibility += devtools_entrypoints_visibility
 }
 
-ts_library("unittests") {
+devtools_foundation_module("unittests") {
   testonly = true
 
   sources = [
@@ -91,5 +100,8 @@ ts_library("unittests") {
     "Substitute.test.ts",
   ]
 
-  deps = [ ":bundle" ]
+  deps = [
+    ":bundle",
+    ":formatter_actions",
+  ]
 }

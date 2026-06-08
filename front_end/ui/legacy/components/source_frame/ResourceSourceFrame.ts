@@ -1,6 +1,7 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 /*
  * Copyright (C) 2007, 2008 Apple Inc.  All rights reserved.
@@ -35,7 +36,7 @@ import '../../legacy.js';
 
 import * as Common from '../../../../core/common/common.js';
 import * as i18n from '../../../../core/i18n/i18n.js';
-import * as FormatterActions from '../../../../entrypoints/formatter_worker/FormatterActions.js';  // eslint-disable-line rulesdir/es-modules-import
+import * as FormatterActions from '../../../../entrypoints/formatter_worker/FormatterActions.js';  // eslint-disable-line @devtools/es-modules-import
 import * as TextUtils from '../../../../models/text_utils/text_utils.js';
 import * as UI from '../../legacy.js';
 
@@ -44,7 +45,7 @@ import {type RevealPosition, SourceFrameImpl, type SourceFrameOptions} from './S
 
 const UIStrings = {
   /**
-   *@description Text to find an item
+   * @description Text to find an item
    */
   find: 'Find',
 } as const;
@@ -52,7 +53,7 @@ const str_ = i18n.i18n.registerUIStrings('ui/legacy/components/source_frame/Reso
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class ResourceSourceFrame extends SourceFrameImpl {
-  private readonly resourceInternal: TextUtils.ContentProvider.ContentProvider;
+  readonly #resource: TextUtils.ContentProvider.ContentProvider;
   readonly #givenContentType: string;
 
   constructor(
@@ -65,7 +66,7 @@ export class ResourceSourceFrame extends SourceFrameImpl {
     super(lazyContent, options);
 
     this.#givenContentType = givenContentType;
-    this.resourceInternal = resource;
+    this.#resource = resource;
     if (isStreamingProvider) {
       void resource.requestStreamingContent().then(streamingContent => {
         if (!TextUtils.StreamingContentData.isError(streamingContent)) {
@@ -87,21 +88,21 @@ export class ResourceSourceFrame extends SourceFrameImpl {
   }
 
   get resource(): TextUtils.ContentProvider.ContentProvider {
-    return this.resourceInternal;
+    return this.#resource;
   }
 
   protected override populateTextAreaContextMenu(
       contextMenu: UI.ContextMenu.ContextMenu, lineNumber: number, columnNumber: number): void {
     super.populateTextAreaContextMenu(contextMenu, lineNumber, columnNumber);
-    contextMenu.appendApplicableItems(this.resourceInternal);
+    contextMenu.appendApplicableItems(this.#resource);
   }
 }
 
 export class SearchableContainer extends UI.Widget.VBox {
   private readonly sourceFrame: ResourceSourceFrame;
 
-  constructor(resource: TextUtils.ContentProvider.ContentProvider, contentType: string) {
-    super(true);
+  constructor(resource: TextUtils.ContentProvider.ContentProvider, contentType: string, element?: HTMLElement) {
+    super(element, {useShadowDom: true});
     this.registerRequiredCSS(resourceSourceFrameStyles);
     const simpleContentType = Common.ResourceType.ResourceType.simplifyContentType(contentType);
     const sourceFrame = new ResourceSourceFrame(resource, simpleContentType);

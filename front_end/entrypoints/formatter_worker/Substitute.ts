@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,10 +20,12 @@ interface Replacement {
   isShorthandAssignmentProperty: boolean;
 }
 
-// Given an |expression| and a mapping from names to new names, the |computeSubstitution|
-// function returns a list of replacements sorted by the offset. The function throws if
-// it cannot parse the expression or the substitution is impossible to perform (for example
-// if the substitution target is 'this' within a function, it would become bound there).
+/**
+ * Given an |expression| and a mapping from names to new names, the |computeSubstitution|
+ * function returns a list of replacements sorted by the offset. The function throws if
+ * it cannot parse the expression or the substitution is impossible to perform (for example
+ * if the substitution target is 'this' within a function, it would become bound there).
+ **/
 function computeSubstitution(expression: string, nameMap: Map<string, string|null>): Replacement[] {
   // Parse the expression and find variables and scopes.
   const root = Acorn.parse(expression, {
@@ -33,7 +35,7 @@ function computeSubstitution(expression: string, nameMap: Map<string, string|nul
     checkPrivateFields: false,
     ranges: false,
   } as acorn.Options) as Acorn.ESTree.Node;
-  const scopeVariables = new ScopeVariableAnalysis(root);
+  const scopeVariables = new ScopeVariableAnalysis(root, expression);
   scopeVariables.run();
   const freeVariables = scopeVariables.getFreeVariables();
   const result: Replacement[] = [];

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ import {ConsoleTestRunner} from '../console_test_runner/console_test_runner.js';
 import {TestRunner} from '../test_runner/test_runner.js';
 
 /**
- * @fileoverview using private properties isn't a Closure violation in tests.
+ * @file using private properties isn't a Closure violation in tests.
  */
 export const NetworkTestRunner = {};
 
@@ -175,8 +175,9 @@ NetworkTestRunner.makeFetchInWorker = function(url, requestInitializer, callback
 NetworkTestRunner.clearNetworkCache = function() {
   // This turns cache off and then on, effectively clearning the memory cache.
   return Promise.all([
-    TestRunner.NetworkAgent.clearBrowserCache(),
-    TestRunner.NetworkAgent.setCacheDisabled(true).then(() => TestRunner.NetworkAgent.setCacheDisabled(false))
+    TestRunner.NetworkAgent.invoke_clearBrowserCache(),
+    TestRunner.NetworkAgent.invoke_setCacheDisabled({cacheDisabled: true})
+        .then(() => TestRunner.NetworkAgent.invoke_setCacheDisabled({cacheDisabled: false}))
   ]);
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,27 +10,37 @@
  * directories will not be used.
  **/
 
-const childProcess = require('child_process');
-const fs = require('fs');
-const path = require('path');
-const yargs = require('yargs')
-                  .option('dry-run', {
-                    type: 'boolean',
-                    default: false,
-                    desc: 'Logs which files will be formatted, but doesn\'t write to disk',
-                  })
-                  .option('directory', {type: 'string', demandOption: true, desc: 'The starting directory to run in.'})
-                  .strict()
-                  .argv;
+import childProcess from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import yargs from 'yargs';
+import {hideBin} from 'yargs/helpers';
 
-const startingDirectory = path.join(process.cwd(), yargs.directory);
+const argv = yargs(hideBin(process.argv))
+                 .option('dry-run', {
+                   type: 'boolean',
+                   default: false,
+                   desc: 'Logs which files will be formatted, but doesn\'t write to disk',
+                 })
+                 .option('directory', {
+                   type: 'string',
+                   demandOption: true,
+                   desc: 'The starting directory to run in.',
+                 })
+                 .strict()
+                 .parseSync();
+
+const startingDirectory = path.join(process.cwd(), argv.directory);
 
 const filesToFormat = [];
 function processDirectory(dir) {
   const contents = fs.readdirSync(dir);
 
   if (contents.includes('.clang-format')) {
-    const clangFormatConfig = fs.readFileSync(path.join(dir, '.clang-format'), 'utf8');
+    const clangFormatConfig = fs.readFileSync(
+        path.join(dir, '.clang-format'),
+        'utf8',
+    );
     if (clangFormatConfig.includes('DisableFormat: true')) {
       return;
     }
@@ -47,9 +57,12 @@ function processDirectory(dir) {
 
 processDirectory(startingDirectory);
 filesToFormat.forEach((file, index) => {
-  console.log(`Formatting ${index + 1}/${filesToFormat.length}`, path.relative(process.cwd(), file));
+  console.log(
+      `Formatting ${index + 1}/${filesToFormat.length}`,
+      path.relative(process.cwd(), file),
+  );
 
-  if (yargs.dryRun) {
+  if (argv.dryRun) {
     return;
   }
   const out = String(childProcess.execSync(`clang-format -i ${file}`));

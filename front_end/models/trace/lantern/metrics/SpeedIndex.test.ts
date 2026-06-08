@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,8 +17,8 @@ describeWithEnvironment('Metrics: Lantern Speed Index', () => {
     trace = toLanternTrace(await TraceLoader.rawEvents(this, 'lantern/progressive-app/trace.json.gz'));
   });
 
-  it('should compute predicted value', async () => {
-    const data = await getComputationDataFromFixture({trace});
+  it('should compute predicted value', async function() {
+    const data = await getComputationDataFromFixture(this, {trace});
     // TODO: observedSpeedIndex is from the Speedline library, and is used for optimistic
     // mode. At the moment callers must pass the result into Lantern.
     const observedSpeedIndex = 379.04474997520487;
@@ -40,15 +40,14 @@ describeWithEnvironment('Metrics: Lantern Speed Index', () => {
         });
   });
 
-  // Flaky
-  it.skip('[crbug.com/404184570] should compute predicted value for different settings', async () => {
+  it('should compute predicted value for different settings', async function() {
     const settings: Lantern.Types.Simulation.Settings = {
       throttlingMethod: 'simulate',
       throttling: {...defaultThrottling, rttMs: 300},
       // @ts-expect-error: not needed for test
       networkAnalysis: null,
     };
-    const data = await getComputationDataFromFixture({trace, settings});
+    const data = await getComputationDataFromFixture(this, {trace, settings});
     const observedSpeedIndex = 379.04474997520487;
     const result = SpeedIndex.compute(data, {
       fcpResult: FirstContentfulPaint.compute(data),
@@ -68,17 +67,17 @@ describeWithEnvironment('Metrics: Lantern Speed Index', () => {
         });
   });
 
-  it('should not scale coefficients at default', async () => {
+  it('should not scale coefficients at default', async function() {
     const result = SpeedIndex.getScaledCoefficients(defaultThrottling.rttMs);
     expect(result).to.deep.equal(SpeedIndex.coefficients);
   });
 
-  it('should scale coefficients back', async () => {
+  it('should scale coefficients back', async function() {
     const result = SpeedIndex.getScaledCoefficients(5);
     expect(result).to.deep.equal({intercept: 0, pessimistic: 0.5, optimistic: 0.5});
   });
 
-  it('should scale coefficients forward', async () => {
+  it('should scale coefficients forward', async function() {
     const result = SpeedIndex.getScaledCoefficients(300);
     assert.deepEqual(result, {
       intercept: 0,

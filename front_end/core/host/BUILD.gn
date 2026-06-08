@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,8 +8,15 @@ import("../../../scripts/build/ninja/devtools_module.gni")
 devtools_module("host") {
   sources = [
     "AidaClient.ts",
+    "AidaClientTypes.ts",
+    "AidaGcaTranslation.ts",
+    "DispatchHttpRequestClient.ts",
+    "GcaClient.ts",
+    "GcaTypes.ts",
+    "GdpClient.ts",
     "InspectorFrontendHost.ts",
     "InspectorFrontendHostAPI.ts",
+    "InspectorFrontendHostStub.ts",
     "Platform.ts",
     "RNPerfMetrics.ts",
     "ResourceLoader.ts",
@@ -32,10 +39,16 @@ devtools_entrypoint("bundle") {
   visibility = [ "*" ]
 }
 
-ts_library("unittests") {
+devtools_foundation_module("foundation_unittests") {
   testonly = true
 
-  sources = [ "AidaClient.test.ts" ]
+  sources = [
+    "AidaClient.test.ts",
+    "AidaGcaTranslation.test.ts",
+    "DispatchHttpRequestClient.test.ts",
+    "GcaClient.test.ts",
+    "GdpClient.test.ts",
+  ]
 
   deps = [
     ":bundle",

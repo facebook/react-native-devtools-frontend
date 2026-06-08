@@ -1,0 +1,160 @@
+// Copyright 2012 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import type * as Extensions from '../../models/extensions/extensions.js';
+import * as UI from '../../ui/legacy/legacy.js';
+import * as Lit from '../../ui/lit/lit.js';
+
+import type {ExtensionServer} from './ExtensionServer.js';
+
+const {render, html, Directives: {ref}} = Lit;
+
+interface ViewInput {
+  src: string;
+  className: string;
+  onLoad: () => void;
+}
+
+interface ViewOutput {
+  iframe?: HTMLIFrameElement;
+}
+
+const DEFAULT_VIEW = (input: ViewInput, output: ViewOutput, target: HTMLElement): void => {
+  // clang-format off
+  render(html`<iframe
+    ${ref(element => {output.iframe = element as HTMLIFrameElement; })}
+    src=${input.src}
+    allow="language-model; summarizer; translator; language-detector; writer; rewriter; proofreader; clipboard-write; autoplay"
+    class=${input.className}
+    @load=${input.onLoad}></iframe>`, target);
+  // clang-format on
+};
+
+export class ExtensionView extends UI.Widget.Widget {
+  #server: ExtensionServer;
+  #id: string;
+  #src: string;
+  #className: string;
+
+  #iframe?: HTMLIFrameElement;
+  #frameIndex?: number;
+
+  #view: typeof DEFAULT_VIEW;
+  constructor(server: ExtensionServer, id: string, src: string, className: string, view = DEFAULT_VIEW) {
+    super();
+    this.#view = view;
+    this.#server = server;
+    this.#src = src;
+    this.#className = className;
+    this.#id = id;
+    this.setHideOnDetach();  // Override
+    void this.performUpdate();
+  }
+
+  override performUpdate(): Promise<void>|void {
+    const output: ViewOutput = {};
+    this.#view(
+        {
+          src: this.#src,
+          className: this.#className,
+          onLoad: this.onLoad.bind(this),
+        },
+        output, this.element);
+    if (output.iframe) {
+      this.#iframe = output.iframe;
+    }
+  }
+
+  override wasShown(): void {
+    super.wasShown();
+    if (typeof this.#frameIndex === 'number') {
+      this.#server.notifyViewShown(this.#id, this.#frameIndex);
+    }
+  }
+
+  override willHide(): void {
+    super.willHide();
+    if (typeof this.#frameIndex === 'number') {
+      this.#server.notifyViewHidden(this.#id);
+    }
+  }
+
+  private onLoad(): void {
+    if (!this.#iframe) {
+      return;
+    }
+    const frames = window.frames;
+    this.#frameIndex = Array.prototype.indexOf.call(frames, this.#iframe.contentWindow);
+    if (this.isShowing()) {
+      this.#server.notifyViewShown(this.#id, this.#frameIndex);
+    }
+  }
+}
+
+export class ExtensionNotifierView extends UI.Widget.VBox {
+  private readonly server: ExtensionServer;
+  private readonly id: string;
+  constructor(server: ExtensionServer, id: string) {
+    super();
+
+    this.server = server;
+    this.id = id;
+  }
+
+  override wasShown(): void {
+    super.wasShown();
+    this.server.notifyViewShown(this.id);
+  }
+
+  override willHide(): void {
+    super.willHide();
+    this.server.notifyViewHidden(this.id);
+  }
+}
+
+export class ExtensionIframe {
+  #descriptor: Extensions.RecorderPluginManager.ViewDescriptor;
+  #iframe: HTMLIFrameElement;
+  #isShowing = false;
+  #isLoaded = false;
+
+  constructor(descriptor: Extensions.RecorderPluginManager.ViewDescriptor) {
+    this.#descriptor = descriptor;
+    // We are creating a single iframe here.
+    /* eslint-disable-next-line @devtools/no-imperative-dom-api */
+    this.#iframe = document.createElement('iframe');
+    this.#iframe.src = descriptor.pagePath;
+    this.#iframe.onload = this.#onIframeLoad;
+  }
+
+  #onIframeLoad = (): void => {
+    this.#isLoaded = true;
+    if (this.#isShowing) {
+      this.#descriptor.onShown();
+    }
+  };
+
+  show(): void {
+    if (this.#isShowing) {
+      return;
+    }
+    this.#isShowing = true;
+    if (this.#isLoaded) {
+      this.#descriptor.onShown();
+    }
+  }
+
+  hide(): void {
+    if (!this.#isShowing) {
+      return;
+    }
+    this.#isShowing = false;
+    this.#isLoaded = false;
+    this.#descriptor.onHidden();
+  }
+
+  frame(): HTMLIFrameElement {
+    return this.#iframe;
+  }
+}

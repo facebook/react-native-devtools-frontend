@@ -22,7 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 */
-// ../../node_modules/parsel-js/dist/parsel.js
+// node_modules/parsel-js/dist/parsel.js
 var TOKENS = {
   attribute: /\[\s*(?:(?<namespace>\*|[-\w\P{ASCII}]*)\|)?(?<name>[-\w\P{ASCII}]+)\s*(?:(?<operator>\W?=)\s*(?<value>.+?)\s*(\s(?<caseSensitive>[iIsS]))?\s*)?\]/gu,
   id: /#(?<name>[-\w\P{ASCII}]+)/gu,
@@ -116,7 +116,7 @@ function tokenizeBy(text, grammar = TOKENS) {
   }
   return tokens;
 }
-var STRING_PATTERN = /(['"])([^\\\n]+?)\1/g;
+var STRING_PATTERN = /(['"])([^\\\n]*?)\1/g;
 var ESCAPE_PATTERN = /\\./g;
 function tokenize(selector, grammar = TOKENS) {
   selector = selector.trim();

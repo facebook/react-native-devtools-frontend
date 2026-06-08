@@ -1,23 +1,25 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
-import {createTarget} from '../../testing/EnvironmentHelpers.js';
-import {describeWithMockConnection} from '../../testing/MockConnection.js';
-import {MockProtocolBackend} from '../../testing/MockScopeChain.js';
+import {MockDebuggerBackend} from '../../testing/MockScopeChain.js';
+import {setupRuntimeHooks} from '../../testing/RuntimeHelpers.js';
+import {setupSettingsHooks} from '../../testing/SettingsHelpers.js';
 import * as TextUtils from '../text_utils/text_utils.js';
-import * as Workspace from '../workspace/workspace.js';
 
 import * as Bindings from './bindings.js';
 
 const {urlString} = Platform.DevToolsPath;
 
-describeWithMockConnection('ResourceScriptMapping', () => {
+describe('ResourceScriptMapping', () => {
+  setupRuntimeHooks();
+  setupSettingsHooks();
+
   const url = urlString`http://localhost/example.js`;
   let target: SDK.Target.Target;
-  let backend: MockProtocolBackend;
+  let backend: MockDebuggerBackend;
   let resourceScriptMapping: Bindings.ResourceScriptMapping.ResourceScriptMapping;
   const contentWithSourceUrl = `console.log("Hi!");
   debugger;
@@ -28,20 +30,11 @@ describeWithMockConnection('ResourceScriptMapping', () => {
   console.log("There!");`;
 
   beforeEach(() => {
-    const workspace = Workspace.Workspace.WorkspaceImpl.instance();
-    const targetManager = SDK.TargetManager.TargetManager.instance();
-    const resourceMapping = new Bindings.ResourceMapping.ResourceMapping(targetManager, workspace);
-    const debuggerWorkspaceBinding = Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance({
-      forceNew: true,
-      resourceMapping,
-      targetManager,
-    });
-    Bindings.IgnoreListManager.IgnoreListManager.instance({forceNew: true, debuggerWorkspaceBinding});
-    target = createTarget();
-    backend = new MockProtocolBackend();
+    backend = new MockDebuggerBackend();
+    target = backend.createTarget();
     resourceScriptMapping = new Bindings.ResourceScriptMapping.ResourceScriptMapping(
-        target.model(SDK.DebuggerModel.DebuggerModel) as SDK.DebuggerModel.DebuggerModel, workspace,
-        debuggerWorkspaceBinding);
+        target.model(SDK.DebuggerModel.DebuggerModel)!, backend.universe.workspace,
+        backend.universe.debuggerWorkspaceBinding);
   });
 
   describe('uiLocationRangeToRawLocationRanges', () => {

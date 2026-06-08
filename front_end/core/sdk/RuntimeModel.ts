@@ -1,36 +1,6 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-/*
- * Copyright (C) 2012 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the #name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
 
 import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 import type * as Protocol from '../../generated/protocol.js';
@@ -54,8 +24,7 @@ import {Capability, type Target, Type} from './Target.js';
 export class RuntimeModel extends SDKModel<EventTypes> {
   readonly agent: ProtocolProxyApi.RuntimeApi;
   readonly #executionContextById = new Map<number, ExecutionContext>();
-  #executionContextComparatorInternal:
-      (arg0: ExecutionContext, arg1: ExecutionContext) => number = ExecutionContext.comparator;
+  #executionContextComparator: (arg0: ExecutionContext, arg1: ExecutionContext) => number = ExecutionContext.comparator;
   constructor(target: Target) {
     super(target);
 
@@ -63,13 +32,12 @@ export class RuntimeModel extends SDKModel<EventTypes> {
     this.target().registerRuntimeDispatcher(new RuntimeDispatcher(this));
     void this.agent.invoke_enable();
 
-    if (Common.Settings.Settings.instance().moduleSetting('custom-formatters').get()) {
+    const settings = this.target().targetManager().context.get(Common.Settings.Settings);
+    if (settings.moduleSetting('custom-formatters').get()) {
       void this.agent.invoke_setCustomObjectFormatterEnabled({enabled: true});
     }
 
-    Common.Settings.Settings.instance()
-        .moduleSetting('custom-formatters')
-        .addChangeListener(this.customFormattersStateChanged.bind(this));
+    settings.moduleSetting('custom-formatters').addChangeListener(this.customFormattersStateChanged.bind(this));
   }
 
   static isSideEffectFailure(response: Protocol.Runtime.EvaluateResponse|EvaluationResult): boolean {
@@ -92,13 +60,14 @@ export class RuntimeModel extends SDKModel<EventTypes> {
   }
 
   setExecutionContextComparator(comparator: (arg0: ExecutionContext, arg1: ExecutionContext) => number): void {
-    this.#executionContextComparatorInternal = comparator;
+    this.#executionContextComparator = comparator;
   }
 
-  /** comparator
+  /**
+   * comparator
    */
   executionContextComparator(): (arg0: ExecutionContext, arg1: ExecutionContext) => number {
-    return this.#executionContextComparatorInternal;
+    return this.#executionContextComparator;
   }
 
   defaultExecutionContext(): ExecutionContext|null {
@@ -292,7 +261,8 @@ export class RuntimeModel extends SDKModel<EventTypes> {
     }
 
     if (object.isNode()) {
-      void Common.Revealer.reveal(object).then(object.release.bind(object));
+      const omitFocus = hints !== null && typeof hints === 'object' && 'omitFocus' in hints && Boolean(hints.omitFocus);
+      void Common.Revealer.reveal(object, omitFocus).then(object.release.bind(object));
       return;
     }
 
@@ -330,7 +300,8 @@ export class RuntimeModel extends SDKModel<EventTypes> {
       return;
     }
 
-    const indent = Common.Settings.Settings.instance().moduleSetting('text-editor-indent').get();
+    const indent =
+        this.target().targetManager().context.get(Common.Settings.Settings).moduleSetting('text-editor-indent').get();
     void object
         .callFunctionJSON(toStringForClipboard, [{
                             value: {
@@ -527,7 +498,7 @@ export class ExecutionContext {
   id: Protocol.Runtime.ExecutionContextId;
   uniqueId: string;
   name: string;
-  #labelInternal: string|null;
+  #label: string|null;
   origin: Platform.DevToolsPath.UrlString;
   isDefault: boolean;
   runtimeModel: RuntimeModel;
@@ -539,13 +510,13 @@ export class ExecutionContext {
     this.id = id;
     this.uniqueId = uniqueId;
     this.name = name;
-    this.#labelInternal = null;
+    this.#label = null;
     this.origin = origin;
     this.isDefault = isDefault;
     this.runtimeModel = runtimeModel;
     this.debuggerModel = runtimeModel.debuggerModel();
     this.frameId = frameId;
-    this.setLabelInternal('');
+    this.#setLabel('');
   }
 
   target(): Target {
@@ -696,25 +667,25 @@ export class ExecutionContext {
   }
 
   label(): string|null {
-    return this.#labelInternal;
+    return this.#label;
   }
 
   setLabel(label: string): void {
-    this.setLabelInternal(label);
+    this.#setLabel(label);
     this.runtimeModel.dispatchEventToListeners(Events.ExecutionContextChanged, this);
   }
 
-  private setLabelInternal(label: string): void {
+  #setLabel(label: string): void {
     if (label) {
-      this.#labelInternal = label;
+      this.#label = label;
       return;
     }
     if (this.name) {
-      this.#labelInternal = this.name;
+      this.#label = this.name;
       return;
     }
     const parsedUrl = Common.ParsedURL.ParsedURL.fromString(this.origin);
-    this.#labelInternal = parsedUrl ? parsedUrl.lastPathComponentWithFragment() : '';
+    this.#label = parsedUrl ? parsedUrl.lastPathComponentWithFragment() : '';
   }
 }
 
@@ -749,7 +720,6 @@ export interface EvaluationOptions {
 
 export interface CallFunctionOptions {
   functionDeclaration: string;
-  includeCommandLineAPI?: boolean;
   returnByValue?: boolean;
   throwOnSideEffect?: boolean;
   allowUnsafeEvalBlockedByCSP?: boolean;

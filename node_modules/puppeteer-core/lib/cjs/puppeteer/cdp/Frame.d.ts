@@ -5,16 +5,17 @@
  */
 import type { Protocol } from 'devtools-protocol';
 import type { CDPSession } from '../api/CDPSession.js';
+import type { DeviceRequestPrompt } from '../api/DeviceRequestPrompt.js';
 import type { ElementHandle } from '../api/ElementHandle.js';
 import type { WaitForOptions } from '../api/Frame.js';
 import { Frame } from '../api/Frame.js';
 import type { HTTPResponse } from '../api/HTTPResponse.js';
 import type { WaitTimeoutOptions } from '../api/Page.js';
+import type { Realm } from '../puppeteer-core.js';
 import { disposeSymbol } from '../util/disposable.js';
 import { Accessibility } from './Accessibility.js';
 import type { Binding } from './Binding.js';
 import type { CdpPreloadScript } from './CdpPreloadScript.js';
-import type { DeviceRequestPrompt } from './DeviceRequestPrompt.js';
 import type { FrameManager } from './FrameManager.js';
 import type { IsolatedWorldChart } from './IsolatedWorld.js';
 import { IsolatedWorld } from './IsolatedWorld.js';
@@ -32,7 +33,12 @@ export declare class CdpFrame extends Frame {
     _parentId?: string;
     accessibility: Accessibility;
     worlds: IsolatedWorldChart;
+    extensionWorlds: Record<string, IsolatedWorld>;
     constructor(frameManager: FrameManager, frameId: string, parentFrameId: string | undefined, client: CDPSession);
+    /**
+     * @internal
+     */
+    registerWorldListeners(world: IsolatedWorld): void;
     /**
      * This is used internally in DevTools.
      *
@@ -76,5 +82,13 @@ export declare class CdpFrame extends Frame {
     [disposeSymbol](): void;
     exposeFunction(): never;
     frameElement(): Promise<ElementHandle<HTMLIFrameElement> | null>;
+    /**
+     * @public
+     */
+    extensionRealms(): Realm[];
 }
+/**
+ * @internal
+ */
+export declare function referrerPolicyToProtocol(referrerPolicy: string): Protocol.Page.ReferrerPolicy;
 //# sourceMappingURL=Frame.d.ts.map

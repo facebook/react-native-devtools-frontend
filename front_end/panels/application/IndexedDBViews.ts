@@ -1,37 +1,13 @@
-/*
- * Copyright (C) 2012 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2012 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import '../../ui/components/report_view/report_view.js';
 import '../../ui/legacy/legacy.js';
 
 import * as i18n from '../../core/i18n/i18n.js';
+import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Buttons from '../../ui/components/buttons/buttons.js';
 import * as DataGrid from '../../ui/legacy/components/data_grid/data_grid.js';
@@ -45,106 +21,119 @@ import type {
   Database, DatabaseId, Entry, Index, IndexedDBModel, ObjectStore, ObjectStoreMetadata} from './IndexedDBModel.js';
 import indexedDBViewsStyles from './indexedDBViews.css.js';
 
+type IDBKeyValue = number|string|Date|IDBKeyValue[];
+
 const {html} = Lit;
 
 const UIStrings = {
   /**
-   *@description Text in Indexed DBViews of the Application panel
+   * @description Text in Indexed DBViews of the Application panel
    */
   version: 'Version',
   /**
-   *@description Text in Indexed DBViews of the Application panel
+   * @description Text in Indexed DBViews of the Application panel
    */
   objectStores: 'Object stores',
   /**
-   *@description Text of button in Indexed DBViews of the Application panel
+   * @description Text of button in Indexed DBViews of the Application panel
    */
   deleteDatabase: 'Delete database',
   /**
-   *@description Text of button in Indexed DBViews of the Application panel
+   * @description Text of button in Indexed DBViews of the Application panel
    */
   refreshDatabase: 'Refresh database',
   /**
-   *@description Text in Application panel IndexedDB delete confirmation dialog
-   *@example {msb} PH1
+   * @description Text in Application panel IndexedDB delete confirmation dialog
+   * @example {msb} PH1
    */
   confirmDeleteDatabase: 'Delete "{PH1}" database?',
   /**
-   *@description Explanation text in Application panel IndexedDB delete confirmation dialog
+   * @description Explanation text in Application panel IndexedDB delete confirmation dialog
    */
   databaseWillBeRemoved: 'The selected database and contained data will be removed.',
   /**
-   *@description Text in Indexed DBViews of the Application panel
+   * @description Title of the confirmation dialog in the IndexedDB tab of the Application panel
+   *              that the user is about to clear an object store and this cannot be undone.
+   * @example {table1} PH1
+   */
+  confirmClearObjectStore: 'Clear "{PH1}" object store?',
+  /**
+   * @description Description in the confirmation dialog in the IndexedDB tab of the Application
+   *              panel that the user is about to clear an object store and this cannot be undone.
+   */
+  objectStoreWillBeCleared: 'The data contained in the selected object store will be removed.',
+  /**
+   * @description Text in Indexed DBViews of the Application panel
    */
   idb: 'IDB',
   /**
-   *@description Text to refresh the page
+   * @description Text to refresh the page
    */
   refresh: 'Refresh',
   /**
-   *@description Tooltip text that appears when hovering over the delete button in the Indexed DBViews of the Application panel
+   * @description Tooltip text that appears when hovering over the delete button in the Indexed DBViews of the Application panel
    */
   deleteSelected: 'Delete selected',
   /**
-   *@description Tooltip text that appears when hovering over the clear button in the Indexed DBViews of the Application panel
+   * @description Tooltip text that appears when hovering over the clear button in the Indexed DBViews of the Application panel
    */
   clearObjectStore: 'Clear object store',
   /**
-   *@description Text in Indexed DBViews of the Application panel
+   * @description Text in Indexed DBViews of the Application panel
    */
   dataMayBeStale: 'Data may be stale',
   /**
-   *@description Title of needs refresh in indexed dbviews of the application panel
+   * @description Title of needs refresh in indexed dbviews of the application panel
    */
   someEntriesMayHaveBeenModified: 'Some entries may have been modified',
   /**
-   *@description Text in DOMStorage Items View of the Application panel
+   * @description Text in DOMStorage Items View of the Application panel
    */
   keyString: 'Key',
   /**
-   *@description Text in Indexed DBViews of the Application panel
+   * @description Text in Indexed DBViews of the Application panel
    */
   primaryKey: 'Primary key',
   /**
-   *@description Text for the value of something
+   * @description Text for the value of something
    */
   valueString: 'Value',
   /**
-   *@description Data grid name for Indexed DB data grids
+   * @description Data grid name for Indexed DB data grids
    */
   indexedDb: 'Indexed DB',
   /**
-   *@description Text in Indexed DBViews of the Application panel
+   * @description Text in Indexed DBViews of the Application panel
    */
   keyPath: 'Key path: ',
   /**
-   *@description Tooltip text that appears when hovering over the triangle left button in the Indexed DBViews of the Application panel
+   * @description Tooltip text that appears when hovering over the triangle left button in the Indexed DBViews of the Application panel
    */
   showPreviousPage: 'Show previous page',
   /**
-   *@description Tooltip text that appears when hovering over the triangle right button in the Indexed DBViews of the Application panel
+   * @description Tooltip text that appears when hovering over the triangle right button in the Indexed DBViews of the Application panel
    */
   showNextPage: 'Show next page',
   /**
-   *@description Text in Indexed DBViews of the Application panel
+   * @description Text in Indexed DBViews of the Application panel
    */
   filterByKey: 'Filter by key (show keys greater or equal to)',
   /**
-   *@description Text in Context menu for expanding objects in IndexedDB tables
+   * @description Text in Context menu for expanding objects in IndexedDB tables
    */
   expandRecursively: 'Expand Recursively',
   /**
-   *@description Text in Context menu for collapsing objects in IndexedDB tables
+   * @description Text in Context menu for collapsing objects in IndexedDB tables
    */
   collapse: 'Collapse',
   /**
-   *@description Span text content in Indexed DBViews of the Application panel
-   *@example {2} PH1
+   * @description Span text content in Indexed DBViews of the Application panel
+   * @example {2} PH1
    */
   totalEntriesS: 'Total entries: {PH1}',
   /**
-   *@description Text in Indexed DBViews of the Application panel
-   *@example {2} PH1
+   * @description Text in Indexed DBViews of the Application panel
+   * @example {2} PH1
    */
   keyGeneratorValueS: 'Key generator value: {PH1}',
 } as const;
@@ -158,6 +147,7 @@ export class IDBDatabaseView extends ApplicationComponents.StorageMetadataView.S
     super();
 
     this.model = model;
+    this.setShowOnlyBucket(true);
     if (database) {
       this.update(database);
     }
@@ -257,12 +247,12 @@ export class IDBDataView extends UI.View.SimpleView {
   private clearingObjectStore: boolean;
   private pageSize: number;
   private skipCount: number;
-  private entries: Entry[];
+  // Used in Web Tests
+  protected entries: Entry[];
   private objectStore!: ObjectStore;
   private index!: Index|null;
   private keyInput!: UI.Toolbar.ToolbarInput;
   private dataGrid!: DataGrid.DataGrid.DataGridImpl<unknown>;
-  private previouslySelectedNode?: DataGrid.DataGrid.DataGridNode<unknown>;
   private lastPageSize!: number;
   private lastSkipCount!: number;
   private pageBackButton!: UI.Toolbar.ToolbarButton;
@@ -275,7 +265,11 @@ export class IDBDataView extends UI.View.SimpleView {
   constructor(
       model: IndexedDBModel, databaseId: DatabaseId, objectStore: ObjectStore, index: Index|null,
       refreshObjectStoreCallback: () => void) {
-    super(i18nString(UIStrings.idb));
+    super({
+      title: i18nString(UIStrings.idb),
+      viewId: 'idb',
+      jslog: `${VisualLogging.pane('indexed-db-data-view')}`,
+    });
     this.registerRequiredCSS(indexedDBViewsStyles);
 
     this.model = model;
@@ -284,7 +278,6 @@ export class IDBDataView extends UI.View.SimpleView {
     this.refreshObjectStoreCallback = refreshObjectStoreCallback;
 
     this.element.classList.add('indexed-db-data-view', 'storage-view');
-    this.element.setAttribute('jslog', `${VisualLogging.pane('indexed-db-data-view')}`);
 
     this.refreshButton = new UI.Toolbar.ToolbarButton(i18nString(UIStrings.refresh), 'refresh');
     this.refreshButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.refreshButtonClicked, this);
@@ -327,45 +320,31 @@ export class IDBDataView extends UI.View.SimpleView {
   private createDataGrid(): DataGrid.DataGrid.DataGridImpl<unknown> {
     const keyPath = this.isIndex && this.index ? this.index.keyPath : this.objectStore.keyPath;
 
-    const columns = ([] as DataGrid.DataGrid.ColumnDescriptor[]);
-
-    // Create column defaults so that we avoid repetition below.
-    const columnDefaults = {
-      title: undefined,
-      titleDOMFragment: undefined,
+    const columns: DataGrid.DataGrid.ColumnDescriptor[] = [];
+    columns.push({
+      id: 'number',
+      title: '#' as Platform.UIString.LocalizedString,
       sortable: false,
-      sort: undefined,
-      align: undefined,
-      width: undefined,
-      fixedWidth: undefined,
-      editable: undefined,
-      nonSelectable: undefined,
-      longText: undefined,
-      disclosure: undefined,
-      weight: undefined,
-      allowInSortByEvenWhenHidden: undefined,
-      dataType: undefined,
-      defaultWeight: undefined,
-    };
-    columns.push(
-        ({...columnDefaults, id: 'number', title: '#', sortable: false, width: '50px'} as
-         DataGrid.DataGrid.ColumnDescriptor));
-    columns.push(({
-      ...columnDefaults,
+      width: '50px',
+    });
+    columns.push({
       id: 'key',
       titleDOMFragment: this.keyColumnHeaderFragment(i18nString(UIStrings.keyString), keyPath),
       sortable: false,
-    } as DataGrid.DataGrid.ColumnDescriptor));
+    });
     if (this.isIndex) {
-      columns.push(({
-        ...columnDefaults,
+      columns.push({
         id: 'primary-key',
         titleDOMFragment: this.keyColumnHeaderFragment(i18nString(UIStrings.primaryKey), this.objectStore.keyPath),
         sortable: false,
-      } as DataGrid.DataGrid.ColumnDescriptor));
+      });
     }
     const title = i18nString(UIStrings.valueString);
-    columns.push(({...columnDefaults, id: 'value', title, sortable: false} as DataGrid.DataGrid.ColumnDescriptor));
+    columns.push({
+      id: 'value',
+      title,
+      sortable: false,
+    });
 
     const dataGrid = new DataGrid.DataGrid.DataGridImpl({
       displayName: i18nString(UIStrings.indexedDb),
@@ -376,7 +355,6 @@ export class IDBDataView extends UI.View.SimpleView {
     dataGrid.setStriped(true);
     dataGrid.addEventListener(DataGrid.DataGrid.Events.SELECTED_NODE, () => {
       this.updateToolbarEnablement();
-      this.updateSelectionColor();
     }, this);
     return dataGrid;
   }
@@ -556,7 +534,6 @@ export class IDBDataView extends UI.View.SimpleView {
       this.pageForwardButton.setEnabled(hasMore);
       this.needsRefresh.setVisible(false);
       this.updateToolbarEnablement();
-      this.updateSelectionColor();
       this.updatedDataForTests();
     }
 
@@ -601,12 +578,18 @@ export class IDBDataView extends UI.View.SimpleView {
   }
 
   private async clearButtonClicked(): Promise<void> {
-    this.clearButton.setEnabled(false);
-    this.clearingObjectStore = true;
-    await this.model.clearObjectStore(this.databaseId, this.objectStore.name);
-    this.clearingObjectStore = false;
-    this.clearButton.setEnabled(true);
-    this.updateData(true);
+    const ok = await UI.UIUtils.ConfirmDialog.show(
+        i18nString(UIStrings.objectStoreWillBeCleared),
+        i18nString(UIStrings.confirmClearObjectStore, {PH1: this.objectStore.name}), this.element,
+        {jslogContext: 'clear-object-store-confirmation'});
+    if (ok) {
+      this.clearButton.setEnabled(false);
+      this.clearingObjectStore = true;
+      await this.model.clearObjectStore(this.databaseId, this.objectStore.name);
+      this.clearingObjectStore = false;
+      this.clearButton.setEnabled(true);
+      this.updateData(true);
+    }
   }
 
   markNeedsRefresh(): void {
@@ -617,6 +600,29 @@ export class IDBDataView extends UI.View.SimpleView {
     this.needsRefresh.setVisible(true);
   }
 
+  private async resolveArrayKey(key: SDK.RemoteObject.RemoteObject): Promise<IDBKeyValue> {
+    const {properties} = await key.getOwnProperties(false /* generatePreview */);
+    if (!properties) {
+      return [];
+    }
+    const result: IDBKeyValue = [];
+    const propertyPromises = properties.filter(property => !isNaN(Number(property.name))).map(async property => {
+      const value = property.value;
+      if (!value) {
+        return;
+      }
+      let propertyValue;
+      if (value.subtype === 'array') {
+        propertyValue = await this.resolveArrayKey(value);
+      } else {
+        propertyValue = value.value;
+      }
+      result[Number(property.name)] = propertyValue;
+    });
+    await Promise.all(propertyPromises);
+    return result;
+  }
+
   private async deleteButtonClicked(node: DataGrid.DataGrid.DataGridNode<unknown>|null): Promise<void> {
     if (!node) {
       node = this.dataGrid.selectedNode;
@@ -625,9 +631,7 @@ export class IDBDataView extends UI.View.SimpleView {
       }
     }
     const key = (this.isIndex ? node.data['primary-key'] : node.data.key as SDK.RemoteObject.RemoteObject);
-    // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const keyValue = (key.value as string | number | any[] | Date);
+    const keyValue: IDBKeyValue = key.subtype === 'array' ? await this.resolveArrayKey(key) : key.value;
     await this.model.deleteEntries(this.databaseId, this.objectStore.name, window.IDBKeyRange.only(keyValue));
     this.refreshObjectStoreCallback();
   }
@@ -641,32 +645,13 @@ export class IDBDataView extends UI.View.SimpleView {
     const empty = !this.dataGrid || this.dataGrid.rootNode().children.length === 0;
     this.deleteSelectedButton.setEnabled(!empty && this.dataGrid.selectedNode !== null);
   }
-
-  private updateSelectionColor(): void {
-    if (this.previouslySelectedNode) {
-      this.previouslySelectedNode.element().querySelectorAll('.source-code').forEach(element => {
-        const shadowRoot = element.shadowRoot;
-        shadowRoot?.adoptedStyleSheets.pop();
-      });
-    }
-    this.previouslySelectedNode = this.dataGrid.selectedNode ?? undefined;
-    this.dataGrid.selectedNode?.element().querySelectorAll('.source-code').forEach(element => {
-      const shadowRoot = element.shadowRoot;
-      const sheet = new CSSStyleSheet();
-      sheet.replaceSync('::selection {background-color: var(--sys-color-state-focus-select); color: currentColor;}');
-      shadowRoot?.adoptedStyleSheets.push(sheet);
-    });
-  }
 }
 
 export class IDBDataGridNode extends DataGrid.DataGrid.DataGridNode<unknown> {
   override selectable: boolean;
   valueObjectPresentation: ObjectUI.ObjectPropertiesSection.ObjectPropertiesSection|null;
-  constructor(data: {
-    // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    [x: string]: any,
-  }) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  constructor(data: Record<string, any>) {
     super(data, false);
     this.selectable = true;
     this.valueObjectPresentation = null;

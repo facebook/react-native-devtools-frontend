@@ -1,13 +1,14 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-/* eslint-disable no-unused-private-class-members */
+import type * as Platform from '../../../core/platform/platform.js';
+import type * as SDK from '../../../core/sdk/sdk.js';
 import type * as Protocol from '../../../generated/protocol.js';
 
 import type {Micro, Milli, Seconds, TraceWindowMicro} from './Timing.js';
 
-// Trace Events.
+/** Trace Events. **/
 export const enum Phase {
   // Standard
   BEGIN = 'B',
@@ -84,6 +85,9 @@ export interface Event {
   tdur?: Micro;
   dur?: Micro;
 }
+export function objectIsEvent(obj: object): obj is Event {
+  return 'cat' in obj && 'name' in obj && 'ts' in obj;
+}
 
 export interface Args {
   data?: ArgsData;
@@ -98,6 +102,8 @@ export interface ArgsData {
   sampleTraceId?: number;
   url?: string;
   navigationId?: string;
+  /** For soft navs. */
+  performanceTimelineNavigationId?: number;
   frame?: string;
 }
 
@@ -125,10 +131,10 @@ export interface TraceFrame {
   processId: ProcessID;
   url: string;
   parent?: string;
-  // Added to Chromium in April 2024:
+  // Added to Chrome in April 2024:
   // crrev.com/c/5424783
   isOutermostMainFrame?: boolean;
-  // Added to Chromium in June 2024:
+  // Added to Chrome in June 2024:
   // crrev.com/c/5595033
   isInPrimaryMainFrame?: boolean;
 }
@@ -142,9 +148,13 @@ export interface Sample extends Event {
 /**
  * A fake trace event created to support CDP.Profiler.Profiles in the
  * trace engine.
+ *
+ * Do not extend the SyntheticBased interface because this one doesn't have a raw trace event but a raw cpu profile.
+ * Also we won't manage this event through SyntheticEventsManager.
  */
-export interface SyntheticCpuProfile extends Instant, SyntheticBased<Phase.INSTANT> {
-  name: 'CpuProfile';
+export interface SyntheticCpuProfile extends Complete {
+  name: Name.CPU_PROFILE;
+  id: ProfileID;
   args: Args&{
     data: ArgsData & {
       cpuProfile: Protocol.Profiler.Profile,
@@ -153,24 +163,27 @@ export interface SyntheticCpuProfile extends Instant, SyntheticBased<Phase.INSTA
 }
 
 export interface Profile extends Sample {
-  name: 'Profile';
+  name: Name.PROFILE;
   id: ProfileID;
   args: Args&{
     data: ArgsData & {
       startTime: Micro,
+      source?: ProfileSource,
     },
   };
 }
 
 export interface ProfileChunk extends Sample {
-  name: 'ProfileChunk';
+  name: Name.PROFILE_CHUNK;
   id: ProfileID;
   args: Args&{
     // `data` is only missing in "fake" traces
     data?: ArgsData & {
       cpuProfile?: PartialProfile,
       timeDeltas?: Micro[],
-      lines?: Micro[],
+      lines?: number[],
+      source?: ProfileSource,
+      columns?: number[],
     },
   };
 }
@@ -187,6 +200,20 @@ export interface PartialProfile {
   trace_ids?: Record<string, number>;
   /* eslint-enable @typescript-eslint/naming-convention */
 }
+
+/**
+ * Source of profile data, used to select the most relevant profile when
+ * multiple profiles exist for the same thread.
+ *
+ * - 'Inspector': User-initiated via console.profile()/profileEnd().
+ * - 'Internal': Browser-initiated during performance traces.
+ * - 'SelfProfiling': Page-initiated via JS Self-Profiling API.
+ *
+ * Selection priority (see PROFILE_SOURCES_BY_PRIORITY in SamplesHandler.ts).
+ */
+export type ProfileSource = 'Inspector'|'SelfProfiling'|'Internal';
+
+export const VALID_PROFILE_SOURCES: readonly ProfileSource[] = ['Inspector', 'SelfProfiling', 'Internal'] as const;
 
 export interface PartialNode {
   callFrame: CallFrame;
@@ -205,7 +232,7 @@ export interface RunTask extends Complete {
   name: Name.RUN_TASK;
 }
 export function isRunTask(event: Event): event is RunTask {
-  return event.name === Name.RUN_TASK;
+  return event.name === Name.RUN_TASK && event.ph === Phase.COMPLETE;
 }
 
 export interface FireIdleCallback extends Complete {
@@ -251,7 +278,10 @@ export interface ParseHTML extends Complete {
   name: 'ParseHTML';
   args: Args&{
     beginData: {
-      sampleTraceId?: number, frame: string, startLine: number, url: string,
+      frame: string,
+      startLine: number,
+      url: string,
+      sampleTraceId?: number,
     },
     endData?: {
       endLine: number,
@@ -276,8 +306,10 @@ export interface End extends Event {
  */
 export type SyntheticComplete = Complete;
 
-// TODO(paulirish): Migrate to the new (Sept 2024) EventTiming trace events.
-// See https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/timing/window_performance.cc;l=900-901;drc=b503c262e425eae59ced4a80d59d176ed07152c7
+/**
+ * TODO(paulirish): Migrate to the new (Sept 2024) EventTiming trace events.
+ * See https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/timing/window_performance.cc;l=900-901;drc=b503c262e425eae59ced4a80d59d176ed07152c7
+ **/
 export type EventTimingBeginOrEnd = EventTimingBegin|EventTimingEnd;
 
 export interface EventTimingBegin extends Event {
@@ -330,9 +362,11 @@ export interface SyntheticNetworkRedirect {
   dur: Micro;
 }
 
-// ProcessedArgsData is used to store the processed data of a network
-// request. Which is used to distinguish from the date we extract from the
-// trace event directly.
+/**
+ * ProcessedArgsData is used to store the processed data of a network
+ * request. Which is used to distinguish from the date we extract from the
+ * trace event directly.
+ **/
 interface SyntheticArgsData {
   dnsLookup: Micro;
   download: Micro;
@@ -353,8 +387,10 @@ interface SyntheticArgsData {
   ssl: Micro;
   stalled: Micro;
   totalTime: Micro;
-  /** Server response time (receiveHeadersEnd - sendEnd) */
+  /** receiveHeadersEnd - sendEnd */
   waiting: Micro;
+  /** receiveHeadersStart - sendEnd */
+  serverResponseTime: Micro;
 }
 
 export interface SyntheticNetworkRequest extends Complete, SyntheticBased<Phase.COMPLETE> {
@@ -372,8 +408,9 @@ export interface SyntheticNetworkRequest extends Complete, SyntheticBased<Phase.
        */
       encodedDataLength: number,
       frame: string,
-      fromServiceWorker: boolean,
+      fromServiceWorker: boolean|undefined,
       isLinkPreload: boolean,
+      /** Empty string if no response. */
       mimeType: string,
       priority: Protocol.Network.ResourcePriority,
       initialPriority: Protocol.Network.ResourcePriority,
@@ -382,28 +419,34 @@ export interface SyntheticNetworkRequest extends Complete, SyntheticBased<Phase.
        *
        * Note, this is not the same as URL.protocol.
        *
-       * Example values (not exhaustive): http/0.9, http/1.0, http/1.1, http, h2, h3-Q050, data, blob
+       * Example values (not exhaustive): http/0.9, http/1.0, http/1.1, http, h2, h3-Q050, data, blob, file
        */
       protocol: string,
       redirects: SyntheticNetworkRedirect[],
       renderBlocking: RenderBlocking,
       requestId: string,
       requestingFrameUrl: string,
+      /** 0 if no response. */
       statusCode: number,
       resourceType: Protocol.Network.ResourceType,
-      responseHeaders: Array<{name: string, value: string}>,
+      responseHeaders: Array<{name: string, value: string}>|null,
       fetchPriorityHint: FetchPriorityHint,
       url: string,
       /** True only if got a 'resourceFinish' event indicating a failure. */
       failed: boolean,
-      /** True only if got a 'resourceFinish' event. */
+      /** True only if got a 'resourceFinish' event. Note even failed requests with no response may be "finished". */
       finished: boolean,
-      connectionId: number,
-      connectionReused: boolean,
+      hasResponse: boolean,
+      /** If undefined, trace was either too old or had no response. */
+      connectionId: number|undefined,
+      /** If undefined, trace was either too old or had no response. */
+      connectionReused: boolean|undefined,
       // Optional fields
       initiator?: Initiator,
       requestMethod?: string,
       timing?: ResourceReceiveResponseTimingData,
+      /** Server response time according to Lightrider. */
+      lrServerResponseTime?: Milli,
     },
   };
   cat: 'loading';
@@ -455,36 +498,35 @@ export interface SyntheticAuctionWorklet extends Instant, SyntheticBased<Phase.I
   target: string;
   type: AuctionWorkletType;
   args: Args&{
-    data:
-        ArgsData & {
-          // There are two threads for a worklet that we care about, so we gather
-          // the thread_name events so we can know the PID and TID for them (and
-          // hence display the right events in the track for each thread)
-          utilityThread: ThreadName,
-          v8HelperThread: ThreadName,
-        } &
+    data: ArgsData & {
+      // There are two threads for a worklet that we care about, so we gather
+      // the thread_name events so we can know the PID and TID for them (and
+      // hence display the right events in the track for each thread)
+      utilityThread: ThreadName,
+      v8HelperThread: ThreadName,
+    } &
         (
-            // This type looks odd, but this is because these events could either have:
-            // 1. Just the DoneWithProcess event
-            // 2. Just the RunningInProcess event
-            // 3. Both events
-            // But crucially it cannot have both events missing, hence listing all the
-            // allowed cases.
-            // Clang is disabled as the combination of nested types and optional
-            // properties cause it to weirdly indent some of the properties and make it
-            // very unreadable.
-            // clang-format off
+              // This type looks odd, but this is because these events could either have:
+              // 1. Just the DoneWithProcess event
+              // 2. Just the RunningInProcess event
+              // 3. Both events
+              // But crucially it cannot have both events missing, hence listing all the
+              // allowed cases.
+              // Clang is disabled as the combination of nested types and optional
+              // properties cause it to weirdly indent some of the properties and make it
+              // very unreadable.
+              // clang-format off
               {
                 runningInProcessEvent: AuctionWorkletRunningInProcess,
                 doneWithProcessEvent: AuctionWorkletDoneWithProcess,
               } |
               {
+                doneWithProcessEvent: AuctionWorkletDoneWithProcess,
                 runningInProcessEvent?: AuctionWorkletRunningInProcess,
-                doneWithProcessEvent: AuctionWorkletDoneWithProcess,
               } |
               {
-                doneWithProcessEvent?: AuctionWorkletDoneWithProcess,
                 runningInProcessEvent: AuctionWorkletRunningInProcess,
+                doneWithProcessEvent?: AuctionWorkletDoneWithProcess,
 
               }),
     // clang-format on
@@ -539,7 +581,6 @@ export function isAuctionWorkletDoneWithProcess(event: Event): event is AuctionW
  *    consuming screenshot events from the ScreenshotHandler, you must make sure
  *    to have your code deal with the two different formats.
  */
-// These are nullable because in January 2025 a CL in Chromium
 export interface LegacyScreenshot extends Event {
   /**
    * @deprecated This value is incorrect. Use ScreenshotHandler.getPresentationTimestamp()
@@ -639,7 +680,7 @@ export interface Mark extends Event {
 }
 
 export interface NavigationStart extends Mark {
-  name: 'navigationStart';
+  name: Name.NAVIGATION_START;
   args: Args&{
     frame: string,
     data?: ArgsData&{
@@ -665,6 +706,29 @@ export interface NavigationStart extends Mark {
   };
 }
 
+export interface SoftNavigationStart extends Event {
+  name: Name.SOFT_NAVIGATION_START;
+  ph: Phase.ASYNC_NESTABLE_INSTANT;
+  args: Args&{
+    frame: string,
+    context: {
+      softNavContextId: number,
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      URL: string,
+      timeOrigin: number,
+      domModifications: number,
+      firstContentfulPaint: number,
+      paintedArea: number,
+      performanceTimelineNavigationId: number,
+      repaintedArea: number,
+    },
+  };
+}
+
+export function isSoftNavigationStart(event: Event): event is SoftNavigationStart {
+  return event.name === Name.SOFT_NAVIGATION_START;
+}
+
 export interface FirstContentfulPaint extends Mark {
   name: Name.MARK_FCP;
   args: Args&{
@@ -676,7 +740,7 @@ export interface FirstContentfulPaint extends Mark {
 }
 
 export interface FirstPaint extends Mark {
-  name: 'firstPaint';
+  name: Name.MARK_FIRST_PAINT;
   args: Args&{
     frame: string,
     data?: ArgsData&{
@@ -685,27 +749,36 @@ export interface FirstPaint extends Mark {
   };
 }
 
-export type PageLoadEvent = FirstContentfulPaint|MarkDOMContent|InteractiveTime|LargestContentfulPaintCandidate|
-    LayoutShift|FirstPaint|MarkLoad|NavigationStart;
+export type PageLoadEvent = FirstContentfulPaint|MarkDOMContent|InteractiveTime|AnyLargestContentfulPaintCandidate|
+    LayoutShift|FirstPaint|MarkLoad|NavigationStart|SoftNavigationStart;
 
 const markerTypeGuards = [
   isMarkDOMContent,
   isMarkLoad,
   isFirstPaint,
   isFirstContentfulPaint,
-  isLargestContentfulPaintCandidate,
+  isAnyLargestContentfulPaintCandidate,
   isNavigationStart,
+  isSoftNavigationStart,
 ];
 
-export const MarkerName =
-    ['MarkDOMContent', 'MarkLoad', 'firstPaint', 'firstContentfulPaint', 'largestContentfulPaint::Candidate'] as const;
+export const MarkerName = [
+  Name.MARK_DOM_CONTENT,
+  Name.MARK_LOAD,
+  Name.MARK_FIRST_PAINT,
+  Name.MARK_FCP,
+  Name.MARK_LCP_CANDIDATE,
+  Name.MARK_LCP_CANDIDATE_FOR_SOFT_NAVIGATION,
+  Name.NAVIGATION_START,
+  Name.SOFT_NAVIGATION_START,
+] as const;
 
 export interface MarkerEvent extends Event {
   name: typeof MarkerName[number];
 }
 
 export function isMarkerEvent(event: Event): event is MarkerEvent {
-  if (event.ph === Phase.INSTANT || event.ph === Phase.MARK) {
+  if (event.ph === Phase.INSTANT || Phase.ASYNC_NESTABLE_INSTANT || event.ph === Phase.MARK) {
     return markerTypeGuards.some(fn => fn(event));
   }
   return false;
@@ -717,7 +790,7 @@ const pageLoadEventTypeGuards = [
 ];
 
 export function eventIsPageLoadEvent(event: Event): event is PageLoadEvent {
-  if (event.ph === Phase.INSTANT || event.ph === Phase.MARK) {
+  if (event.ph === Phase.INSTANT || Phase.ASYNC_NESTABLE_INSTANT || event.ph === Phase.MARK) {
     return pageLoadEventTypeGuards.some(fn => fn(event));
   }
   return false;
@@ -735,9 +808,33 @@ export interface LargestContentfulPaintCandidate extends Mark {
       nodeId: Protocol.DOM.BackendNodeId,
       loadingAttr: string,
       type?: string,
+      // Landed in Chrome M140: crrev.com/c/6702010
+      nodeName?: string,
     },
   };
 }
+
+export interface LargestContentfulPaintCandidateForSoftNavigation extends Mark {
+  name: Name.MARK_LCP_CANDIDATE_FOR_SOFT_NAVIGATION;
+  args: Args&{
+    frame: string,
+    data?: ArgsData&{
+      candidateIndex: number,
+      isOutermostMainFrame: boolean,
+      isMainFrame: boolean,
+      nodeId: Protocol.DOM.BackendNodeId,
+      loadingAttr: string,
+      performanceTimelineNavigationId: number,
+      type?: string,
+      // Landed in Chrome M140: crrev.com/c/6702010
+      nodeName?: string,
+    },
+  };
+}
+
+export type AnyLargestContentfulPaintCandidate =
+    LargestContentfulPaintCandidate|LargestContentfulPaintCandidateForSoftNavigation;
+
 export interface LargestImagePaintCandidate extends Mark {
   name: 'LargestImagePaint::Candidate';
   args: Args&{
@@ -758,6 +855,8 @@ export interface LargestTextPaintCandidate extends Mark {
       candidateIndex: number,
       // eslint-disable-next-line @typescript-eslint/naming-convention
       DOMNodeId: Protocol.DOM.BackendNodeId,
+      // Added in crbug.com/413284569
+      nodeName?: string,
     },
   };
 }
@@ -821,7 +920,8 @@ export interface TracingStartedInBrowser extends Instant {
     data?: ArgsData & {
       frameTreeNodeId: number,
       // Frames can only missing in "fake" traces
-      frames?: TraceFrame[], persistentIds: boolean,
+      persistentIds: boolean,
+      frames?: TraceFrame[],
     },
   };
 }
@@ -876,18 +976,19 @@ export interface CommitLoad extends Instant {
 }
 
 export interface MarkDOMContent extends Instant {
-  name: 'MarkDOMContent';
+  name: Name.MARK_DOM_CONTENT;
   args: Args&{
     data?: ArgsData & {
       frame: string,
       isMainFrame: boolean,
-      isOutermostMainFrame?: boolean, page: string,
+      page: string,
+      isOutermostMainFrame?: boolean,
     },
   };
 }
 
 export interface MarkLoad extends Instant {
-  name: 'MarkLoad';
+  name: Name.MARK_LOAD;
   args: Args&{
     data?: ArgsData & {
       frame: string,
@@ -910,10 +1011,11 @@ export interface TraceImpactedNode {
   new_rect: TraceRect;
   node_id: Protocol.DOM.BackendNodeId;
   old_rect: TraceRect;
+  debug_name?: string;
   /* eslint-enable @typescript-eslint/naming-convention */
 }
 
-type LayoutShiftData = ArgsData&{
+export type LayoutShiftData = ArgsData&{
   // These keys come from the trace data, so we have to use underscores.
   /* eslint-disable @typescript-eslint/naming-convention */
   cumulative_score: number,
@@ -973,17 +1075,17 @@ export interface SyntheticLayoutShift extends Omit<LayoutShift, 'name'>, Synthet
 export const NO_NAVIGATION = 'NO_NAVIGATION';
 
 /**
- * This maybe be a navigation id string from Chromium, or `NO_NAVIGATION`, which represents the
+ * This maybe be a navigation id string from Chrome, or `NO_NAVIGATION`, which represents the
  * portion of the trace for which we don't have any navigation event for (as it happeneded prior
  * to the trace start).
  */
-export type NavigationId = string|typeof NO_NAVIGATION;
+export type NavigationId = string;
 
 /**
- * This is a synthetic Layout shift cluster. Not based on a raw event as there's no concept
- * of this as a trace event.
+ * This is a synthetic Layout shift cluster. The rawSourceEvent is the worst layout shift event
+ * in the cluster.
  */
-export interface SyntheticLayoutShiftCluster {
+export interface SyntheticLayoutShiftCluster extends SyntheticBased<Phase.COMPLETE> {
   name: 'SyntheticLayoutShiftCluster';
   clusterWindow: TraceWindowMicro;
   clusterCumulativeScore: number;
@@ -1034,7 +1136,6 @@ export interface ResourceSendRequest extends Instant {
       resourceType?: Protocol.Network.ResourceType,
       /** Added Feb 2024. https://crrev.com/c/5297615 */
       fetchPriorityHint?: FetchPriorityHint,
-      // TODO(crbug.com/1457985): change requestMethod to enum when confirm in the backend code.
       requestMethod?: string,
       renderBlocking?: RenderBlocking,
       initiator?: Initiator,
@@ -1098,7 +1199,8 @@ interface ResourceReceiveResponseTimingData {
   pushEnd: Milli;
   pushStart: Milli;
   receiveHeadersEnd: Milli;
-  receiveHeadersStart: Milli;
+  /** M116. */
+  receiveHeadersStart?: Milli;
   /** When the network service is about to handle a request, ie. just before going to the HTTP cache or going to the network for DNS/connection setup. */
   requestTime: Seconds;
   sendEnd: Milli;
@@ -1130,7 +1232,9 @@ export interface ResourceReceiveResponse extends Instant {
       responseTime: Milli,
       statusCode: number,
       // Some cached events don't have this field
-      timing?: ResourceReceiveResponseTimingData, connectionId: number, connectionReused: boolean,
+      connectionId: number,
+      connectionReused: boolean,
+      timing?: ResourceReceiveResponseTimingData,
       headers?: Array<{name: string, value: string}>,
     },
   };
@@ -1191,6 +1295,7 @@ export function isScheduleStyleInvalidationTracking(event: Event): event is Sche
 
 export const enum StyleRecalcInvalidationReason {
   ANIMATION = 'Animation',
+  RELATED_STYLE_RULE = 'Related style rule',
 }
 
 export interface StyleRecalcInvalidationTracking extends Instant {
@@ -1217,10 +1322,12 @@ export interface StyleInvalidatorInvalidationTracking extends Instant {
       frame: string,
       nodeId: Protocol.DOM.BackendNodeId,
       reason: string,
-      invalidationList: Array<{classes?: string[], id: string}>,
+      invalidationList: Array<{id: string, classes?: string[]}>,
       subtree: boolean,
       nodeName?: string,
       extraData?: string,
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      selectors?: Array<{selector: string, style_sheet_id: string}>,
     },
   };
 }
@@ -1255,11 +1362,45 @@ export function isParseMetaViewport(event: Event): event is ParseMetaViewport {
   return event.name === Name.PARSE_META_VIEWPORT;
 }
 
+export type MetaCharsetDisposition = 'found-in-first-1024-bytes'|'found-after-first-1024-bytes'|'not-found';
+
+export interface MetaCharsetCheck extends Instant {
+  name: Name.META_CHARSET_CHECK;
+  args: Args&{
+    data: {
+      frame: string,
+      disposition: MetaCharsetDisposition,
+    },
+  };
+}
+
+export function isMetaCharsetCheck(event: Event): event is MetaCharsetCheck {
+  return event.name === Name.META_CHARSET_CHECK;
+}
+
+export interface LinkPreconnect extends Instant {
+  name: Name.LINK_PRECONNECT;
+  args: Args&{
+    data: {
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      node_id: Protocol.DOM.BackendNodeId,
+      url: string,
+      frame?: string,
+    },
+  };
+}
+export function isLinkPreconnect(event: Event): event is LinkPreconnect {
+  return event.name === Name.LINK_PRECONNECT;
+}
+
 export interface ScheduleStyleRecalculation extends Instant {
   name: Name.SCHEDULE_STYLE_RECALCULATION;
   args: Args&{
     data: {
       frame: string,
+      reason?: StyleRecalcInvalidationReason,
+      subtree?: boolean,
+      nodeId?: Protocol.DOM.BackendNodeId,
     },
   };
 }
@@ -1317,11 +1458,21 @@ export interface PairableAsyncInstant extends PairableAsync {
 export interface PairableAsyncEnd extends PairableAsync {
   ph: Phase.ASYNC_NESTABLE_END;
 }
+export function isPairableAsyncBegin(e: Event): e is PairableAsyncBegin {
+  return e.ph === Phase.ASYNC_NESTABLE_START;
+}
+export function isPairableAsyncEnd(e: Event): e is PairableAsyncEnd {
+  return e.ph === Phase.ASYNC_NESTABLE_END;
+}
+export function isPairableAsyncInstant(e: Event): e is PairableAsyncInstant {
+  return e.ph === Phase.ASYNC_NESTABLE_INSTANT;
+}
 
 export interface AnimationFrame extends PairableAsync {
   name: Name.ANIMATION_FRAME;
   args?: AnimationFrameArgs;
 }
+
 export type AnimationFrameArgs = Args&{
   animation_frame_timing_info: {
     blocking_duration_ms: number,
@@ -1439,6 +1590,7 @@ export interface ConsoleTimeStamp extends Event {
       track?: string|number,
       trackGroup?: string|number,
       color?: string|number,
+      devtools?: string,
       sampleTraceId?: number,
     },
   };
@@ -1459,8 +1611,9 @@ export interface UserTimingMeasure extends Event {
   };
 }
 
-/** ChromeFrameReporter args for PipelineReporter event.
-    Matching proto: https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/track_event/chrome_frame_reporter.proto
+/**
+ * ChromeFrameReporter args for PipelineReporter event.
+ * Matching proto: https://source.chromium.org/chromium/chromium/src/+/main:third_party/perfetto/protos/perfetto/trace/track_event/chrome_frame_reporter.proto
  */
 /* eslint-disable @typescript-eslint/naming-convention */
 interface ChromeFrameReporter {
@@ -1469,11 +1622,15 @@ interface ChromeFrameReporter {
   /** The reason is set only if |state| is not |STATE_UPDATED_ALL|. */
   reason: FrameDropReason;
   frame_source: number;
-  /**  Identifies a BeginFrameArgs (along with the source_id).
-       See comments in components/viz/common/frame_sinks/begin_frame_args.h. */
+  /**
+   * Identifies a BeginFrameArgs (along with the source_id).
+   * See comments in components/viz/common/frame_sinks/begin_frame_args.h.
+   */
   frame_sequence: number;
-  /**  If this is a dropped frame (i.e. if |state| is set to |STATE_DROPPED| or
-       |STATE_PRESENTED_PARTIAL|), then indicates whether this frame impacts smoothness. */
+  /**
+   * If this is a dropped frame (i.e. if |state| is set to |STATE_DROPPED| or
+   * |STATE_PRESENTED_PARTIAL|), then indicates whether this frame impacts smoothness.
+   */
   affects_smoothness: boolean;
   /** The type of active scroll. */
   scroll_state: ScrollState;
@@ -1483,49 +1640,67 @@ interface ChromeFrameReporter {
   has_compositor_animation: boolean;
   /** If any touch-driven UX (not scroll) is active during this frame. */
   has_smooth_input_main: boolean;
-  /**  Whether the frame contained any missing content (i.e. whether there was
-       checkerboarding in the frame). */
+  /**
+   * Whether the frame contained any missing content (i.e. whether there was
+   * checkerboarding in the frame).
+   */
   has_missing_content: boolean;
   /** The id of layer_tree_host that the frame has been produced for. */
   layer_tree_host_id: number;
   /** If total latency of PipelineReporter exceeds a certain limit. */
   has_high_latency: boolean;
-  /**  Indicate if the frame is "FORKED" (i.e. a PipelineReporter event starts at
-       the same frame sequence as another PipelineReporter) or "BACKFILL"
-       (i.e. dropped frames when there are no partial compositor updates). */
+  /**
+   *  Indicate if the frame is "FORKED" (i.e. a PipelineReporter event starts at
+   * the same frame sequence as another PipelineReporter) or "BACKFILL"
+   * (i.e. dropped frames when there are no partial compositor updates).
+   */
   frame_type: FrameType;
-  /**  The breakdown stage of PipelineReporter that is most likely accountable for
-       high latency. */
+  /**
+   * The breakdown stage of PipelineReporter that is most likely accountable for
+   * high latency.
+   */
   high_latency_contribution_stage: string[];
 }
 const enum State {
   /** The frame did not have any updates to present. **/
   STATE_NO_UPDATE_DESIRED = 'STATE_NO_UPDATE_DESIRED',
-  /**  The frame presented all the desired updates (i.e. any updates requested
-       from both the compositor thread and main-threads were handled). **/
+  /**
+   * The frame presented all the desired updates (i.e. any updates requested
+   * from both the compositor thread and main-threads were handled). *
+   */
   STATE_PRESENTED_ALL = 'STATE_PRESENTED_ALL',
-  /**  The frame was presented with some updates, but also missed some updates
-       (e.g. missed updates from the main-thread, but included updates from the
-        compositor thread). **/
+  /**
+   *  The frame was presented with some updates, but also missed some updates
+   * (e.g. missed updates from the main-thread, but included updates from the
+   * compositor thread). *
+   */
   STATE_PRESENTED_PARTIAL = 'STATE_PRESENTED_PARTIAL',
-  /**  The frame was dropped, i.e. some updates were desired for the frame, but
-       was not presented. **/
+  /**
+   * The frame was dropped, i.e. some updates were desired for the frame, but
+   * was not presented. *
+   */
   STATE_DROPPED = 'STATE_DROPPED',
 }
 
 const enum FrameDropReason {
   REASON_UNSPECIFIED = 'REASON_UNSPECIFIED',
-  /**  Frame was dropped by the display-compositor.
-         The display-compositor may drop a frame some times (e.g. the frame missed
-        the deadline, or was blocked on surface-sync, etc.) **/
+  /**
+   *  Frame was dropped by the display-compositor.
+   * The display-compositor may drop a frame some times (e.g. the frame missed
+   * the deadline, or was blocked on surface-sync, etc.) *
+   */
   REASON_DISPLAY_COMPOSITOR = 'REASON_DISPLAY_COMPOSITOR',
-  /**  Frame was dropped because of the main-thread.
-         The main-thread may cause a frame to be dropped, e.g. if the main-thread
-        is running expensive javascript, or doing a lot of layout updates, etc. **/
+  /**
+   *  Frame was dropped because of the main-thread.
+   * The main-thread may cause a frame to be dropped, e.g. if the main-thread
+   * is running expensive javascript, or doing a lot of layout updates, etc. *
+   */
   REASON_MAIN_THREAD = 'REASON_MAIN_THREAD',
-  /**  Frame was dropped by the client compositor.
-         The client compositor can drop some frames too (e.g. attempting to
-         recover latency, missing the deadline, etc.). **/
+  /**
+   *  Frame was dropped by the client compositor.
+   * The client compositor can drop some frames too (e.g. attempting to
+   * recover latency, missing the deadline, etc.). *
+   */
   REASON_CLIENT_COMPOSITOR = 'REASON_CLIENT_COMPOSITOR',
 }
 
@@ -1542,27 +1717,39 @@ const enum FrameType {
   BACKFILL = 'BACKFILL',
 }
 
+/**
+ * TODO(crbug.com/409484302): Remove once Chrome migrates from
+ * ChromeTrackEvent.chrome_frame_reporter to ChromeTrackEvent.frame_reporter.
+ **/
+export interface OldChromeFrameReporterArgs {
+  chrome_frame_reporter: ChromeFrameReporter;
+}
+
+export interface NewChromeFrameReporterArgs {
+  frame_reporter: ChromeFrameReporter;
+}
+
 export interface PipelineReporter extends Event {
   id2?: {
     local?: string,
   };
   ph: Phase.ASYNC_NESTABLE_START|Phase.ASYNC_NESTABLE_END;
-  args: Args&{
-    chrome_frame_reporter: ChromeFrameReporter,
-  };
+  args: Args&(OldChromeFrameReporterArgs|NewChromeFrameReporterArgs);
 }
 
 export function isPipelineReporter(event: Event): event is PipelineReporter {
   return event.name === Name.PIPELINE_REPORTER;
 }
 
-// A type used for synthetic events created based on a raw trace event.
-// A branded type is used to ensure not all events can be typed as
-// SyntheticBased and prevent places different to the
-// SyntheticEventsManager from creating synthetic events. This is
-// because synthetic events need to be registered in order to resolve
-// serialized event keys into event objects, so we ensure events are
-// registered at the time they are created by the SyntheticEventsManager.
+/**
+ * A type used for synthetic events created based on a raw trace event.
+ * A branded type is used to ensure not all events can be typed as
+ * SyntheticBased and prevent places different to the
+ * SyntheticEventsManager from creating synthetic events. This is
+ * because synthetic events need to be registered in order to resolve
+ * serialized event keys into event objects, so we ensure events are
+ * registered at the time they are created by the SyntheticEventsManager.
+ **/
 export interface SyntheticBased<Ph extends Phase = Phase, T extends Event = Event> extends Event {
   ph: Ph;
   rawSourceEvent: T;
@@ -1573,9 +1760,11 @@ export function isSyntheticBased(event: Event): event is SyntheticBased {
   return 'rawSourceEvent' in event;
 }
 
-// Nestable async events with a duration are made up of two distinct
-// events: the begin, and the end. We need both of them to be able to
-// display the right information, so we create these synthetic events.
+/**
+ * Nestable async events with a duration are made up of two distinct
+ * events: the begin, and the end. We need both of them to be able to
+ * display the right information, so we create these synthetic events.
+ **/
 export interface SyntheticEventPair<T extends PairableAsync = PairableAsync> extends SyntheticBased<Phase, T> {
   rawSourceEvent: T;
   name: T['name'];
@@ -1654,10 +1843,15 @@ export interface SyntheticJSSample extends Event {
   args: Args&{
     data: ArgsData & {
       // Used to associate a stack sample with a trace event.
-      traceId?: number, stackTrace: Protocol.Runtime.CallFrame[],
+      stackTrace: Protocol.Runtime.CallFrame[],
+      traceId?: number,
     },
   };
   ph: Phase.INSTANT;
+}
+
+export function isJSSample(event: Event): event is SyntheticJSSample {
+  return event.name === Name.JS_SAMPLE;
 }
 
 export function isSyntheticInteraction(event: Event): event is SyntheticInteractionPair {
@@ -1771,7 +1965,7 @@ export function isRasterTask(event: Event): event is RasterTask {
   return event.name === Name.RASTER_TASK;
 }
 
-// CompositeLayers has been replaced by "Commit", but we support both to not break old traces being imported.
+/** CompositeLayers has been replaced by "Commit", but we support both to not break old traces being imported. **/
 export interface CompositeLayers extends Instant {
   name: Name.COMPOSITE_LAYERS;
   args: Args&{
@@ -1833,17 +2027,19 @@ export function isDecodeImage(event: Event): event is DecodeImage {
   return event.name === Name.DECODE_IMAGE;
 }
 
+export const enum InvalidationEventType {
+  StyleInvalidatorInvalidationTracking = 'StyleInvalidatorInvalidationTracking',
+  StyleRecalcInvalidationTracking = 'StyleRecalcInvalidationTracking',
+}
+
 export interface SelectorTiming {
   'elapsed (us)': number;
-
   fast_reject_count: number;
-
   match_attempts: number;
   selector: string;
-
   style_sheet_id: string;
-
   match_count: number;
+  invalidation_count: number;
 }
 
 export enum SelectorTimingsKey {
@@ -1854,6 +2050,7 @@ export enum SelectorTimingsKey {
   MatchCount = 'match_count',
   Selector = 'selector',
   StyleSheetId = 'style_sheet_id',
+  InvalidationCount = 'invalidation_count',
 }
 
 export interface SelectorStats {
@@ -1872,25 +2069,32 @@ export function isSelectorStats(event: Event): event is SelectorStats {
   return event.name === Name.SELECTOR_STATS;
 }
 
-export interface UpdateLayoutTree extends Complete {
-  name: Name.UPDATE_LAYOUT_TREE;
+export interface RecalcStyle extends Complete {
+  name: Name.RECALC_STYLE;
   args: Args&{
     elementCount: number,
     beginData?: {
-      sampleTraceId?: number, frame: string,
+      frame: string,
+      sampleTraceId?: number,
       stackTrace?: CallFrame[],
     },
   };
 }
-export function isUpdateLayoutTree(event: Event): event is UpdateLayoutTree {
-  return event.name === Name.UPDATE_LAYOUT_TREE;
+
+/** The real trace event is called 'UpdateLayoutTree' but we've aliased it for convenience. */
+export function isRecalcStyle(event: Event): event is RecalcStyle {
+  return event.name === Name.RECALC_STYLE;
 }
 
 export interface Layout extends Complete {
   name: Name.LAYOUT;
   args: Args&{
     beginData: {
-      sampleTraceId?: number, frame: string, dirtyObjects: number, partialLayout: boolean, totalObjects: number,
+      frame: string,
+      dirtyObjects: number,
+      partialLayout: boolean,
+      totalObjects: number,
+      sampleTraceId?: number,
       stackTrace?: CallFrame[],
     },
     // endData is not reliably populated.
@@ -1905,7 +2109,7 @@ export interface Layout extends Complete {
   };
 }
 export function isLayout(event: Event): event is Layout {
-  return event.name === Name.LAYOUT;
+  return event.name === Name.LAYOUT && Boolean(event.args && 'beginData' in event.args);
 }
 export interface InvalidateLayout extends Instant {
   name: Name.INVALIDATE_LAYOUT;
@@ -1939,55 +2143,37 @@ export function isDebuggerAsyncTaskRun(event: Event): event is DebuggerAsyncTask
   return event.name === Name.DEBUGGER_ASYNC_TASK_RUN;
 }
 
-class ProfileIdTag {
-  readonly #profileIdTag: (symbol|undefined);
-}
-export type ProfileID = string&ProfileIdTag;
+export type ProfileID = Platform.Brand.Brand<string, 'profileIdTag'>;
 
 export function ProfileID(value: string): ProfileID {
   return value as ProfileID;
 }
 
-class CallFrameIdTag {
-  readonly #callFrameIdTag: (symbol|undefined);
-}
-export type CallFrameID = number&CallFrameIdTag;
+export type CallFrameID = Platform.Brand.Brand<number, 'callFrameIdTag'>;
 
 export function CallFrameID(value: number): CallFrameID {
   return value as CallFrameID;
 }
 
-class SampleIndexTag {
-  readonly #sampleIndexTag: (symbol|undefined);
-}
-export type SampleIndex = number&SampleIndexTag;
+export type SampleIndex = Platform.Brand.Brand<number, 'sampleIndexTag'>;
 
 export function SampleIndex(value: number): SampleIndex {
   return value as SampleIndex;
 }
 
-class ProcessIdTag {
-  readonly #processIdTag: (symbol|undefined);
-}
-export type ProcessID = number&ProcessIdTag;
+export type ProcessID = Platform.Brand.Brand<number, 'processIdTag'>;
 
 export function ProcessID(value: number): ProcessID {
   return value as ProcessID;
 }
 
-class ThreadIdTag {
-  readonly #threadIdTag: (symbol|undefined);
-}
-export type ThreadID = number&ThreadIdTag;
+export type ThreadID = Platform.Brand.Brand<number, 'threadIdTag'>;
 
 export function ThreadID(value: number): ThreadID {
   return value as ThreadID;
 }
 
-class WorkerIdTag {
-  readonly #workerIdTag: (symbol|undefined);
-}
-export type WorkerId = string&WorkerIdTag;
+export type WorkerId = Platform.Brand.Brand<string, 'workerIdTag'>;
 
 export function WorkerId(value: string): WorkerId {
   return value as WorkerId;
@@ -2006,7 +2192,7 @@ export function isEnd(event: Event): event is End {
 }
 
 export function isDispatch(event: Event): event is Dispatch {
-  return event.name === 'EventDispatch';
+  return event.name === 'EventDispatch' && event.ph === Phase.COMPLETE;
 }
 
 export function isInstant(event: Event): event is Instant {
@@ -2018,7 +2204,7 @@ export function isRendererEvent(event: Event): event is RendererEvent {
 }
 
 export function isFireIdleCallback(event: Event): event is FireIdleCallback {
-  return event.name === 'FireIdleCallback';
+  return event.name === 'FireIdleCallback' && event.ph === Phase.COMPLETE;
 }
 
 export function isSchedulePostMessage(event: Event): event is SchedulePostMessage {
@@ -2026,7 +2212,7 @@ export function isSchedulePostMessage(event: Event): event is SchedulePostMessag
 }
 
 export function isHandlePostMessage(event: Event): event is HandlePostMessage {
-  return event.name === Name.HANDLE_POST_MESSAGE;
+  return event.name === Name.HANDLE_POST_MESSAGE && event.ph === Phase.COMPLETE;
 }
 
 export function isUpdateCounters(event: Event): event is UpdateCounters {
@@ -2070,7 +2256,7 @@ export function isCommitLoad(
 export function isAnimation(
     event: Event,
     ): event is Animation {
-  // We've found some rare traces with an Animtation trace event from a different category: https://crbug.com/1472375#comment7
+  // We've found some rare traces with an Animation trace event from a different category: https://crbug.com/1472375#comment7
   return event.name === 'Animation' && event.cat.includes('devtools.timeline');
 }
 
@@ -2098,11 +2284,14 @@ export function isLayoutInvalidationTracking(
 }
 
 export function isFirstContentfulPaint(event: Event): event is FirstContentfulPaint {
-  return event.name === 'firstContentfulPaint';
+  return event.name === Name.MARK_FCP;
 }
 
-export function isLargestContentfulPaintCandidate(event: Event): event is LargestContentfulPaintCandidate {
-  return event.name === Name.MARK_LCP_CANDIDATE;
+export function isAnyLargestContentfulPaintCandidate(event: Event): event is AnyLargestContentfulPaintCandidate {
+  return event.name === Name.MARK_LCP_CANDIDATE || event.name === Name.MARK_LCP_CANDIDATE_FOR_SOFT_NAVIGATION;
+}
+export function isSoftLargestContentfulPaintCandidate(event: Event): event is AnyLargestContentfulPaintCandidate {
+  return event.name === Name.MARK_LCP_CANDIDATE_FOR_SOFT_NAVIGATION;
 }
 export function isLargestImagePaintCandidate(event: Event): event is LargestImagePaintCandidate {
   return event.name === 'LargestImagePaint::Candidate';
@@ -2112,15 +2301,15 @@ export function isLargestTextPaintCandidate(event: Event): event is LargestTextP
 }
 
 export function isMarkLoad(event: Event): event is MarkLoad {
-  return event.name === 'MarkLoad';
+  return event.name === Name.MARK_LOAD;
 }
 
 export function isFirstPaint(event: Event): event is FirstPaint {
-  return event.name === 'firstPaint';
+  return event.name === Name.MARK_FIRST_PAINT;
 }
 
 export function isMarkDOMContent(event: Event): event is MarkDOMContent {
-  return event.name === 'MarkDOMContent';
+  return event.name === Name.MARK_DOM_CONTENT;
 }
 
 export function isInteractiveTime(event: Event): event is InteractiveTime {
@@ -2143,15 +2332,15 @@ export function isGPUTask(event: Event): event is GPUTask {
 }
 
 export function isProfile(event: Event): event is Profile {
-  return event.name === 'Profile';
+  return event.name === Name.PROFILE;
 }
 
 export function isSyntheticCpuProfile(event: Event): event is SyntheticCpuProfile {
-  return event.name === 'CpuProfile';
+  return event.name === Name.CPU_PROFILE && event.ph === Phase.COMPLETE;
 }
 
 export function isProfileChunk(event: Event): event is ProfileChunk {
-  return event.name === 'ProfileChunk';
+  return event.name === Name.PROFILE_CHUNK;
 }
 
 export function isResourceChangePriority(
@@ -2196,7 +2385,7 @@ export function isResourceReceivedData(
   return event.name === 'ResourceReceivedData';
 }
 
-// Any event where we receive data (and get an encodedDataLength)
+/** Any event where we receive data (and get an encodedDataLength) **/
 export function isReceivedDataEvent(
     event: Event,
     ): event is ResourceReceivedData|ResourceFinish|ResourceReceiveResponse {
@@ -2228,7 +2417,7 @@ export function isPrePaint(
 
 /** A VALID navigation start (as it has a populated documentLoaderURL) */
 export function isNavigationStart(event: Event): event is NavigationStart {
-  return event.name === 'navigationStart' && (event as NavigationStart).args?.data?.documentLoaderURL !== '';
+  return event.name === Name.NAVIGATION_START && (event as NavigationStart).args?.data?.documentLoaderURL !== '';
 }
 
 export interface DidCommitSameDocumentNavigation extends Complete {
@@ -2242,7 +2431,7 @@ export interface DidCommitSameDocumentNavigation extends Complete {
 }
 
 export function isDidCommitSameDocumentNavigation(event: Event): event is DidCommitSameDocumentNavigation {
-  return event.name === 'RenderFrameHostImpl::DidCommitSameDocumentNavigation';
+  return event.name === 'RenderFrameHostImpl::DidCommitSameDocumentNavigation' && event.ph === Phase.COMPLETE;
 }
 
 export function isMainFrameViewport(
@@ -2334,16 +2523,19 @@ export function isProfileCall(event: Event): event is SyntheticProfileCall {
   return 'callFrame' in event;
 }
 
-export interface Paint extends Complete {
+export interface Paint extends Event {
   name: Name.PAINT;
   args: Args&{
     data: ArgsData & {
-      clip: number[],
       frame: string,
       layerId: number,
       // With CompositeAfterPaint enabled, paint events are no longer
       // associated with a Node, and nodeId will not be present.
       nodeId?: Protocol.DOM.BackendNodeId,
+      // Optional as it was added in M137: crrev.com/c/6491448
+      nodeName?: string,
+      /** This rect is unreliable and often wrong. We'll remove it. crbug.com/41402938#comment10 */
+      clip?: number[],
     },
   };
 }
@@ -2361,17 +2553,21 @@ export interface PaintImage extends Complete {
       x: number,
       y: number,
       isCSS: boolean,
+      srcHeight: number,
+      srcWidth: number,
       isPicture?: boolean,
       loadingAttribute?: string,
       srcsetAttribute?: string,
-      url?: string, srcHeight: number, srcWidth: number,
+      url?: string,
       nodeId?: Protocol.DOM.BackendNodeId,
+      // Optional as it was added in M137: crrev.com/c/6491448
+      nodeName?: string,
       frame?: string,
     },
   };
 }
 export function isPaintImage(event: Event): event is PaintImage {
-  return event.name === Name.PAINT_IMAGE;
+  return event.name === Name.PAINT_IMAGE && event.ph === Phase.COMPLETE;
 }
 
 export interface ScrollLayer extends Complete {
@@ -2384,7 +2580,7 @@ export interface ScrollLayer extends Complete {
   };
 }
 export function isScrollLayer(event: Event): event is ScrollLayer {
-  return event.name === Name.SCROLL_LAYER;
+  return event.name === Name.SCROLL_LAYER && event.ph === Phase.COMPLETE;
 }
 
 export interface SetLayerTreeId extends Instant {
@@ -2399,7 +2595,7 @@ export interface SetLayerTreeId extends Instant {
 export function isSetLayerId(event: Event): event is SetLayerTreeId {
   return event.name === Name.SET_LAYER_TREE_ID;
 }
-export interface UpdateLayer extends Complete {
+export interface UpdateLayer extends Event {
   name: Name.UPDATE_LAYER;
   args: Args&{
     layerId: number,
@@ -2496,8 +2692,9 @@ export interface FireAnimationFrame extends Complete {
     },
   };
 }
+
 export function isFireAnimationFrame(event: Event): event is FireAnimationFrame {
-  return event.name === Name.FIRE_ANIMATION_FRAME;
+  return event.name === Name.FIRE_ANIMATION_FRAME && event.ph === Phase.COMPLETE;
 }
 
 export interface RequestAnimationFrame extends Instant {
@@ -2510,9 +2707,6 @@ export interface RequestAnimationFrame extends Instant {
     },
   };
 }
-export function isRequestAnimationFrame(event: Event): event is RequestAnimationFrame {
-  return event.name === Name.REQUEST_ANIMATION_FRAME;
-}
 
 export interface TimerInstall extends Instant {
   name: Name.TIMER_INSTALL;
@@ -2520,7 +2714,9 @@ export interface TimerInstall extends Instant {
     data: {
       frame: string,
       singleShot: boolean,
-      stackTrace?: CallFrame, timeout: number, timerId: number,
+      timeout: number,
+      timerId: number,
+      stackTrace?: CallFrame,
     },
   };
 }
@@ -2538,7 +2734,7 @@ export interface TimerFire extends Complete {
   };
 }
 export function isTimerFire(event: Event): event is TimerFire {
-  return event.name === Name.TIMER_FIRE;
+  return event.name === Name.TIMER_FIRE && event.ph === Phase.COMPLETE;
 }
 
 export interface RequestIdleCallback extends Instant {
@@ -2547,12 +2743,13 @@ export interface RequestIdleCallback extends Instant {
     data: {
       frame: string,
       id: number,
-      timeout: number,
+      timeout: Milli,
       stackTrace?: CallFrame,
     },
 
   };
 }
+
 export function isRequestIdleCallback(event: Event): event is RequestIdleCallback {
   return event.name === Name.REQUEST_IDLE_CALLBACK;
 }
@@ -2591,8 +2788,9 @@ export interface WebSocketTransfer extends Instant {
     data: ArgsData & {
       identifier: number,
       url: string,
+      dataLength: number,
       frame?: string,
-      workerId?: string, dataLength: number,
+      workerId?: string,
     },
   };
 }
@@ -2611,14 +2809,11 @@ export interface WebSocketSend extends Instant {
     data: ArgsData & {
       identifier: number,
       url: string,
+      dataLength: number,
       frame?: string,
-      workerId?: string, dataLength: number,
+      workerId?: string,
     },
   };
-}
-
-export function isWebSocketSend(event: Event): event is WebSocketSend {
-  return event.name === Name.WEB_SOCKET_SEND;
 }
 
 export interface WebSocketReceive extends Instant {
@@ -2627,13 +2822,11 @@ export interface WebSocketReceive extends Instant {
     data: ArgsData & {
       identifier: number,
       url: string,
+      dataLength: number,
       frame?: string,
-      workerId?: string, dataLength: number,
+      workerId?: string,
     },
   };
-}
-export function isWebSocketReceive(event: Event): event is WebSocketReceive {
-  return event.name === Name.WEB_SOCKET_RECEIVE;
 }
 
 export interface WebSocketSendHandshakeRequest extends Instant {
@@ -2703,7 +2896,7 @@ export interface V8Compile extends Complete {
   };
 }
 export function isV8Compile(event: Event): event is V8Compile {
-  return event.name === Name.COMPILE;
+  return event.name === Name.COMPILE && event.ph === Phase.COMPLETE;
 }
 
 export interface FunctionCall extends Complete {
@@ -2711,11 +2904,12 @@ export interface FunctionCall extends Complete {
   args: Args&{
     data?: Partial<CallFrame>& {
       frame?: string,
+      isolate?: string,
     },
   };
 }
 export function isFunctionCall(event: Event): event is FunctionCall {
-  return event.name === Name.FUNCTION_CALL;
+  return event.name === Name.FUNCTION_CALL && event.ph === Phase.COMPLETE;
 }
 
 export interface SchedulePostTaskCallback extends Instant {
@@ -2746,7 +2940,7 @@ export interface RunPostTaskCallback extends Complete {
   };
 }
 export function isRunPostTaskCallback(event: Event): event is RunPostTaskCallback {
-  return event.name === Name.RUN_POST_TASK_CALLBACK;
+  return event.name === Name.RUN_POST_TASK_CALLBACK && event.ph === Phase.COMPLETE;
 }
 
 export interface AbortPostTaskCallback extends Complete {
@@ -2760,7 +2954,7 @@ export interface AbortPostTaskCallback extends Complete {
   };
 }
 export function isAbortPostTaskCallback(event: Event): event is RunPostTaskCallback {
-  return event.name === Name.ABORT_POST_TASK_CALLBACK;
+  return event.name === Name.ABORT_POST_TASK_CALLBACK && event.ph === Phase.COMPLETE;
 }
 
 /**
@@ -2812,6 +3006,19 @@ export interface FlowEvent extends Event {
 
 export function isFlowPhaseEvent(event: Event): event is FlowEvent {
   return event.ph === Phase.FLOW_START || event.ph === Phase.FLOW_STEP || event.ph === Phase.FLOW_END;
+}
+
+export interface ParseAuthorStyleSheet extends Complete {
+  name: Name.PARSE_AUTHOR_STYLE_SHEET;
+  args?: Args&{
+    data: {
+      stylesheetUrl: string,
+    },
+  };
+}
+
+export function isParseAuthorStyleSheetEvent(event: Event): event is ParseAuthorStyleSheet {
+  return event.name === Name.PARSE_AUTHOR_STYLE_SHEET && event.ph === Phase.COMPLETE;
 }
 
 /**
@@ -2903,7 +3110,8 @@ export const enum Name {
   /* Layout */
   SCHEDULE_STYLE_RECALCULATION = 'ScheduleStyleRecalculation',
   LAYOUT = 'Layout',
-  UPDATE_LAYOUT_TREE = 'UpdateLayoutTree',
+  /** The real trace event is called 'UpdateLayoutTree' but we've aliased it for convenience. */
+  RECALC_STYLE = 'UpdateLayoutTree',
   INVALIDATE_LAYOUT = 'InvalidateLayout',
   LAYOUT_INVALIDATION_TRACKING = 'LayoutInvalidationTracking',
   COMPUTE_INTERSECTION = 'ComputeIntersections',
@@ -2920,6 +3128,7 @@ export const enum Name {
   SELECTOR_STATS = 'SelectorStats',
   BEGIN_COMMIT_COMPOSITOR_FRAME = 'BeginCommitCompositorFrame',
   PARSE_META_VIEWPORT = 'ParseMetaViewport',
+  META_CHARSET_CHECK = 'MetaCharsetCheck',
 
   /* Paint */
   SCROLL_LAYER = 'ScrollLayer',
@@ -2962,8 +3171,10 @@ export const enum Name {
   MARK_FIRST_PAINT = 'firstPaint',
   MARK_FCP = 'firstContentfulPaint',
   MARK_LCP_CANDIDATE = 'largestContentfulPaint::Candidate',
+  MARK_LCP_CANDIDATE_FOR_SOFT_NAVIGATION = 'largestContentfulPaint::CandidateForSoftNavigation',
   MARK_LCP_INVALIDATE = 'largestContentfulPaint::Invalidate',
   NAVIGATION_START = 'navigationStart',
+  SOFT_NAVIGATION_START = 'SoftNavigationStart',
   CONSOLE_TIME = 'ConsoleTime',
   USER_TIMING = 'UserTiming',
   INTERACTIVE_TIME = 'InteractiveTime',
@@ -2993,6 +3204,7 @@ export const enum Name {
   WEB_SOCKET_RECEIVE_HANDSHAKE_REQUEST = 'WebSocketReceiveHandshakeResponse',
 
   /* CPU Profiling */
+  CPU_PROFILE = 'CpuProfile',
   PROFILE = 'Profile',
   START_PROFILING = 'CpuProfiler::StartProfiling',
   PROFILE_CHUNK = 'ProfileChunk',
@@ -3031,10 +3243,16 @@ export const enum Name {
 
   SYNTHETIC_NETWORK_REQUEST = 'SyntheticNetworkRequest',
   USER_TIMING_MEASURE = 'UserTiming::Measure',
+
+  LINK_PRECONNECT = 'LinkPreconnect',
+
+  PRELOAD_RENDER_BLOCKING_STATUS_CHANGE = 'PreloadRenderBlockingStatusChange',
 }
 
-// NOT AN EXHAUSTIVE LIST: just some categories we use and refer
-// to in multiple places.
+/**
+ * NOT AN EXHAUSTIVE LIST: just some categories we use and refer
+ * to in multiple places.
+ **/
 export const Categories = {
   Console: 'blink.console',
   UserTiming: 'blink.user_timing',
@@ -3090,78 +3308,51 @@ export interface LegacyLayerPaintEventPicture {
   serializedPicture: string;
 }
 
-export interface TargetRundownEvent extends Event {
+/** Same as `TraceEventTargetRundown` in `EnhancedTracesParser` */
+export interface RundownScriptCompiled extends Event {
   cat: 'disabled-by-default-devtools.target-rundown';
-  name: 'ScriptCompiled';
+  name: SDK.EnhancedTracesParser.RundownScriptCompiled['name'];
   args: Args&{
-    data?: {
-      frame: Protocol.Page.FrameId,
-      frameType: string,
-      url: string,
-      isolate: string,
-      v8context: string,
-      origin: string,
-      scriptId: number,
-      isDefault?: boolean,
-      contextType?: string,
-    },
+    data?: SDK.EnhancedTracesParser.RundownScriptCompiled['args']['data'],
   };
 }
 
-export function isTargetRundownEvent(event: Event): event is TargetRundownEvent {
-  return event.cat === 'disabled-by-default-devtools.target-rundown' && event.name === 'ScriptCompiled';
+export function isRundownScriptCompiled(event: Event): event is RundownScriptCompiled {
+  return event.cat === 'disabled-by-default-devtools.target-rundown';
 }
 
-export interface V8SourceRundownEvent extends Event {
+/** Same as `TraceEventScriptRundown` in `EnhancedTracesParser` */
+export interface RundownScript extends Event {
   cat: 'disabled-by-default-devtools.v8-source-rundown';
-  name: 'ScriptCatchup';
+  name: SDK.EnhancedTracesParser.RundownScript['name'];
   args: Args&{
-    data: {
-      isolate: string,
-      executionContextId: Protocol.Runtime.ExecutionContextId,
-      scriptId: number,
-      startLine: number,
-      startColumn: number,
-      endLine: number,
-      endColumn: number,
-      hash: string,
-      isModule: boolean,
-      hasSourceUrl: boolean,
-      url?: string,
-      sourceUrl?: string,
-      sourceMapUrl?: string,
-    },
+    data: SDK.EnhancedTracesParser.RundownScript['args']['data'],
   };
 }
 
-export function isV8SourceRundownEvent(event: Event): event is V8SourceRundownEvent {
+export function isRundownScript(event: Event): event is RundownScript {
   return event.cat === 'disabled-by-default-devtools.v8-source-rundown' && event.name === 'ScriptCatchup';
 }
 
-export interface V8SourceRundownSourcesScriptCatchupEvent extends Event {
+/** Same as `TraceEventScriptRundownSource` in `EnhancedTracesParser` */
+export interface RundownScriptSource extends Event {
   cat: 'disabled-by-default-devtools.v8-source-rundown-sources';
   name: 'ScriptCatchup';
   args: Args&{
-    data: {
-      isolate: string,
-      scriptId: number,
-      length: number,
-      sourceText: string,
-    },
+    data: SDK.EnhancedTracesParser.RundownScriptSource['args']['data'],
   };
 }
 
-export function isV8SourceRundownSourcesScriptCatchupEvent(event: Event):
-    event is V8SourceRundownSourcesScriptCatchupEvent {
+export function isRundownScriptSource(event: Event): event is RundownScriptSource {
   return event.cat === 'disabled-by-default-devtools.v8-source-rundown-sources' && event.name === 'ScriptCatchup';
 }
 
-export interface V8SourceRundownSourcesLargeScriptCatchupEvent extends Event {
+export interface RundownScriptSourceLarge extends Event {
   cat: 'disabled-by-default-devtools.v8-source-rundown-sources';
   name: 'LargeScriptCatchup';
   args: Args&{
     data: {
-      isolate: string,
+      isolate: number,
       scriptId: number,
       splitIndex: number,
       splitCount: number,
@@ -3170,7 +3361,39 @@ export interface V8SourceRundownSourcesLargeScriptCatchupEvent extends Event {
   };
 }
 
-export function isV8SourceRundownSourcesLargeScriptCatchupEvent(event: Event):
-    event is V8SourceRundownSourcesLargeScriptCatchupEvent {
+export function isRundownScriptSourceLarge(event: Event): event is RundownScriptSourceLarge {
   return event.cat === 'disabled-by-default-devtools.v8-source-rundown-sources' && event.name === 'LargeScriptCatchup';
+}
+
+export interface RundownScriptStub extends Event {
+  cat: 'disabled-by-default-devtools.v8-source-rundown-sources';
+  name: 'StubScriptCatchup';
+  args: Args&{
+    data: {
+      isolate: number,
+      scriptId: number,
+    },
+  };
+}
+
+export function isAnyScriptSourceEvent(event: Event): event is RundownScriptSource|RundownScriptSourceLarge|
+    RundownScriptStub {
+  return event.cat === 'disabled-by-default-devtools.v8-source-rundown-sources';
+}
+
+export interface PreloadRenderBlockingStatusChangeEvent extends Instant {
+  name: Name.PRELOAD_RENDER_BLOCKING_STATUS_CHANGE;
+  cat: 'devtools.timeline';
+  args: Args&{
+    data: {
+      requestId: string,
+      url: string,
+      renderBlocking?: RenderBlocking,
+    },
+  };
+}
+
+export function isPreloadRenderBlockingStatusChangeEvent(event: Event):
+    event is PreloadRenderBlockingStatusChangeEvent {
+  return event.name === Name.PRELOAD_RENDER_BLOCKING_STATUS_CHANGE;
 }

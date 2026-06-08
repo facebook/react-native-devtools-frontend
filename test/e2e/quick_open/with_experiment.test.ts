@@ -1,0 +1,23 @@
+// Copyright 2025 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import {assert} from 'chai';
+
+import {readQuickOpenResults, typeIntoQuickOpen} from '../helpers/quick_open-helpers.js';
+import {setIgnoreListPattern} from '../helpers/settings-helpers.js';
+import {openSourcesPanel} from '../helpers/sources-helpers.js';
+
+describe('Quick Open menu with just-my-code setting', () => {
+  setup({devToolsSettings: {'navigator-just-my-code': true}});
+
+  it('does not list ignore-listed files', async ({devToolsPage, inspectedPage}) => {
+    await setIgnoreListPattern('workers.js', devToolsPage);
+    await inspectedPage.goToResource('sources/multi-workers-sourcemap.html');
+    await openSourcesPanel(devToolsPage);
+
+    await typeIntoQuickOpen('mult', undefined, devToolsPage);
+    const list = await readQuickOpenResults(devToolsPage);
+    assert.deepEqual(list, ['multi-workers.min.js', 'multi-workers-sourcemap.html']);
+  });
+});

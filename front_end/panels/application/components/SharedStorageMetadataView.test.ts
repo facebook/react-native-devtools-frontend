@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@ import {
   getElementWithinComponent,
   renderElementIntoDOM,
 } from '../../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../../testing/LocaleHelpers.js';
 import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 import * as ReportView from '../../../ui/components/report_view/report_view.js';
 
@@ -24,7 +24,8 @@ function makeView(origin: string, metadata: Protocol.Storage.SharedStorageMetada
       origin);
 }
 
-describeWithLocale('SharedStorageMetadataView', () => {
+describe('SharedStorageMetadataView', () => {
+  setupLocaleHooks();
   it('renders with a title', async () => {
     const component = makeView('https://a.test', {
       creationTime: 10 as Protocol.Network.TimeSinceEpoch,
@@ -56,7 +57,6 @@ describeWithLocale('SharedStorageMetadataView', () => {
 
     const keys = getCleanTextContentFromElements(component.shadowRoot, 'devtools-report-key');
     assert.deepEqual(keys, [
-      'Origin',
       'Creation Time',
       'Number of Entries',
       'Number of Bytes Used',
@@ -65,7 +65,6 @@ describeWithLocale('SharedStorageMetadataView', () => {
 
     const values = getCleanTextContentFromElements(component.shadowRoot, 'devtools-report-value');
     assert.deepEqual(values, [
-      'https://a.test',
       (new Date(10 * 1e3)).toLocaleString(),
       '4',
       '200',
@@ -82,7 +81,6 @@ describeWithLocale('SharedStorageMetadataView', () => {
 
     const keys = getCleanTextContentFromElements(component.shadowRoot, 'devtools-report-key');
     assert.deepEqual(keys, [
-      'Origin',
       'Creation Time',
       'Number of Entries',
       'Number of Bytes Used',
@@ -91,7 +89,6 @@ describeWithLocale('SharedStorageMetadataView', () => {
 
     const values = getCleanTextContentFromElements(component.shadowRoot, 'devtools-report-value');
     assert.deepEqual(values, [
-      '',
       'Not yet created',
       '0',
       '0',
@@ -117,6 +114,6 @@ describeWithLocale('SharedStorageMetadataView', () => {
     assert.instanceOf(resetButtonComponent, HTMLElement);
     dispatchClickEvent(resetButtonComponent);
 
-    assert.isTrue(resetBudgetHandlerSpy.calledOnce);
+    sinon.assert.calledOnce(resetBudgetHandlerSpy);
   });
 });

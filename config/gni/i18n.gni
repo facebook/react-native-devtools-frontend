@@ -1,8 +1,9 @@
-# Copyright 2022 The Chromium Authors. All rights reserved.
+# Copyright 2022 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("//build/config/devtools.gni")
+import("../../scripts/build/ninja/vars.gni")
 
 remote_devtools_locales = [
   "af",
@@ -92,7 +93,7 @@ bundled_devtools_locales = [
   "zh",
 ]
 
-include_en_xl = is_debug
+include_en_xl = !devtools_bundle
 if (include_en_xl) {
   bundled_devtools_locales += [ "en-XL" ]
 }
@@ -103,7 +104,7 @@ remote_fetch_pattern =
     "@HOST@/remote/serve_file/@VERSION@/core/i18n/locales/@LOCALE@.json"
 
 # Path relative to i18nImpl.ts. This is because we can't make assumptions
-# wether DevTools is in hosted mode (e.g web tests/e2e tests) or non-hosted
+# whether DevTools is in hosted mode (e.g web tests/e2e tests) or non-hosted
 # mode (devtools://devtools/bundled).
 local_fetch_pattern = "./locales/@LOCALE@.json"
 

@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -16,7 +16,7 @@ generate_css("css_files") {
   ]
 }
 
-devtools_module("changes") {
+devtools_ui_module("changes") {
   sources = [
     "ChangesSidebar.ts",
     "ChangesView.ts",
@@ -27,6 +27,8 @@ devtools_module("changes") {
     "../../core/common:bundle",
     "../../core/host:bundle",
     "../../core/i18n:bundle",
+    "../../core/platform:bundle",
+    "../../models/greendev:bundle",
     "../../models/persistence:bundle",
     "../../models/text_utils:bundle",
     "../../models/workspace:bundle",
@@ -34,9 +36,13 @@ devtools_module("changes") {
     "../../panels/snippets:bundle",
     "../../panels/utils:bundle",
     "../../third_party/diff:bundle",
+    "../../ui/components/buttons:bundle",
     "../../ui/components/diff_view:bundle",
+    "../../ui/kit:bundle",
     "../../ui/legacy:bundle",
     "../../ui/lit:bundle",
+    "../../ui/visual_logging:bundle",
+    "../common:bundle",
   ]
 }
 
@@ -69,10 +75,11 @@ devtools_entrypoint("meta") {
   visibility = [ "../../entrypoints/*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [
+    "ChangesSidebar.test.ts",
     "CombinedDiffView.test.ts",
     "changes.test.ts",
   ]

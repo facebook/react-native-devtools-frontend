@@ -1,18 +1,18 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("../../../scripts/build/typescript/typescript.gni")
 
-node_ts_library("snippets") {
+ts_e2e_library("snippets") {
   sources = [
-    "breakpoint_test.ts",
-    "name_test.ts",
-    "snippets_test.ts",
+    "breakpoint.test.ts",
+    "name.test.ts",
+    "snippets.test.ts",
   ]
 
   deps = [
-    "../../shared",
     "../helpers",
+    "../shared",
   ]
 }

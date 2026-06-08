@@ -1,8 +1,6 @@
 export * from './types/base.js';
-export * from './types/polyfills.js';
 export * from './types/cls.js';
 export * from './types/fcp.js';
-export * from './types/fid.js';
 export * from './types/inp.js';
 export * from './types/lcp.js';
 export * from './types/ttfb.js';
@@ -27,10 +25,10 @@ declare global {
     }
     interface PerformanceEventTiming extends PerformanceEntry {
         duration: DOMHighResTimeStamp;
-        interactionId: number;
+        readonly interactionId: number;
     }
     interface LayoutShiftAttribution {
-        node?: Node;
+        node: Node | null;
         previousRect: DOMRectReadOnly;
         currentRect: DOMRectReadOnly;
     }
@@ -47,8 +45,33 @@ declare global {
         readonly url: string;
         readonly element: Element | null;
     }
+    export type ScriptInvokerType = 'classic-script' | 'module-script' | 'event-listener' | 'user-callback' | 'resolve-promise' | 'reject-promise';
+    export type ScriptWindowAttribution = 'self' | 'descendant' | 'ancestor' | 'same-page' | 'other';
+    interface PerformanceScriptTiming extends PerformanceEntry {
+        readonly startTime: DOMHighResTimeStamp;
+        readonly duration: DOMHighResTimeStamp;
+        readonly name: string;
+        readonly entryType: string;
+        readonly invokerType: ScriptInvokerType;
+        readonly invoker: string;
+        readonly executionStart: DOMHighResTimeStamp;
+        readonly sourceURL: string;
+        readonly sourceFunctionName: string;
+        readonly sourceCharPosition: number;
+        readonly pauseDuration: DOMHighResTimeStamp;
+        readonly forcedStyleAndLayoutDuration: DOMHighResTimeStamp;
+        readonly window?: Window;
+        readonly windowAttribution: ScriptWindowAttribution;
+    }
     interface PerformanceLongAnimationFrameTiming extends PerformanceEntry {
-        renderStart: DOMHighResTimeStamp;
-        duration: DOMHighResTimeStamp;
+        readonly startTime: DOMHighResTimeStamp;
+        readonly duration: DOMHighResTimeStamp;
+        readonly name: string;
+        readonly entryType: string;
+        readonly renderStart: DOMHighResTimeStamp;
+        readonly styleAndLayoutStart: DOMHighResTimeStamp;
+        readonly blockingDuration: DOMHighResTimeStamp;
+        readonly firstUIEventTimestamp: DOMHighResTimeStamp;
+        readonly scripts: PerformanceScriptTiming[];
     }
 }

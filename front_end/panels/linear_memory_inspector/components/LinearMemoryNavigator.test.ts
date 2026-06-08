@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,8 @@ import {
   getEventPromise,
   renderElementIntoDOM,
 } from '../../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../../testing/LocaleHelpers.js';
+import * as Buttons from '../../../ui/components/buttons/buttons.js';
 
 import * as LinearMemoryInspectorComponents from './components.js';
 
@@ -18,7 +19,8 @@ export const NAVIGATOR_PAGE_BUTTON_SELECTOR = '[data-button=pagenavigation]';
 export const NAVIGATOR_HISTORY_BUTTON_SELECTOR = '[data-button=historynavigation]';
 export const NAVIGATOR_REFRESH_BUTTON_SELECTOR = '[data-button=refreshrequested]';
 
-describeWithLocale('LinearMemoryNavigator', () => {
+describe('LinearMemoryNavigator', () => {
+  setupLocaleHooks();
   let component: LinearMemoryInspectorComponents.LinearMemoryNavigator.LinearMemoryNavigator;
 
   beforeEach(renderNavigator);
@@ -41,7 +43,7 @@ describeWithLocale('LinearMemoryNavigator', () => {
     const shadowRoot = component.shadowRoot;
     assert.isNotNull(shadowRoot);
     const pageNavigationButtons = shadowRoot.querySelectorAll(`[data-button=${eventType}]`);
-    assertElements(pageNavigationButtons, HTMLButtonElement);
+    assertElements(pageNavigationButtons, Buttons.Button.Button);
     assert.lengthOf(pageNavigationButtons, 2);
 
     const navigation = [];
@@ -91,7 +93,7 @@ describeWithLocale('LinearMemoryNavigator', () => {
     const shadowRoot = component.shadowRoot;
     assert.isNotNull(shadowRoot);
     const refreshButton = shadowRoot.querySelector(NAVIGATOR_REFRESH_BUTTON_SELECTOR);
-    assert.instanceOf(refreshButton, HTMLButtonElement);
+    assert.instanceOf(refreshButton, Buttons.Button.Button);
     refreshButton.click();
 
     assert.isNotNull(await eventPromise);
@@ -115,7 +117,7 @@ describeWithLocale('LinearMemoryNavigator', () => {
       canGoForwardInHistory: false,
     };
 
-    const buttons = getElementsWithinComponent(component, NAVIGATOR_HISTORY_BUTTON_SELECTOR, HTMLButtonElement);
+    const buttons = getElementsWithinComponent(component, NAVIGATOR_HISTORY_BUTTON_SELECTOR, Buttons.Button.Button);
     assert.lengthOf(buttons, 2);
     const historyBack = buttons[0];
     const historyForward = buttons[1];
@@ -165,28 +167,29 @@ describeWithLocale('LinearMemoryNavigator', () => {
   });
 
   it('shows tooltip on page navigation buttons', () => {
-    const buttons = getElementsWithinComponent(component, NAVIGATOR_PAGE_BUTTON_SELECTOR, HTMLButtonElement);
+    const buttons = getElementsWithinComponent(component, NAVIGATOR_PAGE_BUTTON_SELECTOR, Buttons.Button.Button);
     assert.lengthOf(buttons, 2);
     const pageBack = buttons[0];
     const pageForward = buttons[1];
 
-    assert.strictEqual(pageBack.title, 'Previous page');
-    assert.strictEqual(pageForward.title, 'Next page');
+    assert.strictEqual(pageBack.getAttribute('title'), 'Previous page');
+    assert.strictEqual(pageForward.getAttribute('title'), 'Next page');
   });
 
   it('shows tooltip on history navigation buttons', () => {
-    const buttons = getElementsWithinComponent(component, NAVIGATOR_HISTORY_BUTTON_SELECTOR, HTMLButtonElement);
+    const buttons = getElementsWithinComponent(component, NAVIGATOR_HISTORY_BUTTON_SELECTOR, Buttons.Button.Button);
     assert.lengthOf(buttons, 2);
     const historyBack = buttons[0];
     const historyForward = buttons[1];
 
-    assert.strictEqual(historyBack.title, 'Go back in address history');
-    assert.strictEqual(historyForward.title, 'Go forward in address history');
+    assert.strictEqual(historyBack.getAttribute('title'), 'Go back in address history');
+    assert.strictEqual(historyForward.getAttribute('title'), 'Go forward in address history');
   });
 
   it('shows tooltip on refresh button', () => {
-    const refreshButton = getElementWithinComponent(component, NAVIGATOR_REFRESH_BUTTON_SELECTOR, HTMLButtonElement);
+    const refreshButton =
+        getElementWithinComponent(component, NAVIGATOR_REFRESH_BUTTON_SELECTOR, Buttons.Button.Button);
 
-    assert.strictEqual(refreshButton.title, 'Refresh');
+    assert.strictEqual(refreshButton.getAttribute('title'), 'Refresh');
   });
 });

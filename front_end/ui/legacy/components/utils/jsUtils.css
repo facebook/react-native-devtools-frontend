@@ -1,17 +1,8 @@
 /*
- * Copyright 2015 The Chromium Authors. All rights reserved.
+ * Copyright 2015 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
-
-:host {
-  display: inline;
-}
-
-:host(.width-constrained) {
-  display: inline-block;
-  width: 100%;
-}
 
 .stack-preview-async-description {
   padding: 3px 0 1px;
@@ -21,6 +12,9 @@
 .stack-preview-container {
   --display-ignored-row: none;
   --display-toggle-link: var(--override-display-stack-preview-toggle-link, none);
+
+  align-self: flex-start;
+  user-select: text;
 
   & > tfoot > tr {
     font-style: italic;
@@ -98,6 +92,34 @@
 
   &:not(.show-hidden-rows) > tfoot > tr.show-less-link {
     --display-toggle-link: none;
+  }
+
+  .arrow-icon-button {
+    cursor: pointer;
+    padding: 1px 0;
+    border: none;
+    background: none;
+    margin-left: -4px;
+    margin-right: -2px;
+  }
+
+  .arrow-icon {
+    display: inline-block;
+    mask-image: var(--image-file-triangle-right);
+    background-color: var(--icon-default);
+    margin-top: 2px;
+    height: 14px;
+    width: 14px;
+    transition: transform 200ms;
+  }
+
+  &.expanded .arrow-icon{
+    transform: rotate(90deg);
+  }
+
+  &.expandable:not(.expanded) tbody:not(:first-of-type),
+  &.expandable:not(.expanded) tbody tr:not(:first-of-type) {
+    display: none;
   }
 }
 

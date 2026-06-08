@@ -1,20 +1,16 @@
-// Copyright (c) 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view */
 
-import '../../../ui/components/icon_button/icon_button.js';
+import '../../../ui/kit/kit.js';
 import '../../../ui/components/node_text/node_text.js';
 
 import * as SDK from '../../../core/sdk/sdk.js';
 import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import type {DOMNode} from './Helper.js';
-import queryContainerStylesRaw from './queryContainer.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const queryContainerStyles = new CSSStyleSheet();
-queryContainerStyles.replaceSync(queryContainerStylesRaw.cssText);
+import queryContainerStyles from './queryContainer.css.js';
 
 const {render, html} = Lit;
 const {PhysicalAxis, QueryAxis} = SDK.CSSContainerQuery;
@@ -27,7 +23,7 @@ export class QueriedSizeRequestedEvent extends Event {
 }
 
 export interface QueryContainerData {
-  container: DOMNode;
+  container: SDK.DOMModel.DOMNode;
   queryName?: string;
   onContainerLinkClick: (event: Event) => void;
 }
@@ -35,7 +31,7 @@ export interface QueryContainerData {
 export class QueryContainer extends HTMLElement {
   readonly #shadow = this.attachShadow({mode: 'open'});
   #queryName?: string;
-  #container?: DOMNode;
+  #container?: SDK.DOMModel.DOMNode;
   #onContainerLinkClick?: (event: Event) => void;
   #isContainerLinkHovered = false;
   #queriedSizeDetails?: SDK.CSSContainerQuery.ContainerQueriedSizeDetails;
@@ -47,23 +43,19 @@ export class QueryContainer extends HTMLElement {
     this.#render();
   }
 
-  connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [queryContainerStyles];
-  }
-
   updateContainerQueriedSizeDetails(details: SDK.CSSContainerQuery.ContainerQueriedSizeDetails): void {
     this.#queriedSizeDetails = details;
     this.#render();
   }
 
   async #onContainerLinkMouseEnter(): Promise<void> {
-    this.#container?.highlightNode('container-outline');
+    this.#container?.highlight('container-outline');
     this.#isContainerLinkHovered = true;
     this.dispatchEvent(new QueriedSizeRequestedEvent());
   }
 
   #onContainerLinkMouseLeave(): void {
-    this.#container?.clearHighlight();
+    SDK.OverlayModel.OverlayModel.hideDOMNodeHighlight();
     this.#isContainerLinkHovered = false;
     this.#render();
   }
@@ -79,27 +71,26 @@ export class QueryContainer extends HTMLElement {
       classesToDisplay = this.#container.getAttribute('class')?.split(/\s+/).filter(Boolean);
     }
 
-    const nodeTitle = this.#queryName || this.#container.nodeNameNicelyCased;
+    const nodeTitle = this.#queryName || this.#container.nodeNameInCorrectCase();
 
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
-    // eslint-disable-next-line rulesdir/no-a-tags-in-lit
+    // eslint-disable-next-line @devtools/no-a-tags-in-lit
     render(html`
+      <style>${queryContainerStyles}</style>
       →
-      <a href="#"
-        draggable=false
-        class="container-link"
-        jslog=${VisualLogging.cssRuleHeader('container-query').track({click: true})}
-        @click=${this.#onContainerLinkClick}
-        @mouseenter=${this.#onContainerLinkMouseEnter}
-        @mouseleave=${this.#onContainerLinkMouseLeave}
-      ><devtools-node-text
-          data-node-title=${nodeTitle}
-          .data=${{
-        nodeTitle,
-        nodeId: idToDisplay,
-        nodeClasses: classesToDisplay,
-      }}></devtools-node-text></a>
+      <a href="#" draggable=false class="container-link"
+         jslog=${VisualLogging.cssRuleHeader('container-query').track({click: true})}
+         @click=${this.#onContainerLinkClick}
+         @mouseenter=${this.#onContainerLinkMouseEnter}
+         @mouseleave=${this.#onContainerLinkMouseLeave}>
+        <devtools-node-text data-node-title=${nodeTitle} .data=${{
+          nodeTitle,
+          nodeId: idToDisplay,
+          nodeClasses: classesToDisplay,
+        }}>
+        </devtools-node-text>
+      </a>
       ${this.#isContainerLinkHovered ? this.#renderQueriedSizeDetails() : Lit.nothing}
     `, this.#shadow, {
       host: this,
@@ -124,14 +115,12 @@ export class QueryContainer extends HTMLElement {
     // clang-format off
     return html`
       <span class="queried-size-details">
-        (${this.#queriedSizeDetails.queryAxis}<devtools-icon
-          class=${axisIconClasses} .data=${{
-            iconName: 'width',
-            color: 'var(--icon-default)',
-          }}></devtools-icon>)
-        ${areBothAxesQueried && this.#queriedSizeDetails.width ? 'width:' : Lit.nothing}
+        (${this.#queriedSizeDetails.queryAxis}
+        <devtools-icon
+          class=${axisIconClasses} name="width"></devtools-icon>
+        ) ${areBothAxesQueried && this.#queriedSizeDetails.width ? ' width: ' : Lit.nothing}
         ${this.#queriedSizeDetails.width || Lit.nothing}
-        ${areBothAxesQueried && this.#queriedSizeDetails.height ? 'height:' : Lit.nothing}
+        ${areBothAxesQueried && this.#queriedSizeDetails.height ? ' height: ' : Lit.nothing}
         ${this.#queriedSizeDetails.height || Lit.nothing}
       </span>
     `;

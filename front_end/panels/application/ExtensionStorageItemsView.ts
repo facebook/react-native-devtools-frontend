@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,11 +43,11 @@ import {KeyValueStorageItemsView, type View as KeyValueStorageItemsViewFunction}
 
 const UIStrings = {
   /**
-   *@description Name for the "Extension Storage Items" table that shows the content of the extension Storage.
+   * @description Name for the "Extension Storage Items" table that shows the content of the extension Storage.
    */
   extensionStorageItems: 'Extension Storage Items',
   /**
-   *@description Text for announcing that the "Extension Storage Items" table was cleared, that is, all
+   * @description Text for announcing that the "Extension Storage Items" table was cleared, that is, all
    * entries were deleted.
    */
   extensionStorageItemsCleared: 'Extension Storage Items cleared',
@@ -73,10 +73,9 @@ export class ExtensionStorageItemsView extends KeyValueStorageItemsView {
       Common.ObjectWrapper.ObjectWrapper<ExtensionStorageItemsDispatcher.EventTypes>;
 
   constructor(extensionStorage: ExtensionStorage, view?: KeyValueStorageItemsViewFunction) {
-    super(i18nString(UIStrings.extensionStorageItems), 'extension-storage', true, view);
-
-    this.element.setAttribute('jslog', `${VisualLogging.pane().context('extension-storage-data')}`);
-    this.element.classList.add('storage-view', 'table');
+    super(
+        i18nString(UIStrings.extensionStorageItems), 'extension-storage', true, view, undefined,
+        `${VisualLogging.pane().context('extension-storage-data')}`, ['storage-view', 'table']);
 
     this.extensionStorageItemsDispatcher =
         new Common.ObjectWrapper.ObjectWrapper<ExtensionStorageItemsDispatcher.EventTypes>();
@@ -143,7 +142,7 @@ export class ExtensionStorageItemsView extends KeyValueStorageItemsView {
     }
 
     this.itemsCleared();
-    UI.ARIAUtils.alert(i18nString(UIStrings.extensionStorageItemsCleared));
+    UI.ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.extensionStorageItemsCleared));
   }
 
   override deleteSelectedItem(): void {
@@ -159,13 +158,13 @@ export class ExtensionStorageItemsView extends KeyValueStorageItemsView {
 
   async #refreshItems(): Promise<void> {
     const items = await this.#extensionStorage.getItems();
-    if (!items) {
+    if (!items || !this.toolbar) {
       return;
     }
-    const filteredItems = this.filter(
-        Object.entries(items).map(
-            ([key, value]) => ({key, value: typeof value === 'string' ? value : JSON.stringify(value)})),
-        item => `${item.key} ${item.value}`);
+    const filteredItems =
+        Object.entries(items)
+            .map(([key, value]) => ({key, value: typeof value === 'string' ? value : JSON.stringify(value)}))
+            .filter(item => this.toolbar?.filterRegex?.test(`${item.key} ${item.value}`) ?? true);
     this.showItems(filteredItems);
     this.extensionStorageItemsDispatcher.dispatchEventToListeners(
         ExtensionStorageItemsDispatcher.Events.ITEMS_REFRESHED);

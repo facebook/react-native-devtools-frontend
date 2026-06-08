@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,15 @@ import * as SDK from '../../core/sdk/sdk.js';
 import * as Logs from '../../models/logs/logs.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
 import * as Workspace from '../../models/workspace/workspace.js';
-import {describeWithLocale} from '../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../testing/LocaleHelpers.js';
 import type * as Search from '../search/search.js';
 
 import * as Network from './network.js';
 
 const {urlString} = Platform.DevToolsPath;
 
-describeWithLocale('NetworkSearchScope', () => {
+describe('NetworkSearchScope', () => {
+  setupLocaleHooks();
   let scope: Network.NetworkSearchScope.NetworkSearchScope;
 
   beforeEach(() => {

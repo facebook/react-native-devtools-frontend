@@ -1,6 +1,7 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view, @devtools/enforce-custom-element-definitions-location */
 
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Diff from '../../../third_party/diff/diff.js';
@@ -8,34 +9,33 @@ import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 import * as Lit from '../../lit/lit.js';
 import * as CodeHighlighter from '../code_highlighter/code_highlighter.js';
 
-import diffViewStylesRaw from './diffView.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const diffViewStyles = new CSSStyleSheet();
-diffViewStyles.replaceSync(diffViewStylesRaw.cssText);
-const CodeHighlighterStyles = new CSSStyleSheet();
-CodeHighlighterStyles.replaceSync(CodeHighlighter.codeHighlighterStyles.cssText);
+import diffViewStyles from './diffView.css.js';
 
 const {html} = Lit;
 
 const UIStrings = {
   /**
-   *@description Text prepended to a removed line in a diff in the Changes tool, viewable only by screen reader.
+   * @description Text prepended to a removed line in a diff in the Changes tool, viewable only by screen reader.
    */
   deletions: 'Deletion:',
   /**
-   *@description Text prepended to a new line in a diff in the Changes tool, viewable only by screen reader.
+   * @description Text prepended to a new line in a diff in the Changes tool, viewable only by screen reader.
    */
   additions: 'Addition:',
   /**
-   *@description Screen-reader accessible name for the code editor in the Changes tool showing the user's changes.
+   * @description Screen-reader accessible name for the code editor in the Changes tool showing the user's changes.
    */
   changesDiffViewer: 'Changes diff viewer',
   /**
-   *@description Text in Changes View of the Changes tab
-   *@example {2} PH1
+   * @description Text in Changes View of the Changes tab
+   * @example {2} PH1
    */
   SkippingDMatchingLines: '( … Skipping {PH1} matching lines … )',
+  /**
+   * @description Text in Changes View for the case where the modified file contents are the same with its unmodified state
+   * e.g. the file contents changed from A -> B then B -> A and not saved yet.
+   */
+  noDiff: 'File is identical to its unmodified state',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('ui/components/diff_view/DiffView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -199,6 +199,8 @@ class DiffRenderer {
 
   #render(rows: readonly Row[]): Lit.TemplateResult {
     return html`
+      <style>${diffViewStyles}</style>
+      <style>${CodeHighlighter.codeHighlighterStyles}</style>
       <div class="diff-listing" aria-label=${i18nString(UIStrings.changesDiffViewer)}>
         ${rows.map(row => this.#renderRow(row))}
       </div>`;
@@ -272,23 +274,36 @@ export interface DiffViewData {
   mimeType: string;
 }
 
-export class DiffView extends HTMLElement {
+function renderNoDiffState(container: HTMLElement|DocumentFragment): void {
+  // clang-format off
+  Lit.render(html`
+    <style>${diffViewStyles}</style>
+    <p class="diff-listing-no-diff" data-testid="no-diff">${i18nString(UIStrings.noDiff)}</p>`,
+  container, {host: container});
+  // clang-format on
+}
 
+export class DiffView extends HTMLElement {
   readonly #shadow = this.attachShadow({mode: 'open'});
   loaded: Promise<void>;
 
   constructor(data?: DiffViewData) {
     super();
-    this.#shadow.adoptedStyleSheets = [diffViewStyles, CodeHighlighterStyles];
-    if (data) {
-      this.loaded = DiffRenderer.render(data.diff, data.mimeType, this.#shadow);
-    } else {
-      this.loaded = Promise.resolve();
-    }
+
+    this.loaded = this.#render(data);
   }
 
   set data(data: DiffViewData) {
-    this.loaded = DiffRenderer.render(data.diff, data.mimeType, this.#shadow);
+    this.loaded = this.#render(data);
+  }
+
+  async #render(data?: DiffViewData): Promise<void> {
+    if (!data || data.diff.length === 0) {
+      renderNoDiffState(this.#shadow);
+      return;
+    }
+
+    await DiffRenderer.render(data.diff, data.mimeType, this.#shadow);
   }
 }
 

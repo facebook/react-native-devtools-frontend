@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as UI from '../../ui/legacy/legacy.js';
 /**
- * @fileoverview using private properties isn't a Closure violation in tests.
+ * @file using private properties isn't a Closure violation in tests.
  */
 self.ExtensionsTestRunner = self.ExtensionsTestRunner || {};
 
@@ -50,7 +50,8 @@ ExtensionsTestRunner.evaluateInExtension = function(code) {
 };
 
 ExtensionsTestRunner.runExtensionTests = async function(tests) {
-  const result = await TestRunner.RuntimeAgent.evaluate('location.href', 'console', false);
+  const {result} = await TestRunner.RuntimeAgent.invoke_evaluate(
+      {expression: 'location.href', objectGroup: 'console', includeCommandLineAPI: false});
 
   if (!result) {
     return;

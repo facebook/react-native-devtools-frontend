@@ -1,11 +1,11 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import {
   renderElementIntoDOM,
 } from '../../../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../../../testing/LocaleHelpers.js';
 
 import * as InlineEditor from './inline_editor.js';
 
@@ -18,7 +18,8 @@ function createSwatch(text: string, firstColor: string, secondColor: string) {
   return swatch;
 }
 
-describeWithLocale('ColorMixSwatch', () => {
+describe('ColorMixSwatch', () => {
+  setupLocaleHooks();
   it('should render color-mix swatch icon when the syntax is correct', () => {
     const swatch = createSwatch('color-mix(in srgb, red, blue)', 'red', 'blue');
 

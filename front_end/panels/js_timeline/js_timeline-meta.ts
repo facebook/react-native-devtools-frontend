@@ -1,35 +1,36 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import * as SDK from '../../core/sdk/sdk.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import type * as Timeline from '../timeline/timeline.js';
 
 const UIStrings = {
   /**
-   *@description Text for the performance of something
+   * @description Text for the performance of something
    */
   performance: 'Performance',
   /**
-   *@description Command for showing the 'Performance' tool
+   * @description Command for showing the 'Performance' tool
    */
   showPerformance: 'Show Performance',
   /**
-   *@description Title of an action in the timeline tool to show history
+   * @description Title of an action in the timeline tool to show history
    */
   showRecentTimelineSessions: 'Show recent timeline sessions',
   /**
-   *@description Text to record a series of actions for analysis
+   * @description Text to record a series of actions for analysis
    */
   record: 'Record',
   /**
-   *@description Text of an item that stops the running task
+   * @description Text of an item that stops the running task
    */
   stop: 'Stop',
   /**
-   *@description Title of an action in the timeline tool to record a reload of the current page
+   * @description Title of an action in the timeline tool to record a reload of the current page
    */
   recordAndReload: 'Record and reload',
 } as const;
@@ -61,9 +62,10 @@ UI.ViewManager.registerViewExtension({
   order: 66,
   hasToolbar: false,
   isPreviewFeature: true,
-  async loadView() {
+  async loadView(universe) {
     const Timeline = await loadTimelineModule();
-    return Timeline.TimelinePanel.TimelinePanel.instance({forceNew: null, isNode: true});
+    const resourceLoader = universe.context.get(SDK.PageResourceLoader.PageResourceLoader);
+    return Timeline.TimelinePanel.TimelinePanel.instance({forceNew: true, resourceLoader});
   },
 });
 

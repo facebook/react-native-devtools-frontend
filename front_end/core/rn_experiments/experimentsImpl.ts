@@ -144,10 +144,12 @@ class RNExperimentsSupport {
 
   copyInto(other: Root.Runtime.ExperimentsSupport, titlePrefix = ''): void {
     for (const [name, spec] of this.#experiments) {
+      // RNExperimentName mirrors the React Native entries in Root.Runtime.ExperimentName
+      // (see ExperimentNames.ts); cast to satisfy the core experiments API.
+      const coreName = name as unknown as Root.Runtime.ExperimentName;
       other.register(
-        name,
+        coreName,
         titlePrefix + spec.title,
-        spec.unstable,
         spec.docLink,
         spec.feedbackLink,
       );
@@ -156,7 +158,7 @@ class RNExperimentsSupport {
           isReactNativeEntryPoint: state.isReactNativeEntryPoint,
         })
       ) {
-        other.enableExperimentsByDefault([name]);
+        other.enableExperimentsByDefault([coreName]);
       }
     }
     for (const name of this.#defaultEnabledCoreExperiments) {

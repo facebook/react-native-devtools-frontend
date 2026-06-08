@@ -1,89 +1,79 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import stylisticPlugin from '@stylistic/eslint-plugin';
-import typescriptPlugin from '@typescript-eslint/eslint-plugin';
-import tsParser from '@typescript-eslint/parser';
+import { defineConfig, globalIgnores } from 'eslint/config';
 import eslintPlugin from 'eslint-plugin-eslint-plugin';
 import importPlugin from 'eslint-plugin-import';
 import jsdocPlugin from 'eslint-plugin-jsdoc';
+import litPlugin from 'eslint-plugin-lit';
 import mochaPlugin from 'eslint-plugin-mocha';
-import rulesdirPlugin from 'eslint-plugin-rulesdir';
 import globals from 'globals';
-import { join } from 'path';
+import { join } from 'node:path';
+import typescriptEslint from 'typescript-eslint';
 
-rulesdirPlugin.RULES_DIR = join(
-  import.meta.dirname,
-  'scripts',
-  'eslint_rules',
-  'lib',
-);
+import devToolsPlugin from './scripts/eslint_rules/plugin.mjs';
 
-/**
- * @type {import('eslint').Linter.Config[]}
- */
-export default [
-  {
-    name: 'Ignore list',
-    ignores: [
-      // Git submodules that are not in third_party
-      'build/',
-      'buildtools/',
+export default defineConfig([
+  globalIgnores([
+    // Git submodules that are not in third_party
+    'build/',
+    'buildtools/',
 
-      // Don't include the common build directory
-      'out/',
-      // Don't include third party code
-      'third_party/',
+    // Don't include the common build directory
+    'out/',
+    // Don't include third party code
+    'third_party/',
 
-      'front_end/diff/diff_match_patch.jD',
-      'front_end/models/javascript_metadata/NativeFunctions.js',
-      // All of these scripts are auto-generated so don't lint them.
-      'front_end/generated/ARIAProperties.js',
-      'front_end/generated/Deprecation.ts',
-      'front_end/generated/InspectorBackendCommands.js',
-      'front_end/generated/protocol-mapping.d.ts',
-      'front_end/generated/protocol-proxy-api.d.ts',
-      'front_end/generated/protocol.ts',
-      // Any third_party addition has its source code checked out into
-      // third_party/X/package, so we ignore that code as it's not code we author or
-      // own.
-      'front_end/third_party/*/package/',
-      // Any JS files are also not authored by devtools-frontend, so we ignore those.
-      'front_end/third_party/**/*',
-      // Lighthouse doesn't have a package/ folder but has other nested folders, so
-      // we ignore any folders within the lighthouse directory.
-      'front_end/third_party/lighthouse/*/',
-      // The CodeMirror bundle file is auto-generated and rolled-up as part of the',
-      // install script, so we don't need to lint it.
-      'front_end/third_party/codemirror.next/bundle.ts',
-      // Lit lib files are auto-generated and rolled up as part of the install script.
-      'front_end/third_party/lit/src/*.ts',
-      // @puppeteer/replay is auto-generated.
-      'front_end/third_party/puppeteer-replay/**/*.ts',
-      // Third party code we did not author for extensions
-      'extensions/cxx_debugging/third_party/**/*',
+    'front_end/diff/diff_match_patch.js',
+    'front_end/models/javascript_metadata/NativeFunctions.js',
+    // All of these scripts are auto-generated so don't lint them.
+    'front_end/generated/ARIAProperties.js',
+    'front_end/generated/Deprecation.ts',
+    'front_end/generated/InspectorBackendCommands.ts',
+    'front_end/generated/protocol-mapping.d.ts',
+    'front_end/generated/protocol-proxy-api.d.ts',
+    'front_end/generated/protocol.ts',
+    // Any third_party addition has its source code checked out into
+    // third_party/X/package, so we ignore that code as it's not code we author or
+    // own.
+    'front_end/third_party/*/package/',
+    // Any JS files are also not authored by devtools-frontend, so we ignore those.
+    'front_end/third_party/**/*',
+    // Lighthouse doesn't have a package/ folder but has other nested folders, so
+    // we ignore any folders within the lighthouse directory.
+    'front_end/third_party/lighthouse/*/',
+    // The CodeMirror bundle file is auto-generated and rolled-up as part of the',
+    // install script, so we don't need to lint it.
+    'front_end/third_party/codemirror.next/bundle.ts',
+    // Lit lib files are auto-generated and rolled up as part of the install script.
+    'front_end/third_party/lit/src/*.ts',
+    // @puppeteer/replay is auto-generated.
+    'front_end/third_party/puppeteer-replay/**/*.ts',
+    // Third party code we did not author for extensions
+    'extensions/cxx_debugging/third_party/**/*',
 
-      '**/node_modules',
-      'scripts/build/typescript/tests',
-      'scripts/migration/**/*.js',
-      'scripts/protocol_typescript/*.js',
-      'scripts/deps/tests/fixtures',
-      'test/**/fixtures/',
-      'test/e2e/**/*.js',
-      'test/shared/**/*.js',
-    ],
-  },
+    '**/node_modules',
+    'scripts/build/typescript/tests',
+    'scripts/migration/**/*.js',
+    'scripts/protocol_typescript/*.js',
+    'scripts/deps/tests/fixtures',
+    'test/**/fixtures/',
+    'test/e2e/**/*.js',
+    'test/shared/**/*.js',
+  ]),
   {
     name: 'JavaScript files',
     plugins: {
-      '@typescript-eslint': typescriptPlugin,
+      '@typescript-eslint': typescriptEslint.plugin,
       '@stylistic': stylisticPlugin,
       '@eslint-plugin': eslintPlugin,
       mocha: mochaPlugin,
-      rulesdir: rulesdirPlugin,
+      '@devtools': devToolsPlugin,
       import: importPlugin,
       jsdoc: jsdocPlugin,
+      lit: litPlugin,
     },
 
     languageOptions: {
@@ -96,6 +86,7 @@ export default [
 
     linterOptions: {
       reportUnusedDisableDirectives: 'error',
+      reportUnusedInlineConfigs: 'error',
     },
 
     rules: {
@@ -105,7 +96,7 @@ export default [
         'single',
         {
           avoidEscape: true,
-          allowTemplateLiterals: false,
+          allowTemplateLiterals: 'always',
         },
       ],
 
@@ -134,7 +125,7 @@ export default [
 
       curly: 'error',
       '@stylistic/new-parens': 'error',
-      '@stylistic/func-call-spacing': 'error',
+      '@stylistic/function-call-spacing': 'error',
       '@stylistic/arrow-parens': ['error', 'as-needed'],
       '@stylistic/eol-last': 'error',
       'object-shorthand': ['error', 'properties'],
@@ -263,6 +254,7 @@ export default [
       // no-implicit-globals will prevent accidental globals
       'no-implicit-globals': 'off',
       'no-unused-private-class-members': 'error',
+      'no-useless-constructor': 'error',
 
       // Sort imports first
       'import/first': 'error',
@@ -292,16 +284,38 @@ export default [
           },
         },
       ],
+      'import/enforce-node-protocol-usage': ['error', 'always'],
       // Try to spot '// console.log()' left over from debugging
-      'rulesdir/no-commented-out-console': 'error',
+      '@devtools/no-commented-out-console': 'error',
       // Prevent imports being commented out rather than deleted.
-      'rulesdir/no-commented-out-import': 'error',
-      'rulesdir/check-license-header': 'error',
+      '@devtools/no-commented-out-import': 'error',
       /**
-       * Ensures that JS Doc comments are properly aligned - all the starting
-       * `*` are in the right place.
+       * Enforce some consistency and usefulness of JSDoc comments, to make sure
+       * we actually benefit from them.
        */
       'jsdoc/check-alignment': 'error',
+      'jsdoc/check-tag-names': [
+        'error',
+        {
+          definedTags: [
+            'attribute', // @attribute is used by lit-analyzer (through web-component-analyzer)
+            'meaning', // @meaning is used by localization
+          ],
+        },
+      ],
+      'jsdoc/empty-tags': 'error',
+      'jsdoc/multiline-blocks': 'error',
+      'jsdoc/no-bad-blocks': 'error',
+      'jsdoc/no-blank-blocks': [
+        'error',
+        {
+          enableFixer: true,
+        },
+      ],
+      'jsdoc/require-asterisk-prefix': 'error',
+      'jsdoc/require-param-name': 'error',
+      'jsdoc/require-hyphen-before-param-description': ['error', 'never'],
+      'jsdoc/sort-tags': 'error',
     },
   },
   {
@@ -312,10 +326,9 @@ export default [
       ecmaVersion: 'latest',
       sourceType: 'module',
 
-      parser: tsParser,
+      parser: typescriptEslint.parser,
       parserOptions: {
         allowAutomaticSingleRunInference: true,
-        projectService: true,
         project: join(
           import.meta.dirname,
           'config',
@@ -539,7 +552,9 @@ export default [
         },
       ],
 
-      '@typescript-eslint/prefer-optional-chain': 'error',
+      // Broke in 8.58.0, waiting for a fix
+      // https://github.com/typescript-eslint/typescript-eslint/issues/12204
+      '@typescript-eslint/prefer-optional-chain': 'off',
 
       '@typescript-eslint/no-unsafe-function-type': 'error',
 
@@ -553,10 +568,15 @@ export default [
       'no-array-constructor': 'off',
       '@typescript-eslint/no-array-constructor': 'error',
 
-      'rulesdir/no-underscored-properties': 'error',
-      'rulesdir/inline-type-imports': 'error',
+      '@typescript-eslint/consistent-indexed-object-style': 'error',
 
-      'rulesdir/enforce-default-import-name': [
+      'no-useless-constructor': 'off',
+      '@typescript-eslint/no-useless-constructor': 'error',
+
+      '@devtools/no-underscored-properties': 'error',
+      '@devtools/inline-type-imports': 'error',
+
+      '@devtools/enforce-default-import-name': [
         'error',
         {
           // Enforce that any import of models/trace/trace.js names the import Trace.
@@ -570,6 +590,13 @@ export default [
           importName: 'Trace',
         },
       ],
+
+      '@devtools/validate-timing-types': 'error',
+
+      // Disallow redundant (and potentially conflicting) type information
+      // within JSDoc comments.
+      'jsdoc/no-types': 'error',
+      'jsdoc/require-returns-description': 'error',
     },
   },
   {
@@ -577,7 +604,7 @@ export default [
     files: ['scripts/**/*'],
     rules: {
       'no-console': 'off',
-      'rulesdir/es-modules-import': 'off',
+      '@devtools/es-modules-import': 'off',
       'import/no-default-export': 'off',
     },
   },
@@ -586,17 +613,17 @@ export default [
     files: ['front_end/**/*'],
     rules: {
       // L10n rules are only relevant in 'front_end'.
-      'rulesdir/l10n-filename-matches': [
+      '@devtools/l10n-filename-matches': [
         'error',
         {
           rootFrontendDirectory: join(import.meta.dirname, 'front_end'),
         },
       ],
-      'rulesdir/l10n-i18nString-call-only-with-uistrings': 'error',
-      'rulesdir/l10n-no-i18nString-calls-module-instantiation': 'error',
-      'rulesdir/l10n-no-locked-or-placeholder-only-phrase': 'error',
-      'rulesdir/l10n-no-uistrings-export': 'error',
-      'rulesdir/l10n-no-unused-message': 'error',
+      '@devtools/l10n-i18nString-call-only-with-uistrings': 'error',
+      '@devtools/l10n-no-i18nString-calls-module-instantiation': 'error',
+      '@devtools/l10n-no-locked-or-placeholder-only-phrase': 'error',
+      '@devtools/l10n-no-uistrings-export': 'error',
+      '@devtools/l10n-no-unused-message': 'error',
     },
   },
   {
@@ -611,32 +638,57 @@ export default [
           allowIIFEs: true,
         },
       ],
-      'rulesdir/no-importing-images-from-src': 'error',
-      'rulesdir/enforce-bound-render-for-schedule-render': 'error',
-      'rulesdir/enforce-custom-event-names': 'error',
-      'rulesdir/set-data-type-reference': 'error',
-      'rulesdir/no-bound-component-methods': 'error',
-      'rulesdir/no-customized-builtin-elements': 'error',
-      'rulesdir/no-self-closing-custom-element-tagnames': 'error',
-      'rulesdir/no-a-tags-in-lit': 'error',
-      'rulesdir/check-css-import': 'error',
-      'rulesdir/enforce-optional-properties-last': 'error',
-      'rulesdir/check-enumerated-histograms': 'error',
-      'rulesdir/check-was-shown-methods': 'error',
-      'rulesdir/static-custom-event-names': 'error',
-      'rulesdir/lit-no-attribute-quotes': 'error',
-      'rulesdir/lit-template-result-or-nothing': 'error',
-      'rulesdir/inject-checkbox-styles': 'error',
-      'rulesdir/jslog-context-list': 'error',
-      'rulesdir/es-modules-import': 'error',
-      'rulesdir/html-tagged-template': 'error',
-      'rulesdir/enforce-custom-element-definitions-location': [
+      '@devtools/no-imperative-dom-api': 'error',
+      '@devtools/no-lit-render-outside-of-view': 'error',
+      '@devtools/no-importing-images-from-src': 'error',
+      '@devtools/enforce-custom-event-names': 'error',
+      '@devtools/set-data-type-reference': 'error',
+      '@devtools/no-bound-component-methods': 'error',
+      '@devtools/no-adopted-style-sheets': 'error',
+      '@devtools/no-customized-builtin-elements': 'error',
+      '@devtools/no-deprecated-component-usages': 'error',
+      '@devtools/no-self-closing-custom-element-tagnames': 'error',
+      '@devtools/no-a-tags-in-lit': 'error',
+      '@devtools/check-css-import': 'error',
+      '@devtools/enforce-optional-properties-last': 'error',
+      '@devtools/check-enumerated-histograms': 'error',
+      '@devtools/require-super-calls-in-overridden-methods': [
+        'error',
+        {
+          methodNames: ['wasShown', 'willHide'],
+        },
+      ],
+      '@devtools/static-custom-event-names': 'error',
+      '@devtools/lit-no-attribute-quotes': 'error',
+      '@devtools/lit-template-result-or-nothing': 'error',
+      '@devtools/inject-checkbox-styles': 'error',
+      '@devtools/jslog-context-list': 'error',
+      '@devtools/es-modules-import': 'error',
+      '@devtools/html-tagged-template': 'error',
+      '@devtools/enforce-ui-kit-named-import': 'error',
+      '@devtools/enforce-custom-element-definitions-location': [
         'error',
         {
           rootFrontendDirectory: join(import.meta.dirname, 'front_end'),
         },
       ],
-      'rulesdir/enforce-ui-strings-as-const': 'error',
+      '@devtools/enforce-ui-strings-as-const': 'error',
+      '@devtools/no-new-lit-element-components': 'error',
+      '@devtools/enforce-custom-element-prefix': 'error',
+
+      // Lit recommended
+      'lit/attribute-value-entities': 'error',
+      'lit/binding-positions': 'error',
+      'lit/no-duplicate-template-bindings': 'error',
+      'lit/no-invalid-html': 'error',
+      // TODO: enable this once we figure ot the custom directive
+      // 'lit/no-legacy-template-syntax': 'error',
+      'lit/no-property-change-update': 'error',
+
+      // Lit DevTools preferred
+      'lit/prefer-nothing': 'error',
+      'lit/value-after-constraints': 'error',
+      'lit/quoted-expressions': ['error', 'never'],
     },
   },
   {
@@ -654,6 +706,13 @@ export default [
     },
   },
   {
+    name: 'Front-end docs files',
+    files: ['front_end/**/*.docs.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
     name: 'TypeScript test files',
     files: [
       '*.test.ts',
@@ -661,14 +720,11 @@ export default [
       'front_end/**/*.test.ts',
       'test/**/*.ts',
       '**/testing/*.ts',
-      'scripts/eslint_rules/test/**/*.js',
+      'scripts/eslint_rules/test/**/*',
       'extensions/cxx_debugging/e2e/**',
     ],
 
     rules: {
-      // errors on it('test') with no body
-      'mocha/no-pending-tests': 'error',
-
       // errors on {describe, it}.only
       'mocha/no-exclusive-tests': 'error',
 
@@ -693,18 +749,26 @@ export default [
         },
       ],
 
-      'rulesdir/check-test-definitions': 'error',
-      'rulesdir/no-assert-strict-equal-for-arrays-and-objects': 'error',
-      'rulesdir/no-assert-deep-strict-equal': 'error',
-      'rulesdir/no-assert-equal': 'error',
-      'rulesdir/no-assert-equal-boolean-null-undefined': 'error',
-      'rulesdir/no-screenshot-test-outside-perf-panel': 'error',
-      'rulesdir/prefer-assert-instance-of': 'error',
-      'rulesdir/prefer-assert-is-ok': 'error',
-      'rulesdir/prefer-assert-length-of': 'error',
-      'rulesdir/prefer-url-string': 'error',
-      'rulesdir/trace-engine-test-timeouts': 'error',
-      'rulesdir/enforce-custom-element-definitions-location': 'off',
+      '@devtools/check-test-definitions': 'error',
+      '@devtools/no-assert-strict-equal-for-arrays-and-objects': 'error',
+      '@devtools/no-assert-deep-strict-equal': 'error',
+      '@devtools/no-assert-equal': 'error',
+      '@devtools/no-assert-equal-boolean-null-undefined': 'error',
+      '@devtools/no-capture-screenshot': 'error',
+      '@devtools/no-imperative-dom-api': 'off',
+      '@devtools/no-lit-render-outside-of-view': 'off',
+      '@devtools/prefer-assert-instance-of': 'error',
+      '@devtools/prefer-assert-is-ok': 'error',
+      '@devtools/prefer-assert-length-of': 'error',
+      '@devtools/prefer-assert-strict-equal': 'error',
+      '@devtools/prefer-sinon-assert': 'error',
+      '@devtools/prefer-url-string': 'error',
+      '@devtools/trace-engine-test-timeouts': 'error',
+      '@devtools/no-document-body-mutation': 'error',
+      // Don't update the KnownContext with test data.
+      '@devtools/jslog-context-list': 'off',
+      '@devtools/enforce-custom-element-definitions-location': 'off',
+      '@devtools/enforce-custom-element-prefix': 'off',
     },
 
     settings: {
@@ -729,16 +793,6 @@ export default [
           type: 'suite',
           interfaces: ['BDD', 'TDD'],
         },
-        {
-          name: 'describeWithRealConnection',
-          type: 'suite',
-          interfaces: ['BDD', 'TDD'],
-        },
-        {
-          name: 'itScreenshot',
-          type: 'testCase',
-          interfaces: ['BDD', 'TDD'],
-        },
       ],
     },
   },
@@ -751,7 +805,7 @@ export default [
     ],
 
     rules: {
-      'rulesdir/prefer-private-class-members': 'error',
+      '@devtools/prefer-private-class-members': 'error',
     },
   },
   {
@@ -762,19 +816,19 @@ export default [
     ],
     rules: {
       // TODO(crbug/1402569): Reenable once https://github.com/microsoft/TypeScript/issues/48885 is closed.
-      'rulesdir/prefer-private-class-members': 'off',
+      '@devtools/prefer-private-class-members': 'off',
     },
   },
   {
     name: 'Supported CSS properties rules',
     files: ['front_end/generated/SupportedCSSProperties.js'],
     rules: {
-      'rulesdir/jslog-context-list': 'error',
+      '@devtools/jslog-context-list': 'error',
     },
   },
   {
     name: 'EsLint rules test',
-    files: ['scripts/eslint_rules/tests/**/*.js'],
+    files: ['scripts/eslint_rules/tests/**/*'],
     rules: {
       '@eslint-plugin/no-only-tests': 'error',
     },
@@ -783,12 +837,12 @@ export default [
     name: 'Legacy test runner',
     files: ['front_end/legacy_test_runner/**/*'],
     rules: {
-      'rulesdir/es-modules-import': 'off',
+      '@devtools/es-modules-import': 'off',
     },
   },
   {
-    name: 'Front end component docs',
-    files: ['front_end/ui/components/docs/**/*.ts'],
+    name: 'Front-end component docs',
+    files: ['front_end/ui/components/docs/**/*.ts', '**/*.docs.ts'],
     rules: {
       // This makes the component doc examples very verbose and doesn't add
       // anything, so we leave return types to the developer within the
@@ -796,18 +850,54 @@ export default [
       '@typescript-eslint/explicit-function-return-type': 'off',
       // We use Lit to help render examples sometimes and we don't use
       // {host: this} as often the `this` is the window.
-      'rulesdir/lit-host-this': 'off',
+      '@devtools/lit-host-this': 'off',
+      '@devtools/no-imperative-dom-api': 'off',
+      '@devtools/no-lit-render-outside-of-view': 'off',
     },
   },
   {
-    name: 'Traces import rule',
-    files: ['front_end/models/trace/handlers/**/*.ts'],
+    // [RN] React Native-specific components predate upstream's view-function lint
+    // rules and use direct Lit render / imperative DOM / adoptedStyleSheets patterns.
+    // Keep them exempt until they are migrated. Keep in sync with META_CODE_PATHS in
+    // scripts/eslint_rules/lib/check-license-header.js.
+    name: 'React Native-specific files',
+    files: [
+      'front_end/core/rn_experiments/**/*.ts',
+      'front_end/entrypoints/rn_fusebox/**/*.ts',
+      'front_end/models/react_native/**/*.ts',
+      'front_end/panels/react_devtools/**/*.ts',
+      'front_end/panels/rn_welcome/**/*.ts',
+      'front_end/panels/network/components/NetworkEventCoverageInfobar.ts',
+      'front_end/panels/timeline/ReactNativeTimelineLandingPage.ts',
+      'front_end/panels/timeline/components/RNPerfIssueTypes.ts',
+      'front_end/panels/timeline/components/SidebarRNPerfIssueItem.ts',
+      'front_end/panels/timeline/components/SidebarRNPerfSignalsTab.ts',
+    ],
     rules: {
-      'rulesdir/no-imports-in-directory': [
+      '@devtools/no-lit-render-outside-of-view': 'off',
+      '@devtools/no-imperative-dom-api': 'off',
+      '@devtools/no-adopted-style-sheets': 'off',
+    },
+  },
+  {
+    name: 'Keep models/trace isolated',
+    files: ['front_end/models/trace/**/*.ts'],
+    ignores: ['front_end/models/trace/**/*.test.ts'],
+    rules: {
+      '@devtools/no-imports-in-directory': [
         'error',
         {
           bannedImportPaths: [
-            join(import.meta.dirname, 'front_end', 'core', 'sdk', 'sdk.js'),
+            {
+              bannedPath: join(
+                import.meta.dirname,
+                'front_end',
+                'core',
+                'sdk',
+                'sdk.js',
+              ),
+              allowTypeImports: true,
+            },
           ],
         },
       ],
@@ -818,7 +908,7 @@ export default [
     files: ['front_end/panels/recorder/injected/**/*.ts'],
     rules: {
       // The code is rolled up and tree-shaken independently from the regular entrypoints.
-      'rulesdir/es-modules-import': 'off',
+      '@devtools/es-modules-import': 'off',
     },
   },
   {
@@ -830,7 +920,14 @@ export default [
       // enabled in this folder because it is an
       // expensive rule to run and we do not need it
       // for any code that doesn't use Canvas.
-      'rulesdir/canvas-context-tracking': 'error',
+      '@devtools/canvas-context-tracking': 'error',
+    },
+  },
+  {
+    name: 'AI Assistance agents',
+    files: ['front_end/models/ai_assistance/agents/**/*.ts'],
+    rules: {
+      '@devtools/no-dynamic-preamble': 'error',
     },
   },
   {
@@ -851,4 +948,4 @@ export default [
       'import/no-default-export': 'off',
     },
   },
-];
+]);

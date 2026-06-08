@@ -20,7 +20,9 @@ export function getInstance(): RNPerfMetrics {
 
 type PanelLocation = 'main'|'drawer';
 type UnsubscribeFn = () => void;
-class RNPerfMetrics {
+// Exported so the type of the `rnPerfMetrics` singleton re-exported from host.ts
+// is nameable (required by TypeScript 6.0's stricter declaration emit, TS4094).
+export class RNPerfMetrics {
   readonly #consoleErrorMethod = 'error';
   #listeners = new Set<RNReliabilityEventListener>();
   #launchId: string|null = null;

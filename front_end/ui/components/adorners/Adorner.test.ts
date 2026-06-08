@@ -1,8 +1,7 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Common from '../../../core/common/common.js';
 import type * as Platform from '../../../core/platform/platform.js';
 
 import * as Adorners from './adorners.js';
@@ -23,112 +22,68 @@ describe('Adorner', () => {
     assertIsAdorner(adorner);
   });
 
-  it('can interacts as a toggle button with proper ARIA setup', () => {
-    const content = document.createElement('span');
-    const adorner = new Adorners.Adorner.Adorner();
-    adorner.data = {
-      content,
-      name: 'foo',
-    };
-    assert.isNull(adorner.getAttribute('role'), 'non-interactive adorner had wrong aria role value');
-
-    let clickCounter = 0;
-    const clickListener = () => {
-      clickCounter++;
-    };
-
+  it('can interact as a toggle button with proper ARIA setup', () => {
     const ariaLabelDefault = 'adorner toggled on' as Platform.UIString.LocalizedString;
     const ariaLabelActive = 'adorner toggled off' as Platform.UIString.LocalizedString;
-    adorner.addInteraction(clickListener, {
-      isToggle: true,
-      shouldPropagateOnKeydown: false,
-      ariaLabelActive,
-      ariaLabelDefault,
-    });
-    assert.strictEqual(
-        adorner.getAttribute('aria-label'), ariaLabelDefault,
-        'interactive adorner didn\'t have correct initial aria-label value');
-    assert.strictEqual(
-        adorner.getAttribute('role'), 'button', 'interactive adorner didn\'t have correct aria role setup');
+
+    const content = document.createElement('span');
+    const adorner = new Adorners.Adorner.Adorner();
+    adorner.name = ariaLabelDefault;
+    adorner.append(content);
+    assert.isNull(adorner.getAttribute('role'), 'non-interactive adorner had wrong aria role value');
+
+    adorner.setAttribute('toggleable', 'true');
+
+    // Adorner no longer handles clicks and keydowns automatically.
+    // We simulate the consumer (like ElementsTreeElement) handling logic.
+    const clickListener = () => {
+      if (adorner.isActive()) {
+        adorner.setAttribute('active', 'false');
+        adorner.setAttribute('aria-label', ariaLabelDefault);
+      } else {
+        adorner.setAttribute('active', 'true');
+        adorner.setAttribute('aria-label', ariaLabelActive);
+      }
+    };
+    adorner.addEventListener('click', clickListener);
+
+    // Initial state check after setting toggleable (should be inactive)
     assert.strictEqual(
         adorner.getAttribute('aria-pressed'), 'false',
         'toggle adorner didn\'t have correct initial aria-pressed value');
 
+    // Simulate Click
     adorner.click();
-    assert.strictEqual(clickCounter, 1, 'interactive adorner was not triggered by clicking');
     assert.strictEqual(
         adorner.getAttribute('aria-label'), ariaLabelActive,
         'interactive adorner didn\'t have correct active aria-label value');
     assert.strictEqual(
+        adorner.getAttribute('role'), 'button', 'interactive adorner didn\'t have correct aria role setup');
+    assert.strictEqual(
         adorner.getAttribute('aria-pressed'), 'true', 'toggle adorner didn\'t have correct active aria-pressed value');
 
-    adorner.dispatchEvent(new KeyboardEvent('keydown', {code: 'Enter'}));
-    assert.strictEqual(clickCounter, 2, 'interactive adorner was not triggered by Enter key');
+    // Simulate toggle OFF
+    adorner.click();
     assert.strictEqual(
         adorner.getAttribute('aria-label'), ariaLabelDefault,
         'interactive adorner didn\'t have correct inactive aria-label value');
     assert.strictEqual(
         adorner.getAttribute('aria-pressed'), 'false',
         'toggle adorner didn\'t have correct inactive aria-pressed value');
-
-    adorner.dispatchEvent(new KeyboardEvent('keydown', {code: 'Space'}));
-    assert.strictEqual(clickCounter, 3, 'interactive adorner was not triggered by Space key');
-    assert.strictEqual(
-        adorner.getAttribute('aria-label'), ariaLabelActive,
-        'interactive adorner didn\'t have correct active aria-label value');
-    assert.strictEqual(
-        adorner.getAttribute('aria-pressed'), 'true', 'toggle adorner didn\'t have correct active aria-pressed value');
   });
 
   it('can be toggled programmatically', () => {
     const content = document.createElement('span');
     const adorner = new Adorners.Adorner.Adorner();
-    adorner.data = {
-      content,
-      name: 'foo',
-    };
-    adorner.addInteraction(() => {}, {
-      isToggle: true,
-      shouldPropagateOnKeydown: false,
-      ariaLabelActive: Common.UIString.LocalizedEmptyString,
-      ariaLabelDefault: Common.UIString.LocalizedEmptyString,
-    });
+    adorner.name = 'foo';
+    adorner.setAttribute('toggleable', 'true');
+    adorner.append(content);
     assert.strictEqual(
         adorner.getAttribute('aria-pressed'), 'false',
         'toggle adorner didn\'t have correct initial aria-pressed value');
 
-    adorner.toggle();
+    adorner.setAttribute('active', 'true');
     assert.strictEqual(
         adorner.getAttribute('aria-pressed'), 'true', 'toggle adorner didn\'t have correct active aria-pressed value');
-  });
-
-  it('only contains the most recently slotted content after multiple data setting calls', () => {
-    const content1 = document.createElement('span');
-    content1.textContent = 'content 1';
-
-    const content2 = document.createElement('div');
-    content2.textContent = 'content 2';
-
-    const content3 = document.createElement('span');
-    content3.textContent = 'content 3';
-
-    const adorner = new Adorners.Adorner.Adorner();
-    adorner.data = {
-      content: content1,
-      name: 'foo',
-    };
-    adorner.data = {
-      content: content2,
-      name: 'foo',
-    };
-    adorner.data = {
-      content: content3,
-      name: 'foo',
-    };
-
-    const slottedChildren = adorner.children;
-    assert.lengthOf(slottedChildren, 1, 'adorner light dom should only have one child with [slot="content"]');
-    assert.strictEqual(
-        slottedChildren[0].textContent, 'content 3', 'adorner content slot should have the most recent content');
   });
 });

@@ -1,6 +1,7 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 /*
  * Copyright (C) 2007 Apple Inc.  All rights reserved.
@@ -37,6 +38,7 @@ import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
+import type * as ComputedStyleModule from '../../models/computed_style/computed_style.js';
 import * as TreeOutline from '../../ui/components/tree_outline/tree_outline.js';
 import * as InlineEditor from '../../ui/legacy/components/inline_editor/inline_editor.js';
 import * as Components from '../../ui/legacy/components/utils/utils.js';
@@ -44,15 +46,14 @@ import * as UI from '../../ui/legacy/legacy.js';
 import * as Lit from '../../ui/lit/lit.js';
 
 import * as ElementsComponents from './components/components.js';
-import {type ComputedStyle, type ComputedStyleModel, Events} from './ComputedStyleModel.js';
-import computedStyleSidebarPaneStyles from './computedStyleSidebarPane.css.js';
+import computedStyleWidgetStyles from './computedStyleWidget.css.js';
 import {ImagePreviewPopover} from './ImagePreviewPopover.js';
-import {PlatformFontsWidget} from './PlatformFontsWidget.js';
 import {categorizePropertyName, type Category, DefaultCategoryOrder} from './PropertyNameCategories.js';
 import {Renderer, rendererBase, type RenderingContext, StringRenderer, URLRenderer} from './PropertyRenderer.js';
 import {StylePropertiesSection} from './StylePropertiesSection.js';
 
-const {html} = Lit;
+const {html, render} = Lit;
+const {bindToSetting} = UI.UIUtils;
 
 const UIStrings = {
   /**
@@ -66,7 +67,8 @@ const UIStrings = {
    * grouped together or not. In Computed Style Widget of the Elements panel.
    */
   group: 'Group',
-  /** [
+  /**
+   * [
    * @description Text shown to the user when a filter is applied to the computed CSS properties, but
    * no properties matched the filter and thus no results were returned.
    */
@@ -80,25 +82,16 @@ const UIStrings = {
    * @description Context menu item in Elements panel to navigate to the corresponding CSS style rule
    * for this computed property.
    */
-  navigateToStyle: 'Navigate to style',
+  navigateToStyle: 'Navigate to styles',
+  /**
+   * @description Text announced to screen readers when a filter is applied to the computed styles list, informing them of the filter term and the number of results.
+   * @example {example} PH1
+   * @example {5} PH2
+   */
+  filterUpdateAriaText: `Filter applied: {PH1}. Total Results: {PH2}`,
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/elements/ComputedStyleWidget.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-
-/**
- * Rendering a property's name and value is expensive, and each time we do it
- * it generates a new HTML element. If we call this directly from our Lit
- * components, we will generate a brand new DOM element on each single render.
- * This is very expensive and unneccessary - for the majority of re-renders a
- * property's name and value does not change. So we cache the rest of rendering
- * the name and value in a map, where the key used is a combination of the
- * property's name and value. This ensures that we only re-generate this element
- * if the node itself changes.
- * The resulting Element nodes are inserted into the ComputedStyleProperty
- * component via <slot>s, ensuring that Lit doesn't directly render/re-render
- * the element.
- */
-const propertyContentsCache = new Map<string, {name: Element, value: Element}>();
 
 function matchProperty(name: string, value: string): SDK.CSSPropertyParser.BottomUpTreeMatching|null {
   return SDK.CSSPropertyParser.matchDeclaration(name, value, [
@@ -108,9 +101,10 @@ function matchProperty(name: string, value: string): SDK.CSSPropertyParser.Botto
 }
 
 function renderPropertyContents(
-    node: SDK.DOMModel.DOMNode, propertyName: string, propertyValue: string): {name: Element, value: Element} {
+    node: SDK.DOMModel.DOMNode, cache: Map<string, {name: Element, value: Element}>, propertyName: string,
+    propertyValue: string): {name: Element, value: Element} {
   const cacheKey = propertyName + ':' + propertyValue;
-  const valueFromCache = propertyContentsCache.get(cacheKey);
+  const valueFromCache = cache.get(cacheKey);
   if (valueFromCache) {
     return valueFromCache;
   }
@@ -122,7 +116,7 @@ function renderPropertyContents(
                         [new ColorRenderer(), new URLRenderer(null, node), new StringRenderer()])
                     .valueElement;
   value.slot = 'value';
-  propertyContentsCache.set(cacheKey, {name, value});
+  cache.set(cacheKey, {name, value});
   return {name, value};
 }
 
@@ -131,10 +125,11 @@ function renderPropertyContents(
  * to ensure nothing expensive runs here, or if it does it is safely cached.
  **/
 const createPropertyElement =
-    (node: SDK.DOMModel.DOMNode, propertyName: string, propertyValue: string, traceable: boolean, inherited: boolean,
+    (node: SDK.DOMModel.DOMNode, cache: Map<string, {name: Element, value: Element}>, propertyName: string,
+     propertyValue: string, traceable: boolean, inherited: boolean,
      activeProperty: SDK.CSSProperty.CSSProperty|undefined,
      onContextMenu: ((event: Event) => void)): Lit.TemplateResult => {
-      const {name, value} = renderPropertyContents(node, propertyName, propertyValue);
+      const {name, value} = renderPropertyContents(node, cache, propertyName, propertyValue);
       // clang-format off
       return html`<devtools-computed-style-property
         .traceable=${traceable}
@@ -203,7 +198,6 @@ class ColorRenderer extends rendererBase(SDK.CSSPropertyParserMatchers.ColorMatc
     swatch.renderColor(color);
     const valueElement = document.createElement('span');
     valueElement.textContent = match.text;
-    swatch.append(valueElement);
 
     swatch.addEventListener(
         InlineEditor.ColorSwatch.ColorChangedEvent.eventName, (event: InlineEditor.ColorSwatch.ColorChangedEvent) => {
@@ -212,7 +206,7 @@ class ColorRenderer extends rendererBase(SDK.CSSPropertyParserMatchers.ColorMatc
         });
 
     context.addControl('color', swatch);
-    return [swatch];
+    return [swatch, valueElement];
   }
 
   matcher(): SDK.CSSPropertyParserMatchers.ColorMatcher {
@@ -254,134 +248,273 @@ type ComputedStyleData = {
   name: string,
 };
 
-export class ComputedStyleWidget extends UI.ThrottledWidget.ThrottledWidget {
-  private computedStyleModel: ComputedStyleModel;
+interface ComputedStyleWidgetInput {
+  computedStylesTree: TreeOutline.TreeOutline.TreeOutline<ComputedStyleData>;
+  hasMatches: boolean;
+  showInheritedComputedStylePropertiesSetting: Common.Settings.Setting<boolean>;
+  groupComputedStylesSetting: Common.Settings.Setting<boolean>;
+  onFilterChanged: (event: CustomEvent<string>) => void;
+  filterText: string;
+  onRegexToggled: () => void;
+  includeToolbar: boolean;
+}
+
+type View = (input: ComputedStyleWidgetInput, output: null, target: HTMLElement) => void;
+
+export const DEFAULT_VIEW: View = (input, _output, target) => {
+  // clang-format off
+  render(html`
+    <style>${computedStyleWidgetStyles}</style>
+    ${input.includeToolbar ? html`
+      <div class="styles-sidebar-pane-toolbar">
+        <devtools-toolbar class="styles-pane-toolbar" role="presentation">
+          <devtools-toolbar-input
+            type="filter"
+            autofocus
+            ?regex=${true}
+            value=${input.filterText}
+            @change=${input.onFilterChanged}
+            @regextoggle=${input.onRegexToggled}
+          ></devtools-toolbar-input>
+          <devtools-checkbox
+            title=${i18nString(UIStrings.showAll)}
+            ${bindToSetting(input.showInheritedComputedStylePropertiesSetting)}
+          >${i18nString(UIStrings.showAll)}</devtools-checkbox>
+          <devtools-checkbox
+            title=${i18nString(UIStrings.group)}
+            ${bindToSetting(input.groupComputedStylesSetting)}
+          >${i18nString(UIStrings.group)}</devtools-checkbox>
+        </devtools-toolbar>
+      </div>
+      ` : Lit.nothing}
+    ${input.computedStylesTree}
+    ${!input.hasMatches ? html`<div class="gray-info-message">${i18nString(UIStrings.noMatchingProperty)}</div>` : ''}
+  `, target);
+  // clang-format on
+};
+
+export class ComputedStyleWidget extends UI.Widget.VBox {
+  /**
+   * We store these because they are used when calculating the dimensions for the image preview.
+   * When we need to get those dimensions, we try to resolve them against the
+   * node fresh (in case the dimensions have changed), but if that doesn't work,
+   * we fallback to the precomputed ones, which helps to deal with situations
+   * where the node might have been removed from the DOM.
+   */
+  #storedNodeFeatures: Components.ImagePreview.PrecomputedFeatures|null = null;
+  #nodeStyle: ComputedStyleModule.ComputedStyleModel.ComputedStyle|null = null;
+  #matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles|null = null;
+  #propertyTraces: Map<string, SDK.CSSProperty.CSSProperty[]>|null = null;
   private readonly showInheritedComputedStylePropertiesSetting: Common.Settings.Setting<boolean>;
   private readonly groupComputedStylesSetting: Common.Settings.Setting<boolean>;
-  input: UI.Toolbar.ToolbarInput;
-  private filterRegex: RegExp|null;
-  private readonly noMatchesElement: HTMLElement;
+  private filterRegex: RegExp|null = null;
   private readonly linkifier: Components.Linkifier.Linkifier;
   private readonly imagePreviewPopover: ImagePreviewPopover;
+  /**
+   * Rendering a property's name and value is expensive, and each time we do it
+   * it generates a new HTML element. If we call this directly from our Lit
+   * components, we will generate a brand new DOM element on each single render.
+   * This is very expensive and unnecessary - for the majority of re-renders a
+   * property's name and value does not change. So we cache the rest of rendering
+   * the name and value in a map, where the key used is a combination of the
+   * property's name and value. This ensures that we only re-generate this element
+   * if the node itself changes.
+   * The resulting Element nodes are inserted into the ComputedStyleProperty
+   * component via <slot>s, ensuring that Lit doesn't directly render/re-render
+   * the element.
+   * We have to store this cache per widget because it is possible to have
+   * multiple widgets for the same NodeId showing at once. In that case, if we
+   * reuse the same element from the cache, only one of the widgets will be
+   * populated, because an HTML node cannot be in two locations at once.
+   */
+  #propertyElementsCache = new Map<string, {name: Element, value: Element}>();
 
   #computedStylesTree = new TreeOutline.TreeOutline.TreeOutline<ComputedStyleData>();
   #treeData?: TreeOutline.TreeOutline.TreeOutlineData<ComputedStyleData>;
+  #enableNarrowViewResizing = true;
+  readonly #view: View;
 
-  constructor(computedStyleModel: ComputedStyleModel) {
-    super(true);
-    this.registerRequiredCSS(computedStyleSidebarPaneStyles);
+  /**
+   * TODO(b/407751272): the state here is confusing (3 instance variables relating to filtering).
+   * There is also a bug where the Toolbar Input's regex flag cannot be
+   * controlled, so if you set a regex filter here, the toolbar might not
+   * reflect it.
+   */
+  #filterText = '';
+  #filterIsRegex = false;
+  #allowUserControl = true;
+
+  constructor(element?: HTMLElement, view = DEFAULT_VIEW) {
+    super(element, {useShadowDom: true});
+    this.#view = view;
 
     this.contentElement.classList.add('styles-sidebar-computed-style-widget');
 
-    this.computedStyleModel = computedStyleModel;
-    this.computedStyleModel.addEventListener(Events.CSS_MODEL_CHANGED, this.update, this);
-    this.computedStyleModel.addEventListener(Events.COMPUTED_STYLE_CHANGED, this.update, this);
-
     this.showInheritedComputedStylePropertiesSetting =
         Common.Settings.Settings.instance().createSetting('show-inherited-computed-style-properties', false);
-    this.showInheritedComputedStylePropertiesSetting.addChangeListener(this.update.bind(this));
+    this.showInheritedComputedStylePropertiesSetting.addChangeListener(this.requestUpdate.bind(this));
 
     this.groupComputedStylesSetting = Common.Settings.Settings.instance().createSetting('group-computed-styles', false);
     this.groupComputedStylesSetting.addChangeListener(() => {
-      this.update();
+      this.requestUpdate();
     });
 
-    const hbox = this.contentElement.createChild('div', 'hbox styles-sidebar-pane-toolbar');
-    const toolbar = hbox.createChild('devtools-toolbar', 'styles-pane-toolbar');
-    const filterInput = new UI.Toolbar.ToolbarFilter(undefined, 1, 1, undefined, undefined, false);
-    filterInput.addEventListener(UI.Toolbar.ToolbarInput.Event.TEXT_CHANGED, this.onFilterChanged, this);
-    toolbar.appendToolbarItem(filterInput);
-    this.input = filterInput;
     this.filterRegex = null;
-
-    toolbar.appendToolbarItem(new UI.Toolbar.ToolbarSettingCheckbox(
-        this.showInheritedComputedStylePropertiesSetting, undefined, i18nString(UIStrings.showAll)));
-    toolbar.appendToolbarItem(
-        new UI.Toolbar.ToolbarSettingCheckbox(this.groupComputedStylesSetting, undefined, i18nString(UIStrings.group)));
-
-    this.noMatchesElement = this.contentElement.createChild('div', 'gray-info-message');
-    this.noMatchesElement.textContent = i18nString(UIStrings.noMatchingProperty);
-
-    this.contentElement.appendChild(this.#computedStylesTree);
-
     this.linkifier = new Components.Linkifier.Linkifier(maxLinkLength);
+    this.imagePreviewPopover = new ImagePreviewPopover(
+        this.contentElement,
+        event => {
+          const link = event.composedPath()[0];
+          if (link instanceof Element) {
+            return link;
+          }
+          return null;
+        },
+        async () => {
+          const liveFeatures = await Components.ImagePreview.loadPrecomputedFeatures(this.#nodeStyle?.node);
+          return liveFeatures ?? this.#storedNodeFeatures ?? undefined;
+        });
 
-    this.imagePreviewPopover = new ImagePreviewPopover(this.contentElement, event => {
-      const link = event.composedPath()[0];
-      if (link instanceof Element) {
-        return link;
-      }
-      return null;
-    }, () => this.computedStyleModel.node());
-
-    const fontsWidget = new PlatformFontsWidget(this.computedStyleModel);
-    fontsWidget.show(this.contentElement);
+    this.#updateView({hasMatches: true});
   }
 
   override onResize(): void {
-    const isNarrow = this.contentElement.offsetWidth < 260;
+    const isNarrow = this.#enableNarrowViewResizing && this.contentElement.offsetWidth < 260;
     this.#computedStylesTree.classList.toggle('computed-narrow', isNarrow);
   }
 
-  override wasShown(): void {
-    UI.Context.Context.instance().setFlavor(ComputedStyleWidget, this);
-    super.wasShown();
+  get enableNarrowViewResizing(): boolean {
+    return this.#enableNarrowViewResizing;
   }
 
-  override willHide(): void {
-    UI.Context.Context.instance().setFlavor(ComputedStyleWidget, null);
+  set enableNarrowViewResizing(enable: boolean) {
+    this.#enableNarrowViewResizing = enable;
+    this.onResize();
   }
 
-  override async doUpdate(): Promise<void> {
-    const [nodeStyles, matchedStyles] =
-        await Promise.all([this.computedStyleModel.fetchComputedStyle(), this.fetchMatchedCascade()]);
+  get filterText(): RegExp|string {
+    if (this.#filterIsRegex) {
+      return new RegExp(this.#filterText);
+    }
+    return this.#filterText;
+  }
+
+  get filterIsRegex(): boolean {
+    return this.#filterIsRegex;
+  }
+
+  set filterText(newFilter: RegExp|string) {
+    if (typeof newFilter === 'string') {
+      this.#filterText = newFilter;
+      this.#filterIsRegex = false;
+    } else {
+      this.#filterText = newFilter.source;
+      this.#filterIsRegex = true;
+    }
+    this.filterRegex = this.#buildFilterRegex(this.#filterText);
+    this.requestUpdate();
+  }
+
+  get allowUserControl(): boolean {
+    return this.#allowUserControl;
+  }
+
+  set allowUserControl(inc: boolean) {
+    this.#allowUserControl = inc;
+    this.requestUpdate();
+  }
+
+  /**
+   * @param input.hasMatches Whether any properties matched the current filter (or if any properties exist at all).
+   */
+  #updateView({hasMatches}: {hasMatches: boolean}): void {
+    this.#view(
+        {
+          computedStylesTree: this.#computedStylesTree,
+          includeToolbar: this.#allowUserControl,
+          hasMatches,
+          showInheritedComputedStylePropertiesSetting: this.showInheritedComputedStylePropertiesSetting,
+          groupComputedStylesSetting: this.groupComputedStylesSetting,
+          onFilterChanged: this.onFilterChanged.bind(this),
+          filterText: this.#filterText,
+          onRegexToggled: this.onRegexToggled.bind(this),
+        },
+        null, this.contentElement);
+  }
+
+  get nodeStyle(): ComputedStyleModule.ComputedStyleModel.ComputedStyle|null {
+    return this.#nodeStyle;
+  }
+
+  set nodeStyle(nodeStyle: ComputedStyleModule.ComputedStyleModel.ComputedStyle|null) {
+    this.#nodeStyle = nodeStyle;
+    if (nodeStyle) {
+      // Make sure we get the node features before we request an update so we
+      // don't run the update before we have the features fetched.
+      void this.#storeNodeFeatures(nodeStyle.node).then(() => this.requestUpdate());
+    } else {
+      this.requestUpdate();
+    }
+  }
+
+  get matchedStyles(): SDK.CSSMatchedStyles.CSSMatchedStyles|null {
+    return this.#matchedStyles;
+  }
+
+  set matchedStyles(matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles|null) {
+    this.#matchedStyles = matchedStyles;
+    this.requestUpdate();
+  }
+
+  set propertyTraces(propertyTraces: Map<string, SDK.CSSProperty.CSSProperty[]>|null) {
+    this.#propertyTraces = propertyTraces;
+    this.requestUpdate();
+  }
+
+  async #storeNodeFeatures(node: SDK.DOMModel.DOMNode|null): Promise<void> {
+    if (node) {
+      const features = await Components.ImagePreview.loadPrecomputedFeatures(node);
+      this.#storedNodeFeatures = features ?? null;
+    } else {
+      this.#storedNodeFeatures = null;
+    }
+  }
+
+  #shouldGroupStyles(): boolean {
+    return this.#allowUserControl && this.groupComputedStylesSetting.get();
+  }
+
+  #shouldShowAllStyles(): boolean {
+    return this.#allowUserControl && this.showInheritedComputedStylePropertiesSetting.get();
+  }
+
+  override async performUpdate(): Promise<void> {
+    const nodeStyles = this.#nodeStyle;
+    const matchedStyles = this.#matchedStyles;
     if (!nodeStyles || !matchedStyles) {
-      this.noMatchesElement.classList.remove('hidden');
+      this.#updateView({hasMatches: false});
       return;
     }
-    const shouldGroupComputedStyles = this.groupComputedStylesSetting.get();
-    if (shouldGroupComputedStyles) {
+    if (this.#shouldGroupStyles()) {
       await this.rebuildGroupedList(nodeStyles, matchedStyles);
     } else {
       await this.rebuildAlphabeticalList(nodeStyles, matchedStyles);
     }
   }
 
-  private async fetchMatchedCascade(): Promise<SDK.CSSMatchedStyles.CSSMatchedStyles|null> {
-    const node = this.computedStyleModel.node();
-    if (!node || !this.computedStyleModel.cssModel()) {
-      return null;
-    }
-
-    const cssModel = this.computedStyleModel.cssModel();
-    if (!cssModel) {
-      return null;
-    }
-
-    return await cssModel.cachedMatchedCascadeForNode(node).then(validateStyles.bind(this));
-
-    function validateStyles(this: ComputedStyleWidget, matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles|null):
-        SDK.CSSMatchedStyles.CSSMatchedStyles|null {
-      return matchedStyles && matchedStyles.node() === this.computedStyleModel.node() ? matchedStyles : null;
-    }
-  }
-
-  private async rebuildAlphabeticalList(nodeStyle: ComputedStyle, matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles):
-      Promise<void> {
+  private async rebuildAlphabeticalList(
+      nodeStyle: ComputedStyleModule.ComputedStyleModel.ComputedStyle,
+      matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles): Promise<void> {
     this.imagePreviewPopover.hide();
     this.linkifier.reset();
-    const cssModel = this.computedStyleModel.cssModel();
-    if (!cssModel) {
-      return;
-    }
 
     const uniqueProperties = [...nodeStyle.computedStyle.keys()];
     uniqueProperties.sort(propertySorter);
 
     const node = nodeStyle.node;
-    const propertyTraces = this.computePropertyTraces(matchedStyles);
+    const propertyTraces = this.#propertyTraces || new Map();
     const nonInheritedProperties = this.computeNonInheritedProperties(matchedStyles);
-    const showInherited = this.showInheritedComputedStylePropertiesSetting.get();
+    const showInherited = this.#shouldShowAllStyles();
     const tree: Array<TreeOutline.TreeOutlineUtils.TreeNode<ComputedStyleData>> = [];
     for (const propertyName of uniqueProperties) {
       const propertyValue = nodeStyle.computedStyle.get(propertyName) || '';
@@ -409,17 +542,17 @@ export class ComputedStyleWidget extends UI.ThrottledWidget.ThrottledWidget {
   }
 
   private async rebuildGroupedList(
-      nodeStyle: ComputedStyle|null, matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles|null): Promise<void> {
+      nodeStyle: ComputedStyleModule.ComputedStyleModel.ComputedStyle|null,
+      matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles|null): Promise<void> {
     this.imagePreviewPopover.hide();
     this.linkifier.reset();
-    const cssModel = this.computedStyleModel.cssModel();
-    if (!nodeStyle || !matchedStyles || !cssModel) {
-      this.noMatchesElement.classList.remove('hidden');
+    if (!nodeStyle || !matchedStyles) {
+      this.#updateView({hasMatches: false});
       return;
     }
 
     const node = nodeStyle.node;
-    const propertyTraces = this.computePropertyTraces(matchedStyles);
+    const propertyTraces = this.#propertyTraces || new Map();
     const nonInheritedProperties = this.computeNonInheritedProperties(matchedStyles);
     const showInherited = this.showInheritedComputedStylePropertiesSetting.get();
 
@@ -498,8 +631,8 @@ export class ComputedStyleWidget extends UI.ThrottledWidget.ThrottledWidget {
         const activeProperty = trace?.find(
             property => matchedStyles.propertyState(property) === SDK.CSSMatchedStyles.PropertyState.ACTIVE);
         const propertyElement = createPropertyElement(
-            domNode, data.propertyName, data.propertyValue, propertyTraces.has(data.propertyName), data.inherited,
-            activeProperty, event => {
+            domNode, this.#propertyElementsCache, data.propertyName, data.propertyValue,
+            propertyTraces.has(data.propertyName), data.inherited, activeProperty, event => {
               if (activeProperty) {
                 this.handleContextMenuEvent(matchedStyles, activeProperty, event);
               }
@@ -529,16 +662,17 @@ export class ComputedStyleWidget extends UI.ThrottledWidget.ThrottledWidget {
       inherited: isInherited,
     };
     const trace = propertyTraces.get(propertyName);
+    const jslogContext = propertyName.startsWith('--') ? 'custom-property' : propertyName;
     if (!trace) {
       return {
         treeNodeData,
-        jslogContext: propertyName,
+        jslogContext,
         id: propertyName,
       };
     }
     return {
       treeNodeData,
-      jslogContext: propertyName,
+      jslogContext,
       id: propertyName,
       children: async () => trace.map(this.buildTraceNode),
     };
@@ -550,7 +684,7 @@ export class ComputedStyleWidget extends UI.ThrottledWidget.ThrottledWidget {
     const rule = property.ownerStyle.parentRule;
 
     if (rule) {
-      const header = rule.styleSheetId ? matchedStyles.cssModel().styleSheetHeaderForId(rule.styleSheetId) : null;
+      const header = rule.header;
       if (header && !header.isAnonymousInlineStyleSheet()) {
         contextMenu.defaultSection().appendItem(i18nString(UIStrings.navigateToSelectorSource), () => {
           StylePropertiesSection.tryNavigateToRuleLocation(matchedStyles, rule);
@@ -562,26 +696,6 @@ export class ComputedStyleWidget extends UI.ThrottledWidget.ThrottledWidget {
         i18nString(UIStrings.navigateToStyle), () => Common.Revealer.reveal(property),
         {jslogContext: 'navigate-to-style'});
     void contextMenu.show();
-  }
-
-  private computePropertyTraces(matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles):
-      Map<string, SDK.CSSProperty.CSSProperty[]> {
-    const result = new Map<string, SDK.CSSProperty.CSSProperty[]>();
-    for (const style of matchedStyles.nodeStyles()) {
-      const allProperties = style.allProperties();
-      for (const property of allProperties) {
-        if (!property.activeInStyle() || !matchedStyles.propertyState(property)) {
-          continue;
-        }
-        if (!result.has(property.name)) {
-          result.set(property.name, []);
-        }
-        // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
-        // @ts-expect-error
-        result.get(property.name).push(property);
-      }
-    }
-    return result;
   }
 
   private computeNonInheritedProperties(matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles): Set<string> {
@@ -597,9 +711,33 @@ export class ComputedStyleWidget extends UI.ThrottledWidget.ThrottledWidget {
     return result;
   }
 
-  private onFilterChanged(event: Common.EventTarget.EventTargetEvent<string>): void {
-    void this.filterComputedStyles(
-        event.data ? new RegExp(Platform.StringUtilities.escapeForRegExp(event.data), 'i') : null);
+  #buildFilterRegex(text: string): RegExp|null {
+    if (!text) {
+      return null;
+    }
+    if (this.#filterIsRegex) {
+      try {
+        return new RegExp(text, 'i');
+      } catch {
+        // Invalid regex: fall through to plain-text matching.
+      }
+    }
+    return new RegExp(Platform.StringUtilities.escapeForRegExp(text), 'i');
+  }
+
+  private async onRegexToggled(): Promise<void> {
+    this.#filterIsRegex = !this.#filterIsRegex;
+    await this.filterComputedStyles(this.#buildFilterRegex(this.#filterText));
+  }
+
+  private async onFilterChanged(event: CustomEvent<string>): Promise<void> {
+    this.#filterText = event.detail;
+    await this.filterComputedStyles(this.#buildFilterRegex(event.detail));
+
+    if (event.detail && this.#computedStylesTree.data && this.#computedStylesTree.data.tree) {
+      UI.ARIAUtils.LiveAnnouncer.alert(i18nString(
+          UIStrings.filterUpdateAriaText, {PH1: event.detail, PH2: this.#computedStylesTree.data.tree.length}));
+    }
   }
 
   async filterComputedStyles(regex: RegExp|null): Promise<void> {
@@ -630,7 +768,7 @@ export class ComputedStyleWidget extends UI.ThrottledWidget.ThrottledWidget {
       defaultRenderer: this.#treeData.defaultRenderer,
       compact: this.#treeData.compact,
     };
-    this.noMatchesElement.classList.toggle('hidden', Boolean(tree.length));
+    this.#updateView({hasMatches: Boolean(tree.length)});
   }
 
   private async filterGroupLists(): Promise<void> {
@@ -657,7 +795,7 @@ export class ComputedStyleWidget extends UI.ThrottledWidget.ThrottledWidget {
       compact: this.#treeData.compact,
     };
     await this.#computedStylesTree.expandRecursively(0);
-    this.noMatchesElement.classList.toggle('hidden', Boolean(tree.length));
+    this.#updateView({hasMatches: Boolean(tree.length)});
   }
 }
 

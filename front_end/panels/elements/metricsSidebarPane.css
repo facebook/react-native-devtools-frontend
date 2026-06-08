@@ -1,5 +1,5 @@
 /**
- * Copyright 2017 The Chromium Authors. All rights reserved.
+ * Copyright 2017 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -8,7 +8,7 @@
   font-size: 10px;
   text-align: center;
   white-space: nowrap;
-  min-height: var(--metrics-height);
+  height: var(--metrics-height);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -26,19 +26,11 @@
 
 :host {
   --metrics-height: 190px;
-
-  height: var(--metrics-height);
-  contain: strict;
 }
 
-:host(.invisible) {
-  visibility: hidden;
+.metrics.collapsed {
   height: 0;
-}
-
-:host(.collapsed) {
-  visibility: collapse;
-  height: 0;
+  padding: 0;
 }
 /* The font we use on Windows takes up more vertical space, so adjust
  * the height of the metrics sidebar pane accordingly.
@@ -54,7 +46,7 @@
 }
 
 .metrics .position {
-  /* This border is different from the ones displayed between the box-moodel
+  /* This border is different from the ones displayed between the box-model
   regions because it is displayed against the pane background, so needs to be
   visible in both light and dark theme. We therefore use a theme variable. */
   border: 1px var(--sys-color-token-subtle) dotted;

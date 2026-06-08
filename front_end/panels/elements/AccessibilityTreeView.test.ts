@@ -1,9 +1,10 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
+import {renderElementIntoDOM} from '../../testing/DOMHelpers.js';
 import {createTarget, stubNoopSettings} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
 import * as TreeOutline from '../../ui/components/tree_outline/tree_outline.js';
@@ -14,21 +15,18 @@ const MAIN_FRAME_ID = 'MAIN_FRAME_ID' as Protocol.Page.FrameId;
 
 describeWithMockConnection('AccessibilityTreeView', () => {
   let target: SDK.Target.Target;
-  let toggleButoon: HTMLElement;
   let treeComponent: TreeOutline.TreeOutline.TreeOutline<Elements.AccessibilityTreeUtils.AXTreeNodeData>;
 
   beforeEach(() => {
     stubNoopSettings();
     target = createTarget();
-    toggleButoon = document.createElement('div');
     treeComponent = new TreeOutline.TreeOutline.TreeOutline<Elements.AccessibilityTreeUtils.AXTreeNodeData>();
   });
 
   const updatesUiOnEvent = (inScope: boolean) => async () => {
     SDK.TargetManager.TargetManager.instance().setScopeTarget(inScope ? target : null);
-    const view = new Elements.AccessibilityTreeView.AccessibilityTreeView(toggleButoon, treeComponent);
-    view.markAsRoot();
-    view.show(document.body);
+    const view = new Elements.AccessibilityTreeView.AccessibilityTreeView(treeComponent);
+    renderElementIntoDOM(view);
 
     const model = target.model(SDK.AccessibilityModel.AccessibilityModel);
     const treeComponentDataSet = sinon.spy(treeComponent, 'data', ['set']);

@@ -44,33 +44,17 @@ var __setFunctionName = (this && this.__setFunctionName) || function (f, name, p
 import { combineLatest, defer, delayWhen, filter, first, firstValueFrom, map, of, race, raceWith, switchMap, } from '../../third_party/rxjs/rxjs.js';
 import { Frame, throwIfDetached, } from '../api/Frame.js';
 import { Accessibility } from '../cdp/Accessibility.js';
-import { ConsoleMessage, } from '../common/ConsoleMessage.js';
 import { TargetCloseError, UnsupportedOperation } from '../common/Errors.js';
 import { debugError, fromAbortSignal, fromEmitterEvent, timeout, } from '../common/util.js';
 import { isErrorLike } from '../util/ErrorLike.js';
 import { BidiCdpSession } from './CDPSession.js';
-import { BidiDeserializer } from './Deserializer.js';
 import { BidiDialog } from './Dialog.js';
+import { BidiElementHandle } from './ElementHandle.js';
 import { ExposableFunction } from './ExposedFunction.js';
 import { BidiHTTPRequest, requests } from './HTTPRequest.js';
-import { BidiJSHandle } from './JSHandle.js';
 import { BidiFrameRealm } from './Realm.js';
-import { rewriteNavigationError } from './util.js';
+import { getConsoleMessage, isConsoleLogEntry, isJavaScriptLogEntry, rewriteNavigationError, } from './util.js';
 import { BidiWebWorker } from './WebWorker.js';
-// TODO: Remove this and map CDP the correct method.
-// Requires breaking change.
-function convertConsoleMessageLevel(method) {
-    switch (method) {
-        case 'group':
-            return 'startGroup';
-        case 'groupCollapsed':
-            return 'startGroupCollapsed';
-        case 'groupEnd':
-            return 'endGroup';
-        default:
-            return method;
-    }
-}
 let BidiFrame = (() => {
     var _a;
     let _classSuper = Frame;
@@ -83,6 +67,7 @@ let BidiFrame = (() => {
     let _private_waitForNetworkIdle$_decorators;
     let _private_waitForNetworkIdle$_descriptor;
     let _setFiles_decorators;
+    let _frameElement_decorators;
     let _locateNodes_decorators;
     return class BidiFrame extends _classSuper {
         static {
@@ -93,6 +78,7 @@ let BidiFrame = (() => {
             _private_waitForLoad$_decorators = [throwIfDetached];
             _private_waitForNetworkIdle$_decorators = [throwIfDetached];
             _setFiles_decorators = [throwIfDetached];
+            _frameElement_decorators = [throwIfDetached];
             _locateNodes_decorators = [throwIfDetached];
             __esDecorate(this, null, _goto_decorators, { kind: "method", name: "goto", static: false, private: false, access: { has: obj => "goto" in obj, get: obj => obj.goto }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _setContent_decorators, { kind: "method", name: "setContent", static: false, private: false, access: { has: obj => "setContent" in obj, get: obj => obj.setContent }, metadata: _metadata }, null, _instanceExtraInitializers);
@@ -153,6 +139,7 @@ let BidiFrame = (() => {
                     });
                 }, "#waitForNetworkIdle$") }, _private_waitForNetworkIdle$_decorators, { kind: "method", name: "#waitForNetworkIdle$", static: false, private: true, access: { has: obj => #waitForNetworkIdle$ in obj, get: obj => obj.#waitForNetworkIdle$ }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _setFiles_decorators, { kind: "method", name: "setFiles", static: false, private: false, access: { has: obj => "setFiles" in obj, get: obj => obj.setFiles }, metadata: _metadata }, null, _instanceExtraInitializers);
+            __esDecorate(this, null, _frameElement_decorators, { kind: "method", name: "frameElement", static: false, private: false, access: { has: obj => "frameElement" in obj, get: obj => obj.frameElement }, metadata: _metadata }, null, _instanceExtraInitializers);
             __esDecorate(this, null, _locateNodes_decorators, { kind: "method", name: "locateNodes", static: false, private: false, access: { has: obj => "locateNodes" in obj, get: obj => obj.locateNodes }, metadata: _metadata }, null, _instanceExtraInitializers);
             if (_metadata) Object.defineProperty(this, Symbol.metadata, { enumerable: true, configurable: true, writable: true, value: _metadata });
         }
@@ -196,7 +183,7 @@ let BidiFrame = (() => {
                 this.page().trustedEmitter.emit("framedetached" /* PageEvent.FrameDetached */, this);
             });
             this.browsingContext.on('request', ({ request }) => {
-                const httpRequest = BidiHTTPRequest.from(request, this);
+                const httpRequest = BidiHTTPRequest.from(request, this, this.page().isNetworkInterceptionEnabled);
                 request.once('success', () => {
                     this.page().trustedEmitter.emit("requestfinished" /* PageEvent.RequestFinished */, httpRequest);
                 });
@@ -226,18 +213,13 @@ let BidiFrame = (() => {
                     return;
                 }
                 if (isConsoleLogEntry(entry)) {
+                    if (!this.page().listenerCount("console" /* PageEvent.Console */)) {
+                        return;
+                    }
                     const args = entry.args.map(arg => {
                         return this.mainRealm().createHandle(arg);
                     });
-                    const text = args
-                        .reduce((value, arg) => {
-                        const parsedValue = arg instanceof BidiJSHandle && arg.isPrimitiveValue
-                            ? BidiDeserializer.deserialize(arg.remoteValue())
-                            : arg.toString();
-                        return `${value} ${parsedValue}`;
-                    }, '')
-                        .slice(1);
-                    this.page().trustedEmitter.emit("console" /* PageEvent.Console */, new ConsoleMessage(convertConsoleMessageLevel(entry.method), text, args, getStackTraceLocations(entry.stackTrace), this));
+                    this.page().trustedEmitter.emit("console" /* PageEvent.Console */, getConsoleMessage(entry, args, this));
                 }
                 else if (isJavaScriptLogEntry(entry)) {
                     const error = new Error(entry.text ?? '');
@@ -420,8 +402,9 @@ let BidiFrame = (() => {
                 throw new TargetCloseError('Frame detached.');
             })))));
         }
-        waitForDevicePrompt() {
-            throw new UnsupportedOperation();
+        waitForDevicePrompt(options = {}) {
+            const { timeout = this.timeoutSettings.timeout(), signal } = options;
+            return this.browsingContext.waitForDevicePrompt(timeout, signal);
         }
         get detached() {
             return this.browsingContext.closed;
@@ -456,31 +439,31 @@ let BidiFrame = (() => {
             // SAFETY: ElementHandles are always remote references.
             element.remoteValue(), files);
         }
+        async frameElement() {
+            const parentFrame = this.parentFrame();
+            if (!parentFrame) {
+                return null;
+            }
+            const [node] = await parentFrame.browsingContext.locateNodes({
+                type: 'context',
+                value: {
+                    context: this._id,
+                },
+            });
+            if (!node) {
+                return null;
+            }
+            return BidiElementHandle.from(node, parentFrame.mainRealm());
+        }
         async locateNodes(element, locator) {
             return await this.browsingContext.locateNodes(locator, 
             // SAFETY: ElementHandles are always remote references.
             [element.remoteValue()]);
         }
+        extensionRealms() {
+            throw new UnsupportedOperation();
+        }
     };
 })();
 export { BidiFrame };
-function isConsoleLogEntry(event) {
-    return event.type === 'console';
-}
-function isJavaScriptLogEntry(event) {
-    return event.type === 'javascript';
-}
-function getStackTraceLocations(stackTrace) {
-    const stackTraceLocations = [];
-    if (stackTrace) {
-        for (const callFrame of stackTrace.callFrames) {
-            stackTraceLocations.push({
-                url: callFrame.url,
-                lineNumber: callFrame.lineNumber,
-                columnNumber: callFrame.columnNumber,
-            });
-        }
-    }
-    return stackTraceLocations;
-}
 //# sourceMappingURL=Frame.js.map

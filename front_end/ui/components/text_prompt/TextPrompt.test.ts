@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -65,19 +65,6 @@ describe('TextPrompt', () => {
       const textPromptInputs = component.shadowRoot!.querySelectorAll('.input');
       assert.lengthOf(textPromptInputs, 1);
       assert.strictEqual((textPromptInputs[0] as HTMLInputElement).value.trim(), 'text');
-    });
-
-    it('sets the input and suggestion text correctly', () => {
-      const component = renderTextPrompt(defaultTextPromptData);
-      renderElementIntoDOM(component);
-
-      component.setText('@');
-      component.setSuggestion('Command');
-
-      const textPromptInputs = component.shadowRoot!.querySelectorAll('.input');
-      assert.strictEqual((textPromptInputs[0] as HTMLInputElement).value.trim(), '@');
-      const textPromptSuggestions = component.shadowRoot!.querySelectorAll('.suggestion');
-      assert.strictEqual((textPromptSuggestions[0] as HTMLInputElement).value.trim(), '@Command');
     });
   });
 

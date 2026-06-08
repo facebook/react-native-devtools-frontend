@@ -1,9 +1,10 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../../../core/common/common.js';
 import * as SDK from '../../../../core/sdk/sdk.js';
+import * as TextUtils from '../../../../models/text_utils/text_utils.js';
 import {
   createTarget,
   describeWithEnvironment,
@@ -40,6 +41,62 @@ describeWithEnvironment('ColorPicker aka Spectrum', () => {
       assert.isNull(spectrum.contentElement.querySelector('devtools-spectrum-srgb-overlay'));
     });
   });
+
+  it('uses appropriate stepping and clipping for keyboard/mousewheel interactions', () => {
+    const spectrum = new ColorPicker.Spectrum.Spectrum();
+    const textInputs = Array.from(
+        spectrum.contentElement.querySelectorAll('.spectrum-text:not(.spectrum-text-hex) .spectrum-text-value'));
+    assert.lengthOf(textInputs, 4);
+
+    const increment = (element: Element) => element.dispatchEvent(new WheelEvent('wheel', {deltaX: -1}));
+    const decrement = (element: Element) => element.dispatchEvent(new WheelEvent('wheel', {deltaX: 1}));
+
+    spectrum.setColor(new Common.Color.ColorFunction(Common.Color.Format.XYZ, 0.5, 1, 0, 0.3));
+    textInputs.forEach(increment);
+    assert.strictEqual(spectrum.color.asString(), 'color(xyz 0.51 1 0.01 / 0.31)');
+    textInputs.forEach(decrement);
+    textInputs.forEach(decrement);
+    assert.strictEqual(spectrum.color.asString(), 'color(xyz 0.49 0.98 0 / 0.29)');
+
+    spectrum.setColor(new Common.Color.ColorFunction(Common.Color.Format.SRGB, 0.5, 1, 0, 0.3));
+    textInputs.forEach(increment);
+    assert.strictEqual(spectrum.color.asString(), 'color(srgb 0.51 1 0.01 / 0.31)');
+    textInputs.forEach(decrement);
+    textInputs.forEach(decrement);
+    assert.strictEqual(spectrum.color.asString(), 'color(srgb 0.49 0.98 0 / 0.29)');
+
+    spectrum.setColor(new Common.Color.Legacy([0.5, 1, 0, 0.3], Common.Color.Format.RGBA));
+    assert.strictEqual(spectrum.color.asString(), 'rgb(128 255 0 / 30%)');
+    textInputs.forEach(increment);
+    assert.strictEqual(spectrum.color.asString(), 'rgb(129 255 1 / 31%)');
+    textInputs.forEach(decrement);
+    textInputs.forEach(decrement);
+    assert.strictEqual(spectrum.color.asString(), 'rgb(127 253 0 / 29%)');
+  });
+
+  it('updates hue correctly for near-grayscale colors', () => {
+    const spectrum = new ColorPicker.Spectrum.Spectrum();
+    const colorElement = spectrum.contentElement.querySelector('.spectrum-color') as HTMLElement;
+    assert.exists(colorElement);
+
+    // Scenario 1: Input #3c3d3d only
+    spectrum.setColor(Common.Color.parse('#3c3d3d') as Common.Color.Color);
+    // Hue should be 0.5 (Cyan). getColorFromHsva returns rgb(0, 255, 255) for h=0.5, s=1, v=1.
+    assert.strictEqual(colorElement.style.backgroundColor, 'rgb(0, 255, 255)');
+
+    // Scenario 2: Input #3d3d3d only
+    spectrum.setColor(Common.Color.parse('#3d3d3d') as Common.Color.Color);
+    // #3d3d3d should not be powerless, so it updates to its own calculated hue (0).
+    // Hue 0 corresponds to Red.
+    assert.strictEqual(colorElement.style.backgroundColor, 'rgb(255, 0, 0)');
+
+    // Scenario 3: First #3c3d3d and then #3d3d3d
+    spectrum.setColor(Common.Color.parse('#3c3d3d') as Common.Color.Color);
+    assert.strictEqual(colorElement.style.backgroundColor, 'rgb(0, 255, 255)');
+    spectrum.setColor(Common.Color.parse('#3d3d3d') as Common.Color.Color);
+    // Since it is not powerless, it should update and be Red.
+    assert.strictEqual(colorElement.style.backgroundColor, 'rgb(255, 0, 0)');
+  });
 });
 
 describeWithMockConnection('PaletteGenerator', () => {
@@ -57,7 +114,9 @@ describeWithMockConnection('PaletteGenerator', () => {
     body: {color: #0f0;}
     #00f: {}
     `;
-    stylesheet.requestContent.resolves({content, isEncoded: false});
+    stylesheet.requestContentData.resolves(new TextUtils.ContentData.ContentData(
+        content,
+        /* isBase64=*/ false, 'text/css'));
 
     const palette = await new Promise<ColorPicker.Spectrum.Palette>(r => new ColorPicker.Spectrum.PaletteGenerator(r));
 

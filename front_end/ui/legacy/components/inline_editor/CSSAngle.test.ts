@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,26 +6,23 @@ import {renderElementIntoDOM} from '../../../../testing/DOMHelpers.js';
 
 import * as InlineEditor from './inline_editor.js';
 
-const assertPopoverOpen = (root: ShadowRoot) => {
+const assertPopoverOpen = (root: HTMLElement) => {
   const popover = root.querySelector('.popover');
   assert.exists(popover);
 };
 
-const assertPopoverClosed = (root: ShadowRoot) => {
+const assertPopoverClosed = (root: HTMLElement) => {
   const popover = root.querySelector('.popover');
   assert.notExists(popover);
 };
 
-const assertAndGetSwatch = (root: ShadowRoot) => {
-  const swatch = root.querySelector<HTMLElement>('devtools-css-angle-swatch');
-  if (!swatch) {
-    assert.fail('swatch was not rendered');
-    return;
-  }
+const assertAndGetSwatch = (root: HTMLElement) => {
+  const swatch = root.querySelector('devtools-css-angle-swatch');
+  assert.exists(swatch);
   return swatch;
 };
 
-const togglePopover = (root: ShadowRoot) => {
+const togglePopover = (root: HTMLElement) => {
   const swatch = assertAndGetSwatch(root);
   swatch?.click();
 };
@@ -33,10 +30,7 @@ const togglePopover = (root: ShadowRoot) => {
 const assertNewAngleFromEvent =
     (angle: InlineEditor.CSSAngleUtils.Angle, event: KeyboardEvent|MouseEvent, approximateNewValue: number) => {
       const newAngle = InlineEditor.CSSAngleUtils.getNewAngleFromEvent(angle, event);
-      if (!newAngle) {
-        assert.fail('should create a new angle');
-        return;
-      }
+      assert.exists(newAngle);
 
       assert.strictEqual(newAngle.unit, angle.unit);
       assert.approximately(newAngle.value, approximateNewValue, 0.1);
@@ -53,13 +47,13 @@ describe('CSSAngle', () => {
     renderElementIntoDOM(component);
     component.data = initialData;
 
-    assert.isNotNull(component.shadowRoot);
+    assert.isNotNull(component);
 
-    assertPopoverClosed(component.shadowRoot);
-    togglePopover(component.shadowRoot);
-    assertPopoverOpen(component.shadowRoot);
-    togglePopover(component.shadowRoot);
-    assertPopoverClosed(component.shadowRoot);
+    assertPopoverClosed(component);
+    togglePopover(component);
+    assertPopoverOpen(component);
+    togglePopover(component);
+    assertPopoverClosed(component);
   });
 
   it('can fire events when toggling the popover', () => {
@@ -73,14 +67,14 @@ describe('CSSAngle', () => {
       isPopoverOpen = popoverToggledEvent.data.open;
     });
 
-    assert.isNotNull(component.shadowRoot);
+    assert.isNotNull(component);
 
-    assertPopoverClosed(component.shadowRoot);
-    togglePopover(component.shadowRoot);
-    assertPopoverOpen(component.shadowRoot);
+    assertPopoverClosed(component);
+    togglePopover(component);
+    assertPopoverOpen(component);
     assert.isTrue(isPopoverOpen, 'external isPopoverOpen flag not synced');
-    togglePopover(component.shadowRoot);
-    assertPopoverClosed(component.shadowRoot);
+    togglePopover(component);
+    assertPopoverClosed(component);
     assert.isFalse(isPopoverOpen, 'external isPopoverOpen flag not synced');
   });
 
@@ -89,7 +83,7 @@ describe('CSSAngle', () => {
     renderElementIntoDOM(component);
     component.data = initialData;
 
-    assert.isNotNull(component.shadowRoot);
+    assert.isNotNull(component);
 
     let cssAngleText = initialData.angleText;
     component.addEventListener('unitchanged', (event: Event) => {
@@ -97,7 +91,7 @@ describe('CSSAngle', () => {
       cssAngleText = data.value;
     });
 
-    const swatch = assertAndGetSwatch(component.shadowRoot);
+    const swatch = assertAndGetSwatch(component);
     if (!swatch) {
       return;
     }
@@ -111,7 +105,7 @@ describe('CSSAngle', () => {
     renderElementIntoDOM(component);
     component.data = initialData;
 
-    assert.isNotNull(component.shadowRoot);
+    assert.isNotNull(component);
 
     let cssAngleText = initialData.angleText;
     component.addEventListener('valuechanged', (event: Event) => {
@@ -119,12 +113,9 @@ describe('CSSAngle', () => {
       cssAngleText = data.value;
     });
 
-    togglePopover(component.shadowRoot);
-    const angleContainer = component.shadowRoot.querySelector('.css-angle');
-    if (!angleContainer) {
-      assert.fail('angle container was not rendered');
-      return;
-    }
+    togglePopover(component);
+    const angleContainer = component.querySelector('.css-angle');
+    assert.exists(angleContainer, 'angle container was not rendered');
 
     const arrowUp = new KeyboardEvent('keydown', {key: 'ArrowUp'});
     angleContainer.dispatchEvent(arrowUp);
@@ -146,13 +137,13 @@ describe('CSSAngle', () => {
         assert.strictEqual(popoverEvent.data.open, shouldPopoverEventBeOpen);
       });
 
-      assert.isNotNull(component.shadowRoot);
+      assert.isNotNull(component);
 
-      assertPopoverClosed(component.shadowRoot);
+      assertPopoverClosed(component);
       shouldPopoverEventBeOpen = true;
-      togglePopover(component.shadowRoot);
+      togglePopover(component);
       shouldPopoverEventBeOpen = false;
-      togglePopover(component.shadowRoot);
+      togglePopover(component);
     });
 
     it('parses CSS properties with angles correctly', () => {

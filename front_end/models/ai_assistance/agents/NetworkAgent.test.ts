@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,24 +6,20 @@ import * as Host from '../../../core/host/host.js';
 import * as Platform from '../../../core/platform/platform.js';
 import * as SDK from '../../../core/sdk/sdk.js';
 import type * as Protocol from '../../../generated/protocol.js';
-import type * as Network from '../../../panels/network/network.js';
 import {mockAidaClient} from '../../../testing/AiAssistanceHelpers.js';
 import {updateHostConfig} from '../../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../../testing/MockConnection.js';
-import {createNetworkPanelForMockConnection} from '../../../testing/NetworkHelpers.js';
+import {SnapshotTester} from '../../../testing/SnapshotTester.js';
 import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 import * as Logs from '../../logs/logs.js';
-import {
-  NetworkAgent,
-  RequestContext,
-  ResponseType,
-} from '../ai_assistance.js';
+import * as NetworkTimeCalculator from '../../network_time_calculator/network_time_calculator.js';
+import * as TextUtils from '../../text_utils/text_utils.js';
+import {NetworkAgent} from '../ai_assistance.js';
 
 const {urlString} = Platform.DevToolsPath;
 
-describeWithMockConnection('NetworkAgent', () => {
-  let networkPanel: Network.NetworkPanel.NetworkPanel;
-
+describeWithMockConnection('NetworkAgent', function() {
+  const snapshotTester = new SnapshotTester(this, import.meta);
   function mockHostConfig(modelId?: string, temperature?: number) {
     updateHostConfig({
       devToolsAiAssistanceNetworkAgent: {
@@ -33,23 +29,14 @@ describeWithMockConnection('NetworkAgent', () => {
     });
   }
 
-  beforeEach(async () => {
-    networkPanel = await createNetworkPanelForMockConnection();
-  });
-
   afterEach(async () => {
     await RenderCoordinator.done();
-    networkPanel.detach();
   });
 
   describe('buildRequest', () => {
-    beforeEach(() => {
-      sinon.restore();
-    });
-
     it('builds a request with a model id', async () => {
       mockHostConfig('test model');
-      const agent = new NetworkAgent({
+      const agent = new NetworkAgent.NetworkAgent({
         aidaClient: {} as Host.AidaClient.AidaClient,
       });
       assert.strictEqual(
@@ -60,7 +47,7 @@ describeWithMockConnection('NetworkAgent', () => {
 
     it('builds a request with a temperature', async () => {
       mockHostConfig('test model', 1);
-      const agent = new NetworkAgent({
+      const agent = new NetworkAgent.NetworkAgent({
         aidaClient: {} as Host.AidaClient.AidaClient,
       });
       assert.strictEqual(
@@ -69,8 +56,31 @@ describeWithMockConnection('NetworkAgent', () => {
       );
     });
   });
+  describe('RequestContext', () => {
+    it('should return the origin of the documentURL', () => {
+      const request = SDK.NetworkRequest.NetworkRequest.create(
+          'requestId' as Protocol.Network.RequestId, urlString`https://www.example.com`,
+          urlString`https://www.example.com/path/to/page.html`, null, null, null);
+      const calculator = new NetworkTimeCalculator.NetworkTransferTimeCalculator();
+      const context = new NetworkAgent.RequestContext(request, calculator);
+      assert.strictEqual(context.getOrigin(), 'https://www.example.com');
+    });
+
+    it('should return the origin of the documentURL and strips the trailing slash', () => {
+      const request = SDK.NetworkRequest.NetworkRequest.create(
+          'requestId' as Protocol.Network.RequestId, urlString`https://www.example.com`,
+          urlString`https://www.example.com/`, null, null, null);
+      const calculator = new NetworkTimeCalculator.NetworkTransferTimeCalculator();
+      const context = new NetworkAgent.RequestContext(request, calculator);
+      assert.strictEqual(context.getOrigin(), 'https://www.example.com');
+    });
+  });
+
   describe('run', () => {
+    const exampleResponse = JSON.stringify({request: 'body'});
+
     let selectedNetworkRequest: SDK.NetworkRequest.NetworkRequest;
+    let calculator: NetworkTimeCalculator.NetworkTransferTimeCalculator;
     const timingInfo: Protocol.Network.ResourceTiming = {
       requestTime: 500,
       proxyStart: 0,
@@ -97,7 +107,10 @@ describeWithMockConnection('NetworkAgent', () => {
       selectedNetworkRequest.responseHeaders =
           [{name: 'content-type', value: 'bar2'}, {name: 'x-forwarded-for', value: 'bar3'}];
       selectedNetworkRequest.timing = timingInfo;
-
+      selectedNetworkRequest.requestContentData = () => {
+        return Promise.resolve(
+            new TextUtils.ContentData.ContentData(exampleResponse, false, 'application/json', 'utf-8'));
+      };
       const initiatorNetworkRequest = SDK.NetworkRequest.NetworkRequest.create(
           'requestId' as Protocol.Network.RequestId, urlString`https://www.initiator.com`, urlString``, null, null,
           null);
@@ -132,14 +145,13 @@ describeWithMockConnection('NetworkAgent', () => {
               [initiatedNetworkRequest2, selectedNetworkRequest],
             ]),
           });
+
+      calculator = new NetworkTimeCalculator.NetworkTransferTimeCalculator();
+      calculator.updateBoundaries(selectedNetworkRequest);
     });
 
-    afterEach(() => {
-      sinon.restore();
-    });
-
-    it('generates an answer', async () => {
-      const agent = new NetworkAgent({
+    it('generates an answer', async function() {
+      const agent = new NetworkAgent.NetworkAgent({
         aidaClient: mockAidaClient([[{
           explanation: 'This is the answer',
           metadata: {
@@ -148,90 +160,26 @@ describeWithMockConnection('NetworkAgent', () => {
         }]]),
       });
 
-      const responses =
-          await Array.fromAsync(agent.run('test', {selected: new RequestContext(selectedNetworkRequest)}));
-      assert.deepEqual(responses, [
-        {
-          type: ResponseType.USER_QUERY,
-          query: 'test',
-          imageInput: undefined,
-          imageId: undefined,
-        },
-        {
-          type: ResponseType.CONTEXT,
-          title: 'Analyzing network data',
-          details: [
-            {
-              title: 'Request',
-              text: 'Request URL: https://www.example.com\n\nRequest headers:\ncontent-type: bar1',
-            },
-            {
-              title: 'Response',
-              text: 'Response Status: 200 \n\nResponse headers:\ncontent-type: bar2\nx-forwarded-for: bar3',
-            },
-            {
-              title: 'Timing',
-              text:
-                  'Queued at (timestamp): 0 μs\nStarted at (timestamp): 8.4 min\nQueueing (duration): 8.4 min\nConnection start (stalled) (duration): 800.00 ms\nRequest sent (duration): 100.00 ms\nDuration (duration): 8.4 min',
-            },
-            {
-              title: 'Request initiator chain',
-              text: `- URL: <redacted cross-origin initiator URL>
-\t- URL: https://www.example.com
-\t\t- URL: https://www.example.com/1
-\t\t- URL: https://www.example.com/2`,
-            },
-          ],
-        },
-        {
-          type: ResponseType.QUERYING,
-        },
-        {
-          type: ResponseType.ANSWER,
-          text: 'This is the answer',
-          complete: true,
-          suggestions: undefined,
-          rpcId: 123,
-        },
-      ]);
-      assert.deepEqual(agent.buildRequest({text: ''}, Host.AidaClient.Role.USER).historical_contexts, [
-        {
-          role: 1,
-          parts: [{
-            text: `# Selected network request \nRequest: https://www.example.com
+      const responses = await Array.fromAsync(
+          agent.run('test', {selected: new NetworkAgent.RequestContext(selectedNetworkRequest, calculator)}));
+      snapshotTester.assert(this, JSON.stringify(responses, null, 2));
+    });
 
-Request headers:
-content-type: bar1
+    it('builds historical contexts', async function() {
+      const agent = new NetworkAgent.NetworkAgent({
+        aidaClient: mockAidaClient([[{
+          explanation: 'This is the answer',
+          metadata: {
+            rpcGlobalId: 123,
+          },
+        }]]),
+      });
 
-Response headers:
-content-type: bar2
-x-forwarded-for: bar3
+      await Array.fromAsync(
+          agent.run('test', {selected: new NetworkAgent.RequestContext(selectedNetworkRequest, calculator)}));
 
-Response status: 200 \n
-Request timing:
-Queued at (timestamp): 0 μs
-Started at (timestamp): 8.4 min
-Queueing (duration): 8.4 min
-Connection start (stalled) (duration): 800.00 ms
-Request sent (duration): 100.00 ms
-Duration (duration): 8.4 min
-
-Request initiator chain:
-- URL: <redacted cross-origin initiator URL>
-\t- URL: https://www.example.com
-\t\t- URL: https://www.example.com/1
-\t\t- URL: https://www.example.com/2
-
-# User request
-
-test`,
-          }],
-        },
-        {
-          role: 2,
-          parts: [{text: 'This is the answer'}],
-        },
-      ]);
+      const historicalCtx = agent.buildRequest({text: ''}, Host.AidaClient.Role.USER).historical_contexts;
+      snapshotTester.assert(this, JSON.stringify(historicalCtx, null, 2));
     });
   });
 });

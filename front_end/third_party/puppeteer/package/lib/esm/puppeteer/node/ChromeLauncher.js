@@ -6,10 +6,11 @@
 import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { computeSystemExecutablePath, Browser as SupportedBrowsers, ChromeReleaseChannel as BrowsersChromeReleaseChannel, } from '@puppeteer/browsers';
+import { computeSystemExecutablePath, Browser as SupportedBrowsers, } from '@puppeteer/browsers';
 import { debugError } from '../common/util.js';
 import { assert } from '../util/assert.js';
 import { BrowserLauncher } from './BrowserLauncher.js';
+import { convertPuppeteerChannelToBrowsersChannel, } from './LaunchOptions.js';
 import { rm } from './util/fs.js';
 /**
  * @internal
@@ -154,7 +155,6 @@ export class ChromeLauncher extends BrowserLauncher {
             '--disable-crash-reporter', // No crash reporting in CfT.
             '--disable-default-apps',
             '--disable-dev-shm-usage',
-            '--disable-extensions',
             '--disable-hang-monitor',
             '--disable-infobars',
             '--disable-ipc-flooding-protection',
@@ -176,9 +176,14 @@ export class ChromeLauncher extends BrowserLauncher {
         ].filter(arg => {
             return arg !== '';
         });
-        const { devtools = false, headless = !devtools, args = [], userDataDir, } = options;
+        const { devtools = false, headless = !devtools, args = [], userDataDir, enableExtensions = false, } = options;
+        if (process.env['PUPPETEER_DANGEROUS_NO_SANDBOX'] === 'true' &&
+            !args.includes('--no-sandbox')) {
+            chromeArguments.push('--no-sandbox');
+        }
         if (userDataDir) {
-            chromeArguments.push(`--user-data-dir=${path.resolve(userDataDir)}`);
+            // If absolute (for any platform) path is given, we should not resolve it.
+            chromeArguments.push(`--user-data-dir=${path.posix.isAbsolute(userDataDir) || path.win32.isAbsolute(userDataDir) ? userDataDir : path.resolve(userDataDir)}`);
         }
         if (devtools) {
             chromeArguments.push('--auto-open-devtools-for-tabs');
@@ -186,6 +191,9 @@ export class ChromeLauncher extends BrowserLauncher {
         if (headless) {
             chromeArguments.push(headless === 'shell' ? '--headless' : '--headless=new', '--hide-scrollbars', '--mute-audio');
         }
+        chromeArguments.push(enableExtensions
+            ? '--enable-unsafe-extension-debugging'
+            : '--disable-extensions');
         if (args.every(arg => {
             return arg.startsWith('-');
         })) {
@@ -204,18 +212,6 @@ export class ChromeLauncher extends BrowserLauncher {
         else {
             return this.resolveExecutablePath(undefined, validatePath);
         }
-    }
-}
-function convertPuppeteerChannelToBrowsersChannel(channel) {
-    switch (channel) {
-        case 'chrome':
-            return BrowsersChromeReleaseChannel.STABLE;
-        case 'chrome-dev':
-            return BrowsersChromeReleaseChannel.DEV;
-        case 'chrome-beta':
-            return BrowsersChromeReleaseChannel.BETA;
-        case 'chrome-canary':
-            return BrowsersChromeReleaseChannel.CANARY;
     }
 }
 /**

@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -20,7 +20,7 @@ generate_css("css_files") {
   ]
 }
 
-devtools_module("perf_ui") {
+devtools_ui_module("perf_ui") {
   sources = [
     "BrickBreaker.ts",
     "CanvasHelper.ts",
@@ -44,14 +44,23 @@ devtools_module("perf_ui") {
     "../../../../core/host:bundle",
     "../../../../core/i18n:bundle",
     "../../../../core/platform:bundle",
+    "../../../../core/root:bundle",
     "../../../../core/sdk:bundle",
+    "../../../../generated:protocol",
     "../../../../models/bindings:bundle",
     "../../../../models/cpu_profile:bundle",
+    "../../../../models/network_time_calculator:bundle",
+    "../../../../models/trace:bundle",
     "../../../../models/workspace:bundle",
+    "../../../../services/trace_bounds:bundle",
     "../../../../ui/legacy:bundle",
     "../../../../ui/legacy/components/source_frame:bundle",
     "../../../../ui/legacy/theme_support:bundle",
     "../../../../ui/lit:bundle",
+    "../../../components/buttons:bundle",
+    "../../../components/render_coordinator:bundle",
+    "../../../kit:bundle",
+    "../../../visual_logging:bundle",
   ]
 
   visibility = [ "../../../../component_docs/perf_piechart" ]
@@ -66,11 +75,16 @@ devtools_entrypoint("bundle") {
   ]
 
   visibility = [
+    # IMPORTANT: Be careful when extending visibility of front_end/ui/legacy/*,
+    # as the UI modules should only be used to actually build user interfaces,
+    # and the business logic should never depend on the UI modules.
     ":*",
+    "../../../../panels/application/*",
     "../../../../panels/layer_viewer/*",
     "../../../../panels/media/*",
     "../../../../panels/network/*",
     "../../../../panels/profiler/*",
+    "../../../../panels/sources/*",
     "../../../../panels/timeline/*",
     "../../../../testing/*",
     "../../../components/docs/perf_piechart/*",
@@ -94,12 +108,14 @@ devtools_entrypoint("meta") {
   visibility = [ "../../../../entrypoints/*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [
+    "ChartViewport.test.ts",
     "FilmStripView.test.ts",
     "FlameChart.test.ts",
+    "LineLevelProfile.test.ts",
     "PieChart.test.ts",
     "TimelineGrid.test.ts",
     "TimelineOverviewCalculator.test.ts",

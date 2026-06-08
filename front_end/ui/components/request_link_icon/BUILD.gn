@@ -1,4 +1,4 @@
-# Copyright 2021 The Chromium Authors. All rights reserved.
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -12,7 +12,7 @@ generate_css("css_files") {
   sources = [ "requestLinkIcon.css" ]
 }
 
-devtools_module("request_link_icon") {
+devtools_ui_module("request_link_icon") {
   sources = [ "RequestLinkIcon.ts" ]
 
   deps = [
@@ -25,8 +25,9 @@ devtools_module("request_link_icon") {
     "../../../panels/network/forward:bundle",
     "../../../ui/lit:bundle",
     "../../../ui/visual_logging:bundle",
+    "../../kit:bundle",
     "../helpers:bundle",
-    "../icon_button:bundle",
+    "../render_coordinator:bundle",
   ]
 }
 
@@ -41,7 +42,7 @@ devtools_entrypoint("bundle") {
   visibility = default_components_visibility
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [ "RequestLinkIcon.test.ts" ]
@@ -53,7 +54,7 @@ ts_library("unittests") {
     "../../../core/sdk:bundle",
     "../../../models/logs:bundle",
     "../../../testing",
+    "../../kit:bundle",
     "../../legacy:bundle",
-    "../icon_button:bundle",
   ]
 }

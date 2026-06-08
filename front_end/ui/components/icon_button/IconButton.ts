@@ -1,12 +1,12 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view, @devtools/enforce-custom-element-definitions-location */
 
-import './Icon.js';
+import '../../kit/kit.js';
 
 import * as Lit from '../../lit/lit.js';
 
-import type {IconData} from './Icon.js';
 import iconButtonStyles from './iconButton.css.js';
 
 const {html} = Lit;
@@ -30,12 +30,12 @@ export interface IconButtonData {
 
 export class IconButton extends HTMLElement {
   readonly #shadow = this.attachShadow({mode: 'open'});
-  #clickHandler: undefined|(() => void) = undefined;
+  #clickHandler?: () => void;
   #groups: IconWithTextData[] = [];
   #compact = false;
   #leadingText = '';
   #trailingText = '';
-  #accessibleName: string|undefined;
+  #accessibleName?: string;
 
   set data(data: IconButtonData) {
     this.#groups = data.groups.map(group => ({...group}));  // Ensure we make a deep copy.
@@ -76,13 +76,12 @@ export class IconButton extends HTMLElement {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
     Lit.render(html`
-      <style>${iconButtonStyles.cssText}</style>
+      <style>${iconButtonStyles}</style>
       <button class=${buttonClasses} @click=${this.#onClickHandler} aria-label=${Lit.Directives.ifDefined(this.#accessibleName)}>
       ${(!this.#compact && this.#leadingText) ? html`<span class="icon-button-title">${this.#leadingText}</span>` : Lit.nothing}
       ${filteredGroups.map(counter =>
       html`
-      <devtools-icon class="status-icon"
-      .data=${{iconName: counter.iconName, color: counter.iconColor, width: counter.iconWidth || '1.5ex', height: counter.iconHeight || '1.5ex'} as IconData}>
+      <devtools-icon class="status-icon" name=${counter.iconName} style="color: ${counter.iconColor}; width: ${counter.iconWidth || 'var(--sys-size-7)'}; height: ${counter.iconHeight || 'var(--sys-size-7)'}">
       </devtools-icon>
       ${this.#compact ? html`<!-- Force line-height for this element --><span>&#8203;</span>` : Lit.nothing}
       <span class="icon-button-title">${counter.text}</span>`,
@@ -94,6 +93,7 @@ export class IconButton extends HTMLElement {
   }
 }
 
+// eslint-disable-next-line @devtools/enforce-custom-element-prefix
 customElements.define('icon-button', IconButton);
 
 declare global {

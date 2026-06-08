@@ -1,4 +1,4 @@
-# Copyright (c) 2019 The Chromium Authors. All rights reserved.
+# Copyright 2019 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -25,6 +25,9 @@ declare_args() {
   # (debug, release, official) but for historical reasons there are two
   # separate flags.
   is_official_build = false
+
+  # Defined in Chromium and needed here as well
+  is_wasm = false
 
   # Whether we're a traditional desktop unix.
   is_desktop_linux = current_os == "linux"
@@ -94,6 +97,12 @@ is_win = current_os == "win" || current_os == "winuwp"
 
 is_apple = is_ios || is_mac
 is_posix = !is_win && !is_fuchsia
+
+declare_args() {
+  # Whether to enable strict deps checks. This ensures that dependencies
+  # are correctly declared (no missing deps and no accessing transitive deps).
+  enable_strict_deps = false
+}
 
 # =============================================================================
 # Variables

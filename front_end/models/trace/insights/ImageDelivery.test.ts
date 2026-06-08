@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ import * as Insights from './insights.js';
 const {ImageOptimizationType} = Insights.Models.ImageDelivery;
 
 describeWithEnvironment('ImageDelivery', function() {
-  it('finds requests for remote fonts', async () => {
+  it('finds requests for remote fonts', async function() {
     // See the following for a description of each test case:
     // https://gist.github.com/adamraine/397e2bd08665f9e45f6072e446715115
     const {data, insights} = await processTrace(this, 'image-delivery.json.gz');
@@ -30,7 +30,7 @@ describeWithEnvironment('ImageDelivery', function() {
 
     const insight =
         getInsightOrError('ImageDelivery', insights, getFirstOrError(data.Meta.navigationsByNavigationId.values()));
-    assert.strictEqual(insight.totalByteSavings, 2007125);
+    assert.strictEqual(insight.wastedBytes, 2007125);
     assert.strictEqual(insight.metricSavings!.FCP, 0);
     assert.strictEqual(insight.metricSavings!.LCP, 100);
     assert.deepEqual(
@@ -103,7 +103,7 @@ describeWithEnvironment('ImageDelivery', function() {
     );
   });
 
-  it('handles responsive image exceptions', async () => {
+  it('handles responsive image exceptions', async function() {
     const {data, insights} = await processTrace(this, 'byte-efficiency.json.gz');
 
     const insight =

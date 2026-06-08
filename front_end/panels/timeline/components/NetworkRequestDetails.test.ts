@@ -1,8 +1,9 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {cleanTextContent} from '../../../testing/DOMHelpers.js';
+import * as Trace from '../../../models/trace/trace.js';
+import {cleanTextContent, renderElementIntoDOM} from '../../../testing/DOMHelpers.js';
 import {describeWithMockConnection} from '../../../testing/MockConnection.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
 import * as Components from '../../../ui/legacy/components/utils/utils.js';
@@ -11,10 +12,25 @@ import * as Timeline from '../timeline.js';
 import * as TimelineComponents from './components.js';
 
 describeWithMockConnection('NetworkRequestDetails', () => {
+  async function makeDetailsComponent(
+      parsedTrace: Trace.TraceModel.ParsedTrace, request: Trace.Types.Events.SyntheticNetworkRequest,
+      entityMapper: Trace.EntityMapper.EntityMapper):
+      Promise<TimelineComponents.NetworkRequestDetails.NetworkRequestDetails> {
+    const details = new TimelineComponents.NetworkRequestDetails.NetworkRequestDetails();
+    details.parsedTrace = parsedTrace;
+    details.request = request;
+    details.target = Timeline.TargetForEvent.targetForEvent(parsedTrace, request);
+    details.entityMapper = entityMapper;
+    details.linkifier = new Components.Linkifier.Linkifier();
+    renderElementIntoDOM(details);
+    await details.updateComplete;
+    return details;
+  }
+
   it('renders the right details for a network event from Trace', async function() {
-    const {parsedTrace} = await TraceLoader.traceEngine(this, 'lcp-web-font.json.gz');
-    const entityMapper = new Timeline.Utils.EntityMapper.EntityMapper(parsedTrace);
-    const networkRequests = parsedTrace.NetworkRequests.byTime;
+    const parsedTrace = await TraceLoader.traceEngine(this, 'lcp-web-font.json.gz');
+    const entityMapper = new Trace.EntityMapper.EntityMapper(parsedTrace);
+    const networkRequests = parsedTrace.data.NetworkRequests.byTime;
     const cssRequest = networkRequests.find(request => {
       return request.args.data.url === 'https://chromedevtools.github.io/performance-stories/lcp-web-font/app.css';
     });
@@ -22,25 +38,17 @@ describeWithMockConnection('NetworkRequestDetails', () => {
       throw new Error('Could not find expected network request.');
     }
 
-    const details =
-        new TimelineComponents.NetworkRequestDetails.NetworkRequestDetails(new Components.Linkifier.Linkifier());
-    await details.setData(
-        parsedTrace, cssRequest, Timeline.TargetForEvent.targetForEvent(parsedTrace, cssRequest), entityMapper);
-
-    if (!details.shadowRoot) {
-      throw new Error('Could not find expected element to test.');
-    }
-
-    const titleSwatch: HTMLElement|null = details.shadowRoot.querySelector('.network-request-details-title div');
+    const details = await makeDetailsComponent(parsedTrace, cssRequest, entityMapper);
+    const titleSwatch: HTMLElement|null = details.contentElement.querySelector('.network-request-details-title div');
     // css request is in 'Css' category, which will use `--app-color-css: var(--ref-palette-purple60)` colour
     assert.strictEqual(titleSwatch?.style.backgroundColor, 'rgb(191, 103, 255)');
 
-    const rowData = getRowDataForDetailsElement(details.shadowRoot);
-    const durationInnerText = 'Duration 12.58 ms ' +
-        'Queuing and connecting 1.83 ms ' +
-        'Request sent and waiting 4.80 ms ' +
-        'Content downloading 1.66 ms ' +
-        'Waiting on main thread 4.29 ms';
+    const rowData = getRowDataForDetailsElement(details.contentElement);
+    const durationInnerText = 'Duration\n12.58 ms\n' +
+        'Queuing and connecting\n1.83 ms\n' +
+        'Request sent and waiting\n4.80 ms\n' +
+        'Content downloading\n1.66 ms\n' +
+        'Waiting on main thread\n4.29 ms';
     assert.deepEqual(
         rowData,
         [
@@ -53,7 +61,7 @@ describeWithMockConnection('NetworkRequestDetails', () => {
           {title: 'Decoded body', value: '96 B'},
           {
             title: 'Blocking',
-            value: 'Render blocking',
+            value: 'Render-blocking',
           },
           {title: 'From cache', value: 'Yes'},
           {title: '3rd party', value: 'GitHub'},
@@ -65,10 +73,11 @@ describeWithMockConnection('NetworkRequestDetails', () => {
         ],
     );
   });
+
   it('renders the server timing details for a network event', async function() {
-    const {parsedTrace} = await TraceLoader.traceEngine(this, 'server-timings.json.gz');
-    const entityMapper = new Timeline.Utils.EntityMapper.EntityMapper(parsedTrace);
-    const networkRequests = parsedTrace.NetworkRequests.byTime;
+    const parsedTrace = await TraceLoader.traceEngine(this, 'server-timings.json.gz');
+    const entityMapper = new Trace.EntityMapper.EntityMapper(parsedTrace);
+    const networkRequests = parsedTrace.data.NetworkRequests.byTime;
     const htmlRequest = networkRequests.find(request => {
       return request.args.data.url === 'https://node-server-tan.vercel.app/waste-time';
     });
@@ -76,48 +85,68 @@ describeWithMockConnection('NetworkRequestDetails', () => {
       throw new Error('Could not find expected network request.');
     }
 
-    const details =
-        new TimelineComponents.NetworkRequestDetails.NetworkRequestDetails(new Components.Linkifier.Linkifier());
-    await details.setData(
-        parsedTrace, htmlRequest, Timeline.TargetForEvent.targetForEvent(parsedTrace, htmlRequest), entityMapper);
-
-    if (!details.shadowRoot) {
-      throw new Error('Could not find expected element to test.');
-    }
-
-    const titleSwatch: HTMLElement|null = details.shadowRoot.querySelector('.network-request-details-title div');
+    const details = await makeDetailsComponent(parsedTrace, htmlRequest, entityMapper);
+    const titleSwatch: HTMLElement|null = details.contentElement.querySelector('.network-request-details-title div');
     assert.strictEqual(titleSwatch?.style.backgroundColor, 'rgb(76, 141, 246)');
 
-    const rowData = getServerTimingDataDetailsElement(details.shadowRoot);
+    const rowData = getServerTimingDataDetailsElement(details.contentElement);
     assert.deepEqual(
         rowData,
         [
           [
             'Server timing',
-            'Time',
             'Description',
-          ],
-          [
-            'Secondleveltask1',
-            '904.2932819999987',
-            'Description of second level task 1',
+            'Time',
           ],
           [
             'Topleveltask1',
-            '1004.2932819999987',
             'Description of top level task 1',
+            '1004.2932819999987',
+          ],
+          [
+            'Secondleveltask1',
+            'Description of second level task 1',
+            '904.2932819999987',
           ],
           [
             'Topleveltask2',
-            '1000.0925859999988',
             '-',
+            '1000.0925859999988',
           ],
+        ],
+    );
+  });
+
+  it('renders the redirect details for a network event', async function() {
+    const parsedTrace = await TraceLoader.traceEngine(this, 'many-redirects.json.gz');
+    const entityMapper = new Trace.EntityMapper.EntityMapper(parsedTrace);
+    const networkRequests = parsedTrace.data.NetworkRequests.byTime;
+    const htmlRequest = networkRequests.find(request => {
+      return request.args.data.url === 'http://localhost:10200/redirects-final.html';
+    });
+    if (!htmlRequest) {
+      throw new Error('Could not find expected network request.');
+    }
+
+    const details = await makeDetailsComponent(parsedTrace, htmlRequest, entityMapper);
+
+    const titleSwatch: HTMLElement|null = details.contentElement.querySelector('.network-request-details-title div');
+    assert.strictEqual(titleSwatch?.style.backgroundColor, 'rgb(76, 141, 246)');
+
+    const rowData = getRedirectDetailsElement(details.contentElement);
+    assert.deepEqual(
+        rowData,
+        [
+          'Redirects\n' +
+              'http://localhost:10200/online-only.html?delay=1000&redirect_count=3&redirect=%2Fredirects-final.html\n' +
+              'http://localhost:10200/online-only.html?delay=1000&redirect_count=2&redirect=%2Fredirects-final.html\n' +
+              'http://localhost:10200/online-only.html?delay=1000&redirect_count=1&redirect=%2Fredirects-final.html',
         ],
     );
   });
 });
 
-function getRowDataForDetailsElement(details: ShadowRoot) {
+function getRowDataForDetailsElement(details: HTMLElement) {
   return Array
       .from(details.querySelectorAll<HTMLDivElement>(
           '.network-request-details-item, .network-request-details-row, .timing-rows'))
@@ -131,7 +160,7 @@ function getRowDataForDetailsElement(details: ShadowRoot) {
       });
 }
 
-function getServerTimingDataDetailsElement(details: ShadowRoot) {
+function getServerTimingDataDetailsElement(details: HTMLElement) {
   return Array.from(details.querySelectorAll<HTMLDivElement>('.server-timings > .value, .server-timing-column-header'))
       .map(row => cleanTextContent(row.innerText))
       .reduce((result, current, i) => {
@@ -141,4 +170,9 @@ function getServerTimingDataDetailsElement(details: ShadowRoot) {
         row.push(current);
         return result;
       }, []);
+}
+
+function getRedirectDetailsElement(details: HTMLElement) {
+  return Array.from(details.querySelectorAll<HTMLDivElement>('.redirect-details'))
+      .map(row => cleanTextContent(row.innerText));
 }

@@ -1,10 +1,10 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as SDK from '../../core/sdk/sdk.js';
 /**
- * @fileoverview using private properties isn't a Closure violation in tests.
+ * @file using private properties isn't a Closure violation in tests.
  */
 self.ElementsTestRunner = self.ElementsTestRunner || {};
 
@@ -20,10 +20,10 @@ ElementsTestRunner.setUpTestSuite = function(next) {
 
   function step2(node) {
     ElementsTestRunner.containerId = node.id;
-    TestRunner.DOMAgent.getOuterHTML(ElementsTestRunner.containerId).then(step3);
+    TestRunner.DOMAgent.invoke_getOuterHTML({nodeId: ElementsTestRunner.containerId}).then(step3);
   }
 
-  function step3(text) {
+  function step3({outerHTML: text}) {
     ElementsTestRunner.containerText = text;
 
     for (const key in SDK.DOMModel.Events) {
@@ -88,13 +88,14 @@ ElementsTestRunner.setOuterHTMLUseUndo = function(newText, next) {
 };
 
 ElementsTestRunner.innerSetOuterHTML = async function(newText, last, next) {
-  await TestRunner.DOMAgent.setOuterHTML(ElementsTestRunner.containerId, newText);
+  await TestRunner.DOMAgent.invoke_setOuterHTML({nodeId: ElementsTestRunner.containerId, outerHTML: newText});
   TestRunner.domModel.markUndoableState();
   ElementsTestRunner._dumpOuterHTML(last, next);
 };
 
 ElementsTestRunner._dumpOuterHTML = async function(last, next) {
-  const result = await TestRunner.RuntimeAgent.evaluate('document.getElementById("identity").wrapperIdentity');
+  const {result} = await TestRunner.RuntimeAgent.invoke_evaluate(
+      {expression: 'document.getElementById("identity").wrapperIdentity'});
   TestRunner.addResult('Wrapper identity: ' + result.value);
   ElementsTestRunner.events.sort();
 
@@ -103,7 +104,7 @@ ElementsTestRunner._dumpOuterHTML = async function(last, next) {
   }
 
   ElementsTestRunner.events = [];
-  const text = await TestRunner.DOMAgent.getOuterHTML(ElementsTestRunner.containerId);
+  const {outerHTML: text} = await TestRunner.DOMAgent.invoke_getOuterHTML({nodeId: ElementsTestRunner.containerId});
   TestRunner.addResult('==========8<==========');
   TestRunner.addResult(text);
   TestRunner.addResult('==========>8==========');

@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,16 +10,6 @@ import type * as Insights from './insights/insights.js';
 import {TraceParseProgressEvent, TraceProcessor} from './Processor.js';
 import * as Types from './types/types.js';
 
-// Note: this model is implemented in a way that can support multiple trace
-// processors. Currently there is only one implemented, but you will see
-// references to "processors" plural because it can easily be extended in the future.
-
-export interface ParseConfig {
-  metadata?: Types.File.MetaData;
-  isFreshRecording?: boolean;
-  resolveSourceMap?: Types.Configuration.ParseOptions['resolveSourceMap'];
-}
-
 /**
  * The Model is responsible for parsing arrays of raw trace events and storing the
  * resulting data. It can store multiple traces at once, and can return the data for
@@ -29,8 +19,7 @@ export interface ParseConfig {
  * `createWithSubsetOfHandlers` can be used to run just some handlers.
  **/
 export class Model extends EventTarget {
-  readonly #traces: ParsedTraceFile[] = [];
-  readonly #syntheticEventsManagerByTrace: Helpers.SyntheticEvents.SyntheticEventsManager[] = [];
+  readonly #traces: ParsedTrace[] = [];
   readonly #nextNumberByDomain = new Map<string, number>();
 
   readonly #recordingsAvailable: string[] = [];
@@ -78,7 +67,6 @@ export class Model extends EventTarget {
    * // Awaiting the parse method() to block until parsing complete
    * await this.traceModel.parse(events);
    * const data = this.traceModel.parsedTrace(0)
-   *
    * @example
    * // Using an event listener to be notified when tracing is complete.
    * this.traceModel.addEventListener(Trace.ModelUpdateEvent.eventName, (event) => {
@@ -89,10 +77,13 @@ export class Model extends EventTarget {
    * });
    * void this.traceModel.parse(events);
    **/
-  async parse(traceEvents: readonly Types.Events.Event[], config?: ParseConfig): Promise<void> {
-    const metadata = config?.metadata || {};
-    const isFreshRecording = config?.isFreshRecording || false;
-    const isCPUProfile = metadata?.dataOrigin === Types.File.DataOrigin.CPU_PROFILE;
+  async parse(traceEvents: readonly Types.Events.Event[], config: Types.Configuration.ParseOptions = {}):
+      Promise<void> {
+    if (config.showAllEvents === undefined) {
+      config.showAllEvents = this.#config.showAllEvents;
+    }
+
+    const metadata = config.metadata || {};
     // During parsing, periodically update any listeners on each processors'
     // progress (if they have any updates).
     const onTraceUpdate = (event: Event): void => {
@@ -102,29 +93,21 @@ export class Model extends EventTarget {
 
     this.#processor.addEventListener(TraceParseProgressEvent.eventName, onTraceUpdate);
 
-    // Create a parsed trace file.  It will be populated with data from the processor.
-    const file: ParsedTraceFile = {
-      traceEvents,
-      metadata,
-      parsedTrace: null,
-      traceInsights: null,
-    };
+    // TODO(cjamcl): this.#processor.parse needs this to work. So it should either take it as input, or create it itself.
+    const syntheticEventsManager = Helpers.SyntheticEvents.SyntheticEventsManager.createAndActivate(traceEvents);
 
     try {
       // Wait for all outstanding promises before finishing the async execution,
       // but perform all tasks in parallel.
-      const syntheticEventsManager = Helpers.SyntheticEvents.SyntheticEventsManager.createAndActivate(traceEvents);
-      await this.#processor.parse(traceEvents, {
-        isFreshRecording,
-        isCPUProfile,
-        metadata,
-        resolveSourceMap: config?.resolveSourceMap,
-      });
-      this.#storeParsedFileData(file, this.#processor.parsedTrace, this.#processor.insights);
+      await this.#processor.parse(traceEvents, config);
+      if (!this.#processor.data) {
+        throw new Error('processor did not parse trace');
+      }
+      const file = this.#storeAndCreateParsedTraceFile(
+          syntheticEventsManager, traceEvents, metadata, this.#processor.data, this.#processor.insights);
       // We only push the file onto this.#traces here once we know it's valid
       // and there's been no errors in the parsing.
       this.#traces.push(file);
-      this.#syntheticEventsManagerByTrace.push(syntheticEventsManager);
     } catch (e) {
       throw e;
     } finally {
@@ -135,23 +118,27 @@ export class Model extends EventTarget {
     }
   }
 
-  #storeParsedFileData(
-      file: ParsedTraceFile, data: Handlers.Types.ParsedTrace|null,
-      insights: Insights.Types.TraceInsightSets|null): void {
-    file.parsedTrace = data;
-    file.traceInsights = insights;
+  #storeAndCreateParsedTraceFile(
+      syntheticEventsManager: Helpers.SyntheticEvents.SyntheticEventsManager,
+      traceEvents: readonly Types.Events.Event[], metadata: Types.File.MetaData, data: Handlers.Types.HandlerData,
+      traceInsights: Insights.Types.TraceInsightSets|null): ParsedTrace {
     this.#lastRecordingIndex++;
     let recordingName = `Trace ${this.#lastRecordingIndex}`;
-    let origin: string|null = null;
-    if (file.parsedTrace) {
-      origin = Helpers.Trace.extractOriginFromTrace(file.parsedTrace.Meta.mainFrameURL);
-      if (origin) {
-        const nextSequenceForDomain = Platform.MapUtilities.getWithDefault(this.#nextNumberByDomain, origin, () => 1);
-        recordingName = `${origin} (${nextSequenceForDomain})`;
-        this.#nextNumberByDomain.set(origin, nextSequenceForDomain + 1);
-      }
+    const origin = Helpers.Trace.extractOriginFromTrace(data.Meta.mainFrameURL);
+    if (origin) {
+      const nextSequenceForDomain = Platform.MapUtilities.getWithDefault(this.#nextNumberByDomain, origin, () => 1);
+      recordingName = `${origin} (${nextSequenceForDomain})`;
+      this.#nextNumberByDomain.set(origin, nextSequenceForDomain + 1);
     }
     this.#recordingsAvailable.push(recordingName);
+
+    return {
+      traceEvents,
+      metadata,
+      data,
+      insights: traceInsights,
+      syntheticEventsManager,
+    };
   }
 
   lastTraceIndex(): number {
@@ -162,16 +149,8 @@ export class Model extends EventTarget {
    * Returns the parsed trace data indexed by the order in which it was stored.
    * If no index is given, the last stored parsed data is returned.
    */
-  parsedTrace(index: number = this.#traces.length - 1): Handlers.Types.ParsedTrace|null {
-    return this.#traces.at(index)?.parsedTrace ?? null;
-  }
-
-  traceInsights(index: number = this.#traces.length - 1): Insights.Types.TraceInsightSets|null {
-    return this.#traces.at(index)?.traceInsights ?? null;
-  }
-
-  metadata(index: number = this.#traces.length - 1): Types.File.MetaData|null {
-    return this.#traces.at(index)?.metadata ?? null;
+  parsedTrace(index: number = this.#traces.length - 1): ParsedTrace|null {
+    return this.#traces.at(index) ?? null;
   }
 
   overrideModifications(index: number, newModifications: Types.File.Modifications): void {
@@ -180,13 +159,9 @@ export class Model extends EventTarget {
     }
   }
 
-  rawTraceEvents(index: number = this.#traces.length - 1): readonly Types.Events.Event[]|null {
-    return this.#traces.at(index)?.traceEvents ?? null;
-  }
-
   syntheticTraceEventsManager(index: number = this.#traces.length - 1): Helpers.SyntheticEvents.SyntheticEventsManager
       |null {
-    return this.#syntheticEventsManagerByTrace.at(index) ?? null;
+    return this.#traces.at(index)?.syntheticEventsManager ?? null;
   }
 
   size(): number {
@@ -196,6 +171,10 @@ export class Model extends EventTarget {
   deleteTraceByIndex(recordingIndex: number): void {
     this.#traces.splice(recordingIndex, 1);
     this.#recordingsAvailable.splice(recordingIndex, 1);
+  }
+
+  indexForTrace(trace: ParsedTrace): number {
+    return this.#traces.indexOf(trace);
   }
 
   getRecordingsAvailable(): string[] {
@@ -208,13 +187,15 @@ export class Model extends EventTarget {
 }
 
 /**
- * This parsed trace file is used by the Model. It keeps multiple instances
+ * This parsed trace is used by the Model. It keeps multiple instances
  * of these so that the user can swap between them. The key is that it is
  * essentially the TraceFile plus whatever the model has parsed from it.
  */
-export type ParsedTraceFile = Types.File.TraceFile&{
-  parsedTrace: Handlers.Types.ParsedTrace | null,
-  traceInsights: Insights.Types.TraceInsightSets | null,
+export type ParsedTrace = Types.File.TraceFile&{
+  data: Handlers.Types.HandlerData,
+  /** Is null for CPU profiles. */
+  insights: Insights.Types.TraceInsightSets | null,
+  syntheticEventsManager: Helpers.SyntheticEvents.SyntheticEventsManager,
 };
 
 export const enum ModelUpdateType {

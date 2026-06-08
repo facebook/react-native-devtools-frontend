@@ -1,15 +1,21 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
+import * as Geometry from '../../models/geometry/geometry.js';
 import * as Trace from '../../models/trace/trace.js';
 import * as UI from '../../ui/legacy/legacy.js';
+import * as Lit from '../../ui/lit/lit.js';
 import * as LayerViewer from '../layer_viewer/layer_viewer.js';
 
 import timelinePaintProfilerStyles from './timelinePaintProfiler.css.js';
 import {TracingFrameLayerTree} from './TracingLayerTree.js';
+
+const {html, render} = Lit;
+const {createRef, ref} = Lit.Directives;
 
 export class TimelinePaintProfilerView extends UI.SplitWidget.SplitWidget {
   private readonly logAndImageSplitWidget: UI.SplitWidget.SplitWidget;
@@ -21,18 +27,16 @@ export class TimelinePaintProfilerView extends UI.SplitWidget.SplitWidget {
   private event: Trace.Types.Events.Event|null;
   private paintProfilerModel: SDK.PaintProfiler.PaintProfilerModel|null;
   private lastLoadedSnapshot: SDK.PaintProfiler.PaintProfilerSnapshot|null;
-  #parsedTrace: Trace.Handlers.Types.ParsedTrace;
+  #parsedTrace: Trace.TraceModel.ParsedTrace;
 
-  constructor(parsedTrace: Trace.Handlers.Types.ParsedTrace) {
+  constructor(parsedTrace: Trace.TraceModel.ParsedTrace) {
     super(false, false);
-    this.element.classList.add('timeline-paint-profiler-view');
     this.setSidebarSize(60);
     this.setResizable(false);
 
     this.#parsedTrace = parsedTrace;
 
-    this.logAndImageSplitWidget = new UI.SplitWidget.SplitWidget(true, false);
-    this.logAndImageSplitWidget.element.classList.add('timeline-paint-profiler-log-split');
+    this.logAndImageSplitWidget = new UI.SplitWidget.SplitWidget(true, false, 'timeline-paint-profiler-log-split');
     this.setMainWidget(this.logAndImageSplitWidget);
     this.imageView = new TimelinePaintImageView();
     this.logAndImageSplitWidget.setMainWidget(this.imageView);
@@ -74,7 +78,7 @@ export class TimelinePaintProfilerView extends UI.SplitWidget.SplitWidget {
       return false;
     }
 
-    const frame = this.#parsedTrace.Frames.framesById[data.sourceFrameNumber];
+    const frame = this.#parsedTrace.data.Frames.framesById[data.sourceFrameNumber];
     if (!frame?.layerTree) {
       return false;
     }
@@ -89,7 +93,7 @@ export class TimelinePaintProfilerView extends UI.SplitWidget.SplitWidget {
 
     this.updateWhenVisible();
     if (Trace.Types.Events.isPaint(event)) {
-      const snapshot = this.#parsedTrace.LayerTree.paintsToSnapshots.get(event);
+      const snapshot = this.#parsedTrace.data.LayerTree.paintsToSnapshots.get(event);
       return Boolean(snapshot);
     }
     if (Trace.Types.Events.isRasterTask(event)) {
@@ -124,7 +128,7 @@ export class TimelinePaintProfilerView extends UI.SplitWidget.SplitWidget {
       return null;
     }
 
-    const frame = this.#parsedTrace.Frames.framesById[data.sourceFrameNumber];
+    const frame = this.#parsedTrace.data.Frames.framesById[data.sourceFrameNumber];
     if (!frame?.layerTree) {
       return null;
     }
@@ -153,7 +157,7 @@ export class TimelinePaintProfilerView extends UI.SplitWidget.SplitWidget {
       // snapshot to that paint event. That is why here if the event is a Paint
       // event, we look to see if it has had a matching picture event set for
       // it.
-      const snapshotEvent = this.#parsedTrace.LayerTree.paintsToSnapshots.get(this.event);
+      const snapshotEvent = this.#parsedTrace.data.LayerTree.paintsToSnapshots.get(this.event);
       if (snapshotEvent) {
         const encodedData = snapshotEvent.args.snapshot.skp64;
         snapshotPromise = this.paintProfilerModel.loadSnapshot(encodedData).then(snapshot => {
@@ -202,53 +206,112 @@ export class TimelinePaintProfilerView extends UI.SplitWidget.SplitWidget {
   }
 }
 
+export interface TimelinePaintImageViewInput {
+  maskElementHidden: boolean;
+  imageContainerHidden: boolean;
+  imageURL: string;
+  imageContainerWebKitTransform: string;
+  maskElementStyle: {
+    width?: string,
+    height?: string,
+    borderLeftWidth?: string,
+    borderTopWidth?: string,
+    borderRightWidth?: string,
+    borderBottomWidth?: string,
+  };
+}
+
+export const DEFAULT_VIEW = (input: TimelinePaintImageViewInput, output: undefined, target: HTMLElement): {
+  imageElementNaturalHeight: number,
+  imageElementNaturalWidth: number,
+} => {
+  const imageElementRef = createRef<HTMLImageElement>();
+  // clang-format off
+  render(html`
+  <div class="paint-profiler-image-view fill">
+    <div class="paint-profiler-image-container" style="-webkit-transform: ${input.imageContainerWebKitTransform}">
+      <img src=${input.imageURL} display=${input.imageContainerHidden ? 'none' : 'block'} ${ref(imageElementRef)}>
+      <div style=${Lit.Directives.styleMap({
+        display: input.maskElementHidden ? 'none' : 'block',
+        ...input.maskElementStyle,})}>
+      </div>
+    </div>
+  </div>`,
+ target);
+  // clang-format on
+
+  // The elements are guaranteed to exist after render completes
+  // because they are not conditionally rendered within the template.
+  const imageElement = imageElementRef.value;
+
+  if (!imageElement?.naturalHeight || !imageElement.naturalWidth) {
+    throw new Error('ImageElement were not found in the TimelinePaintImageView.');
+  }
+
+  return {imageElementNaturalHeight: imageElement.naturalHeight, imageElementNaturalWidth: imageElement.naturalWidth};
+};
 export class TimelinePaintImageView extends UI.Widget.Widget {
-  private imageContainer: HTMLElement;
-  private imageElement: HTMLImageElement;
-  private readonly maskElement: HTMLElement;
   private transformController: LayerViewer.TransformController.TransformController;
   private maskRectangle?: Protocol.DOM.Rect|null;
-  constructor() {
-    super(true);
-    this.registerRequiredCSS(timelinePaintProfilerStyles);
 
-    this.contentElement.classList.add('fill', 'paint-profiler-image-view');
-    this.imageContainer = this.contentElement.createChild('div', 'paint-profiler-image-container');
-    this.imageElement = this.imageContainer.createChild('img');
-    this.maskElement = this.imageContainer.createChild('div');
-    this.imageElement.addEventListener('load', this.updateImagePosition.bind(this), false);
+  #inputData: TimelinePaintImageViewInput = {
+    maskElementHidden: true,
+    imageContainerHidden: true,
+    imageURL: '',
+    imageContainerWebKitTransform: '',
+    maskElementStyle: {},
+  };
+
+  #view: typeof DEFAULT_VIEW;
+  #imageElementDimensions?: {
+    naturalHeight: number,
+    naturalWidth: number,
+  };
+
+  constructor(view = DEFAULT_VIEW) {
+    super();
+    this.registerRequiredCSS(timelinePaintProfilerStyles);
+    this.#view = view;
     this.transformController = new LayerViewer.TransformController.TransformController((this.contentElement), true);
     this.transformController.addEventListener(
         LayerViewer.TransformController.Events.TRANSFORM_CHANGED, this.updateImagePosition, this);
   }
 
   override onResize(): void {
-    if (this.imageElement.src) {
-      this.updateImagePosition();
-    }
+    this.requestUpdate();
+    this.updateImagePosition();
   }
 
   private updateImagePosition(): void {
-    const width = this.imageElement.naturalWidth;
-    const height = this.imageElement.naturalHeight;
+    if (!this.#imageElementDimensions) {
+      return;
+    }
+
+    const width = this.#imageElementDimensions.naturalWidth;
+    const height = this.#imageElementDimensions.naturalHeight;
     const clientWidth = this.contentElement.clientWidth;
     const clientHeight = this.contentElement.clientHeight;
 
     const paddingFraction = 0.1;
     const paddingX = clientWidth * paddingFraction;
-    const paddingY = clientHeight * paddingFraction;
-    const scaleX = (clientWidth - paddingX) / width;
-    const scaleY = (clientHeight - paddingY) / height;
-    const scale = Math.min(scaleX, scaleY);
+    const scale = clientHeight / height;
 
+    const oldMaskStyle = JSON.stringify(this.#inputData.maskElementStyle);
+    let newMaskStyle = {};
     if (this.maskRectangle) {
-      const style = this.maskElement.style;
-      style.width = width + 'px';
-      style.height = height + 'px';
-      style.borderLeftWidth = this.maskRectangle.x + 'px';
-      style.borderTopWidth = this.maskRectangle.y + 'px';
-      style.borderRightWidth = (width - this.maskRectangle.x - this.maskRectangle.width) + 'px';
-      style.borderBottomWidth = (height - this.maskRectangle.y - this.maskRectangle.height) + 'px';
+      newMaskStyle = {
+        width: width + 'px',
+        height: height + 'px',
+        borderLeftWidth: this.maskRectangle.x + 'px',
+        borderTopWidth: this.maskRectangle.y + 'px',
+        borderRightWidth: (width - this.maskRectangle.x - this.maskRectangle.width) + 'px',
+        borderBottomWidth: (height - this.maskRectangle.y - this.maskRectangle.height) + 'px',
+      };
+    }
+    this.#inputData.maskElementStyle = newMaskStyle;
+
+    if (!this.transformController) {
+      return;
     }
     this.transformController.setScaleConstraints(0.5, 10 / scale);
     let matrix = new WebKitCSSMatrix()
@@ -256,25 +319,41 @@ export class TimelinePaintImageView extends UI.Widget.Widget {
                      .translate(clientWidth / 2, clientHeight / 2)
                      .scale(scale, scale)
                      .translate(-width / 2, -height / 2);
-    const bounds = UI.Geometry.boundsForTransformedPoints(matrix, [0, 0, 0, width, height, 0]);
-    this.transformController.clampOffsets(
-        paddingX - bounds.maxX, clientWidth - paddingX - bounds.minX, paddingY - bounds.maxY,
-        clientHeight - paddingY - bounds.minY);
+    const bounds = Geometry.boundsForTransformedPoints(matrix, [0, 0, 0, width, height, 0]);
+    this.transformController.clampOffsets(paddingX - bounds.maxX, clientWidth - paddingX - bounds.minX, 0, 0);
     matrix = new WebKitCSSMatrix()
                  .translate(this.transformController.offsetX(), this.transformController.offsetY())
                  .multiply(matrix);
-    this.imageContainer.style.webkitTransform = matrix.toString();
+
+    const oldTransform = this.#inputData.imageContainerWebKitTransform;
+    const newTransform = matrix.toString();
+    this.#inputData.imageContainerWebKitTransform = newTransform;
+
+    if (oldTransform !== newTransform || oldMaskStyle !== JSON.stringify(newMaskStyle)) {
+      this.requestUpdate();
+    }
   }
 
   showImage(imageURL?: string): void {
-    this.imageContainer.classList.toggle('hidden', !imageURL);
+    this.#inputData.imageContainerHidden = !imageURL;
     if (imageURL) {
-      this.imageElement.src = imageURL;
+      this.#inputData.imageURL = imageURL;
     }
+    this.requestUpdate();
   }
 
   setMask(maskRectangle: Protocol.DOM.Rect|null): void {
     this.maskRectangle = maskRectangle;
-    this.maskElement.classList.toggle('hidden', !maskRectangle);
+
+    this.#inputData.maskElementHidden = !maskRectangle;
+    this.requestUpdate();
+  }
+
+  override performUpdate(): void {
+    const {imageElementNaturalHeight, imageElementNaturalWidth} =
+        this.#view(this.#inputData, undefined, this.contentElement);
+    this.#imageElementDimensions = {naturalHeight: imageElementNaturalHeight, naturalWidth: imageElementNaturalWidth};
+    // Image can only be updated to correctly fit the component when the component has loaded.
+    this.updateImagePosition();
   }
 }

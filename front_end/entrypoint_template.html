@@ -1,5 +1,5 @@
 <!--
- * Copyright 2018 The Chromium Authors. All rights reserved.
+ * Copyright 2018 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
 -->
@@ -14,6 +14,8 @@
     }
   }
 </style>
+<!-- [RN] Keep the permissive CSP (with 'unsafe-eval', single line) required by the React DevTools
+     panels and consumed by the rn_fusebox worker-src injection in scripts/build/generate_html_entrypoint.js. -->
 <meta http-equiv="Content-Security-Policy" content="object-src 'none'; script-src 'self' 'unsafe-eval' https://chrome-devtools-frontend.appspot.com">
 <meta name="referrer" content="no-referrer">
 <link rel="icon" href="./Images/favicon.ico">

@@ -1,6 +1,7 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../../../core/common/common.js';
 import * as Host from '../../../../core/host/host.js';
@@ -13,24 +14,24 @@ import filmStripViewStyles from './filmStripView.css.js';
 
 const UIStrings = {
   /**
-   *@description Element title in Film Strip View of the Performance panel
+   * @description Element title in Film Strip View of the Performance panel
    */
   doubleclickToZoomImageClickTo: 'Doubleclick to zoom image. Click to view preceding requests.',
   /**
-   *@description Aria label for captured screenshots in network panel.
-   *@example {3ms} PH1
+   * @description Aria label for captured screenshots in network panel.
+   * @example {3ms} PH1
    */
   screenshotForSSelectToView: 'Screenshot for {PH1} - select to view preceding requests.',
   /**
-   *@description Text for one or a group of screenshots
+   * @description Text for one or a group of screenshots
    */
   screenshot: 'Screenshot',
   /**
-   *@description Prev button title in Film Strip View of the Performance panel
+   * @description Prev button title in Film Strip View of the Performance panel
    */
   previousFrame: 'Previous frame',
   /**
-   *@description Next button title in Film Strip View of the Performance panel
+   * @description Next button title in Film Strip View of the Performance panel
    */
   nextFrame: 'Next frame',
 } as const;
@@ -42,7 +43,7 @@ export class FilmStripView extends Common.ObjectWrapper.eventMixin<EventTypes, t
   #filmStrip: Trace.Extras.FilmStrip.Data|null = null;
 
   constructor() {
-    super(true);
+    super({useShadowDom: true});
     this.registerRequiredCSS(filmStripViewStyles);
     this.contentElement.classList.add('film-strip-view');
     this.statusLabel = this.contentElement.createChild('div', 'gray-info-message');
@@ -148,8 +149,7 @@ interface DialogParsedTrace {
 }
 
 export class Dialog {
-  private fragment: UI.Fragment.Fragment;
-  private readonly widget: UI.XWidget.XWidget;
+  private readonly widget: UI.Widget.Widget;
   private index: number;
   private dialog: UI.Dialog.Dialog|null = null;
 
@@ -172,21 +172,32 @@ export class Dialog {
     UI.Tooltip.Tooltip.install(prevButton, i18nString(UIStrings.previousFrame));
     const nextButton = UI.UIUtils.createTextButton('\u25B6', this.onNextFrame.bind(this));
     UI.Tooltip.Tooltip.install(nextButton, i18nString(UIStrings.nextFrame));
-    this.fragment = UI.Fragment.Fragment.build`
-      <x-widget flex=none margin='var(--sys-size-7) var(--sys-size-8) var(--sys-size-8) var(--sys-size-8)'>
-        <x-hbox overflow=auto border='var(--sys-size-1) solid var(--sys-color-divider)'>
-          <img $='image' data-film-strip-dialog-img style="max-height: 80vh; max-width: 80vw;"></img>
-        </x-hbox>
-        <x-hbox x-center justify-content=center margin-top='var(--sys-size-6)'>
-          ${prevButton}
-          <x-hbox $='time' margin='var(--sys-size-5)'></x-hbox>
-          ${nextButton}
-        </x-hbox>
-      </x-widget>
-    `;
-    this.widget = (this.fragment.element() as UI.XWidget.XWidget);
-    (this.widget as HTMLElement).tabIndex = 0;
-    this.widget.addEventListener('keydown', this.keyDown.bind(this), false);
+    this.widget = new UI.Widget.Widget({classes: ['film-strip-image-dialog']});
+    this.widget.registerRequiredCSS(filmStripViewStyles);
+
+    const imageBox = document.createElement('div');
+    imageBox.classList.add('image-box');
+
+    const image = document.createElement('img');
+    image.setAttribute('data-film-strip-dialog-img', '');
+    imageBox.append(image);
+
+    const buttonBox = document.createElement('div');
+    buttonBox.classList.add('button-box');
+
+    const timeBox = document.createElement('div');
+    timeBox.classList.add('time-box');
+
+    buttonBox.append(prevButton);
+    buttonBox.append(timeBox);
+    buttonBox.append(nextButton);
+
+    this.widget.contentElement.append(imageBox);
+    this.widget.contentElement.append(buttonBox);
+
+    this.widget.element.tabIndex = 0;
+    this.widget.contentElement.append();
+    this.widget.contentElement.addEventListener('keydown', this.keyDown.bind(this), false);
     this.dialog = null;
 
     void this.render();
@@ -209,15 +220,15 @@ export class Dialog {
   private resize(): void {
     if (!this.dialog) {
       this.dialog = new UI.Dialog.Dialog();
-      this.dialog.contentElement.appendChild(this.widget);
-      this.dialog.setDefaultFocusedElement(this.widget);
+      this.widget.show(this.dialog.contentElement);
+      this.dialog.setDefaultFocusedElement(this.widget.element);
       this.dialog.show();
     }
     this.dialog.setSizeBehavior(UI.GlassPane.SizeBehavior.MEASURE_CONTENT);
   }
 
-  private keyDown(event: Event): void {
-    const keyboardEvent = (event as KeyboardEvent);
+  private keyDown(event: KeyboardEvent): void {
+    const keyboardEvent = event;
     switch (keyboardEvent.key) {
       case 'ArrowLeft':
         if (Host.Platform.isMac() && keyboardEvent.metaKey) {
@@ -272,8 +283,15 @@ export class Dialog {
   private render(): void {
     const frame = this.#data.frames[this.index];
     const timestamp = Trace.Helpers.Timing.microToMilli(frame.screenshotEvent.ts);
-    this.fragment.$('time').textContent = i18n.TimeUtilities.millisToString(timestamp - this.#zeroTime());
-    const image = (this.fragment.$('image') as HTMLImageElement);
+    const timeBox = this.widget.contentElement.querySelector('.time-box');
+    if (timeBox) {
+      timeBox.textContent = i18n.TimeUtilities.millisToString(timestamp - this.#zeroTime());
+    }
+
+    const image = this.widget.contentElement.querySelector('img');
+    if (!image) {
+      return;
+    }
     image.setAttribute('data-frame-index', this.index.toString());
     const imgData = Trace.Handlers.ModelHandlers.Screenshots.screenshotImageDataUri(frame.screenshotEvent);
     FilmStripView.setImageData(image, imgData);

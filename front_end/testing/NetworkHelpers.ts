@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@ import * as Common from '../core/common/common.js';
 import * as Network from '../panels/network/network.js';
 import * as RenderCoordinator from '../ui/components/render_coordinator/render_coordinator.js';
 
+import {renderElementIntoDOM} from './DOMHelpers.js';
 import {
   registerNoopActions,
 } from './EnvironmentHelpers.js';
@@ -16,21 +17,25 @@ export async function createNetworkPanelForMockConnection(): Promise<Network.Net
   const dummyStorage = new Common.Settings.SettingsStorage({});
   for (const settingName
            of ['network-color-code-resource-types', 'network.group-by-frame', 'network-record-film-strip-setting']) {
-    Common.Settings.registerSettingExtension({
-      settingName,
-      settingType: Common.Settings.SettingType.BOOLEAN,
-      defaultValue: false,
-    });
+    try {
+      Common.Settings.registerSettingExtension({
+        settingName,
+        settingType: Common.Settings.SettingType.BOOLEAN,
+        defaultValue: false,
+      });
+    } catch {
+      // ignore duplicate errors.
+    }
   }
   Common.Settings.Settings.instance({
     forceNew: true,
     syncedStorage: dummyStorage,
     globalStorage: dummyStorage,
     localStorage: dummyStorage,
+    settingRegistrations: Common.SettingRegistration.getRegisteredSettings(),
   });
   const networkPanel = Network.NetworkPanel.NetworkPanel.instance({forceNew: true, displayScreenshotDelay: 0});
-  networkPanel.markAsRoot();
-  networkPanel.show(document.body);
+  renderElementIntoDOM(networkPanel, {allowMultipleChildren: true});
   await RenderCoordinator.done();
   return networkPanel;
 }

@@ -1,6 +1,7 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view */
 
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Platform from '../../../core/platform/platform.js';
@@ -8,12 +9,12 @@ import * as CrUXManager from '../../../models/crux-manager/crux-manager.js';
 import type * as Trace from '../../../models/trace/trace.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as ComponentHelpers from '../../../ui/components/helpers/helpers.js';
-import * as UI from '../../../ui/legacy/legacy.js';
+import * as UIHelpers from '../../../ui/helpers/helpers.js';
 import * as Lit from '../../../ui/lit/lit.js';
 
-import metricCardStylesRaw from './metricCard.css.js';
+import metricCardStyles from './metricCard.css.js';
 import {type CompareRating, renderCompareText, renderDetailedCompareText} from './MetricCompareStrings.js';
-import metricValueStylesRaw from './metricValueStyles.css.js';
+import metricValueStyles from './metricValueStyles.css.js';
 import {
   CLS_THRESHOLDS,
   determineCompareRating,
@@ -24,14 +25,6 @@ import {
   rateMetric,
   renderMetricValue,
 } from './Utils.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const metricCardStyles = new CSSStyleSheet();
-metricCardStyles.replaceSync(metricCardStylesRaw.cssText);
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const metricValueStyles = new CSSStyleSheet();
-metricValueStyles.replaceSync(metricValueStylesRaw.cssText);
 
 const {html, nothing} = Lit;
 
@@ -185,8 +178,6 @@ export class MetricCard extends HTMLElement {
   }
 
   connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [metricCardStyles, metricValueStyles];
-
     void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
   }
 
@@ -529,21 +520,21 @@ export class MetricCard extends HTMLElement {
     const goodLabel = html`
       <div class="bucket-label">
         <span>${i18nString(UIStrings.good)}</span>
-        <span class="bucket-range">${i18nString(UIStrings.leqRange, {PH1: format(thresholds[0])})}</span>
+        <span class="bucket-range"> ${i18nString(UIStrings.leqRange, {PH1: format(thresholds[0])})}</span>
       </div>
     `;
 
     const needsImprovementLabel = html`
       <div class="bucket-label">
         <span>${i18nString(UIStrings.needsImprovement)}</span>
-        <span class="bucket-range">${i18nString(UIStrings.betweenRange, {PH1: format(thresholds[0]), PH2: format(thresholds[1])})}</span>
+        <span class="bucket-range"> ${i18nString(UIStrings.betweenRange, {PH1: format(thresholds[0]), PH2: format(thresholds[1])})}</span>
       </div>
     `;
 
     const poorLabel = html`
       <div class="bucket-label">
         <span>${i18nString(UIStrings.poor)}</span>
-        <span class="bucket-range">${i18nString(UIStrings.gtRange, {PH1: format(thresholds[1])})}</span>
+        <span class="bucket-range"> ${i18nString(UIStrings.gtRange, {PH1: format(thresholds[1])})}</span>
       </div>
     `;
     // clang-format on
@@ -621,6 +612,8 @@ export class MetricCard extends HTMLElement {
 
     // clang-format off
     const output = html`
+      <style>${metricCardStyles}</style>
+      <style>${metricValueStyles}</style>
       <div class="metric-card">
         <h3 class="title">
           ${this.#getTitle()}
@@ -629,7 +622,7 @@ export class MetricCard extends HTMLElement {
             title=${this.#getHelpTooltip()}
             .iconName=${'help'}
             .variant=${Buttons.Button.Variant.ICON}
-            @click=${() => UI.UIUtils.openInNewTab(helpLink)}
+            @click=${() => UIHelpers.openInNewTab(helpLink)}
           ></devtools-button>
         </h3>
         <div tabindex="0" class="metric-values-section"
@@ -654,8 +647,10 @@ export class MetricCard extends HTMLElement {
             class="tooltip"
             role="tooltip"
             aria-label=${i18nString(UIStrings.viewCardDetails)}
-            on-render=${ComponentHelpers.Directives.nodeRenderedCallback(node => {
-              this.#tooltipEl = node as HTMLElement;
+            ${Lit.Directives.ref(el => {
+              if (el instanceof HTMLElement) {
+                this.#tooltipEl = el as HTMLElement;
+              }
             })}
           >
             <div class="tooltip-scroll">

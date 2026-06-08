@@ -1,7 +1,7 @@
 #!/usr/bin/env vpython3
 # -*- coding: UTF-8 -*-
 #
-# Copyright 2021 The Chromium Authors. All rights reserved.
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """
@@ -42,7 +42,7 @@ def main(argv):
             print(
                 "File " + generated_file +
                 " is not listed in config/gni/devtools_grd_files.gni." +
-                " Either add the file to the grd_files_release_sources/grd_files_debug_sources,"
+                " Either add the file to the grd_files_bundled_sources/grd_files_unbundled_sources,"
                 + " or remove the generated file from an action.\n")
 
             return_code = 1

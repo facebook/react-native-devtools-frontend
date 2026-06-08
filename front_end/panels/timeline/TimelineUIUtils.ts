@@ -1,6 +1,8 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
+/* eslint-disable @devtools/no-lit-render-outside-of-view */
 
 /*
  * Copyright (C) 2013 Google Inc. All rights reserved.
@@ -33,6 +35,8 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+import '../../ui/kit/kit.js';
+
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
@@ -40,105 +44,87 @@ import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
 import * as Bindings from '../../models/bindings/bindings.js';
+import * as TextUtils from '../../models/text_utils/text_utils.js';
 import * as Trace from '../../models/trace/trace.js';
+import * as SourceMapsResolver from '../../models/trace_source_maps_resolver/trace_source_maps_resolver.js';
 import * as TraceBounds from '../../services/trace_bounds/trace_bounds.js';
+import * as Tracing from '../../services/tracing/tracing.js';
 import * as CodeHighlighter from '../../ui/components/code_highlighter/code_highlighter.js';
-// eslint-disable-next-line rulesdir/es-modules-import
+// eslint-disable-next-line @devtools/es-modules-import
 import codeHighlighterStyles from '../../ui/components/code_highlighter/codeHighlighter.css.js';
+import * as uiI18n from '../../ui/i18n/i18n.js';
 import * as PerfUI from '../../ui/legacy/components/perf_ui/perf_ui.js';
-// eslint-disable-next-line rulesdir/es-modules-import
-import imagePreviewStylesRaw from '../../ui/legacy/components/utils/imagePreview.css.js';
+// eslint-disable-next-line @devtools/es-modules-import
+import imagePreviewStyles from '../../ui/legacy/components/utils/imagePreview.css.js';
 import * as LegacyComponents from '../../ui/legacy/components/utils/utils.js';
 import * as UI from '../../ui/legacy/legacy.js';
+import * as ThemeSupport from '../../ui/legacy/theme_support/theme_support.js';
+import {html, render} from '../../ui/lit/lit.js';
+import * as PanelsCommon from '../common/common.js';
 
 import {getDurationString} from './AppenderUtils.js';
 import * as TimelineComponents from './components/components.js';
 import * as Extensions from './extensions/extensions.js';
-import {Tracker} from './FreshRecording.js';
 import {ModificationsManager} from './ModificationsManager.js';
 import {targetForEvent} from './TargetForEvent.js';
-import * as ThirdPartyTreeView from './ThirdPartyTreeView.js';
 import {TimelinePanel} from './TimelinePanel.js';
 import {selectionFromEvent} from './TimelineSelection.js';
 import * as Utils from './utils/utils.js';
 
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const imagePreviewStyles = new CSSStyleSheet();
-imagePreviewStyles.replaceSync(imagePreviewStylesRaw.cssText);
-
 const UIStrings = {
   /**
-   *@description Text that only contain a placeholder
-   *@example {100ms (at 200ms)} PH1
+   * @description Text that only contain a placeholder
+   * @example {100ms (at 200ms)} PH1
    */
-  emptyPlaceholder: '{PH1}',  // eslint-disable-line rulesdir/l10n-no-locked-or-placeholder-only-phrase
+  emptyPlaceholder: '{PH1}',  // eslint-disable-line @devtools/l10n-no-locked-or-placeholder-only-phrase
   /**
-   *@description Text for timestamps of items
+   * @description Text for timestamps of items
    */
   timestamp: 'Timestamp',
   /**
-   *@description Text shown next to the interaction event's ID in the detail view.
+   * @description Text shown next to the interaction event's ID in the detail view.
    */
   interactionID: 'ID',
   /**
-   *@description Text shown next to the interaction event's input delay time in the detail view.
+   * @description Text shown next to the interaction event's input delay time in the detail view.
    */
   inputDelay: 'Input delay',
   /**
-   *@description Text shown next to the interaction event's thread processing duration in the detail view.
+   * @description Text shown next to the interaction event's thread processing duration in the detail view.
    */
   processingDuration: 'Processing duration',
   /**
-   *@description Text shown next to the interaction event's presentation delay time in the detail view.
+   * @description Text shown next to the interaction event's presentation delay time in the detail view.
    */
   presentationDelay: 'Presentation delay',
   /**
-   *@description Text shown when the user has selected an event that represents script compiliation.
+   * @description Text shown when the user has selected an event that represents script compiliation.
    */
   compile: 'Compile',
   /**
-   *@description Text shown when the user selects an event that represents script parsing.
+   * @description Text shown when the user selects an event that represents script parsing.
    */
   parse: 'Parse',
   /**
-   *@description Text with two placeholders separated by a colon
-   *@example {Node removed} PH1
-   *@example {div#id1} PH2
+   * @description Text with two placeholders separated by a colon
+   * @example {Node removed} PH1
+   * @example {div#id1} PH2
    */
   sS: '{PH1}: {PH2}',
   /**
-   *@description Details text used to show the amount of data collected.
-   *@example {30 MB} PH1
-   */
-  sCollected: '{PH1} collected',
-  /**
-   *@description Text used to show a URL to a script and the relevant line numbers.
-   *@example {https://example.com/foo.js} PH1
-   *@example {2} PH2
-   *@example {4} PH3
-   */
-  sSs: '{PH1} [{PH2}…{PH3}]',
-  /**
-   *@description Text used to show a URL to a script and the starting line
-   *             number - used when there is no end line number available.
-   *@example {https://example.com/foo.js} PH1
-   *@example {2} PH2
-   */
-  sSSquareBrackets: '{PH1} [{PH2}…]',
-  /**
-   *@description Text that is usually a hyperlink to more documentation
+   * @description Text that is usually a hyperlink to more documentation
    */
   learnMore: 'Learn more',
   /**
-   *@description Text referring to the status of the browser's compilation cache.
+   * @description Text referring to the status of the browser's compilation cache.
    */
   compilationCacheStatus: 'Compilation cache status',
   /**
-   *@description Text referring to the size of the browser's compiliation cache.
+   * @description Text referring to the size of the browser's compiliation cache.
    */
   compilationCacheSize: 'Compilation cache size',
   /**
-   *@description Text in Timeline UIUtils of the Performance panel. "Compilation
+   * @description Text in Timeline UIUtils of the Performance panel. "Compilation
    * cache" refers to the code cache described at
    * https://v8.dev/blog/code-caching-for-devs . This label is followed by the
    * type of code cache data used, either "normal" or "full" as described in the
@@ -146,223 +132,199 @@ const UIStrings = {
    */
   compilationCacheKind: 'Compilation cache kind',
   /**
-   *@description Text used to inform the user that the script they are looking
+   * @description Text used to inform the user that the script they are looking
    *             at was loaded from the browser's cache.
    */
   scriptLoadedFromCache: 'script loaded from cache',
   /**
-   *@description Text to inform the user that the script they are looking at
+   * @description Text to inform the user that the script they are looking at
    *             was unable to be loaded from the browser's cache.
    */
   failedToLoadScriptFromCache: 'failed to load script from cache',
   /**
-   *@description Text to inform the user that the script they are looking at was not eligible to be loaded from the browser's cache.
+   * @description Text to inform the user that the script they are looking at was not eligible to be loaded from the browser's cache.
    */
   scriptNotEligibleToBeLoadedFromCache: 'script not eligible',
   /**
-   *@description Label in the summary view in the Performance panel for a number which indicates how much managed memory has been reclaimed by performing Garbage Collection
+   * @description Label in the summary view in the Performance panel for a number which indicates how much managed memory has been reclaimed by performing Garbage Collection
    */
   collected: 'Collected',
   /**
-   *@description Text for a programming function
+   * @description Text for a programming function
    */
   function: 'Function',
   /**
-   *@description Text for referring to the ID of a timer.
+   * @description Text for referring to the ID of a timer.
    */
   timerId: 'Timer ID',
   /**
-   *@description Text for referring to a timer that has timed-out and therefore is being removed.
+   * @description Text for referring to a timer that has timed-out and therefore is being removed.
    */
   timeout: 'Timeout',
   /**
-   *@description Text used to indicate that a timer is repeating (e.g. every X seconds) rather than a one off.
+   * @description Text used to refer to a positive timeout value that schedules the idle callback once elapsed, even if no idle time is available.
+   */
+  requestIdleCallbackTimeout: 'Timeout',
+  /**
+   * @description Text used to indicate that a timer is repeating (e.g. every X seconds) rather than a one off.
    */
   repeats: 'Repeats',
   /**
-   *@description Text for referring to the ID of a callback function installed by an event.
+   * @description Text for referring to the ID of a callback function installed by an event.
    */
   callbackId: 'Callback ID',
   /**
-   *@description Text for a module, the programming concept
+   * @description Text for a module, the programming concept
    */
   module: 'Module',
   /**
-   *@description Label for a group of JavaScript files
+   * @description Label for a group of JavaScript files
    */
   script: 'Script',
   /**
-   *@description Text used to tell a user that a compilation trace event was streamed.
+   * @description Text used to tell a user that a compilation trace event was streamed.
    */
   streamed: 'Streamed',
   /**
-   *@description Text to indicate if a compilation event was eager.
+   * @description Text to indicate if a compilation event was eager.
    */
   eagerCompile: 'Compiling all functions eagerly',
   /**
-   *@description Text to refer to the URL associated with a given event.
+   * @description Text to refer to the URL associated with a given event.
    */
   url: 'Url',
   /**
-   *@description Text to indicate to the user the size of the cache (as a filesize - e.g. 5mb).
+   * @description Text to indicate to the user the size of the cache (as a filesize - e.g. 5mb).
    */
   producedCacheSize: 'Produced cache size',
   /**
-   *@description Text to indicate to the user the amount of the cache (as a filesize - e.g. 5mb) that has been used.
+   * @description Text to indicate to the user the amount of the cache (as a filesize - e.g. 5mb) that has been used.
    */
   consumedCacheSize: 'Consumed cache size',
   /**
-   *@description Title for a group of cities
-   */
-  location: 'Location',
-  /**
-   *@description Text used to show a coordinate pair (e.g. (3, 2)).
-   *@example {2} PH1
-   *@example {2} PH2
-   */
-  sSCurlyBrackets: '({PH1}, {PH2})',
-  /**
-   *@description Text used to indicate to the user they are looking at the physical dimensions of a shape that was drawn by the browser.
-   */
-  dimensions: 'Dimensions',
-  /**
-   *@description Text used to show the user the dimensions of a shape and indicate its area (e.g. 3x2).
-   *@example {2} PH1
-   *@example {2} PH2
-   */
-  sSDimensions: '{PH1} × {PH2}',
-  /**
-   *@description Related node label in Timeline UIUtils of the Performance panel
+   * @description Related node label in Timeline UIUtils of the Performance panel
    */
   layerRoot: 'Layer root',
   /**
-   *@description Related node label in Timeline UIUtils of the Performance panel
+   * @description Related node label in Timeline UIUtils of the Performance panel
    */
   ownerElement: 'Owner element',
   /**
-   *@description Text used to show the user the URL of the image they are viewing.
+   * @description Text used to show the user the URL of the image they are viewing.
    */
   imageUrl: 'Image URL',
   /**
-   *@description Text used to show the user that the URL they are viewing is loading a CSS stylesheet.
+   * @description Text used to show the user that the URL they are viewing is loading a CSS stylesheet.
    */
   stylesheetUrl: 'Stylesheet URL',
   /**
-   *@description Text used next to a number to show the user how many elements were affected.
+   * @description Text used next to a number to show the user how many elements were affected.
    */
   elementsAffected: 'Elements affected',
   /**
-   *@description Text used next to a number to show the user how many nodes required the browser to update and re-layout the page.
+   * @description Text used next to a number to show the user how many nodes required the browser to update and re-layout the page.
    */
   nodesThatNeedLayout: 'Nodes that need layout',
   /**
-   *@description Text used to show the amount in a subset - e.g. "2 of 10".
-   *@example {2} PH1
-   *@example {10} PH2
+   * @description Text used to show the amount in a subset - e.g. "2 of 10".
+   * @example {2} PH1
+   * @example {10} PH2
    */
   sOfS: '{PH1} of {PH2}',
   /**
-   *@description Related node label in Timeline UIUtils of the Performance panel
+   * @description Related node label in Timeline UIUtils of the Performance panel
    */
   layoutRoot: 'Layout root',
   /**
-   *@description Text used when viewing an event that can have a custom message attached.
+   * @description Text used when viewing an event that can have a custom message attached.
    */
   message: 'Message',
   /**
-   *@description Text used to tell the user they are viewing an event that has a function embedded in it, which is referred to as the "callback function".
+   * @description Text used to tell the user they are viewing an event that has a function embedded in it, which is referred to as the "callback function".
    */
   callbackFunction: 'Callback function',
   /**
-   *@description Text used to show the relevant range of a file - e.g. "lines 2-10".
+   * @description Text used to show the relevant range of a file - e.g. "lines 2-10".
    */
   range: 'Range',
   /**
-   *@description Text used to refer to the amount of time some event or code was given to complete within.
+   * @description Text used to refer to the amount of time some event or code was given to complete within.
    */
   allottedTime: 'Allotted time',
   /**
-   *@description Text used to tell a user that a particular event or function was automatically run by a timeout.
+   * @description Text used to tell a user that a particular event or function was automatically run by a timeout.
    */
   invokedByTimeout: 'Invoked by timeout',
   /**
-   *@description Text that refers to some types
+   * @description Text that refers to some types
    */
   type: 'Type',
   /**
-   *@description Text for the size of something
+   * @description Text for the size of something
    */
   size: 'Size',
   /**
-   *@description Text for the details of something
+   * @description Text for the details of something
    */
   details: 'Details',
   /**
-   *@description Text to indicate an item is a warning
+   * @description Text to indicate an item is a warning
    */
   warning: 'Warning',
   /**
-   *@description Text that indicates a particular HTML element or node is related to what the user is viewing.
+   * @description Text that indicates a particular HTML element or node is related to what the user is viewing.
    */
   relatedNode: 'Related node',
   /**
-   *@description Text for previewing items
+   * @description Text for previewing items
    */
   preview: 'Preview',
   /**
-   *@description Text used to refer to the total time summed up across multiple events.
+   * @description Text used to refer to the total time summed up across multiple events.
    */
   aggregatedTime: 'Aggregated time',
   /**
-   *@description Text for the duration of something
+   * @description Text for the duration of something
    */
   duration: 'Duration',
   /**
-   *@description Text for the stack trace of the initiator of something. The Initiator is the event or factor that directly triggered or precipitated a subsequent action.
+   * @description Text for the stack trace of the initiator of something. The Initiator is the event or factor that directly triggered or precipitated a subsequent action.
    */
   initiatorStackTrace: 'Initiator stack trace',
   /**
-   *@description Text for the event initiated by another one
+   * @description Text for the event initiated by another one
    */
   initiatedBy: 'Initiated by',
   /**
-   *@description Text for the event that is an initiator for another one
+   * @description Text for the event that is an initiator for another one
    */
   initiatorFor: 'Initiator for',
   /**
-   *@description Text for the underlying data behing a specific flamechart selection. Trace events are the browser instrumentation that are emitted as JSON objects.
+   * @description Text for the underlying data behing a specific flamechart selection. Trace events are the browser instrumentation that are emitted as JSON objects.
    */
   traceEvent: 'Trace event',
   /**
-   *@description Call site stack label in Timeline UIUtils of the Performance panel
+   * @description Call site stack label in Timeline UIUtils of the Performance panel
    */
   timerInstalled: 'Timer installed',
   /**
-   *@description Call site stack label in Timeline UIUtils of the Performance panel
+   * @description Call site stack label in Timeline UIUtils of the Performance panel
    */
   animationFrameRequested: 'Animation frame requested',
   /**
-   *@description Call site stack label in Timeline UIUtils of the Performance panel
+   * @description Call site stack label in Timeline UIUtils of the Performance panel
    */
   idleCallbackRequested: 'Idle callback requested',
   /**
-   *@description Stack label in Timeline UIUtils of the Performance panel
-   */
-  recalculationForced: 'Recalculation forced',
-  /**
-   *@description Call site stack label in Timeline UIUtils of the Performance panel
+   * @description Call site stack label in Timeline UIUtils of the Performance panel
    */
   firstLayoutInvalidation: 'First layout invalidation',
   /**
-   *@description Stack label in Timeline UIUtils of the Performance panel
-   */
-  layoutForced: 'Layout forced',
-  /**
-   *@description Label in front of CSS property (eg `opacity`) being animated or a CSS animation name (eg `layer-4-fade-in-out`)
+   * @description Label in front of CSS property (eg `opacity`) being animated or a CSS animation name (eg `layer-4-fade-in-out`)
    */
   animating: 'Animating',
   /**
-   *@description Label in front of reasons why a CSS animation wasn't composited (aka hardware accelerated)
+   * @description Label in front of reasons why a CSS animation wasn't composited (aka hardware accelerated)
    */
   compositingFailed: 'Compositing failed',
   /** Descriptive reason for why a user-provided animation failed to be optimized by the browser due to accelerated animations being disabled. Shown in a table with a list of other potential failure reasons.  */
@@ -412,11 +374,12 @@ const UIStrings = {
   compositingFailedUnknownReason: 'Unknown Reason',
 
   /**
-   *@description Text for the execution stack trace
+   * @description Text for the execution "stack trace". It is not technically a stack trace, because it points to the beginning of each function
+   * and not to each call site, so we call it a function stack instead to avoid confusion.
    */
-  stackTrace: 'Stack trace',
+  functionStack: 'Function stack',
   /**
-   *@description Text used to show any invalidations for a particular event that caused the browser to have to do more work to update the page.
+   * @description Text used to show any invalidations for a particular event that caused the browser to have to do more work to update the page.
    * @example {2} PH1
    */
   invalidations: 'Invalidations ({PH1} total)',
@@ -427,59 +390,59 @@ const UIStrings = {
    */
   pendingFor: 'Pending for',
   /**
-   *@description Noun label for a stack trace which indicates the first time some condition was invalidated.
+   * @description Noun label for a stack trace which indicates the first time some condition was invalidated.
    */
   firstInvalidated: 'First invalidated',
   /**
-   *@description Title of the paint profiler, old name of the performance pane
+   * @description Title of the paint profiler, old name of the performance pane
    */
   paintProfiler: 'Paint profiler',
   /**
-   *@description Text in Timeline Flame Chart View of the Performance panel
-   *@example {Frame} PH1
-   *@example {10ms} PH2
+   * @description Text in Timeline Flame Chart View of the Performance panel
+   * @example {Frame} PH1
+   * @example {10ms} PH2
    */
   sAtS: '{PH1} at {PH2}',
   /**
-   *@description Text used next to a time to indicate that the particular event took that much time itself. In context this might look like "3ms blink.console (self)"
-   *@example {blink.console} PH1
+   * @description Text used next to a time to indicate that the particular event took that much time itself. In context this might look like "3ms blink.console (self)"
+   * @example {blink.console} PH1
    */
   sSelf: '{PH1} (self)',
   /**
-   *@description Text used next to a time to indicate that the event's children took that much time. In context this might look like "3ms blink.console (children)"
-   *@example {blink.console} PH1
+   * @description Text used next to a time to indicate that the event's children took that much time. In context this might look like "3ms blink.console (children)"
+   * @example {blink.console} PH1
    */
   sChildren: '{PH1} (children)',
   /**
-   *@description Text used to show the user how much time the browser spent on rendering (drawing the page onto the screen).
+   * @description Text used to show the user how much time the browser spent on rendering (drawing the page onto the screen).
    */
   timeSpentInRendering: 'Time spent in rendering',
   /**
-   *@description Text for a rendering frame
+   * @description Text for a rendering frame
    */
   frame: 'Frame',
   /**
-   *@description Text used to refer to the duration of an event at a given offset - e.g. "2ms at 10ms" which can be read as "2ms starting after 10ms".
-   *@example {10ms} PH1
-   *@example {10ms} PH2
+   * @description Text used to refer to the duration of an event at a given offset - e.g. "2ms at 10ms" which can be read as "2ms starting after 10ms".
+   * @example {10ms} PH1
+   * @example {10ms} PH2
    */
   sAtSParentheses: '{PH1} (at {PH2})',
   /**
-   *@description Text of a DOM element in Timeline UIUtils of the Performance panel
+   * @description Text of a DOM element in Timeline UIUtils of the Performance panel
    */
   UnknownNode: '[ unknown node ]',
   /**
-   *@description Text used to refer to a particular element and the file it was referred to in.
-   *@example {node} PH1
-   *@example {app.js} PH2
+   * @description Text used to refer to a particular element and the file it was referred to in.
+   * @example {node} PH1
+   * @example {app.js} PH2
    */
   invalidationWithCallFrame: '{PH1} at {PH2}',
   /**
-   *@description Text indicating that something is outside of the Performace Panel Timeline Minimap range
+   * @description Text indicating that something is outside of the Performace Panel Timeline Minimap range
    */
   outsideBreadcrumbRange: '(outside of the breadcrumb range)',
   /**
-   *@description Text indicating that something is hidden from the Performace Panel Timeline
+   * @description Text indicating that something is hidden from the Performace Panel Timeline
    */
   entryIsHidden: '(entry is hidden)',
   /**
@@ -500,10 +463,6 @@ const UIStrings = {
    */
   priority: 'Priority',
   /**
-   * @description Label for third party table.
-   */
-  thirdPartyTable: '1st / 3rd party table',
-  /**
    * @description Label for the a source URL.
    */
   source: 'Source',
@@ -515,6 +474,9 @@ const UIStrings = {
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/TimelineUIUtils.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
+/** Look for scheme:// plus text and exclude any punctuation at the end. **/
+export const URL_REGEX = /(?:[a-zA-Z][a-zA-Z0-9+.-]{2,}:\/\/)[^\s"]{2,}[^\s"'\)\}\],:;.!?]/u;
+
 let eventDispatchDesciptors: EventDispatchTypeDescriptor[];
 
 let colorGenerator: Common.Color.Generator;
@@ -525,15 +487,12 @@ interface LinkifyLocationOptions {
   lineNumber: number;
   target: SDK.Target.Target|null;
   linkifier: LegacyComponents.Linkifier.Linkifier;
-  isFreshRecording?: boolean;
+  isFreshOrEnhanced?: boolean;
   columnNumber?: number;
   omitOrigin?: boolean;
 }
 
-interface TimeRangeCategoryStats {
-  // The number values are Microseconds, but proper type safety isn't possible due to all the math.
-  [categoryName: string]: number;
-}
+type TimeRangeCategoryStats = Record<string, number>;
 
 const {SamplesIntegrator} = Trace.Helpers.SamplesIntegrator;
 
@@ -545,12 +504,12 @@ export class TimelineUIUtils {
   static getGetDebugModeEnabled(): boolean {
     if (TimelineUIUtils.debugModeEnabled === undefined) {
       TimelineUIUtils.debugModeEnabled =
-          Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.TIMELINE_DEBUG_MODE);
+          Root.Runtime.experiments.isEnabled(Root.ExperimentNames.ExperimentName.TIMELINE_DEBUG_MODE);
     }
     return TimelineUIUtils.debugModeEnabled;
   }
   static frameDisplayName(frame: Protocol.Runtime.CallFrame): string {
-    const maybeResolvedData = Utils.SourceMapsResolver.SourceMapsResolver.resolvedCodeLocationForCallFrame(frame);
+    const maybeResolvedData = SourceMapsResolver.SourceMapsResolver.resolvedCodeLocationForCallFrame(frame);
     const functionName = maybeResolvedData?.name || frame.functionName;
     if (!SamplesIntegrator.isNativeRuntimeFrame(frame)) {
       return UI.UIUtils.beautifyFunctionName(functionName);
@@ -566,7 +525,7 @@ export class TimelineUIUtils {
   }
 
   static testContentMatching(
-      traceEvent: Trace.Types.Events.Event, regExp: RegExp, parsedTrace?: Trace.Handlers.Types.ParsedTrace): boolean {
+      traceEvent: Trace.Types.Events.Event, regExp: RegExp, handlerData?: Trace.Handlers.Types.HandlerData): boolean {
     const title = TimelineUIUtils.eventStyle(traceEvent).title;
     const tokens = [title];
 
@@ -577,14 +536,14 @@ export class TimelineUIUtils {
       // legacy model which does not have a reference to the new engine's data.
       // So if we are missing the data, we just fallback to the name from the
       // callFrame.
-      if (!parsedTrace?.Samples) {
+      if (!handlerData?.Samples) {
         tokens.push(traceEvent.callFrame.functionName);
       } else {
-        tokens.push(Trace.Handlers.ModelHandlers.Samples.getProfileCallFunctionName(parsedTrace.Samples, traceEvent));
+        tokens.push(Trace.Handlers.ModelHandlers.Samples.getProfileCallFunctionName(handlerData.Samples, traceEvent));
       }
     }
-    if (parsedTrace) {
-      const url = Trace.Handlers.Helpers.getNonResolvedURL(traceEvent, parsedTrace);
+    if (handlerData) {
+      const url = Trace.Handlers.Helpers.getNonResolvedURL(traceEvent, handlerData);
       if (url) {
         tokens.push(url);
       }
@@ -619,17 +578,17 @@ export class TimelineUIUtils {
     }
   }
 
-  static eventStyle(event: Trace.Types.Events.Event): Utils.EntryStyles.TimelineRecordStyle {
+  static eventStyle(event: Trace.Types.Events.Event): Trace.Styles.TimelineRecordStyle {
     if (Trace.Types.Events.isProfileCall(event) && event.callFrame.functionName === '(idle)') {
-      return new Utils.EntryStyles.TimelineRecordStyle(event.name, Utils.EntryStyles.getCategoryStyles().idle);
+      return new Trace.Styles.TimelineRecordStyle(event.name, Trace.Styles.getCategoryStyles().idle);
     }
 
     if (event.cat === Trace.Types.Events.Categories.Console || event.cat === Trace.Types.Events.Categories.UserTiming) {
-      return new Utils.EntryStyles.TimelineRecordStyle(event.name, Utils.EntryStyles.getCategoryStyles()['scripting']);
+      return new Trace.Styles.TimelineRecordStyle(event.name, Trace.Styles.getCategoryStyles()['scripting']);
     }
 
-    return Utils.EntryStyles.getEventStyle(event.name as Trace.Types.Events.Name) ??
-        new Utils.EntryStyles.TimelineRecordStyle(event.name, Utils.EntryStyles.getCategoryStyles().other);
+    return Trace.Styles.getEventStyle(event.name as Trace.Types.Events.Name) ??
+        new Trace.Styles.TimelineRecordStyle(event.name, Trace.Styles.getCategoryStyles().other);
   }
 
   static eventColor(event: Trace.Types.Events.Event): string {
@@ -643,11 +602,12 @@ export class TimelineUIUtils {
     if (Trace.Types.Extensions.isSyntheticExtensionEntry(event)) {
       return Extensions.ExtensionUI.extensionEntryColor(event);
     }
-    let parsedColor = TimelineUIUtils.eventStyle(event).category.getComputedColorValue();
+    const themeSupport = ThemeSupport.ThemeSupport.instance();
+    let parsedColor = themeSupport.getComputedValue(TimelineUIUtils.eventStyle(event).category.cssVariable);
     // This event is considered idle time but still rendered as a scripting event here
     // to connect the StreamingCompileScriptParsing events it belongs to.
     if (event.name === Trace.Types.Events.Name.STREAMING_COMPILE_SCRIPT_WAITING) {
-      parsedColor = Utils.EntryStyles.getCategoryStyles().scripting.getComputedColorValue();
+      parsedColor = themeSupport.getComputedValue(Trace.Styles.getCategoryStyles().scripting.cssVariable);
       if (!parsedColor) {
         throw new Error('Unable to parse color from getCategoryStyles().scripting.color');
       }
@@ -660,13 +620,13 @@ export class TimelineUIUtils {
     // need to check for profile calls in the beginning of this
     // function.
     if (Trace.Types.Events.isProfileCall(event)) {
-      const maybeResolvedData = Utils.SourceMapsResolver.SourceMapsResolver.resolvedCodeLocationForEntry(event);
+      const maybeResolvedData = SourceMapsResolver.SourceMapsResolver.resolvedCodeLocationForEntry(event);
       const displayName = maybeResolvedData?.name || TimelineUIUtils.frameDisplayName(event.callFrame);
       return displayName;
     }
     if (event.name === 'EventTiming' && Trace.Types.Events.isSyntheticInteraction(event)) {
       // TODO(crbug.com/365047728): replace this entire method with this call.
-      return Utils.EntryName.nameForEntry(event);
+      return Trace.Name.forEntry(event);
     }
     const title = TimelineUIUtils.eventStyle(event).title;
     if (Trace.Helpers.Trace.eventHasCategory(event, Trace.Types.Events.Categories.Console)) {
@@ -688,143 +648,9 @@ export class TimelineUIUtils {
     return frame.scriptId !== '0' && !(frame.url?.startsWith('native '));
   }
 
-  static async buildDetailsTextForTraceEvent(
-      event: Trace.Types.Events.Event, parsedTrace: Trace.Handlers.Types.ParsedTrace): Promise<string|null> {
-    let detailsText;
-
-    // TODO(40287735): update this code with type-safe data checks.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const unsafeEventArgs = event.args as Record<string, any>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const unsafeEventData = event.args?.data as Record<string, any>;
-
-    switch (event.name) {
-      case Trace.Types.Events.Name.GC:
-      case Trace.Types.Events.Name.MAJOR_GC:
-      case Trace.Types.Events.Name.MINOR_GC: {
-        const delta = unsafeEventArgs['usedHeapSizeBefore'] - unsafeEventArgs['usedHeapSizeAfter'];
-        detailsText = i18nString(UIStrings.sCollected, {PH1: i18n.ByteUtilities.bytesToString(delta)});
-        break;
-      }
-      case Trace.Types.Events.Name.FUNCTION_CALL: {
-        const {lineNumber, columnNumber} = Trace.Helpers.Trace.getZeroIndexedLineAndColumnForEvent(event);
-        if (lineNumber !== undefined && columnNumber !== undefined) {
-          detailsText = unsafeEventData.url + ':' + (lineNumber + 1) + ':' + (columnNumber + 1);
-        }
-        break;
-      }
-      case Trace.Types.Events.Name.EVENT_DISPATCH:
-        detailsText = unsafeEventData ? unsafeEventData['type'] : null;
-        break;
-      case Trace.Types.Events.Name.PAINT: {
-        const width = TimelineUIUtils.quadWidth(unsafeEventData.clip);
-        const height = TimelineUIUtils.quadHeight(unsafeEventData.clip);
-        if (width && height) {
-          detailsText = i18nString(UIStrings.sSDimensions, {PH1: width, PH2: height});
-        }
-        break;
-      }
-      case Trace.Types.Events.Name.PARSE_HTML: {
-        const startLine = unsafeEventArgs['beginData']['startLine'];
-        const endLine = unsafeEventArgs['endData']?.['endLine'];
-        const url = Bindings.ResourceUtils.displayNameForURL(unsafeEventArgs['beginData']['url']);
-        if (endLine >= 0) {
-          detailsText = i18nString(UIStrings.sSs, {PH1: url, PH2: startLine + 1, PH3: endLine + 1});
-        } else {
-          detailsText = i18nString(UIStrings.sSSquareBrackets, {PH1: url, PH2: startLine + 1});
-        }
-        break;
-      }
-      case Trace.Types.Events.Name.COMPILE_MODULE:
-      case Trace.Types.Events.Name.CACHE_MODULE:
-        detailsText = Bindings.ResourceUtils.displayNameForURL(unsafeEventArgs['fileName']);
-        break;
-      case Trace.Types.Events.Name.COMPILE_SCRIPT:
-      case Trace.Types.Events.Name.CACHE_SCRIPT:
-      case Trace.Types.Events.Name.EVALUATE_SCRIPT: {
-        const {lineNumber} = Trace.Helpers.Trace.getZeroIndexedLineAndColumnForEvent(event);
-        const url = unsafeEventData?.['url'];
-        if (url) {
-          detailsText = Bindings.ResourceUtils.displayNameForURL(url) + ':' + ((lineNumber || 0) + 1);
-        }
-        break;
-      }
-      case Trace.Types.Events.Name.WASM_COMPILED_MODULE:
-      case Trace.Types.Events.Name.WASM_MODULE_CACHE_HIT: {
-        const url = unsafeEventArgs['url'];
-        if (url) {
-          detailsText = Bindings.ResourceUtils.displayNameForURL(url);
-        }
-        break;
-      }
-
-      case Trace.Types.Events.Name.STREAMING_COMPILE_SCRIPT:
-      case Trace.Types.Events.Name.BACKGROUND_DESERIALIZE:
-      case Trace.Types.Events.Name.XHR_READY_STATE_CHANGED:
-      case Trace.Types.Events.Name.XHR_LOAD: {
-        const url = unsafeEventData['url'];
-        if (url) {
-          detailsText = Bindings.ResourceUtils.displayNameForURL(url);
-        }
-        break;
-      }
-      case Trace.Types.Events.Name.TIME_STAMP:
-        detailsText = unsafeEventData['message'];
-        break;
-
-      case Trace.Types.Events.Name.WEB_SOCKET_CREATE:
-      case Trace.Types.Events.Name.WEB_SOCKET_SEND_HANDSHAKE_REQUEST:
-      case Trace.Types.Events.Name.WEB_SOCKET_RECEIVE_HANDSHAKE_REQUEST:
-      case Trace.Types.Events.Name.WEB_SOCKET_SEND:
-      case Trace.Types.Events.Name.WEB_SOCKET_RECEIVE:
-      case Trace.Types.Events.Name.WEB_SOCKET_DESTROY:
-      case Trace.Types.Events.Name.RESOURCE_WILL_SEND_REQUEST:
-      case Trace.Types.Events.Name.RESOURCE_SEND_REQUEST:
-      case Trace.Types.Events.Name.RESOURCE_RECEIVE_DATA:
-      case Trace.Types.Events.Name.RESOURCE_RECEIVE_RESPONSE:
-      case Trace.Types.Events.Name.RESOURCE_FINISH:
-      case Trace.Types.Events.Name.PAINT_IMAGE:
-      case Trace.Types.Events.Name.DECODE_IMAGE:
-      case Trace.Types.Events.Name.DECODE_LAZY_PIXEL_REF: {
-        const url = Trace.Handlers.Helpers.getNonResolvedURL(event, parsedTrace);
-        if (url) {
-          detailsText = Bindings.ResourceUtils.displayNameForURL(url);
-        }
-        break;
-      }
-
-      case Trace.Types.Events.Name.EMBEDDER_CALLBACK:
-        detailsText = unsafeEventData['callbackName'];
-        break;
-
-      case Trace.Types.Events.Name.ASYNC_TASK:
-        detailsText = unsafeEventData ? unsafeEventData['name'] : null;
-        break;
-
-      default:
-        if (Trace.Helpers.Trace.eventHasCategory(event, Trace.Types.Events.Categories.Console)) {
-          detailsText = null;
-        } else {
-          detailsText = linkifyTopCallFrameAsText();
-        }
-        break;
-    }
-
-    return detailsText;
-
-    function linkifyTopCallFrameAsText(): string|null {
-      const frame = Trace.Helpers.Trace.getZeroIndexedStackTraceForEvent(event)?.at(0) ?? null;
-      if (!frame) {
-        return null;
-      }
-
-      return frame.url + ':' + (frame.lineNumber + 1) + ':' + (frame.columnNumber + 1);
-    }
-  }
-
   static async buildDetailsNodeForTraceEvent(
       event: Trace.Types.Events.Event, target: SDK.Target.Target|null, linkifier: LegacyComponents.Linkifier.Linkifier,
-      isFreshRecording = false, parsedTrace: Trace.Handlers.Types.ParsedTrace): Promise<Node|null> {
+      isFreshOrEnhanced = false, parsedTrace: Trace.TraceModel.ParsedTrace): Promise<Node|null> {
     let details: HTMLElement|HTMLSpanElement|(Element | null)|Text|null = null;
     let detailsText;
     // TODO(40287735): update this code with type-safe data checks.
@@ -835,29 +661,6 @@ export class TimelineUIUtils {
     const unsafeEventData = event.args?.data as Record<string, any>;
 
     switch (event.name) {
-      case Trace.Types.Events.Name.GC:
-      case Trace.Types.Events.Name.MAJOR_GC:
-      case Trace.Types.Events.Name.MINOR_GC:
-      case Trace.Types.Events.Name.EVENT_DISPATCH:
-      case Trace.Types.Events.Name.PAINT:
-      case Trace.Types.Events.Name.ANIMATION:
-      case Trace.Types.Events.Name.EMBEDDER_CALLBACK:
-      case Trace.Types.Events.Name.PARSE_HTML:
-      case Trace.Types.Events.Name.WASM_STREAM_FROM_RESPONSE_CALLBACK:
-      case Trace.Types.Events.Name.WASM_COMPILED_MODULE:
-      case Trace.Types.Events.Name.WASM_MODULE_CACHE_HIT:
-      case Trace.Types.Events.Name.WASM_CACHED_MODULE:
-      case Trace.Types.Events.Name.WASM_MODULE_CACHE_INVALID:
-      case Trace.Types.Events.Name.WEB_SOCKET_CREATE:
-      case Trace.Types.Events.Name.WEB_SOCKET_SEND_HANDSHAKE_REQUEST:
-      case Trace.Types.Events.Name.WEB_SOCKET_RECEIVE_HANDSHAKE_REQUEST:
-      case Trace.Types.Events.Name.WEB_SOCKET_SEND:
-      case Trace.Types.Events.Name.WEB_SOCKET_RECEIVE:
-      case Trace.Types.Events.Name.WEB_SOCKET_DESTROY: {
-        detailsText = await TimelineUIUtils.buildDetailsTextForTraceEvent(event, parsedTrace);
-        break;
-      }
-
       case Trace.Types.Events.Name.PAINT_IMAGE:
       case Trace.Types.Events.Name.DECODE_IMAGE:
       case Trace.Types.Events.Name.DECODE_LAZY_PIXEL_REF:
@@ -868,7 +671,7 @@ export class TimelineUIUtils {
       case Trace.Types.Events.Name.RESOURCE_RECEIVE_DATA:
       case Trace.Types.Events.Name.RESOURCE_RECEIVE_RESPONSE:
       case Trace.Types.Events.Name.RESOURCE_FINISH: {
-        const url = Trace.Handlers.Helpers.getNonResolvedURL(event, parsedTrace);
+        const url = Trace.Handlers.Helpers.getNonResolvedURL(event, parsedTrace.data);
         if (url) {
           const options = {
             tabStop: true,
@@ -884,7 +687,7 @@ export class TimelineUIUtils {
         details = document.createElement('span');
 
         // FunctionCall events have an args.data that could be a CallFrame, if all the details are present, so we check for that.
-        const callFrame = Trace.Helpers.Trace.getZeroIndexedStackTraceForEvent(event)?.at(0);
+        const callFrame = Trace.Helpers.Trace.getZeroIndexedStackTraceInEventPayload(event)?.at(0);
         if (Trace.Types.Events.isFunctionCall(event) && callFrame) {
           UI.UIUtils.createTextChild(
               details,
@@ -897,7 +700,7 @@ export class TimelineUIUtils {
           lineNumber: callFrame?.lineNumber || 0,
           columnNumber: callFrame?.columnNumber,
           target,
-          isFreshRecording,
+          isFreshOrEnhanced,
           linkifier,
           omitOrigin: true,
         });
@@ -916,29 +719,9 @@ export class TimelineUIUtils {
           lineNumber: 0,
           columnNumber: 0,
           target,
-          isFreshRecording,
+          isFreshOrEnhanced,
           linkifier,
         });
-        break;
-      }
-
-      case Trace.Types.Events.Name.COMPILE_SCRIPT:
-      case Trace.Types.Events.Name.CACHE_SCRIPT:
-      case Trace.Types.Events.Name.EVALUATE_SCRIPT: {
-        const url = unsafeEventData['url'];
-        if (url) {
-          const {lineNumber} = Trace.Helpers.Trace.getZeroIndexedLineAndColumnForEvent(event);
-          details = this.linkifyLocation({
-            scriptId: null,
-            url,
-            lineNumber: lineNumber || 0,
-            columnNumber: 0,
-            target,
-            isFreshRecording,
-            linkifier,
-            omitOrigin: true,
-          });
-        }
         break;
       }
 
@@ -952,7 +735,7 @@ export class TimelineUIUtils {
             lineNumber: 0,
             columnNumber: 0,
             target,
-            isFreshRecording,
+            isFreshOrEnhanced,
             linkifier,
             omitOrigin: true,
           });
@@ -970,7 +753,7 @@ export class TimelineUIUtils {
             Trace.Types.Events.isProfileCall(event)) {
           detailsText = null;
         } else {
-          details = this.linkifyTopCallFrame(event, target, linkifier, isFreshRecording) ?? null;
+          details = this.linkifyTopCallFrame(event, target, linkifier, isFreshOrEnhanced) ?? null;
         }
         break;
       }
@@ -983,7 +766,7 @@ export class TimelineUIUtils {
   }
 
   static linkifyLocation(linkifyOptions: LinkifyLocationOptions): Element|null {
-    const {scriptId, url, lineNumber, columnNumber, isFreshRecording, linkifier, target, omitOrigin} = linkifyOptions;
+    const {scriptId, url, lineNumber, columnNumber, isFreshOrEnhanced, linkifier, target, omitOrigin} = linkifyOptions;
     const options = {
       lineNumber,
       columnNumber,
@@ -993,7 +776,7 @@ export class TimelineUIUtils {
       tabStop: true,
       omitOrigin,
     };
-    if (isFreshRecording) {
+    if (isFreshOrEnhanced) {
       return linkifier.linkifyScriptLocation(
           target, scriptId, url as Platform.DevToolsPath.UrlString, lineNumber, options);
     }
@@ -1002,8 +785,8 @@ export class TimelineUIUtils {
 
   static linkifyTopCallFrame(
       event: Trace.Types.Events.Event, target: SDK.Target.Target|null, linkifier: LegacyComponents.Linkifier.Linkifier,
-      isFreshRecording = false): Element|null {
-    let frame = Trace.Helpers.Trace.getZeroIndexedStackTraceForEvent(event)?.[0];
+      isFreshOrEnhanced = false, maxLength?: number): Element|null {
+    let frame = Trace.Helpers.Trace.getZeroIndexedStackTraceInEventPayload(event)?.[0];
     if (Trace.Types.Events.isProfileCall(event)) {
       frame = event.callFrame;
     }
@@ -1017,8 +800,9 @@ export class TimelineUIUtils {
       showColumnNumber: true,
       columnNumber: frame.columnNumber,
       lineNumber: frame.lineNumber,
+      maxLength,
     };
-    if (isFreshRecording) {
+    if (isFreshOrEnhanced) {
       return linkifier.maybeLinkifyConsoleCallFrame(target, frame, {showColumnNumber: true, inlineFrameIndex: 0});
     }
     return LegacyComponents.Linkifier.Linkifier.linkifyURL(frame.url as Platform.DevToolsPath.UrlString, options);
@@ -1030,20 +814,28 @@ export class TimelineUIUtils {
     switch (event.name) {
       case Trace.Types.Events.Name.MARK_LCP_CANDIDATE:
         link = 'https://web.dev/lcp/';
-        name = 'largest contentful paint';
+        name = 'Largest Contentful Paint';
+        break;
+      case Trace.Types.Events.Name.MARK_LCP_CANDIDATE_FOR_SOFT_NAVIGATION:
+        link = 'https://developer.chrome.com/docs/web-platform/soft-navigations-experiment';
+        name = 'Soft Largest Contentful Paint';
+        break;
+      case Trace.Types.Events.Name.SOFT_NAVIGATION_START:
+        link = 'https://developer.chrome.com/docs/web-platform/soft-navigations-experiment';
+        name = 'Soft Navigations';
         break;
       case Trace.Types.Events.Name.MARK_FCP:
         link = 'https://web.dev/first-contentful-paint/';
-        name = 'first contentful paint';
+        name = 'First Contentful Paint';
         break;
       default:
         break;
     }
 
-    const html = UI.Fragment.html`<div>${
-        UI.XLink.XLink.create(
-            link, i18nString(UIStrings.learnMore), undefined, undefined, 'learn-more')} about ${name}.</div>`;
-    return html as HTMLElement;
+    const div = document.createElement('div');
+
+    render(html`<devtools-link href=${link}>${i18nString(UIStrings.learnMore)}</devtools-link> about ${name}.`, div);
+    return div;
   }
 
   static buildConsumeCacheDetails(
@@ -1072,17 +864,59 @@ export class TimelineUIUtils {
     }
   }
 
+  static maybeCreateLinkElement(url: string): Element|null {
+    const parsedURL = new Common.ParsedURL.ParsedURL(url);
+    if (!parsedURL.scheme) {
+      return null;
+    }
+
+    const splitResult = Common.ParsedURL.ParsedURL.splitLineAndColumn(url);
+    if (!splitResult) {
+      return null;
+    }
+    const {url: rawURL, lineNumber, columnNumber} = splitResult;
+
+    const options = {
+      lineNumber,
+      columnNumber,
+      showColumnNumber: true,
+      omitOrigin: true,
+    };
+
+    return LegacyComponents.Linkifier.Linkifier.linkifyURL(rawURL as Platform.DevToolsPath.UrlString, options);
+  }
+
+  /**
+   * Takes an input string and parses it to look for links. It does this by
+   * looking for URLs in the input string. The returned fragment will contain
+   * the same string but with any links wrapped in clickable links. The text
+   * of the link is the URL, so the visible string to the user is unchanged.
+   */
+  static parseStringForLinks(rawString: string): DocumentFragment {
+    const results = TextUtils.TextUtils.Utils.splitStringByRegexes(rawString, [URL_REGEX]);
+    const nodes = results.map(result => {
+      if (result.regexIndex === -1) {
+        return result.value;
+      }
+      return TimelineUIUtils.maybeCreateLinkElement(result.value) ?? result.value;
+    });
+
+    const frag = document.createDocumentFragment();
+    frag.append(...nodes);
+    return frag;
+  }
+
   static async buildTraceEventDetails(
-      parsedTrace: Trace.Handlers.Types.ParsedTrace,
+      parsedTrace: Trace.TraceModel.ParsedTrace,
       event: Trace.Types.Events.Event,
       linkifier: LegacyComponents.Linkifier.Linkifier,
       canShowPieChart: boolean,
-      entityMapper: Utils.EntityMapper.EntityMapper|null,
+      entityMapper: Trace.EntityMapper.EntityMapper|null,
       ): Promise<DocumentFragment> {
     const maybeTarget = targetForEvent(parsedTrace, event);
     const {duration} = Trace.Helpers.Timing.eventTimingsMicroSeconds(event);
     const selfTime = getEventSelfTime(event, parsedTrace);
-    const relatedNodesMap = await Trace.Extras.FetchNodes.extractRelatedDOMNodesFromEvent(
+    const relatedNodesMap = await Utils.EntryNodes.relatedDOMNodesForEvent(
         parsedTrace,
         event,
     );
@@ -1092,11 +926,10 @@ export class TimelineUIUtils {
       // @ts-expect-error TODO(crbug.com/1011811): Remove symbol usage.
       if (typeof event[previewElementSymbol] === 'undefined') {
         let previewElement: (Element|null)|null = null;
-        const url = Trace.Handlers.Helpers.getNonResolvedURL(event, parsedTrace);
+        const url = Trace.Handlers.Helpers.getNonResolvedURL(event, parsedTrace.data);
         if (url) {
-          previewElement = await LegacyComponents.ImagePreview.ImagePreview.build(maybeTarget, url, false, {
+          previewElement = await LegacyComponents.ImagePreview.ImagePreview.build(url, false, {
             imageAltText: LegacyComponents.ImagePreview.ImagePreview.defaultAltTextForImageURL(url),
-            precomputedFeatures: undefined,
             align: LegacyComponents.ImagePreview.Align.START,
           });
         } else if (Trace.Types.Events.isPaint(event)) {
@@ -1116,7 +949,7 @@ export class TimelineUIUtils {
     const isMarker = parsedTrace && isMarkerEvent(parsedTrace, event);
     const color = isMarker ? TimelineUIUtils.markerStyleForEvent(event).color : defaultColorForEvent;
 
-    contentHelper.addSection(TimelineUIUtils.eventTitle(event), color);
+    contentHelper.addSection(TimelineUIUtils.eventTitle(event), color, event);
 
     // TODO: as part of the removal of the old engine, produce a typesafe way
     // to look up args and data for events.
@@ -1124,8 +957,8 @@ export class TimelineUIUtils {
     const unsafeEventArgs = event.args as Record<string, any>;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const unsafeEventData = event.args?.data as Record<string, any>;
-    const initiator = parsedTrace.Initiators.eventToInitiator.get(event) ?? null;
-    const initiatorFor = parsedTrace.Initiators.initiatorToEvents.get(event) ?? null;
+    const initiator = parsedTrace.data.Initiators.eventToInitiator.get(event) ?? null;
+    const initiatorFor = parsedTrace.data.Initiators.initiatorToEvents.get(event) ?? null;
 
     let url: Platform.DevToolsPath.UrlString|null = null;
 
@@ -1136,8 +969,9 @@ export class TimelineUIUtils {
       }
     }
 
-    // Add timestamp to user timings.
-    if (Trace.Helpers.Trace.eventHasCategory(event, Trace.Types.Events.Categories.UserTiming)) {
+    // Add timestamp to user timings, including custom extensibility markers
+    if (Trace.Helpers.Trace.eventHasCategory(event, Trace.Types.Events.Categories.UserTiming) ||
+        Trace.Types.Extensions.isSyntheticExtensionEntry(event)) {
       const adjustedEventTimeStamp = timeStampForEventAdjustedForClosestNavigationIfPossible(
           event,
           parsedTrace,
@@ -1161,9 +995,25 @@ export class TimelineUIUtils {
       contentHelper.appendElementRow(i18nString(UIStrings.details), detailContainer);
     }
 
-    if (parsedTrace.Meta.traceIsGeneric) {
+    if (parsedTrace.data.Meta.traceIsGeneric) {
       TimelineUIUtils.renderEventJson(event, contentHelper);
       return contentHelper.fragment;
+    }
+
+    if (Trace.Types.Events.isNavigationStart(event)) {
+      url = (event.args.data?.documentLoaderURL ?? event.args.data?.url) as Platform.DevToolsPath.UrlString;
+      if (url) {
+        contentHelper.appendElementRow(i18nString(UIStrings.url), LegacyComponents.Linkifier.Linkifier.linkifyURL(url));
+      }
+    }
+
+    if (Trace.Types.Events.isSoftNavigationStart(event)) {
+      url = event.args.context.URL as Platform.DevToolsPath.UrlString;
+      if (url) {
+        contentHelper.appendElementRow(i18nString(UIStrings.url), LegacyComponents.Linkifier.Linkifier.linkifyURL(url));
+      }
+      contentHelper.appendElementRow(
+          i18nString(UIStrings.details), TimelineUIUtils.buildDetailsNodeForMarkerEvents(event));
     }
 
     if (Trace.Types.Events.isV8Compile(event)) {
@@ -1193,12 +1043,41 @@ export class TimelineUIUtils {
     }
 
     if (Trace.Types.Extensions.isSyntheticExtensionEntry(event)) {
-      for (const [key, value] of event.args.properties || []) {
-        contentHelper.appendTextRow(key, value);
+      // isSyntheticExtensionEntries can be any of: perf.measure, perf.mark or console.timeStamp.
+      const userDetail = structuredClone(event.userDetail) as Record<string, Trace.Types.Extensions.JsonValue>;
+      if (userDetail && Object.keys(userDetail).length) {
+        // E.g. console.timeStamp(name, start, end, track, trackGroup, color,
+        // {url: 'foo-extension://node/1', description: 'Node'});
+        const hasExclusiveLink = typeof userDetail === 'object' && typeof userDetail.url === 'string' &&
+            typeof userDetail.description === 'string';
+        if (hasExclusiveLink && Boolean(Root.Runtime.hostConfig.devToolsDeepLinksViaExtensibilityApi?.enabled)) {
+          const linkElement = this.maybeCreateLinkElement(String(userDetail.url));
+          if (linkElement) {
+            contentHelper.appendElementRow(String(userDetail.description), linkElement);
+            // Now remove so we don't render them in renderObjectJson.
+            delete userDetail.url;
+            delete userDetail.description;
+          }
+        }
+        if (Object.keys(userDetail).length) {
+          // E.g., performance.measure(name, {detail: {important: 42, devtools: {}}})
+          const detailContainer = TimelineUIUtils.renderObjectJson(userDetail);
+          contentHelper.appendElementRow(i18nString(UIStrings.details), detailContainer);
+        }
+      }
+
+      // E.g. performance.measure(name, {detail: {devtools: {properties: ['Key', 'Value']}}})
+      if (event.devtoolsObj.properties) {
+        for (const [key, value] of event.devtoolsObj.properties || []) {
+          const renderedValue = typeof value === 'string' ? TimelineUIUtils.parseStringForLinks(value) :
+                                                            TimelineUIUtils.renderObjectJson(value);
+          contentHelper.appendElementRow(key, renderedValue);
+        }
       }
     }
 
-    const isFreshRecording = Boolean(parsedTrace && Tracker.instance().recordingIsFresh(parsedTrace));
+    const isFreshOrEnhanced =
+        Boolean(parsedTrace && Tracing.FreshRecording.Tracker.instance().recordingIsFreshOrEnhanced(parsedTrace));
 
     switch (event.name) {
       case Trace.Types.Events.Name.GC:
@@ -1211,7 +1090,7 @@ export class TimelineUIUtils {
 
       case Trace.Types.Events.Name.PROFILE_CALL: {
         const profileCall = event as Trace.Types.Events.SyntheticProfileCall;
-        const resolvedURL = Utils.SourceMapsResolver.SourceMapsResolver.resolvedURLForEntry(parsedTrace, profileCall);
+        const resolvedURL = SourceMapsResolver.SourceMapsResolver.resolvedURLForEntry(parsedTrace, profileCall);
         if (!resolvedURL) {
           break;
         }
@@ -1244,7 +1123,7 @@ export class TimelineUIUtils {
       }
       case Trace.Types.Events.Name.FUNCTION_CALL: {
         const detailsNode = await TimelineUIUtils.buildDetailsNodeForTraceEvent(
-            event, targetForEvent(parsedTrace, event), linkifier, isFreshRecording, parsedTrace);
+            event, targetForEvent(parsedTrace, event), linkifier, isFreshOrEnhanced, parsedTrace);
         if (detailsNode) {
           contentHelper.appendElementRow(i18nString(UIStrings.function), detailsNode);
           const originWithEntity = this.getOriginWithEntity(entityMapper, parsedTrace, event);
@@ -1354,17 +1233,7 @@ export class TimelineUIUtils {
         break;
       }
 
-      // @ts-expect-error Fall-through intended.
-      case Trace.Types.Events.Name.PAINT: {
-        const clip = unsafeEventData['clip'];
-        contentHelper.appendTextRow(
-            i18nString(UIStrings.location), i18nString(UIStrings.sSCurlyBrackets, {PH1: clip[0], PH2: clip[1]}));
-        const clipWidth = TimelineUIUtils.quadWidth(clip);
-        const clipHeight = TimelineUIUtils.quadHeight(clip);
-        contentHelper.appendTextRow(
-            i18nString(UIStrings.dimensions), i18nString(UIStrings.sSDimensions, {PH1: clipWidth, PH2: clipHeight}));
-      }
-
+      case Trace.Types.Events.Name.PAINT:
       case Trace.Types.Events.Name.PAINT_SETUP:
       case Trace.Types.Events.Name.RASTERIZE:
       case Trace.Types.Events.Name.SCROLL_LAYER: {
@@ -1377,7 +1246,7 @@ export class TimelineUIUtils {
       case Trace.Types.Events.Name.DECODE_IMAGE:
       case Trace.Types.Events.Name.DRAW_LAZY_PIXEL_REF: {
         relatedNodeLabel = i18nString(UIStrings.ownerElement);
-        url = Trace.Handlers.Helpers.getNonResolvedURL(event, parsedTrace);
+        url = Trace.Handlers.Helpers.getNonResolvedURL(event, parsedTrace.data);
         if (url) {
           const options = {
             tabStop: true,
@@ -1404,7 +1273,7 @@ export class TimelineUIUtils {
         break;
       }
 
-      case Trace.Types.Events.Name.UPDATE_LAYOUT_TREE: {
+      case Trace.Types.Events.Name.RECALC_STYLE: {
         contentHelper.appendTextRow(i18nString(UIStrings.elementsAffected), unsafeEventArgs['elementCount']);
 
         const selectorStatsSetting =
@@ -1575,6 +1444,12 @@ export class TimelineUIUtils {
       case Trace.Types.Events.Name.REQUEST_IDLE_CALLBACK:
       case Trace.Types.Events.Name.CANCEL_IDLE_CALLBACK: {
         contentHelper.appendTextRow(i18nString(UIStrings.callbackId), unsafeEventData['id']);
+
+        if (Trace.Types.Events.isRequestIdleCallback(event)) {
+          contentHelper.appendTextRow(
+              i18nString(UIStrings.requestIdleCallbackTimeout),
+              i18n.TimeUtilities.preciseMillisToString(event.args.data.timeout));
+        }
         break;
       }
 
@@ -1583,6 +1458,7 @@ export class TimelineUIUtils {
         break;
       }
 
+      case Trace.Types.Events.Name.MARK_LCP_CANDIDATE_FOR_SOFT_NAVIGATION:
       // @ts-expect-error Fall-through intended.
       case Trace.Types.Events.Name.MARK_LCP_CANDIDATE: {
         contentHelper.appendTextRow(i18nString(UIStrings.type), String(unsafeEventData['type']));
@@ -1611,7 +1487,7 @@ export class TimelineUIUtils {
 
       case Trace.Types.Events.Name.EVENT_TIMING: {
         const detailsNode = await TimelineUIUtils.buildDetailsNodeForTraceEvent(
-            event, targetForEvent(parsedTrace, event), linkifier, isFreshRecording, parsedTrace);
+            event, targetForEvent(parsedTrace, event), linkifier, isFreshOrEnhanced, parsedTrace);
         if (detailsNode) {
           contentHelper.appendElementRow(i18nString(UIStrings.details), detailsNode);
         }
@@ -1629,7 +1505,7 @@ export class TimelineUIUtils {
 
       default: {
         const detailsNode = await TimelineUIUtils.buildDetailsNodeForTraceEvent(
-            event, targetForEvent(parsedTrace, event), linkifier, isFreshRecording, parsedTrace);
+            event, targetForEvent(parsedTrace, event), linkifier, isFreshOrEnhanced, parsedTrace);
         if (detailsNode) {
           contentHelper.appendElementRow(i18nString(UIStrings.details), detailsNode);
         }
@@ -1639,7 +1515,8 @@ export class TimelineUIUtils {
     const relatedNodes = relatedNodesMap?.values() || [];
     for (const relatedNode of relatedNodes) {
       if (relatedNode) {
-        const nodeSpan = await Common.Linkifier.Linkifier.linkify(relatedNode);
+        const nodeSpan = document.createElement('span');
+        render(PanelsCommon.DOMLinkifier.Linkifier.instance().linkify(relatedNode), nodeSpan);
         contentHelper.appendElementRow(relatedNodeLabel || i18nString(UIStrings.relatedNode), nodeSpan);
       }
     }
@@ -1658,20 +1535,19 @@ export class TimelineUIUtils {
       }
     }
 
-    const stackTrace = Trace.Helpers.Trace.getZeroIndexedStackTraceForEvent(event);
+    const hasStackTrace = Boolean(Trace.Helpers.Trace.getStackTraceTopCallFrameInEventPayload(event));
     if (Trace.Types.Events.isUserTiming(event) || Trace.Types.Extensions.isSyntheticExtensionEntry(event) ||
-        Trace.Types.Events.isProfileCall(event) || initiator || initiatorFor || stackTrace ||
-        parsedTrace?.Invalidations.invalidationsForEvent.get(event)) {
+        Trace.Types.Events.isProfileCall(event) || initiator || initiatorFor || hasStackTrace ||
+        parsedTrace?.data.Invalidations.invalidationsForEvent.get(event)) {
       await TimelineUIUtils.generateCauses(event, contentHelper, parsedTrace);
     }
 
-    if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.TIMELINE_DEBUG_MODE)) {
+    if (Root.Runtime.experiments.isEnabled(Root.ExperimentNames.ExperimentName.TIMELINE_DEBUG_MODE)) {
       TimelineUIUtils.renderEventJson(event, contentHelper);
     }
 
     const stats: TimeRangeCategoryStats = {};
-    const showPieChart =
-        canShowPieChart && parsedTrace && TimelineUIUtils.aggregatedStatsForTraceEvent(stats, parsedTrace, event);
+    const showPieChart = canShowPieChart && TimelineUIUtils.aggregatedStatsForTraceEvent(stats, parsedTrace, event);
     if (showPieChart) {
       contentHelper.addSection(i18nString(UIStrings.aggregatedTime));
       const pieChart = TimelineUIUtils.generatePieChart(stats, TimelineUIUtils.eventStyle(event).category, selfTime);
@@ -1681,128 +1557,10 @@ export class TimelineUIUtils {
     return contentHelper.fragment;
   }
 
-  static statsForTimeRange(
-      events: Trace.Types.Events.Event[], startTime: Trace.Types.Timing.Milli,
-      endTime: Trace.Types.Timing.Milli): TimeRangeCategoryStats {
-    if (!events.length) {
-      return {idle: endTime - startTime};
-    }
-
-    buildRangeStatsCacheIfNeeded(events);
-    const aggregatedStats = subtractStats(aggregatedStatsAtTime(endTime), aggregatedStatsAtTime(startTime));
-    const aggregatedTotal = Object.values(aggregatedStats).reduce((a, b) => a + b, 0);
-    aggregatedStats['idle'] = Math.max(0, endTime - startTime - aggregatedTotal);
-    return aggregatedStats;
-
-    function aggregatedStatsAtTime(time: number): TimeRangeCategoryStats {
-      const stats: TimeRangeCategoryStats = {};
-      // @ts-expect-error TODO(crbug.com/1011811): Remove symbol usage.
-      const cache = events[categoryBreakdownCacheSymbol];
-      for (const category in cache) {
-        const categoryCache = cache[category];
-        const index =
-            Platform.ArrayUtilities.upperBound(categoryCache.time, time, Platform.ArrayUtilities.DEFAULT_COMPARATOR);
-        let value;
-        if (index === 0) {
-          value = 0;
-        } else if (index === categoryCache.time.length) {
-          value = categoryCache.value[categoryCache.value.length - 1];
-        } else {
-          const t0 = categoryCache.time[index - 1];
-          const t1 = categoryCache.time[index];
-          const v0 = categoryCache.value[index - 1];
-          const v1 = categoryCache.value[index];
-          value = v0 + (v1 - v0) * (time - t0) / (t1 - t0);
-        }
-        stats[category] = value;
-      }
-      return stats;
-    }
-
-    function subtractStats(a: TimeRangeCategoryStats, b: TimeRangeCategoryStats): TimeRangeCategoryStats {
-      const result = Object.assign({}, a);
-      for (const key in b) {
-        result[key] -= b[key];
-      }
-      return result;
-    }
-
-    function buildRangeStatsCacheIfNeeded(events: Trace.Types.Events.Event[]): void {
-      // @ts-expect-error TODO(crbug.com/1011811): Remove symbol usage.
-      if (events[categoryBreakdownCacheSymbol]) {
-        return;
-      }
-
-      // aggeregatedStats is a map by categories. For each category there's an array
-      // containing sorted time points which records accumulated value of the category.
-      const aggregatedStats: {
-        [categoryName: string]: {
-          time: number[],
-          value: number[],
-        },
-      } = {};
-      const categoryStack: string[] = [];
-      let lastTime = 0;
-      Trace.Helpers.Trace.forEachEvent(events, {
-        onStartEvent,
-        onEndEvent,
-      });
-
-      function updateCategory(category: string, time: number): void {
-        let statsArrays: {
-          time: number[],
-          value: number[],
-        } = aggregatedStats[category];
-        if (!statsArrays) {
-          statsArrays = {time: [], value: []};
-          aggregatedStats[category] = statsArrays;
-        }
-        if (statsArrays.time.length && statsArrays.time[statsArrays.time.length - 1] === time || lastTime > time) {
-          return;
-        }
-        const lastValue = statsArrays.value.length > 0 ? statsArrays.value[statsArrays.value.length - 1] : 0;
-        statsArrays.value.push(lastValue + time - lastTime);
-        statsArrays.time.push(time);
-      }
-
-      function categoryChange(from: string|null, to: string|null, time: number): void {
-        if (from) {
-          updateCategory(from, time);
-        }
-        lastTime = time;
-        if (to) {
-          updateCategory(to, time);
-        }
-      }
-
-      function onStartEvent(e: Trace.Types.Events.Event): void {
-        const {startTime} = Trace.Helpers.Timing.eventTimingsMilliSeconds(e);
-        const category = Utils.EntryStyles.getEventStyle(e.name as Trace.Types.Events.Name)?.category.name ||
-            Utils.EntryStyles.getCategoryStyles().other.name;
-        const parentCategory = categoryStack.length ? categoryStack[categoryStack.length - 1] : null;
-        if (category !== parentCategory) {
-          categoryChange(parentCategory || null, category, startTime);
-        }
-        categoryStack.push(category);
-      }
-
-      function onEndEvent(e: Trace.Types.Events.Event): void {
-        const {endTime} = Trace.Helpers.Timing.eventTimingsMilliSeconds(e);
-        const category = categoryStack.pop();
-        const parentCategory = categoryStack.length ? categoryStack[categoryStack.length - 1] : null;
-        if (category !== parentCategory) {
-          categoryChange(category || null, parentCategory || null, endTime || 0);
-        }
-      }
-
-      const obj = (events as Object);
-      // @ts-expect-error TODO(crbug.com/1011811): Remove symbol usage.
-      obj[categoryBreakdownCacheSymbol] = aggregatedStats;
-    }
-  }
-
   private static renderEventJson(event: Trace.Types.Events.Event, contentHelper: TimelineDetailsContentHelper): void {
     contentHelper.addSection(i18nString(UIStrings.traceEvent));
+
+    contentHelper.appendElementRow('eventKey', new Trace.EventsSerializer.EventsSerializer().keyForEvent(event) ?? '?');
 
     const eventWithArgsFirst = {
       ...{args: event.args},
@@ -1812,7 +1570,7 @@ export class TimelineUIUtils {
     contentHelper.appendElementRow('', highlightContainer);
   }
 
-  private static renderObjectJson(obj: Object): HTMLDivElement {
+  private static renderObjectJson(obj: Object|Trace.Types.Extensions.JsonValue): HTMLDivElement {
     const indentLength = Common.Settings.Settings.instance().moduleSetting('text-editor-indent').get().length;
     // Elide if the data is huge. Then remove the initial new-line for a denser UI
     const eventStr = JSON.stringify(obj, null, indentLength).slice(0, 10_000).replace(/{\n  /, '{ ');
@@ -1823,7 +1581,25 @@ export class TimelineUIUtils {
     const elem = shadowRoot.createChild('div');
     elem.classList.add('monospace', 'source-code');
     elem.textContent = eventStr;
-    void CodeHighlighter.CodeHighlighter.highlightNode(elem, 'text/javascript');
+    // Highlighting is done async (shrug), but we'll return the container immediately.
+    void CodeHighlighter.CodeHighlighter.highlightNode(elem, 'text/javascript').then(() => {
+      /**
+       * Linkify any URLs within the text nodes.
+       * Use a TreeWalker to find all our text nodes
+       **/
+      function* iterateTreeWalker(walker: TreeWalker): IterableIterator<Node> {
+        while (walker.nextNode()) {
+          yield walker.currentNode;
+        }
+      }
+      const walker = document.createTreeWalker(elem, NodeFilter.SHOW_TEXT);
+      // Gather all the nodes first, then we'll potentially replace them.
+      for (const node of Array.from(iterateTreeWalker(walker))) {
+        const frag = TimelineUIUtils.parseStringForLinks(node.textContent || '');
+        node.parentNode?.replaceChild(frag, node);
+      }
+    });
+
     return highlightContainer;
   }
 
@@ -1832,40 +1608,14 @@ export class TimelineUIUtils {
     return {callFrames} as Protocol.Runtime.StackTrace;
   }
 
+  /** This renders a stack trace... and other cool stuff. */
   static async generateCauses(
       event: Trace.Types.Events.Event, contentHelper: TimelineDetailsContentHelper,
-      parsedTrace: Trace.Handlers.Types.ParsedTrace): Promise<void> {
+      parsedTrace: Trace.TraceModel.ParsedTrace): Promise<void> {
     const {startTime} = Trace.Helpers.Timing.eventTimingsMilliSeconds(event);
     let initiatorStackLabel = i18nString(UIStrings.initiatorStackTrace);
-    let stackLabel = i18nString(UIStrings.stackTrace);
+    await contentHelper.appendFunctionStackTraceSection(event, parsedTrace);
 
-    // [RN] Used to scope down available features for React Native targets
-    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
-    const isReactNative = Root.Runtime.experiments.isEnabled(
-        Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
-    );
-    if (isReactNative) {
-      const rnStackTrace = Trace.Extras.StackTraceForEvent.getForReactNative(event, parsedTrace);
-
-      if (rnStackTrace) {
-        contentHelper.addSection(i18nString(UIStrings.stackTrace));
-        contentHelper.createChildStackTraceElement(rnStackTrace);
-      }
-    } else {
-      const stackTraceForEvent = Trace.Extras.StackTraceForEvent.get(event, parsedTrace);
-      if (stackTraceForEvent) {
-        contentHelper.addSection(i18nString(UIStrings.stackTrace));
-        contentHelper.createChildStackTraceElement(stackTraceForEvent);
-        // TODO(andoli): also build stack trace component for other events
-        // that have a stack trace using the StackTraceForEvent helper.
-      } else {
-        const stackTrace = Trace.Helpers.Trace.getZeroIndexedStackTraceForEvent(event);
-        if (stackTrace?.length) {
-          contentHelper.addSection(stackLabel);
-          contentHelper.createChildStackTraceElement(TimelineUIUtils.stackTraceFromCallFrames(stackTrace));
-        }
-      }
-    }
     switch (event.name) {
       case Trace.Types.Events.Name.TIMER_FIRE:
         initiatorStackLabel = i18nString(UIStrings.timerInstalled);
@@ -1876,32 +1626,26 @@ export class TimelineUIUtils {
       case Trace.Types.Events.Name.FIRE_IDLE_CALLBACK:
         initiatorStackLabel = i18nString(UIStrings.idleCallbackRequested);
         break;
-      case Trace.Types.Events.Name.UPDATE_LAYOUT_TREE:
+      case Trace.Types.Events.Name.RECALC_STYLE:
         initiatorStackLabel = i18nString(UIStrings.firstInvalidated);
-        stackLabel = i18nString(UIStrings.recalculationForced);
         break;
       case Trace.Types.Events.Name.LAYOUT:
         initiatorStackLabel = i18nString(UIStrings.firstLayoutInvalidation);
-        stackLabel = i18nString(UIStrings.layoutForced);
         break;
     }
 
-    const initiator = parsedTrace.Initiators.eventToInitiator.get(event);
-    const initiatorFor = parsedTrace.Initiators.initiatorToEvents.get(event);
-    const invalidations = parsedTrace.Invalidations.invalidationsForEvent.get(event);
+    const initiator = parsedTrace.data.Initiators.eventToInitiator.get(event);
+    const initiatorFor = parsedTrace.data.Initiators.initiatorToEvents.get(event);
+    const invalidations = parsedTrace.data.Invalidations.invalidationsForEvent.get(event);
 
     if (initiator) {
       // If we have an initiator for the event, we can show its stack trace, a link to reveal the initiator,
       // and the time since the initiator (Pending For).
-      const stackTrace = Trace.Helpers.Trace.getZeroIndexedStackTraceForEvent(initiator);
+      const stackTrace = Trace.Helpers.Trace.getZeroIndexedStackTraceInEventPayload(initiator);
       if (stackTrace) {
-        contentHelper.addSection(initiatorStackLabel);
-        contentHelper.createChildStackTraceElement(TimelineUIUtils.stackTraceFromCallFrames(stackTrace.map(frame => {
-          return {
-            ...frame,
-            scriptId: String(frame.scriptId) as Protocol.Runtime.ScriptId,
-          };
-        })));
+        const traceElement =
+            await contentHelper.createChildStackTraceElement(TimelineUIUtils.stackTraceFromCallFrames(stackTrace));
+        contentHelper.appendSectionWithBodyIfExists(initiatorStackLabel, {body: traceElement});
       }
 
       const link = this.createEntryLink(initiator);
@@ -1926,7 +1670,7 @@ export class TimelineUIUtils {
     }
 
     if (invalidations?.length) {
-      const totalInvalidations = parsedTrace.Invalidations.invalidationCountForEvent.get(event) ??
+      const totalInvalidations = parsedTrace.data.Invalidations.invalidationCountForEvent.get(event) ??
           0;  // Won't be 0, but saves us dealing with undefined.
       contentHelper.addSection(i18nString(UIStrings.invalidations, {PH1: totalInvalidations}));
       await TimelineUIUtils.generateInvalidationsList(invalidations, contentHelper);
@@ -2005,7 +1749,7 @@ export class TimelineUIUtils {
           null;
       if (node) {
         const nodeSpan = document.createElement('span');
-        void Common.Linkifier.Linkifier.linkify(node).then(link => nodeSpan.appendChild(link));
+        render(PanelsCommon.DOMLinkifier.Linkifier.instance().linkify(node), nodeSpan);
         return nodeSpan;
       }
       if (invalidation.args.data.nodeName) {
@@ -2021,7 +1765,7 @@ export class TimelineUIUtils {
     const generatedItems = new Set<string>();
 
     for (const invalidation of invalidations) {
-      const stackTrace = Trace.Helpers.Trace.getZeroIndexedStackTraceForEvent(invalidation);
+      const stackTrace = Trace.Helpers.Trace.getZeroIndexedStackTraceInEventPayload(invalidation);
       let scriptLink: HTMLElement|null = null;
       const callFrame = stackTrace?.at(0);
       if (callFrame) {
@@ -2037,7 +1781,7 @@ export class TimelineUIUtils {
       const niceNodeLink = createLinkForInvalidationNode(invalidation);
 
       const text = scriptLink ?
-          i18n.i18n.getFormatLocalizedString(
+          uiI18n.getFormatLocalizedString(
               str_, UIStrings.invalidationWithCallFrame, {PH1: niceNodeLink, PH2: scriptLink}) as HTMLElement :
           niceNodeLink;
 
@@ -2058,50 +1802,44 @@ export class TimelineUIUtils {
 
   /** Populates the passed object then returns true/false if it makes sense to show the pie chart */
   private static aggregatedStatsForTraceEvent(
-      total: TimeRangeCategoryStats, parsedTrace: Trace.Handlers.Types.ParsedTrace,
+      total: TimeRangeCategoryStats, parsedTrace: Trace.TraceModel.ParsedTrace,
       event: Trace.Types.Events.Event): boolean {
-    const events = parsedTrace.Renderer?.allTraceEntries || [];
-    const {startTime, endTime} = Trace.Helpers.Timing.eventTimingsMicroSeconds(event);
-    function eventComparator(startTime: number, e: Trace.Types.Events.Event): number {
-      return startTime - e.ts;
-    }
-    // Find index of selected event amongst allTraceEntries.
-    const index = Platform.ArrayUtilities.binaryIndexOf(events, startTime, eventComparator);
-    // Not a main thread event?
-    if (index < 0) {
+    const node = parsedTrace.data.Renderer.entryToNode.get(event);
+    if (!node) {
       return false;
     }
-    let hasChildren = false;
-    if (endTime) {
-      for (let i = index; i < events.length; i++) {
-        const nextEvent = events[i];
-        if (nextEvent.ts >= endTime) {
-          break;
-        }
-        const nextEventSelfTime = getEventSelfTime(nextEvent, parsedTrace);
-        if (!nextEventSelfTime) {
-          continue;
-        }
-        if (nextEvent.tid !== event.tid) {
-          continue;
-        }
-        if (i > index) {
-          hasChildren = true;
-        }
-        const categoryName = TimelineUIUtils.eventStyle(nextEvent).category.name;
-        total[categoryName] = (total[categoryName] || 0) + nextEventSelfTime;
-      }
-    }
-    if (Trace.Types.Events.isPhaseAsync(event.ph)) {
-      if (endTime) {
-        let aggregatedTotal = 0;
-        for (const categoryName in total) {
-          aggregatedTotal += total[categoryName];
-        }
 
-        const deltaInMicro = (endTime - startTime) as Trace.Types.Timing.Micro;
-        total['idle'] = Math.max(0, deltaInMicro - aggregatedTotal);
+    // If the event has no children, we cannot calculate a pie chart.
+    if (node.children.length === 0) {
+      return false;
+    }
+
+    const childNodesToVisit: Trace.Helpers.TreeHelpers.TraceEntryNode[] = [...node.children];
+
+    while (childNodesToVisit.length) {
+      // Traversal order doesn't matter, pop() is more efficient than shift().
+      const childNode = childNodesToVisit.pop();
+      if (!childNode) {
+        continue;
       }
+      const childSelfTime = childNode.selfTime ?? 0;
+      if (childSelfTime > 0) {
+        const categoryName = TimelineUIUtils.eventStyle(childNode.entry).category.name;
+        total[categoryName] = (total[categoryName] || 0) + childSelfTime;
+      }
+
+      childNodesToVisit.push(...childNode.children);
+    }
+
+    if (Trace.Types.Events.isPhaseAsync(event.ph)) {
+      let aggregatedTotal = 0;
+      for (const categoryName in total) {
+        aggregatedTotal += total[categoryName];
+      }
+
+      const {startTime, endTime} = Trace.Helpers.Timing.eventTimingsMicroSeconds(event);
+      const deltaInMicro = (endTime - startTime) as Trace.Types.Timing.Micro;
+      total['idle'] = Math.max(0, deltaInMicro - aggregatedTotal);
       return false;
     }
 
@@ -2111,13 +1849,13 @@ export class TimelineUIUtils {
       total[categoryName] = Trace.Helpers.Timing.microToMilli(value);
     }
 
-    return hasChildren;
+    return true;
   }
 
   static async buildPicturePreviewContent(
-      parsedTrace: Trace.Handlers.Types.ParsedTrace, event: Trace.Types.Events.Paint,
+      parsedTrace: Trace.TraceModel.ParsedTrace, event: Trace.Types.Events.Paint,
       target: SDK.Target.Target): Promise<Element|null> {
-    const snapshotEvent = parsedTrace.LayerTree.paintsToSnapshots.get(event);
+    const snapshotEvent = parsedTrace.data.LayerTree.paintsToSnapshots.get(event);
     if (!snapshotEvent) {
       return null;
     }
@@ -2147,7 +1885,7 @@ export class TimelineUIUtils {
     }
     const stylesContainer = document.createElement('div');
     const shadowRoot = stylesContainer.attachShadow({mode: 'open'});
-    shadowRoot.adoptedStyleSheets = [imagePreviewStyles];
+    shadowRoot.createChild('style').textContent = imagePreviewStyles;
     const container = shadowRoot.createChild('div');
     container.classList.add('image-preview-container', 'vbox', 'link');
     const img = container.createChild('img');
@@ -2183,17 +1921,17 @@ export class TimelineUIUtils {
   }
 
   static visibleEventsFilter(): Trace.Extras.TraceFilter.TraceFilter {
-    return new Trace.Extras.TraceFilter.VisibleEventsFilter(Utils.EntryStyles.visibleTypes());
+    return new Trace.Extras.TraceFilter.VisibleEventsFilter(Trace.Styles.visibleTypes());
   }
 
   // Included only for layout tests.
   // TODO(crbug.com/1386091): Fix/port layout tests and remove.
-  static categories(): Utils.EntryStyles.CategoryPalette {
-    return Utils.EntryStyles.getCategoryStyles();
+  static categories(): Trace.Styles.CategoryPalette {
+    return Trace.Styles.getCategoryStyles();
   }
 
   static generatePieChart(
-      aggregatedStats: TimeRangeCategoryStats, selfCategory?: Utils.EntryStyles.TimelineCategory,
+      aggregatedStats: TimeRangeCategoryStats, selfCategory?: Trace.Styles.TimelineCategory,
       selfTime?: Trace.Types.Timing.Micro): Element {
     let total = 0;
     for (const categoryName in aggregatedStats) {
@@ -2211,7 +1949,7 @@ export class TimelineUIUtils {
       title: string,
     }> = [];
 
-    function appendLegendRow(name: string, title: string, value: number, color: string): void {
+    function appendLegendRow(title: string, value: number, color: string): void {
       if (!value) {
         return;
       }
@@ -2223,29 +1961,33 @@ export class TimelineUIUtils {
       const selfTimeMilli = Trace.Helpers.Timing.microToMilli(selfTime || 0 as Trace.Types.Timing.Micro);
       if (selfTime) {
         appendLegendRow(
-            selfCategory.name, i18nString(UIStrings.sSelf, {PH1: selfCategory.title}), selfTimeMilli,
-            selfCategory.getCSSValue());
+            i18nString(UIStrings.sSelf, {PH1: selfCategory.title}),
+            selfTimeMilli,
+            selfCategory.getCSSValue(),
+        );
       }
       // Children of the same category.
       const categoryTime = aggregatedStats[selfCategory.name];
       const value = categoryTime - (selfTimeMilli || 0);
       if (value > 0) {
         appendLegendRow(
-            selfCategory.name, i18nString(UIStrings.sChildren, {PH1: selfCategory.title}), value,
-            selfCategory.getCSSValue());
+            i18nString(UIStrings.sChildren, {PH1: selfCategory.title}),
+            value,
+            selfCategory.getCSSValue(),
+        );
       }
     }
 
     // Add other categories.
-    for (const categoryName in Utils.EntryStyles.getCategoryStyles()) {
-      const category = Utils.EntryStyles.getCategoryStyles()[categoryName as keyof Utils.EntryStyles.CategoryPalette];
+    for (const categoryName in Trace.Styles.getCategoryStyles()) {
+      const category = Trace.Styles.getCategoryStyles()[categoryName as keyof Trace.Styles.CategoryPalette];
       if (categoryName === selfCategory?.name) {
         // Do not add an entry for this event's self category because 2
         // entries for it where added just before this for loop (for
         // self and children times).
         continue;
       }
-      appendLegendRow(category.name, category.title, aggregatedStats[category.name], category.getCSSValue());
+      appendLegendRow(category.title, aggregatedStats[category.name], category.getCSSValue());
     }
 
     pieChart.data = {
@@ -2258,58 +2000,6 @@ export class TimelineUIUtils {
     };
     const pieChartContainer = element.createChild('div', 'vbox');
     pieChartContainer.appendChild(pieChart);
-
-    return element;
-  }
-  // Generates a Summary component given a aggregated stats for categories.
-  static generateSummaryDetails(
-      aggregatedStats: Record<string, number>, rangeStart: number, rangeEnd: number,
-      selectedEvents: Trace.Types.Events.Event[],
-      thirdPartyTree: ThirdPartyTreeView.ThirdPartyTreeViewWidget): Element {
-    const element = document.createElement('div');
-    element.classList.add('timeline-details-range-summary', 'hbox');
-
-    // First, the category bar chart.
-    let total = 0;
-    let categories: TimelineComponents.TimelineSummary.CategoryData[] = [];
-    // Calculate total of all categories.
-    for (const categoryName in aggregatedStats) {
-      total += aggregatedStats[categoryName];
-    }
-
-    // Get stats values from categories.
-    for (const categoryName in Utils.EntryStyles.getCategoryStyles()) {
-      const category = Utils.EntryStyles.getCategoryStyles()[categoryName as keyof Utils.EntryStyles.CategoryPalette];
-      if (category.name === Utils.EntryStyles.EventCategory.IDLE) {
-        continue;
-      }
-      const value = aggregatedStats[category.name];
-      if (!value) {
-        continue;
-      }
-      const title = category.title;
-      const color = category.getCSSValue();
-      categories.push({value, color, title});
-    }
-
-    // Keeps the most useful categories on top.
-    categories = categories.sort((a, b) => b.value - a.value);
-    const start = Trace.Types.Timing.Milli(rangeStart);
-    const end = Trace.Types.Timing.Milli(rangeEnd);
-    const categorySummaryTable = new TimelineComponents.TimelineSummary.CategorySummary();
-    categorySummaryTable.data = {
-      rangeStart: start,
-      rangeEnd: end,
-      total,
-      categories,
-      selectedEvents,
-    };
-    element.append(categorySummaryTable);
-    // Add the 3p datagrid
-    const treeView = new ThirdPartyTreeView.ThirdPartyTreeElement();
-    treeView.treeView = thirdPartyTree;
-    UI.ARIAUtils.setLabel(treeView, i18nString(UIStrings.thirdPartyTable));
-    element.append(treeView);
 
     return element;
   }
@@ -2347,7 +2037,7 @@ export class TimelineUIUtils {
       PH1: i18n.TimeUtilities.millisToString(durationMilli, true),
       PH2: i18n.TimeUtilities.millisToString(offsetMilli, true),
     });
-    return i18n.i18n.getFormatLocalizedString(str_, UIStrings.emptyPlaceholder, {PH1: durationText});
+    return uiI18n.getFormatLocalizedString(str_, UIStrings.emptyPlaceholder, {PH1: durationText});
   }
 
   static quadWidth(quad: number[]): number {
@@ -2406,6 +2096,10 @@ export class TimelineUIUtils {
         color = 'var(--color-text-primary)';
         tall = true;
         break;
+      case Trace.Types.Events.Name.SOFT_NAVIGATION_START:
+        color = 'var(--sys-color-blue)';
+        tall = true;
+        break;
       case Trace.Types.Events.Name.FRAME_STARTED_LOADING:
         color = 'green';
         tall = true;
@@ -2426,6 +2120,7 @@ export class TimelineUIUtils {
         color = 'var(--sys-color-green-bright)';
         tall = true;
         break;
+      case Trace.Types.Events.Name.MARK_LCP_CANDIDATE_FOR_SOFT_NAVIGATION:
       case Trace.Types.Events.Name.MARK_LCP_CANDIDATE:
         color = 'var(--sys-color-green)';
         tall = true;
@@ -2446,8 +2141,17 @@ export class TimelineUIUtils {
 
   static colorForId(id: string): string {
     if (!colorGenerator) {
-      colorGenerator =
-          new Common.Color.Generator({min: 30, max: 330, count: undefined}, {min: 50, max: 80, count: 3}, 85);
+      colorGenerator = new Common.Color.Generator(
+          {
+            min: 30,
+            max: 330,
+          },
+          {
+            min: 50,
+            max: 80,
+            count: 3,
+          },
+          85);
       colorGenerator.setColorForID('', '#f2ecdc');
     }
     return colorGenerator.colorForID(id);
@@ -2460,9 +2164,9 @@ export class TimelineUIUtils {
   }
 
   static getOriginWithEntity(
-      entityMapper: Utils.EntityMapper.EntityMapper|null, parsedTrace: Trace.Handlers.Types.ParsedTrace,
+      entityMapper: Trace.EntityMapper.EntityMapper|null, parsedTrace: Trace.TraceModel.ParsedTrace,
       event: Trace.Types.Events.Event): string|null {
-    const resolvedURL = Utils.SourceMapsResolver.SourceMapsResolver.resolvedURLForEntry(parsedTrace, event);
+    const resolvedURL = SourceMapsResolver.SourceMapsResolver.resolvedURLForEntry(parsedTrace, event);
     if (!resolvedURL) {
       return null;
     }
@@ -2499,7 +2203,7 @@ export class EventDispatchTypeDescriptor {
 
 export class TimelineDetailsContentHelper {
   fragment: DocumentFragment;
-  private linkifierInternal: LegacyComponents.Linkifier.Linkifier|null;
+  #linkifier: LegacyComponents.Linkifier.Linkifier|null;
   private target: SDK.Target.Target|null;
   element: HTMLDivElement;
   private tableElement: HTMLElement;
@@ -2507,7 +2211,7 @@ export class TimelineDetailsContentHelper {
   constructor(target: SDK.Target.Target|null, linkifier: LegacyComponents.Linkifier.Linkifier|null) {
     this.fragment = document.createDocumentFragment();
 
-    this.linkifierInternal = linkifier;
+    this.#linkifier = linkifier;
     this.target = target;
 
     this.element = document.createElement('div');
@@ -2516,7 +2220,7 @@ export class TimelineDetailsContentHelper {
     this.fragment.appendChild(this.element);
   }
 
-  addSection(title: string, swatchColor?: string): void {
+  addSection(title: string, swatchColor?: string, event?: Trace.Types.Events.Event): void {
     if (!this.tableElement.hasChildNodes()) {
       this.element.removeChildren();
     } else {
@@ -2530,15 +2234,64 @@ export class TimelineDetailsContentHelper {
       if (swatchColor) {
         titleElement.createChild('div').style.backgroundColor = swatchColor;
       }
-      UI.UIUtils.createTextChild(titleElement, title);
+
+      const textChild = titleElement.createChild('span');
+      textChild.textContent = title;
+
+      if (event) {
+        textChild.classList.add('timeline-details-chip-title-reveal-entry');
+        textChild.addEventListener('click', function() {
+          TimelinePanel.instance().zoomEvent(event);
+        });
+      }
     }
 
     this.tableElement = this.element.createChild('div', 'vbox timeline-details-chip-body');
     this.fragment.appendChild(this.element);
   }
 
+  /**
+   * Creates a new section, but only if the provided `body` element is present,
+   * otherwise it does nothing.
+   */
+  appendSectionWithBodyIfExists(title: string, options: {
+    body: HTMLElement|null,
+    swatchColor?: string,
+    event?: Trace.Types.Events.Event,
+  }): void {
+    if (!options.body) {
+      return;
+    }
+    this.addSection(title, options.swatchColor, options.event);
+    this.tableElement.appendChild(options.body);
+  }
+
+  /**
+   * Generates a stack trace for the given event. If there is no stack data,
+   * nothing is appended; you can safely call this without fearing that it will
+   * create an empty section.
+   */
+  async appendFunctionStackTraceSection(
+      event: Trace.Types.Events.Event,
+      parsedTrace: Trace.TraceModel.ParsedTrace,
+      ): Promise<void> {
+    // [RN] Used to scope down available features for React Native targets
+    // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
+    const isReactNative = Root.Runtime.experiments.isEnabled(
+        Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+    );
+    const stackTraceForEvent = isReactNative ?
+        Trace.Extras.StackTraceForEvent.getForReactNative(event, parsedTrace.data) :
+        Trace.Extras.StackTraceForEvent.get(event, parsedTrace.data);
+    if (!stackTraceForEvent) {
+      return;
+    }
+    const traceElement = await this.createChildStackTraceElement(stackTraceForEvent);
+    this.appendSectionWithBodyIfExists(i18nString(UIStrings.functionStack), {body: traceElement});
+  }
+
   linkifier(): LegacyComponents.Linkifier.Linkifier|null {
-    return this.linkifierInternal;
+    return this.#linkifier;
   }
 
   appendTextRow(title: string, value: string|number|boolean): void {
@@ -2568,7 +2321,7 @@ export class TimelineDetailsContentHelper {
 
   appendLocationRow(
       title: string, url: string, startLine: number, startColumn?: number, text?: string, omitOrigin?: boolean): void {
-    if (!this.linkifierInternal) {
+    if (!this.#linkifier) {
       return;
     }
 
@@ -2580,7 +2333,7 @@ export class TimelineDetailsContentHelper {
       text,
       omitOrigin,
     };
-    const link = this.linkifierInternal.maybeLinkifyScriptLocation(
+    const link = this.#linkifier.maybeLinkifyScriptLocation(
         this.target, null, url as Platform.DevToolsPath.UrlString, startLine, options);
     if (!link) {
       return;
@@ -2591,7 +2344,7 @@ export class TimelineDetailsContentHelper {
   reactNativeAppendLocationRow(
       title: string, url: string, scriptId: Protocol.Runtime.ScriptId|null, startLine: number, startColumn?: number,
       text?: string, omitOrigin?: boolean): void {
-    if (!this.linkifierInternal) {
+    if (!this.#linkifier) {
       return;
     }
 
@@ -2603,7 +2356,7 @@ export class TimelineDetailsContentHelper {
       text,
       omitOrigin,
     };
-    const link = this.linkifierInternal.maybeLinkifyScriptLocation(
+    const link = this.#linkifier.maybeLinkifyScriptLocation(
         this.target, scriptId, url as Platform.DevToolsPath.UrlString, startLine, options);
     if (!link) {
       return;
@@ -2612,11 +2365,11 @@ export class TimelineDetailsContentHelper {
   }
 
   appendLocationRange(title: string, url: Platform.DevToolsPath.UrlString, startLine: number, endLine?: number): void {
-    if (!this.linkifierInternal || !this.target) {
+    if (!this.#linkifier || !this.target) {
       return;
     }
     const locationContent = document.createElement('span');
-    const link = this.linkifierInternal.maybeLinkifyScriptLocation(
+    const link = this.#linkifier.maybeLinkifyScriptLocation(
         this.target, null, url, startLine, {tabStop: true, inlineFrameIndex: 0});
     if (!link) {
       return;
@@ -2627,27 +2380,36 @@ export class TimelineDetailsContentHelper {
     this.appendElementRow(title, locationContent);
   }
 
-  createChildStackTraceElement(stackTrace: Protocol.Runtime.StackTrace): void {
-    if (!this.linkifierInternal) {
-      return;
+  /**
+   * Creates a stack trace element for the given trace, but checks if it
+   * contains any entries, and discards it if it's empty.
+   */
+  async createChildStackTraceElement(runtimeStackTrace: Protocol.Runtime.StackTrace): Promise<HTMLElement|null> {
+    // Fallback to the main page/root target. Maybe the main page has a source map we need.
+    // Worst case the stack is identity mapped.
+    const targetManager = SDK.TargetManager.TargetManager.instance();
+    const target = this.target ?? targetManager.primaryPageTarget() ?? targetManager.rootTarget();
+    if (!target) {
+      return null;
     }
-    const resolvedStackTrace: Protocol.Runtime.StackTrace = structuredClone(stackTrace);
-    let currentResolvedStackTrace: Protocol.Runtime.StackTrace|undefined = resolvedStackTrace;
-    while (currentResolvedStackTrace) {
-      currentResolvedStackTrace.callFrames = currentResolvedStackTrace.callFrames.map(
-          callFrame => ({
-            ...callFrame,
-            functionName:
-                Utils.SourceMapsResolver.SourceMapsResolver.resolvedCodeLocationForCallFrame(callFrame)?.name ||
-                callFrame.functionName,
-          }));
-      currentResolvedStackTrace = currentResolvedStackTrace.parent;
+
+    const stackTrace =
+        await Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance().createStackTraceFromProtocolRuntime(
+            runtimeStackTrace, target);
+    const callFrameContents = new LegacyComponents.JSPresentationUtils.StackTracePreviewContent();
+    callFrameContents.options = {tabStops: true, showColumnNumber: true};
+    callFrameContents.stackTrace = stackTrace;
+
+    await callFrameContents.updateComplete;
+    if (!callFrameContents.hasContent()) {
+      return null;
     }
-    const stackTraceElement =
-        this.tableElement.createChild('div', 'timeline-details-view-row timeline-details-stack-values');
-    const callFrameContents = LegacyComponents.JSPresentationUtils.buildStackTracePreviewContents(
-        this.target, this.linkifierInternal, {stackTrace: resolvedStackTrace, tabStops: true, showColumnNumber: true});
-    stackTraceElement.appendChild(callFrameContents.element);
+
+    const stackTraceElement = document.createElement('div');
+    stackTraceElement.classList.add('timeline-details-view-row', 'timeline-details-stack-values');
+    callFrameContents.markAsRoot();
+    callFrameContents.show(stackTraceElement);
+    return stackTraceElement;
   }
 }
 
@@ -2668,7 +2430,7 @@ export interface TimelineMarkerStyle {
  * the LCP (for example) relative to the last navigation.
  **/
 export function timeStampForEventAdjustedForClosestNavigationIfPossible(
-    event: Trace.Types.Events.Event, parsedTrace: Trace.Handlers.Types.ParsedTrace|null): Trace.Types.Timing.Milli {
+    event: Trace.Types.Events.Event, parsedTrace: Trace.TraceModel.ParsedTrace|null): Trace.Types.Timing.Milli {
   if (!parsedTrace) {
     const {startTime} = Trace.Helpers.Timing.eventTimingsMilliSeconds(event);
     return startTime;
@@ -2676,9 +2438,10 @@ export function timeStampForEventAdjustedForClosestNavigationIfPossible(
 
   const time = Trace.Helpers.Timing.timeStampForEventAdjustedByClosestNavigation(
       event,
-      parsedTrace.Meta.traceBounds,
-      parsedTrace.Meta.navigationsByNavigationId,
-      parsedTrace.Meta.navigationsByFrameId,
+      parsedTrace.data.Meta.traceBounds,
+      parsedTrace.data.Meta.navigationsByNavigationId,
+      parsedTrace.data.Meta.softNavigationsById,
+      parsedTrace.data.Meta.navigationsByFrameId,
   );
   return Trace.Helpers.Timing.microToMilli(time);
 }
@@ -2689,19 +2452,20 @@ export function timeStampForEventAdjustedForClosestNavigationIfPossible(
  * the LCP time. This method does not filter out events: for example, it treats
  * every LCP Candidate event as a potential marker event.
  **/
-export function isMarkerEvent(parsedTrace: Trace.Handlers.Types.ParsedTrace, event: Trace.Types.Events.Event): boolean {
+export function isMarkerEvent(parsedTrace: Trace.TraceModel.ParsedTrace, event: Trace.Types.Events.Event): boolean {
   const {Name} = Trace.Types.Events;
 
-  if (event.name === Name.TIME_STAMP || event.name === Name.NAVIGATION_START) {
+  if (event.name === Name.TIME_STAMP || event.name === Name.NAVIGATION_START ||
+      event.name === Name.SOFT_NAVIGATION_START) {
     return true;
   }
 
   if (Trace.Types.Events.isFirstContentfulPaint(event) || Trace.Types.Events.isFirstPaint(event)) {
-    return event.args.frame === parsedTrace.Meta.mainFrameId;
+    return event.args.frame === parsedTrace.data.Meta.mainFrameId;
   }
 
   if (Trace.Types.Events.isMarkDOMContent(event) || Trace.Types.Events.isMarkLoad(event) ||
-      Trace.Types.Events.isLargestContentfulPaintCandidate(event)) {
+      Trace.Types.Events.isAnyLargestContentfulPaintCandidate(event)) {
     // isOutermostMainFrame was added in 2022, so we fallback to isMainFrame
     // for older traces.
     if (!event.args.data) {
@@ -2721,10 +2485,10 @@ export function isMarkerEvent(parsedTrace: Trace.Handlers.Types.ParsedTrace, eve
 }
 
 function getEventSelfTime(
-    event: Trace.Types.Events.Event, parsedTrace: Trace.Handlers.Types.ParsedTrace): Trace.Types.Timing.Micro {
+    event: Trace.Types.Events.Event, parsedTrace: Trace.TraceModel.ParsedTrace): Trace.Types.Timing.Micro {
   const mapToUse = Trace.Types.Extensions.isSyntheticExtensionEntry(event) ?
-      parsedTrace.ExtensionTraceData.entryToNode :
-      parsedTrace.Renderer.entryToNode;
+      parsedTrace.data.ExtensionTraceData.entryToNode :
+      parsedTrace.data.Renderer.entryToNode;
   const selfTime = mapToUse.get(event)?.selfTime;
   return selfTime ? selfTime : Trace.Types.Timing.Micro(0);
 }

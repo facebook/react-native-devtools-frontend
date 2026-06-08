@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,8 +8,8 @@ import * as IssuesManager from '../../../models/issues_manager/issues_manager.js
 import {
   renderElementIntoDOM,
 } from '../../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
-import * as IconButton from '../icon_button/icon_button.js';
+import {setupLocaleHooks} from '../../../testing/LocaleHelpers.js';
+import {Icon} from '../../kit/kit.js';
 import * as RenderCoordinator from '../render_coordinator/render_coordinator.js';
 
 import * as IssueCounter from './issue_counter.js';
@@ -27,11 +27,11 @@ const renderIssueLinkIcon = async(data: IssueCounter.IssueLinkIcon.IssueLinkIcon
 };
 
 export const extractElements = (shadowRoot: ShadowRoot): {
-  icon: IconButton.Icon.Icon,
+  icon: Icon,
   button: HTMLButtonElement,
 } => {
   const icon = shadowRoot.querySelector('devtools-icon');
-  assert.instanceOf(icon, IconButton.Icon.Icon);
+  assert.instanceOf(icon, Icon);
   const button = shadowRoot.querySelector('button');
   assert.instanceOf(button, HTMLButtonElement);
   return {icon, button};
@@ -76,7 +76,8 @@ class MockIssueResolver {
   }
 }
 
-describeWithLocale('IssueLinkIcon', () => {
+describe('IssueLinkIcon', () => {
+  setupLocaleHooks();
   const issueId = 'issue1' as Protocol.Audits.IssueId;
   const mockIssue = {
     getKind() {
@@ -181,7 +182,7 @@ describeWithLocale('IssueLinkIcon', () => {
 
       const {button} = extractElements(shadowRoot);
       button.click();
-      assert.isTrue(revealOverride.called);
+      sinon.assert.called(revealOverride);
     });
   });
 });

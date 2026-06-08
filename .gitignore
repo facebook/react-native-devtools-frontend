@@ -11,6 +11,7 @@
 *.vcproj*
 *.vcxproj*
 *.xcodeproj*
+/GEMINI.md
 /.dev_profile
 /.test_cache
 /front_end/protocol_externs.js
@@ -21,12 +22,17 @@
 /scripts/visualize_deps/out
 config.gypi
 /karma-coverage
-/interactions-coverage
 /perf-data
 npm-debug.log
 /scripts/protocol_typescript/*.js
 /scripts/ai_assistance/data
+/scripts/ai_assistance/auto-run/data
 /scripts/ai_assistance/performance-trace-downloads
+/scripts/ai_assistance/auto-run/performance-trace-downloads
+/scripts/ai_assistance/eval-report*.html
+/scripts/ai_assistance/agent_preambles.md
+# This folder is populated from the GCP bucket and managed by gclient sync.
+/scripts/ai_assistance/suite/outputs
 
 /build
 /buildtools
@@ -54,6 +60,11 @@ test/perf/.generated
 /.gclient_previous_sync_commits
 /.cipd
 
+/.gemini/settings.json
+
+# DevTools common script settings
+.env
+
 # Linters caches
 .eslintcache
 .stylelintcache
@@ -61,3 +72,9 @@ test/perf/.generated
 
 # Agents
 **/CLAUDE.local.md
+
+# test runner copies dumps into the source tree.
+artifacts/*
+
+# cipd rollup binaries synced from third_party/
+node_modules/@rollup/rollup*/

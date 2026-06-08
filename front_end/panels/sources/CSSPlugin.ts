@@ -1,6 +1,7 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -9,12 +10,15 @@ import {assertNotNullOrUndefined} from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
 import * as Bindings from '../../models/bindings/bindings.js';
+import * as Geometry from '../../models/geometry/geometry.js';
 import * as Workspace from '../../models/workspace/workspace.js';
 import * as CodeMirror from '../../third_party/codemirror.next/codemirror.next.js';
+import {createIcon, type Icon} from '../../ui/kit/kit.js';
 import * as ColorPicker from '../../ui/legacy/components/color_picker/color_picker.js';
 import * as InlineEditor from '../../ui/legacy/components/inline_editor/inline_editor.js';
 import type * as SourceFrame from '../../ui/legacy/components/source_frame/source_frame.js';
 import * as UI from '../../ui/legacy/legacy.js';
+import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import {AddDebugInfoURLDialog} from './AddSourceMapURLDialog.js';
 import {Plugin} from './Plugin.js';
@@ -24,25 +28,25 @@ import {Plugin} from './Plugin.js';
 
 const UIStrings = {
   /**
-   *@description Swatch icon element title in CSSPlugin of the Sources panel
+   * @description Swatch icon element title in CSSPlugin of the Sources panel
    */
   openColorPicker: 'Open color picker.',
   /**
-   *@description Text to open the cubic bezier editor
+   * @description Text to open the cubic bezier editor
    */
   openCubicBezierEditor: 'Open cubic bezier editor.',
   /**
-   *@description Text for a context menu item for attaching a sourcemap to the currently open css file
+   * @description Text for a context menu item for attaching a sourcemap to the currently open css file
    */
   addSourceMap: 'Add source map…',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/sources/CSSPlugin.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-const dontCompleteIn = new Set(['ColorLiteral', 'NumberLiteral', 'StringLiteral', 'Comment', 'Important']);
+const doNotCompleteIn = new Set(['ColorLiteral', 'NumberLiteral', 'StringLiteral', 'Comment', 'Important']);
 
 function findPropertyAt(node: CodeMirror.SyntaxNode, pos: number): CodeMirror.SyntaxNode|null {
-  if (dontCompleteIn.has(node.name)) {
+  if (doNotCompleteIn.has(node.name)) {
     return null;
   }
   for (let cur: CodeMirror.SyntaxNode|null = node; cur; cur = cur.parent) {
@@ -57,7 +61,7 @@ function findPropertyAt(node: CodeMirror.SyntaxNode, pos: number): CodeMirror.Sy
 }
 
 function getCurrentStyleSheet(
-    url: Platform.DevToolsPath.UrlString, cssModel: SDK.CSSModel.CSSModel): Protocol.CSS.StyleSheetId {
+    url: Platform.DevToolsPath.UrlString, cssModel: SDK.CSSModel.CSSModel): Protocol.DOM.StyleSheetId {
   const currentStyleSheet = cssModel.getStyleSheetIdsForURL(url);
   if (currentStyleSheet.length === 0) {
     throw new Error('Can\'t find style sheet ID for current URL');
@@ -100,7 +104,7 @@ function findColorsAndCurves(
     from: number,
     to: number,
     onColor: (pos: number, parsedColor: Common.Color.Color, text: string) => void,
-    onCurve: (pos: number, curve: UI.Geometry.CubicBezier, text: string) => void,
+    onCurve: (pos: number, curve: Geometry.CubicBezier, text: string) => void,
     ): void {
   let line = state.doc.lineAt(from);
   function getToken(from: number, to: number): string {
@@ -131,7 +135,7 @@ function findColorsAndCurves(
         if (parsedColor) {
           onColor(node.from, parsedColor, content);
         } else {
-          const parsedCurve = UI.Geometry.CubicBezier.parse(content);
+          const parsedCurve = Geometry.CubicBezier.parse(content);
           if (parsedCurve) {
             onCurve(node.from, parsedCurve, content);
           }
@@ -167,7 +171,13 @@ class ColorSwatchWidget extends CodeMirror.WidgetType {
       const insert = event.data.color.getAuthoredText() ?? event.data.color.asString();
       view.dispatch({changes: {from: this.#from, to: this.#from + this.#text.length, insert}});
       this.#text = insert;
-      this.#color = swatch.getColor() as Common.Color.Color;
+      this.#color = swatch.color as Common.Color.Color;
+    });
+    swatch.addEventListener(InlineEditor.ColorSwatch.ColorFormatChangedEvent.eventName, event => {
+      const insert = event.data.color.getAuthoredText() ?? event.data.color.asString();
+      view.dispatch({changes: {from: this.#from, to: this.#from + this.#text.length, insert}});
+      this.#text = insert;
+      this.#color = swatch.color as Common.Color.Color;
     });
     swatch.addEventListener(InlineEditor.ColorSwatch.ClickEvent.eventName, event => {
       event.consume(true);
@@ -190,7 +200,7 @@ class ColorSwatchWidget extends CodeMirror.WidgetType {
 }
 
 class CurveSwatchWidget extends CodeMirror.WidgetType {
-  constructor(readonly curve: UI.Geometry.CubicBezier, readonly text: string) {
+  constructor(readonly curve: Geometry.CubicBezier, readonly text: string) {
     super();
   }
 
@@ -199,23 +209,25 @@ class CurveSwatchWidget extends CodeMirror.WidgetType {
   }
 
   toDOM(view: CodeMirror.EditorView): HTMLElement {
-    const swatch = InlineEditor.Swatches.BezierSwatch.create();
-    swatch.setBezierText(this.text);
-    UI.Tooltip.Tooltip.install(swatch.iconElement(), i18nString(UIStrings.openCubicBezierEditor));
-    swatch.iconElement().addEventListener('click', (event: MouseEvent) => {
+    const container = document.createElement('span');
+    const bezierText = container.createChild('span');
+    const icon = createIcon('bezier-curve-filled', 'bezier-swatch-icon');
+    icon.setAttribute('jslog', `${VisualLogging.showStyleEditor('bezier')}`);
+    bezierText.append(this.text);
+    UI.Tooltip.Tooltip.install(icon, i18nString(UIStrings.openCubicBezierEditor));
+    icon.addEventListener('click', (event: MouseEvent) => {
       event.consume(true);
       view.dispatch({
         effects: setTooltip.of({
           type: TooltipType.CURVE,
-          pos: view.posAtDOM(swatch),
+          pos: view.posAtDOM(icon),
           text: this.text,
-          swatch,
+          swatch: icon,
           curve: this.curve,
         }),
       });
     }, false);
-    swatch.hideText(true);
-    return swatch;
+    return icon;
   }
 
   override ignoreEvent(): boolean {
@@ -238,8 +250,8 @@ type ActiveTooltip = {
   type: TooltipType.CURVE,
   pos: number,
   text: string,
-  curve: UI.Geometry.CubicBezier,
-  swatch: InlineEditor.Swatches.BezierSwatch,
+  curve: Geometry.CubicBezier,
+  swatch: Icon,
 };
 
 function createCSSTooltip(active: ActiveTooltip): CodeMirror.Tooltip {
@@ -373,7 +385,7 @@ function getNumberAt(node: CodeMirror.SyntaxNode): {from: number, to: number}|nu
   }
   if (node.name === 'NumberLiteral') {
     const lastChild = node.lastChild;
-    return {from: node.from, to: lastChild && lastChild.name === 'Unit' ? lastChild.from : node.to};
+    return {from: node.from, to: lastChild?.name === 'Unit' ? lastChild.from : node.to};
   }
   return null;
 }
@@ -479,7 +491,7 @@ export class CSSPlugin extends Plugin implements SDK.TargetManager.SDKModelObser
     const cssModel = this.#cssModel;
     const url = this.uiSourceCode.url();
     if (this.uiSourceCode.project().type() === Workspace.Workspace.projectTypes.Network && cssModel &&
-        !Bindings.IgnoreListManager.IgnoreListManager.instance().isUserIgnoreListedURL(url)) {
+        !Workspace.IgnoreListManager.IgnoreListManager.instance().isUserIgnoreListedURL(url)) {
       const addSourceMapURLLabel = i18nString(UIStrings.addSourceMap);
       contextMenu.debugSection().appendItem(
           addSourceMapURLLabel, () => addSourceMapURL(cssModel, url), {jslogContext: 'add-source-map'});

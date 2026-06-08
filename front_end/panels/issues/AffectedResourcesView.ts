@@ -1,6 +1,8 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
+/* eslint-disable @devtools/no-lit-render-outside-of-view */
 
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
@@ -11,26 +13,27 @@ import type * as Protocol from '../../generated/protocol.js';
 import type * as IssuesManager from '../../models/issues_manager/issues_manager.js';
 import * as Logs from '../../models/logs/logs.js';
 import type * as NetworkForward from '../../panels/network/forward/forward.js';
-import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as RequestLinkIcon from '../../ui/components/request_link_icon/request_link_icon.js';
+import {Icon} from '../../ui/kit/kit.js';
 import * as Components from '../../ui/legacy/components/utils/utils.js';
 import * as UI from '../../ui/legacy/legacy.js';
+import {render} from '../../ui/lit/lit.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
+import * as PanelsCommon from '../common/common.js';
 
-import type {AggregatedIssue} from './IssueAggregator.js';
 import type {IssueView} from './IssueView.js';
 
 const UIStrings = {
   /**
-   *@description Text in Object Properties Section
+   * @description Text in Object Properties Section
    */
   unknown: 'unknown',
   /**
-   *@description Tooltip for button linking to the Elements panel
+   * @description Tooltip for button linking to the Elements panel
    */
   clickToRevealTheFramesDomNodeIn: 'Click to reveal the frame\'s DOM node in the Elements panel',
   /**
-   *@description Replacement text for a link to an HTML element which is not available (anymore).
+   * @description Replacement text for a link to an HTML element which is not available (anymore).
    */
   unavailable: 'unavailable',
 } as const;
@@ -64,7 +67,7 @@ export interface CreateRequestCellOptions {
  */
 export abstract class AffectedResourcesView extends UI.TreeOutline.TreeElement {
   readonly #parentView: IssueView;
-  protected issue: AggregatedIssue;
+  protected issue: IssuesManager.IssueAggregator.AggregatedIssue;
   protected affectedResourcesCountElement: HTMLElement;
   protected affectedResources: HTMLElement;
   #affectedResourcesCount: number;
@@ -72,7 +75,7 @@ export abstract class AffectedResourcesView extends UI.TreeOutline.TreeElement {
   #unresolvedFrameIds: Set<string>;
   protected requestResolver: Logs.RequestResolver.RequestResolver;
 
-  constructor(parent: IssueView, issue: AggregatedIssue, jslogContext: string) {
+  constructor(parent: IssueView, issue: IssuesManager.IssueAggregator.AggregatedIssue, jslogContext: string) {
     super(/* title */ undefined, /* expandable */ undefined, jslogContext);
     this.#parentView = parent;
     this.issue = issue;
@@ -90,7 +93,7 @@ export abstract class AffectedResourcesView extends UI.TreeOutline.TreeElement {
    * Sets the issue to take the resources from. Does not
    * trigger an update, the caller needs to do that explicitly.
    */
-  setIssue(issue: AggregatedIssue): void {
+  setIssue(issue: IssuesManager.IssueAggregator.AggregatedIssue): void {
     this.issue = issue;
   }
 
@@ -142,7 +145,7 @@ export abstract class AffectedResourcesView extends UI.TreeOutline.TreeElement {
    */
   #resolveFrameId(frameId: Protocol.Page.FrameId): SDK.ResourceTreeModel.ResourceTreeFrame|null {
     const frame = SDK.FrameManager.FrameManager.instance().getFrame(frameId);
-    if (!frame || !frame.url) {
+    if (!frame?.url) {
       this.#unresolvedFrameIds.add(frameId);
       if (!this.#frameListeners.length) {
         const addListener = SDK.FrameManager.FrameManager.instance().addEventListener(
@@ -179,9 +182,9 @@ export abstract class AffectedResourcesView extends UI.TreeOutline.TreeElement {
     const frameCell = document.createElement('td');
     frameCell.classList.add('affected-resource-cell');
     if (frame) {
-      const icon = new IconButton.Icon.Icon();
-      icon.data = {iconName: 'code-circle', color: 'var(--icon-link)', width: '16px', height: '16px'};
-      icon.classList.add('link', 'elements-panel');
+      const icon = new Icon();
+      icon.name = 'code-circle';
+      icon.classList.add('link', 'elements-panel', 'medium');
       icon.onclick = async () => {
         Host.userMetrics.issuesPanelResourceOpened(issueCategory, AffectedItem.ELEMENT);
         const frame = SDK.FrameManager.FrameManager.instance().getFrame(frameId);
@@ -230,31 +233,23 @@ export abstract class AffectedResourcesView extends UI.TreeOutline.TreeElement {
     }
 
     const deferredDOMNode = new SDK.DOMModel.DeferredDOMNode(target, backendNodeId);
-    const anchorElement = (await Common.Linkifier.Linkifier.linkify(deferredDOMNode)) as HTMLElement;
-    anchorElement.textContent = nodeName;
-    anchorElement.addEventListener('click', () => sendTelemetry());
-    anchorElement.addEventListener('keydown', (event: Event) => {
-      if ((event as KeyboardEvent).key === 'Enter') {
-        sendTelemetry();
-      }
-    });
+    const anchor = PanelsCommon.DOMLinkifier.Linkifier.instance().linkify(
+        deferredDOMNode, {textContent: nodeName || undefined, onClick: sendTelemetry});
     const cellElement = document.createElement('td');
     cellElement.classList.add('affected-resource-element', 'devtools-link');
-    cellElement.appendChild(anchorElement);
+    render(anchor, cellElement);
     return cellElement;
   }
 
   protected appendSourceLocation(
       element: HTMLElement,
-      sourceLocation: {url: string, scriptId?: Protocol.Runtime.ScriptId, lineNumber: number, columnNumber?: number}|
+      sourceLocation: {url: string, lineNumber: number, scriptId?: Protocol.Runtime.ScriptId, columnNumber?: number}|
       undefined,
       target: SDK.Target.Target|null|undefined): void {
     const sourceCodeLocation = document.createElement('td');
     sourceCodeLocation.classList.add('affected-source-location');
     if (sourceLocation) {
-      const maxLengthForDisplayedURLs = 40;  // Same as console messages.
-      // TODO(crbug.com/1108503): Add some mechanism to be able to add telemetry to this element.
-      const linkifier = new Components.Linkifier.Linkifier(maxLengthForDisplayedURLs);
+      const linkifier = new Components.Linkifier.Linkifier(UI.UIUtils.MaxLengthForDisplayedURLsInConsole);
       const sourceAnchor = linkifier.linkifyScriptLocation(
           target || null, sourceLocation.scriptId || null, sourceLocation.url as Platform.DevToolsPath.UrlString,
           sourceLocation.lineNumber, {columnNumber: sourceLocation.columnNumber, inlineFrameIndex: 0});

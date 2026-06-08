@@ -1,4 +1,4 @@
-# Copyright 2023 The Chromium Authors. All rights reserved.
+# Copyright 2023 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -15,15 +15,18 @@ generate_css("css_files") {
   ]
 }
 
-devtools_module("dialogs") {
+devtools_ui_module("dialogs") {
   sources = [
     "ButtonDialog.ts",
     "Dialog.ts",
     "ShortcutDialog.ts",
   ]
   deps = [
+    "../../../core/i18n:bundle",
     "../../../core/platform:bundle",
-    "../../../services/window_bounds:bundle",
+    "../../legacy:bundle",
+    "../../lit:bundle",
+    "../../visual_logging:bundle",
     "../buttons:bundle",
     "../helpers:bundle",
     "../render_coordinator:bundle",
@@ -41,7 +44,7 @@ devtools_entrypoint("bundle") {
   visibility = [ "*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [
@@ -53,8 +56,8 @@ ts_library("unittests") {
   deps = [
     ":bundle",
     "../../../core/platform:bundle",
-    "../../../services/window_bounds:bundle",
     "../../../testing",
+    "../../legacy:bundle",
     "../render_coordinator:bundle",
   ]
 }

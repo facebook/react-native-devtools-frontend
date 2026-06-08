@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -20,12 +20,14 @@ devtools_module("sdk") {
     "CSSMedia.ts",
     "CSSMetadata.ts",
     "CSSModel.ts",
+    "CSSNavigation.ts",
     "CSSProperty.ts",
     "CSSPropertyParser.ts",
     "CSSPropertyParserMatchers.ts",
     "CSSQuery.ts",
     "CSSRule.ts",
     "CSSScope.ts",
+    "CSSStartingStyle.ts",
     "CSSStyleDeclaration.ts",
     "CSSStyleSheetHeader.ts",
     "CSSSupports.ts",
@@ -38,6 +40,7 @@ devtools_module("sdk") {
     "Cookie.ts",
     "CookieModel.ts",
     "CookieParser.ts",
+    "CrashReportContextModel.ts",
     "DOMDebuggerModel.ts",
     "DOMModel.ts",
     "DebuggerModel.ts",
@@ -71,6 +74,7 @@ devtools_module("sdk") {
     "ResourceTreeModel.ts",
     "RuntimeModel.ts",
     "SDKModel.ts",
+    "ScopeTreeCache.ts",
     "ScreenCaptureModel.ts",
     "Script.ts",
     "SecurityOriginManager.ts",
@@ -80,10 +84,10 @@ devtools_module("sdk") {
     "ServiceWorkerCacheModel.ts",
     "ServiceWorkerManager.ts",
     "SourceMap.ts",
+    "SourceMapCache.ts",
     "SourceMapFunctionRanges.ts",
     "SourceMapManager.ts",
     "SourceMapScopeChainEntry.ts",
-    "SourceMapScopes.ts",
     "SourceMapScopesInfo.ts",
     "StorageBucketsModel.ts",
     "StorageKeyManager.ts",
@@ -103,7 +107,9 @@ devtools_module("sdk") {
     "../../generated",
     "../../generated:protocol",
     "../../models/cpu_profile:bundle",
+    "../../models/formatter:bundle",
     "../../models/text_utils:bundle",
+    "../../third_party/source-map-scopes-codec:bundle",
   ]
 }
 
@@ -127,7 +133,10 @@ devtools_entrypoint("meta") {
     "../../core/i18n:bundle",
   ]
 
-  visibility = [ "../../entrypoints/*" ]
+  visibility = [
+    "../../../mcp/*",
+    "../../entrypoints/*",
+  ]
 }
 
 ts_library("unittests") {
@@ -151,38 +160,33 @@ ts_library("unittests") {
     "Cookie.test.ts",
     "CookieModel.test.ts",
     "CookieParser.test.ts",
+    "CrashReportContextModel.test.ts",
     "DOMModel.test.ts",
-    "DebuggerModel.test.ts",
     "EmulationModel.test.ts",
     "EnhancedTracesParser.test.ts",
     "FrameManager.test.ts",
-    "NetworkManager.test.ts",
     "NetworkRequest.test.ts",
     "OverlayColorGenerator.test.ts",
     "OverlayModel.test.ts",
     "OverlayPersistentHighlighter.test.ts",
-    "PageResourceLoader.test.ts",
     "PreloadingModel.test.ts",
     "RehydratingConnection.test.ts",
     "RemoteObject.test.ts",
     "ResourceTreeModel.test.ts",
-    "RuntimeModel.test.ts",
+    "ScopeTreeCache.test.ts",
     "ScreenCaptureModel.test.ts",
     "Script.test.ts",
-    "ServerSentEventsProtocol.test.ts",
     "ServerTiming.test.ts",
     "ServiceWorkerCacheModel.test.ts",
     "ServiceWorkerManager.test.ts",
     "SourceMap.test.ts",
+    "SourceMapCache.test.ts",
     "SourceMapFunctionRanges.test.ts",
     "SourceMapManager.test.ts",
     "SourceMapScopeChainEntry.test.ts",
-    "SourceMapScopes.test.ts",
     "SourceMapScopesInfo.test.ts",
     "StorageBucketsModel.test.ts",
     "StorageKeyManager.test.ts",
-    "Target.test.ts",
-    "TargetManager.test.ts",
     "TraceObject.test.ts",
   ]
 
@@ -190,6 +194,7 @@ ts_library("unittests") {
     ":bundle",
     "../../generated:protocol",
     "../../models/bindings:bundle",
+    "../../models/formatter:bundle",
     "../../models/persistence:bundle",
     "../../models/text_utils:bundle",
     "../../models/trace:bundle",
@@ -197,6 +202,31 @@ ts_library("unittests") {
     "../../testing",
     "../common:bundle",
     "../protocol_client:bundle",
+    "../root:bundle",
+  ]
+}
+
+devtools_foundation_module("foundation_unittests") {
+  testonly = true
+
+  sources = [
+    "DebuggerModel.test.ts",
+    "NetworkManager.test.ts",
+    "PageResourceLoader.test.ts",
+    "RuntimeModel.test.ts",
+    "ServerSentEventsProtocol.test.ts",
+    "Target.test.ts",
+    "TargetManager.test.ts",
+  ]
+
+  deps = [
+    ":bundle",
+    "../../generated",
+    "../../models/bindings:bundle",
+    "../../models/workspace:bundle",
+    "../../testing",
+    "../host:bundle",
+    "../platform:bundle",
     "../root:bundle",
   ]
 }

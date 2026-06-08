@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,6 +19,7 @@ interface UIHeaderLocation {
 
 export const enum UIRequestTabs {
   COOKIES = 'cookies',
+  DEVICE_BOUND_SESSIONS = 'device-bound-sessions',
   EVENT_SOURCE = 'eventSource',
   HEADERS_COMPONENT = 'headers-component',
   PAYLOAD = 'payload',
@@ -28,6 +29,8 @@ export const enum UIRequestTabs {
   TIMING = 'timing',
   TRUST_TOKENS = 'trust-tokens',
   WS_FRAMES = 'web-socket-frames',
+  DIRECT_SOCKET_CONNECTION = 'direct-socket-connection',
+  DIRECT_SOCKET_CHUNKS = 'direct-socket-chunks',
 }
 
 export interface FilterOptions {

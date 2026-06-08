@@ -3,7 +3,8 @@ Short Name: image_diff
 URL: https://source.chromium.org/chromium/chromium/src/+/main:tools/imagediff/
 Version: N/A
 Date: 2023-01-31
-License: Chromium
+Update Mechanism: Static.HardFork (https://crbug.com/422062951)
+License: BSD-3-Clause
 Security Critical: No
 Shipped: no
 

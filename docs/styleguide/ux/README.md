@@ -16,6 +16,6 @@ user interface.
 
 ## UI reviews
 If you make changes to DevTools UI, make sure to involve us **early**, i.e. already in the
-UI design stage. See also the [Chrome DevTools Design Review Guidelines](../../contributing/design.md#Review-Guidelines)
+UI design stage.
 
 Back to the [Chromium DevTools Documentation](../../README.md).

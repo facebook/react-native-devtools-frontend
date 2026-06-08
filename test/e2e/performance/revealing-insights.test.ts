@@ -1,0 +1,36 @@
+// Copyright 2025 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import {assert} from 'chai';
+
+import {
+  increaseTimeoutForPerfPanel,
+  navigateToPerformanceTab,
+  uploadTraceFile,
+} from '../helpers/performance-helpers.js';
+
+describe('Revealing insights in RPP', function() {
+  setup({dockingMode: 'undocked'});
+  increaseTimeoutForPerfPanel(this);
+
+  it('can import a trace and show a list of insights', async ({devToolsPage, inspectedPage}) => {
+    await navigateToPerformanceTab(undefined, devToolsPage, inspectedPage);
+    await uploadTraceFile(devToolsPage, 'test/e2e/resources/performance/timeline/web.dev-trace.json.gz');
+
+    await devToolsPage.click('aria/Show sidebar');
+    await devToolsPage.click('aria/View details for LCP breakdown insight.');
+
+    // Ensure that the LCP timespan breakdown is showing.
+    await devToolsPage.waitFor('.overlay-type-TIMESPAN_BREAKDOWN');
+    // Ensure that the LCP breakdown phases are shown.
+    const perfTable = await devToolsPage.waitFor('table.interactive');
+
+    const tableBody = await devToolsPage.waitFor('tbody', perfTable);
+    const rowTitles = await tableBody.evaluate(tbody => {
+      const headers = tbody.querySelectorAll<HTMLElement>('tr th');
+      return [...headers].map(header => header.innerText);
+    });
+    assert.deepEqual(rowTitles, ['Time to first byte', 'Element render delay']);
+  });
+});

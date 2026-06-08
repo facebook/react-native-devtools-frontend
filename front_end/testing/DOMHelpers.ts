@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,19 +9,25 @@
  * Note that `resetTestDOM` is automatically run before each test (see `test_setup.ts`).
  **/
 
+import type * as Platform from '../core/platform/platform.js';
+import * as Buttons from '../ui/components/buttons/buttons.js';
 import type * as NodeText from '../ui/components/node_text/node_text.js';
 import * as UI from '../ui/legacy/legacy.js';
 
-const TEST_CONTAINER_ID = '__devtools-test-container-id';
+import {checkForPendingActivity} from './TrackAsyncOperations.js';
+
+export const TEST_CONTAINER_ID = '__devtools-test-container-id';
 
 interface RenderOptions {
   allowMultipleChildren?: boolean;
+  includeCommonStyles?: boolean;
 }
 
 /**
  * Renders a given element into the DOM. By default it will error if it finds an element already rendered but this can be controlled via the options.
  **/
-export function renderElementIntoDOM<E extends Element>(element: E, renderOptions: RenderOptions = {}): E {
+export function renderElementIntoDOM<E extends Node|UI.Widget.AnyWidget>(
+    element: E, renderOptions: RenderOptions = {}): E {
   const container = document.getElementById(TEST_CONTAINER_ID);
 
   if (!container) {
@@ -33,11 +39,20 @@ export function renderElementIntoDOM<E extends Element>(element: E, renderOption
   if (container.childNodes.length !== 0 && !allowMultipleChildren) {
     throw new Error(`renderElementIntoDOM expects the container to be empty ${container.innerHTML}`);
   }
-  container.appendChild(element);
+  if (renderOptions.includeCommonStyles) {
+    container.appendChild(document.createElement('style')).textContent = UI.inspectorCommonStyles;
+    container.appendChild(document.createElement('style')).textContent = Buttons.textButtonStyles;
+  }
+  if (element instanceof Node) {
+    container.appendChild(element);
+  } else {
+    element.markAsRoot();
+    element.show(container);
+  }
   return element;
 }
 
-function removeChildren(node: Node): void {
+export function removeChildren(node: Node): void {
   while (true) {
     const {firstChild} = node;
     if (firstChild === null) {
@@ -46,7 +61,7 @@ function removeChildren(node: Node): void {
     const widget = UI.Widget.Widget.get(firstChild);
     if (widget) {
       // Child is a widget, so we have to use the Widget system to remove it from the DOM.
-      widget.detach();
+      widget.detach(/* overrideHideOnDetach= */ true);
       continue;
     }
     // For regular children, recursively remove their children, since some of them
@@ -57,51 +72,16 @@ function removeChildren(node: Node): void {
 }
 
 /**
- * Sets up the DOM for testing,
- * If not clean logs an error and cleans itself
- **/
-export const setupTestDOM = async () => {
-  const previousContainer = document.getElementById(TEST_CONTAINER_ID);
-  if (previousContainer) {
-    // This should not be reachable, unless the
-    // AfterEach hook fails before cleaning the DOM.
-    // Clean it here and report
-    console.error('Non clean test state found!');
-    await cleanTestDOM();
-  }
-  const newContainer = document.createElement('div');
-  newContainer.id = TEST_CONTAINER_ID;
-
-  document.body.appendChild(newContainer);
-};
-
-/**
- * Completely cleans out the test DOM to ensure it's empty for the next test run.
- * This is run automatically between tests - you should not be manually calling this yourself.
- **/
-export const cleanTestDOM = async () => {
-  const previousContainer = document.getElementById(TEST_CONTAINER_ID);
-  if (previousContainer) {
-    removeChildren(previousContainer);
-    previousContainer.remove();
-  }
-  await raf();
-};
-
-interface Constructor<T> {
-  new(...args: unknown[]): T;
-}
-
-/**
- * Asserts that all emenents of `nodeList` are at least of type `T`.
+ * Asserts that all elements of `nodeList` are at least of type `T`.
  */
 export function assertElements<T extends Element>(
-    nodeList: NodeListOf<Element>, elementClass: Constructor<T>): asserts nodeList is NodeListOf<T> {
+    nodeList: NodeListOf<Element>,
+    elementClass: Platform.Constructor.Constructor<T>): asserts nodeList is NodeListOf<T> {
   nodeList.forEach(e => assert.instanceOf(e, elementClass));
 }
 
 export function getElementWithinComponent<T extends HTMLElement, V extends Element>(
-    component: T, selector: string, elementClass: Constructor<V>) {
+    component: T, selector: string, elementClass: Platform.Constructor.Constructor<V>) {
   assert.isNotNull(component.shadowRoot);
   const element = component.shadowRoot.querySelector(selector);
   assert.instanceOf(element, elementClass);
@@ -109,7 +89,7 @@ export function getElementWithinComponent<T extends HTMLElement, V extends Eleme
 }
 
 export function getElementsWithinComponent<T extends HTMLElement, V extends Element>(
-    component: T, selector: string, elementClass: Constructor<V>) {
+    component: T, selector: string, elementClass: Platform.Constructor.Constructor<V>) {
   assert.isNotNull(component.shadowRoot);
   const elements = component.shadowRoot.querySelectorAll(selector);
   assertElements(elements, elementClass);
@@ -178,9 +158,7 @@ export function dispatchFocusOutEvent<T extends Element>(element: T, options: Fo
 export function dispatchKeyDownEvent<T extends Element>(element: T, options: KeyboardEventInit = {}) {
   const clickEvent = new KeyboardEvent('keydown', options);
   const success = element.dispatchEvent(clickEvent);
-  if (!success) {
-    assert.fail('Failed to trigger keydown event successfully.');
-  }
+  assert.isOk(success, 'Failed to trigger keydown event successfully.');
 }
 
 export function dispatchInputEvent<T extends Element>(element: T, options: InputEventInit = {}) {
@@ -239,7 +217,7 @@ export function dispatchPasteEvent<T extends Element>(element: T, options: Clipb
  * Listens to an event of an element and returns a Promise that resolves to the
  * specified event type.
  */
-export function getEventPromise<T extends Event>(element: HTMLElement, eventName: string): Promise<T> {
+export function getEventPromise<T extends Event>(element: EventTarget, eventName: string): Promise<T> {
   return new Promise<T>(resolve => {
     element.addEventListener(eventName, (event: Event) => {
       resolve(event as T);
@@ -279,7 +257,9 @@ export function stripLitHtmlCommentNodes(text: string) {
 export function getCleanTextContentFromElements(el: ShadowRoot|HTMLElement, selector: string): string[] {
   const elements = Array.from(el.querySelectorAll(selector));
   return elements.map(element => {
-    return element.textContent ? element.textContent.trim().replace(/[ \n]{2,}/g, ' ') : '';
+    return ((element instanceof HTMLElement ? element.innerText : element.textContent) ?? '')
+        .trim()
+        .replace(/[ \n]{2,}/g, ' ');
   });
 }
 
@@ -312,6 +292,13 @@ export function querySelectorErrorOnMissing<T extends HTMLElement = HTMLElement>
   return elem;
 }
 
+declare global {
+  interface Window {
+    // Injected from karma
+    assertScreenshot(elementId: string, filename: string): Promise<string|undefined>;
+  }
+}
+
 /**
  * Given a filename in the format "<folder>/<image.png>"
  * this function asserts that a screenshot taken from the element
@@ -329,10 +316,25 @@ export async function assertScreenshot(filename: string) {
     frame.scrollTo(0, 0);
     frame = frame.parent !== frame ? frame.parent : null;
   }
+
+  // For test we load the fonts though the network - front_end/testing/test_setup.ts
+  // Which means we may try to take screenshot while they are loading
+  await document.fonts.ready;
   await raf();
-  // @ts-expect-error see karma config.
-  const result = await window.assertScreenshot(`#${TEST_CONTAINER_ID}`, filename);
-  if (result) {
-    throw new Error(result);
+  // Pending activity before taking screenshots results in flakiness.
+  await checkForPendingActivity();
+  if (!window.assertScreenshot) {
+    window.assertScreenshot = async () => {
+      debugger;  // eslint-disable-line no-debugger
+      return undefined;
+    };
   }
+  const errorMessage = await window.assertScreenshot(`#${TEST_CONTAINER_ID}`, filename);
+  if (errorMessage) {
+    throw new Error(errorMessage);
+  }
+}
+
+export function setColorScheme(scheme: 'dark'|'light'): void {
+  document.documentElement.classList.toggle('theme-with-dark-background', scheme === 'dark');
 }

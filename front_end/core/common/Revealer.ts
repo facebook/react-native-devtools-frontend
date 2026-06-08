@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,43 +7,43 @@ import type * as Platform from '../platform/platform.js';
 
 const UIStrings = {
   /**
-   *@description The UI destination when right clicking an item that can be revealed
+   * @description The UI destination when right clicking an item that can be revealed
    */
   elementsPanel: 'Elements panel',
   /**
-   *@description The UI destination when right clicking an item that can be revealed
+   * @description The UI destination when right clicking an item that can be revealed
    */
   stylesSidebar: 'styles sidebar',
   /**
-   *@description The UI destination when right clicking an item that can be revealed
+   * @description The UI destination when right clicking an item that can be revealed
    */
   changesDrawer: 'Changes drawer',
   /**
-   *@description The UI destination when right clicking an item that can be revealed
+   * @description The UI destination when right clicking an item that can be revealed
    */
   issuesView: 'Issues view',
   /**
-   *@description The UI destination when right clicking an item that can be revealed
+   * @description The UI destination when right clicking an item that can be revealed
    */
   networkPanel: 'Network panel',
   /**
-   *@description The UI destination when right clicking an item that can be revealed
+   * @description The UI destination when right clicking an item that can be revealed
+   */
+  requestConditionsDrawer: 'Request conditions drawer',
+  /**
+   * @description The UI destination when right clicking an item that can be revealed
    */
   applicationPanel: 'Application panel',
   /**
-   *@description The UI destination when right clicking an item that can be revealed
-   */
-  securityPanel: 'Security panel',
-  /**
-   *@description The UI destination when right clicking an item that can be revealed
+   * @description The UI destination when right clicking an item that can be revealed
    */
   sourcesPanel: 'Sources panel',
   /**
-   *@description The UI destination when right clicking an item that can be revealed
+   * @description The UI destination when right clicking an item that can be revealed
    */
   timelinePanel: 'Performance panel',
   /**
-   *@description The UI destination when right clicking an item that can be revealed
+   * @description The UI destination when right clicking an item that can be revealed
    */
   memoryInspectorPanel: 'Memory inspector panel',
   /**
@@ -181,10 +181,10 @@ export const RevealerDestination = {
   CHANGES_DRAWER: i18nLazyString(UIStrings.changesDrawer),
   ISSUES_VIEW: i18nLazyString(UIStrings.issuesView),
   NETWORK_PANEL: i18nLazyString(UIStrings.networkPanel),
+  REQUEST_CONDITIONS_DRAWER: i18nLazyString(UIStrings.requestConditionsDrawer),
   TIMELINE_PANEL: i18nLazyString(UIStrings.timelinePanel),
   APPLICATION_PANEL: i18nLazyString(UIStrings.applicationPanel),
   SOURCES_PANEL: i18nLazyString(UIStrings.sourcesPanel),
-  SECURITY_PANEL: i18nLazyString(UIStrings.securityPanel),
   MEMORY_INSPECTOR_PANEL: i18nLazyString(UIStrings.memoryInspectorPanel),
   ANIMATIONS_PANEL: i18nLazyString(UIStrings.animationsPanel),
 };

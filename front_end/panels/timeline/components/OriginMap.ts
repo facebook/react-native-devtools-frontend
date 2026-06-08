@@ -1,8 +1,8 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import '../../../ui/components/icon_button/icon_button.js';
+import '../../../ui/kit/kit.js';
+import '../../../ui/legacy/components/data_grid/data_grid.js';
 
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as SDK from '../../../core/sdk/sdk.js';
@@ -50,26 +50,117 @@ interface ListItem extends CrUXManager.OriginMapping {
   isTitleRow?: boolean;
 }
 
-export class OriginMap extends UI.Widget.WidgetElement<UI.Widget.Widget> implements UI.ListWidget.Delegate<ListItem> {
-  #list: UI.ListWidget.ListWidget<ListItem>;
-  #editor?: UI.ListWidget.Editor<ListItem>;
+export interface ViewInput {
+  mappings: ListItem[];
+  prefillDevelopmentOrigin: string;
+  errorMessage: string;
+  isCrUXEnabled: boolean;
+  getFieldDataForPage: (url: string) => Promise<CrUXManager.PageResult>;
+  onCommitEdit: (event: CustomEvent<{columnId: string, valueBeforeEditing: string, newText: string}>) => void;
+  onRemoveItemRequested: (event: CustomEvent) => void;
+  onCreate: (event: CustomEvent<{developmentOrigin?: string, productionOrigin?: string}>) => void;
+}
 
-  constructor() {
-    super();
+export type View = (input: ViewInput, output: undefined, target: HTMLElement) => void;
 
-    this.#list = new UI.ListWidget.ListWidget<ListItem>(this, false /* delegatesFocus */, true /* isTable */);
+function renderOriginWarning(input: ViewInput, url: string): Promise<Lit.LitTemplate> {
+  return RenderCoordinator.write(async () => {
+    if (!input.isCrUXEnabled) {
+      return Lit.nothing;
+    }
 
-    CrUXManager.CrUXManager.instance().getConfigSetting().addChangeListener(this.#updateListFromSetting, this);
-    this.#updateListFromSetting();
+    const result = await input.getFieldDataForPage(url);
+
+    const hasFieldData = Object.entries(result).some(([key, value]) => {
+      if (key === 'warnings') {
+        return false;
+      }
+      return Boolean(value);
+    });
+    if (hasFieldData) {
+      return Lit.nothing;
+    }
+
+    return html`
+      <devtools-icon
+        class="origin-warning-icon"
+        name="warning-filled"
+        title=${i18nString(UIStrings.pageHasNoData)}
+      ></devtools-icon>
+    `;
+  });
+}
+
+function renderItem(input: ViewInput, originMapping: ListItem, index: number): Lit.LitTemplate {
+  const warningIcon = Lit.Directives.until(renderOriginWarning(input, originMapping.productionOrigin));
+  // clang-format off
+  return html`
+    <tr data-index=${index} @edit=${input.onCommitEdit} @delete=${input.onRemoveItemRequested}>
+      <td data-value=${originMapping.developmentOrigin}>
+        <div class="origin" title=${originMapping.developmentOrigin}>${originMapping.developmentOrigin}</div>
+      </td>
+      <td data-value=${originMapping.productionOrigin}>
+        ${warningIcon}
+        <div class="origin" title=${originMapping.productionOrigin}>${originMapping.productionOrigin}</div>
+      </td>
+    </tr>
+  `;
+  // clang-format on
+}
+
+export const DEFAULT_VIEW: View = (input, _output, target) => {
+  if (!input.prefillDevelopmentOrigin && input.mappings.length === 0) {
+    Lit.render(Lit.nothing, target);
+    return;
+  }
+  // clang-format off
+  Lit.render(html`
+    <devtools-data-grid striped inline
+        @click=${(e: Event) => { e.stopPropagation(); }}
+        @create=${input.onCreate}>
+      <table>
+        <tr>
+          <th id=${DEV_ORIGIN_CONTROL} editable weight="1">${i18nString(UIStrings.developmentOrigin)}</th>
+          <th id=${PROD_ORIGIN_CONTROL} editable weight="1">${i18nString(UIStrings.productionOrigin)}</th>
+        </tr>
+        ${input.mappings.map((mapping, index) => renderItem(input, mapping, index))}
+        ${input.prefillDevelopmentOrigin ? html`
+          <tr placeholder>
+            <td>${input.prefillDevelopmentOrigin}</td>
+            <td></td>
+          </tr>` : Lit.nothing}
+      </table>
+    </devtools-data-grid>
+    ${input.errorMessage ? html`<div class="error-message">${input.errorMessage}</div>` : Lit.nothing}
+  `, target);
+  // clang-format on
+};
+
+export class OriginMap extends UI.Widget.VBox {
+  readonly #view: View;
+  #errorMessage = '';
+  #prefillDevelopmentOrigin = '';
+
+  constructor(element?: HTMLElement, view: View = DEFAULT_VIEW) {
+    super(element, {useShadowDom: true});
+    this.#view = view;
+    this.registerRequiredCSS(originMapStyles);
+    CrUXManager.CrUXManager.instance().getConfigSetting().addChangeListener(this.requestUpdate, this);
+    this.requestUpdate();
   }
 
-  override createWidget(): UI.Widget.Widget {
-    const containerWidget = new UI.Widget.Widget(false, false, this);
-
-    this.#list.registerRequiredCSS(originMapStyles);
-    this.#list.show(containerWidget.contentElement);
-
-    return containerWidget;
+  override performUpdate(): void {
+    const input: ViewInput = {
+      mappings: this.#pullMappingsFromSetting(),
+      prefillDevelopmentOrigin: this.#prefillDevelopmentOrigin,
+      errorMessage: this.#errorMessage,
+      isCrUXEnabled: CrUXManager.CrUXManager.instance().isEnabled(),
+      getFieldDataForPage: (url: string) => CrUXManager.CrUXManager.instance().getFieldDataForPage(url),
+      onCommitEdit: this.#commitEdit.bind(this),
+      onRemoveItemRequested: this.#removeItemRequested.bind(this),
+      onCreate: this.#onCreate.bind(this),
+    };
+    this.#view(input, undefined, this.contentElement);
   }
 
   #pullMappingsFromSetting(): ListItem[] {
@@ -83,21 +174,6 @@ export class OriginMap extends UI.Widget.WidgetElement<UI.Widget.Widget> impleme
     setting.set(settingCopy);
   }
 
-  #updateListFromSetting(): void {
-    const mappings = this.#pullMappingsFromSetting();
-    this.#list.clear();
-    this.#list.appendItem(
-        {
-          developmentOrigin: i18nString(UIStrings.developmentOrigin),
-          productionOrigin: i18nString(UIStrings.productionOrigin),
-          isTitleRow: true,
-        },
-        false);
-    for (const originMapping of mappings) {
-      this.#list.appendItem(originMapping, true);
-    }
-  }
-
   #getOrigin(url: string): string|null {
     try {
       return new URL(url).origin;
@@ -106,173 +182,116 @@ export class OriginMap extends UI.Widget.WidgetElement<UI.Widget.Widget> impleme
     }
   }
 
-  #renderOriginWarning(url: string): Promise<Lit.LitTemplate> {
-    return RenderCoordinator.write(async () => {
-      if (!CrUXManager.CrUXManager.instance().isEnabled()) {
-        return Lit.nothing;
-      }
-
-      const cruxManager = CrUXManager.CrUXManager.instance();
-      const result = await cruxManager.getFieldDataForPage(url);
-
-      const hasFieldData = Object.entries(result).some(([key, value]) => {
-        if (key === 'warnings') {
-          return false;
-        }
-        return Boolean(value);
-      });
-      if (hasFieldData) {
-        return Lit.nothing;
-      }
-
-      return html`
-        <devtools-icon
-          class="origin-warning-icon"
-          name="warning-filled"
-          title=${i18nString(UIStrings.pageHasNoData)}
-        ></devtools-icon>
-      `;
-    });
-  }
-
   startCreation(): void {
     const targetManager = SDK.TargetManager.TargetManager.instance();
     const inspectedURL = targetManager.inspectedURL();
     const currentOrigin = this.#getOrigin(inspectedURL) || '';
-
-    this.#list.addNewItem(-1, {
-      developmentOrigin: currentOrigin,
-      productionOrigin: '',
-    });
+    this.#prefillDevelopmentOrigin = currentOrigin;
+    this.requestUpdate();
   }
 
-  renderItem(originMapping: ListItem): Element {
-    const element = document.createElement('div');
-    element.classList.add('origin-mapping-row');
-    element.role = 'row';
+  #removeItemRequested(event: CustomEvent): void {
+    const target = event.currentTarget as HTMLElement;
+    const index = Number.parseInt(target.dataset.index ?? '-1', 10);
+    if (index < 0) {
+      return;
+    }
 
-    let cellRole: 'columnheader'|'cell';
-    let warningIcon;
-    if (originMapping.isTitleRow) {
-      element.classList.add('header');
-      cellRole = 'columnheader';
-      warningIcon = Lit.nothing;
+    const mappings = this.#pullMappingsFromSetting();
+    mappings.splice(index, 1);
+    this.#pushMappingsToSetting(mappings);
+  }
+
+  #commitEdit(event: CustomEvent<{columnId: string, valueBeforeEditing: string, newText: string}>): void {
+    const target = event.currentTarget as HTMLElement;
+    const index = Number.parseInt(target.dataset.index ?? '-1', 10);
+    if (index < 0) {
+      return;
+    }
+
+    const mappings = this.#pullMappingsFromSetting();
+    const originMapping = mappings[index];
+    const isDevOrigin = event.detail.columnId === DEV_ORIGIN_CONTROL;
+
+    let errorMessage = null;
+    if (isDevOrigin) {
+      errorMessage = this.#developmentValidator(event.detail.newText, index);
     } else {
-      cellRole = 'cell';
-      warningIcon = Lit.Directives.until(this.#renderOriginWarning(originMapping.productionOrigin));
+      errorMessage = this.#productionValidator(event.detail.newText);
     }
 
-    // clang-format off
-    Lit.render(html`
-      <div class="origin-mapping-cell development-origin" role=${cellRole}>
-        <div class="origin" title=${originMapping.developmentOrigin}>${originMapping.developmentOrigin}</div>
-      </div>
-      <div class="origin-mapping-cell production-origin" role=${cellRole}>
-        ${warningIcon}
-        <div class="origin" title=${originMapping.productionOrigin}>${originMapping.productionOrigin}</div>
-      </div>
-    `, element, {host: this});
-    // clang-format on
-    return element;
-  }
+    if (errorMessage) {
+      this.#errorMessage = errorMessage;
+      this.requestUpdate();
+      return;
+    }
+    this.#errorMessage = '';
 
-  removeItemRequested(_item: ListItem, index: number): void {
-    const mappings = this.#pullMappingsFromSetting();
-
-    // `index` will be 1-indexed due to the header row
-    mappings.splice(index - 1, 1);
-
-    this.#pushMappingsToSetting(mappings);
-  }
-
-  commitEdit(originMapping: ListItem, editor: UI.ListWidget.Editor<ListItem>, isNew: boolean): void {
-    originMapping.developmentOrigin = this.#getOrigin(editor.control(DEV_ORIGIN_CONTROL).value) || '';
-    originMapping.productionOrigin = this.#getOrigin(editor.control(PROD_ORIGIN_CONTROL).value) || '';
-
-    const mappings = this.#pullMappingsFromSetting();
-    if (isNew) {
-      mappings.push(originMapping);
+    if (isDevOrigin) {
+      originMapping.developmentOrigin = this.#getOrigin(event.detail.newText) || '';
+    } else {
+      originMapping.productionOrigin = this.#getOrigin(event.detail.newText) || '';
     }
     this.#pushMappingsToSetting(mappings);
   }
 
-  beginEdit(originMapping: ListItem): UI.ListWidget.Editor<ListItem> {
-    const editor = this.#createEditor();
-    editor.control(DEV_ORIGIN_CONTROL).value = originMapping.developmentOrigin;
-    editor.control(PROD_ORIGIN_CONTROL).value = originMapping.productionOrigin;
-    return editor;
-  }
-
-  #developmentValidator(_item: ListItem, index: number, input: UI.ListWidget.EditorControl):
-      UI.ListWidget.ValidatorResult {
-    const origin = this.#getOrigin(input.value);
-
+  #developmentValidator(value: string, indexToIgnore?: number): string|null {
+    const origin = this.#getOrigin(value);
     if (!origin) {
-      return {valid: false, errorMessage: i18nString(UIStrings.invalidOrigin, {PH1: input.value})};
+      return i18nString(UIStrings.invalidOrigin, {PH1: value});
     }
 
     const mappings = this.#pullMappingsFromSetting();
     for (let i = 0; i < mappings.length; ++i) {
-      // `index` will be 1-indexed due to the header row
-      if (i === index - 1) {
+      if (i === indexToIgnore) {
         continue;
       }
-
       const mapping = mappings[i];
       if (mapping.developmentOrigin === origin) {
-        return {valid: true, errorMessage: i18nString(UIStrings.alreadyMapped, {PH1: origin})};
+        return i18nString(UIStrings.alreadyMapped, {PH1: origin});
       }
     }
 
-    return {valid: true};
+    return null;
   }
 
-  #productionValidator(_item: ListItem, _index: number, input: UI.ListWidget.EditorControl):
-      UI.ListWidget.ValidatorResult {
-    const origin = this.#getOrigin(input.value);
-
+  #productionValidator(value: string): string|null {
+    const origin = this.#getOrigin(value);
     if (!origin) {
-      return {valid: false, errorMessage: i18nString(UIStrings.invalidOrigin, {PH1: input.value})};
+      return i18nString(UIStrings.invalidOrigin, {PH1: value});
     }
 
-    return {valid: true};
+    return null;
   }
 
-  #createEditor(): UI.ListWidget.Editor<ListItem> {
-    if (this.#editor) {
-      return this.#editor;
+  #onCreate(event: CustomEvent<{developmentOrigin?: string, productionOrigin?: string}>): void {
+    const devOrigin = event.detail[DEV_ORIGIN_CONTROL as keyof typeof event.detail] ?? '';
+    const prodOrigin = event.detail[PROD_ORIGIN_CONTROL as keyof typeof event.detail] ?? '';
+
+    // Ignore empty row selection/deselection or if they didn't change the prefilled values
+    if ((!devOrigin && !prodOrigin) || (devOrigin === this.#prefillDevelopmentOrigin && !prodOrigin)) {
+      this.#prefillDevelopmentOrigin = '';
+      this.#errorMessage = '';
+      this.requestUpdate();
+      return;
     }
 
-    const editor = new UI.ListWidget.Editor<ListItem>();
-    this.#editor = editor;
-    const content = editor.contentElement().createChild('div', 'origin-mapping-editor');
+    const errors = [this.#developmentValidator(devOrigin), this.#productionValidator(prodOrigin)].filter(Boolean);
+    if (errors.length > 0) {
+      this.#errorMessage = errors.join('\n');
+      this.requestUpdate();
+      return;
+    }
 
-    const devInput = editor.createInput(
-        DEV_ORIGIN_CONTROL, 'text', i18nString(UIStrings.developmentOrigin), this.#developmentValidator.bind(this));
-    const prodInput = editor.createInput(
-        PROD_ORIGIN_CONTROL, 'text', i18nString(UIStrings.productionOrigin), this.#productionValidator.bind(this));
+    this.#errorMessage = '';
 
-    // clang-format off
-    Lit.render(html`
-      <label class="development-origin-input">
-        ${i18nString(UIStrings.developmentOrigin)}
-        ${devInput}
-      </label>
-      <label class="production-origin-input">
-        ${i18nString(UIStrings.productionOrigin)}
-        ${prodInput}
-      </label>
-    `, content, {host: this});
-    // clang-format on
+    this.#prefillDevelopmentOrigin = '';
 
-    return editor;
-  }
-}
-
-customElements.define('devtools-origin-map', OriginMap);
-
-declare global {
-  interface HTMLElementTagNameMap {
-    'devtools-origin-map': OriginMap;
+    const mappings = this.#pullMappingsFromSetting();
+    mappings.push({
+      developmentOrigin: this.#getOrigin(devOrigin) || '',
+      productionOrigin: this.#getOrigin(prodOrigin) || '',
+    });
+    this.#pushMappingsToSetting(mappings);
   }
 }

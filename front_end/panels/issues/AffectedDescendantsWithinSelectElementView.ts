@@ -1,6 +1,7 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
@@ -10,11 +11,11 @@ import {AffectedElementsView} from './AffectedElementsView.js';
 
 const UIStrings = {
   /**
-   *@description Noun for singular or plural number of affected descendant nodes indication in issue view.
+   * @description Noun for singular or plural number of affected descendant nodes indication in issue view.
    */
   nDescendants: '{n, plural, =1 { descendant} other { descendants}}',
   /**
-   *@description Label for the disallowed node link in the issue view.
+   * @description Label for the disallowed node link in the issue view.
    */
   disallowedNode: 'Disallowed descendant',
 } as const;
@@ -36,11 +37,11 @@ export class AffectedDescendantsWithinSelectElementView extends AffectedElements
 
   async #doUpdate(): Promise<void> {
     this.clear();
-    await this.#appendDisallowedSelectDescendants(this.issue.getSelectElementAccessibilityIssues());
+    await this.#appendDisallowedSelectDescendants(this.issue.getElementAccessibilityIssues());
   }
 
-  async #appendDisallowedSelectDescendant(
-      issue: IssuesManager.SelectElementAccessibilityIssue.SelectElementAccessibilityIssue): Promise<void> {
+  async #appendDisallowedSelectDescendant(issue: IssuesManager.ElementAccessibilityIssue.ElementAccessibilityIssue):
+      Promise<void> {
     const row = document.createElement('tr');
     row.classList.add('affected-resource-select-element-descendant');
 
@@ -53,7 +54,7 @@ export class AffectedDescendantsWithinSelectElementView extends AffectedElements
   }
 
   async #appendDisallowedSelectDescendants(
-      issues: Iterable<IssuesManager.SelectElementAccessibilityIssue.SelectElementAccessibilityIssue>): Promise<void> {
+      issues: Iterable<IssuesManager.ElementAccessibilityIssue.ElementAccessibilityIssue>): Promise<void> {
     let count = 0;
     for (const issue of issues) {
       count++;

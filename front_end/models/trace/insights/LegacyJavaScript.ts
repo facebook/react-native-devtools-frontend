@@ -1,4 +1,4 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@ import * as i18n from '../../../core/i18n/i18n.js';
 import * as LegacyJavaScriptLib from '../../../third_party/legacy-javascript/legacy-javascript.js';
 import type * as Handlers from '../handlers/handlers.js';
 import * as Helpers from '../helpers/helpers.js';
+import type * as Types from '../types/types.js';
 
 import {estimateCompressionRatioForScript, metricSavingsForWastedBytes} from './Common.js';
 import {
@@ -27,7 +28,7 @@ export const UIStrings = {
    * @description Description of an insight that identifies polyfills for modern JavaScript features, and recommends their removal.
    */
   description:
-      'Polyfills and transforms enable legacy browsers to use new JavaScript features. However, many aren\'t necessary for modern browsers. Consider modifying your JavaScript build process to not transpile [Baseline](https://web.dev/articles/baseline-and-polyfills) features, unless you know you must support legacy browsers. [Learn why most sites can deploy ES6+ code without transpiling](https://philipwalton.com/articles/the-state-of-es5-on-the-web/)',
+      'Polyfills and transforms enable older browsers to use new JavaScript features. However, many aren\'t necessary for modern browsers. Consider modifying your JavaScript build process to not transpile [Baseline](https://web.dev/articles/baseline-and-polyfills) features, unless you know you must support older browsers. [Learn why most sites can deploy ES6+ code without transpiling](https://developer.chrome.com/docs/performance/insights/legacy-javascript)',
   /** Label for a column in a data table; entries will be the individual JavaScript scripts. */
   columnScript: 'Script',
   /** Label for a column in a data table; entries will be the number of wasted bytes (aka the estimated savings in terms of bytes). */
@@ -37,7 +38,7 @@ export const UIStrings = {
 const str_ = i18n.i18n.registerUIStrings('models/trace/insights/LegacyJavaScript.ts', UIStrings);
 export const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-interface PatternMatchResult {
+export interface PatternMatchResult {
   name: string;
   line: number;
   column: number;
@@ -64,6 +65,7 @@ function finalize(partialModel: PartialInsightModel<LegacyJavaScriptInsightModel
     strings: UIStrings,
     title: i18nString(UIStrings.title),
     description: i18nString(UIStrings.description),
+    docs: 'https://developer.chrome.com/docs/performance/insights/legacy-javascript',
     category: InsightCategory.ALL,
     state: requests.length ? 'fail' : 'pass',
     relatedEvents: [...new Set(requests)],
@@ -71,13 +73,13 @@ function finalize(partialModel: PartialInsightModel<LegacyJavaScriptInsightModel
   };
 }
 
-export function generateInsight(
-    parsedTrace: Handlers.Types.ParsedTrace, context: InsightSetContext): LegacyJavaScriptInsightModel {
-  const scripts = parsedTrace.Scripts.scripts.filter(script => {
-    if (!context.navigation) {
-      return false;
-    }
+export function isLegacyJavaScript(model: InsightModel): model is LegacyJavaScriptInsightModel {
+  return model.insightKey === InsightKeys.LEGACY_JAVASCRIPT;
+}
 
+export function generateInsight(
+    data: Handlers.Types.HandlerData, context: InsightSetContext): LegacyJavaScriptInsightModel {
+  const scripts = data.Scripts.scripts.filter(script => {
     if (script.frame !== context.frameId) {
       return false;
     }
@@ -86,7 +88,8 @@ export function generateInsight(
       return false;
     }
 
-    return Helpers.Timing.timestampIsInBounds(context.bounds, script.ts);
+    return Helpers.Timing.timestampIsInBounds(context.bounds, script.ts) ||
+        (script.request && Helpers.Timing.eventIsInBounds(script.request, context.bounds));
   });
 
   const legacyJavaScriptResults: LegacyJavaScriptResults = new Map();
@@ -102,11 +105,14 @@ export function generateInsight(
       continue;
     }
 
+    // Translate from resource size to transfer size.
+    const compressionRatio = estimateCompressionRatioForScript(script);
+    const transferSize = Math.round(result.estimatedByteSavings * compressionRatio);
+    result.estimatedByteSavings = transferSize;
+
     legacyJavaScriptResults.set(script, result);
 
     if (script.request) {
-      const compressionRatio = estimateCompressionRatioForScript(script);
-      const transferSize = Math.round(result.estimatedByteSavings * compressionRatio);
       const requestId = script.request.args.data.requestId;
       wastedBytesByRequestId.set(requestId, transferSize);
     }
@@ -118,5 +124,15 @@ export function generateInsight(
   return finalize({
     legacyJavaScriptResults: sorted,
     metricSavings: metricSavingsForWastedBytes(wastedBytesByRequestId, context),
+    wastedBytes: wastedBytesByRequestId.values().reduce((acc, cur) => acc + cur, 0),
+  });
+}
+export function createOverlays(model: LegacyJavaScriptInsightModel): Types.Overlays.Overlay[] {
+  return [...model.legacyJavaScriptResults.keys()].map(script => script.request).filter(e => !!e).map(request => {
+    return {
+      type: 'ENTRY_OUTLINE',
+      entry: request,
+      outlineReason: 'ERROR',
+    };
   });
 }

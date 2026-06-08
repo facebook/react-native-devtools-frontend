@@ -1,16 +1,17 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
 import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
+import * as Formatter from '../formatter/formatter.js';
 import * as TextUtils from '../text_utils/text_utils.js';
 import * as Workspace from '../workspace/workspace.js';
 
 import {ContentProviderBasedProject} from './ContentProviderBasedProject.js';
-import {CSSWorkspaceBinding} from './CSSWorkspaceBinding.js';
-import {DebuggerWorkspaceBinding} from './DebuggerWorkspaceBinding.js';
+import type {CSSWorkspaceBinding} from './CSSWorkspaceBinding.js';
+import type {DebuggerWorkspaceBinding} from './DebuggerWorkspaceBinding.js';
 import {NetworkProject} from './NetworkProject.js';
 import {resourceMetadata} from './ResourceUtils.js';
 
@@ -28,16 +29,48 @@ function computeStyleSheetRange(header: SDK.CSSStyleSheetHeader.CSSStyleSheetHea
 
 export class ResourceMapping implements SDK.TargetManager.SDKModelObserver<SDK.ResourceTreeModel.ResourceTreeModel> {
   readonly workspace: Workspace.Workspace.WorkspaceImpl;
-  readonly #modelToInfo: Map<SDK.ResourceTreeModel.ResourceTreeModel, ModelInfo>;
+  readonly #modelToInfo = new Map<SDK.ResourceTreeModel.ResourceTreeModel, ModelInfo>();
+
+  #debuggerWorkspaceBinding: DebuggerWorkspaceBinding|null = null;
+  #cssWorkspaceBinding: CSSWorkspaceBinding|null = null;
 
   constructor(targetManager: SDK.TargetManager.TargetManager, workspace: Workspace.Workspace.WorkspaceImpl) {
     this.workspace = workspace;
-    this.#modelToInfo = new Map();
     targetManager.observeModels(SDK.ResourceTreeModel.ResourceTreeModel, this);
   }
 
+  get debuggerWorkspaceBinding(): DebuggerWorkspaceBinding|null {
+    // TODO(crbug.com/458180550): Throw when this.#debuggerWorkspaceBinding is null and never return null.
+    //                            The only reason we don't throw and return an instance unconditionally
+    //                            is that unit tests often don't set-up both the *WorkspaceBindings.
+    return this.#debuggerWorkspaceBinding;
+  }
+
+  /* {@link DebuggerWorkspaceBinding} and ResourceMapping form a cycle so we can't wire it up at ctor time. */
+  set debuggerWorkspaceBinding(debuggerWorkspaceBinding: DebuggerWorkspaceBinding) {
+    if (this.#debuggerWorkspaceBinding) {
+      throw new Error('DebuggerWorkspaceBinding already set');
+    }
+    this.#debuggerWorkspaceBinding = debuggerWorkspaceBinding;
+  }
+
+  get cssWorkspaceBinding(): CSSWorkspaceBinding|null {
+    // TODO(crbug.com/458180550): Throw when this.#cssWorkspaceBinding is null and never return null.
+    //                            The only reason we don't throw and return an instance unconditionally
+    //                            is that unit tests often don't set-up both the *WorkspaceBindings.
+    return this.#cssWorkspaceBinding;
+  }
+
+  /* {@link CSSWorkspaceBinding} and ResourceMapping form a cycle so we can't wire it up at ctor time. */
+  set cssWorkspaceBinding(cssWorkspaceBinding: CSSWorkspaceBinding) {
+    if (this.#cssWorkspaceBinding) {
+      throw new Error('CSSWorkspaceBinding already set');
+    }
+    this.#cssWorkspaceBinding = cssWorkspaceBinding;
+  }
+
   modelAdded(resourceTreeModel: SDK.ResourceTreeModel.ResourceTreeModel): void {
-    const info = new ModelInfo(this.workspace, resourceTreeModel);
+    const info = new ModelInfo(this, resourceTreeModel);
     this.#modelToInfo.set(resourceTreeModel, info);
   }
 
@@ -237,6 +270,78 @@ export class ResourceMapping implements SDK.TargetManager.SDKModelObserver<SDK.R
         uiLocation.uiSourceCode.url(), uiLocation.lineNumber, uiLocation.columnNumber);
   }
 
+  async functionBoundsAtRawLocation(rawLocation: SDK.DebuggerModel.Location):
+      Promise<Workspace.UISourceCode.UIFunctionBounds|null> {
+    const script = rawLocation.script();
+    if (!script) {
+      return null;
+    }
+    const info = this.infoForTarget(script.debuggerModel.target());
+    if (!info) {
+      return null;
+    }
+    const embedderName = script.embedderName();
+    if (!embedderName) {
+      return null;
+    }
+    const uiSourceCode = info.getProject().uiSourceCodeForURL(embedderName);
+    if (!uiSourceCode) {
+      return null;
+    }
+
+    let {lineNumber, columnNumber} = rawLocation;
+    lineNumber -= script.lineOffset;
+    if (lineNumber === 0) {
+      columnNumber -= script.columnOffset;
+    }
+
+    const scopeTreeAndText = script ? await SDK.ScopeTreeCache.scopeTreeForScript(script) : null;
+    if (!scopeTreeAndText) {
+      return null;
+    }
+
+    // Find the inner-most scope that maps to the given position.
+
+    const offset = scopeTreeAndText.text.offsetFromPosition(lineNumber, columnNumber);
+
+    const results = [];
+    (function walk(nodes: Formatter.FormatterWorkerPool.ScopeTreeNode[]) {
+      for (const node of nodes) {
+        if (!(offset >= node.start && offset < node.end)) {
+          continue;
+        }
+        results.push(node);
+        walk(node.children);
+      }
+    })([scopeTreeAndText.scopeTree]);
+
+    const result = results.findLast(
+        node => node.kind === Formatter.FormatterWorkerPool.ScopeKind.FUNCTION ||
+            node.kind === Formatter.FormatterWorkerPool.ScopeKind.ARROW_FUNCTION);
+    if (!result) {
+      return null;
+    }
+
+    // Map back to positions.
+    const startPosition = scopeTreeAndText.text.positionFromOffset(result.start);
+    const endPosition = scopeTreeAndText.text.positionFromOffset(result.end);
+
+    startPosition.lineNumber += script.lineOffset;
+    if (startPosition.lineNumber === script.lineOffset) {
+      startPosition.columnNumber += script.columnOffset;
+    }
+
+    endPosition.lineNumber += script.lineOffset;
+    if (endPosition.lineNumber === script.lineOffset) {
+      endPosition.columnNumber += script.columnOffset;
+    }
+
+    const name = '';  // TODO(crbug.com/452333154): update ScopeVariableAnalysis to include function name.
+    const range = new TextUtils.TextRange.TextRange(
+        startPosition.lineNumber, startPosition.columnNumber, endPosition.lineNumber, endPosition.columnNumber);
+    return new Workspace.UISourceCode.UIFunctionBounds(uiSourceCode, range, name);
+  }
+
   resetForTest(target: SDK.Target.Target): void {
     const resourceTreeModel = target.model(SDK.ResourceTreeModel.ResourceTreeModel);
     const info = resourceTreeModel ? this.#modelToInfo.get(resourceTreeModel) : null;
@@ -248,18 +353,18 @@ export class ResourceMapping implements SDK.TargetManager.SDKModelObserver<SDK.R
 
 class ModelInfo {
   project: ContentProviderBasedProject;
-  readonly #bindings: Map<string, Binding>;
+  readonly #bindings = new Map<string, Binding>();
   readonly #cssModel: SDK.CSSModel.CSSModel;
   readonly #eventListeners: Common.EventTarget.EventDescriptor[];
-  constructor(
-      workspace: Workspace.Workspace.WorkspaceImpl, resourceTreeModel: SDK.ResourceTreeModel.ResourceTreeModel) {
+  readonly resourceMapping: ResourceMapping;
+
+  constructor(resourceMapping: ResourceMapping, resourceTreeModel: SDK.ResourceTreeModel.ResourceTreeModel) {
     const target = resourceTreeModel.target();
+    this.resourceMapping = resourceMapping;
     this.project = new ContentProviderBasedProject(
-        workspace, 'resources:' + target.id(), Workspace.Workspace.projectTypes.Network, '',
+        resourceMapping.workspace, 'resources:' + target.id(), Workspace.Workspace.projectTypes.Network, '',
         false /* isServiceProject */);
     NetworkProject.setTargetForProject(this.project, target);
-
-    this.#bindings = new Map();
 
     const cssModel = target.model(SDK.CSSModel.CSSModel);
     console.assert(Boolean(cssModel));
@@ -335,7 +440,7 @@ class ModelInfo {
 
     let binding = this.#bindings.get(resource.url);
     if (!binding) {
-      binding = new Binding(this.project, resource);
+      binding = new Binding(this, resource);
       this.#bindings.set(resource.url, binding);
     } else {
       binding.addResource(resource);
@@ -398,21 +503,27 @@ class Binding implements TextUtils.ContentProvider.ContentProvider {
   #edits: Array<{
     stylesheet: SDK.CSSStyleSheetHeader.CSSStyleSheetHeader,
     edit: SDK.CSSModel.Edit|null,
-  }>;
-  constructor(project: ContentProviderBasedProject, resource: SDK.Resource.Resource) {
+  }> = [];
+
+  readonly #debuggerWorkspaceBinding: DebuggerWorkspaceBinding|null;
+  readonly #cssWorkspaceBinding: CSSWorkspaceBinding|null;
+
+  constructor(modelInfo: ModelInfo, resource: SDK.Resource.Resource) {
     this.resources = new Set([resource]);
-    this.#project = project;
+    this.#project = modelInfo.project;
+    this.#debuggerWorkspaceBinding = modelInfo.resourceMapping.debuggerWorkspaceBinding;
+    this.#cssWorkspaceBinding = modelInfo.resourceMapping.cssWorkspaceBinding;
+
     this.#uiSourceCode = this.#project.createUISourceCode(resource.url, resource.contentType());
     boundUISourceCodes.add(this.#uiSourceCode);
     if (resource.frameId) {
       NetworkProject.setInitialFrameAttribution(this.#uiSourceCode, resource.frameId);
     }
     this.#project.addUISourceCodeWithProvider(this.#uiSourceCode, this, resourceMetadata(resource), resource.mimeType);
-    this.#edits = [];
 
     void Promise.all([
-      ...this.inlineScripts().map(script => DebuggerWorkspaceBinding.instance().updateLocations(script)),
-      ...this.inlineStyles().map(style => CSSWorkspaceBinding.instance().updateLocations(style)),
+      ...this.inlineScripts().map(script => this.#debuggerWorkspaceBinding?.updateLocations(script)),
+      ...this.inlineStyles().map(style => this.#cssWorkspaceBinding?.updateLocations(style)),
     ]);
   }
 
@@ -482,7 +593,7 @@ class Binding implements TextUtils.ContentProvider.ContentProvider {
           continue;
         }
         scriptRangeMap.set(script, range.rebaseAfterTextEdit(oldRange, newRange));
-        updatePromises.push(DebuggerWorkspaceBinding.instance().updateLocations(script));
+        updatePromises.push(this.#debuggerWorkspaceBinding?.updateLocations(script));
       }
       for (const style of styles) {
         const range = styleSheetRangeMap.get(style) ?? computeStyleSheetRange(style);
@@ -490,7 +601,7 @@ class Binding implements TextUtils.ContentProvider.ContentProvider {
           continue;
         }
         styleSheetRangeMap.set(style, range.rebaseAfterTextEdit(oldRange, newRange));
-        updatePromises.push(CSSWorkspaceBinding.instance().updateLocations(style));
+        updatePromises.push(this.#cssWorkspaceBinding?.updateLocations(style));
       }
       await Promise.all(updatePromises);
     }
@@ -514,8 +625,8 @@ class Binding implements TextUtils.ContentProvider.ContentProvider {
   dispose(): void {
     this.#project.removeUISourceCode(this.#uiSourceCode.url());
     void Promise.all([
-      ...this.inlineScripts().map(script => DebuggerWorkspaceBinding.instance().updateLocations(script)),
-      ...this.inlineStyles().map(style => CSSWorkspaceBinding.instance().updateLocations(style)),
+      ...this.inlineScripts().map(script => this.#debuggerWorkspaceBinding?.updateLocations(script)),
+      ...this.inlineStyles().map(style => this.#cssWorkspaceBinding?.updateLocations(style)),
     ]);
   }
 
@@ -530,10 +641,6 @@ class Binding implements TextUtils.ContentProvider.ContentProvider {
 
   contentType(): Common.ResourceType.ResourceType {
     return this.firstResource().contentType();
-  }
-
-  requestContent(): Promise<TextUtils.ContentProvider.DeferredContent> {
-    return this.firstResource().requestContent();
   }
 
   requestContentData(): Promise<TextUtils.ContentData.ContentDataOrError> {

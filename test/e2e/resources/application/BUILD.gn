@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -19,11 +19,14 @@ copy_to_gen("application") {
     "manifest-no-id.json",
     "reporting-api.html",
     "reporting-api.rawresponse",
+    "resource-tree-non-unique-url-iframe.html",
     "service-worker-network.html",
     "service-worker.js",
     "session-storage.html",
     "shared-storage.html",
+    "storage-buckets-link.html",
     "storage-quota.html",
+    "styles-non-unique-url.css",
     "window-controls-manifest.webmanifest",
     "window-controls.html",
   ]

@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,7 +33,7 @@ export const enum InstrumentationNames {
   CANVAS_CONTEXT_CREATED = 'canvasContextCreated',
   GEOLOCATION_GET_CURRENT_POSITION = 'Geolocation.getCurrentPosition',
   GEOLOCATION_WATCH_POSITION = 'Geolocation.watchPosition',
-  NOTIFCATION_REQUEST_PERMISSION = 'Notification.requestPermission',
+  NOTIFICATION_REQUEST_PERMISSION = 'Notification.requestPermission',
   DOM_WINDOW_CLOSE = 'DOMWindow.close',
   DOCUMENT_WRITE = 'Document.write',
   AUDIO_CONTEXT_CREATED = 'audioContextCreated',
@@ -51,15 +51,23 @@ export class EventBreakpointsModel extends SDKModel<void> {
   }
 }
 
-// This implementation (as opposed to similar class in DOMDebuggerModel) is for
-// instrumentation breakpoints in targets that run JS but do not have a DOM.
+/**
+ * This implementation (as opposed to similar class in DOMDebuggerModel) is for
+ * instrumentation breakpoints in targets that run JS but do not have a DOM.
+ **/
 class EventListenerBreakpoint extends CategorizedBreakpoint {
+  readonly #targetManager: TargetManager;
+  constructor(category: Category, name: string, targetManager: TargetManager) {
+    super(category, name);
+    this.#targetManager = targetManager;
+  }
+
   override setEnabled(enabled: boolean): void {
     if (this.enabled() === enabled) {
       return;
     }
     super.setEnabled(enabled);
-    for (const model of TargetManager.instance().models(EventBreakpointsModel)) {
+    for (const model of this.#targetManager.models(EventBreakpointsModel)) {
       this.updateOnModel(model);
     }
   }
@@ -78,9 +86,11 @@ class EventListenerBreakpoint extends CategorizedBreakpoint {
 let eventBreakpointManagerInstance: EventBreakpointsManager;
 
 export class EventBreakpointsManager implements SDKModelObserver<EventBreakpointsModel> {
-  readonly #eventListenerBreakpointsInternal: EventListenerBreakpoint[] = [];
+  readonly #eventListenerBreakpoints: EventListenerBreakpoint[] = [];
+  readonly #targetManager: TargetManager;
 
-  constructor() {
+  constructor(targetManager: TargetManager = TargetManager.instance()) {
+    this.#targetManager = targetManager;
     this.createInstrumentationBreakpoints(Category.AUCTION_WORKLET, [
       InstrumentationNames.BEFORE_BIDDER_WORKLET_BIDDING_START,
       InstrumentationNames.BEFORE_BIDDER_WORKLET_REPORTING_START,
@@ -102,7 +112,7 @@ export class EventBreakpointsManager implements SDKModelObserver<EventBreakpoint
       InstrumentationNames.GEOLOCATION_WATCH_POSITION,
     ]);
     this.createInstrumentationBreakpoints(Category.NOTIFICATION, [
-      InstrumentationNames.NOTIFCATION_REQUEST_PERMISSION,
+      InstrumentationNames.NOTIFICATION_REQUEST_PERMISSION,
     ]);
     this.createInstrumentationBreakpoints(Category.PARSE, [
       InstrumentationNames.ELEMENT_SET_INNER_HTML,
@@ -133,15 +143,16 @@ export class EventBreakpointsManager implements SDKModelObserver<EventBreakpoint
       InstrumentationNames.AUDIO_CONTEXT_SUSPENDED,
     ]);
 
-    TargetManager.instance().observeModels(EventBreakpointsModel, this);
+    this.#targetManager.observeModels(EventBreakpointsModel, this);
   }
 
   static instance(opts: {
     forceNew: boolean|null,
+    targetManager?: TargetManager,
   } = {forceNew: null}): EventBreakpointsManager {
-    const {forceNew} = opts;
+    const {forceNew, targetManager} = opts;
     if (!eventBreakpointManagerInstance || forceNew) {
-      eventBreakpointManagerInstance = new EventBreakpointsManager();
+      eventBreakpointManagerInstance = new EventBreakpointsManager(targetManager);
     }
 
     return eventBreakpointManagerInstance;
@@ -149,12 +160,13 @@ export class EventBreakpointsManager implements SDKModelObserver<EventBreakpoint
 
   private createInstrumentationBreakpoints(category: Category, instrumentationNames: InstrumentationNames[]): void {
     for (const instrumentationName of instrumentationNames) {
-      this.#eventListenerBreakpointsInternal.push(new EventListenerBreakpoint(category, instrumentationName));
+      this.#eventListenerBreakpoints.push(
+          new EventListenerBreakpoint(category, instrumentationName, this.#targetManager));
     }
   }
 
   eventListenerBreakpoints(): EventListenerBreakpoint[] {
-    return this.#eventListenerBreakpointsInternal.slice();
+    return this.#eventListenerBreakpoints.slice();
   }
 
   resolveEventListenerBreakpoint({eventName}: EventListenerPausedDetailsAuxData): EventListenerBreakpoint|null {
@@ -163,11 +175,11 @@ export class EventBreakpointsManager implements SDKModelObserver<EventBreakpoint
     }
 
     const instrumentationName = eventName.substring(EventListenerBreakpoint.instrumentationPrefix.length);
-    return this.#eventListenerBreakpointsInternal.find(b => b.name === instrumentationName) || null;
+    return this.#eventListenerBreakpoints.find(b => b.name === instrumentationName) || null;
   }
 
   modelAdded(eventBreakpointModel: EventBreakpointsModel): void {
-    for (const breakpoint of this.#eventListenerBreakpointsInternal) {
+    for (const breakpoint of this.#eventListenerBreakpoints) {
       if (breakpoint.enabled()) {
         breakpoint.updateOnModel(eventBreakpointModel);
       }

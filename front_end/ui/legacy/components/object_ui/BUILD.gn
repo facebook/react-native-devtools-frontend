@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -17,7 +17,7 @@ generate_css("css_files") {
   ]
 }
 
-devtools_module("object_ui") {
+devtools_ui_module("object_ui") {
   sources = [
     "CustomPreviewComponent.ts",
     "JavaScriptREPL.ts",
@@ -35,14 +35,19 @@ devtools_module("object_ui") {
     "../../../../core/sdk:bundle",
     "../../../../generated:protocol",
     "../../../../models/formatter:bundle",
+    "../../../../models/geometry:bundle",
     "../../../../models/source_map_scopes:bundle",
     "../../../../models/text_utils:bundle",
-    "../../../../third_party/acorn:acorn",
+    "../../../../third_party/acorn",
     "../../../../third_party/acorn:bundle",
-    "../../../../ui/components/icon_button:bundle",
     "../../../../ui/components/text_editor:bundle",
+    "../../../../ui/i18n:bundle",
+    "../../../../ui/kit:bundle",
     "../../../../ui/legacy:bundle",
     "../../../../ui/legacy/components/utils:bundle",
+    "../../../components/highlighting:bundle",
+    "../../../lit:bundle",
+    "../../../visual_logging:bundle",
   ]
 }
 
@@ -55,6 +60,9 @@ devtools_entrypoint("bundle") {
   ]
 
   visibility = [
+    # IMPORTANT: Be careful when extending visibility of front_end/ui/legacy/*,
+    # as the UI modules should only be used to actually build user interfaces,
+    # and the business logic should never depend on the UI modules.
     ":*",
     "../../../../panels/application/*",
     "../../../../panels/console/*",
@@ -82,16 +90,20 @@ devtools_entrypoint("meta") {
   visibility = [ "../../../../entrypoints/*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [
+    "CustomPreviewComponent.test.ts",
     "JavaScriptREPL.test.ts",
+    "ObjectPopoverHelper.test.ts",
     "ObjectPropertiesSection.test.ts",
   ]
 
   deps = [
     ":bundle",
+    "../../../../core/sdk:bundle",
+    "../../../../generated:protocol",
     "../../../../testing",
     "../../../legacy:bundle",
   ]

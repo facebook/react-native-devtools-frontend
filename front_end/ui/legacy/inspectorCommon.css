@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 The Chromium Authors. All rights reserved.
+ * Copyright 2015 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -35,7 +35,12 @@ body {
 }
 
 :focus {
-  outline-width: 0;
+  outline-style: none;
+}
+
+/* Prevent UA stylesheet from overriding font-family for HTML elements. */
+code, kbd, samp, pre {
+  font-family: var(--monospace-font-family);
 }
 
 .monospace {
@@ -52,10 +57,6 @@ body {
   ) !important; /* stylelint-disable-line declaration-no-important */
 
   white-space: pre-wrap;
-
-  &:not(input)::selection {
-    color: var(--sys-color-on-surface);
-  }
 }
 
 .source-code.breakpoint {
@@ -135,11 +136,12 @@ iframe.widget {
   inset: 0;
 }
 
-.hidden {
+[hidden],
+.hidden { /* TODO(crbug.com/458299714): remove the class */
   display: none !important; /* stylelint-disable-line declaration-no-important */
 }
 
-.highlighted-search-result {
+.highlighted-search-result,:host::highlight(highlighted-search-result) {
   border-radius: 1px;
   background-color: var(--sys-color-yellow-container);
   outline: 1px solid var(--sys-color-yellow-container);
@@ -148,7 +150,7 @@ iframe.widget {
 .link {
   cursor: pointer;
   text-decoration: underline;
-  color: var(--sys-color-primary);
+  color: var(--text-link);
   outline-offset: 2px;
 }
 
@@ -160,16 +162,10 @@ select {
   font-size: inherit;
 }
 
-select option,
-select optgroup,
-input {
-  background-color: var(--sys-color-cdt-base-container);
-}
-
 input {
   color: inherit;
 
-  &[type="checkbox"] {
+  &[type='checkbox'] {
     position: relative;
     outline: none;
     display: flex;
@@ -178,7 +174,7 @@ input {
 
     &:hover::after,
     &:active::before {
-      content: "";
+      content: '';
       height: 24px;
       width: 24px;
       border-radius: var(--sys-shape-corner-full);
@@ -199,7 +195,7 @@ input {
     }
 
     &:not(:disabled):focus-visible::before {
-      content: "";
+      content: '';
       height: 15px;
       width: 15px;
       border-radius: 5px;
@@ -228,8 +224,8 @@ input::placeholder {
 }
 
 .harmony-input:not([type]),
-.harmony-input[type="number"],
-.harmony-input[type="text"] {
+.harmony-input[type='number'],
+.harmony-input[type='text'] {
   padding: 3px 6px;
   height: 24px;
   border: 1px solid var(--sys-color-neutral-outline);
@@ -250,7 +246,7 @@ input::placeholder {
 }
 
 /* Radio inputs */
-input[type="radio"] {
+input[type='radio'] {
   height: 17px;
   width: 17px;
   min-width: 17px;
@@ -260,13 +256,13 @@ input[type="radio"] {
   accent-color: var(--sys-color-primary-bright);
   color: var(--sys-color-on-primary);
 
-  &:focus {
-    box-shadow: var(--legacy-focus-ring-active-shadow);
+  &:focus-visible {
+    outline: var(--sys-size-2) solid var(--sys-color-state-focus-ring);
   }
 }
 
 @media (forced-colors: active) {
-  input[type="radio"] {
+  input[type='radio'] {
     --gradient-start: ButtonFace;
     --gradient-end: ButtonFace;
 
@@ -278,7 +274,7 @@ input[type="radio"] {
 }
 
 /* Range inputs */
-input[type="range"] {
+input[type='range'] {
   appearance: none;
   margin: 0;
   padding: 0;
@@ -288,7 +284,7 @@ input[type="range"] {
   background: none;
 }
 
-input[type="range"]::-webkit-slider-thumb,
+input[type='range']::-webkit-slider-thumb,
 .-theme-preserve {
   appearance: none;
   margin: 0;
@@ -301,7 +297,7 @@ input[type="range"]::-webkit-slider-thumb,
   background-color: var(--sys-color-primary);
 }
 
-input[type="range"]::-webkit-slider-runnable-track {
+input[type='range']::-webkit-slider-runnable-track {
   appearance: none;
   margin: 0;
   padding: 0;
@@ -310,24 +306,25 @@ input[type="range"]::-webkit-slider-runnable-track {
   background-color: var(--sys-color-surface-variant);
 }
 
-input[type="range"]:focus::-webkit-slider-thumb {
+input[type='range']:focus::-webkit-slider-thumb {
   box-shadow: 0 0 0 2px var(--sys-color-inverse-primary);
 }
 
-input[type="range"]:disabled::-webkit-slider-thumb {
+input[type='range']:disabled::-webkit-slider-thumb {
   background-color: var(--sys-color-state-disabled);
 }
 
 @media (forced-colors: active) {
-  input[type="range"] {
+  input[type='range'] {
     forced-color-adjust: none;
   }
 }
 
-.highlighted-search-result.current-search-result {
+.highlighted-search-result.current-search-result,:host::highlight(current-search-result) {
   /* Note: this value is used in light & dark mode */
   --override-current-search-result-background-color: rgb(255 127 0 / 80%);
 
+  outline: 1px solid var(--sys-color-yellow-container);
   border-radius: 1px;
   padding: 1px;
   margin: -1px;
@@ -491,7 +488,7 @@ select option {
     font: var(--sys-typescale-body4-regular);
     color: var(--sys-color-on-surface-subtle);
 
-    > x-link {
+    > devtools-link {
       white-space: nowrap;
       margin-left: var(--sys-size-3);
     }
@@ -504,25 +501,6 @@ select option {
 
 dt-icon-label {
   flex: none;
-}
-
-.full-widget-dimmed-banner a {
-  color: inherit;
-}
-
-.full-widget-dimmed-banner {
-  color: var(--sys-color-token-subtle);
-  background-color: var(--sys-color-cdt-base-container);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  padding: 20px;
-  position: absolute;
-  inset: 0;
-  font-size: 13px;
-  overflow: auto;
-  z-index: 500;
 }
 
 .dot::before {
@@ -543,6 +521,24 @@ dt-icon-label {
 
 .purple::before {
   background-color: var(--sys-color-purple-bright);
+}
+
+.new-badge {
+  width: fit-content;
+  height: var(--sys-size-8);
+  line-height: var(--sys-size-8);
+  border-radius: var(--sys-shape-corner-extra-small);
+  padding: 0 var(--sys-size-3);
+  background-color: var(--sys-color-tonal-container);
+  color: var(--sys-color-on-tonal-container);
+  font-weight: var(--ref-typeface-weight-bold);
+  font-size: 9px;
+  text-align: center;
+}
+
+:host-context(.platform-mac) .new-badge {
+  background-color: var(--sys-color-primary);
+  color: var(--sys-color-on-primary);
 }
 
 .expandable-inline-button {
@@ -608,18 +604,18 @@ button.link:focus-visible {
 @media (forced-colors: active) {
   .dimmed,
   select:disabled {
-    opacity: 100%;
+    opacity: 70%;
   }
 
   .harmony-input:not([type]),
-  .harmony-input[type="number"],
-  .harmony-input[type="text"] {
+  .harmony-input[type='number'],
+  .harmony-input[type='text'] {
     border: 1px solid ButtonText;
   }
 
   .harmony-input:not([type]):focus,
-  .harmony-input[type="number"]:focus,
-  .harmony-input[type="text"]:focus {
+  .harmony-input[type='number']:focus,
+  .harmony-input[type='text']:focus {
     border: 1px solid Highlight;
   }
 }
@@ -648,8 +644,8 @@ input.custom-search-input::-webkit-search-cancel-button:hover {
   border: var(--override-spinner-size, 3px) solid
     var(--override-spinner-color, var(--sys-color-token-subtle));
   border-radius: 12px;
-  clip: rect(0, var(--clip-size, 15px), var(--clip-size, 15px), 0);
-  content: "";
+  clip-path: rect(0, var(--clip-size, 15px), var(--clip-size, 15px), 0);
+  content: '';
   position: absolute;
   animation: spinner-animation 1s linear infinite;
   box-sizing: border-box;
@@ -775,7 +771,7 @@ devtools-toolbar {
   .toolbar-dropdown-arrow {
     pointer-events: none;
     flex: none;
-    top: 2px;
+    top: var(--sys-size-1);
   }
 
   .toolbar-button.dark-text .toolbar-dropdown-arrow {
@@ -791,7 +787,7 @@ devtools-toolbar {
     background: transparent;
     border-radius: 0;
 
-    &[aria-haspopup="true"][aria-expanded="true"] {
+    &[aria-haspopup='true'][aria-expanded='true'] {
       pointer-events: none;
     }
   }
@@ -824,7 +820,7 @@ devtools-toolbar {
 
     &:hover::after,
     &:active::before {
-      content: "";
+      content: '';
       height: 100%;
       width: 100%;
       border-radius: inherit;
@@ -869,7 +865,7 @@ devtools-toolbar {
     inset: 2px;
     background-color: var(--sys-color-state-focus-highlight);
     border-radius: 2px;
-    content: "";
+    content: '';
     /* This ::before rule serves as a background for an element.
     Setting z-index to make sure it's always below the content. */
     z-index: -1;
@@ -902,7 +898,7 @@ devtools-toolbar {
   }
 
   .toolbar-state-on.toolbar-toggle-with-dot .toolbar-text::after {
-    content: "";
+    content: '';
     position: absolute;
     bottom: 2px;
     background-color: var(--sys-color-primary-bright);
@@ -963,8 +959,9 @@ devtools-toolbar {
 
   /* Checkbox */
 
-  & > dt-checkbox {
+  & > devtools-checkbox {
     padding: 0 5px 0 0;
+    white-space: unset;
   }
 
   /* Select */
@@ -996,7 +993,7 @@ devtools-toolbar {
     }
 
     &::before {
-      content: "";
+      content: '';
       box-sizing: inherit;
       height: 100%;
       width: 100%;
@@ -1065,7 +1062,7 @@ devtools-toolbar {
   }
 
   & > .highlight::before {
-    content: "";
+    content: '';
     position: absolute;
     inset: 2px;
     border-radius: 2px;
@@ -1182,13 +1179,20 @@ devtools-toolbar {
 
 /* Syntax highlighting */
 .webkit-css-property {
-  color: var(--webkit-css-property-color, var(--sys-color-token-property-special)); /* stylelint-disable-line plugin/use_theme_colors */ /* See: crbug.com/1152736 for color variable migration. */
+  /* See: crbug.com/1152736 for color variable migration. */
+  /* stylelint-disable-next-line plugin/use_theme_colors */
+  color: var(
+    --webkit-css-property-color,
+    var(--sys-color-token-property-special)
+  );
 }
 
 .webkit-html-comment {
   color: var(--sys-color-token-comment);
+  word-break: break-all;
 }
 
+.webkit-html-processing-instruction,
 .webkit-html-tag {
   color: var(--sys-color-token-tag);
 }
@@ -1217,8 +1221,9 @@ devtools-toolbar {
 
 .webkit-html-entity-value {
   /* This one is non-standard. */
-  background-color: rgb(0 0 0 / 15%); /* stylelint-disable-line plugin/use_theme_colors */
   /* See: crbug.com/1152736 for color variable migration. */
+  /* stylelint-disable-next-line plugin/use_theme_colors */
+  background-color: rgb(0 0 0 / 15%);
   unicode-bidi: -webkit-isolate;
 }
 
@@ -1229,6 +1234,7 @@ devtools-toolbar {
   /* See: crbug.com/1152736 for color variable migration. */
 }
 
+.webkit-html-processing-instruction-value,
 .webkit-html-attribute-name {
   /* Keep this in sync with view-source.css (.webkit-html-attribute-name) */
   color: var(--sys-color-token-attribute);
@@ -1261,7 +1267,9 @@ devtools-toolbar {
   }
 
   &:focus-visible {
-    outline-width: unset;
+    outline: var(--sys-size-2) solid var(--sys-color-state-focus-ring);
+    outline-offset: 0;
+    border-radius: var(--sys-shape-corner-extra-small);
   }
 
   &.invalid-link {

@@ -1,22 +1,13 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as UI from '../../../ui/legacy/legacy.js';
 import * as Lit from '../../../ui/lit/lit.js';
 
-import timelineSectionStylesRaw from './timelineSection.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const timelineSectionStyles = new CSSStyleSheet();
-timelineSectionStyles.replaceSync(timelineSectionStylesRaw.cssText);
+import timelineSectionStyles from './timelineSection.css.js';
 
 const {html} = Lit;
-
-declare global {
-  interface HTMLElementTagNameMap {
-    'devtools-timeline-section': TimelineSection;
-  }
-}
 
 export interface TimelineSectionData {
   isFirstSection: boolean;
@@ -26,65 +17,86 @@ export interface TimelineSectionData {
   isSelected: boolean;
 }
 
-export class TimelineSection extends HTMLElement {
+export type ViewInput = TimelineSectionData;
+export type ViewOutput = unknown;
 
+export const DEFAULT_VIEW = (input: ViewInput, _output: ViewOutput, target: HTMLElement): void => {
+  const classes = {
+    'timeline-section': true,
+    'is-end-of-group': input.isEndOfGroup,
+    'is-start-of-group': input.isStartOfGroup,
+    'is-first-section': input.isFirstSection,
+    'is-last-section': input.isLastSection,
+    'is-selected': input.isSelected,
+  };
+
+  // clang-format off
+  Lit.render(
+    html`
+    <style>${timelineSectionStyles}</style>
+    <div class=${Lit.Directives.classMap(classes)}>
+      <div class="overlay"></div>
+      <div class="icon"><slot name="icon"></slot></div>
+      <svg width="24" height="100%" class="bar">
+        <rect class="line" x="7" y="0" width="2" height="100%" />
+      </svg>
+      <slot></slot>
+    </div>
+  `,
+    target,
+  );
+  // clang-format on
+};
+
+export class TimelineSection extends UI.Widget.Widget {
   #isEndOfGroup = false;
   #isStartOfGroup = false;
   #isFirstSection = false;
   #isLastSection = false;
   #isSelected = false;
+  #view: typeof DEFAULT_VIEW;
 
-  constructor() {
-    super();
-
-    const shadowRoot = this.attachShadow({mode: 'open'});
-    shadowRoot.adoptedStyleSheets = [timelineSectionStyles];
+  constructor(element?: HTMLElement, view = DEFAULT_VIEW) {
+    super(element, {useShadowDom: true});
+    this.#view = view;
   }
 
-  set data(data: TimelineSectionData) {
-    this.#isFirstSection = data.isFirstSection;
-    this.#isLastSection = data.isLastSection;
-    this.#isEndOfGroup = data.isEndOfGroup;
-    this.#isStartOfGroup = data.isStartOfGroup;
-    this.#isSelected = data.isSelected;
-
-    this.#render();
+  set isEndOfGroup(value: boolean) {
+    this.#isEndOfGroup = value;
+    this.requestUpdate();
   }
 
-  connectedCallback(): void {
-    this.#render();
+  set isStartOfGroup(value: boolean) {
+    this.#isStartOfGroup = value;
+    this.requestUpdate();
   }
 
-  #render(): void {
-    const classes = {
-      'timeline-section': true,
-      'is-end-of-group': this.#isEndOfGroup,
-      'is-start-of-group': this.#isStartOfGroup,
-      'is-first-section': this.#isFirstSection,
-      'is-last-section': this.#isLastSection,
-      'is-selected': this.#isSelected,
-    };
+  set isFirstSection(value: boolean) {
+    this.#isFirstSection = value;
+    this.requestUpdate();
+  }
 
-    // clang-format off
-    Lit.render(
-      html`
-      <div class=${Lit.Directives.classMap(classes)}>
-        <div class="overlay"></div>
-        <div class="icon"><slot name="icon"></slot></div>
-        <svg width="24" height="100%" class="bar">
-          <rect class="line" x="7" y="0" width="2" height="100%" />
-        </svg>
-        <slot></slot>
-      </div>
-    `,
-      this.shadowRoot as ShadowRoot,
-      { host: this },
+  set isLastSection(value: boolean) {
+    this.#isLastSection = value;
+    this.requestUpdate();
+  }
+
+  set isSelected(value: boolean) {
+    this.#isSelected = value;
+    this.requestUpdate();
+  }
+
+  override performUpdate(): void {
+    this.#view(
+        {
+          isEndOfGroup: this.#isEndOfGroup,
+          isStartOfGroup: this.#isStartOfGroup,
+          isFirstSection: this.#isFirstSection,
+          isLastSection: this.#isLastSection,
+          isSelected: this.#isSelected,
+        },
+        {},
+        this.contentElement,
     );
-    // clang-format on
   }
 }
-
-customElements.define(
-    'devtools-timeline-section',
-    TimelineSection,
-);

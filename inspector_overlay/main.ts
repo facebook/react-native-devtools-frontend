@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,13 @@
 import commonStyle from './common.css';
 import {adoptStyleSheet} from './common.js';
 import {gridStyle} from './highlight_grid_common.js';
-import {DistancesOverlay} from './tool_distances.js';
+// @ts-expect-error Importing CSS is handled in Rollup.
+import greenDevAnchorsStyle from './tool_green_dev_anchors.css';
+import {
+  type GreenDevAnchorsDispatchMessage,
+  GreenDevAnchorsOverlay,
+  type GreenDevAnchorsToolMessage
+} from './tool_green_dev_anchors.js';
 // @ts-expect-error Importing CSS is handled in Rollup.
 import highlightGridStyle from './tool_grid.css';
 // @ts-expect-error Importing CSS is handled in Rollup.
@@ -30,7 +36,9 @@ import {WindowControlsOverlay} from './tool_window_controls.js';
 declare global {
   interface Window {
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    InspectorOverlayHost: {send(data: PausedToolMessage|PersistentToolMessage|ScreenshotToolMessage|string): void};
+    InspectorOverlayHost: {
+      send(data: PausedToolMessage|PersistentToolMessage|ScreenshotToolMessage|GreenDevAnchorsToolMessage|string): void,
+    };
   }
 }
 
@@ -40,16 +48,18 @@ const gridStyleSheet = new CSSStyleSheet();
 gridStyleSheet.replaceSync(gridStyle);
 
 const highlightOverlay = new HighlightOverlay(window, [highlightStyle, gridStyleSheet]);
-const persistentOverlay = new PersistentOverlay(window, [highlightGridStyle, gridStyleSheet]);
-const distancesOverlay = new DistancesOverlay(window);
+const persistentOverlay = new PersistentOverlay(window, [highlightGridStyle, greenDevAnchorsStyle, gridStyleSheet]);
 const pausedOverlay = new PausedOverlay(window, pausedStyle);
 const screenshotOverlay = new ScreenshotOverlay(window, screenshotStyle);
+const greenDevAnchorsOverlay = new GreenDevAnchorsOverlay(window, greenDevAnchorsStyle);
 const sourceOrderOverlay = new SourceOrderOverlay(window, sourceOrderStyle);
 const viewportSizeOverlay = new ViewportSizeOverlay(window);
 const windowControlsOverlay = new WindowControlsOverlay(window, [wcoStyle]);
 
+persistentOverlay.setGreenDevAnchorsOverlay(greenDevAnchorsOverlay);
+
 interface Overlays {
-  distances: DistancesOverlay;
+  greenDevFloaty: GreenDevAnchorsOverlay;
   highlight: HighlightOverlay;
   persistent: PersistentOverlay;
   paused: PausedOverlay;
@@ -63,7 +73,7 @@ type PlatformName = string;
 
 // Key in this object is the name the backend refers to a particular overlay by.
 const overlays: Overlays = {
-  distances: distancesOverlay,
+  greenDevFloaty: greenDevAnchorsOverlay,
   highlight: highlightOverlay,
   persistent: persistentOverlay,
   paused: pausedOverlay,
@@ -80,6 +90,7 @@ interface MessageLookup {
   setOverlay: keyof Overlays;
   setPlatform: PlatformName;
   drawingFinished: '';
+  update: GreenDevAnchorsDispatchMessage;
 }
 
 const dispatch = <K extends keyof MessageLookup>(message: [a: K, b: MessageLookup[K]]) => {
@@ -97,7 +108,7 @@ const dispatch = <K extends keyof MessageLookup>(message: [a: K, b: MessageLooku
       currentOverlay.install();
     }
   } else if (functionName === 'setPlatform') {
-    platformName = message[1];
+    platformName = message[1] as PlatformName;
   } else if (functionName === 'drawingFinished') {
     // TODO The logic needs to be added here once the backend starts sending this event.
   } else {

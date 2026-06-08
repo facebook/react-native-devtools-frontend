@@ -1,18 +1,15 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view, @devtools/enforce-custom-element-definitions-location */
 
-import '../../components/icon_button/icon_button.js';
+import '../../kit/kit.js';
 
-import type * as IconButton from '../../components/icon_button/icon_button.js';
+import type {IconData} from '../../kit/kit.js';
 import * as Lit from '../../lit/lit.js';
 
-import markdownImageStylesRaw from './markdownImage.css.js';
+import markdownImageStyles from './markdownImage.css.js';
 import {getMarkdownImage, type ImageData} from './MarkdownImagesMap.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const markdownImageStyles = new CSSStyleSheet();
-markdownImageStyles.replaceSync(markdownImageStylesRaw.cssText);
 
 const {html, Directives: {ifDefined}} = Lit;
 
@@ -27,14 +24,9 @@ export interface MarkdownImageData {
  * This makes sure that all icons/images are accounted for in markdown.
  */
 export class MarkdownImage extends HTMLElement {
-
   readonly #shadow = this.attachShadow({mode: 'open'});
   #imageData?: ImageData;
   #imageTitle?: string;
-
-  connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [markdownImageStyles];
-  }
 
   set data(data: MarkdownImageData) {
     const {key, title} = data;
@@ -44,19 +36,19 @@ export class MarkdownImage extends HTMLElement {
     this.#render();
   }
 
-  #getIconComponent(): Lit.TemplateResult {
+  #getIconComponent(): Lit.LitTemplate {
     if (!this.#imageData) {
-      return html``;
+      return Lit.nothing;
     }
     const {src, color, width = '100%', height = '100%'} = this.#imageData;
     return html`
-      <devtools-icon .data=${{iconPath: src, color, width, height} as IconButton.Icon.IconData}></devtools-icon>
+      <devtools-icon .data=${{iconPath: src, color, width, height} as IconData}></devtools-icon>
     `;
   }
 
-  #getImageComponent(): Lit.TemplateResult {
+  #getImageComponent(): Lit.LitTemplate {
     if (!this.#imageData) {
-      return html``;
+      return Lit.nothing;
     }
     const {src, width = '100%', height = '100%'} = this.#imageData;
     return html`
@@ -70,7 +62,12 @@ export class MarkdownImage extends HTMLElement {
     }
     const {isIcon} = this.#imageData;
     const imageComponent = isIcon ? this.#getIconComponent() : this.#getImageComponent();
-    Lit.render(imageComponent, this.#shadow, {host: this});
+    Lit.render(
+        html`
+      <style>${markdownImageStyles}</style>
+      ${imageComponent}
+    `,
+        this.#shadow, {host: this});
   }
 }
 

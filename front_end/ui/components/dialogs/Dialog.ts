@@ -1,21 +1,18 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view, @devtools/enforce-custom-element-definitions-location */
 
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Platform from '../../../core/platform/platform.js';
-import * as WindowBoundsService from '../../../services/window_bounds/window_bounds.js';
 import * as ComponentHelpers from '../../../ui/components/helpers/helpers.js';
 import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
+import * as UI from '../../legacy/legacy.js';
 import * as Buttons from '../buttons/buttons.js';
 
-import dialogStylesRaw from './dialog.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const dialogStyles = new CSSStyleSheet();
-dialogStyles.replaceSync(dialogStylesRaw.cssText);
+import dialogStyles from './dialog.css.js';
 
 const {html} = Lit;
 
@@ -32,9 +29,11 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 const IS_DIALOG_SUPPORTED = 'HTMLDialogElement' in globalThis;
 
-// Height in pixels of the dialog's connector. The connector is represented as
-// as a diamond and the height corresponds to half the height of the diamond.
-// (the visible height is only half of the diamond).
+/**
+ * Height in pixels of the dialog's connector. The connector is represented as
+ * as a diamond and the height corresponds to half the height of the diamond.
+ * (the visible height is only half of the diamond).
+ **/
 export const CONNECTOR_HEIGHT = 10;
 const CONNECTOR_WIDTH = 2 * CONNECTOR_HEIGHT;
 
@@ -44,12 +43,14 @@ const DIALOG_ANIMATION_OFFSET = 20;
 export const DIALOG_SIDE_PADDING = 5;
 export const DIALOG_VERTICAL_PADDING = 3;
 
-// If the content of the dialog cannot be completely shown because otherwise
-// the dialog would overflow the window, the dialog's max width and height are
-// set such that the dialog remains inside the visible bounds. In this cases
-// some extra, determined by this constant, is added so that the dialog's borders
-// remain clearly visible. This constant accounts for the padding of the dialog's
-// content (20 px) and a 5px gap left on each extreme of the dialog from the viewport.
+/**
+ * If the content of the dialog cannot be completely shown because otherwise
+ * the dialog would overflow the window, the dialog's max width and height are
+ * set such that the dialog remains inside the visible bounds. In this cases
+ * some extra, determined by this constant, is added so that the dialog's borders
+ * remain clearly visible. This constant accounts for the padding of the dialog's
+ * content (20 px) and a 5px gap left on each extreme of the dialog from the viewport.
+ **/
 export const DIALOG_PADDING_FROM_WINDOW = 3 * CONNECTOR_HEIGHT;
 interface DialogData {
   /**
@@ -77,10 +78,6 @@ interface DialogData {
   dialogShownCallback: (() => unknown)|null;
 
   /**
-   * Optional. Service that provides the window dimensions used for positioning the Dialog.
-   */
-  windowBoundsService: WindowBoundsService.WindowBoundsService.WindowBoundsService;
-  /**
    * Whether the dialog is closed when the 'Escape' key is pressed. When true, the event is
    * propagation is stopped.
    */
@@ -102,6 +99,18 @@ interface DialogData {
    * Specifies a context for the visual element.
    */
   jslogContext: string;
+  /**
+   * By default the dialog will close if any mutations to the DOM outside of it
+   * are detected. By setting this selector, any mutations on elements that
+   * match the selector will not cause the dialog to close.
+   */
+  expectedMutationsSelector?: string;
+
+  /**
+   * The current state of the dialog (expanded or collapsed).
+   * Defaults to COLLAPSED.
+   */
+  state?: DialogState;
 }
 
 type DialogAnchor = HTMLElement|DOMRect|DOMPoint;
@@ -111,7 +120,6 @@ export const MODAL = 'MODAL';
 export type DialogOrigin = DialogAnchor|null|(() => DialogAnchor)|typeof MODAL;
 export class Dialog extends HTMLElement {
   readonly #shadow = this.attachShadow({mode: 'open'});
-  readonly #renderBound = this.#render.bind(this);
   readonly #forceDialogCloseInDevToolsBound = this.#forceDialogCloseInDevToolsMutation.bind(this);
   readonly #handleScrollAttemptBound = this.#handleScrollAttempt.bind(this);
   readonly #props: DialogData = {
@@ -120,12 +128,12 @@ export class Dialog extends HTMLElement {
     horizontalAlignment: DialogHorizontalAlignment.CENTER,
     getConnectorCustomXPosition: null,
     dialogShownCallback: null,
-    windowBoundsService: WindowBoundsService.WindowBoundsService.WindowBoundsServiceImpl.instance(),
     closeOnESC: true,
     closeOnScroll: true,
     closeButton: false,
     dialogTitle: '',
     jslogContext: '',
+    state: DialogState.EXPANDED,
   };
 
   #dialog: HTMLDialogElement|null = null;
@@ -133,11 +141,22 @@ export class Dialog extends HTMLElement {
   #isPendingCloseDialog = false;
   #hitArea = new DOMRect(0, 0, 0, 0);
   #dialogClientRect = new DOMRect(0, 0, 0, 0);
-  #bestVerticalPositionInternal: DialogVerticalPosition|null = null;
+  #bestVerticalPosition: DialogVerticalPosition|null = null;
   #bestHorizontalAlignment: DialogHorizontalAlignment|null = null;
-  readonly #devtoolsMutationObserver = new MutationObserver(this.#forceDialogCloseInDevToolsBound);
+  readonly #devtoolsMutationObserver = new MutationObserver(mutations => {
+    if (this.#props.expectedMutationsSelector) {
+      const allExcluded = mutations.every(mutation => {
+        return mutation.target instanceof Element &&
+            mutation.target.matches(this.#props.expectedMutationsSelector ?? '');
+      });
+      if (allExcluded) {
+        return;
+      }
+    }
+    this.#forceDialogCloseInDevToolsBound();
+  });
   readonly #dialogResizeObserver = new ResizeObserver(this.#updateDialogBounds.bind(this));
-  #devToolsBoundingElement = this.windowBoundsService.getDevToolsBoundingElement();
+  #devToolsBoundingElement = UI.UIUtils.getDevToolsBoundingElement();
 
   // We bind here because we have to listen to keydowns on the entire window,
   // not on the Dialog element itself. This is because if the user has the
@@ -152,6 +171,14 @@ export class Dialog extends HTMLElement {
   set origin(origin: DialogOrigin) {
     this.#props.origin = origin;
     this.#onStateChange();
+  }
+
+  set expectedMutationsSelector(mutationSelector: string) {
+    this.#props.expectedMutationsSelector = mutationSelector;
+  }
+
+  get expectedMutationsSelector(): string|undefined {
+    return this.#props.expectedMutationsSelector;
   }
 
   get position(): DialogVerticalPosition {
@@ -172,18 +199,8 @@ export class Dialog extends HTMLElement {
     this.#onStateChange();
   }
 
-  get windowBoundsService(): WindowBoundsService.WindowBoundsService.WindowBoundsService {
-    return this.#props.windowBoundsService;
-  }
-
-  set windowBoundsService(windowBoundsService: WindowBoundsService.WindowBoundsService.WindowBoundsService) {
-    this.#props.windowBoundsService = windowBoundsService;
-    this.#devToolsBoundingElement = this.windowBoundsService.getDevToolsBoundingElement();
-    this.#onStateChange();
-  }
-
   get bestVerticalPosition(): DialogVerticalPosition|null {
-    return this.#bestVerticalPositionInternal;
+    return this.#bestVerticalPosition;
   }
 
   get bestHorizontalAlignment(): DialogHorizontalAlignment|null {
@@ -236,17 +253,26 @@ export class Dialog extends HTMLElement {
     this.#onStateChange();
   }
 
+  set state(state: DialogState) {
+    this.#props.state = state;
+
+    // Handles teardown process in case dialog is collapsed or disabled
+    if (this.#props.state === DialogState.COLLAPSED || this.#props.state === DialogState.DISABLED) {
+      this.#forceDialogCloseInDevToolsBound();
+    }
+
+    this.#onStateChange();
+  }
+
   #updateDialogBounds(): void {
     this.#dialogClientRect = this.#getDialog().getBoundingClientRect();
   }
 
   #onStateChange(): void {
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#renderBound);
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
   }
 
   connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [dialogStyles];
-
     window.addEventListener('resize', this.#forceDialogCloseInDevToolsBound);
     this.#devtoolsMutationObserver.observe(this.#devToolsBoundingElement, {childList: true, subtree: true});
     this.#devToolsBoundingElement.addEventListener('wheel', this.#handleScrollAttemptBound);
@@ -284,6 +310,7 @@ export class Dialog extends HTMLElement {
       await this.#showDialog();
       return;
     }
+
     this.#closeDialog();
   }
 
@@ -315,6 +342,10 @@ export class Dialog extends HTMLElement {
       return;
     }
     this.dispatchEvent(new ClickOutsideDialogEvent());
+  }
+
+  #animationEndedEvent(): void {
+    this.dispatchEvent(new AnimationEndedEvent());
   }
 
   #mouseEventWasInDialogContent(evt: MouseEvent): boolean {
@@ -422,6 +453,9 @@ export class Dialog extends HTMLElement {
         const dialog = this.#getDialog();
         dialog.style.visibility = 'hidden';
         if (this.#isPendingShowDialog && !dialog.hasAttribute('open')) {
+          if (!dialog.isConnected) {
+            return;
+          }
           dialog.showModal();
           this.setAttribute('open', '');
           this.#isPendingShowDialog = false;
@@ -431,11 +465,11 @@ export class Dialog extends HTMLElement {
             this.#getBestHorizontalAlignment(absoluteAnchorBounds, devtoolsBounds) :
             this.#props.horizontalAlignment;
 
-        this.#bestVerticalPositionInternal = this.#props.position === DialogVerticalPosition.AUTO ?
+        this.#bestVerticalPosition = this.#props.position === DialogVerticalPosition.AUTO ?
             this.#getBestVerticalPosition(absoluteAnchorBounds, dialogHeight, devtoolsBounds) :
             this.#props.position;
         if (this.#bestHorizontalAlignment === DialogHorizontalAlignment.AUTO ||
-            this.#bestVerticalPositionInternal === DialogVerticalPosition.AUTO) {
+            this.#bestVerticalPosition === DialogVerticalPosition.AUTO) {
           return;
         }
         this.#hitArea.height = anchorBottom - anchorTop + CONNECTOR_HEIGHT;
@@ -497,7 +531,7 @@ export class Dialog extends HTMLElement {
                 this.#bestHorizontalAlignment, `Unknown alignment type: ${this.#bestHorizontalAlignment}`);
         }
 
-        switch (this.#bestVerticalPositionInternal) {
+        switch (this.#bestVerticalPosition) {
           case DialogVerticalPosition.TOP: {
             this.style.setProperty('--dialog-top', '0');
             this.style.setProperty('--dialog-margin', 'auto');
@@ -518,8 +552,7 @@ export class Dialog extends HTMLElement {
             break;
           }
           default:
-            Platform.assertNever(
-                this.#bestVerticalPositionInternal, `Unknown position type: ${this.#bestVerticalPositionInternal}`);
+            Platform.assertNever(this.#bestVerticalPosition, `Unknown position type: ${this.#bestVerticalPosition}`);
         }
 
         dialog.close();
@@ -542,6 +575,9 @@ export class Dialog extends HTMLElement {
     await RenderCoordinator.done();
     this.#isPendingShowDialog = false;
     const dialog = this.#getDialog();
+    if (!dialog.isConnected) {
+      return;
+    }
     // Make the dialog visible now.
     if (!dialog.hasAttribute('open')) {
       dialog.showModal();
@@ -657,20 +693,35 @@ export class Dialog extends HTMLElement {
       return;
     }
 
-    // clang-format off
-    Lit.render(html`
-      <dialog @click=${this.#handlePointerEvent} @pointermove=${this.#handlePointerEvent} @cancel=${this.#onCancel}
-              jslog=${VisualLogging.dialog(this.#props.jslogContext).track({resize: true, keydown: 'Escape'}).parent('mapped')}>
-        <div id="content">
+    let dialogContent: Lit.LitTemplate = Lit.nothing;
+
+    // If state is expanded content should be shown, do not render it otherwise.
+    if (this.#props.state === DialogState.EXPANDED) {
+      dialogContent = html`
+    <div id="content">
           <div class="dialog-header">${this.#renderHeaderRow()}</div>
           <div class='dialog-content'>
             <slot></slot>
           </div>
-        </div>
+    </div>
+    `;
+    }
+
+    // clang-format off
+    Lit.render(html`
+      <style>${dialogStyles}</style>
+      <dialog @click=${this.#handlePointerEvent} @pointermove=${this.#handlePointerEvent} @cancel=${this.#onCancel} @animationend=${this.#animationEndedEvent}
+              jslog=${VisualLogging.dialog(this.#props.jslogContext).track({ resize: true, keydown: 'Escape' }).parent('mapped')}>
+        ${dialogContent}
       </dialog>
     `, this.#shadow, { host: this });
     VisualLogging.setMappedParent(this.#getDialog(), this.parentElementOrShadowHost() as HTMLElement);
     // clang-format on
+  }
+
+  setBoundingElementForTesting(element: HTMLElement): void {
+    this.#devToolsBoundingElement = element;
+    this.#onStateChange();
   }
 }
 
@@ -698,6 +749,14 @@ export class ClickOutsideDialogEvent extends Event {
   }
 }
 
+export class AnimationEndedEvent extends Event {
+  static readonly eventName = 'animationended';
+
+  constructor() {
+    super(AnimationEndedEvent.eventName, {bubbles: true, composed: true});
+  }
+}
+
 export class ForcedDialogClose extends Event {
   static readonly eventName = 'forceddialogclose';
   constructor() {
@@ -709,6 +768,12 @@ export const enum DialogVerticalPosition {
   TOP = 'top',
   BOTTOM = 'bottom',
   AUTO = 'auto',
+}
+
+export const enum DialogState {
+  EXPANDED = 'expanded',
+  COLLAPSED = 'collapsed',
+  DISABLED = 'disabled'
 }
 
 export const enum DialogHorizontalAlignment {

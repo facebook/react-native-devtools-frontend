@@ -1,10 +1,12 @@
 Name: mitt
 Short Name: mitt
 URL: https://github.com/developit/mitt
+Version: 3.0.1
 License: MIT
 License File: LICENSE
 Security Critical: no
 Shipped: yes
+Update Mechanism: Autoroll
 
 Description: mitt is a transitive dependency of Puppeteer, shipped as part of
 Puppeteer. The license is also included in the source files in

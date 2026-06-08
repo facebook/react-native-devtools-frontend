@@ -9,10 +9,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.FirefoxLauncher = void 0;
-const fs_1 = __importDefault(require("fs"));
-const promises_1 = require("fs/promises");
-const os_1 = __importDefault(require("os"));
-const path_1 = __importDefault(require("path"));
+const node_fs_1 = __importDefault(require("node:fs"));
+const promises_1 = require("node:fs/promises");
+const node_os_1 = __importDefault(require("node:os"));
+const node_path_1 = __importDefault(require("node:path"));
 const browsers_1 = require("@puppeteer/browsers");
 const util_js_1 = require("../common/util.js");
 const assert_js_1 = require("../util/assert.js");
@@ -28,13 +28,9 @@ class FirefoxLauncher extends BrowserLauncher_js_1.BrowserLauncher {
     static getPreferences(extraPrefsFirefox) {
         return {
             ...extraPrefsFirefox,
-            // Only enable the WebDriver BiDi protocol
-            'remote.active-protocols': 1,
             // Force all web content to use a single content process. TODO: remove
             // this once Firefox supports mouse event dispatch from the main frame
-            // context. Once this happens, webContentIsolationStrategy should only
-            // be set for CDP. See
-            // https://bugzilla.mozilla.org/show_bug.cgi?id=1773393
+            // context. See https://bugzilla.mozilla.org/show_bug.cgi?id=1773393.
             'fission.webContentIsolationStrategy': 0,
         };
     }
@@ -121,9 +117,9 @@ class FirefoxLauncher extends BrowserLauncher_js_1.BrowserLauncher {
                 const backupSuffix = '.puppeteer';
                 const backupFiles = ['prefs.js', 'user.js'];
                 const results = await Promise.allSettled(backupFiles.map(async (file) => {
-                    const prefsBackupPath = path_1.default.join(userDataDir, file + backupSuffix);
-                    if (fs_1.default.existsSync(prefsBackupPath)) {
-                        const prefsPath = path_1.default.join(userDataDir, file);
+                    const prefsBackupPath = node_path_1.default.join(userDataDir, file + backupSuffix);
+                    if (node_fs_1.default.existsSync(prefsBackupPath)) {
+                        const prefsPath = node_path_1.default.join(userDataDir, file);
                         await (0, promises_1.unlink)(prefsPath);
                         await (0, promises_1.rename)(prefsBackupPath, prefsPath);
                     }
@@ -146,7 +142,7 @@ class FirefoxLauncher extends BrowserLauncher_js_1.BrowserLauncher {
     defaultArgs(options = {}) {
         const { devtools = false, headless = !devtools, args = [], userDataDir = null, } = options;
         const firefoxArguments = [];
-        switch (os_1.default.platform()) {
+        switch (node_os_1.default.platform()) {
             case 'darwin':
                 firefoxArguments.push('--foreground');
                 break;

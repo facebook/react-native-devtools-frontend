@@ -1,10 +1,10 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import type * as Common from '../../../../core/common/common.js';
 import * as i18n from '../../../../core/i18n/i18n.js';
-import type * as Platform from '../../../../core/platform/platform.js';
+import * as Platform from '../../../../core/platform/platform.js';
 import {assertNotNullOrUndefined} from '../../../../core/platform/platform.js';
 import * as SDK from '../../../../core/sdk/sdk.js';
 import * as Protocol from '../../../../generated/protocol.js';
@@ -12,116 +12,125 @@ import * as Bindings from '../../../../models/bindings/bindings.js';
 
 const UIStrings = {
   /**
-   *@description  Description text for Prefetch status PrefetchFailedIneligibleRedirect.
+   * @description  Description text for Prefetch status PrefetchFailedIneligibleRedirect.
    */
   PrefetchFailedIneligibleRedirect: 'The prefetch was redirected, but the redirect URL is not eligible for prefetch.',
   /**
-   *@description  Description text for Prefetch status PrefetchFailedInvalidRedirect.
+   * @description  Description text for Prefetch status PrefetchFailedInvalidRedirect.
    */
   PrefetchFailedInvalidRedirect: 'The prefetch was redirected, but there was a problem with the redirect.',
   /**
-   *@description  Description text for Prefetch status PrefetchFailedMIMENotSupported.
+   * @description  Description text for Prefetch status PrefetchFailedMIMENotSupported.
    */
   PrefetchFailedMIMENotSupported: 'The prefetch failed because the response\'s Content-Type header was not supported.',
   /**
-   *@description  Description text for Prefetch status PrefetchFailedNetError.
+   * @description  Description text for Prefetch status PrefetchFailedNetError.
    */
   PrefetchFailedNetError: 'The prefetch failed because of a network error.',
   /**
-   *@description  Description text for Prefetch status PrefetchFailedNon2XX.
+   * @description  Description text for Prefetch status PrefetchFailedNon2XX.
    */
   PrefetchFailedNon2XX: 'The prefetch failed because of a non-2xx HTTP response status code.',
   /**
-   *@description  Description text for Prefetch status PrefetchIneligibleRetryAfter.
+   * @description  Description text for Prefetch status PrefetchFailedNon2XX when the HTTP status code is known.
+   * @example {404} PH1
+   */
+  PrefetchFailedNon2XXWithStatusCode: 'The prefetch failed because of a non-2xx HTTP response status code ({PH1}).',
+  /**
+   * @description  Description text for Prefetch status PrefetchIneligibleRetryAfter.
    */
   PrefetchIneligibleRetryAfter:
       'A previous prefetch to the origin got a HTTP 503 response with an Retry-After header that has not elapsed yet.',
   /**
-   *@description  Description text for Prefetch status PrefetchIsPrivacyDecoy.
+   * @description  Description text for Prefetch status PrefetchIsPrivacyDecoy.
    */
   PrefetchIsPrivacyDecoy:
       'The URL was not eligible to be prefetched because there was a registered service worker or cross-site cookies for that origin, but the prefetch was put on the network anyways and not used, to disguise that the user had some kind of previous relationship with the origin.',
   /**
-   *@description  Description text for Prefetch status PrefetchIsStale.
+   * @description  Description text for Prefetch status PrefetchIsStale.
    */
   PrefetchIsStale: 'Too much time elapsed between the prefetch and usage, so the prefetch was discarded.',
   /**
-   *@description  Description text for Prefetch status PrefetchNotEligibleBrowserContextOffTheRecord.
+   * @description  Description text for Prefetch status PrefetchNotEligibleBrowserContextOffTheRecord.
    */
   PrefetchNotEligibleBrowserContextOffTheRecord:
       'The prefetch was not performed because the browser is in Incognito or Guest mode.',
   /**
-   *@description  Description text for Prefetch status PrefetchNotEligibleDataSaverEnabled.
+   * @description  Description text for Prefetch status PrefetchNotEligibleDataSaverEnabled.
    */
   PrefetchNotEligibleDataSaverEnabled:
       'The prefetch was not performed because the operating system is in Data Saver mode.',
   /**
-   *@description  Description text for Prefetch status PrefetchNotEligibleExistingProxy.
+   * @description  Description text for Prefetch status PrefetchNotEligibleExistingProxy.
    */
   PrefetchNotEligibleExistingProxy:
       'The URL is not eligible to be prefetched, because in the default network context it is configured to use a proxy server.',
   /**
-   *@description  Description text for Prefetch status PrefetchNotEligibleHostIsNonUnique.
+   * @description  Description text for Prefetch status PrefetchNotEligibleHostIsNonUnique.
    */
   PrefetchNotEligibleHostIsNonUnique:
       'The URL was not eligible to be prefetched because its host was not unique (e.g., a non publicly routable IP address or a hostname which is not registry-controlled), but the prefetch was required to be proxied.',
   /**
-   *@description  Description text for Prefetch status PrefetchNotEligibleNonDefaultStoragePartition.
+   * @description  Description text for Prefetch status PrefetchNotEligibleNonDefaultStoragePartition.
    */
   PrefetchNotEligibleNonDefaultStoragePartition:
       'The URL was not eligible to be prefetched because it uses a non-default storage partition.',
   /**
-   *@description  Description text for Prefetch status PrefetchNotEligibleSameSiteCrossOriginPrefetchRequiredProxy.
+   * @description  Description text for Prefetch status PrefetchNotEligibleSameSiteCrossOriginPrefetchRequiredProxy.
    */
   PrefetchNotEligibleSameSiteCrossOriginPrefetchRequiredProxy:
       'The URL was not eligible to be prefetched because the default network context cannot be configured to use the prefetch proxy for a same-site cross-origin prefetch request.',
   /**
-   *@description  Description text for Prefetch status PrefetchNotEligibleSchemeIsNotHttps.
+   * @description  Description text for Prefetch status PrefetchNotEligibleSchemeIsNotHttps.
    */
   PrefetchNotEligibleSchemeIsNotHttps: 'The URL was not eligible to be prefetched because its scheme was not https:.',
   /**
-   *@description  Description text for Prefetch status PrefetchNotEligibleUserHasCookies.
+   * @description  Description text for Prefetch status PrefetchNotEligibleUserHasCookies.
    */
   PrefetchNotEligibleUserHasCookies:
       'The URL was not eligible to be prefetched because it was cross-site, but the user had cookies for that origin.',
   /**
-   *@description  Description text for Prefetch status PrefetchNotEligibleUserHasServiceWorker.
+   * @description  Description text for Prefetch status PrefetchNotEligibleUserHasServiceWorker.
    */
   PrefetchNotEligibleUserHasServiceWorker:
       'The URL was not eligible to be prefetched because there was a registered service worker for that origin, which is currently not supported.',
   /**
-   *@description  Description text for Prefetch status PrefetchNotUsedCookiesChanged.
+   * @description  Description text for Prefetch status PrefetchNotUsedCookiesChanged.
    */
   PrefetchNotUsedCookiesChanged:
       'The prefetch was not used because it was a cross-site prefetch, and cookies were added for that URL while the prefetch was ongoing, so the prefetched response is now out-of-date.',
   /**
-   *@description  Description text for Prefetch status PrefetchProxyNotAvailable.
+   * @description  Description text for Prefetch status PrefetchProxyNotAvailable.
    */
   PrefetchProxyNotAvailable:
       'A network error was encountered when trying to set up a connection to the prefetching proxy.',
   /**
-   *@description  Description text for Prefetch status PrefetchNotUsedProbeFailed.
+   * @description  Description text for Prefetch status PrefetchNotUsedProbeFailed.
    */
   PrefetchNotUsedProbeFailed: 'The prefetch was blocked by your Internet Service Provider or network administrator.',
   /**
-   *@description  Description text for Prefetch status PrefetchEvictedForNewerPrefetch.
+   * @description  Description text for Prefetch status PrefetchEvictedForNewerPrefetch.
    */
   PrefetchEvictedForNewerPrefetch:
       'The prefetch was discarded because the initiating page has too many prefetches ongoing, and this was one of the oldest.',
   /**
-   *@description Description text for Prefetch status PrefetchEvictedAfterCandidateRemoved.
+   * @description Description text for Prefetch status PrefetchEvictedAfterCandidateRemoved.
    */
   PrefetchEvictedAfterCandidateRemoved:
       'The prefetch was discarded because no speculation rule in the initating page triggers a prefetch for this URL anymore.',
   /**
-   *@description  Description text for Prefetch status PrefetchNotEligibleBatterySaverEnabled.
+   * @description  Description text for Prefetch status PrefetchNotEligibleBatterySaverEnabled.
    */
   PrefetchNotEligibleBatterySaverEnabled:
       'The prefetch was not performed because the Battery Saver setting was enabled.',
   /**
-   *@description  Description text for Prefetch status PrefetchNotEligiblePreloadingDisabled.
+   * @description  Description text for Prefetch status PrefetchNotEligiblePreloadingDisabled.
    */
   PrefetchNotEligiblePreloadingDisabled: 'The prefetch was not performed because speculative loading was disabled.',
+  /**
+   * @description  Description text for Prefetch status PrefetchEvictedAfterBrowsingDataRemoved.
+   */
+  PrefetchEvictedAfterBrowsingDataRemoved: 'The prefetch was discarded because browsing data was removed.',
 
   /**
    *  Description text for PrerenderFinalStatus::kLowEndDevice.
@@ -144,13 +153,8 @@ const UIStrings = {
   prerenderFinalStatusNavigationRequestBlockedByCsp:
       'The prerendering navigation was blocked by a Content Security Policy.',
   /**
-   *  Description text for PrerenderFinalStatus::kMainFrameNavigation.
-   */
-  prerenderFinalStatusMainFrameNavigation:
-      'The prerendered page navigated itself to another URL, which is currently not supported.',
-  /**
-   *@description Description text for PrerenderFinalStatus::kMojoBinderPolicy.
-   *@example {device.mojom.GamepadMonitor} PH1
+   * @description Description text for PrerenderFinalStatus::kMojoBinderPolicy.
+   * @example {device.mojom.GamepadMonitor} PH1
    */
   prerenderFinalStatusMojoBinderPolicy:
       'The prerendered page used a forbidden JavaScript API that is currently not supported. (Internal Mojo interface: {PH1})',
@@ -173,6 +177,12 @@ const UIStrings = {
   prerenderFinalStatusNavigationBadHttpStatus:
       'The prerendering navigation failed because of a non-2xx HTTP response status code.',
   /**
+   * @description Description text for PrerenderFinalStatus::kNavigationBadHttpStatus when the HTTP status code is known.
+   * @example {404} PH1
+   */
+  prerenderFinalStatusNavigationBadHttpStatusWithStatusCode:
+      'The prerendering navigation failed because of a non-2xx HTTP response status code ({PH1}).',
+  /**
    *  Description text for PrerenderFinalStatus::kClientCertRequested.
    */
   prerenderFinalStatusClientCertRequested: 'The prerendering navigation required a HTTP client certificate.',
@@ -192,7 +202,7 @@ const UIStrings = {
   /**
    *  Description text for PrerenderFinalStatus::kUaChangeRequiresReload.
    */
-  prerenderFinalStatusUaChangeRequiresReload: 'Changing User Agent occured in prerendering navigation.',
+  prerenderFinalStatusUaChangeRequiresReload: 'Changing User Agent occurred in prerendering navigation.',
   /**
    *  Description text for PrerenderFinalStatus::kBlockedByClient.
    */
@@ -377,29 +387,33 @@ const UIStrings = {
    * Description text for PrenderFinalStatus::kWindowClosed.
    */
   prerenderFinalStatusWindowClosed: 'The prerendered page was unloaded because it called window.close().',
+  /**
+   * Description text for PrenderFinalStatus::kBrowsingDataRemoved.
+   */
+  prerenderFinalStatusBrowsingDataRemoved: 'The prerendered page was unloaded because browsing data was removed.',
 
   /**
-   *@description Text in grid and details: Preloading attempt is not yet triggered.
+   * @description Text in grid and details: Preloading attempt is not yet triggered.
    */
   statusNotTriggered: 'Not triggered',
   /**
-   *@description Text in grid and details: Preloading attempt is eligible but pending.
+   * @description Text in grid and details: Preloading attempt is eligible but pending.
    */
   statusPending: 'Pending',
   /**
-   *@description Text in grid and details: Preloading is running.
+   * @description Text in grid and details: Preloading is running.
    */
   statusRunning: 'Running',
   /**
-   *@description Text in grid and details: Preloading finished and the result is ready for the next navigation.
+   * @description Text in grid and details: Preloading finished and the result is ready for the next navigation.
    */
   statusReady: 'Ready',
   /**
-   *@description Text in grid and details: Ready, then used.
+   * @description Text in grid and details: Ready, then used.
    */
   statusSuccess: 'Success',
   /**
-   *@description Text in grid and details: Preloading failed.
+   * @description Text in grid and details: Preloading failed.
    */
   statusFailure: 'Failure',
 } as const;
@@ -408,7 +422,7 @@ const str_ = i18n.i18n.registerUIStrings('panels/application/preloading/componen
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-export const PrefetchReasonDescription: {[key: string]: {name: () => Platform.UIString.LocalizedString}} = {
+export const PrefetchReasonDescription: Record<string, {name: () => Platform.UIString.LocalizedString}> = {
   PrefetchFailedIneligibleRedirect: {name: i18nLazyString(UIStrings.PrefetchFailedIneligibleRedirect)},
   PrefetchFailedInvalidRedirect: {name: i18nLazyString(UIStrings.PrefetchFailedInvalidRedirect)},
   PrefetchFailedMIMENotSupported: {name: i18nLazyString(UIStrings.PrefetchFailedMIMENotSupported)},
@@ -439,10 +453,12 @@ export const PrefetchReasonDescription: {[key: string]: {name: () => Platform.UI
   PrefetchNotEligibleUserHasServiceWorkerNoFetchHandler: {name: () => i18n.i18n.lockedString('Unknown')},
   PrefetchNotEligibleRedirectFromServiceWorker: {name: () => i18n.i18n.lockedString('Unknown')},
   PrefetchNotEligibleRedirectToServiceWorker: {name: () => i18n.i18n.lockedString('Unknown')},
+  PrefetchEvictedAfterBrowsingDataRemoved: {name: i18nLazyString(UIStrings.PrefetchEvictedAfterBrowsingDataRemoved)},
 };
 
-// Decoding PrefetchFinalStatus prefetchAttempt to failure description.
-export function prefetchFailureReason({prefetchStatus}: SDK.PreloadingModel.PrefetchAttempt): string|null {
+/** Decoding PrefetchFinalStatus prefetchAttempt to failure description. **/
+export function prefetchFailureReason(
+    {prefetchStatus}: SDK.PreloadingModel.PrefetchAttempt, statusCode?: number): string|null {
   // If you face an error on rolling CDP changes, see
   // https://docs.google.com/document/d/1PnrfowsZMt62PX1EvvTp2Nqs3ji1zrklrAEe1JYbkTk
   switch (prefetchStatus) {
@@ -474,6 +490,9 @@ export function prefetchFailureReason({prefetchStatus}: SDK.PreloadingModel.Pref
     case Protocol.Preload.PrefetchStatus.PrefetchFailedNetError:
       return PrefetchReasonDescription['PrefetchFailedNetError'].name();
     case Protocol.Preload.PrefetchStatus.PrefetchFailedNon2XX:
+      if (statusCode !== undefined) {
+        return i18nString(UIStrings.PrefetchFailedNon2XXWithStatusCode, {PH1: String(statusCode)});
+      }
       return PrefetchReasonDescription['PrefetchFailedNon2XX'].name();
     case Protocol.Preload.PrefetchStatus.PrefetchIneligibleRetryAfter:
       return PrefetchReasonDescription['PrefetchIneligibleRetryAfter'].name();
@@ -520,8 +539,7 @@ export function prefetchFailureReason({prefetchStatus}: SDK.PreloadingModel.Pref
     case Protocol.Preload.PrefetchStatus.PrefetchNotEligibleRedirectToServiceWorker:
       return PrefetchReasonDescription['PrefetchNotEligibleRedirectToServiceWorker'].name();
     case Protocol.Preload.PrefetchStatus.PrefetchEvictedAfterBrowsingDataRemoved:
-      // TODO(crbug.com/40262310): Add description.
-      return null;
+      return PrefetchReasonDescription['PrefetchEvictedAfterBrowsingDataRemoved'].name();
     default:
       // Note that we use switch and exhaustiveness check to prevent to
       // forget updating these strings, but allow to handle unknown
@@ -531,8 +549,10 @@ export function prefetchFailureReason({prefetchStatus}: SDK.PreloadingModel.Pref
   }
 }
 
-// Detailed failure reason for PrerenderFinalStatus.
-export function prerenderFailureReason(attempt: SDK.PreloadingModel.PrerenderAttempt): string|null {
+/** Detailed failure reason for PrerenderFinalStatus. **/
+export function prerenderFailureReason(
+    attempt: SDK.PreloadingModel.PrerenderAttempt|SDK.PreloadingModel.PrerenderUntilScriptAttempt,
+    statusCode?: number): string|null {
   // If you face an error on rolling CDP changes, see
   // https://docs.google.com/document/d/1PnrfowsZMt62PX1EvvTp2Nqs3ji1zrklrAEe1JYbkTk
   switch (attempt.prerenderStatus) {
@@ -550,8 +570,6 @@ export function prerenderFailureReason(attempt: SDK.PreloadingModel.PrerenderAtt
       return i18nString(UIStrings.prerenderFinalStatusInvalidSchemeNavigation);
     case Protocol.Preload.PrerenderFinalStatus.NavigationRequestBlockedByCsp:
       return i18nString(UIStrings.prerenderFinalStatusNavigationRequestBlockedByCsp);
-    case Protocol.Preload.PrerenderFinalStatus.MainFrameNavigation:
-      return i18nString(UIStrings.prerenderFinalStatusMainFrameNavigation);
     case Protocol.Preload.PrerenderFinalStatus.MojoBinderPolicy:
       assertNotNullOrUndefined(attempt.disallowedMojoInterface);
       return i18nString(UIStrings.prerenderFinalStatusMojoBinderPolicy, {PH1: attempt.disallowedMojoInterface});
@@ -570,7 +588,12 @@ export function prerenderFailureReason(attempt: SDK.PreloadingModel.PrerenderAtt
       // TODO(https://crbug.com/1410709): Fill it.
       return i18n.i18n.lockedString('Internal error');
     case Protocol.Preload.PrerenderFinalStatus.NavigationBadHttpStatus:
+      if (statusCode !== undefined) {
+        return i18nString(
+            UIStrings.prerenderFinalStatusNavigationBadHttpStatusWithStatusCode, {PH1: String(statusCode)});
+      }
       return i18nString(UIStrings.prerenderFinalStatusNavigationBadHttpStatus);
+
     case Protocol.Preload.PrerenderFinalStatus.ClientCertRequested:
       return i18nString(UIStrings.prerenderFinalStatusClientCertRequested);
     case Protocol.Preload.PrerenderFinalStatus.NavigationRequestNetworkError:
@@ -697,6 +720,8 @@ export function prerenderFailureReason(attempt: SDK.PreloadingModel.PrerenderAtt
       return i18nString(UIStrings.prerenderFinalStatusAllPrerenderingCanceled);
     case Protocol.Preload.PrerenderFinalStatus.WindowClosed:
       return i18nString(UIStrings.prerenderFinalStatusWindowClosed);
+    case Protocol.Preload.PrerenderFinalStatus.BrowsingDataRemoved:
+      return i18nString(UIStrings.prerenderFinalStatusBrowsingDataRemoved);
     case Protocol.Preload.PrerenderFinalStatus.SlowNetwork:
     case Protocol.Preload.PrerenderFinalStatus.OtherPrerenderedPageActivated:
     case Protocol.Preload.PrerenderFinalStatus.V8OptimizerDisabled:
@@ -718,13 +743,51 @@ export function ruleSetLocationShort(
   return Bindings.ResourceUtils.displayNameForURL(url);
 }
 
+export function ruleSetTagOrLocationShort(
+    ruleSet: Protocol.Preload.RuleSet, pageURL: Platform.DevToolsPath.UrlString): string {
+  if (!ruleSet.errorMessage && ruleSet.tag) {
+    return '"' + ruleSet.tag + '"';
+  }
+  return ruleSetLocationShort(ruleSet, pageURL);
+}
+
 export function capitalizedAction(action: Protocol.Preload.SpeculationAction): Common.UIString.LocalizedString {
-  // Use "prefetch"/"prerender" as is in SpeculationRules.
   switch (action) {
     case Protocol.Preload.SpeculationAction.Prefetch:
       return i18n.i18n.lockedString('Prefetch');
     case Protocol.Preload.SpeculationAction.Prerender:
       return i18n.i18n.lockedString('Prerender');
+    case Protocol.Preload.SpeculationAction.PrerenderUntilScript:
+      return i18n.i18n.lockedString('Prerender until script');
+  }
+}
+
+export function sortOrder(attempt: SDK.PreloadingModel.PreloadingAttempt): number {
+  switch (attempt.status) {
+    case SDK.PreloadingModel.PreloadingStatus.NOT_SUPPORTED:
+      return 0;
+    case SDK.PreloadingModel.PreloadingStatus.PENDING:
+      return 1;
+    case SDK.PreloadingModel.PreloadingStatus.RUNNING:
+      return 2;
+    case SDK.PreloadingModel.PreloadingStatus.READY:
+      return 3;
+    case SDK.PreloadingModel.PreloadingStatus.SUCCESS:
+      return 4;
+    case SDK.PreloadingModel.PreloadingStatus.FAILURE: {
+      switch (attempt.action) {
+        case Protocol.Preload.SpeculationAction.Prefetch:
+          return 5;
+        case Protocol.Preload.SpeculationAction.Prerender:
+          return 6;
+        case Protocol.Preload.SpeculationAction.PrerenderUntilScript:
+          return 7;
+      }
+    }
+    case SDK.PreloadingModel.PreloadingStatus.NOT_TRIGGERED:
+      return 8;
+    default:
+      Platform.assertNever(attempt.status, 'Unknown Preloading attempt status');
   }
 }
 
@@ -753,7 +816,7 @@ export function status(status: SDK.PreloadingModel.PreloadingStatus): string {
   }
 }
 
-export function composedStatus(attempt: SDK.PreloadingModel.PreloadingAttempt): string {
+export function composedStatus(attempt: SDK.PreloadingModel.PreloadingAttempt, statusCode?: number): string {
   const short = status(attempt.status);
 
   if (attempt.status !== SDK.PreloadingModel.PreloadingStatus.FAILURE) {
@@ -762,11 +825,14 @@ export function composedStatus(attempt: SDK.PreloadingModel.PreloadingAttempt): 
 
   switch (attempt.action) {
     case Protocol.Preload.SpeculationAction.Prefetch: {
-      const detail = prefetchFailureReason(attempt) ?? i18n.i18n.lockedString('Internal error');
+      const detail = prefetchFailureReason(attempt, statusCode) ?? i18n.i18n.lockedString('Internal error');
       return short + ' - ' + detail;
     }
-    case Protocol.Preload.SpeculationAction.Prerender: {
-      const detail = prerenderFailureReason(attempt);
+    case Protocol.Preload.SpeculationAction.Prerender:
+    case Protocol.Preload.SpeculationAction.PrerenderUntilScript: {
+      const detail = prerenderFailureReason(
+          attempt as SDK.PreloadingModel.PrerenderAttempt | SDK.PreloadingModel.PrerenderUntilScriptAttempt,
+          statusCode);
       assertNotNullOrUndefined(detail);
       return short + ' - ' + detail;
     }

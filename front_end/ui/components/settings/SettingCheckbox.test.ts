@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -101,7 +101,7 @@ describe('SettingCheckbox', () => {
       settingType: Common.Settings.SettingType.BOOLEAN,
       defaultValue: false,
       disabledCondition: () => {
-        return {disabled: true, reasons: ['reason']};
+        return {disabled: true, reasons: ['reason' as Platform.UIString.LocalizedString]};
       },
     });
 
@@ -121,7 +121,7 @@ describe('SettingCheckbox', () => {
       settingType: Common.Settings.SettingType.BOOLEAN,
       defaultValue: false,
       disabledCondition: () => {
-        return {disabled: true, reasons: ['reason']};
+        return {disabled: true, reasons: ['reason' as Platform.UIString.LocalizedString]};
       },
     });
 
@@ -149,8 +149,8 @@ describe('SettingCheckbox', () => {
 
   it('is enabled for a disabled deprecated settings with enabled experiment', () => {
     const experiment = 'test-experiment';
-    Root.Runtime.experiments.register(experiment, experiment);
-    Root.Runtime.experiments.setEnabled(experiment, true);
+    Root.Runtime.experiments.register(experiment as Root.ExperimentNames.ExperimentName, experiment);
+    Root.Runtime.experiments.setEnabled(experiment as Root.ExperimentNames.ExperimentName, true);
     const setting = createFakeSetting<boolean>('setting', false);
     setting.setRegistration({
       settingName: 'setting',
@@ -169,8 +169,8 @@ describe('SettingCheckbox', () => {
 
   it('is enabled for a disabled deprecated settings with disabled experiment', () => {
     const experiment = 'test-experiment';
-    Root.Runtime.experiments.register(experiment, experiment);
-    Root.Runtime.experiments.setEnabled(experiment, false);
+    Root.Runtime.experiments.register(experiment as Root.ExperimentNames.ExperimentName, experiment);
+    Root.Runtime.experiments.setEnabled(experiment as Root.ExperimentNames.ExperimentName, false);
     const setting = createFakeSetting<boolean>('setting', false);
     setting.setRegistration({
       settingName: 'setting',

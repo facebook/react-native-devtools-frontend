@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -477,20 +477,13 @@ export class SamplesIntegrator {
     if (showAllEvents) {
       return;
     }
-    let previousNativeFrameName: string|null = null;
     let j = 0;
     for (let i = 0; i < stack.length; ++i) {
       const frame = stack[i].callFrame;
       const nativeRuntimeFrame = SamplesIntegrator.isNativeRuntimeFrame(frame);
-      if (nativeRuntimeFrame &&
-          !SamplesIntegrator.showNativeName(frame.functionName, engineConfig.includeRuntimeCallStats)) {
+      if (nativeRuntimeFrame) {
         continue;
       }
-      const nativeFrameName = nativeRuntimeFrame ? SamplesIntegrator.nativeGroup(frame.functionName) : null;
-      if (previousNativeFrameName && previousNativeFrameName === nativeFrameName) {
-        continue;
-      }
-      previousNativeFrameName = nativeFrameName;
       stack[j++] = stack[i];
     }
     stack.length = j;
@@ -498,50 +491,41 @@ export class SamplesIntegrator {
 
   static createFakeTraceFromCpuProfile(profile: Protocol.Profiler.Profile, tid: Types.Events.ThreadID):
       Types.File.TraceFile {
-    const events: Types.Events.Event[] = [];
-
-    const threadName = `Thread ${tid}`;
-    appendEvent('TracingStartedInPage', {data: {sessionId: '1'}}, 0, 0, Types.Events.Phase.METADATA);
-    appendEvent(Types.Events.Name.THREAD_NAME, {name: threadName}, 0, 0, Types.Events.Phase.METADATA, '__metadata');
     if (!profile) {
-      return {traceEvents: events, metadata: {}};
+      return {traceEvents: [], metadata: {}};
     }
-
-    // Append a root to show the start time of the profile (which is earlier than first sample), so the Performance
+    // The |Name.CPU_PROFILE| will let MetaHandler to set |traceIsGeneric| to false
+    // The start time and duration is important here because we'll use them to determine the traceBounds
+    // We use the start and end time of the profile (which is longer than all samples), so the Performance
     // panel won't truncate this time period.
-    // 'JSRoot' doesn't exist in the new engine and is not the name of an actual trace event, but changing it might break other trace processing tools that rely on this, so we stick with this name.
-    // TODO(crbug.com/341234884): consider removing this or clarify why it's required.
-    appendEvent(
-        'JSRoot', {}, profile.startTime, profile.endTime - profile.startTime, Types.Events.Phase.COMPLETE, 'toplevel');
+    const cpuProfileEvent: Types.Events.SyntheticCpuProfile = {
+      cat: 'disabled-by-default-devtools.timeline',
+      name: Types.Events.Name.CPU_PROFILE,
+      ph: Types.Events.Phase.COMPLETE,
+      pid: Types.Events.ProcessID(1),
+      tid,
+      ts: Types.Timing.Micro(profile.startTime),
+      dur: Types.Timing.Micro(profile.endTime - profile.startTime),
+      args: {data: {cpuProfile: profile}},
+      // Create an arbitrary profile id.
+      id: '0x1' as Types.Events.ProfileID,
+    };
 
-    // TODO: create a `Profile` event instead, as `cpuProfile` is legacy
-    appendEvent('CpuProfile', {data: {cpuProfile: profile}}, profile.endTime, 0, Types.Events.Phase.COMPLETE);
     return {
-      traceEvents: events,
+      traceEvents: [cpuProfileEvent],
       metadata: {
         dataOrigin: Types.File.DataOrigin.CPU_PROFILE,
       }
     };
+  }
 
-    function appendEvent(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        name: string, args: any, ts: number, dur?: number, ph?: Types.Events.Phase, cat?: string): Types.Events.Event {
-      const event: Types.Events.Event = {
-        cat: cat || 'disabled-by-default-devtools.timeline',
-        name,
-        ph: ph || Types.Events.Phase.COMPLETE,
-        pid: Types.Events.ProcessID(1),
-        tid,
-        ts: Types.Timing.Micro(ts),
-        args,
-      };
-
-      if (dur) {
-        event.dur = Types.Timing.Micro(dur);
-      }
-      events.push(event);
-      return event;
+  static extractCpuProfileFromFakeTrace(traceEvents: readonly Types.Events.Event[]): Protocol.Profiler.Profile {
+    const profileEvent = traceEvents.find(e => Types.Events.isSyntheticCpuProfile(e));
+    const profile = profileEvent?.args.data.cpuProfile;
+    if (!profile) {
+      throw new Error('Missing cpuProfile data');
     }
+    return profile;
   }
 }
 

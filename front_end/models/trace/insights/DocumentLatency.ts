@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,30 +20,34 @@ import {
 
 export const UIStrings = {
   /**
-   *@description Title of an insight that provides a breakdown for how long it took to download the main document.
+   * @description Title of an insight that provides a breakdown for how long it took to download the main document.
    */
   title: 'Document request latency',
   /**
-   *@description Description of an insight that provides a breakdown for how long it took to download the main document.
+   * @description Description of an insight that provides a breakdown for how long it took to download the main document.
    */
   description:
-      'Your first network request is the most important.  Reduce its latency by avoiding redirects, ensuring a fast server response, and enabling text compression.',
+      'Your first network request is the most important. [Reduce its latency](https://developer.chrome.com/docs/performance/insights/document-latency) by avoiding redirects, ensuring a fast server response, and enabling text compression.',
   /**
    * @description Text to tell the user that the document request does not have redirects.
    */
   passingRedirects: 'Avoids redirects',
   /**
    * @description Text to tell the user that the document request had redirects.
+   * @example {3} PH1
+   * @example {1000 ms} PH2
    */
-  failedRedirects: 'Had redirects',
+  failedRedirects: 'Had redirects ({PH1} redirects, +{PH2})',
   /**
    * @description Text to tell the user that the time starting the document request to when the server started responding is acceptable.
+   * @example {600 ms} PH1
    */
-  passingServerResponseTime: 'Server responds quickly',
+  passingServerResponseTime: 'Server responds quickly (observed {PH1})',
   /**
    * @description Text to tell the user that the time starting the document request to when the server started responding is not acceptable.
+   * @example {601 ms} PH1
    */
-  failedServerResponseTime: 'Server responded slowly',
+  failedServerResponseTime: 'Server responded slowly (observed {PH1})',
   /**
    * @description Text to tell the user that text compression (like gzip) was applied.
    */
@@ -77,7 +81,7 @@ const TARGET_MS = 100;
 // Threshold for compression savings.
 const IGNORE_THRESHOLD_IN_BYTES = 1400;
 
-export function isDocumentLatency(x: InsightModel): x is DocumentLatencyInsightModel {
+export function isDocumentLatencyInsight(x: InsightModel): x is DocumentLatencyInsightModel {
   return x.insightKey === 'DocumentLatency';
 }
 
@@ -92,12 +96,21 @@ export type DocumentLatencyInsightModel = InsightModel<typeof UIStrings, {
 }>;
 
 function getServerResponseTime(request: Types.Events.SyntheticNetworkRequest): Types.Timing.Milli|null {
+  // For technical reasons, Lightrider does not have `sendEnd` timing values. The
+  // closest we can get to the server response time is from a header that Lightrider
+  // sets.
+  // @ts-expect-error
+  const isLightrider = globalThis.isLightrider;
+  if (isLightrider) {
+    return request.args.data.lrServerResponseTime ?? null;
+  }
+
   const timing = request.args.data.timing;
   if (!timing) {
     return null;
   }
 
-  const ms = Helpers.Timing.microToMilli(request.args.data.syntheticData.waiting);
+  const ms = Helpers.Timing.microToMilli(request.args.data.syntheticData.serverResponseTime);
   return Math.round(ms) as Types.Timing.Milli;
 }
 
@@ -169,6 +182,7 @@ function finalize(partialModel: PartialInsightModel<DocumentLatencyInsightModel>
     strings: UIStrings,
     title: i18nString(UIStrings.title),
     description: i18nString(UIStrings.description),
+    docs: 'https://developer.chrome.com/docs/performance/insights/document-latency',
     category: InsightCategory.ALL,
     state: hasFailure ? 'fail' : 'pass',
     ...partialModel,
@@ -176,13 +190,14 @@ function finalize(partialModel: PartialInsightModel<DocumentLatencyInsightModel>
 }
 
 export function generateInsight(
-    parsedTrace: Handlers.Types.ParsedTrace, context: InsightSetContext): DocumentLatencyInsightModel {
+    data: Handlers.Types.HandlerData, context: InsightSetContext): DocumentLatencyInsightModel {
   if (!context.navigation) {
     return finalize({});
   }
 
-  const documentRequest =
-      parsedTrace.NetworkRequests.byTime.find(req => req.args.data.requestId === context.navigationId);
+  const millisToString = context.options.insightTimeFormatters?.milli ?? i18n.TimeUtilities.millisToString;
+
+  const documentRequest = data.NetworkRequests.byId.get(context.navigationId);
   if (!documentRequest) {
     return finalize({warnings: [InsightWarning.NO_DOCUMENT_REQUEST]});
   }
@@ -199,7 +214,8 @@ export function generateInsight(
     overallSavingsMs = Math.max(serverResponseTime - TARGET_MS, 0);
   }
 
-  const redirectDuration = Math.round(documentRequest.args.data.syntheticData.redirectionDuration / 1000);
+  const redirectDuration =
+      Math.round(documentRequest.args.data.syntheticData.redirectionDuration / 1000) as Types.Timing.Milli;
   overallSavingsMs += redirectDuration;
 
   const metricSavings = {
@@ -222,12 +238,16 @@ export function generateInsight(
       documentRequest,
       checklist: {
         noRedirects: {
-          label: noRedirects ? i18nString(UIStrings.passingRedirects) : i18nString(UIStrings.failedRedirects),
+          label: noRedirects ? i18nString(UIStrings.passingRedirects) : i18nString(UIStrings.failedRedirects, {
+            PH1: documentRequest.args.data.redirects.length,
+            PH2: millisToString(redirectDuration),
+          }),
           value: noRedirects
         },
         serverResponseIsFast: {
-          label: serverResponseIsFast ? i18nString(UIStrings.passingServerResponseTime) :
-                                        i18nString(UIStrings.failedServerResponseTime),
+          label: serverResponseIsFast ?
+              i18nString(UIStrings.passingServerResponseTime, {PH1: millisToString(serverResponseTime)}) :
+              i18nString(UIStrings.failedServerResponseTime, {PH1: millisToString(serverResponseTime)}),
           value: serverResponseIsFast
         },
         usesCompression: {
@@ -238,5 +258,62 @@ export function generateInsight(
       },
     },
     metricSavings,
+    wastedBytes: uncompressedResponseBytes,
   });
+}
+
+export function createOverlays(model: DocumentLatencyInsightModel): Types.Overlays.Overlay[] {
+  if (!model.data?.documentRequest) {
+    return [];
+  }
+
+  const overlays: Types.Overlays.Overlay[] = [];
+  const event = model.data.documentRequest;
+  const redirectDurationMicro = Helpers.Timing.milliToMicro(model.data.redirectDuration);
+
+  const sections = [];
+  if (model.data.redirectDuration) {
+    const bounds = Helpers.Timing.traceWindowFromMicroSeconds(
+        event.ts,
+        (event.ts + redirectDurationMicro) as Types.Timing.Micro,
+    );
+    sections.push({bounds, label: i18nString(UIStrings.redirectsLabel), showDuration: true});
+    overlays.push({type: 'CANDY_STRIPED_TIME_RANGE', bounds, entry: event});
+  }
+  if (!model.data.checklist.serverResponseIsFast.value) {
+    const serverResponseTimeMicro = Helpers.Timing.milliToMicro(model.data.serverResponseTime);
+    // NOTE: NetworkRequestHandlers never makes a synthetic network request event if `timing` is missing.
+    const sendEnd = event.args.data.timing?.sendEnd ?? Types.Timing.Milli(0);
+    const sendEndMicro = Helpers.Timing.milliToMicro(sendEnd);
+    const bounds = Helpers.Timing.traceWindowFromMicroSeconds(
+        sendEndMicro,
+        (sendEndMicro + serverResponseTimeMicro) as Types.Timing.Micro,
+    );
+    sections.push({bounds, label: i18nString(UIStrings.serverResponseTimeLabel), showDuration: true});
+  }
+  if (model.data.uncompressedResponseBytes) {
+    const bounds = Helpers.Timing.traceWindowFromMicroSeconds(
+        event.args.data.syntheticData.downloadStart,
+        (event.args.data.syntheticData.downloadStart + event.args.data.syntheticData.download) as Types.Timing.Micro,
+    );
+    sections.push({bounds, label: i18nString(UIStrings.uncompressedDownload), showDuration: true});
+    overlays.push({type: 'CANDY_STRIPED_TIME_RANGE', bounds, entry: event});
+  }
+
+  if (sections.length) {
+    overlays.push({
+      type: 'TIMESPAN_BREAKDOWN',
+      sections,
+      entry: model.data.documentRequest,
+      // Always render below because the document request is guaranteed to be
+      // the first request in the network track.
+      renderLocation: 'BELOW_EVENT',
+    });
+  }
+  overlays.push({
+    type: 'ENTRY_SELECTED',
+    entry: model.data.documentRequest,
+  });
+
+  return overlays;
 }

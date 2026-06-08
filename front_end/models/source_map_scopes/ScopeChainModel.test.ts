@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,12 +20,14 @@ describeWithMockConnection('ScopeChainModel', () => {
     const workspace = Workspace.Workspace.WorkspaceImpl.instance();
     const targetManager = SDK.TargetManager.TargetManager.instance();
     const resourceMapping = new Bindings.ResourceMapping.ResourceMapping(targetManager, workspace);
+    const ignoreListManager = Workspace.IgnoreListManager.IgnoreListManager.instance({forceNew: true});
     const debuggerWorkspaceBinding = Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance({
       forceNew: true,
       resourceMapping,
       targetManager,
+      ignoreListManager,
+      workspace,
     });
-    Bindings.IgnoreListManager.IgnoreListManager.instance({forceNew: true, debuggerWorkspaceBinding});
 
     stubPluginManager = sinon.createStubInstance(
         Bindings.DebuggerLanguagePlugins.DebuggerLanguagePluginManager, {resolveScopeChain: Promise.resolve(null)});
@@ -51,7 +53,7 @@ describeWithMockConnection('ScopeChainModel', () => {
 
     await clock.tickAsync(10);
 
-    assert.isTrue(listenerStub.calledOnce);
+    sinon.assert.calledOnce(listenerStub);
   });
 
   it('does not emit an event after it was disposed even with an update still in-flight', async () => {
@@ -74,7 +76,7 @@ describeWithMockConnection('ScopeChainModel', () => {
 
     await clock.tickAsync(10);
 
-    assert.isTrue(stubPluginManager.resolveScopeChain.calledOnce);
+    sinon.assert.calledOnce(stubPluginManager.resolveScopeChain);
     assert.isFalse(listenerStub.calledOnce);
 
     scopeChainModel.dispose();

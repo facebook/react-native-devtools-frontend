@@ -1,6 +1,7 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
@@ -11,43 +12,43 @@ import {AffectedResourcesView} from './AffectedResourcesView.js';
 
 const UIStrings = {
   /**
-   *@description Label for number of affected resources indication in issue view
+   * @description Label for number of affected resources indication in issue view
    */
   nViolations: '{n, plural, =1 {# violation} other {# violations}}',
   /**
-   *@description Value for the status column in SharedArrayBuffer issues
+   * @description Value for the status column in SharedArrayBuffer issues
    */
   warning: 'warning',
   /**
-   *@description The kind of resolution for a mixed content issue
+   * @description The kind of resolution for a mixed content issue
    */
   blocked: 'blocked',
   /**
-   *@description Value for the 'Trigger' column in the SAB affected resources list
+   * @description Value for the 'Trigger' column in the SAB affected resources list
    */
   instantiation: 'Instantiation',
   /**
-   *@description Tooltip for the 'Trigger' column in the SAB affected resources list
+   * @description Tooltip for the 'Trigger' column in the SAB affected resources list
    */
   aSharedarraybufferWas: 'A `SharedArrayBuffer` was instantiated in a context that is not cross-origin isolated',
   /**
-   *@description Value for the 'Trigger' column in the SAB affected resources list
+   * @description Value for the 'Trigger' column in the SAB affected resources list
    */
   transfer: 'Transfer',
   /**
-   *@description Tooltip for the 'Trigger' column in the SAB affected resources list
+   * @description Tooltip for the 'Trigger' column in the SAB affected resources list
    */
   sharedarraybufferWasTransferedTo: '`SharedArrayBuffer` was transfered to a context that is not cross-origin isolated',
   /**
-   *@description Header for the source location column
+   * @description Header for the source location column
    */
   sourceLocation: 'Source Location',
   /**
-   *@description Title for the 'Trigger' column in the SAB affected resources list
+   * @description Title for the 'Trigger' column in the SAB affected resources list
    */
   trigger: 'Trigger',
   /**
-   *@description Title for the status column in the SAB affected resources list
+   * @description Title for the status column in the SAB affected resources list
    */
   status: 'Status',
 } as const;

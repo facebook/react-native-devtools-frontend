@@ -1,49 +1,26 @@
-/*
- * Copyright (C) 2011 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2011 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
+import * as InspectorBackendCommands from '../../generated/InspectorBackendCommands.js';
 import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 import type * as Protocol from '../../generated/protocol.js';
 import type * as Platform from '../platform/platform.js';
 
-import {NodeURL} from './NodeURL.js';
+import {
+  type CDPConnection,
+  type CDPConnectionObserver,
+  CDPErrorStatus,
+  type CDPEvent,
+  type Command,
+  type CommandParams,
+  type Event
+} from './CDPConnection.js';
+import {ConnectionTransport} from './ConnectionTransport.js';
+import {DevToolsCDPConnection} from './DevToolsCDPConnection.js';
 
-export const DevToolsStubErrorCode = -32015;
-// TODO(dgozman): we are not reporting generic errors in tests, but we should
-// instead report them and just have some expected errors in test expectations.
-const GenericErrorCode = -32000;
-const ConnectionClosedErrorCode = -32001;
-
-interface MessageParams {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [x: string]: any;
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type MessageParams = Record<string, any>;
 
 type ProtocolDomainName = ProtocolProxyApi.ProtocolDomainName;
 
@@ -63,7 +40,7 @@ export interface Message {
   params?: MessageParams|null;
 }
 
-interface EventMessage extends Message {
+export interface EventMessage extends Message {
   method: QualifiedName;
   params?: MessageParams|null;
 }
@@ -85,26 +62,22 @@ export const qualifyName = (domain: string, name: UnqualifiedName): QualifiedNam
 type EventParameterNames = Map<QualifiedName, string[]>;
 type ReadonlyEventParameterNames = ReadonlyMap<QualifiedName, string[]>;
 
-interface CommandParameter {
-  name: string;
-  type: string;
-  optional: boolean;
-  description: string;
-}
+type CommandParameter = InspectorBackendCommands.CommandParameter;
 
-type Callback = (error: MessageError|null, arg1: Object|null) => void;
-
-interface CallbackWithDebugInfo {
-  callback: Callback;
-  method: string;
-}
-
-export class InspectorBackend {
+export class InspectorBackend implements InspectorBackendCommands.InspectorBackendAPI {
   readonly agentPrototypes = new Map<ProtocolDomainName, AgentPrototype>();
-  #initialized = false;
   #eventParameterNamesForDomain = new Map<ProtocolDomainName, EventParameterNames>();
   readonly typeMap = new Map<QualifiedName, CommandParameter[]>();
   readonly enumMap = new Map<QualifiedName, Record<string, string>>();
+
+  constructor() {
+    // Create the global here because registering commands will involve putting
+    // items onto the global.
+    // @ts-expect-error Global namespace instantiation
+    globalThis.Protocol ||= {};
+
+    InspectorBackendCommands.registerCommands(this);
+  }
 
   private getOrCreateEventParameterNamesForDomain(domain: ProtocolDomainName): EventParameterNames {
     let map = this.#eventParameterNamesForDomain.get(domain);
@@ -131,10 +104,6 @@ export class InspectorBackend {
     console.warn(error + ': ' + JSON.stringify(messageObject));
   }
 
-  isInitialized(): boolean {
-    return this.#initialized;
-  }
-
   private agentPrototype(domain: ProtocolDomainName): AgentPrototype {
     let prototype = this.agentPrototypes.get(domain);
     if (!prototype) {
@@ -148,7 +117,6 @@ export class InspectorBackend {
       void {
     const [domain, command] = splitQualifiedName(method);
     this.agentPrototype(domain as ProtocolDomainName).registerCommand(command, parameters, replyArgs, description);
-    this.#initialized = true;
   }
 
   registerEnum(type: QualifiedName, values: Record<string, string>): void {
@@ -162,48 +130,16 @@ export class InspectorBackend {
     // @ts-expect-error globalThis global namespace pollution
     globalThis.Protocol[domain][name] = values;
     this.enumMap.set(type, values);
-    this.#initialized = true;
   }
 
   registerType(method: QualifiedName, parameters: CommandParameter[]): void {
     this.typeMap.set(method, parameters);
-    this.#initialized = true;
   }
 
   registerEvent(eventName: QualifiedName, params: string[]): void {
     const domain = eventName.split('.')[0];
     const eventParameterNames = this.getOrCreateEventParameterNamesForDomain(domain as ProtocolDomainName);
     eventParameterNames.set(eventName, params);
-    this.#initialized = true;
-  }
-}
-
-let connectionFactory: () => Connection;
-
-export class Connection {
-  onMessage!: ((arg0: Object) => void)|null;
-  constructor() {
-  }
-
-  setOnMessage(_onMessage: (arg0: (Object|string)) => void): void {
-  }
-
-  setOnDisconnect(_onDisconnect: (arg0: string) => void): void {
-  }
-
-  sendRawMessage(_message: string): void {
-  }
-
-  disconnect(): Promise<void> {
-    throw new Error('not implemented');
-  }
-
-  static setFactory(factory: () => Connection): void {
-    connectionFactory = factory;
-  }
-
-  static getFactory(): () => Connection {
-    return connectionFactory;
   }
 }
 
@@ -237,59 +173,28 @@ export const test = {
    * Set to get notified about any messages sent over protocol.
    */
   onMessageSent: null as
-          ((message: {domain: string, method: string, params: Object, id: number, sessionId?: string},
-            target: TargetBase|null) => void) |
+          ((message: {domain: string, method: string, params: Object, id: number, sessionId?: string}) => void) |
       null,
 
   /**
    * Set to get notified about any messages received over protocol.
    */
-  onMessageReceived: null as ((message: Object, target: TargetBase|null) => void) | null,
+  onMessageReceived: null as ((message: Object) => void) | null,
 };
 
-const LongPollingMethods = new Set<string>(['CSS.takeComputedStyleUpdates']);
-
-export class SessionRouter {
-  readonly #connectionInternal: Connection;
-  #lastMessageId = 1;
-  #pendingResponsesCount = 0;
-  readonly #pendingLongPollingMessageIds = new Set<number>();
+export class SessionRouter implements CDPConnectionObserver {
+  readonly #connection: CDPConnection;
   readonly #sessions = new Map<string, {
     target: TargetBase,
-    callbacks: Map<number, CallbackWithDebugInfo>,
-    proxyConnection: ((Connection | undefined)|null),
   }>();
-  #pendingScripts: Array<() => void> = [];
 
-  constructor(connection: Connection) {
-    this.#connectionInternal = connection;
-
-    test.deprecatedRunAfterPendingDispatches = this.deprecatedRunAfterPendingDispatches.bind(this);
-    test.sendRawMessage = this.sendRawMessageForTesting.bind(this);
-
-    this.#connectionInternal.setOnMessage(this.onMessage.bind(this));
-
-    this.#connectionInternal.setOnDisconnect(reason => {
-      const session = this.#sessions.get('');
-      if (session) {
-        session.target.dispose(reason);
-      }
-    });
+  constructor(connection: CDPConnection) {
+    this.#connection = connection;
+    this.#connection.observe(this);
   }
 
-  registerSession(target: TargetBase, sessionId: string, proxyConnection?: Connection|null): void {
-    // Only the Audits panel uses proxy connections. If it is ever possible to have multiple active at the
-    // same time, it should be tested thoroughly.
-    if (proxyConnection) {
-      for (const session of this.#sessions.values()) {
-        if (session.proxyConnection) {
-          console.error('Multiple simultaneous proxy connections are currently unsupported');
-          break;
-        }
-      }
-    }
-
-    this.#sessions.set(sessionId, {target, callbacks: new Map(), proxyConnection});
+  registerSession(target: TargetBase, sessionId: string): void {
+    this.#sessions.set(sessionId, {target});
   }
 
   unregisterSession(sessionId: string): void {
@@ -297,196 +202,27 @@ export class SessionRouter {
     if (!session) {
       return;
     }
-    for (const callback of session.callbacks.values()) {
-      SessionRouter.dispatchUnregisterSessionError(callback);
+    if (this.#connection instanceof DevToolsCDPConnection) {
+      this.#connection.resolvePendingCalls(sessionId);
     }
     this.#sessions.delete(sessionId);
   }
 
-  private getTargetBySessionId(sessionId: string): TargetBase|null {
-    const session = this.#sessions.get(sessionId ? sessionId : '');
-    if (!session) {
-      return null;
+  onDisconnect(reason: string): void {
+    const session = this.#sessions.get('');
+    if (session) {
+      session.target.dispose(reason);
     }
-    return session.target;
   }
 
-  private nextMessageId(): number {
-    return this.#lastMessageId++;
-  }
-
-  connection(): Connection {
-    return this.#connectionInternal;
-  }
-
-  sendMessage(sessionId: string, domain: string, method: QualifiedName, params: Object|null, callback: Callback): void {
-    const messageId = this.nextMessageId();
-    const messageObject: Message = {
-      id: messageId,
-      method,
-    };
-
-    if (params) {
-      messageObject.params = params;
-    }
-    if (sessionId) {
-      messageObject.sessionId = sessionId;
-    }
-
-    if (test.dumpProtocol) {
-      test.dumpProtocol('frontend: ' + JSON.stringify(messageObject));
-    }
-
-    if (test.onMessageSent) {
-      const paramsObject = JSON.parse(JSON.stringify(params || {}));
-      test.onMessageSent(
-          {domain, method, params: (paramsObject as Object), id: messageId, sessionId},
-          this.getTargetBySessionId(sessionId));
-    }
-
-    ++this.#pendingResponsesCount;
-    if (LongPollingMethods.has(method)) {
-      this.#pendingLongPollingMessageIds.add(messageId);
-    }
-
+  onEvent<T extends Event>(event: CDPEvent<T>): void {
+    const sessionId = event.sessionId || '';
     const session = this.#sessions.get(sessionId);
-    if (!session) {
-      return;
-    }
-    session.callbacks.set(messageId, {callback, method});
-    this.#connectionInternal.sendRawMessage(JSON.stringify(messageObject));
+    session?.target.dispatch(event as unknown as EventMessage);
   }
 
-  private sendRawMessageForTesting(method: QualifiedName, params: Object|null, callback: Callback|null, sessionId = ''):
-      void {
-    const domain = method.split('.')[0];
-    this.sendMessage(sessionId, domain, method, params, callback || (() => {}));
-  }
-
-  private onMessage(message: string|Object): void {
-    if (test.dumpProtocol) {
-      test.dumpProtocol('backend: ' + ((typeof message === 'string') ? message : JSON.stringify(message)));
-    }
-
-    if (test.onMessageReceived) {
-      const messageObjectCopy = JSON.parse((typeof message === 'string') ? message : JSON.stringify(message));
-      test.onMessageReceived(messageObjectCopy, this.getTargetBySessionId(messageObjectCopy.sessionId));
-    }
-
-    const messageObject = ((typeof message === 'string') ? JSON.parse(message) : message) as Message;
-
-    // Send all messages to proxy connections.
-    let suppressUnknownMessageErrors = false;
-    for (const session of this.#sessions.values()) {
-      if (!session.proxyConnection) {
-        continue;
-      }
-
-      if (!session.proxyConnection.onMessage) {
-        InspectorBackend.reportProtocolError(
-            'Protocol Error: the session has a proxyConnection with no _onMessage', messageObject);
-        continue;
-      }
-
-      session.proxyConnection.onMessage(messageObject);
-      suppressUnknownMessageErrors = true;
-    }
-
-    const sessionId = messageObject.sessionId || '';
-    const session = this.#sessions.get(sessionId);
-    if (!session) {
-      if (!suppressUnknownMessageErrors) {
-        InspectorBackend.reportProtocolError('Protocol Error: the message with wrong session id', messageObject);
-      }
-      return;
-    }
-
-    // If this message is directly for the target controlled by the proxy connection, don't handle it.
-    if (session.proxyConnection) {
-      return;
-    }
-
-    if (session.target.getNeedsNodeJSPatching()) {
-      NodeURL.patch(messageObject);
-    }
-
-    if (messageObject.id !== undefined) {  // just a response for some request
-      const callback = session.callbacks.get(messageObject.id);
-      session.callbacks.delete(messageObject.id);
-      if (!callback) {
-        if (messageObject.error?.code === ConnectionClosedErrorCode) {
-          // Ignore the errors that are sent as responses after the session closes.
-          return;
-        }
-        if (!suppressUnknownMessageErrors) {
-          InspectorBackend.reportProtocolError('Protocol Error: the message with wrong id', messageObject);
-        }
-        return;
-      }
-
-      callback.callback(messageObject.error || null, messageObject.result || null);
-      --this.#pendingResponsesCount;
-      this.#pendingLongPollingMessageIds.delete(messageObject.id);
-
-      if (this.#pendingScripts.length && !this.hasOutstandingNonLongPollingRequests()) {
-        this.deprecatedRunAfterPendingDispatches();
-      }
-    } else {
-      if (messageObject.method === undefined) {
-        InspectorBackend.reportProtocolError('Protocol Error: the message without method', messageObject);
-        return;
-      }
-      // This cast is justified as we just checked for the presence of messageObject.method.
-      const eventMessage = messageObject as EventMessage;
-      session.target.dispatch(eventMessage);
-    }
-  }
-
-  private hasOutstandingNonLongPollingRequests(): boolean {
-    return this.#pendingResponsesCount - this.#pendingLongPollingMessageIds.size > 0;
-  }
-
-  private deprecatedRunAfterPendingDispatches(script?: (() => void)): void {
-    if (script) {
-      this.#pendingScripts.push(script);
-    }
-
-    // Execute all promises.
-    window.setTimeout(() => {
-      if (!this.hasOutstandingNonLongPollingRequests()) {
-        this.executeAfterPendingDispatches();
-      } else {
-        this.deprecatedRunAfterPendingDispatches();
-      }
-    }, 0);
-  }
-
-  private executeAfterPendingDispatches(): void {
-    if (!this.hasOutstandingNonLongPollingRequests()) {
-      const scripts = this.#pendingScripts;
-      this.#pendingScripts = [];
-      for (let id = 0; id < scripts.length; ++id) {
-        scripts[id]();
-      }
-    }
-  }
-
-  static dispatchConnectionError(callback: Callback, method: string): void {
-    const error = {
-      message: `Connection is closed, can\'t dispatch pending call to ${method}`,
-      code: ConnectionClosedErrorCode,
-      data: null,
-    };
-    window.setTimeout(() => callback(error, null), 0);
-  }
-
-  static dispatchUnregisterSessionError({callback, method}: CallbackWithDebugInfo): void {
-    const error = {
-      message: `Session is unregistering, can\'t dispatch pending call to ${method}`,
-      code: ConnectionClosedErrorCode,
-      data: null,
-    };
-    window.setTimeout(() => callback(error, null), 0);
+  get connection(): CDPConnection {
+    return this.#connection;
   }
 }
 
@@ -509,31 +245,28 @@ interface DispatcherMap extends Map<ProtocolDomainName, ProtocolProxyApi.Protoco
 }
 
 export class TargetBase {
-  needsNodeJSPatching: boolean;
   readonly sessionId: string;
-  routerInternal: SessionRouter|null;
+  #router: SessionRouter|null;
   #agents: AgentsMap = new Map();
   #dispatchers: DispatcherMap = new Map();
 
-  constructor(
-      needsNodeJSPatching: boolean, parentTarget: TargetBase|null, sessionId: string, connection: Connection|null) {
-    this.needsNodeJSPatching = needsNodeJSPatching;
+  constructor(parentTarget: TargetBase|null, sessionId: string, connection: CDPConnection|null) {
     this.sessionId = sessionId;
 
-    if ((!parentTarget && connection) || (!parentTarget && sessionId) || (connection && sessionId)) {
-      throw new Error('Either connection or sessionId (but not both) must be supplied for a child target');
+    if (parentTarget && !sessionId) {
+      throw new Error('Specifying a parent target requires a session ID');
     }
 
     let router: SessionRouter;
-    if (sessionId && parentTarget?.routerInternal) {
-      router = parentTarget.routerInternal;
+    if (parentTarget && parentTarget.#router) {
+      router = parentTarget.#router;
     } else if (connection) {
       router = new SessionRouter(connection);
     } else {
-      router = new SessionRouter(connectionFactory());
+      router = new SessionRouter(new DevToolsCDPConnection(ConnectionTransport.getFactory()()));
     }
 
-    this.routerInternal = router;
+    this.#router = router;
 
     router.registerSession(this, this.sessionId);
 
@@ -561,23 +294,19 @@ export class TargetBase {
   }
 
   dispose(_reason: string): void {
-    if (!this.routerInternal) {
+    if (!this.#router) {
       return;
     }
-    this.routerInternal.unregisterSession(this.sessionId);
-    this.routerInternal = null;
+    this.#router.unregisterSession(this.sessionId);
+    this.#router = null;
   }
 
   isDisposed(): boolean {
-    return !this.routerInternal;
-  }
-
-  markAsNodeJSForTest(): void {
-    this.needsNodeJSPatching = true;
+    return !this.#router;
   }
 
   router(): SessionRouter|null {
-    return this.routerInternal;
+    return this.#router;
   }
 
   // Agent accessors, keep alphabetically sorted.
@@ -620,6 +349,10 @@ export class TargetBase {
 
   cacheStorageAgent(): ProtocolProxyApi.CacheStorageApi {
     return this.getAgent('CacheStorage');
+  }
+
+  crashReportContextAgent(): ProtocolProxyApi.CrashReportContextApi {
+    return this.getAgent('CrashReportContext');
   }
 
   cssAgent(): ProtocolProxyApi.CSSApi {
@@ -766,6 +499,10 @@ export class TargetBase {
     return this.getAgent('WebAuthn');
   }
 
+  webMCPAgent(): ProtocolProxyApi.WebMCPApi {
+    return this.getAgent('WebMCP');
+  }
+
   // Dispatcher registration and de-registration, keep alphabetically sorted.
 
   /**
@@ -832,6 +569,10 @@ export class TargetBase {
 
   registerDOMStorageDispatcher(dispatcher: ProtocolProxyApi.DOMStorageDispatcher): void {
     this.registerDispatcher('DOMStorage', dispatcher);
+  }
+
+  registerEmulationDispatcher(dispatcher: ProtocolProxyApi.EmulationDispatcher): void {
+    this.registerDispatcher('Emulation', dispatcher);
   }
 
   registerFetchDispatcher(dispatcher: ProtocolProxyApi.FetchDispatcher): void {
@@ -914,10 +655,18 @@ export class TargetBase {
     this.registerDispatcher('WebAuthn', dispatcher);
   }
 
-  getNeedsNodeJSPatching(): boolean {
-    return this.needsNodeJSPatching;
+  registerWebMCPDispatcher(dispatcher: ProtocolProxyApi.WebMCPDispatcher): void {
+    this.registerDispatcher('WebMCP', dispatcher);
   }
 }
+
+/** These are not logged as console.error */
+const IGNORED_ERRORS = new Set<CDPErrorStatus>([
+  CDPErrorStatus.DEVTOOLS_REHYDRATION_ERROR,
+  CDPErrorStatus.DEVTOOLS_STUB_ERROR,
+  CDPErrorStatus.SERVER_ERROR,
+  CDPErrorStatus.SESSION_NOT_FOUND,
+]);
 
 /**
  * This is a class that serves as the prototype for a domains #agents (every target
@@ -929,15 +678,11 @@ export class TargetBase {
  * of the invoke_enable, etc. methods that the front-end uses.
  */
 class AgentPrototype {
-  replyArgs: {
-    [x: string]: string[],
-  };
   description = '';
-  metadata: {[commandName: string]: {parameters: CommandParameter[], description: string, replyArgs: string[]}};
+  metadata: Record<string, {parameters: CommandParameter[], description: string, replyArgs: string[]}>;
   readonly domain: string;
   target!: TargetBase;
   constructor(domain: string) {
-    this.replyArgs = {};
     this.domain = domain;
     this.metadata = {};
   }
@@ -945,11 +690,6 @@ class AgentPrototype {
   registerCommand(
       methodName: UnqualifiedName, parameters: CommandParameter[], replyArgs: string[], description: string): void {
     const domainAndMethod = qualifyName(this.domain, methodName);
-    function sendMessagePromise(this: AgentPrototype, ...args: unknown[]): Promise<unknown> {
-      return AgentPrototype.prototype.sendMessageToBackendPromise.call(this, domainAndMethod, parameters, args);
-    }
-    // @ts-expect-error Method code generation
-    this[methodName] = sendMessagePromise;
     this.metadata[domainAndMethod] = {parameters, description, replyArgs};
 
     function invoke(this: AgentPrototype, request: Object|undefined = {}): Promise<Protocol.ProtocolResponseWithError> {
@@ -958,109 +698,32 @@ class AgentPrototype {
 
     // @ts-expect-error Method code generation
     this['invoke_' + methodName] = invoke;
-    this.replyArgs[domainAndMethod] = replyArgs;
-  }
-
-  private prepareParameters(
-      method: string, parameters: CommandParameter[], args: unknown[], errorCallback: (arg0: string) => void): Object
-      |null {
-    const params: {[x: string]: unknown} = {};
-    let hasParams = false;
-
-    for (const param of parameters) {
-      const paramName = param.name;
-      const typeName = param.type;
-      const optionalFlag = param.optional;
-
-      if (!args.length && !optionalFlag) {
-        errorCallback(
-            `Protocol Error: Invalid number of arguments for method '${method}' call. ` +
-            `It must have the following arguments ${JSON.stringify(parameters)}'.`);
-        return null;
-      }
-
-      const value = args.shift();
-      if (optionalFlag && typeof value === 'undefined') {
-        continue;
-      }
-      const expectedJSType = typeName === 'array' ? 'object' : typeName;
-      if (typeof value !== expectedJSType) {
-        errorCallback(
-            `Protocol Error: Invalid type of argument '${paramName}' for method '${method}' call. ` +
-            `It must be '${typeName}' but it is '${typeof value}'.`);
-        return null;
-      }
-
-      params[paramName] = value;
-      hasParams = true;
-    }
-
-    if (args.length) {
-      errorCallback(`Protocol Error: Extra ${args.length} arguments in a call to method '${method}'.`);
-      return null;
-    }
-
-    return hasParams ? params : null;
-  }
-
-  private sendMessageToBackendPromise(method: QualifiedName, parameters: CommandParameter[], args: unknown[]):
-      Promise<unknown> {
-    let errorMessage;
-    function onError(message: string): void {
-      console.error(message);
-      errorMessage = message;
-    }
-    const params = this.prepareParameters(method, parameters, args, onError);
-    if (errorMessage) {
-      return Promise.resolve(null);
-    }
-
-    return new Promise(resolve => {
-      // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const callback: Callback = (error: MessageError|null, result: any|null): void => {
-        if (error) {
-          if (!test.suppressRequestErrors && error.code !== DevToolsStubErrorCode && error.code !== GenericErrorCode &&
-              error.code !== ConnectionClosedErrorCode) {
-            console.error('Request ' + method + ' failed. ' + JSON.stringify(error));
-          }
-
-          resolve(null);
-          return;
-        }
-
-        const args = this.replyArgs[method];
-        resolve(result && args.length ? result[args[0]] : undefined);
-      };
-
-      const router = this.target.router();
-      if (!router) {
-        SessionRouter.dispatchConnectionError(callback, method);
-      } else {
-        router.sendMessage(this.target.sessionId, this.domain, method, params, callback);
-      }
-    });
   }
 
   private invoke(method: QualifiedName, request: Object|null): Promise<Protocol.ProtocolResponseWithError> {
-    return new Promise(fulfill => {
-      const callback: Callback = (error: MessageError|undefined|null, result: Object|null): void => {
-        if (error && !test.suppressRequestErrors && error.code !== DevToolsStubErrorCode &&
-            error.code !== GenericErrorCode && error.code !== ConnectionClosedErrorCode) {
-          console.error('Request ' + method + ' failed. ' + JSON.stringify(error));
-        }
+    const connection = this.target.router()?.connection;
+    if (!connection) {
+      return Promise.resolve(
+          {result: null, getError: () => `Connection is closed, can\'t dispatch pending call to ${method}`});
+    }
 
-        const errorMessage = error?.message;
-        fulfill({...result, getError: () => errorMessage});
-      };
+    return connection.send(method as Command, request as CommandParams<Command>, this.target.sessionId)
+        .then(response => {
+          if ('error' in response && response.error) {
+            if (!test.suppressRequestErrors && !IGNORED_ERRORS.has(response.error.code)) {
+              console.error('Request ' + method + ' failed. ' + JSON.stringify(response.error));
+            }
+            return {getError: () => response.error.message};
+          }
 
-      const router = this.target.router();
-      if (!router) {
-        SessionRouter.dispatchConnectionError(callback, method);
-      } else {
-        router.sendMessage(this.target.sessionId, this.domain, method, request, callback);
-      }
-    });
+          if ('result' in response) {
+            return {...response.result, getError: () => undefined};
+          }
+          return {
+            getError: () => `Command ${method} returned neither result nor an error, params: ${
+                JSON.stringify(request, undefined, 2)}`,
+          };
+        });
   }
 }
 

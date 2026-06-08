@@ -1,17 +1,13 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
-import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import * as Bindings from '../bindings/bindings.js';
 import * as Formatter from '../formatter/formatter.js';
 import * as TextUtils from '../text_utils/text_utils.js';
-import type * as Workspace from '../workspace/workspace.js';
-
-import {scopeTreeForScript} from './ScopeTreeCache.js';
 
 interface CachedScopeMap {
   sourceMap: SDK.SourceMap.SourceMap|undefined;
@@ -52,16 +48,7 @@ scopeTree:
     return null;
   }
 
-  const text = await getTextFor(script);
-  if (!text) {
-    return null;
-  }
-
-  const scopeTree = await scopeTreeForScript(script);
-  if (!scopeTree) {
-    return null;
-  }
-  return {scopeTree, text};
+  return await SDK.ScopeTreeCache.scopeTreeForScript(script);
 };
 
 /**
@@ -242,7 +229,7 @@ const resolveScope = async(script: SDK.Script.Script, scopeChain: Formatter.Form
                     return;
                   }
                 }
-                // If there is no entry with the name field, try to infer the name from the source positions.
+                /** If there is no entry with the name field, try to infer the name from the source positions. **/
                 async function resolvePosition(): Promise<void> {
                   if (!sourceMap) {
                     return;
@@ -378,15 +365,15 @@ const resolveScope = async(script: SDK.Script.Script, scopeChain: Formatter.Form
 export const resolveScopeChain =
     async function(callFrame: SDK.DebuggerModel.CallFrame): Promise<SDK.DebuggerModel.ScopeChainEntry[]> {
   const {pluginManager} = Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance();
-  let scopeChain: SDK.DebuggerModel.ScopeChainEntry[]|null|undefined = await pluginManager.resolveScopeChain(callFrame);
+  const scopeChain: SDK.DebuggerModel.ScopeChainEntry[]|null|undefined =
+      await pluginManager.resolveScopeChain(callFrame);
   if (scopeChain) {
     return scopeChain;
   }
 
-  scopeChain = callFrame.script.sourceMap()?.resolveScopeChain(callFrame);
-  if (scopeChain) {
-    return scopeChain;
-  }
+  // TODO(crbug.com/465968290): Re-enable creating the scope chain from the source map once:
+  //    1) We have a flag indicating whether the source map contained variable/binding information.
+  //    2) We have a chrome feature flag.
 
   if (callFrame.script.isWasm()) {
     return callFrame.scopeChain();
@@ -471,82 +458,6 @@ export const allVariablesAtPosition =
     scopeChain.pop();
   }
   return reverseMapping;
-};
-
-export const resolveExpression = async(
-    callFrame: SDK.DebuggerModel.CallFrame, originalText: string, uiSourceCode: Workspace.UISourceCode.UISourceCode,
-    lineNumber: number, startColumnNumber: number, endColumnNumber: number): Promise<string> => {
-  if (uiSourceCode.mimeType() === 'application/wasm') {
-    // For WebAssembly disassembly, lookup the different possiblities.
-    return `memories["${originalText}"] ?? locals["${originalText}"] ?? tables["${originalText}"] ?? functions["${
-        originalText}"] ?? globals["${originalText}"]`;
-  }
-  if (!uiSourceCode.contentType().isFromSourceMap()) {
-    return '';
-  }
-  const reverseMapping = await allVariablesInCallFrame(callFrame);
-  if (reverseMapping.has(originalText)) {
-    return reverseMapping.get(originalText) as string;
-  }
-  const rawLocations =
-      await Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance().uiLocationToRawLocations(
-          uiSourceCode, lineNumber, startColumnNumber);
-  const rawLocation = rawLocations.find(location => location.debuggerModel === callFrame.debuggerModel);
-  if (!rawLocation) {
-    return '';
-  }
-  const script = rawLocation.script();
-  if (!script) {
-    return '';
-  }
-  const sourceMap = script.sourceMap();
-  if (!sourceMap) {
-    return '';
-  }
-  const text = await getTextFor(script);
-  if (!text) {
-    return '';
-  }
-  const textRanges = sourceMap.reverseMapTextRanges(
-      uiSourceCode.url(),
-      new TextUtils.TextRange.TextRange(lineNumber, startColumnNumber, lineNumber, endColumnNumber));
-  if (textRanges.length !== 1) {
-    return '';
-  }
-  const [compiledRange] = textRanges;
-  const subjectText = text.extract(compiledRange);
-  if (!subjectText) {
-    return '';
-  }
-  // Map `subjectText` back to the authored code and check that the source map spits out
-  // `originalText` again modulo some whitespace/punctuation.
-  const authoredText = await getTextFor(uiSourceCode);
-  if (!authoredText) {
-    return '';
-  }
-
-  // Take the "start point" and the "end point - 1" of the compiled range and map them
-  // with the source map. Note that for "end point - 1" we need the line endings array to potentially
-  // move to the end of the previous line.
-  const startRange = sourceMap.findEntryRanges(compiledRange.startLine, compiledRange.startColumn);
-  const endLine = compiledRange.endColumn === 0 ? compiledRange.endLine - 1 : compiledRange.endLine;
-  const endColumn = compiledRange.endColumn === 0 ? text.lineEndings()[endLine] : compiledRange.endColumn - 1;
-  const endRange = sourceMap.findEntryRanges(endLine, endColumn);
-  if (!startRange || !endRange) {
-    return '';
-  }
-
-  // Merge `startRange` with `endRange`. This might not be 100% correct if there are interleaved ranges inbetween.
-  const mappedAuthoredText = authoredText.extract(new TextUtils.TextRange.TextRange(
-      startRange.sourceRange.startLine, startRange.sourceRange.startColumn, endRange.sourceRange.endLine,
-      endRange.sourceRange.endColumn));
-
-  // Check that what we found after applying the source map roughly matches `originalText`.
-  const originalTextRegex = new RegExp(`^[\\s,;]*${Platform.StringUtilities.escapeForRegExp(originalText)}`, 'g');
-  if (!originalTextRegex.test(mappedAuthoredText)) {
-    return '';
-  }
-  return await Formatter.FormatterWorkerPool.formatterWorkerPool().evaluatableJavaScriptSubstring(subjectText);
 };
 
 export const resolveThisObject =
@@ -741,7 +652,7 @@ export class RemoteObject extends SDK.RemoteObject.RemoteObject {
   }
 
   override callFunctionJSON<T, U>(
-      functionDeclaration: (this: U, ...args: any[]) => T, args?: Protocol.Runtime.CallArgument[]): Promise<T> {
+      functionDeclaration: (this: U, ...args: any[]) => T, args?: Protocol.Runtime.CallArgument[]): Promise<T|null> {
     return this.object.callFunctionJSON(functionDeclaration, args);
   }
 
@@ -762,10 +673,12 @@ export class RemoteObject extends SDK.RemoteObject.RemoteObject {
   }
 }
 
-// Resolve the frame's function name using the name associated with the opening
-// paren that starts the scope. If there is no name associated with the scope
-// start or if the function scope does not start with a left paren (e.g., arrow
-// function with one parameter), the resolution returns null.
+/**
+ * Resolve the frame's function name using the name associated with the opening
+ * paren that starts the scope. If there is no name associated with the scope
+ * start or if the function scope does not start with a left paren (e.g., arrow
+ * function with one parameter), the resolution returns null.
+ **/
 async function getFunctionNameFromScopeStart(
     script: SDK.Script.Script, lineNumber: number, columnNumber: number): Promise<string|null> {
   // To reduce the overhead of resolving function names,
@@ -782,7 +695,7 @@ async function getFunctionNameFromScopeStart(
   }
 
   const mappingEntry = sourceMap.findEntry(lineNumber, columnNumber);
-  if (!mappingEntry || !mappingEntry.sourceURL) {
+  if (!mappingEntry?.sourceURL) {
     return null;
   }
 

@@ -3,6 +3,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../ui/kit/kit.js';
+
 import type * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Root from '../../core/root/root.js';
@@ -115,7 +117,7 @@ export class FuseboxFeatureObserver implements
     const drawerLocationPromise = viewManager.resolveLocation(UI.ViewManager.ViewLocationValues.DRAWER_VIEW);
     void Promise.all([panelLocationPromise, drawerLocationPromise])
       .then(([panelLocation, drawerLocation]) => {
-        UI.ViewManager.getRegisteredViewExtensions().forEach(view => {
+        viewManager.getRegisteredViewExtensions().forEach(view => {
           if (view.location() === UI.ViewManager.ViewLocationValues.DRAWER_VIEW) {
             drawerLocation?.removeView(view);
           } else {
@@ -143,8 +145,8 @@ export class FuseboxFeatureObserver implements
   }
 
   async #ensureTimelineFramesEnabled(): Promise<void> {
-    if (!Root.Runtime.experiments.isEnabled(Root.Runtime.RNExperimentName.ENABLE_TIMELINE_FRAMES)) {
-      Root.Runtime.experiments.setEnabled(Root.Runtime.RNExperimentName.ENABLE_TIMELINE_FRAMES, true);
+    if (!Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.ENABLE_TIMELINE_FRAMES)) {
+      Root.Runtime.experiments.setEnabled(Root.Runtime.ExperimentName.ENABLE_TIMELINE_FRAMES, true);
       UI.InspectorView?.InspectorView?.instance()?.displayReloadRequiredWarning(
           i18nString(UIStrings.reloadRequiredForTimelineFramesMessage));
     }
@@ -206,7 +208,7 @@ export class FuseboxFeatureObserver implements
           <div class="alert-title">${titleText}</div>
           <div class="alert-detail">
             ${i18nString(UIStrings.multiHostFeatureDisabledDetail)}
-            See <x-link href="https://github.com/react-native-community/discussions-and-proposals/discussions/954" class="devtools-link" jslog=${VisualLogging.link().track({click: true, keydown:'Enter|Space'}).context('multi-host-learn-more')}>discussions/954</x-link>.
+            See <devtools-link href="https://github.com/react-native-community/discussions-and-proposals/discussions/954" class="devtools-link" jslog=${VisualLogging.link().track({click: true, keydown:'Enter|Space'}).context('multi-host-learn-more')}>discussions/954</devtools-link>.
           </div>
         </div>
       `, alertBar, {host: this});

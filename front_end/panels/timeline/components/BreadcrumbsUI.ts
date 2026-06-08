@@ -1,6 +1,7 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view */
 
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Trace from '../../../models/trace/trace.js';
@@ -10,22 +11,18 @@ import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
 import {flattenBreadcrumbs} from './Breadcrumbs.js';
-import breadcrumbsUIStylesRaw from './breadcrumbsUI.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const breadcrumbsUIStyles = new CSSStyleSheet();
-breadcrumbsUIStyles.replaceSync(breadcrumbsUIStylesRaw.cssText);
+import breadcrumbsUIStyles from './breadcrumbsUI.css.js';
 
 const {render, html} = Lit;
 
 const UIStrings = {
   /**
-   *@description A context menu item in the Minimap Breadcrumb context menu.
+   * @description A context menu item in the Minimap Breadcrumb context menu.
    * This context menu option activates the breadcrumb that the context menu was opened on.
    */
   activateBreadcrumb: 'Activate breadcrumb',
   /**
-   *@description A context menu item in the Minimap Breadcrumb context menu.
+   * @description A context menu item in the Minimap Breadcrumb context menu.
    * This context menu option removed all the child breadcrumbs and activates
    * the breadcrumb that the context menu was opened on.
    */
@@ -36,10 +33,12 @@ const UIStrings = {
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/components/BreadcrumbsUI.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-// `initialBreadcrumb` is the first breadcrumb in the breadcrumbs linked list. Since
-// breadcrumbs are a linked list, the first breadcrumb is enought to be able to iterate through all of them.
-//
-// `activeBreadcrumb` is the currently active breadcrumb that the timeline is limited to.
+/**
+ * `initialBreadcrumb` is the first breadcrumb in the breadcrumbs linked list. Since
+ * breadcrumbs are a linked list, the first breadcrumb is enough to be able to iterate through all of them.
+ *
+ * `activeBreadcrumb` is the currently active breadcrumb that the timeline is limited to.
+ **/
 export interface BreadcrumbsUIData {
   initialBreadcrumb: Trace.Types.File.Breadcrumb;
   activeBreadcrumb: Trace.Types.File.Breadcrumb;
@@ -55,18 +54,13 @@ export class BreadcrumbActivatedEvent extends Event {
 
 export class BreadcrumbsUI extends HTMLElement {
   readonly #shadow = this.attachShadow({mode: 'open'});
-  readonly #boundRender = this.#render.bind(this);
   #initialBreadcrumb: Trace.Types.File.Breadcrumb|null = null;
   #activeBreadcrumb: Trace.Types.File.Breadcrumb|null = null;
-
-  connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [breadcrumbsUIStyles];
-  }
 
   set data(data: BreadcrumbsUIData) {
     this.#initialBreadcrumb = data.initialBreadcrumb;
     this.#activeBreadcrumb = data.activeBreadcrumb;
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
   }
 
   #activateBreadcrumb(breadcrumb: Trace.Types.File.Breadcrumb): void {
@@ -117,7 +111,7 @@ export class BreadcrumbsUI extends HTMLElement {
     // clang-format off
     return html`
           <div class="breadcrumb" @contextmenu=${(event: Event) => this.#onContextMenu(event, breadcrumb)} @click=${() => this.#activateBreadcrumb(breadcrumb)}
-          jslog=${VisualLogging.item('timeline.breadcrumb-select').track({click: true})}>
+          jslog=${VisualLogging.item('timeline.breadcrumb-select').track({click: true, resize: true})}>
            <span class="${(breadcrumb === this.#activeBreadcrumb) ? 'active-breadcrumb' : ''} range">
             ${(index === 0) ?
               `Full range (${i18n.TimeUtilities.preciseMillisToString(breadcrumbRange, 2)})` :
@@ -126,12 +120,7 @@ export class BreadcrumbsUI extends HTMLElement {
           </div>
           ${breadcrumb.child !== null ?
             html`
-            <devtools-icon .data=${{
-              iconName: 'chevron-right',
-              color: 'var(--icon-default)',
-              width: '16px',
-              height: '16px',
-            }}>`
+            <devtools-icon name="chevron-right" class="medium">`
             : ''}
       `;
     // clang-format on
@@ -140,6 +129,7 @@ export class BreadcrumbsUI extends HTMLElement {
   #render(): void {
     // clang-format off
     const output = html`
+      <style>${breadcrumbsUIStyles}</style>
       ${this.#initialBreadcrumb === null ? Lit.nothing : html`<div class="breadcrumbs" jslog=${VisualLogging.section('breadcrumbs')}>
         ${flattenBreadcrumbs(this.#initialBreadcrumb).map((breadcrumb, index) => this.#renderElement(breadcrumb, index))}
       </div>`}

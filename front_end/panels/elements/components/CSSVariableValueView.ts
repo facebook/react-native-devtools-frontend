@@ -1,32 +1,29 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view */
 
 import * as i18n from '../../../core/i18n/i18n.js';
 import type * as SDK from '../../../core/sdk/sdk.js';
 import * as Lit from '../../../ui/lit/lit.js';
 
-import cssVariableValueViewStylesRaw from './cssVariableValueView.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const cssVariableValueViewStyles = new CSSStyleSheet();
-cssVariableValueViewStyles.replaceSync(cssVariableValueViewStylesRaw.cssText);
+import cssVariableValueViewStyles from './cssVariableValueView.css.js';
 
 const UIStrings = {
   /**
-   *@description Text for a link from custom property to its defining registration
+   * @description Text for a link from custom property to its defining registration
    */
   registeredPropertyLinkTitle: 'View registered property',
   /**
-   *@description Error message for a property value that failed to parse because it had an incorrect type. The message
+   * @description Error message for a property value that failed to parse because it had an incorrect type. The message
    * is shown in a popover when hovering the property value. The `type` placeholder will be rendered as an HTML element
    * to apply some styling (color and monospace font)
-   *@example {<color>} type
+   * @example {<color>} type
    */
   invalidPropertyValue: 'Invalid property value, expected type {type}',
   /**
-   *@description Text displayed in a tooltip shown when hovering over a var() CSS function in the Styles pane when the custom property in this function does not exist. The parameter is the name of the property.
-   *@example {--my-custom-property-name} PH1
+   * @description Text displayed in a tooltip shown when hovering over a var() CSS function in the Styles pane when the custom property in this function does not exist. The parameter is the name of the property.
+   * @example {--my-custom-property-name} PH1
    */
   sIsNotDefined: '{PH1} is not defined',
 } as const;
@@ -54,7 +51,6 @@ export class CSSVariableParserError extends HTMLElement {
 
   constructor(details: RegisteredPropertyDetails) {
     super();
-    this.#shadow.adoptedStyleSheets = [cssVariableValueViewStyles];
     this.#render(details);
   }
 
@@ -62,6 +58,7 @@ export class CSSVariableParserError extends HTMLElement {
     const type = html`<span class="monospace css-property">${details.registration.syntax()}</span>`;
     render(
         html`
+      <style>${cssVariableValueViewStyles}</style>
       <div class="variable-value-popup-wrapper">
         ${i18nTemplate(UIStrings.invalidPropertyValue, {type})}
         ${getLinkSection(details)}
@@ -88,7 +85,6 @@ export class CSSVariableValueView extends HTMLElement {
     details?: RegisteredPropertyDetails,
   }) {
     super();
-    this.#shadow.adoptedStyleSheets = [cssVariableValueViewStyles];
     this.variableName = variableName;
     this.details = details;
     this.value = value;
@@ -119,7 +115,8 @@ export class CSSVariableValueView extends HTMLElement {
 
     const valueText = this.value ?? i18nString(UIStrings.sIsNotDefined, {PH1: this.variableName});
     render(
-        html`<div class="variable-value-popup-wrapper">
+        html`<style>${cssVariableValueViewStyles}</style>
+             <div class="variable-value-popup-wrapper">
                ${valueText}
              </div>
              ${registrationView}

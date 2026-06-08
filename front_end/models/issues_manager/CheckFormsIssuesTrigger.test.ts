@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,6 +17,6 @@ describeWithMockConnection('CheckFormsIssuesTrigger', () => {
     assert.exists(resourceTreeModel);
     const spyCheckFormsIssues = sinon.stub(auditsAgent, 'invoke_checkFormsIssues');
     resourceTreeModel.dispatchEventToListeners(SDK.ResourceTreeModel.Events.Load, {resourceTreeModel, loadTime: 123});
-    assert.isTrue(spyCheckFormsIssues.called);
+    sinon.assert.called(spyCheckFormsIssues);
   });
 });

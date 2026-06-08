@@ -1,15 +1,16 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Trace from '../../../../models/trace/trace.js';
-import {describeWithLocale} from '../../../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../../../testing/LocaleHelpers.js';
 
 import * as PerfUI from './perf_ui.js';
 
 const {Milli: MilliSeconds} = Trace.Types.Timing;
 
-describeWithLocale('TimelineOverviewCalculator', () => {
+describe('TimelineOverviewCalculator', () => {
+  setupLocaleHooks();
   it('can calculate pixels for a given time', async () => {
     const calculator = new PerfUI.TimelineOverviewCalculator.TimelineOverviewCalculator();
     calculator.setDisplayWidth(200);

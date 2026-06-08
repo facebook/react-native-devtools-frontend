@@ -1,6 +1,7 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import '../../ui/legacy/legacy.js';
 
@@ -17,40 +18,40 @@ import liveHeapProfileStyles from './liveHeapProfile.css.js';
 
 const UIStrings = {
   /**
-   *@description Text for a heap profile type
+   * @description Text for a heap profile type
    */
   jsHeap: 'JS Heap',
   /**
-   *@description Text in Live Heap Profile View of a profiler tool
+   * @description Text in Live Heap Profile View of a profiler tool
    */
   allocatedJsHeapSizeCurrentlyIn: 'Allocated JS heap size currently in use',
   /**
-   *@description Text in Live Heap Profile View of a profiler tool
+   * @description Text in Live Heap Profile View of a profiler tool
    */
   vms: 'VMs',
   /**
-   *@description Text in Live Heap Profile View of a profiler tool
+   * @description Text in Live Heap Profile View of a profiler tool
    */
   numberOfVmsSharingTheSameScript: 'Number of VMs sharing the same script source',
   /**
-   *@description Text in Live Heap Profile View of a profiler tool
+   * @description Text in Live Heap Profile View of a profiler tool
    */
   scriptUrl: 'Script URL',
   /**
-   *@description Text in Live Heap Profile View of a profiler tool
+   * @description Text in Live Heap Profile View of a profiler tool
    */
   urlOfTheScriptSource: 'URL of the script source',
   /**
-   *@description Data grid name for Heap Profile data grids
+   * @description Data grid name for Heap Profile data grids
    */
   heapProfile: 'Heap Profile',
   /**
-   *@description Text in Live Heap Profile View of a profiler tool
-   *@example {1} PH1
+   * @description Text in Live Heap Profile View of a profiler tool
+   * @example {1} PH1
    */
   anonymousScriptS: '(Anonymous Script {PH1})',
   /**
-   *@description A unit
+   * @description A unit
    */
   kb: 'kB',
 } as const;
@@ -67,7 +68,7 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
   currentPollId: number;
 
   private constructor() {
-    super(true);
+    super({useShadowDom: true});
     this.gridNodeByUrl = new Map();
     this.registerRequiredCSS(liveHeapProfileStyles);
 
@@ -102,25 +103,14 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
   }
 
   createDataGrid(): DataGrid.SortableDataGrid.SortableDataGrid<GridNode> {
-    const defaultColumnConfig: DataGrid.DataGrid.ColumnDescriptor = {
-      id: '',
+    const defaultColumnConfig = {
       title: Common.UIString.LocalizedEmptyString,
-      width: undefined,
       fixedWidth: true,
       sortable: true,
       align: DataGrid.DataGrid.Align.RIGHT,
       sort: DataGrid.DataGrid.Order.Descending,
-      titleDOMFragment: undefined,
-      editable: undefined,
-      nonSelectable: undefined,
-      longText: undefined,
-      disclosure: undefined,
-      weight: undefined,
-      allowInSortByEvenWhenHidden: undefined,
-      dataType: undefined,
-      defaultWeight: undefined,
     };
-    const columns = [
+    const columns: Array<{tooltip: Common.UIString.LocalizedString}&DataGrid.DataGrid.ColumnDescriptor> = [
       {
         ...defaultColumnConfig,
         id: 'size',
@@ -149,12 +139,10 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
         sortable: true,
         tooltip: i18nString(UIStrings.urlOfTheScriptSource),
       },
-    ] as Array<{tooltip: Common.UIString.LocalizedString}&DataGrid.DataGrid.ColumnDescriptor>;
+    ];
     const dataGrid = new DataGrid.SortableDataGrid.SortableDataGrid({
       displayName: i18nString(UIStrings.heapProfile),
       columns,
-      deleteCallback: undefined,
-      refreshCallback: undefined,
     });
     dataGrid.setResizeMethod(DataGrid.DataGrid.ResizeMethod.LAST);
     dataGrid.element.classList.add('flex-auto');
@@ -177,6 +165,7 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
   }
 
   override willHide(): void {
+    super.willHide();
     ++this.currentPollId;
     this.setting.removeChangeListener(this.settingChanged, this);
   }
@@ -219,7 +208,7 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
     });
 
     const rootNode = this.dataGrid.rootNode();
-    const exisitingNodes = new Set<GridNode>();
+    const existingNodes = new Set<GridNode>();
     for (const pair of dataByUrl) {
       const url = (pair[0]);
       const size = (pair[1].size);
@@ -236,12 +225,12 @@ export class LiveHeapProfileView extends UI.Widget.VBox {
         this.gridNodeByUrl.set(url, node);
         rootNode.appendChild(node);
       }
-      exisitingNodes.add(node);
+      existingNodes.add(node);
     }
 
     for (const node of rootNode.children.slice()) {
       const gridNode = node as GridNode;
-      if (!exisitingNodes.has(gridNode)) {
+      if (!existingNodes.has(gridNode)) {
         gridNode.remove();
       }
       this.gridNodeByUrl.delete(gridNode.url);

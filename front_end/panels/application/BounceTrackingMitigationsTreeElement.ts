@@ -1,13 +1,11 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
-import * as IconButton from '../../ui/components/icon_button/icon_button.js';
-import * as LegacyWrapper from '../../ui/components/legacy_wrapper/legacy_wrapper.js';
-import * as UI from '../../ui/legacy/legacy.js';
+import {createIcon} from '../../ui/kit/kit.js';
 
 import {ApplicationPanelTreeElement} from './ApplicationPanelTreeElement.js';
 import * as ApplicationComponents from './components/components.js';
@@ -23,12 +21,11 @@ const str_ = i18n.i18n.registerUIStrings('panels/application/BounceTrackingMitig
 export const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class BounceTrackingMitigationsTreeElement extends ApplicationPanelTreeElement {
-  private view?: LegacyWrapper.LegacyWrapper.LegacyWrapper<
-      UI.Widget.Widget, ApplicationComponents.BounceTrackingMitigationsView.BounceTrackingMitigationsView>;
+  private view?: ApplicationComponents.BounceTrackingMitigationsView.BounceTrackingMitigationsView;
 
   constructor(resourcesPanel: ResourcesPanel) {
     super(resourcesPanel, i18nString(UIStrings.bounceTrackingMitigations), false, 'bounce-tracking-mitigations');
-    const icon = IconButton.Icon.create('database');
+    const icon = createIcon('database');
     this.setLeadingIcons([icon]);
   }
 
@@ -39,8 +36,7 @@ export class BounceTrackingMitigationsTreeElement extends ApplicationPanelTreeEl
   override onselect(selectedByUser?: boolean): boolean {
     super.onselect(selectedByUser);
     if (!this.view) {
-      this.view = LegacyWrapper.LegacyWrapper.legacyWrapper(
-          UI.Widget.Widget, new ApplicationComponents.BounceTrackingMitigationsView.BounceTrackingMitigationsView());
+      this.view = new ApplicationComponents.BounceTrackingMitigationsView.BounceTrackingMitigationsView();
     }
     this.showView(this.view);
     Host.userMetrics.panelShown('bounce-tracking-mitigations');

@@ -1,4 +1,4 @@
-# Copyright 2022 The Chromium Authors. All rights reserved.
+# Copyright 2022 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -19,13 +19,12 @@ generate_css("css_files") {
   ]
 }
 
-devtools_module("components") {
+devtools_ui_module("components") {
   sources = [
     "MismatchedPreloadingGrid.ts",
     "PreloadingDetailsReportView.ts",
     "PreloadingDisabledInfobar.ts",
     "PreloadingGrid.ts",
-    "PreloadingMismatchedHeadersGrid.ts",
     "PreloadingString.ts",
     "RuleSetDetailsView.ts",
     "RuleSetGrid.ts",
@@ -39,24 +38,33 @@ devtools_module("components") {
     "../../../../core/platform:bundle",
     "../../../../core/root:bundle",
     "../../../../core/sdk:bundle",
+    "../../../../generated:protocol",
     "../../../../models/bindings:bundle",
+    "../../../../models/formatter:bundle",
+    "../../../../models/logs:bundle",
     "../../../../panels/network/forward:bundle",
+    "../../../../third_party/codemirror.next:bundle",
+    "../../../../third_party/diff:bundle",
     "../../../../ui/components/adorners:bundle",
     "../../../../ui/components/buttons:bundle",
-    "../../../../ui/components/chrome_link:bundle",
+    "../../../../ui/components/code_highlighter:bundle",
     "../../../../ui/components/dialogs:bundle",
     "../../../../ui/components/expandable_list:bundle",
-    "../../../../ui/components/icon_button:bundle",
     "../../../../ui/components/legacy_wrapper:bundle",
+    "../../../../ui/components/render_coordinator:bundle",
     "../../../../ui/components/report_view:bundle",
     "../../../../ui/components/request_link_icon:bundle",
     "../../../../ui/components/text_editor:bundle",
     "../../../../ui/components/text_prompt:bundle",
     "../../../../ui/components/tree_outline:bundle",
+    "../../../../ui/i18n:bundle",
+    "../../../../ui/kit:bundle",
     "../../../../ui/legacy:bundle",
     "../../../../ui/legacy/components/data_grid:bundle",
     "../../../../ui/legacy/components/source_frame:bundle",
     "../../../../ui/legacy/components/utils:bundle",
+    "../../../../ui/lit:bundle",
+    "../../../../ui/visual_logging:bundle",
     "../helper:bundle",
   ]
 }
@@ -79,14 +87,14 @@ devtools_entrypoint("bundle") {
   visibility += devtools_panels_visibility
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [
     "MismatchedPreloadingGrid.test.ts",
     "PreloadingDetailsReportView.test.ts",
+    "PreloadingDisabledInfobar.test.ts",
     "PreloadingGrid.test.ts",
-    "PreloadingMismatchedHeadersGrid.test.ts",
     "RuleSetDetailsView.test.ts",
     "RuleSetGrid.test.ts",
     "UsedPreloadingView.test.ts",

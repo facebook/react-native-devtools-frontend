@@ -1,6 +1,7 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Root from '../../../core/root/root.js';
 import * as SDK from '../../../core/sdk/sdk.js';
@@ -282,8 +283,10 @@ const maxCacheAge = 30_000;
 
 let cacheInstance: PropertyCache|null = null;
 
-// Store recent collections of property completions. The empty string
-// is used to store the set of global bindings.
+/**
+ * Store recent collections of property completions. The empty string
+ * is used to store the set of global bindings.
+ **/
 class PropertyCache {
   readonly #cache = new Map<string, Promise<CompletionSet>>();
 
@@ -541,7 +544,7 @@ async function getArgumentsForExpression(
   }
   const expression = doc.sliceString(callee.from, callee.to);
   const result = await evaluateExpression(context, expression, 'argumentsHint');
-  if (!result || result.type !== 'function') {
+  if (result?.type !== 'function') {
     return null;
   }
   const objGetter = async(): Promise<SDK.RemoteObject.RemoteObject|null> => {
@@ -730,11 +733,13 @@ async function prototypesFromObject(object: SDK.RemoteObject.RemoteObject): Prom
       }
     }
     return result;
-  }, []);
+  }, []) ?? [];
 }
 
-// Given a function object that is probably a bound function, try to
-// retrieve the argument list from its target function.
+/**
+ * Given a function object that is probably a bound function, try to
+ * retrieve the argument list from its target function.
+ **/
 async function getArgumentsForBoundFunction(object: SDK.RemoteObject.RemoteObject): Promise<string[][]|null> {
   const {internalProperties} = await object.getOwnProperties(false);
   if (!internalProperties) {

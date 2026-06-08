@@ -1,28 +1,27 @@
 
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
 
-import {type ResponseData, ResponseType} from './agents/AiAgent.js';
-
-const MAX_TITLE_LENGTH = 80;
+import {ResponseType, type SerializedResponseData} from './agents/AiAgent.js';
 
 export const enum ConversationType {
+  NONE = 'none',
   STYLING = 'freestyler',
   FILE = 'drjones-file',
   NETWORK = 'drjones-network-request',
-  PERFORMANCE = 'drjones-performance',
-  PERFORMANCE_INSIGHT = 'performance-insight',
+  PERFORMANCE = 'drjones-performance-full',
+  BREAKPOINT = 'breakpoint',
+  ACCESSIBILITY = 'accessibility',
 }
-
-export const NOT_FOUND_IMAGE_DATA = '';
 
 export interface SerializedConversation {
   id: string;
   type: ConversationType;
-  history: ResponseData[];
+  history: SerializedResponseData[];
+  isExternal: boolean;
 }
 
 export interface SerializedImage {
@@ -35,108 +34,75 @@ export interface SerializedImage {
   data: string;
 }
 
-export class Conversation {
-  readonly id: string;
-  readonly type: ConversationType;
-  #isReadOnly: boolean;
-  readonly history: ResponseData[];
-
-  constructor(type: ConversationType, data: ResponseData[] = [], id: string = crypto.randomUUID(), isReadOnly = true) {
-    this.type = type;
-    this.id = id;
-    this.#isReadOnly = isReadOnly;
-    this.history = this.#reconstructHistory(data);
-  }
-
-  get isReadOnly(): boolean {
-    return this.#isReadOnly;
-  }
-
-  get title(): string|undefined {
-    const query = this.history.find(response => response.type === ResponseType.USER_QUERY)?.query;
-
-    if (!query) {
-      return;
-    }
-
-    return `${query.substring(0, MAX_TITLE_LENGTH)}${query.length > MAX_TITLE_LENGTH ? '…' : ''}`;
-  }
-
-  get isEmpty(): boolean {
-    return this.history.length === 0;
-  }
-
-  #reconstructHistory(historyWithoutImages: ResponseData[]): ResponseData[] {
-    const imageHistory = AiHistoryStorage.instance().getImageHistory();
-    if (imageHistory && imageHistory.length > 0) {
-      const history: ResponseData[] = [];
-      for (const data of historyWithoutImages) {
-        if (data.type === ResponseType.USER_QUERY && data.imageId) {
-          const image = imageHistory.find(item => item.id === data.imageId);
-          const inlineData = image ? {data: image.data, mimeType: image.mimeType} :
-                                     {data: NOT_FOUND_IMAGE_DATA, mimeType: 'image/jpeg'};
-          history.push({...data, imageInput: {inlineData}});
-        } else {
-          history.push(data);
-        }
-      }
-      return history;
-    }
-    return historyWithoutImages;
-  }
-
-  archiveConversation(): void {
-    this.#isReadOnly = true;
-  }
-
-  async addHistoryItem(item: ResponseData): Promise<void> {
-    if (item.type === ResponseType.USER_QUERY) {
-      if (item.imageId && item.imageInput && 'inlineData' in item.imageInput) {
-        const inlineData = item.imageInput.inlineData;
-        await AiHistoryStorage.instance().upsertImage(
-            {id: item.imageId, data: inlineData.data, mimeType: inlineData.mimeType});
-      }
-    }
-    this.history.push(item);
-    await AiHistoryStorage.instance().upsertHistoryEntry(this.serialize());
-  }
-
-  serialize(): SerializedConversation {
-    return {
-      id: this.id,
-      history: this.history.map(item => {
-        if (item.type === ResponseType.USER_QUERY) {
-          return {...item, imageInput: undefined};
-        }
-        return item;
-      }),
-      type: this.type,
-    };
-  }
-}
-
 let instance: AiHistoryStorage|null = null;
 
 const DEFAULT_MAX_STORAGE_SIZE = 50 * 1024 * 1024;
+export const MAX_RECENT_PROMPTS_COUNT = 20;
+export const RECENT_PROMPTS_SIZE_LIMIT = 100 * 1024;
 
-export class AiHistoryStorage {
+export const enum Events {
+  HISTORY_DELETED = 'AiHistoryDeleted',
+}
+
+export interface EventTypes {
+  [Events.HISTORY_DELETED]: void;
+}
+
+export class AiHistoryStorage extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
   #historySetting: Common.Settings.Setting<SerializedConversation[]>;
   #imageHistorySettings: Common.Settings.Setting<SerializedImage[]>;
+  #recentPromptsSetting: Common.Settings.Setting<string[]>;
   #mutex = new Common.Mutex.Mutex();
   #maxStorageSize: number;
 
   constructor(maxStorageSize = DEFAULT_MAX_STORAGE_SIZE) {
+    super();
     this.#historySetting = Common.Settings.Settings.instance().createSetting('ai-assistance-history-entries', []);
     this.#imageHistorySettings = Common.Settings.Settings.instance().createSetting(
         'ai-assistance-history-images',
         [],
     );
+    this.#recentPromptsSetting = Common.Settings.Settings.instance().createSetting('ai-assistance-recent-prompts', []);
     this.#maxStorageSize = maxStorageSize;
   }
 
   clearForTest(): void {
     this.#historySetting.set([]);
     this.#imageHistorySettings.set([]);
+    this.#recentPromptsSetting.set([]);
+  }
+
+  async addRecentPrompt(prompt: string): Promise<void> {
+    if (!prompt.trim()) {
+      return;
+    }
+    const release = await this.#mutex.acquire();
+    try {
+      const recentPrompts = await this.#recentPromptsSetting.forceGet();
+      const updatedPrompts = [prompt, ...recentPrompts.filter(p => p !== prompt)];
+
+      const promptsToBeStored: string[] = [];
+      let currentStorageSize = 0;
+
+      for (const p of updatedPrompts) {
+        if (promptsToBeStored.length >= MAX_RECENT_PROMPTS_COUNT) {
+          break;
+        }
+        if (currentStorageSize + p.length > RECENT_PROMPTS_SIZE_LIMIT) {
+          break;
+        }
+        currentStorageSize += p.length;
+        promptsToBeStored.push(p);
+      }
+
+      this.#recentPromptsSetting.set(promptsToBeStored);
+    } finally {
+      release();
+    }
+  }
+
+  getRecentPrompts(): string[] {
+    return structuredClone(this.#recentPromptsSetting.get());
   }
 
   async upsertHistoryEntry(agentEntry: SerializedConversation): Promise<void> {
@@ -217,8 +183,10 @@ export class AiHistoryStorage {
     try {
       this.#historySetting.set([]);
       this.#imageHistorySettings.set([]);
+      this.#recentPromptsSetting.set([]);
     } finally {
       release();
+      this.dispatchEventToListeners(Events.HISTORY_DELETED);
     }
   }
 

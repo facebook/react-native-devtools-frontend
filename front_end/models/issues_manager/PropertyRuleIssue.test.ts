@@ -1,24 +1,25 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import type * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
-import * as Issues from '../../panels/issues/issues.js';
-import {describeWithLocale} from '../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../testing/LocaleHelpers.js';
 import {MockIssuesManager} from '../../testing/MockIssuesManager.js';
 import {MockIssuesModel} from '../../testing/MockIssuesModel.js';
 import * as IssuesManager from '../issues_manager/issues_manager.js';
 
-function createProtocolIssue(propertyRuleIssueDetails: Protocol.Audits.PropertyRuleIssueDetails):
-    Protocol.Audits.InspectorIssue {
-  return {
-    code: Protocol.Audits.InspectorIssueCode.PropertyRuleIssue,
-    details: {propertyRuleIssueDetails},
-  };
-}
+describe('PropertyRuleIssue', () => {
+  setupLocaleHooks();
 
-describeWithLocale('PropertyRuleIssue', () => {
+  function createProtocolIssue(propertyRuleIssueDetails: Protocol.Audits.PropertyRuleIssueDetails):
+      Protocol.Audits.InspectorIssue {
+    return {
+      code: Protocol.Audits.InspectorIssueCode.PropertyRuleIssue,
+      details: {propertyRuleIssueDetails},
+    };
+  }
+
   const mockModel = new MockIssuesModel([]) as unknown as SDK.IssuesModel.IssuesModel;
   const mockManager = new MockIssuesManager([]) as unknown as IssuesManager.IssuesManager.IssuesManager;
 
@@ -92,7 +93,7 @@ describeWithLocale('PropertyRuleIssue', () => {
 
     assert.lengthOf(issues, 4);
 
-    const aggregator = new Issues.IssueAggregator.IssueAggregator(mockManager);
+    const aggregator = new IssuesManager.IssueAggregator.IssueAggregator(mockManager);
     for (const issue of issues) {
       mockManager.dispatchEventToListeners(
           IssuesManager.IssuesManager.Events.ISSUE_ADDED, {issuesModel: mockModel, issue});

@@ -1,13 +1,14 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Mocha from 'mocha';
 // @ts-expect-error
 import * as commonInterface from 'mocha/lib/interfaces/common.js';
-import * as Path from 'path';
+import * as Path from 'node:path';
 
-import {makeInstrumentedTestFunction, platform, type Platform} from './mocha-interface-helpers.js';
+import {makeInstrumentedTestFunction} from './mocha-interface-helpers.js';
+import {platform, type Platform} from './platform.js';
 import {TestConfig} from './test_config.js';
 
 type SuiteFunction = ((this: Mocha.Suite) => void)|undefined;
@@ -116,21 +117,6 @@ function devtoolsTestInterface(suite: Mocha.Suite) {
             return context.it.skip(title);
           }
           return context.it(title, fn);
-        };
-        function screenshotTestTitle(title: string) {
-          return '[screenshot]: ' + title;
-        }
-        // @ts-expect-error Custom interface.
-        context.itScreenshot = function(title: string, fn: Mocha.AsyncFunc) {
-          return context.it(screenshotTestTitle(title), fn);
-        };
-        // @ts-expect-error Custom interface.
-        context.itScreenshot.skipOnPlatforms = function(platforms: Platform[], title: string, fn: Mocha.AsyncFunc) {
-          return context.it.skipOnPlatforms(platforms, screenshotTestTitle(title), fn);
-        };
-        // @ts-expect-error Custom interface.
-        context.itScreenshot.skip = function(title: string) {
-          return context.it.skip(screenshotTestTitle(title));
         };
       },
   );

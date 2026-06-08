@@ -1,87 +1,88 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
-import * as IconButton from '../../ui/components/icon_button/icon_button.js';
+import {createIcon} from '../../ui/kit/kit.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import openedWindowDetailsViewStyles from './openedWindowDetailsView.css.js';
 
 const UIStrings = {
   /**
-   *@description Text in Timeline indicating that input has happened recently
+   * @description Text in Timeline indicating that input has happened recently
    */
   yes: 'Yes',
   /**
-   *@description Text in Timeline indicating that input has not happened recently
+   * @description Text in Timeline indicating that input has not happened recently
    */
   no: 'No',
   /**
-   *@description Title for a link to the Elements panel
+   * @description Title for a link to the Elements panel
    */
   clickToOpenInElementsPanel: 'Click to open in Elements panel',
   /**
-   *@description Name of a network resource type
+   * @description Name of a network resource type
    */
   document: 'Document',
   /**
-   *@description Text for web URLs
+   * @description Text for web URLs
    */
   url: 'URL',
   /**
-   *@description Title of the 'Security' tool
+   * @description Title of the 'Security' tool
    */
   security: 'Security',
   /**
-   *@description Label for link to Opener Frame in Detail View for Opened Window
+   * @description Label for link to Opener Frame in Detail View for Opened Window
    */
   openerFrame: 'Opener Frame',
   /**
-   *@description Label in opened window's details view whether window has access to its opener
+   * @description Label in opened window's details view whether window has access to its opener
    */
   accessToOpener: 'Access to opener',
   /**
-   *@description Description for the 'Access to Opener' field
+   * @description Description for the 'Access to Opener' field
    */
   showsWhetherTheOpenedWindowIs: 'Shows whether the opened window is able to access its opener and vice versa',
   /**
-   *@description Text in Frames View of the Application panel
+   * @description Text in Frames View of the Application panel
    */
   windowWithoutTitle: 'Window without title',
   /**
-   *@description Label suffix in the Application Panel Frames section for windows which are already closed
+   * @description Label suffix in the Application Panel Frames section for windows which are already closed
    */
   closed: 'closed',
   /**
-   *@description Default name for worker
+   * @description Default name for worker
    */
   worker: 'worker',
   /**
-   *@description Text that refers to some types
+   * @description Text that refers to some types
    */
   type: 'Type',
   /**
-   *@description Section header in the Frame Details view
+   * @description Section header in the Frame Details view
    */
   securityIsolation: 'Security & Isolation',
   /**
-   *@description Row title in the Frame Details view
+   * @description Row title in the Frame Details view
    */
   crossoriginEmbedderPolicy: 'Cross-Origin Embedder Policy',
   /**
-   *@description Label for worker type: web worker
+   * @description Label for worker type: web worker
    */
   webWorker: 'Web Worker',
   /**
-   *@description Text for an unspecified service worker response source
+   * @description Text for an unspecified service worker response source
    */
   unknown: 'Unknown',
   /**
-   *@description This label specifies the server endpoints to which the server is reporting errors
+   * @description This label specifies the server endpoints to which the server is reporting errors
    *and warnings through the Report-to API. Following this label will be the URL of the server.
    */
   reportingTo: 'reporting to',
@@ -92,7 +93,7 @@ const booleanToYesNo = (b: boolean): Common.UIString.LocalizedString =>
     b ? i18nString(UIStrings.yes) : i18nString(UIStrings.no);
 
 function linkifyIcon(iconType: string, title: string, eventHandler: () => (void|Promise<void>)): Element {
-  const icon = IconButton.Icon.create(iconType, 'icon-link devtools-link');
+  const icon = createIcon(iconType, 'icon-link devtools-link');
   const button = document.createElement('button');
   UI.Tooltip.Tooltip.install(button, title);
   button.classList.add('devtools-link', 'link-style', 'text-button');
@@ -104,8 +105,8 @@ function linkifyIcon(iconType: string, title: string, eventHandler: () => (void|
   return button;
 }
 
-async function maybeCreateLinkToElementsPanel(opener: Protocol.Page.FrameId|SDK.ResourceTreeModel.ResourceTreeFrame|
-                                              undefined): Promise<Element|null> {
+async function maybeCreateLinkToElementsPanel(
+    opener: Protocol.Page.FrameId|SDK.ResourceTreeModel.ResourceTreeFrame|undefined): Promise<Element|null> {
   let openerFrame: SDK.ResourceTreeModel.ResourceTreeFrame|(SDK.ResourceTreeModel.ResourceTreeFrame | null)|null = null;
   if (opener instanceof SDK.ResourceTreeModel.ResourceTreeFrame) {
     openerFrame = opener;
@@ -135,7 +136,7 @@ async function maybeCreateLinkToElementsPanel(opener: Protocol.Page.FrameId|SDK.
   return linkElement;
 }
 
-export class OpenedWindowDetailsView extends UI.ThrottledWidget.ThrottledWidget {
+export class OpenedWindowDetailsView extends UI.Widget.VBox {
   private targetInfo: Protocol.Target.TargetInfo;
   private isWindowClosed: boolean;
   private readonly reportView: UI.ReportView.ReportView;
@@ -168,10 +169,10 @@ export class OpenedWindowDetailsView extends UI.ThrottledWidget.ThrottledWidget 
     this.securitySection.setFieldVisible(i18nString(UIStrings.openerFrame), false);
     this.hasDOMAccessValue = this.securitySection.appendField(i18nString(UIStrings.accessToOpener));
     UI.Tooltip.Tooltip.install(this.hasDOMAccessValue, i18nString(UIStrings.showsWhetherTheOpenedWindowIs));
-    this.update();
+    this.requestUpdate();
   }
 
-  override async doUpdate(): Promise<void> {
+  override async performUpdate(): Promise<void> {
     this.reportView.setTitle(this.buildTitle());
     this.#urlFieldValue.textContent = this.targetInfo.url;
     this.#urlFieldValue.title = this.targetInfo.url;
@@ -207,7 +208,7 @@ export class OpenedWindowDetailsView extends UI.ThrottledWidget.ThrottledWidget 
   }
 }
 
-export class WorkerDetailsView extends UI.ThrottledWidget.ThrottledWidget {
+export class WorkerDetailsView extends UI.Widget.VBox {
   private readonly targetInfo: Protocol.Target.TargetInfo;
   private readonly reportView: UI.ReportView.ReportView;
   private readonly documentSection: UI.ReportView.Section;
@@ -238,7 +239,7 @@ export class WorkerDetailsView extends UI.ThrottledWidget.ThrottledWidget {
 
     this.isolationSection = this.reportView.appendSection(i18nString(UIStrings.securityIsolation));
     this.coepPolicy = this.isolationSection.appendField(i18nString(UIStrings.crossoriginEmbedderPolicy));
-    this.update();
+    this.requestUpdate();
   }
 
   workerTypeToString(type: string): Common.UIString.LocalizedString {
@@ -294,7 +295,7 @@ export class WorkerDetailsView extends UI.ThrottledWidget.ThrottledWidget {
     }
   }
 
-  override async doUpdate(): Promise<void> {
+  override async performUpdate(): Promise<void> {
     await this.updateCoopCoepStatus();
   }
 }

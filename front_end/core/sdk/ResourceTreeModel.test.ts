@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,7 +47,7 @@ describeWithMockConnection('ResourceTreeModel', () => {
     const target = createTarget();
     const resourceTreeModel = target.model(SDK.ResourceTreeModel.ResourceTreeModel);
     assert.isEmpty(resourceTreeModel!.frames());
-    setMockConnectionResponseHandler('Storage.getStorageKeyForFrame', () => ({storageKey: testKey}));
+    setMockConnectionResponseHandler('Storage.getStorageKey', () => ({storageKey: testKey}));
     navigate(getMainFrame(target));
     const frames = resourceTreeModel!.frames();
     assert.lengthOf(frames, 1);
@@ -69,7 +69,7 @@ describeWithMockConnection('ResourceTreeModel', () => {
         resolve();
       });
     });
-    setMockConnectionResponseHandler('Storage.getStorageKeyForFrame', () => ({storageKey: testKey}));
+    setMockConnectionResponseHandler('Storage.getStorageKey', () => ({storageKey: testKey}));
     navigate(getMainFrame(target));
     await storageKeyAddedPromise;
     assert.strictEqual(resourceTreeModel?.frames().length, 1);
@@ -104,8 +104,8 @@ describeWithMockConnection('ResourceTreeModel', () => {
     const reloadSubframePage = sinon.spy(getResourceTreeModel(subframeTarget), 'reloadPage');
     SDK.ResourceTreeModel.ResourceTreeModel.reloadAllPages();
 
-    assert.isTrue(reloadMainFramePage.calledOnce);
-    assert.isTrue(reloadSubframePage.notCalled);
+    sinon.assert.calledOnce(reloadMainFramePage);
+    sinon.assert.notCalled(reloadSubframePage);
   });
 
   it('tags reloads with the targets loaderId', async () => {
@@ -115,7 +115,7 @@ describeWithMockConnection('ResourceTreeModel', () => {
     const reload = sinon.spy(target.pageAgent(), 'invoke_reload');
     assert.isNotNull(resourceTreeModel.mainFrame);
     resourceTreeModel.reloadPage();
-    assert.isTrue(reload.calledOnce);
+    sinon.assert.calledOnce(reload);
     assert.deepEqual(
         reload.args[0], [{ignoreCache: undefined, loaderId: LOADER_ID, scriptToEvaluateOnLoad: undefined}]);
   });
@@ -129,6 +129,18 @@ describeWithMockConnection('ResourceTreeModel', () => {
     navigate(getMainFrame(subframeTarget), {parentId: 'parentId' as Protocol.Page.FrameId});
     assert.isTrue(getResourceTreeModel(mainFrameTarget).mainFrame!.isOutermostFrame());
     assert.isFalse(getResourceTreeModel(subframeTarget).mainFrame!.isOutermostFrame());
+  });
+
+  it('identifies primary frame', async () => {
+    const tabTarget = createTarget({type: SDK.Target.Type.TAB});
+    const mainFrameTarget = createTarget({parentTarget: tabTarget});
+    const subframeTarget = createTarget({parentTarget: mainFrameTarget});
+
+    navigate(getMainFrame(mainFrameTarget));
+    navigate(getMainFrame(subframeTarget), {parentId: MAIN_FRAME_ID, id: 'child' as Protocol.Page.FrameId});
+
+    assert.isTrue(getResourceTreeModel(mainFrameTarget).mainFrame!.isPrimaryFrame());
+    assert.isFalse(getResourceTreeModel(subframeTarget).mainFrame!.isPrimaryFrame());
   });
 
   it('emits PrimaryPageChanged event upon prerender activation', async () => {
@@ -210,9 +222,9 @@ describeWithMockConnection('ResourceTreeModel', () => {
     navigate(getMainFrame(target), {}, Protocol.Page.NavigationType.BackForwardCacheRestore);
 
     await cachedResourcesLoaded;
-    assert.isTrue(removedFromFrameManagerSpy.calledOnce);
-    assert.isTrue(addedToFrameManagerSpy.calledOnce);
-    assert.isTrue(processPendingEventsSpy.calledTwice);
+    sinon.assert.calledOnce(removedFromFrameManagerSpy);
+    sinon.assert.calledOnce(addedToFrameManagerSpy);
+    sinon.assert.calledTwice(processPendingEventsSpy);
 
     const frameAfterNav = resourceTreeModel.frames()[0];
     assert.strictEqual(

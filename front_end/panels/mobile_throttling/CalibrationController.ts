@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@ import * as SDK from '../../core/sdk/sdk.js';
 
 const UIStrings = {
   /**
-   *@description Text to display to user while a calibration process is running.
+   * @description Text to display to user while a calibration process is running.
    */
   runningCalibration: 'Running CPU calibration, please do not leave this tab or close DevTools.',
 } as const;
@@ -23,7 +23,7 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
  *   - 1 to check if device is powerful enough
  *   - up to 9 for each preset (uses bisect, so likely to be fewer)
  *
- * Therefore, the maxium duration for the calibration is 5 seconds.
+ * Therefore, the maximum duration for the calibration is 5 seconds.
  */
 const benchmarkDurationMs = 250;
 
@@ -46,7 +46,7 @@ function truncate(n: number): number {
  *
  * Utilizes a benchmark from Lighthouse (LH BenchmarkIndex) to assess performance. This CPU benchmark serves as
  * a simple alias for device performance - but since results aren't exactly linear with clock speed a "bisect"
- * is run to find the ideal DevTools CPU throttling rate to recieve the same results on the benchmark.
+ * is run to find the ideal DevTools CPU throttling rate to receive the same results on the benchmark.
  *
  * @see go/cpq:adaptive-throttling
  * @see https://github.com/connorjclark/devtools-throttling-benchmarks/blob/main/calibrate.js
@@ -79,6 +79,8 @@ export class CalibrationController {
     this.#emulationModel = emulationModel;
     this.#originalUrl = primaryPageTarget.inspectedURL();
 
+    // The following functions runs in the inspected page so we don't use lit for rendering.
+    /* eslint-disable @devtools/no-imperative-dom-api */
     function setupTestPage(text: string): void {
       const textEl = document.createElement('span');
       textEl.textContent = text;
@@ -104,6 +106,7 @@ export class CalibrationController {
       moonEl.textContent = '🌑';
       moonEl.style.cssText = 'font-size: 5em';
     }
+    /* eslint-enable @devtools/no-imperative-dom-api */
 
     await primaryPageTarget.pageAgent().invoke_navigate({url: 'about:blank'});
 
@@ -298,7 +301,6 @@ export class CalibrationController {
  *  - 800+ is a high-end Android phone, Galaxy S8, low-end Chromebook, etc
  *  - 125+ is a mid-tier Android phone, Moto G4, etc
  *  - <125 is a budget Android phone, Alcatel Ideal, Galaxy J2, etc
- * @return {number}
  */
 function computeBenchmarkIndex(duration = 1000): number {
   const halfTime = duration / 2;

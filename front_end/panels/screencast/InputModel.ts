@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@ const BUTTONS = [
   Protocol.Input.MouseButton.Back,
   Protocol.Input.MouseButton.Forward,
 ];
-const MOUSE_EVENT_TYPES: {[key: string]: Protocol.Input.DispatchMouseEventRequestType} = {
+const MOUSE_EVENT_TYPES: Record<string, Protocol.Input.DispatchMouseEventRequestType> = {
   mousedown: Protocol.Input.DispatchMouseEventRequestType.MousePressed,
   mouseup: Protocol.Input.DispatchMouseEventRequestType.MouseReleased,
   mousemove: Protocol.Input.DispatchMouseEventRequestType.MouseMoved,

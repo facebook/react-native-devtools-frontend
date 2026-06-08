@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@ export class InspectedPagePlaceholder extends Common.ObjectWrapper.eventMixin<Ev
     UI.Widget.Widget) {
   private updateId?: number;
   constructor() {
-    super(true);
+    super({useShadowDom: true});
     this.registerRequiredCSS(inspectedPagePlaceholderStyles);
     UI.ZoomManager.ZoomManager.instance().addEventListener(UI.ZoomManager.Events.ZOOM_CHANGED, this.onResize, this);
     this.restoreMinimumSize();

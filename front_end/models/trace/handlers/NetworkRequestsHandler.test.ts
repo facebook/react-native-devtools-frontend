@@ -1,7 +1,8 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {getAllNetworkRequestsByHost} from '../../../testing/TraceHelpers.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
 import * as Trace from '../trace.js';
 
@@ -25,11 +26,9 @@ describe('NetworkRequestsHandler', function() {
       await Trace.Handlers.ModelHandlers.Meta.finalize();
       await Trace.Handlers.ModelHandlers.NetworkRequests.finalize();
 
-      const requestsByOrigin = Trace.Handlers.ModelHandlers.NetworkRequests.data().byOrigin;
-      assert.strictEqual(requestsByOrigin.size, 3, 'Too many origins detected');
-
-      const topLevelRequests = requestsByOrigin.get('localhost:8080') || {all: []};
-      assert.lengthOf(topLevelRequests.all, 4, 'Incorrect number of requests');
+      const topLevelRequests =
+          getAllNetworkRequestsByHost(Trace.Handlers.ModelHandlers.NetworkRequests.data().byTime, 'localhost:8080');
+      assert.lengthOf(topLevelRequests, 4, 'Incorrect number of requests');
 
       // Page Request.
       const pageRequestExpected: DataArgsProcessedDataMap = new Map([
@@ -43,7 +42,7 @@ describe('NetworkRequestsHandler', function() {
         ['download', Trace.Types.Timing.Micro(4827)],
         ['networkDuration', Trace.Types.Timing.Micro(38503)],
       ]);
-      assertDataArgsProcessedDataStats(topLevelRequests.all, 'http://localhost:8080/', pageRequestExpected);
+      assertDataArgsProcessedDataStats(topLevelRequests, 'http://localhost:8080/', pageRequestExpected);
 
       // CSS Request (cached event (with resourceMarkAsCached event)),
       const cssRequestExpected: DataArgsProcessedDataMap = new Map([
@@ -62,8 +61,8 @@ describe('NetworkRequestsHandler', function() {
         ['renderBlocking', 'blocking'],
       ]);
 
-      assertDataArgsProcessedDataStats(topLevelRequests.all, 'http://localhost:8080/styles.css', cssRequestExpected);
-      assertDataArgsStats(topLevelRequests.all, 'http://localhost:8080/styles.css', cssRequestBlockingStatusExpected);
+      assertDataArgsProcessedDataStats(topLevelRequests, 'http://localhost:8080/styles.css', cssRequestExpected);
+      assertDataArgsStats(topLevelRequests, 'http://localhost:8080/styles.css', cssRequestBlockingStatusExpected);
 
       // Blocking JS Request.
       const blockingJSRequestExpected: DataArgsProcessedDataMap = new Map([
@@ -83,8 +82,8 @@ describe('NetworkRequestsHandler', function() {
       ]);
 
       assertDataArgsProcessedDataStats(
-          topLevelRequests.all, 'http://localhost:8080/blocking.js', blockingJSRequestExpected);
-      assertDataArgsStats(topLevelRequests.all, 'http://localhost:8080/blocking.js', blockingJSBlockingStatusExpected);
+          topLevelRequests, 'http://localhost:8080/blocking.js', blockingJSRequestExpected);
+      assertDataArgsStats(topLevelRequests, 'http://localhost:8080/blocking.js', blockingJSBlockingStatusExpected);
 
       // Module JS Request (cached).
       const moduleRequestExpected: DataArgsProcessedDataMap = new Map([
@@ -103,12 +102,13 @@ describe('NetworkRequestsHandler', function() {
         ['renderBlocking', 'non_blocking'],
       ]);
 
-      assertDataArgsProcessedDataStats(topLevelRequests.all, 'http://localhost:8080/module.js', moduleRequestExpected);
-      assertDataArgsStats(topLevelRequests.all, 'http://localhost:8080/module.js', moduleRequestBlockingStatusExpected);
+      assertDataArgsProcessedDataStats(topLevelRequests, 'http://localhost:8080/module.js', moduleRequestExpected);
+      assertDataArgsStats(topLevelRequests, 'http://localhost:8080/module.js', moduleRequestBlockingStatusExpected);
 
       // Google Fonts CSS Request (cached).
-      const fontCSSRequests = requestsByOrigin.get('fonts.googleapis.com') || {all: []};
-      assert.lengthOf(fontCSSRequests.all, 1, 'Incorrect number of requests');
+      const fontCSSRequests = getAllNetworkRequestsByHost(
+          Trace.Handlers.ModelHandlers.NetworkRequests.data().byTime, 'fonts.googleapis.com');
+      assert.lengthOf(fontCSSRequests, 1, 'Incorrect number of requests');
 
       const fontCSSRequestExpected: DataArgsProcessedDataMap = new Map([
         ['queueing', Trace.Types.Timing.Micro(0)],
@@ -127,15 +127,15 @@ describe('NetworkRequestsHandler', function() {
       ]);
 
       assertDataArgsProcessedDataStats(
-          fontCSSRequests.all, 'https://fonts.googleapis.com/css2?family=Orelega+One&display=swap',
-          fontCSSRequestExpected);
+          fontCSSRequests, 'https://fonts.googleapis.com/css2?family=Orelega+One&display=swap', fontCSSRequestExpected);
       assertDataArgsStats(
-          fontCSSRequests.all, 'https://fonts.googleapis.com/css2?family=Orelega+One&display=swap',
+          fontCSSRequests, 'https://fonts.googleapis.com/css2?family=Orelega+One&display=swap',
           fontCSSBlockingStatusExpected);
 
       // Google Fonts Data Request (cached).
-      const fontDataRequests = requestsByOrigin.get('fonts.gstatic.com') || {all: []};
-      assert.lengthOf(fontDataRequests.all, 1, 'Incorrect number of requests');
+      const fontDataRequests =
+          getAllNetworkRequestsByHost(Trace.Handlers.ModelHandlers.NetworkRequests.data().byTime, 'fonts.gstatic.com');
+      assert.lengthOf(fontDataRequests, 1, 'Incorrect number of requests');
 
       const fontDataRequestExpected: DataArgsProcessedDataMap = new Map([
         ['queueing', Trace.Types.Timing.Micro(0)],
@@ -154,11 +154,11 @@ describe('NetworkRequestsHandler', function() {
       ]);
 
       assertDataArgsProcessedDataStats(
-          fontDataRequests.all, 'https://fonts.gstatic.com/s/orelegaone/v1/3qTpojOggD2XtAdFb-QXZFt93kY.woff2',
+          fontDataRequests, 'https://fonts.gstatic.com/s/orelegaone/v1/3qTpojOggD2XtAdFb-QXZFt93kY.woff2',
           fontDataRequestExpected);
 
       assertDataArgsStats(
-          fontDataRequests.all, 'https://fonts.gstatic.com/s/orelegaone/v1/3qTpojOggD2XtAdFb-QXZFt93kY.woff2',
+          fontDataRequests, 'https://fonts.gstatic.com/s/orelegaone/v1/3qTpojOggD2XtAdFb-QXZFt93kY.woff2',
           fontDataRequestBlockingStatusExpected);
     });
 
@@ -176,6 +176,31 @@ describe('NetworkRequestsHandler', function() {
       assert.lengthOf(webSocketEvents[0].events, 9, 'Incorrect number of events');
     });
   });
+
+  it('creates a map of URLs to request IDs in time ASC order and deals with multiple requests for the same URL',
+     async function() {
+       const traceEvents = await TraceLoader.rawEvents(this, 'web-dev-screenshot-source-ids.json.gz');
+       for (const event of traceEvents) {
+         Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
+         Trace.Handlers.ModelHandlers.NetworkRequests.handleEvent(event);
+       }
+       await Trace.Handlers.ModelHandlers.Meta.finalize();
+       await Trace.Handlers.ModelHandlers.NetworkRequests.finalize();
+
+       const {requestIdsByURL, byId} = Trace.Handlers.ModelHandlers.NetworkRequests.data();
+
+       const url =
+           'https://www.gstatic.com/devrel-devsite/prod/v0113b933d5c9ba4165415ef34b487d624de9fe7d51074fd538a31c5fc879d909/js/devsite_app_module.js';
+
+       const ids = requestIdsByURL.get(url) ?? [];
+       assert.deepEqual(requestIdsByURL.get(url), ['1753622.177', '1753622.302', '1753839.162', '1753622.309']);
+
+       const requests = ids.map(i => byId.get(i)).filter(x => x !== undefined);
+       // Ensure the request IDs are in time ASC order.
+       const timestamps = requests.map(r => r.ts);
+       const sortedTimestamps = timestamps.toSorted((a, b) => a - b);
+       assert.deepEqual(timestamps, sortedTimestamps);
+     });
 
   describe('parses the change priority request', () => {
     beforeEach(() => {
@@ -293,7 +318,7 @@ describe('NetworkRequestsHandler', function() {
       await Trace.Handlers.ModelHandlers.Meta.finalize();
       await Trace.Handlers.ModelHandlers.NetworkRequests.finalize();
 
-      const {eventToInitiator, byTime} = Trace.Handlers.ModelHandlers.NetworkRequests.data();
+      const {incompleteInitiator: eventToInitiator, byTime} = Trace.Handlers.ModelHandlers.NetworkRequests.data();
 
       // Find the network request to test, it is initiated by `youtube.com`.
       const event = byTime.find(event => event.ts === 1491680762420);
@@ -321,7 +346,7 @@ describe('NetworkRequestsHandler', function() {
       await Trace.Handlers.ModelHandlers.Meta.finalize();
       await Trace.Handlers.ModelHandlers.NetworkRequests.finalize();
 
-      const {eventToInitiator, byTime} = Trace.Handlers.ModelHandlers.NetworkRequests.data();
+      const {incompleteInitiator: eventToInitiator, byTime} = Trace.Handlers.ModelHandlers.NetworkRequests.data();
 
       // Find the network request to test, it is initiated by `                `.
       const event = byTime.find(event => event.ts === 1491681999060);
@@ -448,15 +473,53 @@ describe('NetworkRequestsHandler', function() {
       });
     });
   });
+
+  describe('preconnect links', () => {
+    it('Correctly captures preconnect links', async function() {
+      const traceEvents = await TraceLoader.rawEvents(this, 'preconnect-advice.json.gz');
+      for (const event of traceEvents) {
+        Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
+        Trace.Handlers.ModelHandlers.NetworkRequests.handleEvent(event);
+      }
+      await Trace.Handlers.ModelHandlers.Meta.finalize();
+      await Trace.Handlers.ModelHandlers.NetworkRequests.finalize();
+
+      const linkPreconnectEvents = Trace.Handlers.ModelHandlers.NetworkRequests.data().linkPreconnectEvents;
+      const actualLinks = linkPreconnectEvents.map(linkPreconnectEvent => linkPreconnectEvent.args.data.url);
+
+      const expectedLinks = [
+        'https://www.youtube.com/',
+        'https://www.google.com/',
+        'http://example.com/',
+      ];
+
+      assert.deepEqual(actualLinks, expectedLinks);
+    });
+  });
+
+  it('updates render-blocking request statuses if they were updated with a preloadRenderBlockingStatusChange event',
+     async function() {
+       const traceEvents = await TraceLoader.rawEvents(this, 'render-blocking-preload.json.gz');
+       for (const event of traceEvents) {
+         Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
+         Trace.Handlers.ModelHandlers.NetworkRequests.handleEvent(event);
+       }
+       await Trace.Handlers.ModelHandlers.Meta.finalize();
+       await Trace.Handlers.ModelHandlers.NetworkRequests.finalize();
+       const url = 'https://andydavies.github.io/agent-tests/render-blocking/css/styles.css';
+       const data = Trace.Handlers.ModelHandlers.NetworkRequests.data();
+
+       const request = data.byTime.find(e => e.args.data.url === url);
+       assert.isOk(request);
+
+       assert.strictEqual(request.args.data.renderBlocking, 'blocking');
+     });
 });
 
 function assertDataArgsStats<D extends keyof DataArgs>(
     requests: Trace.Types.Events.SyntheticNetworkRequest[], url: string, stats: Map<D, DataArgs[D]>): void {
   const request = requests.find(request => request.args.data.url === url);
-  if (!request) {
-    assert.fail(`Unable to find request for URL ${url}`);
-    return;
-  }
+  assert.exists(request, `Unable to find request for URL ${url}`);
 
   for (const [name, value] of stats.entries()) {
     if (typeof request.args.data[name] === 'number') {
@@ -473,10 +536,7 @@ function assertDataArgsProcessedDataStats<D extends keyof DataArgsProcessedData>
     requests: Trace.Types.Events.SyntheticNetworkRequest[], url: string,
     stats: Map<D, DataArgsProcessedData[D]>): void {
   const request = requests.find(request => request.args.data.url === url);
-  if (!request) {
-    assert.fail(`Unable to find request for URL ${url}`);
-    return;
-  }
+  assert.exists(request, `Unable to find request for URL ${url}`);
 
   for (const [name, value] of stats.entries()) {
     if (typeof request.args.data.syntheticData[name] === 'number') {

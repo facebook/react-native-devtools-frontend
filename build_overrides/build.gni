@@ -1,10 +1,16 @@
-# Copyright 2016 The Chromium project authors. All rights reserved.
+# Copyright 2016 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 # Variable that can be used to support multiple build scenarios, like having
 # Chromium specific targets in a client project's GN file etc.
 build_with_chromium = false
+
+# Turns on unsafe buffer warning suppressions during C/C++ builds, see
+# Chromium docs: `docs/unsafe_buffers.md`.
+# We don't create the actual file, as we don't need it, but the
+# variable still needs to be defined for the build infrastructure.
+clang_unsafe_buffers_paths = "//unsafe_buffers_paths.txt"
 
 # Skip assertions about 4GiB file size limit.
 ignore_elf32_limitations = true

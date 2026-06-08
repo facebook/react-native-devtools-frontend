@@ -1,8 +1,8 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Common from '../../core/common/common.js';
+import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
 import type * as TextUtils from '../text_utils/text_utils.js';
@@ -45,14 +45,28 @@ export enum PlatformFileSystemType {
   WORKSPACE_PROJECT = 'workspace-project',
 }
 
-export class PlatformFileSystem {
-  private readonly pathInternal: Platform.DevToolsPath.UrlString;
+export const enum Events {
+  FILE_SYSTEM_ERROR = 'file-system-error',
+}
+
+interface EventTypes {
+  [Events.FILE_SYSTEM_ERROR]: string;
+}
+
+export class PlatformFileSystem extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
+  readonly #path: Platform.DevToolsPath.UrlString;
   #type: PlatformFileSystemType;
-  #automatic: boolean;
+  /**
+   * True if the filesystem was automatically discovered (see
+   * https://goo.gle/devtools-json-design).
+   */
+  readonly automatic: boolean;
+
   constructor(path: Platform.DevToolsPath.UrlString, type: PlatformFileSystemType, automatic: boolean) {
-    this.pathInternal = path;
+    super();
+    this.#path = path;
     this.#type = type;
-    this.#automatic = automatic;
+    this.automatic = automatic;
   }
 
   getMetadata(_path: Platform.DevToolsPath.EncodedPathString): Promise<{modificationTime: Date, size: number}|null> {
@@ -68,7 +82,7 @@ export class PlatformFileSystem {
   }
 
   path(): Platform.DevToolsPath.UrlString {
-    return this.pathInternal;
+    return this.#path;
   }
 
   embedderPath(): Platform.DevToolsPath.RawPathString {
@@ -77,14 +91,6 @@ export class PlatformFileSystem {
 
   type(): PlatformFileSystemType {
     return this.#type;
-  }
-
-  /**
-   * True if the filesystem was automatically discovered (see
-   * https://goo.gle/devtools-json-design).
-   */
-  automatic(): boolean {
-    return this.#automatic;
   }
 
   async createFile(_path: Platform.DevToolsPath.EncodedPathString, _name: Platform.DevToolsPath.RawPathString|null):
@@ -142,7 +148,7 @@ export class PlatformFileSystem {
 
   indexContent(progress: Common.Progress.Progress): void {
     queueMicrotask(() => {
-      progress.done();
+      progress.done = true;
     });
   }
 

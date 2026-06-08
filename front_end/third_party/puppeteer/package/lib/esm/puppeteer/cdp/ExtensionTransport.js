@@ -50,7 +50,10 @@ export class ExtensionTransport {
         });
     };
     #dispatchResponse(message) {
-        this.onmessage?.(JSON.stringify(message));
+        // Dispatch in a new task like other transports.
+        setTimeout(() => {
+            this.onmessage?.(JSON.stringify(message));
+        }, 0);
     }
     send(message) {
         const parsed = JSON.parse(message);
@@ -106,6 +109,7 @@ export class ExtensionTransport {
                 if (parsed.sessionId === 'tabTargetSessionId') {
                     this.#dispatchResponse({
                         method: 'Target.attachedToTarget',
+                        sessionId: 'tabTargetSessionId',
                         params: {
                             targetInfo: pageTargetInfo,
                             sessionId: 'pageTargetSessionId',
@@ -141,9 +145,7 @@ export class ExtensionTransport {
             delete parsed.sessionId;
         }
         chrome.debugger
-            .sendCommand(
-        // @ts-expect-error sessionId is not in stable yet.
-        { tabId: this.#tabId, sessionId: parsed.sessionId }, parsed.method, parsed.params)
+            .sendCommand({ tabId: this.#tabId, sessionId: parsed.sessionId }, parsed.method, parsed.params)
             .then(response => {
             this.#dispatchResponse({
                 id: parsed.id,

@@ -1,13 +1,14 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import {dispatchClickEvent, renderElementIntoDOM} from '../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../testing/LocaleHelpers.js';
 
 import * as UI from './legacy.js';
 
-describeWithLocale('ListWidget', () => {
+describe('ListWidget', () => {
+  setupLocaleHooks();
   describe('Editor', () => {
     it('Cancel button triggers on mouse click event', () => {
       const editor = new UI.ListWidget.Editor<string>();
@@ -74,5 +75,111 @@ describeWithLocale('ListWidget', () => {
     list.show(renderElementIntoDOM(document.createElement('main')));
     list.addNewItem(0, '');
     assert.isTrue(delegate.committed);
+  });
+
+  class MockDelegate implements UI.ListWidget.Delegate<string> {
+    updateItem(content: Element, item: string): void {
+      content.textContent = item;
+    }
+
+    renderItem(item: string): Element {
+      const element = document.createElement('div');
+      element.textContent = item;
+      return element;
+    }
+
+    removeItemRequested(): void {
+    }
+
+    beginEdit(): UI.ListWidget.Editor<string> {
+      return new UI.ListWidget.Editor<string>();
+    }
+
+    commitEdit(): void {
+    }
+  }
+
+  describe('updates', () => {
+    it('an item at the beginning', () => {
+      const listWidget = new UI.ListWidget.ListWidget(new MockDelegate());
+
+      listWidget.appendItem('a', true);
+      listWidget.appendItem('b', true);
+      listWidget.appendItem('c', true);
+
+      listWidget.updateItem(0, 'd', true);
+
+      const items = Array.from(listWidget.element.shadowRoot!.querySelectorAll('.list-item')).map(i => i.textContent);
+      assert.deepEqual(items, ['d', 'b', 'c']);
+    });
+
+    it('an item in the middle', () => {
+      const listWidget = new UI.ListWidget.ListWidget(new MockDelegate());
+
+      listWidget.appendItem('a', true);
+      listWidget.appendItem('b', true);
+      listWidget.appendItem('c', true);
+
+      listWidget.updateItem(1, 'd', true);
+
+      const items = Array.from(listWidget.element.shadowRoot!.querySelectorAll('.list-item')).map(i => i.textContent);
+      assert.deepEqual(items, ['a', 'd', 'c']);
+    });
+
+    it('an item at the end', () => {
+      const listWidget = new UI.ListWidget.ListWidget(new MockDelegate());
+
+      listWidget.appendItem('a', true);
+      listWidget.appendItem('b', true);
+      listWidget.appendItem('c', true);
+
+      listWidget.updateItem(2, 'd', true);
+
+      const items = Array.from(listWidget.element.shadowRoot!.querySelectorAll('.list-item')).map(i => i.textContent);
+      assert.deepEqual(items, ['a', 'b', 'd']);
+    });
+
+    it('an item with an index < 0', () => {
+      const listWidget = new UI.ListWidget.ListWidget(new MockDelegate());
+
+      listWidget.appendItem('a', true);
+      listWidget.appendItem('b', true);
+      listWidget.appendItem('c', true);
+
+      listWidget.updateItem(-1, 'd', true);
+
+      const items = Array.from(listWidget.element.shadowRoot!.querySelectorAll('.list-item')).map(i => i.textContent);
+      assert.deepEqual(items, ['a', 'b', 'c', 'd']);
+    });
+
+    it('an item with an index > list length', () => {
+      const listWidget = new UI.ListWidget.ListWidget(new MockDelegate());
+
+      listWidget.appendItem('a', true);
+      listWidget.appendItem('b', true);
+      listWidget.appendItem('c', true);
+
+      listWidget.updateItem(10, 'd', true);
+
+      const items = Array.from(listWidget.element.shadowRoot!.querySelectorAll('.list-item')).map(i => i.textContent);
+      assert.deepEqual(items, ['a', 'b', 'c', 'd']);
+
+      listWidget.element.remove();
+    });
+
+    it('reorders items', () => {
+      const listWidget = new UI.ListWidget.ListWidget(new MockDelegate());
+
+      listWidget.appendItem('a', true);
+      listWidget.appendItem('b', true);
+      listWidget.appendItem('c', true);
+
+      listWidget.updateItem(2, 'a', true);
+      listWidget.updateItem(1, 'c', true);
+      listWidget.updateItem(0, 'b', true);
+
+      const items = Array.from(listWidget.element.shadowRoot!.querySelectorAll('.list-item')).map(i => i.textContent);
+      assert.deepEqual(items, ['b', 'c', 'a']);
+    });
   });
 });

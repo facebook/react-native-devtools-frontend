@@ -1,20 +1,19 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view, @devtools/enforce-custom-element-definitions-location */
 
 import './CodeBlock.js';
 import './MarkdownImage.js';
-import './MarkdownLink.js';
+import '../../kit/kit.js';
 
 import type * as Marked from '../../../third_party/marked/marked.js';
 import * as Lit from '../../lit/lit.js';
 import * as VisualLogging from '../../visual_logging/visual_logging.js';
 
-import markdownViewStylesRaw from './markdownView.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const markdownViewStyles = new CSSStyleSheet();
-markdownViewStyles.replaceSync(markdownViewStylesRaw.cssText);
+import type * as Codeblock from './CodeBlock.js';
+import {getMarkdownLink} from './MarkdownLinksMap.js';
+import markdownViewStyles from './markdownView.css.js';
 
 const html = Lit.html;
 const render = Lit.render;
@@ -25,6 +24,10 @@ export interface MarkdownViewData {
   animationEnabled?: boolean;
 }
 
+export type CodeTokenWithCitation = Marked.Marked.Tokens.Generic&{
+  citations: Codeblock.Citation[],
+};
+
 export class MarkdownView extends HTMLElement {
   readonly #shadow = this.attachShadow({mode: 'open'});
 
@@ -32,10 +35,6 @@ export class MarkdownView extends HTMLElement {
   #renderer = new MarkdownLitRenderer();
   #animationEnabled = false;
   #isAnimating = false;
-
-  connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [markdownViewStyles];
-  }
 
   set data(data: MarkdownViewData) {
     this.#tokenData = data.tokens;
@@ -115,6 +114,7 @@ export class MarkdownView extends HTMLElement {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
     render(html`
+      <style>${markdownViewStyles}</style>
       <div class='message'>
         ${this.#tokenData.map(token => this.#renderer.renderToken(token))}
       </div>
@@ -160,7 +160,7 @@ export class MarkdownLitRenderer {
     return Lit.Directives.classMap(classInfo);
   }
 
-  renderChildTokens(token: Marked.Marked.Token): Lit.TemplateResult[] {
+  renderChildTokens(token: Marked.Marked.Token): Lit.LitTemplate[] {
     if ('tokens' in token && token.tokens) {
       return token.tokens.map(token => this.renderToken(token));
     }
@@ -223,7 +223,7 @@ export class MarkdownLitRenderer {
     // clang-format on
   }
 
-  templateForToken(token: Marked.Marked.MarkedToken): Lit.TemplateResult|null {
+  templateForToken(token: Marked.Marked.MarkedToken): Lit.LitTemplate|null {
     switch (token.type) {
       case 'paragraph':
         return html`<p class=${this.customClassMapForToken('paragraph')}>${this.renderChildTokens(token)}</p>`;
@@ -240,14 +240,12 @@ export class MarkdownLitRenderer {
       case 'code':
         return this.renderCodeBlock(token);
       case 'space':
-        return html``;
+        return Lit.nothing;
       case 'link':
-        return html`<devtools-markdown-link
+        return html`<devtools-link
         class=${this.customClassMapForToken('link')}
-        .data=${{
-          key: token.href, title: token.text,
-        }
-        }></devtools-markdown-link>`;
+        href=${getMarkdownLink(token.href)}
+        >${token.text}</devtools-link>`;
       case 'image':
         return html`<devtools-markdown-image
         class=${this.customClassMapForToken('image')}
@@ -266,7 +264,7 @@ export class MarkdownLitRenderer {
     }
   }
 
-  renderToken(token: Marked.Marked.Token): Lit.TemplateResult {
+  renderToken(token: Marked.Marked.Token): Lit.LitTemplate {
     const template = this.templateForToken(token as Marked.Marked.MarkedToken);
     if (template === null) {
       throw new Error(`Markdown token type '${token.type}' not supported.`);
@@ -287,7 +285,7 @@ export class MarkdownInsightRenderer extends MarkdownLitRenderer {
     this.addCustomClasses({heading: 'insight'});
   }
 
-  override renderToken(token: Marked.Marked.Token): Lit.TemplateResult {
+  override renderToken(token: Marked.Marked.Token): Lit.LitTemplate {
     const template = this.templateForToken(token as Marked.Marked.MarkedToken);
     if (template === null) {
       return html`${token.raw}`;
@@ -312,7 +310,7 @@ export class MarkdownInsightRenderer extends MarkdownLitRenderer {
       return token.lang;
     }
 
-    if (/^(\.|#)?[\w:\[\]="'-\.]* ?{/m.test(token.text) || /^@import/.test(token.text)) {
+    if (/^(\.|#)?[\w:\[\]="'-\.]+ ?{/m.test(token.text) || /^@import/.test(token.text)) {
       return 'css';
     }
     if (/^(var|const|let|function|async|import)\s/.test(token.text)) {
@@ -322,7 +320,7 @@ export class MarkdownInsightRenderer extends MarkdownLitRenderer {
     return '';
   }
 
-  override templateForToken(token: Marked.Marked.Token): Lit.TemplateResult|null {
+  override templateForToken(token: Marked.Marked.Token): Lit.LitTemplate|null {
     switch (token.type) {
       case 'heading':
         return this.renderHeading(token as Marked.Marked.Tokens.Heading);
@@ -340,6 +338,7 @@ export class MarkdownInsightRenderer extends MarkdownLitRenderer {
           class=${this.customClassMapForToken('code')}
           .code=${this.unescape(token.text)}
           .codeLang=${this.detectCodeLanguage(token as Marked.Marked.Tokens.Code)}
+          .citations=${(token as CodeTokenWithCitation).citations || []}
           .displayNotice=${true}>
         </devtools-code-block>`;
       case 'citation':

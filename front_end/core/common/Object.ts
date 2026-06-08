@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -105,41 +105,57 @@ export class ObjectWrapper<Events> implements EventTarget<Events> {
     // new listeners.
     for (const listener of [...listeners]) {
       if (!listener.disposed) {
-        listener.listener.call(listener.thisObject, event);
+        try {
+          listener.listener.call(listener.thisObject, event);
+        } catch (err) {
+          console.error(`Event listener for ${String(eventType)} throw an error:`, err);
+        }
       }
     }
   }
 }
 
+export type EventMixinBase = {
+  dispatchDOMEvent ? (event: Event) : void,
+}&object;
+
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-export function eventMixin<Events, Base extends Platform.Constructor.Constructor<object>>(base: Base) {
-  console.assert(base !== (HTMLElement as Platform.Constructor.Constructor<object>));
+export function eventMixin<Events, Base extends Platform.Constructor.Constructor<EventMixinBase>>(base: Base) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  console.assert(base as any !== HTMLElement);
   return class EventHandling extends base implements EventTarget<Events> {
-    #events = new ObjectWrapper<Events>();
+    // Note that the weird name is due to TSC disallowing private/protected fields in
+    // anonmous exported classes. We use a `__` prefix to prevent clashes with `base`.
+    // eslint-disable-next-line @devtools/no-underscored-properties, @typescript-eslint/naming-convention
+    __events = new ObjectWrapper<Events>();
 
     addEventListener<T extends keyof Events>(
         eventType: T, listener: (arg0: EventTargetEvent<Events[T]>) => void,
         thisObject?: Object): EventDescriptor<Events, T> {
-      return this.#events.addEventListener(eventType, listener, thisObject);
+      return this.__events.addEventListener(eventType, listener, thisObject);
     }
 
     once<T extends keyof Events>(eventType: T): Promise<Events[T]> {
-      return this.#events.once(eventType);
+      return this.__events.once(eventType);
     }
 
     removeEventListener<T extends keyof Events>(
         eventType: T, listener: (arg0: EventTargetEvent<Events[T]>) => void, thisObject?: Object): void {
-      this.#events.removeEventListener(eventType, listener, thisObject);
+      this.__events.removeEventListener(eventType, listener, thisObject);
     }
 
     hasEventListeners(eventType: keyof Events): boolean {
-      return this.#events.hasEventListeners(eventType);
+      return this.__events.hasEventListeners(eventType);
     }
 
     dispatchEventToListeners<T extends keyof Events>(
         eventType: Platform.TypeScriptUtilities.NoUnion<T>,
         ...eventData: EventPayloadToRestParameters<Events, T>): void {
-      this.#events.dispatchEventToListeners(eventType, ...eventData);
+      this.__events.dispatchEventToListeners(eventType, ...eventData);
+
+      if (typeof this.dispatchDOMEvent === 'function') {
+        this.dispatchDOMEvent(new CustomEvent(eventType as string, {detail: eventData[0]}));
+      }
     }
   };
 }

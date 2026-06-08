@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,12 +8,20 @@ copy_to_gen("elements") {
   sources = [
     "accessibility-iframe-page.html",
     "accessibility-simple-page.html",
+    "adopted-style.css",
+    "adopted-stylesheet-iframe.html",
+    "adopted-stylesheet.html",
     "adornment-container-query.html",
+    "adornment-grid-lanes.html",
     "adornment-media.html",
+    "adornment-popover.html",
     "adornment-scroll-snap.html",
     "adornment-scroll.html",
     "adornment-shadow.html",
+    "adornment-starting-style.html",
+    "adornment-view-source.html",
     "adornment.html",
+    "at-function.html",
     "at-property.html",
     "css-container-queries.html",
     "css-grid-ua-shadow.html",
@@ -39,6 +47,7 @@ copy_to_gen("elements") {
     "elements-panel-styles.css",
     "elements-panel-styles.html",
     "elements-search-test.html",
+    "filter-matched-styles.html",
     "flexbox-editor.html",
     "focus.html",
     "form-with-issues.html",
@@ -52,6 +61,7 @@ copy_to_gen("elements") {
     "low-contrast.html",
     "multiple-constructed-stylesheets.html",
     "page-error.html",
+    "page-with-oopif.html",
     "quirks-mode-iframes.html",
     "quirks-mode.html",
     "select-element-with-issues.html",

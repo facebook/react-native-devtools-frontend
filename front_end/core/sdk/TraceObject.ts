@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,19 +7,34 @@ import type * as Platform from '../../core/platform/platform.js';
 import type * as Protocol from '../../generated/protocol.js';
 
 import type {NetworkRequest} from './NetworkRequest.js';
+import type {RehydratingResource} from './RehydratingObject.js';
 import {ResourceTreeModel} from './ResourceTreeModel.js';
+import type {SourceMapV3} from './SourceMap.js';
 
-// A thin wrapper class, mostly to enable instanceof-based revealing of traces to open in Timeline.
+interface TraceObjectWithNoMetadata {
+  readonly traceEvents: TraceObject['traceEvents'];
+  metadata?: TraceObject['metadata'];
+}
+/** A thin wrapper class, mostly to enable instanceof-based revealing of traces to open in Timeline. **/
 export class TraceObject {
   readonly traceEvents: Protocol.Tracing.DataCollectedEvent['value'];
-  readonly metadata: Object;
-  constructor(traceEvents: Protocol.Tracing.DataCollectedEvent['value'], metadata: Object = {}) {
-    this.traceEvents = traceEvents;
-    this.metadata = metadata;
+  readonly metadata: {
+    sourceMaps?: Array<{sourceMapUrl: string, sourceMap: SourceMapV3, url: string}>,
+    resources?: RehydratingResource[],
+  };
+  constructor(
+      payload: Protocol.Tracing.DataCollectedEvent['value']|TraceObject|TraceObjectWithNoMetadata, meta?: Object) {
+    if (Array.isArray(payload)) {
+      this.traceEvents = payload;
+      this.metadata = meta ?? {};
+    } else {
+      this.traceEvents = payload.traceEvents;
+      this.metadata = payload.metadata ?? {};
+    }
   }
 }
 
-// Another thin wrapper class to enable revealing individual trace events (aka entries) in Timeline panel.
+/** Another thin wrapper class to enable revealing individual trace events (aka entries) in Timeline panel. **/
 export class RevealableEvent {
   // Only Trace.Types.Events.Event are passed in, but we can't depend on that type from SDK
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */

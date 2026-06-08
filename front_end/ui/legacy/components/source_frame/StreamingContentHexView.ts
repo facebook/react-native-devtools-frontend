@@ -1,7 +1,9 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
+import type * as Common from '../../../../core/common/common.js';
 import * as TextUtils from '../../../../models/text_utils/text_utils.js';
 import * as LinearMemoryInspectorComponents from '../../../../panels/linear_memory_inspector/components/components.js';
 import * as UI from '../../legacy.js';
@@ -15,23 +17,24 @@ const MEMORY_TRANSFER_MIN_CHUNK_SIZE = 1000;
  * known upfront.
  */
 class LinearMemoryInspectorView extends UI.Widget.VBox {
-  #memory = new Uint8Array([0]);
+  #memory: Uint8Array = new Uint8Array([0]);
   #address = 0;
   #inspector = new LinearMemoryInspectorComponents.LinearMemoryInspector.LinearMemoryInspector();
 
   constructor() {
-    super(false);
+    super();
     this.#inspector.addEventListener(
-        LinearMemoryInspectorComponents.LinearMemoryInspector.MemoryRequestEvent.eventName,
-        this.#memoryRequested.bind(this));
+        LinearMemoryInspectorComponents.LinearMemoryInspector.Events.MEMORY_REQUEST, this.#memoryRequested, this);
     this.#inspector.addEventListener(
-        LinearMemoryInspectorComponents.LinearMemoryInspector.AddressChangedEvent.eventName, event => {
+        LinearMemoryInspectorComponents.LinearMemoryInspector.Events.ADDRESS_CHANGED,
+        (event: Common.EventTarget.EventTargetEvent<number>) => {
           this.#address = event.data;
         });
-    this.contentElement.appendChild(this.#inspector);
+    this.#inspector.show(this.contentElement);
   }
 
   override wasShown(): void {
+    super.wasShown();
     this.refreshData();
   }
 
@@ -50,16 +53,14 @@ class LinearMemoryInspectorView extends UI.Widget.VBox {
     const memoryChunkStart = Math.max(0, this.#address - MEMORY_TRANSFER_MIN_CHUNK_SIZE / 2);
     const memoryChunkEnd = memoryChunkStart + MEMORY_TRANSFER_MIN_CHUNK_SIZE;
     const memory = this.#memory.slice(memoryChunkStart, memoryChunkEnd);
-    this.#inspector.data = {
-      memory,
-      address: this.#address,
-      memoryOffset: memoryChunkStart,
-      outerMemoryLength: this.#memory.length,
-      hideValueInspector: true,
-    };
+    this.#inspector.memory = memory;
+    this.#inspector.address = this.#address;
+    this.#inspector.memoryOffset = memoryChunkStart;
+    this.#inspector.outerMemoryLength = this.#memory.length;
+    this.#inspector.hideValueInspector = true;
   }
 
-  #memoryRequested(event: LinearMemoryInspectorComponents.LinearMemoryInspector.MemoryRequestEvent): void {
+  #memoryRequested(event: Common.EventTarget.EventTargetEvent<{start: number, end: number, address: number}>): void {
     // TODO(szuend): The following lines are copied from `LinearMemoryInspectorController`. We can't reuse them
     // as depending on a module in `panels/` from a component is a layering violation.
 
@@ -79,13 +80,11 @@ class LinearMemoryInspectorView extends UI.Widget.VBox {
     const chunkEnd = Math.max(end, start + MEMORY_TRANSFER_MIN_CHUNK_SIZE);
     const memory = this.#memory.slice(start, chunkEnd);
 
-    this.#inspector.data = {
-      memory,
-      address,
-      memoryOffset: start,
-      outerMemoryLength: this.#memory.length,
-      hideValueInspector: true,
-    };
+    this.#inspector.memory = memory;
+    this.#inspector.address = address;
+    this.#inspector.memoryOffset = start;
+    this.#inspector.outerMemoryLength = this.#memory.length;
+    this.#inspector.hideValueInspector = true;
   }
 }
 
@@ -101,6 +100,7 @@ export class StreamingContentHexView extends LinearMemoryInspectorView {
   }
 
   override wasShown(): void {
+    super.wasShown();
     this.#updateMemoryFromContentData();
     this.#streamingContentData.addEventListener(
         TextUtils.StreamingContentData.Events.CHUNK_ADDED, this.#updateMemoryFromContentData, this);

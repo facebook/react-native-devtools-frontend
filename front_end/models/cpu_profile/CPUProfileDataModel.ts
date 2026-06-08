@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,7 +56,15 @@ export class CPUProfileDataModel extends ProfileTreeModel {
    * for CPU profiles coming from traces.
    */
   traceIds?: Record<string, number>;
+  /**
+   * Each item in the `lines` array contains the script line executing
+   * when the sample in that array position was taken.
+   */
   lines?: number[];
+  /**
+   * Same as `lines` above, but with the script column.
+   */
+  columns?: number[];
   totalHitCount: number;
   profileHead: CPUProfileNode;
   /**
@@ -90,14 +98,8 @@ export class CPUProfileDataModel extends ProfileTreeModel {
     this.traceIds = profile.traceIds;
     this.samples = profile.samples;
 
-    // Lines are available only in profiles coming from tracing.
-    // Elements in the lines array have a 1 to 1 correspondence with
-    // samples, by array position. They can be 1 or 0 and indicate if
-    // there is line data for a given sample, i.e. if a given sample
-    // needs to be included to calculate the line level execution time
-    // data, which we show in the sources panel after recording a
-    // profile.
     this.lines = profile.lines;
+    this.columns = profile.columns;
     this.totalHitCount = 0;
     this.profileHead = this.translateProfileTree(profile.nodes);
     this.initialize(this.profileHead);
@@ -552,18 +554,21 @@ export class CPUProfileDataModel extends ProfileTreeModel {
   }
 }
 
-// Format used by profiles coming from traces.
+/** Format used by profiles coming from traces. **/
 export type ExtendedProfileNode = Protocol.Profiler.ProfileNode&{parent?: number};
 export type ExtendedProfile = Protocol.Profiler.Profile&{
   nodes: Protocol.Profiler.ProfileNode[] | ExtendedProfileNode[],
   lines?: number[],
+  columns?: number[],
   /**
    * A sample can be manually collected with v8::CpuProfiler::collectSample.
    * When this is done an id (trace id) can be passed to the API to
    * identify the collected sample in the resulting CPU profile. We
    * do this for several trace events, to efficiently calculate their
-   * stack trace and improve the JS flamechart we build. This property
-   * contains the mapping of the trace ids with the shape traceId -> nodeId
+   * stack trace and improve the JS flamechart we build.
+   *
+   * This property, only present if there's any trace id provided within profileChunks,
+   * contains the mapping of the trace ids with the shape traceId -> nodeId.
    */
   traceIds?: Record<string, number>,
 };

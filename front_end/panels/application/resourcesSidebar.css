@@ -1,12 +1,12 @@
 /*
- * Copyright 2016 The Chromium Authors. All rights reserved.
+ * Copyright 2016 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
 
 .tree-outline {
   li.storage-group-list-item,
-  li.storage-group-list-item:not(:has(dt-checkbox)) {
+  li.storage-group-list-item:not(:has(devtools-checkbox)) {
     padding: 0 var(--sys-size-8) 0 var(--sys-size-3);
 
     &::before {
@@ -32,10 +32,6 @@
   color: var(--icon-error);
 }
 
-.icons-container devtools-icon.warn-icon {
-  color: var(--icon-warning);
-}
-
 devtools-icon.navigator-file-tree-item {
   color: var(--icon-file-default);
 }
@@ -59,4 +55,12 @@ devtools-icon.navigator-font-tree-item {
 
 .window-closed .tree-element-title {
   text-decoration: line-through;
+}
+
+.device-bound-session-terminated {
+  text-decoration: line-through;
+}
+
+.no-device-bound-session {
+  font-style: italic;
 }

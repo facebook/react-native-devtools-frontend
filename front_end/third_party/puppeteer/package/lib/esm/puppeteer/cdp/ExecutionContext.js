@@ -56,6 +56,7 @@ var __disposeResources = (this && this.__disposeResources) || (function (Suppres
     return e.name = "SuppressedError", e.error = error, e.suppressed = suppressed, e;
 });
 import { CDPSessionEvent } from '../api/CDPSession.js';
+import { ARIAQueryHandler } from '../common/AriaQueryHandler.js';
 import { EventEmitter } from '../common/EventEmitter.js';
 import { LazyArg } from '../common/LazyArg.js';
 import { scriptInjector } from '../common/ScriptInjector.js';
@@ -64,11 +65,10 @@ import { AsyncIterableUtil } from '../util/AsyncIterableUtil.js';
 import { DisposableStack, disposeSymbol } from '../util/disposable.js';
 import { stringifyFunction } from '../util/Function.js';
 import { Mutex } from '../util/Mutex.js';
-import { ARIAQueryHandler } from './AriaQueryHandler.js';
 import { Binding } from './Binding.js';
 import { CdpElementHandle } from './ElementHandle.js';
 import { CdpJSHandle } from './JSHandle.js';
-import { addPageBinding, CDP_BINDING_PREFIX, createEvaluationError, valueFromRemoteObject, } from './utils.js';
+import { addPageBinding, CDP_BINDING_PREFIX, createEvaluationError, valueFromPrimitiveRemoteObject, } from './utils.js';
 const ariaQuerySelectorBinding = new Binding('__ariaQuerySelector', ARIAQueryHandler.queryOne, '');
 const ariaQuerySelectorAllBinding = new Binding('__ariaQuerySelectorAll', (async (element, selector) => {
     const results = ARIAQueryHandler.queryAll(element, selector);
@@ -346,9 +346,10 @@ export class ExecutionContext extends EventEmitter {
             if (exceptionDetails) {
                 throw createEvaluationError(exceptionDetails);
             }
-            return returnByValue
-                ? valueFromRemoteObject(remoteObject)
-                : this.#world.createCdpHandle(remoteObject);
+            if (returnByValue) {
+                return valueFromPrimitiveRemoteObject(remoteObject);
+            }
+            return this.#world.createCdpHandle(remoteObject);
         }
         const functionDeclaration = stringifyFunction(pageFunction);
         const functionDeclarationWithSourceUrl = SOURCE_URL_REGEX.test(functionDeclaration)
@@ -386,9 +387,10 @@ export class ExecutionContext extends EventEmitter {
         if (exceptionDetails) {
             throw createEvaluationError(exceptionDetails);
         }
-        return returnByValue
-            ? valueFromRemoteObject(remoteObject)
-            : this.#world.createCdpHandle(remoteObject);
+        if (returnByValue) {
+            return valueFromPrimitiveRemoteObject(remoteObject);
+        }
+        return this.#world.createCdpHandle(remoteObject);
         async function convertArgumentAsync(context, arg) {
             if (arg instanceof LazyArg) {
                 arg = await arg.get(context);

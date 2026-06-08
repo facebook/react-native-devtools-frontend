@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@
 
 import * as Common from '../../core/common/common.js';
 import * as Platform from '../../core/platform/platform.js';
-import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
+import type * as Protocol from '../../generated/protocol.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import * as Breakpoints from '../../models/breakpoints/breakpoints.js';
 import * as Persistence from '../../models/persistence/persistence.js';
@@ -36,19 +36,24 @@ describeWithMockConnection('NetworkNavigatorView', () => {
     workspace = Workspace.Workspace.WorkspaceImpl.instance();
     const targetManager = SDK.TargetManager.TargetManager.instance();
     const resourceMapping = new Bindings.ResourceMapping.ResourceMapping(targetManager, workspace);
+    const ignoreListManager = Workspace.IgnoreListManager.IgnoreListManager.instance({forceNew: true});
     const debuggerWorkspaceBinding = Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance({
       forceNew: true,
       resourceMapping,
       targetManager,
+      ignoreListManager,
+      workspace,
     });
-    Bindings.IgnoreListManager.IgnoreListManager.instance({forceNew: true, debuggerWorkspaceBinding});
-    const breakpointManager = Breakpoints.BreakpointManager.BreakpointManager.instance(
-        {forceNew: true, targetManager, workspace, debuggerWorkspaceBinding});
+    const breakpointManager = Breakpoints.BreakpointManager.BreakpointManager.instance({
+      forceNew: true,
+      targetManager,
+      workspace,
+      debuggerWorkspaceBinding,
+      settings: Common.Settings.Settings.instance()
+    });
     Persistence.Persistence.PersistenceImpl.instance({forceNew: true, workspace, breakpointManager});
     Persistence.NetworkPersistenceManager.NetworkPersistenceManager.instance({forceNew: true, workspace});
     UI.ShortcutRegistry.ShortcutRegistry.instance({forceNew: true, actionRegistry: actionRegistryInstance});
-    Root.Runtime.experiments.register(Root.Runtime.ExperimentName.AUTHORED_DEPLOYED_GROUPING, '');
-    Root.Runtime.experiments.register(Root.Runtime.ExperimentName.JUST_MY_CODE, '');
   });
 
   describe('reveals main target', () => {
@@ -237,8 +242,8 @@ describeWithMockConnection('NetworkNavigatorView', () => {
 
       project.removeProject();
 
-      assert.isTrue(nodeBSelectSpy.notCalled);
-      assert.isTrue(nodeCSelectSpy.called);
+      sinon.assert.notCalled(nodeBSelectSpy);
+      sinon.assert.called(nodeCSelectSpy);
 
       otherProject.removeProject();
     });
@@ -276,9 +281,9 @@ describeWithMockConnection('NetworkNavigatorView', () => {
 
       project.removeProject();
 
-      assert.isTrue(nodeBSelectSpy.notCalled);
-      assert.isTrue(nodeCSelectSpy.notCalled);
-      assert.isTrue(nodeExampleComSelectSpy.called);
+      sinon.assert.notCalled(nodeBSelectSpy);
+      sinon.assert.notCalled(nodeCSelectSpy);
+      sinon.assert.called(nodeExampleComSelectSpy);
 
       // Note that the last asserion is slightly misleading since the empty example.com node is removed.
       // Let us make that clear here.
@@ -330,8 +335,8 @@ describeWithMockConnection('NetworkNavigatorView', () => {
       // Instead, the selection will be pushed to 'c.js' (with an intermediate step at 'd').
       // (Ideally, it would move directly from 'a.js' to 'c.js', but we are currently only
       // optimizing away the moves to siblings.)
-      assert.isTrue(nodeBSelectSpy.notCalled);
-      assert.isTrue(nodeCSelectSpy.called);
+      sinon.assert.notCalled(nodeBSelectSpy);
+      sinon.assert.called(nodeCSelectSpy);
 
       // Also note that the folder 'd' is removed. Let us make that explicit.
       assert.strictEqual(exampleComNode.childCount(), 1);
@@ -387,9 +392,9 @@ describeWithMockConnection('NetworkNavigatorView', () => {
       // it should move to 'c' rather being pushed forward to 'e'.
       project.removeProject();
 
-      assert.isTrue(nodeESelectSpy.notCalled);
-      assert.isTrue(nodeBSelectSpy.notCalled);
-      assert.isTrue(nodeCSelectSpy.called);
+      sinon.assert.notCalled(nodeESelectSpy);
+      sinon.assert.notCalled(nodeBSelectSpy);
+      sinon.assert.called(nodeCSelectSpy);
 
       // Also note that nodeD and nodeE are removed. Let us make that explicit.
       assert.strictEqual(exampleComNode.childCount(), 1);
@@ -403,7 +408,7 @@ describeWithMockConnection('NetworkNavigatorView', () => {
 
       dispatchEvent(target, 'Runtime.executionContextCreated', {
         context: {
-          id: 2,
+          id: 2 as Protocol.Runtime.ExecutionContextId,
           origin: 'http://example.com',
           name: 'c2',
           uniqueId: 'c2',
@@ -438,10 +443,11 @@ describeWithMockConnection('NetworkNavigatorView', () => {
       const nodeCSelectSpy = sinon.spy(nodeC, 'select');
 
       dispatchEvent(
-          target, 'Runtime.executionContextDestroyed', {executionContextId: 2, executionContextUniqueId: 'c2'});
+          target, 'Runtime.executionContextDestroyed',
+          {executionContextId: 2 as Protocol.Runtime.ExecutionContextId, executionContextUniqueId: 'c2'});
 
-      assert.isTrue(nodeBSelectSpy.notCalled);
-      assert.isTrue(nodeCSelectSpy.called);
+      sinon.assert.notCalled(nodeBSelectSpy);
+      sinon.assert.called(nodeCSelectSpy);
 
       // Sanity check - we should have only one source now.
       assert.strictEqual(exampleComNode.childCount(), 1);
@@ -454,7 +460,7 @@ describeWithMockConnection('NetworkNavigatorView', () => {
 
     beforeEach(() => {
       target = createTarget();
-      Bindings.IgnoreListManager.IgnoreListManager.instance().addChangeListener(() => {
+      Workspace.IgnoreListManager.IgnoreListManager.instance().addChangeListener(() => {
         if (resolveFn) {
           resolveFn();
           resolveFn = null;

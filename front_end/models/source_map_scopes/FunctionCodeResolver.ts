@@ -1,0 +1,270 @@
+// Copyright 2025 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import type * as Platform from '../../core/platform/platform.js';
+import * as SDK from '../../core/sdk/sdk.js';
+import * as Bindings from '../bindings/bindings.js';
+import * as Formatter from '../formatter/formatter.js';
+import * as TextUtils from '../text_utils/text_utils.js';
+import * as Workspace from '../workspace/workspace.js';
+
+/** Represents the source code for a given function, including additional context of surrounding lines. */
+export interface FunctionCode {
+  functionBounds: Workspace.UISourceCode.UIFunctionBounds;
+  /** The text of `uiSourceCode`. */
+  text: TextUtils.Text.Text;
+  /** The function text. */
+  code: string;
+  /** The range of `code` within `text`. */
+  range: TextUtils.TextRange.TextRange;
+  /** The function text, plus some additional context before and after. The actual function is wrapped in <FUNCTION_START>...<FUNCTION_END> */
+  codeWithContext: string;
+  /** The range of `codeWithContext` within `text`. */
+  rangeWithContext: TextUtils.TextRange.TextRange;
+}
+
+export interface CreateFunctionCodeOptions {
+  /** Number of characters to include before and after the function. Stacks with `contextLineLength`. */
+  contextLength?: number;
+  /** Number of lines to include before and after the function. Stacks with `contextLength`. */
+  contextLineLength?: number;
+  /** If true, appends profile data from the trace at the end of every line of the function in `codeWithContext`. This should match what is seen in the formatted view in the Sources panel. */
+  appendProfileData?: boolean;
+}
+
+interface InputData {
+  text: TextUtils.Text.Text;
+  formattedContent: Formatter.ScriptFormatter.FormattedContent|null;
+  performanceData: Workspace.UISourceCode.LineColumnProfileMap|undefined;
+}
+
+const inputCache = new WeakMap<Workspace.UISourceCode.UISourceCode, Promise<InputData>>();
+
+async function prepareInput(uiSourceCode: Workspace.UISourceCode.UISourceCode, content: string): Promise<InputData> {
+  const formattedContent = await format(uiSourceCode, content);
+  const text = new TextUtils.Text.Text(formattedContent ? formattedContent.formattedContent : content);
+  let performanceData = uiSourceCode.getDecorationData(Workspace.UISourceCode.DecoratorType.PERFORMANCE) as
+          Workspace.UISourceCode.LineColumnProfileMap |
+      undefined;
+
+  // Map profile data to the formatted view of the text.
+  if (formattedContent && performanceData) {
+    performanceData = Workspace.UISourceCode.createMappedProfileData(performanceData, (line, column) => {
+      return formattedContent.formattedMapping.originalToFormatted(line, column);
+    });
+  }
+
+  return {text, formattedContent, performanceData};
+}
+
+/** Formatting and parsing line endings for Text is expensive, so cache it. */
+async function prepareInputAndCache(
+    uiSourceCode: Workspace.UISourceCode.UISourceCode, content: string): Promise<InputData> {
+  let cachedPromise = inputCache.get(uiSourceCode);
+  if (cachedPromise) {
+    return await cachedPromise;
+  }
+
+  cachedPromise = prepareInput(uiSourceCode, content);
+  inputCache.set(uiSourceCode, cachedPromise);
+  return await cachedPromise;
+}
+
+function extractPerformanceDataByLine(
+    textRange: TextUtils.TextRange.TextRange, performanceData: Workspace.UISourceCode.LineColumnProfileMap): number[] {
+  const {startLine, startColumn, endLine, endColumn} = textRange;
+  const byLine = new Array(endLine - startLine + 1).fill(0);
+
+  for (let line = startLine; line <= endLine; line++) {
+    const lineData = performanceData.get(line + 1);
+    if (!lineData) {
+      continue;
+    }
+
+    // Fast-path for when the entire line's data is relevant.
+    if (line !== startLine && line !== endLine) {
+      byLine[line - startLine] = lineData.values().reduce((acc, cur) => acc + cur);
+      continue;
+    }
+
+    const column0 = line === startLine ? startColumn + 1 : 0;
+    const column1 = line === endLine ? endColumn + 1 : Number.POSITIVE_INFINITY;
+
+    let totalData = 0;
+    for (const [column, data] of lineData) {
+      if (column >= column0 && column <= column1) {
+        totalData += data;
+      }
+    }
+
+    byLine[line - startLine] = totalData;
+  }
+
+  return byLine.map(data => Math.round(data * 10) / 10);
+}
+
+function createFunctionCode(
+    inputData: InputData, functionBounds: Workspace.UISourceCode.UIFunctionBounds,
+    options?: CreateFunctionCodeOptions): FunctionCode {
+  let {startLine, startColumn, endLine, endColumn} = functionBounds.range;
+  if (inputData.formattedContent) {
+    const startMapped = inputData.formattedContent.formattedMapping.originalToFormatted(startLine, startColumn);
+    startLine = startMapped[0];
+    startColumn = startMapped[1];
+
+    const endMapped = inputData.formattedContent.formattedMapping.originalToFormatted(endLine, endColumn);
+    endLine = endMapped[0];
+    endColumn = endMapped[1];
+  }
+
+  const text = inputData.text;
+  const content = text.value();
+
+  // Define two ranges - the first is just the function bounds, the second includes
+  // that plus some surrounding context as dictated by the options.
+  const range = new TextUtils.TextRange.TextRange(startLine, startColumn, endLine, endColumn);
+
+  const functionStartOffset = text.offsetFromPosition(startLine, startColumn);
+  const functionEndOffset = text.offsetFromPosition(endLine, endColumn);
+
+  let contextStartOffset = 0;
+  if (options?.contextLength !== undefined) {
+    const contextLength = options.contextLength;
+    contextStartOffset = Math.max(contextStartOffset, functionStartOffset - contextLength);
+  }
+  if (options?.contextLineLength !== undefined) {
+    const contextLineLength = options.contextLineLength;
+    const position = text.offsetFromPosition(Math.max(startLine - contextLineLength, 0), 0);
+    contextStartOffset = Math.max(contextStartOffset, position);
+  }
+
+  let contextEndOffset = content.length;
+  if (options?.contextLength !== undefined) {
+    const contextLength = options.contextLength;
+    contextEndOffset = Math.min(contextEndOffset, functionEndOffset + contextLength);
+  }
+  if (options?.contextLineLength !== undefined) {
+    const contextLineLength = options.contextLineLength;
+    const position =
+        text.offsetFromPosition(Math.min(endLine + contextLineLength, text.lineCount() - 1), Number.POSITIVE_INFINITY);
+    contextEndOffset = Math.min(contextEndOffset, position);
+  }
+
+  const contextStart = text.positionFromOffset(contextStartOffset);
+  const contextEnd = text.positionFromOffset(contextEndOffset);
+  const rangeWithContext = new TextUtils.TextRange.TextRange(
+      contextStart.lineNumber, contextStart.columnNumber, contextEnd.lineNumber, contextEnd.columnNumber);
+
+  // Grab substrings for the function range, and for the context range.
+  const code = content.substring(functionStartOffset, functionEndOffset);
+  const before = content.substring(contextStartOffset, functionStartOffset);
+  const after = content.substring(functionEndOffset, contextEndOffset);
+
+  let codeWithContext;
+  if (options?.appendProfileData && inputData.performanceData) {
+    const performanceDataByLine = extractPerformanceDataByLine(range, inputData.performanceData);
+    const lines = performanceDataByLine.map((data, i) => {
+      let line = text.lineAt(startLine + i);
+
+      const isLastLine = i === performanceDataByLine.length - 1;
+      if (i === 0) {
+        if (isLastLine) {
+          line = line.substring(startColumn, endColumn);
+        } else {
+          line = line.substring(startColumn);
+        }
+      } else if (isLastLine) {
+        line = line.substring(0, endColumn);
+      }
+
+      if (isLastLine) {
+        // Don't ever annotate the last line - it could make the rest of the code on
+        // that line get commented out.
+        data = 0;
+      }
+
+      return data ? `${line} // ${data} ms` : line;
+    });
+    const annotatedCode = lines.join('\n');
+    codeWithContext = before + `<FUNCTION_START>${annotatedCode}<FUNCTION_END>` + after;
+  } else {
+    codeWithContext = before + `<FUNCTION_START>${code}<FUNCTION_END>` + after;
+  }
+
+  return {
+    functionBounds,
+    text,
+    code,
+    range,
+    codeWithContext,
+    rangeWithContext,
+  };
+}
+
+/**
+ * The input location may be a source mapped location or a raw location.
+ */
+export async function getFunctionCodeFromLocation(
+    target: SDK.Target.Target, url: Platform.DevToolsPath.UrlString, line: number, column: number,
+    options?: CreateFunctionCodeOptions): Promise<FunctionCode|null> {
+  const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel);
+  if (!debuggerModel) {
+    throw new Error('missing debugger model');
+  }
+
+  let uiSourceCode;
+  const debuggerWorkspaceBinding = Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance();
+  const projects = debuggerWorkspaceBinding.workspace.projectsForType(Workspace.Workspace.projectTypes.Network);
+  for (const project of projects) {
+    uiSourceCode = project.uiSourceCodeForURL(url);
+    if (uiSourceCode) {
+      break;
+    }
+  }
+
+  if (!uiSourceCode) {
+    return null;
+  }
+
+  const rawLocations = await debuggerWorkspaceBinding.uiLocationToRawLocations(uiSourceCode, line, column);
+  const rawLocation = rawLocations.at(-1);
+  if (!rawLocation) {
+    return null;
+  }
+
+  return await getFunctionCodeFromRawLocation(rawLocation, options);
+}
+
+async function format(uiSourceCode: Workspace.UISourceCode.UISourceCode, content: string):
+    Promise<Formatter.ScriptFormatter.FormattedContent|null> {
+  const contentType = uiSourceCode.contentType();
+  const shouldFormat = !contentType.isFromSourceMap() && (contentType.isDocument() || contentType.isScript()) &&
+      TextUtils.TextUtils.isMinified(content);
+  if (!shouldFormat) {
+    return null;
+  }
+
+  return await Formatter.ScriptFormatter.formatScriptContent(contentType.canonicalMimeType(), content, '\t');
+}
+
+/**
+ * Returns a {@link FunctionCode} for the given raw location.
+ */
+export async function getFunctionCodeFromRawLocation(
+    rawLocation: SDK.DebuggerModel.Location, options?: CreateFunctionCodeOptions): Promise<FunctionCode|null> {
+  const debuggerWorkspaceBinding = Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance();
+  const functionBounds = await debuggerWorkspaceBinding.functionBoundsAtRawLocation(rawLocation);
+  if (!functionBounds) {
+    return null;
+  }
+
+  await functionBounds.uiSourceCode.requestContentData();
+  const content = functionBounds.uiSourceCode.content();
+  if (!content) {
+    return null;
+  }
+
+  const inputData = await prepareInputAndCache(functionBounds.uiSourceCode, content);
+  return createFunctionCode(inputData, functionBounds, options);
+}

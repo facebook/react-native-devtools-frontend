@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -12,6 +12,7 @@ copy_to_gen("network") {
     "code-with-json-subtype-request.html",
     "coffees.json",
     "csp-report-only.rawresponse",
+    "csp.html",
     "embedded_requests.html",
     "event-stream.rawresponse",
     "eventstream.html",
@@ -26,12 +27,13 @@ copy_to_gen("network") {
     "last-modified.rawresponse",
     "requests.html",
     "resources-from-cache.html",
-    "resources-from-webbundle-with-bad-inner-request.html",
-    "resources-from-webbundle-with-bad-metadata.html",
-    "resources-from-webbundle.html",
+    "search-result-1.js",
+    "search-result-2.js",
+    "search-result-3.js",
     "send_beacon_on_unload.html",
     "service-worker.html",
     "service-worker.js",
+    "small-json.rawresponse",
     "style.css",
     "stylesheet-resources.css",
     "stylesheet-resources.html",
@@ -42,12 +44,6 @@ copy_to_gen("network") {
     "trusted-type-violations-report-only.rawresponse",
     "unreachable.rawresponse",
     "utf-8.rawresponse",
-    "webbundle.wbn",
-    "webbundle.wbn.headers",
-    "webbundle_bad_inner_request.wbn",
-    "webbundle_bad_inner_request.wbn.headers",
-    "webbundle_bad_metadata.wbn",
-    "webbundle_bad_metadata.wbn.headers",
     "websocket.html",
     "xhr-json.html",
     "xhr.html",

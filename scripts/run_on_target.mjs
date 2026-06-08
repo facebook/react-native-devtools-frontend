@@ -1,25 +1,41 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as childProcess from 'child_process';
-import * as fs from 'fs';
-import * as path from 'path';
+import * as childProcess from 'node:child_process';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import yargs from 'yargs';
 import unparse from 'yargs-unparser';
+
+import { ENV, getEnvString } from './env-utils.mjs';
 
 const argv = yargs(process.argv.slice(2))
   .parserConfiguration({
     'strip-aliased': true,
   })
   .command('$0 [script]')
-  .option('target', { alias: 't', type: 'string', default: 'Default' })
+  .option('target', {
+    alias: 't',
+    type: 'string',
+    default: getEnvString(ENV.TARGET, 'Default'),
+  })
+  .option('skip-ninja', {
+    type: 'boolean',
+    default: false,
+  })
+  .option('debug', {
+    type: 'boolean',
+    default: false,
+  })
   .help(false)
   .version(false)
   .parseSync();
 
 const target = argv.target;
 let script = argv.script;
+const skipNinja = argv.skipNinja;
+const debug = argv.debug;
 
 delete argv.target;
 delete argv.script;
@@ -63,22 +79,30 @@ if (
   );
   process.exit(1);
 }
-const scriptPath = path.resolve(cwd, script);
-if (!fs.existsSync(scriptPath)) {
-  console.error(`Script path ${scriptPath} does not exist, trying ninja...`);
-  const { error, status } = childProcess.spawnSync(
-    'autoninja',
-    ['-C', cwd, script],
-    { stdio: 'inherit', cwd: sourceRoot },
+
+if (!skipNinja) {
+  const ninjaCommand = process.platform === 'win32' ? process.env.ComSpec ?? 'cmd.exe' : 'autoninja';
+  const ninjaArgs = process.platform === 'win32' ? ['/c', 'autoninja', '-C', cwd, script] : ['-C', cwd, script];
+  const { error, status, stdout, stderr } = childProcess.spawnSync(
+    ninjaCommand,
+    ninjaArgs,
+    { stdio: debug ? 'inherit' : 'pipe', cwd: sourceRoot },
   );
-  if (error) {
-    throw error;
-  }
-  if (status) {
-    process.exit(status);
+  if (status || error) {
+    if (stdout) {
+      console.log(stdout.toString());
+    }
+    if (stderr) {
+      console.log(stderr.toString());
+    }
+    if (error) {
+      console.error(error);
+    }
+    process.exit(status ?? 1);
   }
 }
 
+const scriptPath = path.resolve(cwd, script);
 const { argv0 } = process;
 const { status } = childProcess.spawnSync(
   argv0,

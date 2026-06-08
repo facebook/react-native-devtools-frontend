@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -12,15 +12,15 @@ generate_css("css_files") {
   sources = [
     "accessibilityNode.css",
     "accessibilityProperties.css",
+    "accessibilitySidebarView.css",
     "axBreadcrumbs.css",
   ]
 }
 
-devtools_module("accessibility") {
+devtools_ui_module("accessibility") {
   sources = [
     "ARIAAttributesView.ts",
     "ARIAMetadata.ts",
-    "AXBreadcrumbsPane.ts",
     "AccessibilityNodeView.ts",
     "AccessibilitySidebarView.ts",
     "AccessibilityStrings.ts",
@@ -38,8 +38,11 @@ devtools_module("accessibility") {
     "../../generated",
     "../../generated:protocol",
     "../../ui/components/panel_feedback:bundle",
+    "../../ui/i18n:bundle",
     "../../ui/legacy:bundle",
+    "../../ui/lit:bundle",
     "../../ui/visual_logging:bundle",
+    "../common:bundle",
   ]
 }
 
@@ -73,10 +76,13 @@ devtools_entrypoint("meta") {
   visibility = [ "../../entrypoints/*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
-  sources = [ "AccessibilitySidebarView.test.ts" ]
+  sources = [
+    "ARIAAttributesView.test.ts",
+    "AccessibilitySidebarView.test.ts",
+  ]
 
   deps = [
     ":bundle",

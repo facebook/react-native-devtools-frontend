@@ -1,31 +1,31 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Trace from '../../models/trace/trace.js';
 import * as DataGrid from '../../ui/legacy/components/data_grid/data_grid.js';
-import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
+import thirdPartyTreeViewStyles from './thirdPartyTreeView.css.js';
 import * as TimelineTreeView from './TimelineTreeView.js';
-import * as Utils from './utils/utils.js';
 
 const UIStrings = {
   /**
-   *@description Unattributed text for an unattributed entity.
+   * @description Unattributed text for an unattributed entity.
    */
   unattributed: '[unattributed]',
   /**
-   *@description Title for the name of either 1st or 3rd Party entities.
+   * @description Title for the name of either 1st or 3rd Party entities.
    */
   firstOrThirdPartyName: '1st / 3rd party',
   /**
-   *@description Title referencing transfer size.
+   * @description Title referencing transfer size.
    */
   transferSize: 'Transfer size',
   /**
-   *@description Title referencing main thread time.
+   * @description Title referencing main thread time.
    */
   mainThreadTime: 'Main thread time',
 } as const;
@@ -33,18 +33,18 @@ const str_ = i18n.i18n.registerUIStrings('panels/timeline/ThirdPartyTreeView.ts'
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class ThirdPartyTreeViewWidget extends TimelineTreeView.TimelineTreeView {
-  #thirdPartySummaries: {
-    summaries: Trace.Extras.ThirdParties.ThirdPartySummary,
-    entityByEvent: Map<Trace.Types.Events.Event, Trace.Extras.ThirdParties.Entity>,
-  }|null = null;
-
   // By default the TimelineTreeView will auto-select the first row
   // when the grid is refreshed but for the ThirdParty view we only
   // want to do this when the user hovers.
   protected override autoSelectFirstChildOnRefresh = false;
 
-  constructor() {
-    super();
+  #onRowHovered?: (node: Trace.Extras.TraceTree.Node|null, events?: Trace.Types.Events.Event[]) => void;
+  #onBottomUpButtonClicked?: (node: Trace.Extras.TraceTree.Node|null) => void;
+  #onRowClicked?: (node: Trace.Extras.TraceTree.Node|null, events?: Trace.Types.Events.Event[]) => void;
+  #isInAIWidget = false;
+
+  constructor(element?: HTMLElement) {
+    super(element);
     this.element.setAttribute('jslog', `${VisualLogging.pane('third-party-tree').track({hover: true})}`);
     this.init();
     this.dataGrid.markColumnAsSortedBy('self', DataGrid.DataGrid.Order.Descending);
@@ -56,8 +56,28 @@ export class ThirdPartyTreeViewWidget extends TimelineTreeView.TimelineTreeView 
     this.dataGrid.expandNodesWhenArrowing = false;
   }
 
+  override isThirdPartyTreeView(): boolean {
+    return true;
+  }
+
+  override wasShown(): void {
+    super.wasShown();
+    this.registerRequiredCSS(thirdPartyTreeViewStyles);
+  }
+
+  override set model(model: {
+    selectedEvents: Trace.Types.Events.Event[]|null,
+    parsedTrace: Trace.TraceModel.ParsedTrace|null,
+    entityMapper: Trace.EntityMapper.EntityMapper|null,
+  }) {
+    super.model = model;
+
+    const hasEvents = Boolean(model.selectedEvents && model.selectedEvents.length > 0);
+    this.element.classList.toggle('empty-table', !hasEvents);
+  }
+
   override buildTree(): Trace.Extras.TraceTree.Node {
-    const parsedTrace = this.parsedTrace();
+    const parsedTrace = this.parsedTrace;
     const entityMapper = this.entityMapper();
 
     if (!parsedTrace || !entityMapper) {
@@ -70,17 +90,14 @@ export class ThirdPartyTreeViewWidget extends TimelineTreeView.TimelineTreeView 
       });
     }
 
-    // const events = this.#thirdPartySummaries.entityByEvent.keys();
-    const relatedEvents = this.selectedEvents().sort(Trace.Helpers.Trace.eventTimeComparator);
-
     // The filters for this view are slightly different; we want to use the set
     // of visible event types, but also include network events, which by
     // default are not in the set of visible entries (as they are not shown on
     // the main flame chart).
     const filter = new Trace.Extras.TraceFilter.VisibleEventsFilter(
-        Utils.EntryStyles.visibleTypes().concat([Trace.Types.Events.Name.SYNTHETIC_NETWORK_REQUEST]));
+        Trace.Styles.visibleTypes().concat([Trace.Types.Events.Name.SYNTHETIC_NETWORK_REQUEST]));
 
-    const node = new Trace.Extras.TraceTree.BottomUpRootNode(relatedEvents, {
+    const node = new Trace.Extras.TraceTree.BottomUpRootNode(this.selectedEvents, {
       textFilter: this.textFilter(),
       filters: [filter],
       startTime: this.startTime,
@@ -210,34 +227,21 @@ export class ThirdPartyTreeViewWidget extends TimelineTreeView.TimelineTreeView 
   displayInfoForGroupNode(node: Trace.Extras.TraceTree.Node): {
     name: string,
     color: string,
-    icon: (Element|undefined),
+    icon?: Element,
   } {
     const color = 'gray';
     const unattributed = i18nString(UIStrings.unattributed);
     const id = typeof node.id === 'symbol' ? undefined : node.id;
     // This `undefined` is [unattributed]
-    // TODO(paulirish,aixba): Improve attribution to reduce amount of items in [unattributed].
+    // TODO(paulirish): Improve attribution to reduce amount of items in [unattributed].
     const domainName = id ? this.entityMapper()?.entityForEvent(node.event)?.name || id : undefined;
-    return {name: domainName || unattributed, color, icon: undefined};
+    return {
+      name: domainName || unattributed,
+      color,
+    };
   }
 
-  extractThirdPartySummary(node: Trace.Extras.TraceTree.Node): {transferSize: number} {
-    if (!this.#thirdPartySummaries) {
-      return {transferSize: 0};
-    }
-
-    const entity = this.#thirdPartySummaries.entityByEvent.get(node.event);
-    if (!entity) {
-      return {transferSize: 0};
-    }
-    const summary = this.#thirdPartySummaries.summaries.byEntity.get(entity);
-    if (!summary) {
-      return {transferSize: 0};
-    }
-    return {transferSize: summary.transferSize};
-  }
-
-  nodeIsFirstParty(node: Trace.Extras.TraceTree.Node): boolean {
+  override nodeIsFirstParty(node: Trace.Extras.TraceTree.Node): boolean {
     const mapper = this.entityMapper();
     if (!mapper) {
       return false;
@@ -246,7 +250,7 @@ export class ThirdPartyTreeViewWidget extends TimelineTreeView.TimelineTreeView 
     return firstParty === mapper.entityForEvent(node.event);
   }
 
-  nodeIsExtension(node: Trace.Extras.TraceTree.Node): boolean {
+  override nodeIsExtension(node: Trace.Extras.TraceTree.Node): boolean {
     const mapper = this.entityMapper();
     if (!mapper) {
       return false;
@@ -254,34 +258,50 @@ export class ThirdPartyTreeViewWidget extends TimelineTreeView.TimelineTreeView 
     const entity = mapper.entityForEvent(node.event);
     return Boolean(entity) && entity?.category === 'Chrome Extension';
   }
-}
 
-export class ThirdPartyTreeElement extends UI.Widget.WidgetElement<UI.Widget.Widget> {
-  #treeView?: ThirdPartyTreeViewWidget;
-
-  set treeView(treeView: ThirdPartyTreeViewWidget) {
-    this.#treeView = treeView;
+  override get maxRows(): number|undefined {
+    return super.maxRows;
   }
 
-  constructor() {
-    super();
-    this.style.display = 'contents';
+  get isInAIWidget(): boolean {
+    return this.#isInAIWidget;
   }
 
-  override createWidget(): UI.Widget.Widget {
-    const containerWidget = new UI.Widget.Widget(false, undefined, this);
-    containerWidget.contentElement.style.display = 'contents';
-    if (this.#treeView) {
-      this.#treeView.show(containerWidget.contentElement);
+  set isInAIWidget(x: boolean) {
+    this.#isInAIWidget = x;
+    this.element.classList.toggle('is-in-ai-widget', x);
+  }
+
+  override set maxRows(maxRows: number) {
+    super.maxRows = maxRows;
+    this.element.style.setProperty('--max-rows', String(maxRows));
+    this.element.classList.toggle('has-max-rows', Boolean(maxRows));
+  }
+
+  set onRowHovered(callback: (node: Trace.Extras.TraceTree.Node|null, events?: Trace.Types.Events.Event[]) => void) {
+    if (!this.#onRowHovered) {
+      this.addEventListener(TimelineTreeView.TimelineTreeView.Events.TREE_ROW_HOVERED, ({data}) => {
+        this.#onRowHovered?.(data.node, data.events);
+      });
     }
-    return containerWidget;
+    this.#onRowHovered = callback;
   }
-}
 
-customElements.define('devtools-performance-third-party-tree-view', ThirdPartyTreeElement);
+  set onBottomUpButtonClicked(callback: (node: Trace.Extras.TraceTree.Node|null) => void) {
+    if (!this.#onBottomUpButtonClicked) {
+      this.addEventListener(TimelineTreeView.TimelineTreeView.Events.BOTTOM_UP_BUTTON_CLICKED, ({data}) => {
+        this.#onBottomUpButtonClicked?.(data);
+      });
+    }
+    this.#onBottomUpButtonClicked = callback;
+  }
 
-declare global {
-  interface HTMLElementTagNameMap {
-    'devtools-performance-third-party-tree-view': ThirdPartyTreeElement;
+  set onRowClicked(callback: (node: Trace.Extras.TraceTree.Node|null, events?: Trace.Types.Events.Event[]) => void) {
+    if (!this.#onRowClicked) {
+      this.addEventListener(TimelineTreeView.TimelineTreeView.Events.TREE_ROW_CLICKED, ({data}) => {
+        this.#onRowClicked?.(data.node, data.events);
+      });
+    }
+    this.#onRowClicked = callback;
   }
 }

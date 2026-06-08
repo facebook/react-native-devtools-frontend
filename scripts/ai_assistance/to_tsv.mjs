@@ -1,12 +1,12 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // Converts a JSON results file into two TSV files: queries and responses.
 // Usage: node to_tsv.mjs path/to/file.json
 
-import assert from 'assert';
-import fs from 'fs/promises';
+import assert from 'node:assert';
+import fs from 'node:fs/promises';
 
 const file = process.argv[2];
 
@@ -36,4 +36,3 @@ assert(responses.length === queries.length);
 
 await fs.writeFile(file.replace('.json', '-queries.tsv'), queries.join('\n'));
 await fs.writeFile(file.replace('.json', '-responses.tsv'), responses.join('\n'));
-

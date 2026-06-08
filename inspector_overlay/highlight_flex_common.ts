@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -68,8 +68,8 @@ const FLEXIBILITY_ARROW_THICKNESS = 1;
 const FLEXIBILITY_ARROW_TIP_SIZE = 5;
 
 export function drawLayoutFlexItemHighlight(
-    highlight: FlexItemHighlight, itemPath: PathCommands, context: CanvasRenderingContext2D, deviceScaleFactor: number,
-    canvasWidth: number, canvasHeight: number, emulationScaleFactor: number) {
+    highlight: FlexItemHighlight, itemPath: PathCommands, context: CanvasRenderingContext2D,
+    emulationScaleFactor: number) {
   const {baseSize, isHorizontalFlow} = highlight;
 
   const itemQuad = rectPathToQuad(itemPath);
@@ -175,8 +175,10 @@ function drawFlexibilityArrow(
 }
 
 export function drawLayoutFlexContainerHighlight(
-    highlight: FlexContainerHighlight, context: CanvasRenderingContext2D, deviceScaleFactor: number,
-    canvasWidth: number, canvasHeight: number, emulationScaleFactor: number) {
+    highlight: FlexContainerHighlight,
+    context: CanvasRenderingContext2D,
+    emulationScaleFactor: number,
+) {
   const config = highlight.flexContainerHighlightConfig;
   const bounds = emptyBounds();
   const borderPath = buildPath(highlight.containerBorder, bounds, emulationScaleFactor);
@@ -733,7 +735,7 @@ function segmentToPath(segment: [Position, Position]): PathCommands {
 /**
  * Transform a path array (as returned by the backend) that corresponds to a rectangle into a quad.
  * @param commands
- * @return The quad object
+ * @returns The quad object
  */
 function rectPathToQuad(commands: PathCommands): Quad {
   return {
@@ -839,7 +841,7 @@ export function growQuadToEdgesOf(innerQuad: Quad, outerQuad: Quad, horizontally
  * Return the x/y intersection of the 2 segments
  * @param segment1
  * @param segment2
- * @return the point where the segments intersect
+ * @returns the point where the segments intersect
  */
 export function intersectSegments([p1, p2]: Position[], [p3, p4]: Position[]): Position {
   const x = (((p1.x * p2.y - p1.y * p2.x) * (p3.x - p4.x)) - ((p1.x - p2.x) * (p3.x * p4.y - p3.y * p4.x))) /

@@ -1,11 +1,12 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import type {RecursivePartial} from '../../../core/platform/TypescriptUtilities.js';
 import * as Protocol from '../../../generated/protocol.js';
 import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
-import {getFirstOrError, processTrace} from '../../../testing/InsightHelpers.js';
+import {getFirstOrError, getInsightSetOrError, processTrace} from '../../../testing/InsightHelpers.js';
+import {microsecondsTraceWindow} from '../../../testing/TraceHelpers.js';
 import type * as Types from '../types/types.js';
 
 import * as Insights from './insights.js';
@@ -14,21 +15,14 @@ const {calculateMetricWeightsForSorting, estimateCompressedContentSize} = Insigh
 
 describeWithEnvironment('Common', function() {
   describe('calculateMetricWeightsForSorting', () => {
-    async function process(testContext: Mocha.Suite|Mocha.Context|null, traceFile: string) {
+    async function process(testContext: Mocha.Suite|Mocha.Context, traceFile: string) {
       const {data, insights, metadata} = await processTrace(testContext, traceFile);
       if (!metadata) {
         throw new Error('missing metadata');
       }
 
       const firstNav = getFirstOrError(data.Meta.navigationsByNavigationId.values());
-      if (!firstNav.args.data?.navigationId) {
-        throw new Error('expected navigationId');
-      }
-      const insightSetKey = firstNav.args.data.navigationId;
-      const insightSet = insights.get(insightSetKey);
-      if (!insightSet) {
-        throw new Error('missing insight set');
-      }
+      const insightSet = getInsightSetOrError(insights, firstNav);
 
       // Clone so it may be modified.
       const clonedMetadata = structuredClone(metadata);
@@ -36,7 +30,7 @@ describeWithEnvironment('Common', function() {
       return {insightSet, metadata: clonedMetadata};
     }
 
-    it('returns default weights when there is no field data', async () => {
+    it('returns default weights when there is no field data', async function() {
       const {insightSet, metadata} = await process(this, 'image-delivery.json.gz');
 
       // No field data defaults to even split of weights.
@@ -49,7 +43,7 @@ describeWithEnvironment('Common', function() {
       assert.deepEqual(weights, {lcp: 1 / 3, inp: 1 / 3, cls: 1 / 3});
     });
 
-    it('returns weights based on field data', async () => {
+    it('returns weights based on field data', async function() {
       const {insightSet, metadata} = await process(this, 'image-delivery.json.gz');
 
       const weights = calculateMetricWeightsForSorting(insightSet, metadata);
@@ -61,8 +55,9 @@ describeWithEnvironment('Common', function() {
     const estimate = estimateCompressedContentSize;
     const encoding = [{name: 'Content-Encoding', value: 'gzip'}];
     const makeRequest = (partial: {
+                          resourceType: Protocol.Network.ResourceType,
                           transferSize?: number,
-                          resourceSize?: number, resourceType: Protocol.Network.ResourceType,
+                          resourceSize?: number,
                           responseHeaders?: Array<{name: string, value: string}>,
                         }): Types.Events.SyntheticNetworkRequest => {
       const request: RecursivePartial<Types.Events.SyntheticNetworkRequest> = {
@@ -87,7 +82,7 @@ describeWithEnvironment('Common', function() {
 
     it('should return transferSize when asset matches and is encoded', () => {
       const resourceType = Protocol.Network.ResourceType.Stylesheet;
-      const request = makeRequest({transferSize: 1234, resourceType, responseHeaders: encoding});
+      const request = makeRequest({transferSize: 1234, resourceSize: 10000, resourceType, responseHeaders: encoding});
       const result = estimate(request, 10000, resourceType);
       assert.strictEqual(result, 1234);
     });
@@ -111,14 +106,66 @@ describeWithEnvironment('Common', function() {
       const resourceType = Protocol.Network.ResourceType.Other;
       const request = makeRequest({transferSize: 1000, resourceType, responseHeaders: []});
       const result = estimate(request, 100, Protocol.Network.ResourceType.Script);
-      assert.strictEqual(result, 100);
+      assert.strictEqual(result, 33);  // uses default compression ratio.
     });
 
     it('should not error when resource size is 0', () => {
       const resourceType = Protocol.Network.ResourceType.Other;
       const request = makeRequest({transferSize: 1000, resourceSize: 0, resourceType, responseHeaders: []});
       const result = estimate(request, 100, Protocol.Network.ResourceType.Script);
-      assert.strictEqual(result, 100);
+      assert.strictEqual(result, 33);  // uses default compression ratio.
+    });
+  });
+
+  describe('insightBounds', () => {
+    const INSIGHT_SET_BOUNDS = microsecondsTraceWindow(0, 1_000);
+
+    it('uses the bounds of the overlays', async () => {
+      const fakeInsight = {
+        createOverlays(): Types.Overlays.Overlay[] {
+          return [{
+            type: 'TIME_RANGE',
+            bounds: microsecondsTraceWindow(100, 500),
+            label: 'test',
+            showDuration: true,
+          }];
+        }
+      } as unknown as Insights.Types.InsightModel;
+      const bounds = Insights.Common.insightBounds(fakeInsight, INSIGHT_SET_BOUNDS);
+      assert.deepEqual(bounds, microsecondsTraceWindow(100, 500));
+    });
+
+    it('merges the bounds of two overlays', async () => {
+      const fakeInsight = {
+        createOverlays(): Types.Overlays.Overlay[] {
+          return [
+            {
+              type: 'TIME_RANGE',
+              bounds: microsecondsTraceWindow(100, 500),
+              label: 'test',
+              showDuration: true,
+            },
+            {
+              type: 'TIME_RANGE',
+              bounds: microsecondsTraceWindow(50, 400),
+              label: 'test',
+              showDuration: true,
+            }
+          ];
+        }
+      } as unknown as Insights.Types.InsightModel;
+      const bounds = Insights.Common.insightBounds(fakeInsight, INSIGHT_SET_BOUNDS);
+      assert.deepEqual(bounds, microsecondsTraceWindow(50, 500));
+    });
+
+    it('falls back to the set bounds if there are no overlays', async () => {
+      const fakeInsight = {
+        createOverlays(): Types.Overlays.Overlay[] {
+          return [];
+        }
+      } as unknown as Insights.Types.InsightModel;
+      const bounds = Insights.Common.insightBounds(fakeInsight, INSIGHT_SET_BOUNDS);
+      assert.deepEqual(bounds, INSIGHT_SET_BOUNDS);
     });
   });
 });

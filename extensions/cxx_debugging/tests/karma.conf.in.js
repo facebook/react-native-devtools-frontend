@@ -1,9 +1,9 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-const path = require('path');
-const process = require('process');
+const path = require('node:path');
+const process = require('node:process');
 const glob = requireInternal('glob');
 const karmaChromeLauncher = requireInternal('karma-chrome-launcher');
 
@@ -17,7 +17,7 @@ function requireInternal(module) {
 }
 
 function getTestInputs() {
-  const testFiles = glob.sync('@CMAKE_CURRENT_SOURCE_DIR@/*_test.ts');
+  const testFiles = glob.sync('@CMAKE_CURRENT_SOURCE_DIR@/*.test.ts');
 
   return testFiles.map(f => path.relative('@CMAKE_CURRENT_SOURCE_DIR@', f))
       .map(f => `${path.basename(f, '.ts')}.js`)
@@ -49,7 +49,7 @@ ChromeWS.prototype = {
   name: 'ChromeWS',
 
   DEFAULT_CMD: {
-    linux: '@REPO_SOURCE_DIR@/third_party/chrome/chrome-linux/chrome',
+    linux: '@REPO_SOURCE_DIR@/third_party/chrome/chrome-linux/chrome-linux64/chrome',
   },
   ENV_CMD: 'CHROME_BIN',
 };

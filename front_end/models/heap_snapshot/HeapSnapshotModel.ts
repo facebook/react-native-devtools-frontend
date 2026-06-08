@@ -1,0 +1,269 @@
+// Copyright 2014 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+export const HeapSnapshotProgressEvent = {
+  Update: 'ProgressUpdate',
+  BrokenSnapshot: 'BrokenSnapshot',
+};
+
+export const baseSystemDistance = 100000000;
+export const baseUnreachableDistance = baseSystemDistance * 2;
+
+export class AllocationNodeCallers {
+  nodesWithSingleCaller: SerializedAllocationNode[];
+  branchingCallers: SerializedAllocationNode[];
+  constructor(nodesWithSingleCaller: SerializedAllocationNode[], branchingCallers: SerializedAllocationNode[]) {
+    this.nodesWithSingleCaller = nodesWithSingleCaller;
+    this.branchingCallers = branchingCallers;
+  }
+}
+
+export class SerializedAllocationNode {
+  id: number;
+  name: string;
+  scriptName: string;
+  scriptId: number;
+  line: number;
+  column: number;
+  count: number;
+  size: number;
+  liveCount: number;
+  liveSize: number;
+  hasChildren: boolean;
+  constructor(
+      nodeId: number, functionName: string, scriptName: string, scriptId: number, line: number, column: number,
+      count: number, size: number, liveCount: number, liveSize: number, hasChildren: boolean) {
+    this.id = nodeId;
+    this.name = functionName;
+    this.scriptName = scriptName;
+    this.scriptId = scriptId;
+    this.line = line;
+    this.column = column;
+    this.count = count;
+    this.size = size;
+    this.liveCount = liveCount;
+    this.liveSize = liveSize;
+    this.hasChildren = hasChildren;
+  }
+}
+
+export class AllocationStackFrame {
+  functionName: string;
+  scriptName: string;
+  scriptId: number;
+  line: number;
+  column: number;
+  constructor(functionName: string, scriptName: string, scriptId: number, line: number, column: number) {
+    this.functionName = functionName;
+    this.scriptName = scriptName;
+    this.scriptId = scriptId;
+    this.line = line;
+    this.column = column;
+  }
+}
+
+export class Node {
+  id: number;
+  name: string;
+  distance: number;
+  nodeIndex: number;
+  retainedSize: number;
+  selfSize: number;
+  type: string;
+  canBeQueried = false;
+  detachedDOMTreeNode = false;
+  isAddedNotRemoved: boolean|null = null;
+  ignored = false;
+  constructor(
+      id: number,
+      name: string,
+      distance: number,
+      nodeIndex: number,
+      retainedSize: number,
+      selfSize: number,
+      type: string,
+  ) {
+    this.id = id;
+    this.name = name;
+    this.distance = distance;
+    this.nodeIndex = nodeIndex;
+    this.retainedSize = retainedSize;
+    this.selfSize = selfSize;
+    this.type = type;
+  }
+}
+
+export class Edge {
+  name: string;
+  node: Node;
+  type: string;
+  edgeIndex: number;
+  isAddedNotRemoved: boolean|null = null;
+  constructor(name: string, node: Node, type: string, edgeIndex: number) {
+    this.name = name;
+    this.node = node;
+    this.type = type;
+    this.edgeIndex = edgeIndex;
+  }
+}
+
+export interface AggregatedInfo {
+  count: number;
+  distance: number;
+  self: number;
+  maxRet: number;
+  name: string;
+  idxs: number[];
+}
+
+export class AggregateForDiff {
+  name: string;
+  indexes: number[];
+  ids: number[];
+  selfSizes: number[];
+  constructor() {
+    this.name = '';
+    this.indexes = [];
+    this.ids = [];
+    this.selfSizes = [];
+  }
+}
+
+export class Diff {
+  name: string;
+  addedCount = 0;
+  removedCount = 0;
+  addedSize = 0;
+  removedSize = 0;
+  deletedIndexes: number[] = [];
+  addedIndexes: number[] = [];
+  countDelta!: number;
+  sizeDelta!: number;
+  constructor(name: string) {
+    this.name = name;
+  }
+}
+
+export class ComparatorConfig {
+  fieldName1: string;
+  ascending1: boolean;
+  fieldName2: string;
+  ascending2: boolean;
+  constructor(fieldName1: string, ascending1: boolean, fieldName2: string, ascending2: boolean) {
+    this.fieldName1 = fieldName1;
+    this.ascending1 = ascending1;
+    this.fieldName2 = fieldName2;
+    this.ascending2 = ascending2;
+  }
+}
+
+export interface WorkerCommand {
+  callId: number;
+  disposition: string;
+  objectId: number;
+  newObjectId: number;
+  methodName: string;
+  // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  methodArguments: any[];
+  source: string;
+}
+
+export class ItemsRange {
+  startPosition: number;
+  endPosition: number;
+  totalLength: number;
+  items: Array<Node|Edge>;
+  constructor(startPosition: number, endPosition: number, totalLength: number, items: Array<Node|Edge>) {
+    this.startPosition = startPosition;
+    this.endPosition = endPosition;
+    this.totalLength = totalLength;
+    this.items = items;
+  }
+}
+
+export class StaticData {
+  nodeCount: number;
+  rootNodeIndex: number;
+  totalSize: number;
+  maxJSObjectId: number;
+  constructor(nodeCount: number, rootNodeIndex: number, totalSize: number, maxJSObjectId: number) {
+    this.nodeCount = nodeCount;
+    this.rootNodeIndex = rootNodeIndex;
+    this.totalSize = totalSize;
+    this.maxJSObjectId = maxJSObjectId;
+  }
+}
+
+export interface Statistics {
+  total: number;
+  native: {total: number, typedArrays: number};
+  v8heap: {total: number, code: number, jsArrays: number, strings: number, system: number};
+}
+
+export class NodeFilter {
+  minNodeId: number|undefined;
+  maxNodeId: number|undefined;
+  allocationNodeId!: number|undefined;
+  filterName: string|undefined;
+  constructor(minNodeId?: number, maxNodeId?: number) {
+    this.minNodeId = minNodeId;
+    this.maxNodeId = maxNodeId;
+  }
+
+  equals(o: NodeFilter): boolean {
+    return this.minNodeId === o.minNodeId && this.maxNodeId === o.maxNodeId &&
+        this.allocationNodeId === o.allocationNodeId && this.filterName === o.filterName;
+  }
+}
+
+export class SearchConfig {
+  query: string;
+  caseSensitive: boolean;
+  wholeWord: boolean;
+  isRegex: boolean;
+  shouldJump: boolean;
+  jumpBackward: boolean;
+  constructor(
+      query: string,
+      caseSensitive: boolean,
+      wholeWord: boolean,
+      isRegex: boolean,
+      shouldJump: boolean,
+      jumpBackward: boolean,
+  ) {
+    this.query = query;
+    this.caseSensitive = caseSensitive;
+    this.wholeWord = wholeWord;
+    this.isRegex = isRegex;
+    this.shouldJump = shouldJump;
+    this.jumpBackward = jumpBackward;
+  }
+
+  toSearchRegex(_global?: boolean): {regex: RegExp, fromQuery: boolean} {
+    throw new Error('Unsupported operation on search config');
+  }
+}
+
+export class Samples {
+  timestamps: number[];
+  lastAssignedIds: number[];
+  sizes: number[];
+  constructor(timestamps: number[], lastAssignedIds: number[], sizes: number[]) {
+    this.timestamps = timestamps;
+    this.lastAssignedIds = lastAssignedIds;
+    this.sizes = sizes;
+  }
+}
+
+export class Location {
+  scriptId: number;
+  lineNumber: number;
+  columnNumber: number;
+  constructor(scriptId: number, lineNumber: number, columnNumber: number) {
+    this.scriptId = scriptId;
+    this.lineNumber = lineNumber;
+    this.columnNumber = columnNumber;
+  }
+}

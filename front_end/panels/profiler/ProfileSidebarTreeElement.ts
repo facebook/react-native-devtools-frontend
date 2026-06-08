@@ -1,6 +1,7 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import type * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -17,7 +18,7 @@ import {
 
 const UIStrings = {
   /**
-   *@description Tooltip for the 3-dots menu in the Memory panel profiles list.
+   * @description Tooltip for the 3-dots menu in the Memory panel profiles list.
    */
   profileOptions: 'Profile options',
 } as const;

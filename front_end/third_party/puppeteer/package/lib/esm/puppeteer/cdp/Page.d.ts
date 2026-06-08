@@ -4,27 +4,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { Protocol } from 'devtools-protocol';
-import type { Browser } from '../api/Browser.js';
+import type { BluetoothEmulation } from '../api/BluetoothEmulation.js';
+import type { Browser, WindowId } from '../api/Browser.js';
 import type { BrowserContext } from '../api/BrowserContext.js';
 import { type CDPSession } from '../api/CDPSession.js';
+import type { DeviceRequestPrompt } from '../api/DeviceRequestPrompt.js';
+import type { Extension } from '../api/Extension.js';
 import type { Frame, WaitForOptions } from '../api/Frame.js';
 import type { HTTPResponse } from '../api/HTTPResponse.js';
 import type { JSHandle } from '../api/JSHandle.js';
-import type { Credentials } from '../api/Page.js';
+import type { Credentials, HeapSnapshotOptions, ReloadOptions } from '../api/Page.js';
 import { Page, type GeolocationOptions, type MediaFeature, type Metrics, type NewDocumentScriptEvaluation, type ScreenshotOptions, type WaitTimeoutOptions } from '../api/Page.js';
-import type { Cookie, DeleteCookiesRequest, CookieParam, CookiePartitionKey } from '../common/Cookie.js';
+import type { Cookie, DeleteCookiesRequest, CookieParam, CookiePartitionKey, CookieSameSite } from '../common/Cookie.js';
 import { FileChooser } from '../common/FileChooser.js';
 import type { PDFOptions } from '../common/PDFOptions.js';
 import type { Viewport } from '../common/Viewport.js';
+import type { Realm } from '../index-browser.js';
 import { CdpCDPSession } from './CdpSession.js';
 import { Coverage } from './Coverage.js';
-import type { DeviceRequestPrompt } from './DeviceRequestPrompt.js';
 import type { CdpFrame } from './Frame.js';
 import { CdpKeyboard, CdpMouse, CdpTouchscreen } from './Input.js';
 import type { NetworkConditions } from './NetworkManager.js';
 import type { CdpTarget } from './Target.js';
 import { Tracing } from './Tracing.js';
+import { WebMCP } from './WebMCP.js';
 import { CdpWebWorker } from './WebWorker.js';
+/**
+ * @internal
+ */
+export declare function convertSameSiteFromPuppeteerToCdp(sameSite: CookieSameSite | undefined): Protocol.Network.CookieSameSite | undefined;
 /**
  * @internal
  */
@@ -32,10 +40,17 @@ export declare class CdpPage extends Page {
     #private;
     static _create(client: CdpCDPSession, target: CdpTarget, defaultViewport: Viewport | null): Promise<CdpPage>;
     constructor(client: CdpCDPSession, target: CdpTarget);
+    resize(params: {
+        contentWidth: number;
+        contentHeight: number;
+    }): Promise<void>;
+    windowId(): Promise<WindowId>;
     _client(): CDPSession;
     isServiceWorkerBypassed(): boolean;
     isDragInterceptionEnabled(): boolean;
     isJavaScriptEnabled(): boolean;
+    openDevTools(): Promise<Page>;
+    hasDevTools(): Promise<boolean>;
     waitForFileChooser(options?: WaitTimeoutOptions): Promise<FileChooser>;
     setGeolocation(options: GeolocationOptions): Promise<void>;
     target(): CdpTarget;
@@ -46,6 +61,7 @@ export declare class CdpPage extends Page {
     get touchscreen(): CdpTouchscreen;
     get coverage(): Coverage;
     get tracing(): Tracing;
+    get webmcp(): WebMCP;
     frames(): Frame[];
     workers(): CdpWebWorker[];
     setRequestInterception(value: boolean): Promise<void>;
@@ -53,6 +69,7 @@ export declare class CdpPage extends Page {
     setDragInterception(enabled: boolean): Promise<void>;
     setOfflineMode(enabled: boolean): Promise<void>;
     emulateNetworkConditions(networkConditions: NetworkConditions | null): Promise<void>;
+    emulateFocusedPage(enabled: boolean): Promise<void>;
     setDefaultNavigationTimeout(timeout: number): void;
     setDefaultTimeout(timeout: number): void;
     getDefaultTimeout(): number;
@@ -67,15 +84,21 @@ export declare class CdpPage extends Page {
     removeExposedFunction(name: string): Promise<void>;
     authenticate(credentials: Credentials | null): Promise<void>;
     setExtraHTTPHeaders(headers: Record<string, string>): Promise<void>;
-    setUserAgent(userAgent: string, userAgentMetadata?: Protocol.Emulation.UserAgentMetadata): Promise<void>;
+    setUserAgent(userAgentOrOptions: string | {
+        userAgent?: string;
+        userAgentMetadata?: Protocol.Emulation.UserAgentMetadata;
+        platform?: string;
+    }, userAgentMetadata?: Protocol.Emulation.UserAgentMetadata): Promise<void>;
     metrics(): Promise<Metrics>;
-    reload(options?: WaitForOptions): Promise<HTTPResponse | null>;
+    captureHeapSnapshot(options: HeapSnapshotOptions): Promise<void>;
+    reload(options?: ReloadOptions): Promise<HTTPResponse | null>;
     createCDPSession(): Promise<CDPSession>;
     goBack(options?: WaitForOptions): Promise<HTTPResponse | null>;
     goForward(options?: WaitForOptions): Promise<HTTPResponse | null>;
     bringToFront(): Promise<void>;
     setJavaScriptEnabled(enabled: boolean): Promise<void>;
     setBypassCSP(enabled: boolean): Promise<void>;
+    triggerExtensionAction(extension: Extension): Promise<void>;
     emulateMediaType(type?: string): Promise<void>;
     emulateCPUThrottling(factor: number | null): Promise<void>;
     emulateMediaFeatures(features?: MediaFeature[]): Promise<void>;
@@ -122,6 +145,11 @@ export declare class CdpPage extends Page {
      * ```
      */
     waitForDevicePrompt(options?: WaitTimeoutOptions): Promise<DeviceRequestPrompt>;
+    get bluetooth(): BluetoothEmulation;
+    extensionRealms(): Realm[];
 }
+/**
+ * @internal
+ */
 export declare function convertCookiesPartitionKeyFromPuppeteerToCdp(partitionKey: CookiePartitionKey | string | undefined): Protocol.Network.CookiePartitionKey | undefined;
 //# sourceMappingURL=Page.d.ts.map

@@ -1,16 +1,15 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import '../../../ui/components/report_view/report_view.js';
 import '../../../ui/legacy/components/data_grid/data_grid.js';
+import '../../../ui/kit/kit.js';
 
 import * as i18n from '../../../core/i18n/i18n.js';
-import type * as Platform from '../../../core/platform/platform.js';
 import * as SDK from '../../../core/sdk/sdk.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
-import * as ChromeLink from '../../../ui/components/chrome_link/chrome_link.js';
-import * as LegacyWrapper from '../../../ui/components/legacy_wrapper/legacy_wrapper.js';
+import * as UI from '../../../ui/legacy/legacy.js';
 import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
@@ -51,21 +50,16 @@ const UIStrings = {
   noPotentialBounceTrackersIdentified:
       'State was not cleared for any potential bounce tracking sites. Either none were identified or third-party cookies are not blocked.',
   /**
-   * @description Text shown when bounce tracking mitigations bounce tracking mitigations are disabled. Has a link.
-   * @example {Bounce Tracking Mitigations Feature Flag} PH1
+   * @description Text shown when bounce tracking mitigations are disabled.
    */
-  featureDisabled:
-      'Bounce tracking mitigations are disabled. To enable them, set the flag at {PH1} to "Enabled With Deletion".',
-  /**
-   * @description Text for link to Bounce Tracking Mitigations feature flag entry in the chrome://flags page.
-   */
-  featureFlag: 'Bounce Tracking Mitigations Feature Flag',
+  featureDisabled: 'Bounce tracking mitigations are disabled.',
 } as const;
 
 const str_ = i18n.i18n.registerUIStrings('panels/application/components/BounceTrackingMitigationsView.ts', UIStrings);
 export const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-const enum ScreenStatusType {
+export const enum ScreenStatusType {
+  INITIALIZING = 'Initializing',
   RUNNING = 'Running',
   RESULT = 'Result',
   DISABLED = 'Disabled',
@@ -75,124 +69,155 @@ export interface BounceTrackingMitigationsViewData {
   trackingSites: string[];
 }
 
-export class BounceTrackingMitigationsView extends LegacyWrapper.LegacyWrapper.WrappableComponent {
-  readonly #shadow = this.attachShadow({mode: 'open'});
+export interface ViewInput {
+  screenStatus: ScreenStatusType;
+  trackingSites: string[];
+  seenButtonClick: boolean;
+  runMitigations: () => Promise<void>;
+}
+
+const renderForceRunButton = (input: ViewInput): Lit.TemplateResult => {
+  const isMitigationRunning = (input.screenStatus === ScreenStatusType.RUNNING);
+
+  // clang-format off
+  return html`
+    <devtools-button
+      aria-label=${i18nString(UIStrings.forceRun)}
+      .disabled=${isMitigationRunning}
+      .spinner=${isMitigationRunning}
+      .variant=${Buttons.Button.Variant.PRIMARY}
+      @click=${input.runMitigations}
+      jslog=${VisualLogging.action('force-run').track({click: true})}>
+      ${isMitigationRunning ? html`
+        ${i18nString(UIStrings.runningMitigations)}`:`
+        ${i18nString(UIStrings.forceRun)}
+      `}
+    </devtools-button>
+  `;
+  // clang-format on
+};
+
+const renderDeletedSitesOrNoSitesMessage = (input: ViewInput): Lit.LitTemplate => {
+  if (!input.seenButtonClick) {
+    return Lit.nothing;
+  }
+
+  if (input.trackingSites.length === 0) {
+    // clang-format off
+    return html`
+      <devtools-report-section>
+      ${(input.screenStatus === ScreenStatusType.RUNNING) ? html`
+        ${i18nString(UIStrings.checkingPotentialTrackers)}`:`
+        ${i18nString(UIStrings.noPotentialBounceTrackersIdentified)}
+      `}
+      </devtools-report-section>
+    `;
+    // clang-format on
+  }
+
+  // clang-format off
+  return html`
+    <devtools-report-section>
+      <devtools-data-grid striped inline>
+        <table>
+          <tr>
+            <th id="sites" weight="10" sortable>
+              ${i18nString(UIStrings.stateDeletedFor)}
+            </th>
+          </tr>
+          ${input.trackingSites.map(site => html`
+            <tr><td>${site}</td></tr>`)}
+        </table>
+      </devtools-data-grid>
+    </devtools-report-section>
+  `;
+  // clang-format on
+};
+
+const renderMainFrameInformation = (input: ViewInput): Lit.LitTemplate => {
+  if (input.screenStatus === ScreenStatusType.INITIALIZING) {
+    return Lit.nothing;
+  }
+
+  if (input.screenStatus === ScreenStatusType.DISABLED) {
+    // clang-format off
+    return html`
+      <devtools-report-section>
+        ${i18nString(UIStrings.featureDisabled)}
+      </devtools-report-section>
+    `;
+    // clang-format on
+  }
+
+  // clang-format off
+  return html`
+    <devtools-report-section>
+      ${renderForceRunButton(input)}
+    </devtools-report-section>
+    ${renderDeletedSitesOrNoSitesMessage(input)}
+    <devtools-report-divider>
+    </devtools-report-divider>
+    <devtools-report-section>
+      <devtools-link href="https://privacycg.github.io/nav-tracking-mitigations/#bounce-tracking-mitigations" class="link"
+      jslogcontext="learn-more">
+        ${i18nString(UIStrings.learnMore)}
+      </devtools-link>
+    </devtools-report-section>
+  `;
+  // clang-format on
+};
+
+export const DEFAULT_VIEW = (input: ViewInput, _output: undefined, target: HTMLElement|DocumentFragment): void => {
+  // clang-format off
+  Lit.render(html`
+    <style>${bounceTrackingMitigationsViewStyles}</style>
+    <style>${UI.inspectorCommonStyles}</style>
+    <devtools-report .data=${{reportTitle: i18nString(UIStrings.bounceTrackingMitigationsTitle)}}
+                      jslog=${VisualLogging.pane('bounce-tracking-mitigations')}>
+      ${renderMainFrameInformation(input)}
+    </devtools-report>
+  `, target, {container: {classes: ['overflow-auto']}});
+  // clang-format on
+};
+
+type ViewFunction = typeof DEFAULT_VIEW;
+
+export class BounceTrackingMitigationsView extends UI.Widget.Widget<ShadowRoot> {
   #trackingSites: string[] = [];
-  #screenStatus = ScreenStatusType.RESULT;
-  #checkedFeature = false;
+  #screenStatus = ScreenStatusType.INITIALIZING;
   #seenButtonClick = false;
+  #view: ViewFunction;
 
-  connectedCallback(): void {
-    void this.#render();
+  constructor(element?: HTMLElement, view: ViewFunction = DEFAULT_VIEW) {
+    super(element, {useShadowDom: 'pure'});
+
+    this.#view = view;
+
+    const mainTarget = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
+    if (!mainTarget) {
+      this.#screenStatus = ScreenStatusType.RESULT;
+    } else {
+      void mainTarget.systemInfo().invoke_getFeatureState({featureState: 'DIPS'}).then(state => {
+        this.#screenStatus = state.featureEnabled ? ScreenStatusType.RESULT : ScreenStatusType.DISABLED;
+        this.requestUpdate();
+      });
+    }
   }
 
-  async #render(): Promise<void> {
-    // clang-format off
-    Lit.render(html`
-      <style>${bounceTrackingMitigationsViewStyles.cssText}</style>
-      <devtools-report .data=${{reportTitle: i18nString(UIStrings.bounceTrackingMitigationsTitle)}}
-                       jslog=${VisualLogging.pane('bounce-tracking-mitigations')}>
-        ${await this.#renderMainFrameInformation()}
-      </devtools-report>
-    `, this.#shadow, {host: this});
-    // clang-format on
+  override wasShown(): void {
+    super.wasShown();
+    this.requestUpdate();
   }
 
-  async #renderMainFrameInformation(): Promise<Lit.TemplateResult> {
-    if (!this.#checkedFeature) {
-      await this.#checkFeatureState();
-    }
-
-    if (this.#screenStatus === ScreenStatusType.DISABLED) {
-      const mitigationsFlagLink = new ChromeLink.ChromeLink.ChromeLink();
-      mitigationsFlagLink.href = 'chrome://flags/#bounce-tracking-mitigations' as Platform.DevToolsPath.UrlString;
-      mitigationsFlagLink.textContent = i18nString(UIStrings.featureFlag);
-
-      // clang-format off
-      return html`
-        <devtools-report-section>
-          ${i18n.i18n.getFormatLocalizedString(
-              str_, UIStrings.featureDisabled,
-              {PH1: mitigationsFlagLink})}
-        </devtools-report-section>
-      `;
-      // clang-format on
-    }
-
-    // clang-format off
-    return html`
-      <devtools-report-section>
-        ${this.#renderForceRunButton()}
-      </devtools-report-section>
-      ${this.#renderDeletedSitesOrNoSitesMessage()}
-      <devtools-report-divider>
-      </devtools-report-divider>
-      <devtools-report-section>
-        <x-link href="https://privacycg.github.io/nav-tracking-mitigations/#bounce-tracking-mitigations" class="link"
-        jslog=${VisualLogging.link('learn-more').track({click: true})}>
-          ${i18nString(UIStrings.learnMore)}
-        </x-link>
-      </devtools-report-section>
-    `;
-    // clang-format on
-  }
-
-  #renderForceRunButton(): Lit.TemplateResult {
-    const isMitigationRunning = (this.#screenStatus === ScreenStatusType.RUNNING);
-
-    // clang-format off
-    return html`
-      <devtools-button
-        aria-label=${i18nString(UIStrings.forceRun)}
-        .disabled=${isMitigationRunning}
-        .spinner=${isMitigationRunning}
-        .variant=${Buttons.Button.Variant.PRIMARY}
-        @click=${this.#runMitigations}
-        jslog=${VisualLogging.action('force-run').track({click: true})}>
-        ${isMitigationRunning ? html`
-          ${i18nString(UIStrings.runningMitigations)}`:`
-          ${i18nString(UIStrings.forceRun)}
-        `}
-      </devtools-button>
-    `;
-    // clang-format on
-  }
-
-  #renderDeletedSitesOrNoSitesMessage(): Lit.TemplateResult {
-    if (!this.#seenButtonClick) {
-      return html``;
-    }
-
-    if (this.#trackingSites.length === 0) {
-      // clang-format off
-      return html`
-        <devtools-report-section>
-        ${(this.#screenStatus === ScreenStatusType.RUNNING) ? html`
-          ${i18nString(UIStrings.checkingPotentialTrackers)}`:`
-          ${i18nString(UIStrings.noPotentialBounceTrackersIdentified)}
-        `}
-        </devtools-report-section>
-      `;
-      // clang-format on
-    }
-
-    // clang-format off
-    return html`
-      <devtools-report-section>
-        <devtools-data-grid striped inline>
-          <table>
-            <tr>
-              <th id="sites" weight="10" sortable>
-                ${i18nString(UIStrings.stateDeletedFor)}
-              </th>
-            </tr>
-            ${this.#trackingSites.map(site => html`
-              <tr><td>${site}</td></tr>`)}
-          </table>
-        </devtools-data-grid>
-      </devtools-report-section>
-    `;
-    // clang-format on
+  override performUpdate(): void {
+    this.#view(
+        {
+          screenStatus: this.#screenStatus,
+          trackingSites: this.#trackingSites,
+          seenButtonClick: this.#seenButtonClick,
+          runMitigations: this.#runMitigations.bind(this),
+        },
+        undefined, this.contentElement);
   }
 
   async #runMitigations(): Promise<void> {
@@ -204,7 +229,7 @@ export class BounceTrackingMitigationsView extends LegacyWrapper.LegacyWrapper.W
     this.#seenButtonClick = true;
     this.#screenStatus = ScreenStatusType.RUNNING;
 
-    void this.#render();
+    this.requestUpdate();
 
     const response = await mainTarget.storageAgent().invoke_runBounceTrackingMitigations();
     this.#trackingSites = [];
@@ -217,27 +242,6 @@ export class BounceTrackingMitigationsView extends LegacyWrapper.LegacyWrapper.W
 
   #renderMitigationsResult(): void {
     this.#screenStatus = ScreenStatusType.RESULT;
-    void this.#render();
-  }
-
-  async #checkFeatureState(): Promise<void> {
-    this.#checkedFeature = true;
-
-    const mainTarget = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
-    if (!mainTarget) {
-      return;
-    }
-
-    if (!(await mainTarget.systemInfo().invoke_getFeatureState({featureState: 'DIPS'})).featureEnabled) {
-      this.#screenStatus = ScreenStatusType.DISABLED;
-    }
-  }
-}
-
-customElements.define('devtools-bounce-tracking-mitigations-view', BounceTrackingMitigationsView);
-
-declare global {
-  interface HTMLElementTagNameMap {
-    'devtools-bounce-tracking-mitigations-view': BounceTrackingMitigationsView;
+    this.requestUpdate();
   }
 }

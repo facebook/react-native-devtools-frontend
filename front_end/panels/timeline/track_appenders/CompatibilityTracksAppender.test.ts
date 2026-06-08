@@ -1,16 +1,16 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Trace from '../../../models/trace/trace.js';
 import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
-import {setupIgnoreListManagerEnvironment} from '../../../testing/TraceHelpers.js';
+import {allThreadEntriesInTrace, setupIgnoreListManagerEnvironment} from '../../../testing/TraceHelpers.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
 import * as PerfUI from '../../../ui/legacy/components/perf_ui/perf_ui.js';
 import * as Timeline from '../timeline.js';
 
 describeWithEnvironment('CompatibilityTracksAppender', function() {
-  let parsedTrace: Trace.Handlers.Types.ParsedTrace;
+  let parsedTrace: Trace.TraceModel.ParsedTrace;
   let tracksAppender: Timeline.CompatibilityTracksAppender.CompatibilityTracksAppender;
   let entryData: Trace.Types.Events.Event[] = [];
   let flameChartData = PerfUI.FlameChart.FlameChartTimelineData.createEmpty();
@@ -21,8 +21,8 @@ describeWithEnvironment('CompatibilityTracksAppender', function() {
     entryData = [];
     flameChartData = PerfUI.FlameChart.FlameChartTimelineData.createEmpty();
     entryTypeByLevel = [];
-    ({parsedTrace} = await TraceLoader.traceEngine(context, fixture));
-    const entityMapper = new Timeline.Utils.EntityMapper.EntityMapper(parsedTrace);
+    parsedTrace = await TraceLoader.traceEngine(context, fixture);
+    const entityMapper = new Trace.EntityMapper.EntityMapper(parsedTrace);
     tracksAppender = new Timeline.CompatibilityTracksAppender.CompatibilityTracksAppender(
         flameChartData, parsedTrace, entryData, entryTypeByLevel, entityMapper);
     const timingsTrack = tracksAppender.timingsTrackAppender();
@@ -46,10 +46,10 @@ describeWithEnvironment('CompatibilityTracksAppender', function() {
         const timingsTrack = tracksAppender.timingsTrackAppender();
         const timingsTrackEvents = tracksAppender.eventsInTrack(timingsTrack);
         const allTimingEvents = [
-          ...parsedTrace.UserTimings.consoleTimings,
-          ...parsedTrace.UserTimings.timestampEvents,
-          ...parsedTrace.UserTimings.performanceMarks,
-          ...parsedTrace.UserTimings.performanceMeasures,
+          ...parsedTrace.data.UserTimings.consoleTimings,
+          ...parsedTrace.data.UserTimings.timestampEvents,
+          ...parsedTrace.data.UserTimings.performanceMarks,
+          ...parsedTrace.data.UserTimings.performanceMeasures,
         ].sort((a, b) => a.ts - b.ts);
         assert.deepEqual(timingsTrackEvents, allTimingEvents);
       });
@@ -57,7 +57,7 @@ describeWithEnvironment('CompatibilityTracksAppender', function() {
       it('returns all the events appended by a track with one level', () => {
         const gpuTrack = tracksAppender.gpuTrackAppender();
         const gpuTrackEvents = tracksAppender.eventsInTrack(gpuTrack) as readonly Trace.Types.Events.Event[];
-        assert.deepEqual(gpuTrackEvents, parsedTrace.GPU.mainGPUThreadTasks);
+        assert.deepEqual(gpuTrackEvents, parsedTrace.data.GPU.mainGPUThreadTasks);
       });
     });
     describe('eventsForTreeView', () => {
@@ -105,24 +105,20 @@ describeWithEnvironment('CompatibilityTracksAppender', function() {
         // This file contains events in the timings track that can be assembled as a tree
         await initTrackAppender(this, 'sync-like-timings.json.gz');
         const timingsGroupEvents = tracksAppender.groupEventsForTreeView(flameChartData.groups[0]);
-        if (!timingsGroupEvents) {
-          assert.fail('Could not find events for group');
-        }
+        assert.isOk(timingsGroupEvents, 'Could not find events for group');
         const allTimingEvents = [
-          ...parsedTrace.UserTimings.consoleTimings,
-          ...parsedTrace.UserTimings.timestampEvents,
-          ...parsedTrace.UserTimings.performanceMarks,
-          ...parsedTrace.UserTimings.performanceMeasures,
+          ...parsedTrace.data.UserTimings.consoleTimings,
+          ...parsedTrace.data.UserTimings.timestampEvents,
+          ...parsedTrace.data.UserTimings.performanceMarks,
+          ...parsedTrace.data.UserTimings.performanceMeasures,
         ].sort((a, b) => a.ts - b.ts);
         assert.deepEqual(timingsGroupEvents, allTimingEvents);
       });
       it('returns all the events of a flame chart group with one level', () => {
         const gpuGroupEvents =
             tracksAppender.groupEventsForTreeView(flameChartData.groups[1]) as readonly Trace.Types.Events.Event[];
-        if (!gpuGroupEvents) {
-          assert.fail('Could not find events for group');
-        }
-        assert.deepEqual(gpuGroupEvents, parsedTrace.GPU.mainGPUThreadTasks);
+        assert.isOk(gpuGroupEvents, 'Could not find events for group');
+        assert.deepEqual(gpuGroupEvents, parsedTrace.data.GPU.mainGPUThreadTasks);
       });
     });
   });
@@ -130,10 +126,7 @@ describeWithEnvironment('CompatibilityTracksAppender', function() {
   describe('popoverInfo', () => {
     it('shows the correct warning for a long task when hovered', async function() {
       await initTrackAppender(this, 'simple-js-program.json.gz');
-      const events = parsedTrace.Renderer?.allTraceEntries;
-      if (!events) {
-        throw new Error('Could not find renderer events');
-      }
+      const events = allThreadEntriesInTrace(parsedTrace);
       const longTask = events.find(e => (e.dur || 0) > 1_000_000);
       if (!longTask) {
         throw new Error('Could not find long task');
@@ -149,7 +142,7 @@ describeWithEnvironment('CompatibilityTracksAppender', function() {
 
     it('shows the correct warning for a forced recalc styles when hovered', async function() {
       await initTrackAppender(this, 'large-layout-small-recalc.json.gz');
-      const events = parsedTrace.Warnings.perWarning.get('FORCED_REFLOW') || [];
+      const events = parsedTrace.data.Warnings.perWarning.get('FORCED_REFLOW') || [];
 
       if (!events) {
         throw new Error('Could not find forced reflows events');
@@ -169,7 +162,7 @@ describeWithEnvironment('CompatibilityTracksAppender', function() {
 
     it('shows the correct warning for a forced layout when hovered', async function() {
       await initTrackAppender(this, 'large-layout-small-recalc.json.gz');
-      const events = parsedTrace.Warnings.perWarning.get('FORCED_REFLOW') || [];
+      const events = parsedTrace.data.Warnings.perWarning.get('FORCED_REFLOW') || [];
 
       if (!events) {
         throw new Error('Could not find forced reflows events');
@@ -189,10 +182,7 @@ describeWithEnvironment('CompatibilityTracksAppender', function() {
 
     it('shows the correct warning for slow idle callbacks', async function() {
       await initTrackAppender(this, 'idle-callback.json.gz');
-      const events = parsedTrace.Renderer?.allTraceEntries;
-      if (!events) {
-        throw new Error('Could not find renderer events');
-      }
+      const events = allThreadEntriesInTrace(parsedTrace);
       const idleCallback = events.find(event => {
         const {duration} = Trace.Helpers.Timing.eventTimingsMilliSeconds(event);
         if (!Trace.Types.Events.isFireIdleCallback(event)) {
@@ -214,6 +204,17 @@ describeWithEnvironment('CompatibilityTracksAppender', function() {
       }
       assert.strictEqual(warning?.innerText, 'Idle callback execution extended beyond deadline by 79.56\u00A0ms');
     });
+
+    it('includes the timestamp when hovering over a perf extensibility marker', async () => {
+      await initTrackAppender(this, 'extension-tracks-and-marks.json.gz');
+      const markEvent = parsedTrace.data.ExtensionTraceData.extensionMarkers.find(m => {
+        return m.name === 'Custom mark';
+      });
+      assert.isOk(markEvent);
+      const info = tracksAppender.popoverInfo(markEvent, 2);
+      assert.deepEqual(
+          info, {title: 'A mark', formattedTime: '1.61 s', warningElements: [], additionalElements: [], url: null});
+    });
   });
 
   it('can return the group for a given level', async () => {
@@ -224,5 +225,14 @@ describeWithEnvironment('CompatibilityTracksAppender', function() {
     assert.strictEqual(groupForLevel0?.name, 'GPU');
     const groupForLevel1 = tracksAppender.groupForLevel(1);
     assert.strictEqual(groupForLevel1?.name, 'Main — https://web.dev/');
+  });
+
+  it('does not create threads for PerfettoTrace tracks', async () => {
+    await initTrackAppender(this, 'perfettotrace-track.json.gz');
+    const threads = tracksAppender.threadAppenders();
+    const perfettoTraceThreads = threads.filter(thread => {
+      return thread.trackName() === 'PerfettoTrace';
+    });
+    assert.lengthOf(perfettoTraceThreads, 0);
   });
 });

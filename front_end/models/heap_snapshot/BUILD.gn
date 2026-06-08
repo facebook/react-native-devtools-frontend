@@ -1,0 +1,48 @@
+# Copyright 2020 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("../../../scripts/build/ninja/devtools_entrypoint.gni")
+import("../../../scripts/build/ninja/devtools_module.gni")
+import("../../../scripts/build/typescript/typescript.gni")
+import("../visibility.gni")
+
+devtools_module("heap_snapshot") {
+  sources = [
+    "ChildrenProvider.ts",
+    "HeapSnapshotModel.ts",
+    "HeapSnapshotProxy.ts",
+  ]
+
+  deps = [
+    "../../core/common:bundle",
+    "../../core/platform:bundle",
+    "../../core/platform/api:bundle",
+  ]
+}
+
+devtools_entrypoint("bundle") {
+  entrypoint = "heap_snapshot.ts"
+
+  deps = [ ":heap_snapshot" ]
+
+  visibility = [
+    ":*",
+    "../../../mcp/*",
+    "../../entrypoints/heap_snapshot_worker/*",
+    "../../panels/profiler/*",
+  ]
+
+  visibility += devtools_models_visibility
+}
+
+devtools_foundation_module("unittests") {
+  testonly = true
+
+  sources = [ "heap_snapshot.test.ts" ]
+
+  deps = [
+    ":bundle",
+    "../../testing",
+  ]
+}

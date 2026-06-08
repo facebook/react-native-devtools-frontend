@@ -1,10 +1,9 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as i18n from '../../../core/i18n/i18n.js';
-
-import type {DOMNode} from './Helper.js';
+import type * as SDK from '../../../core/sdk/sdk.js';
 
 const UIStrings = {
   /**
@@ -21,8 +20,7 @@ export type UserScrollPosition = 'start'|'middle'|'end';
 export interface Crumb {
   title: CrumbTitle;
   selected: boolean;
-  node: DOMNode;
-  originalNode: unknown;
+  node: SDK.DOMModel.DOMNode;
 }
 
 export interface CrumbTitle {
@@ -30,25 +28,25 @@ export interface CrumbTitle {
   extras: {id?: string, classes?: string[]};
 }
 
-export const crumbsToRender = (crumbs: readonly DOMNode[], selectedNode: Readonly<DOMNode>|null): Crumb[] => {
-  if (!selectedNode) {
-    return [];
-  }
+export const crumbsToRender =
+    (crumbs: readonly SDK.DOMModel.DOMNode[], selectedNode: SDK.DOMModel.DOMNode|null): Crumb[] => {
+      if (!selectedNode) {
+        return [];
+      }
 
-  return crumbs
-      .filter(crumb => {
-        return crumb.nodeType !== Node.DOCUMENT_NODE;
-      })
-      .map(crumb => {
-        return {
-          title: determineElementTitle(crumb),
-          selected: crumb.id === selectedNode.id,
-          node: crumb,
-          originalNode: crumb.legacyDomNode,
-        };
-      })
-      .reverse();
-};
+      return crumbs
+          .filter(crumb => {
+            return crumb.nodeType() !== Node.DOCUMENT_NODE;
+          })
+          .map(crumb => {
+            return {
+              title: determineElementTitle(crumb),
+              selected: crumb.id === selectedNode.id,
+              node: crumb,
+            };
+          })
+          .reverse();
+    };
 
 const makeCrumbTitle = (main: string, extras = {}): CrumbTitle => {
   return {
@@ -57,13 +55,15 @@ const makeCrumbTitle = (main: string, extras = {}): CrumbTitle => {
   };
 };
 
-export const determineElementTitle = (domNode: DOMNode): CrumbTitle => {
-  switch (domNode.nodeType) {
+export const determineElementTitle = (domNode: SDK.DOMModel.DOMNode): CrumbTitle => {
+  const nodeType = domNode.nodeType();
+  switch (nodeType) {
     case Node.ELEMENT_NODE: {
-      if (domNode.pseudoType) {
-        return makeCrumbTitle('::' + domNode.pseudoType);
+      const pseudoType = domNode.pseudoType();
+      if (pseudoType) {
+        return makeCrumbTitle('::' + pseudoType);
       }
-      const crumbTitle = makeCrumbTitle(domNode.nodeNameNicelyCased);
+      const crumbTitle = makeCrumbTitle(domNode.nodeNameInCorrectCase());
 
       const id = domNode.getAttribute('id');
       if (id) {
@@ -86,8 +86,8 @@ export const determineElementTitle = (domNode: DOMNode): CrumbTitle => {
     case Node.DOCUMENT_TYPE_NODE:
       return makeCrumbTitle('<!doctype>');
     case Node.DOCUMENT_FRAGMENT_NODE:
-      return makeCrumbTitle(domNode.shadowRootType ? '#shadow-root' : domNode.nodeNameNicelyCased);
+      return makeCrumbTitle(domNode.shadowRootType() ? '#shadow-root' : domNode.nodeNameInCorrectCase());
     default:
-      return makeCrumbTitle(domNode.nodeNameNicelyCased);
+      return makeCrumbTitle(domNode.nodeNameInCorrectCase());
   }
 };

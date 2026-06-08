@@ -1,11 +1,12 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as IconButton from '../../../components/icon_button/icon_button.js';
-import * as UI from '../../legacy.js';
+import '../../../kit/kit.js';
 
-import {getRegisteredProviders, Provider, registerProvider, type ProviderRegistration} from './FilteredListWidget.js';
+import {html, type TemplateResult} from '../../../lit/lit.js';
+
+import {getRegisteredProviders, Provider, type ProviderRegistration, registerProvider} from './FilteredListWidget.js';
 import {QuickOpenImpl} from './QuickOpen.js';
 
 export class HelpQuickOpen extends Provider {
@@ -16,18 +17,23 @@ export class HelpQuickOpen extends Provider {
     jslogContext: string,
   }>;
 
-  constructor(jslogContext: string) {
-    super(jslogContext);
+  constructor() {
+    super();
     this.providers = [];
     getRegisteredProviders().forEach(this.addProvider.bind(this));
   }
 
   private async addProvider(extension: ProviderRegistration): Promise<void> {
+    // We want to exclude Help menu as we are already in it.
+    if (extension.prefix === '?') {
+      return;
+    }
+
     this.providers.push({
       prefix: extension.prefix || '',
       iconName: extension.iconName,
       title: extension.helpTitle(),
-      jslogContext: (await extension.provider()).jslogContext,
+      jslogContext: extension.jslogContext,
     });
   }
 
@@ -43,18 +49,15 @@ export class HelpQuickOpen extends Provider {
     return -this.providers[itemIndex].prefix.length;
   }
 
-  override renderItem(itemIndex: number, _query: string, titleElement: Element, _subtitleElement: Element): void {
+  override renderItem(itemIndex: number, _query: string): TemplateResult {
     const provider = this.providers[itemIndex];
-
-    const iconElement = new IconButton.Icon.Icon();
-    iconElement.data = {
-      iconName: provider.iconName,
-      color: 'var(--icon-default)',
-      width: '18px',
-    };
-    titleElement.parentElement?.parentElement?.insertBefore(iconElement, titleElement.parentElement);
-
-    UI.UIUtils.createTextChild(titleElement, provider.title);
+    // clang-format off
+    return html`
+      <devtools-icon class="large" name=${provider.iconName}></devtools-icon>
+      <div>
+        <div>${provider.title}</div>
+      </div>`;
+    // clang-format on
   }
 
   override jslogContextAt(itemIndex: number): string {
@@ -66,17 +69,13 @@ export class HelpQuickOpen extends Provider {
       QuickOpenImpl.show(this.providers[itemIndex].prefix);
     }
   }
-
-  override renderAsTwoRows(): boolean {
-    return false;
-  }
 }
 
 registerProvider({
   prefix: '?',
   iconName: 'help',
-  provider: () => Promise.resolve(new HelpQuickOpen('help')),
+  provider: () => Promise.resolve(new HelpQuickOpen()),
   helpTitle: () => 'Help',
   titlePrefix: () => 'Help',
-  titleSuggestion: undefined,
+  jslogContext: 'help',
 });

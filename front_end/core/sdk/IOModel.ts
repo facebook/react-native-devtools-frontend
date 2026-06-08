@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,17 +7,13 @@ import * as Common from '../common/common.js';
 
 import {RemoteObject} from './RemoteObject.js';
 import {SDKModel} from './SDKModel.js';
-import {Capability, type Target} from './Target.js';
+import {Capability} from './Target.js';
 
 // [RN] Increase IO read size default
 const IO_READ_SIZE = 1024 * 1024 * 4;
 
 export class IOModel extends SDKModel<void> {
-  constructor(target: Target) {
-    super(target);
-  }
-
-  async read(handle: Protocol.IO.StreamHandle, size?: number, offset?: number): Promise<string|ArrayBuffer|null> {
+  async read(handle: Protocol.IO.StreamHandle, size?: number, offset?: number): Promise<string|Uint8Array|null> {
     const result = await this.target().ioAgent().invoke_read({handle, offset, size});
     if (result.getError()) {
       throw new Error(result.getError());
@@ -32,10 +28,7 @@ export class IOModel extends SDKModel<void> {
   }
 
   async close(handle: Protocol.IO.StreamHandle): Promise<void> {
-    const result = await this.target().ioAgent().invoke_close({handle});
-    if (result.getError()) {
-      console.error('Could not close stream.');
-    }
+    await this.target().ioAgent().invoke_close({handle});
   }
 
   async resolveBlob(objectOrObjectId: Protocol.Runtime.RemoteObjectId|RemoteObject): Promise<string> {
@@ -59,13 +52,39 @@ export class IOModel extends SDKModel<void> {
         strings.push(decoder.decode());
         break;
       }
-      if (data instanceof ArrayBuffer) {
+      if (data instanceof Uint8Array) {
         strings.push(decoder.decode(data, {stream: true}));
       } else {
         strings.push(data);
       }
     }
     return strings.join('');
+  }
+
+  async readToBuffer(handle: Protocol.IO.StreamHandle): Promise<Uint8Array<ArrayBuffer>> {
+    const items: Uint8Array[] = [];
+    for (;;) {
+      const data = await this.read(handle, 1024 * 1024);
+      if (data === null) {
+        break;
+      }
+      if (data instanceof Uint8Array) {
+        items.push(data);
+      } else {
+        throw new Error('Unexpected stream data type: expected binary, got a string');
+      }
+    }
+    let length = 0;
+    for (const item of items) {
+      length += item.length;
+    }
+    const result = new Uint8Array(length);
+    let offset = 0;
+    for (const item of items) {
+      result.set(item, offset);
+      offset += item.length;
+    }
+    return result;
   }
 }
 

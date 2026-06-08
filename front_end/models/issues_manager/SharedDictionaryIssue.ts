@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@ import {
 
 const UIStrings = {
   /**
-   *@description Title for Compression Dictionary Transport specification url link
+   * @description Title for Compression Dictionary Transport specification url link
    */
   compressionDictionaryTransport: 'Compression Dictionary Transport',
 } as const;
@@ -34,8 +34,10 @@ export const enum IssueCode {
   WRITE_ERROR_INSUFFICIENT_RESOURCES = 'SharedDictionaryIssue::WriteErrorInsufficientResources',
   WRITE_ERROR_INVALID_MATCH_FIELD = 'SharedDictionaryIssue::WriteErrorInvalidMatchField',
   WRITE_ERROR_INVALID_STRUCTURED_HEADER = 'SharedDictionaryIssue::WriteErrorInvalidStructuredHeader',
+  WRITE_ERROR_INVALID_TTL_FIELD = 'SharedDictionaryIssue::WriteErrorInvalidTTLField',
   WRITE_ERROR_NAVIGATION_REQUEST = 'SharedDictionaryIssue::WriteErrorNavigationRequest',
   WRITE_ERROR_NO_MATCH_FIELD = 'SharedDictionaryIssue::WriteErrorNoMatchField',
+  WRITE_ERROR_NON_INTEGER_TTL_FIELD = 'SharedDictionaryIssue::WriteErrorNonIntegerTTLField',
   WRITE_ERROR_NON_LIST_MATCH_DEST_FIELD = 'SharedDictionaryIssue::WriteErrorNonListMatchDestField',
   WRITE_ERROR_NON_SECURE_CONTEXT = 'SharedDictionaryIssue::WriteErrorNonSecureContext',
   WRITE_ERROR_NON_STRING_ID_FIELD = 'SharedDictionaryIssue::WriteErrorNonStringIdField',
@@ -73,10 +75,14 @@ function getIssueCode(details: Protocol.Audits.SharedDictionaryIssueDetails): Is
       return IssueCode.WRITE_ERROR_INVALID_MATCH_FIELD;
     case Protocol.Audits.SharedDictionaryError.WriteErrorInvalidStructuredHeader:
       return IssueCode.WRITE_ERROR_INVALID_STRUCTURED_HEADER;
+    case Protocol.Audits.SharedDictionaryError.WriteErrorInvalidTTLField:
+      return IssueCode.WRITE_ERROR_INVALID_TTL_FIELD;
     case Protocol.Audits.SharedDictionaryError.WriteErrorNavigationRequest:
       return IssueCode.WRITE_ERROR_NAVIGATION_REQUEST;
     case Protocol.Audits.SharedDictionaryError.WriteErrorNoMatchField:
       return IssueCode.WRITE_ERROR_NO_MATCH_FIELD;
+    case Protocol.Audits.SharedDictionaryError.WriteErrorNonIntegerTTLField:
+      return IssueCode.WRITE_ERROR_NON_INTEGER_TTL_FIELD;
     case Protocol.Audits.SharedDictionaryError.WriteErrorNonListMatchDestField:
       return IssueCode.WRITE_ERROR_NON_LIST_MATCH_DEST_FIELD;
     case Protocol.Audits.SharedDictionaryError.WriteErrorNonSecureContext:
@@ -102,10 +108,9 @@ function getIssueCode(details: Protocol.Audits.SharedDictionaryIssueDetails): Is
   }
 }
 
-export class SharedDictionaryIssue extends Issue {
-  readonly #issueDetails: Protocol.Audits.SharedDictionaryIssueDetails;
-
-  constructor(issueDetails: Protocol.Audits.SharedDictionaryIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel) {
+export class SharedDictionaryIssue extends Issue<Protocol.Audits.SharedDictionaryIssueDetails, IssueCode> {
+  constructor(
+      issueDetails: Protocol.Audits.SharedDictionaryIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel|null) {
     super(
         {
           code: getIssueCode(issueDetails),
@@ -114,13 +119,12 @@ export class SharedDictionaryIssue extends Issue {
             issueDetails.sharedDictionaryError,
           ].join('::'),
         },
-        issuesModel);
-    this.#issueDetails = issueDetails;
+        issueDetails, issuesModel);
   }
 
   override requests(): Iterable<Protocol.Audits.AffectedRequest> {
-    if (this.#issueDetails.request) {
-      return [this.#issueDetails.request];
+    if (this.details().request) {
+      return [this.details().request];
     }
     return [];
   }
@@ -129,12 +133,8 @@ export class SharedDictionaryIssue extends Issue {
     return IssueCategory.OTHER;
   }
 
-  details(): Protocol.Audits.SharedDictionaryIssueDetails {
-    return this.#issueDetails;
-  }
-
   getDescription(): MarkdownIssueDescription|null {
-    const description = issueDescriptions.get(this.#issueDetails.sharedDictionaryError);
+    const description = issueDescriptions.get(this.details().sharedDictionaryError);
     if (!description) {
       return null;
     }
@@ -142,15 +142,16 @@ export class SharedDictionaryIssue extends Issue {
   }
 
   primaryKey(): string {
-    return JSON.stringify(this.#issueDetails);
+    return JSON.stringify(this.details());
   }
 
   getKind(): IssueKind {
     return IssueKind.PAGE_ERROR;
   }
 
-  static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):
-      SharedDictionaryIssue[] {
+  static fromInspectorIssue(
+      issuesModel: SDK.IssuesModel.IssuesModel|null,
+      inspectorIssue: Protocol.Audits.InspectorIssue): SharedDictionaryIssue[] {
     const details = inspectorIssue.details.sharedDictionaryIssueDetails;
     if (!details) {
       console.warn('Shared Dictionary issue without details received.');
@@ -244,6 +245,13 @@ const issueDescriptions = new Map<Protocol.Audits.SharedDictionaryError, LazyMar
     },
   ],
   [
+    Protocol.Audits.SharedDictionaryError.WriteErrorInvalidTTLField,
+    {
+      file: 'sharedDictionaryWriteErrorInvalidTTLField.md',
+      links: specLinks,
+    },
+  ],
+  [
     Protocol.Audits.SharedDictionaryError.WriteErrorNavigationRequest,
     {
       file: 'sharedDictionaryWriteErrorNavigationRequest.md',
@@ -254,6 +262,13 @@ const issueDescriptions = new Map<Protocol.Audits.SharedDictionaryError, LazyMar
     Protocol.Audits.SharedDictionaryError.WriteErrorNoMatchField,
     {
       file: 'sharedDictionaryWriteErrorNoMatchField.md',
+      links: specLinks,
+    },
+  ],
+  [
+    Protocol.Audits.SharedDictionaryError.WriteErrorNonIntegerTTLField,
+    {
+      file: 'sharedDictionaryWriteErrorNonIntegerTTLField.md',
       links: specLinks,
     },
   ],

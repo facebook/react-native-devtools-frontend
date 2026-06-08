@@ -1,9 +1,9 @@
-// Copyright (c) 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as i18n from '../../../core/i18n/i18n.js';
-import type * as Trace from '../../../models/trace/trace.js';
+import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as UI from '../../../ui/legacy/legacy.js';
 import * as Lit from '../../../ui/lit/lit.js';
 
@@ -13,13 +13,13 @@ const {render, html} = Lit;
 
 const UIStrings = {
   /**
-   *@description Text for total
+   * @description Text for total
    */
   total: 'Total',
   /**
-   *@description Range in Timeline Details View's Summary
-   *@example {1ms} PH1
-   *@example {10ms} PH2
+   * @description Range in Timeline Details View's Summary
+   * @example {1ms} PH1
+   * @example {10ms} PH2
    */
   rangeSS: 'Range:  {PH1} – {PH2}',
 } as const;
@@ -32,74 +32,92 @@ export interface CategoryData {
   title: string;
 }
 
-export interface SummaryTableData {
-  total: number;
+interface ViewInput {
   rangeStart: number;
   rangeEnd: number;
+  total: number;
   categories: CategoryData[];
-  selectedEvents: Trace.Types.Events.Event[];
+  isInAIWidget?: boolean;
 }
 
-export class CategorySummary extends HTMLElement {
-  readonly #shadow =
-      UI.UIUtils.createShadowRootWithCoreStyles(this, {cssFile: timelineSummaryStyles, delegatesFocus: undefined});
+type View = (input: ViewInput, output: undefined, target: HTMLElement) => void;
+
+export const CATEGORY_SUMMARY_DEFAULT_VIEW: View = (input, _output, target): void => {
+  const summaryClasses = Lit.Directives.classMap({
+    'timeline-summary': true,
+    'is-in-ai-widget': Boolean(input.isInAIWidget),
+  });
+  // clang-format off
+  render(html`
+        <style>${timelineSummaryStyles}</style>
+        <style>@scope to (devtools-widget > *) { ${UI.inspectorCommonStyles} }</style>
+        <style>@scope to (devtools-widget > *) { ${Buttons.textButtonStyles} }</style>
+        <div class=${summaryClasses}>
+            <div class="summary-range">${i18nString(UIStrings.rangeSS, {PH1: i18n.TimeUtilities.millisToString(input.rangeStart), PH2: i18n.TimeUtilities.millisToString(input.rangeEnd)})}</div>
+            <div class="category-summary">
+                ${input.categories.map(category => {
+                    return html`
+                        <div class="category-row">
+                        <div class="category-swatch" style="background-color: ${category.color};"></div>
+                        <div class="category-name">${category.title}</div>
+                        <div class="category-value">
+                            ${i18n.TimeUtilities.preciseMillisToString(category.value)}
+                            <div class="background-bar-container">
+                                <div class="background-bar" style='width: ${(category.value * 100 / input.total).toFixed(1)}%;'></div>
+                            </div>
+                        </div>
+                        </div>`;
+                })}
+                <div class="category-row">
+                    <div class="category-swatch"></div>
+                    <div class="category-name">${i18nString(UIStrings.total)}</div>
+                    <div class="category-value">
+                        ${i18n.TimeUtilities.preciseMillisToString(input.total)}
+                        <div class="background-bar-container">
+                            <div class="background-bar"></div>
+                        </div>
+                    </div>
+                </div>
+              </div>
+        </div>
+        </div>
+
+      </div>`, target);
+  // clang-format on
+};
+
+export class CategorySummary extends UI.Widget.Widget {
+  #view: View;
 
   #rangeStart = 0;
   #rangeEnd = 0;
   #total = 0;
   #categories: CategoryData[] = [];
+  #isInAIWidget = false;
 
-  set data(data: SummaryTableData) {
-    this.#total = data.total;
-    this.#categories = data.categories;
+  constructor(element?: HTMLElement, view?: View) {
+    super(element);
+    this.#view = view ?? CATEGORY_SUMMARY_DEFAULT_VIEW;
+    this.requestUpdate();
+  }
+
+  set data(data: ViewInput) {
     this.#rangeStart = data.rangeStart;
     this.#rangeEnd = data.rangeEnd;
-    this.#render();
+    this.#total = data.total;
+    this.#categories = data.categories;
+    this.#isInAIWidget = Boolean(data.isInAIWidget);
+    this.requestUpdate();
   }
 
-  #render(): void {
-    // clang-format off
-    const output = html`
-          <div class="timeline-summary">
-              <div class="summary-range">${i18nString(UIStrings.rangeSS, {PH1: i18n.TimeUtilities.millisToString(this.#rangeStart), PH2: i18n.TimeUtilities.millisToString(this.#rangeEnd)})}</div>
-              <div class="category-summary">
-                  ${this.#categories.map(category => {
-                      return html`
-                          <div class="category-row">
-                          <div class="category-swatch" style="background-color: ${category.color};"></div>
-                          <div class="category-name">${category.title}</div>
-                          <div class="category-value">
-                              ${i18n.TimeUtilities.preciseMillisToString(category.value)}
-                              <div class="background-bar-container">
-                                  <div class="background-bar" style='width: ${(category.value * 100 / this.#total).toFixed(1)}%;'></div>
-                              </div>
-                          </div>
-                          </div>`;
-                  })}
-                  <div class="category-row">
-                      <div class="category-swatch"></div>
-                      <div class="category-name">${i18nString(UIStrings.total)}</div>
-                      <div class="category-value">
-                          ${i18n.TimeUtilities.preciseMillisToString(this.#total)}
-                          <div class="background-bar-container">
-                              <div class="background-bar"></div>
-                          </div>
-                      </div>
-                  </div>
-                </div>
-          </div>
-          </div>
-
-        </div>`;
-    // clang-format on
-    render(output, this.#shadow, {host: this});
-  }
-}
-
-customElements.define('devtools-performance-timeline-summary', CategorySummary);
-
-declare global {
-  interface HTMLElementTagNameMap {
-    'devtools-performance-timeline-summary': CategorySummary;
+  override performUpdate(): void {
+    const viewInput: ViewInput = {
+      rangeStart: this.#rangeStart,
+      rangeEnd: this.#rangeEnd,
+      total: this.#total,
+      categories: this.#categories,
+      isInAIWidget: this.#isInAIWidget,
+    };
+    this.#view(viewInput, undefined, this.contentElement);
   }
 }

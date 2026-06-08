@@ -7,7 +7,7 @@ import type { Observable, OperatorFunction } from '../../../third_party/rxjs/rxj
 import type { EventType } from '../../common/EventEmitter.js';
 import { EventEmitter } from '../../common/EventEmitter.js';
 import type { Awaitable, HandleFor, NodeFor } from '../../common/types.js';
-import type { ClickOptions } from '../ElementHandle.js';
+import type { ClickOptions, ElementHandle } from '../ElementHandle.js';
 import type { Frame } from '../Frame.js';
 import type { Page } from '../Page.js';
 /**
@@ -32,6 +32,18 @@ export interface ActionOptions {
  * @public
  */
 export type LocatorClickOptions = ClickOptions & ActionOptions;
+/**
+ * @public
+ */
+export interface LocatorFillOptions extends ActionOptions {
+    /**
+     * The number of characters to type before switching to a faster fill-out
+     * method.
+     *
+     * @defaultValue `100`
+     */
+    typingThreshold?: number;
+}
 /**
  * @public
  */
@@ -201,7 +213,7 @@ export declare abstract class Locator<T> extends EventEmitter<LocatorEvents> {
      * method is chosen based on the type. `contenteditable`, select, textarea and
      * input elements are supported.
      */
-    fill<ElementType extends Element>(this: Locator<ElementType>, value: string, options?: Readonly<ActionOptions>): Promise<void>;
+    fill<ElementType extends Element>(this: Locator<ElementType>, value: string, options?: Readonly<LocatorFillOptions>): Promise<void>;
     /**
      * Hovers over the located element.
      */
@@ -280,6 +292,8 @@ export type Action<T, U> = (element: HandleFor<T>, signal?: AbortSignal) => Obse
 export declare class NodeLocator<T extends Node> extends Locator<T> {
     #private;
     static create<Selector extends string>(pageOrFrame: Page | Frame, selector: Selector): Locator<NodeFor<Selector>>;
+    static createFromHandle<T extends Node>(pageOrFrame: Page | Frame, handle: ElementHandle<T>): Locator<T>;
+    private constructor();
     private constructor();
     _clone(): NodeLocator<T>;
     _wait(options?: Readonly<ActionOptions>): Observable<HandleFor<T>>;

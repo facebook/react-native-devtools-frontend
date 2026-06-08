@@ -1,12 +1,14 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view, @devtools/enforce-custom-element-definitions-location */
 
 import * as Platform from '../../../core/platform/platform.js';
+import * as UI from '../../legacy/legacy.js';
 import * as Lit from '../../lit/lit.js';
 import * as VisualLogging from '../../visual_logging/visual_logging.js';
+import * as Buttons from '../buttons/buttons.js';
 import * as CodeHighlighter from '../code_highlighter/code_highlighter.js';
-import * as ComponentHelpers from '../helpers/helpers.js';
 import * as RenderCoordinator from '../render_coordinator/render_coordinator.js';
 
 import treeOutlineStyles from './treeOutline.css.js';
@@ -129,6 +131,10 @@ export class TreeOutline<TreeNodeDataType> extends HTMLElement {
   }
 
   attributeChangedCallback(name: 'nowrap'|'toplevelbordercolor', oldValue: string|null, newValue: string|null): void {
+    if (oldValue === newValue) {
+      return;
+    }
+
     switch (name) {
       case 'nowrap': {
         this.#setNodeKeyNoWrapCSSVariable(newValue);
@@ -469,10 +475,10 @@ export class TreeOutline<TreeNodeDataType> extends HTMLElement {
         aria-level=${depth + 1}
         aria-posinset=${positionInSet + 1}
         class=${listItemClasses}
-        jslog=${VisualLogging.treeItem(node.jslogContext).track({click: true, keydown: 'ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Enter|Space|Home|End'})}
+        jslog=${VisualLogging.treeItem(node.jslogContext).track({click: true, resize: true, keydown: 'ArrowUp|ArrowDown|ArrowLeft|ArrowRight|Enter|Space|Home|End'})}
         @click=${this.#onNodeClick}
         track-dom-node-to-tree-node=${trackDOMNodeToTreeNode(this.#domNodeToTreeNodeMap, node)}
-        on-render=${ComponentHelpers.Directives.nodeRenderedCallback(domNode => {
+        ${Lit.Directives.ref(domNode => {
          /**
           * Because TreeNodes are lazily rendered, you can call
           * `outline.expandToAndSelect(NodeX)`, but `NodeX` will be rendered at some
@@ -517,14 +523,27 @@ export class TreeOutline<TreeNodeDataType> extends HTMLElement {
 
     this.#scheduledRender = true;
 
-    await RenderCoordinator.write('TreeOutline render', () => {
+    const hasChildrenInTree = this.#treeData.some(topLevelNode => isExpandableNode(topLevelNode));
+
+    const ulClasses = Lit.Directives.classMap({hasNoChildren: !hasChildrenInTree});
+
+    await RenderCoordinator.write(() => {
       // Disabled until https://crbug.com/1079231 is fixed.
       // clang-format off
+      // Unfortunately the TreeOutline web component adds the
+      // tree element into its own shadow DOM, so these don't
+      // inherit the surrounding (common) styles. But we need
+      // the common button styles at least (e.g. to fix the
+      // cause of http://crbug.com/435601104). Long-term the
+      // tree elements shouldn't be inside the TreeOutline's
+      // shadow DOM.
       Lit.render(html`
-      <style>${treeOutlineStyles.cssText}</style>
-      <style>${CodeHighlighter.codeHighlighterStyles.cssText}</style>
+      <style>${Buttons.textButtonStyles}</style>
+      <style>${UI.inspectorCommonStyles}</style>
+      <style>${treeOutlineStyles}</style>
+      <style>${CodeHighlighter.codeHighlighterStyles}</style>
       <div class="wrapping-container">
-        <ul role="tree" @keydown=${this.#onTreeKeyDown}>
+        <ul role="tree" @keydown=${this.#onTreeKeyDown} class=${ulClasses}>
           ${this.#treeData.map((topLevelNode, index) => {
             return this.#renderNode(topLevelNode, {
               depth: 0,

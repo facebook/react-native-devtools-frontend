@@ -1,11 +1,13 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import '../../ui/legacy/legacy.js';
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import type * as LighthouseModel from '../../models/lighthouse/lighthouse.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
@@ -14,11 +16,10 @@ import {
   Events,
   LighthouseController,
   type PageAuditabilityChangedEvent,
-  type PageWarningsChangedEvent,
+  type PageWarningsChangedEvent
 } from './LighthouseController.js';
 import lighthousePanelStyles from './lighthousePanel.css.js';
-import {ProtocolService} from './LighthouseProtocolService.js';
-import type {ReportJSON, RunnerResultArtifacts} from './LighthouseReporterTypes.js';
+import {CancelledError, ProtocolService} from './LighthouseProtocolService.js';
 import {LighthouseReportRenderer} from './LighthouseReportRenderer.js';
 import {Item, ReportSelector} from './LighthouseReportSelector.js';
 import {StartView} from './LighthouseStartView.js';
@@ -27,31 +28,31 @@ import {TimespanView} from './LighthouseTimespanView.js';
 
 const UIStrings = {
   /**
-   *@description Text that appears when user drag and drop something (for example, a file) in Lighthouse Panel
+   * @description Text that appears when user drag and drop something (for example, a file) in Lighthouse Panel
    */
   dropLighthouseJsonHere: 'Drop `Lighthouse` JSON here',
   /**
-   *@description Tooltip text that appears when hovering over the largeicon add button in the Lighthouse Panel
+   * @description Tooltip text that appears when hovering over the largeicon add button in the Lighthouse Panel
    */
   performAnAudit: 'Perform an audit…',
   /**
-   *@description Text to clear everything
+   * @description Text to clear everything
    */
   clearAll: 'Clear all',
   /**
-   *@description Tooltip text that appears when hovering over the largeicon settings gear in show settings pane setting in start view of the audits panel
+   * @description Tooltip text that appears when hovering over the largeicon settings gear in show settings pane setting in start view of the audits panel
    */
   lighthouseSettings: '`Lighthouse` settings',
   /**
-   *@description Status header in the Lighthouse panel
+   * @description Status header in the Lighthouse panel
    */
   printing: 'Printing',
   /**
-   *@description Status text in the Lighthouse panel
+   * @description Status text in the Lighthouse panel
    */
   thePrintPopupWindowIsOpenPlease: 'The print popup window is open. Please close it to continue.',
   /**
-   *@description Text in Lighthouse Panel
+   * @description Text in Lighthouse Panel
    */
   cancelling: 'Cancelling',
 } as const;
@@ -61,6 +62,11 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 let lighthousePanelInstace: LighthousePanel;
 type Nullable<T> = T|null;
 
+export class ActiveLighthouseReport {
+  constructor(public report: LighthouseModel.ReporterTypes.ReportJSON) {
+  }
+}
+
 export class LighthousePanel extends UI.Panel.Panel {
   private readonly controller: LighthouseController;
   private readonly startView: StartView;
@@ -68,8 +74,7 @@ export class LighthousePanel extends UI.Panel.Panel {
   private readonly timespanView: TimespanView;
   private warningText: Nullable<string>;
   private unauditableExplanation: Nullable<string>;
-  private readonly cachedRenderedReports: Map<ReportJSON, HTMLElement>;
-  private readonly dropTarget: UI.DropTarget.DropTarget;
+  private readonly cachedRenderedReports: Map<LighthouseModel.ReporterTypes.ReportJSON, HTMLElement>;
   private readonly auditResultsElement: HTMLElement;
   private clearButton!: UI.Toolbar.ToolbarButton;
   private newButton!: UI.Toolbar.ToolbarButton;
@@ -93,7 +98,7 @@ export class LighthousePanel extends UI.Panel.Panel {
     this.unauditableExplanation = null;
     this.cachedRenderedReports = new Map();
 
-    this.dropTarget = new UI.DropTarget.DropTarget(
+    new UI.DropTarget.DropTarget(
         this.contentElement, [UI.DropTarget.Type.File], i18nString(UIStrings.dropLighthouseJsonHere),
         this.handleDrop.bind(this));
 
@@ -103,9 +108,11 @@ export class LighthousePanel extends UI.Panel.Panel {
 
     this.renderToolbar();
     this.auditResultsElement = this.contentElement.createChild('div', 'lighthouse-results-container');
+    this.auditResultsElement.addEventListener('keydown', this.onKeyDown.bind(this));
     this.renderStartView();
 
     this.controller.recomputePageAuditability();
+    UI.Context.Context.instance().setFlavor(ActiveLighthouseReport, null);
   }
 
   static instance(opts?: {forceNew: boolean, protocolService: ProtocolService, controller: LighthouseController}):
@@ -145,14 +152,18 @@ export class LighthousePanel extends UI.Panel.Panel {
     }
   }
 
-  async handleCompleteRun(): Promise<void> {
+  async handleCompleteRun(overrides?: LighthouseModel.RunTypes.RunOverrides):
+      Promise<{report: LighthouseModel.ReporterTypes.ReportJSON | null}> {
     try {
-      await this.controller.startLighthouse();
+      await this.controller.startLighthouse(overrides);
       this.renderStatusView();
       const {lhr, artifacts} = await this.controller.collectLighthouseResults();
       this.buildReportUI(lhr, artifacts);
+      return {report: lhr};
     } catch (err) {
       this.handleError(err);
+      UI.Context.Context.instance().setFlavor(ActiveLighthouseReport, null);
+      return {report: null};
     }
   }
 
@@ -164,6 +175,12 @@ export class LighthousePanel extends UI.Panel.Panel {
   }
 
   private handleError(err: unknown): void {
+    if (err instanceof CancelledError) {
+      // If the error was an explicit choice to cancel, we don't want to render
+      // the bug report view.
+      return;
+    }
+
     if (err instanceof Error) {
       this.statusView.renderBugReport(err);
     }
@@ -260,6 +277,7 @@ export class LighthousePanel extends UI.Panel.Panel {
     this.statusView.hide();
 
     this.reportSelector.selectNewReport();
+    UI.Context.Context.instance().setFlavor(ActiveLighthouseReport, null);
     this.contentElement.classList.toggle('in-progress', false);
 
     this.startView.show(this.contentElement);
@@ -277,9 +295,10 @@ export class LighthousePanel extends UI.Panel.Panel {
   }
 
   private renderStatusView(): void {
-    const inspectedURL = this.controller.getCurrentRun()?.inspectedURL;
+    const currentRun = this.controller.getCurrentRun();
     this.contentElement.classList.toggle('in-progress', true);
-    this.statusView.setInspectedURL(inspectedURL);
+    this.statusView.setInspectedURL(currentRun?.inspectedURL);
+    this.statusView.setAIControlled(Boolean(currentRun?.isAIControlled));
     this.statusView.show(this.contentElement);
   }
 
@@ -294,7 +313,9 @@ export class LighthousePanel extends UI.Panel.Panel {
     this.statusView.toggleCancelButton(true);
   }
 
-  private renderReport(lighthouseResult: ReportJSON, artifacts?: RunnerResultArtifacts): void {
+  private renderReport(
+      lighthouseResult: LighthouseModel.ReporterTypes.ReportJSON,
+      artifacts?: LighthouseModel.ReporterTypes.RunnerResultArtifacts): void {
     this.toggleSettingsDisplay(false);
     this.contentElement.classList.toggle('in-progress', false);
     this.startView.hideWidget();
@@ -302,6 +323,8 @@ export class LighthousePanel extends UI.Panel.Panel {
     this.auditResultsElement.removeChildren();
     this.newButton.setEnabled(true);
     this.refreshToolbarUI();
+
+    UI.Context.Context.instance().setFlavor(ActiveLighthouseReport, new ActiveLighthouseReport(lighthouseResult));
 
     const cachedRenderedReport = this.cachedRenderedReports.get(lighthouseResult);
     if (cachedRenderedReport) {
@@ -317,7 +340,9 @@ export class LighthousePanel extends UI.Panel.Panel {
     this.cachedRenderedReports.set(lighthouseResult, reportContainer);
   }
 
-  private buildReportUI(lighthouseResult: ReportJSON, artifacts?: RunnerResultArtifacts): void {
+  private buildReportUI(
+      lighthouseResult: LighthouseModel.ReporterTypes.ReportJSON,
+      artifacts?: LighthouseModel.ReporterTypes.RunnerResultArtifacts): void {
     if (lighthouseResult === null) {
       return;
     }
@@ -327,7 +352,7 @@ export class LighthousePanel extends UI.Panel.Panel {
     this.reportSelector.prepend(optionElement);
     this.refreshToolbarUI();
     this.renderReport(lighthouseResult);
-    this.newButton.element.focus();
+    (this.auditResultsElement.querySelector('.lh-topbar__url') as HTMLElement | null)?.focus();
   }
 
   private handleDrop(dataTransfer: DataTransfer): void {
@@ -353,7 +378,7 @@ export class LighthousePanel extends UI.Panel.Panel {
     if (!data['lighthouseVersion']) {
       return;
     }
-    this.buildReportUI(data as ReportJSON);
+    this.buildReportUI(data as LighthouseModel.ReporterTypes.ReportJSON);
   }
 
   override elementsToRestoreScrollPositionsFor(): Element[] {
@@ -363,5 +388,24 @@ export class LighthousePanel extends UI.Panel.Panel {
       els.push(lhContainerEl);
     }
     return els;
+  }
+
+  private onKeyDown(event: KeyboardEvent): void {
+    // The LHR's tool button is a toggle. When the user hits escape, the default behavior
+    // is to close the tool drawer. We want to prevent this behavior and instead let the
+    // LHR's tool button handle the event and close the tool's dropdown.
+    if (event.key === 'Escape' && this.auditResultsElement.querySelector('.lh-tools__button.lh-active')) {
+      event.handled = true;
+    }
+  }
+
+  static async executeLighthouseRecording(
+      overrides?: LighthouseModel.RunTypes.RunOverrides,
+      ): Promise<LighthouseModel.ReporterTypes.ReportJSON|null> {
+    const panel = LighthousePanel.instance();
+    await UI.ViewManager.ViewManager.instance().showView('lighthouse');
+
+    const {report} = await panel.handleCompleteRun(overrides);
+    return report;
   }
 }

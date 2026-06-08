@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -362,25 +362,30 @@ export const CubicBezierKeywordValues = new Map([
   ['ease-out', 'cubic-bezier(0, 0, 0.58, 1)'],
 ]);
 
-// CSS-wide keywords.
+/** CSS-wide keywords. **/
 export const enum CSSWideKeyword {
   INHERIT = 'inherit',
   INITIAL = 'initial',
   REVERT = 'revert',
   REVERT_LAYER = 'revert-layer',
+  REVERT_RULE = 'revert-rule',
   UNSET = 'unset',
 }
-// Spec: https://drafts.csswg.org/css-cascade/#defaulting-keywords
-// https://drafts.csswg.org/css-cascade-5/#revert-layer
+/**
+ * Spec: https://drafts.csswg.org/css-cascade/#defaulting-keywords
+ * https://drafts.csswg.org/css-cascade-5/#revert-layer
+ * https://drafts.csswg.org/css-cascade-6/#revert-rule
+ **/
 export const CSSWideKeywords: CSSWideKeyword[] = [
   CSSWideKeyword.INHERIT,
   CSSWideKeyword.INITIAL,
   CSSWideKeyword.REVERT,
   CSSWideKeyword.REVERT_LAYER,
+  CSSWideKeyword.REVERT_RULE,
   CSSWideKeyword.UNSET,
 ];
 
-// https://www.w3.org/TR/css-anchor-position-1/#typedef-try-size
+/** https://www.w3.org/TR/css-anchor-position-1/#typedef-try-size **/
 export const enum PositionTryOrderKeyword {
   NORMAL = 'normal',
   MOST_HEIGHT = 'most-height',
@@ -453,11 +458,8 @@ const cornerShapeValuePresetMap = new Map([
 ]);
 
 const valuePresets = new Map([
-  ['filter', filterValuePresetMap],
-  ['backdrop-filter', filterValuePresetMap],
-  ['background', imageValuePresetMap],
-  ['background-image', imageValuePresetMap],
-  ['-webkit-mask-image', imageValuePresetMap],
+  ['filter', filterValuePresetMap], ['backdrop-filter', filterValuePresetMap], ['background', imageValuePresetMap],
+  ['background-image', imageValuePresetMap], ['-webkit-mask-image', imageValuePresetMap],
   [
     'transform',
     new Map([
@@ -484,6 +486,17 @@ const valuePresets = new Map([
     ]),
   ],
   ['corner-shape', cornerShapeValuePresetMap],
+  [
+    'font-variant-alternates',
+    new Map([
+      ['stylistic', 'stylistic(||)'],
+      ['styleset', 'styleset(||)'],
+      ['character-variant', 'character-variant(||)'],
+      ['swash', 'swash(||)'],
+      ['ornaments', 'ornaments(||)'],
+      ['annotation', 'annotation(||)'],
+    ]),
+  ]
 ]);
 
 const distanceProperties = new Set<string>([
@@ -634,7 +647,7 @@ const extraPropertyValues = new Map<string, Set<string>>([
   ['background-repeat', new Set(['repeat', 'repeat-x', 'repeat-y', 'no-repeat', 'space', 'round'])],
   ['content', new Set(['normal', 'close-quote', 'no-close-quote', 'no-open-quote', 'open-quote'])],
   ['baseline-shift', new Set(['baseline'])],
-  ['max-height', new Set(['min-content', 'max-content', '-webkit-fill-available', 'fit-content'])],
+  ['max-height', new Set(['min-content', 'max-content', '-webkit-fill-available', 'fit-content', 'stretch'])],
   ['color', new Set(['black'])],
   ['background-color', new Set(['white'])],
   ['box-shadow', new Set(['inset'])],
@@ -646,7 +659,7 @@ const extraPropertyValues = new Map<string, Set<string>>([
   ['border-width', new Set(['medium', 'thick', 'thin'])],
   ['border-style', new Set(['hidden', 'inset', 'groove', 'ridge', 'outset', 'dotted', 'dashed', 'solid', 'double'])],
   ['size', new Set(['a3', 'a4', 'a5', 'b4', 'b5', 'landscape', 'ledger', 'legal', 'letter', 'portrait'])],
-  ['overflow', new Set(['hidden', 'visible', 'overlay', 'scroll'])],
+  ['overflow', new Set(['hidden', 'visible', 'overlay', 'scroll', 'clip'])],
   ['overscroll-behavior', new Set(['contain'])],
   ['text-rendering', new Set(['optimizeSpeed', 'optimizeLegibility', 'geometricPrecision'])],
   ['text-align', new Set(['-webkit-auto', '-webkit-match-parent'])],
@@ -708,7 +721,7 @@ const extraPropertyValues = new Map<string, Set<string>>([
     ]),
   ],
   ['zoom', new Set(['normal'])],
-  ['max-width', new Set(['min-content', 'max-content', '-webkit-fill-available', 'fit-content'])],
+  ['max-width', new Set(['min-content', 'max-content', '-webkit-fill-available', 'fit-content', 'stretch'])],
   ['-webkit-font-smoothing', new Set(['antialiased', 'subpixel-antialiased'])],
   [
     'border',
@@ -763,6 +776,10 @@ const extraPropertyValues = new Map<string, Set<string>>([
       'proportional-width',
       'ruby',
     ]),
+  ],
+  [
+    'font-variant-alternates',
+    new Set(['historical-forms', 'stylistic', 'styleset', 'character-variant', 'swash', 'ornaments', 'annotation'])
   ],
   ['vertical-align', new Set(['top', 'bottom', '-webkit-baseline-middle'])],
   ['page-break-after', new Set(['left', 'right', 'always', 'avoid'])],
@@ -1095,7 +1112,7 @@ const extraPropertyValues = new Map<string, Set<string>>([
     ]),
   ],
   ['flex-flow', new Set(['nowrap', 'row', 'row-reverse', 'column', 'column-reverse', 'wrap', 'wrap-reverse'])],
-  ['height', new Set(['-webkit-fill-available'])],
+  ['height', new Set(['-webkit-fill-available', 'stretch'])],
   ['inline-size', new Set(['-webkit-fill-available', 'min-content', 'max-content', 'fit-content'])],
   [
     'list-style',
@@ -1162,9 +1179,9 @@ const extraPropertyValues = new Map<string, Set<string>>([
   ['max-block-size', new Set(['-webkit-fill-available', 'min-content', 'max-content', 'fit-content'])],
   ['max-inline-size', new Set(['-webkit-fill-available', 'min-content', 'max-content', 'fit-content'])],
   ['min-block-size', new Set(['-webkit-fill-available', 'min-content', 'max-content', 'fit-content'])],
-  ['min-height', new Set(['-webkit-fill-available', 'min-content', 'max-content', 'fit-content'])],
+  ['min-height', new Set(['-webkit-fill-available', 'min-content', 'max-content', 'fit-content', 'stretch'])],
   ['min-inline-size', new Set(['-webkit-fill-available', 'min-content', 'max-content', 'fit-content'])],
-  ['min-width', new Set(['-webkit-fill-available', 'min-content', 'max-content', 'fit-content'])],
+  ['min-width', new Set(['-webkit-fill-available', 'min-content', 'max-content', 'fit-content', 'stretch'])],
   ['object-position', new Set(['top', 'bottom', 'left', 'right', 'center'])],
   ['shape-outside', new Set(['border-box', 'content-box', 'padding-box', 'margin-box'])],
   [
@@ -1326,7 +1343,25 @@ const extraPropertyValues = new Map<string, Set<string>>([
   ['-webkit-text-stroke-width', new Set(['medium', 'thick', 'thin'])],
   ['-webkit-transform-origin-x', new Set(['left', 'right', 'center'])],
   ['-webkit-transform-origin-y', new Set(['top', 'bottom', 'center'])],
-  ['width', new Set(['-webkit-fill-available'])],
+  ['width', new Set(['-webkit-fill-available', 'stretch'])],
+  [
+    'animation-trigger',
+    new Set([
+      'play',
+      'pause',
+      'play-once',
+      'play-alternate',
+      'play-forwards',
+      'play-backwards',
+      'play-pause',
+      'replay',
+    ]),
+  ],
+  ['timeline-trigger-activation-range-start', new Set(['normal'])],
+  ['timeline-trigger-activation-range-end', new Set(['normal'])],
+  ['timeline-trigger-active-range-start', new Set(['normal'])],
+  ['timeline-trigger-active-range-end', new Set(['normal'])],
+
   ['contain-intrinsic-width', new Set(['auto none', 'auto 100px'])],
   ['contain-intrinsic-height', new Set(['auto none', 'auto 100px'])],
   ['contain-intrinsic-size', new Set(['auto none', 'auto 100px'])],
@@ -1371,7 +1406,7 @@ const extraPropertyValues = new Map<string, Set<string>>([
       'scoop',
       'bevel',
       'notch',
-      'straight',
+      'square',
       'squircle',
       'superellipse(0.5)',
       'superellipse(infinity)',

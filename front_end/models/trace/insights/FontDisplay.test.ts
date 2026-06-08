@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,16 +7,16 @@ import {getFirstOrError, getInsightOrError, processTrace} from '../../../testing
 import type * as Types from '../types/types.js';
 
 describeWithEnvironment('FontDisplay', function() {
-  it('finds no requests for remote fonts', async () => {
+  it('finds no requests for remote fonts', async function() {
     const {data, insights} = await processTrace(this, 'load-simple.json.gz');
-    assert.strictEqual(insights.size, 2);
+    assert.strictEqual(insights.size, 1);
     const insight =
         getInsightOrError('FontDisplay', insights, getFirstOrError(data.Meta.navigationsByNavigationId.values()));
 
     assert.lengthOf(insight.fonts, 0);
   });
 
-  it('finds requests for remote fonts', async () => {
+  it('finds requests for remote fonts', async function() {
     const {data, insights} = await processTrace(this, 'font-display.json.gz');
     assert.strictEqual(insights.size, 1);
     const insight =

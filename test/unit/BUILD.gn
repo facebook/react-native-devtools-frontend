@@ -1,10 +1,26 @@
-# Copyright 2024 The Chromium Authors. All rights reserved.
+# Copyright 2024 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+import("../../scripts/build/ninja/copy.gni")
 import("../../scripts/build/typescript/typescript.gni")
 
 node_ts_library("karma") {
-  sources = [ "karma.conf.ts" ]
-  deps = [ "../shared" ]
+  sources = [
+    "karma.conf.ts",
+    "mocha-hooks.ts",
+    "mocharc.ts",
+  ]
+  deps = [
+    "../conductor:implementation",
+    "../shared",
+  ]
+  data_deps = [ ":context" ]
+}
+
+copy_to_gen("context") {
+  sources = [
+    "context.html",
+    "debug.html",
+  ]
 }

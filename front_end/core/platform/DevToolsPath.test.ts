@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,7 +20,7 @@ describe('Platform', () => {
 
     describe('UrlString', () => {
       it('is correctly type checked', () => {
-        // eslint-disable-next-line rulesdir/prefer-url-string
+        // eslint-disable-next-line @devtools/prefer-url-string
         const urlString = 'urlStr' as Platform.DevToolsPath.UrlString;
         fnExpectingUrlString(urlString);
         // @ts-expect-error Passing a UrlString when RawPathString is expected

@@ -1,18 +1,21 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-import type {Size} from './Geometry.js';
+/* eslint-disable @devtools/no-imperative-dom-api */
+import type {Size} from '../../models/geometry/geometry.js';
+
 import glassPaneStyles from './glassPane.css.js';
 import {deepElementFromEvent, measuredScrollbarWidth} from './UIUtils.js';
 import {Widget} from './Widget.js';
 
 export class GlassPane {
-  private readonly widgetInternal = new Widget(true);
+  readonly #widget;
 
   element: typeof Widget.prototype.element;
   contentElement: typeof Widget.prototype.contentElement;
   private readonly onMouseDownBound: (event: Event) => void;
   private onClickOutsideCallback: ((arg0: Event) => void)|null = null;
+  #onHideCallback: (() => void)|null = null;
   private maxSize: Size|null = null;
   private positionX: number|null = null;
   private positionY: number|null = null;
@@ -23,12 +26,11 @@ export class GlassPane {
   #ignoreLeftMargin = false;
 
   constructor(jslog?: string) {
-    this.widgetInternal.markAsRoot();
-    this.element = this.widgetInternal.element;
-    this.contentElement = this.widgetInternal.contentElement;
-    if (jslog) {
-      this.contentElement.setAttribute('jslog', jslog);
-    }
+    this.#widget = new Widget({jslog, useShadowDom: true});
+    this.#widget.markAsRoot();
+    this.#widget.onDetach = this.#onDetach.bind(this);
+    this.element = this.#widget.element;
+    this.contentElement = this.#widget.contentElement;
 
     this.registerRequiredCSS(glassPaneStyles);
     this.setPointerEventsBehavior(PointerEventsBehavior.PIERCE_GLASS_PANE);
@@ -41,15 +43,15 @@ export class GlassPane {
   }
 
   isShowing(): boolean {
-    return this.widgetInternal.isShowing();
+    return this.#widget.isShowing();
   }
 
-  registerRequiredCSS(...cssFiles: Array<{cssText: string}>): void {
-    this.widgetInternal.registerRequiredCSS(...cssFiles);
+  registerRequiredCSS(...cssFiles: Array<string&{_tag: 'CSS-in-JS'}>): void {
+    this.#widget.registerRequiredCSS(...cssFiles);
   }
 
   setDefaultFocusedElement(element: Element|null): void {
-    this.widgetInternal.setDefaultFocusedElement(element);
+    this.#widget.setDefaultFocusedElement(element);
   }
 
   setDimmed(dimmed: boolean): void {
@@ -65,6 +67,10 @@ export class GlassPane {
 
   setOutsideClickCallback(callback: ((arg0: Event) => void)|null): void {
     this.onClickOutsideCallback = callback;
+  }
+
+  setOnHideCallback(cb: () => void): void {
+    this.#onHideCallback = cb;
   }
 
   setMaxContentSize(size: Size|null): void {
@@ -110,7 +116,7 @@ export class GlassPane {
     this.element.setAttribute('data-devtools-glass-pane', '');
     document.body.addEventListener('mousedown', this.onMouseDownBound, true);
     document.body.addEventListener('pointerdown', this.onMouseDownBound, true);
-    this.widgetInternal.show(document.body);
+    this.#widget.show(document.body);
     panes.add(this);
     this.positionContent();
   }
@@ -119,10 +125,16 @@ export class GlassPane {
     if (!this.isShowing()) {
       return;
     }
+    this.#widget.detach();
+    if (this.#onHideCallback) {
+      this.#onHideCallback();
+    }
+  }
+
+  #onDetach(): void {
     panes.delete(this);
     this.element.ownerDocument.body.removeEventListener('mousedown', this.onMouseDownBound, true);
     this.element.ownerDocument.body.removeEventListener('pointerdown', this.onMouseDownBound, true);
-    this.widgetInternal.detach();
   }
 
   private onMouseDown(event: Event): void {
@@ -283,11 +295,11 @@ export class GlassPane {
     }
 
     this.contentElement.positionAt(positionX, positionY, container);
-    this.widgetInternal.doResize();
+    this.#widget.doResize();
   }
 
   widget(): Widget {
-    return this.widgetInternal;
+    return this.#widget;
   }
 
   static setContainer(element: Element): void {
@@ -335,5 +347,5 @@ export const enum MarginBehavior {
 const containers = new Map<Document, Element>();
 const panes = new Set<GlassPane>();
 
-// Exported for layout tests.
+/** Exported for layout tests. **/
 export const GlassPanePanes = panes;

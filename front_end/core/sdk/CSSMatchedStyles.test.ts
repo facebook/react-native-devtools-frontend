@@ -1,10 +1,11 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Protocol from '../../generated/protocol.js';
+import {renderElementIntoDOM} from '../../testing/DOMHelpers.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
-import {describeWithMockConnection} from '../../testing/MockConnection.js';
+import {describeWithMockConnection, setMockConnectionResponseHandler} from '../../testing/MockConnection.js';
 import {getMatchedStyles, ruleMatch} from '../../testing/StyleHelpers.js';
 
 import * as SDK from './sdk.js';
@@ -131,6 +132,101 @@ describe('CSSMatchedStyles', () => {
       testComputedVariableValueEquals('--foo', styleFoo2, 'foo2', styleFoo2.leadingProperties()[1]);
       testComputedVariableValueEquals('--bar', styleFoo3, 'bar0', matchedStyles.registeredProperties()[0]);
       testComputedVariableValueEquals('--foo', styleBaz, 'foo3', styleFoo3.leadingProperties()[0]);
+    });
+
+    it('correctly resolves highlight properties', async () => {
+      const highlightNode = sinon.createStubInstance(SDK.DOMModel.DOMNode);
+      const node = sinon.createStubInstance(SDK.DOMModel.DOMNode);
+      const parent = sinon.createStubInstance(SDK.DOMModel.DOMNode);
+      const parentHighlight = sinon.createStubInstance(SDK.DOMModel.DOMNode);
+      node.id = 1 as Protocol.DOM.NodeId;
+      node.parentNode = parent;
+      parent.id = 2 as Protocol.DOM.NodeId;
+      highlightNode.id = 3 as Protocol.DOM.NodeId;
+      highlightNode.parentNode = node;
+      parentHighlight.id = 4 as Protocol.DOM.NodeId;
+      parentHighlight.parentNode = parent;
+      node.pseudoElements.returns(new Map([[Protocol.DOM.PseudoType.Highlight, [highlightNode]]]));
+      parent.pseudoElements.returns(new Map([[Protocol.DOM.PseudoType.Highlight, [parentHighlight]]]));
+
+      const matchedStyles = await getMatchedStyles({
+        node,
+        matchedPayload: [ruleMatch('div.b', [{name: '--color', value: 'green'}])],
+        inheritedPayload: [
+          {
+            matchedCSSRules:
+                [ruleMatch('div.a', [{name: '--color', value: 'yellow'}])],
+          },
+        ],
+        pseudoPayload: [
+          {
+            pseudoType: Protocol.DOM.PseudoType.Highlight,
+            pseudoIdentifier: 'highlight-foo',
+            matches: [ruleMatch('.b::highlight(highlight-foo)', [{name: '--text-color', value: 'var(--color)'}])],
+          },
+        ],
+        inheritedPseudoPayload: [{
+          pseudoElements: [{
+            pseudoType: Protocol.DOM.PseudoType.Highlight,
+            pseudoIdentifier: 'highlight-foo',
+            matches: [ruleMatch(
+                '.a::highlight(highlight-foo)',
+                [{name: '--color', value: 'blue'},])],
+          }]
+        }]
+      });
+
+      // Compute the variable value as it is visible to `startingCascade` and compare with the expectation
+      const testComputedVariableValueEquals =
+          (name: string, startingCascade: SDK.CSSStyleDeclaration.CSSStyleDeclaration, expectedValue: string) => {
+            const {value} = matchedStyles.computeCSSVariable(startingCascade, name)!;
+            assert.strictEqual(value, expectedValue);
+          };
+
+      const styles = matchedStyles.customHighlightPseudoStyles('highlight-foo');
+      assert.lengthOf(styles, 2);
+      const highlightStyle = styles[0];
+      testComputedVariableValueEquals('--text-color', highlightStyle, 'green');
+    });
+
+    it('correctly resolves variables in pseudo elements', async () => {
+      const afterNode = sinon.createStubInstance(SDK.DOMModel.DOMNode);
+      const node = sinon.createStubInstance(SDK.DOMModel.DOMNode);
+      node.id = 1 as Protocol.DOM.NodeId;
+      afterNode.id = 2 as Protocol.DOM.NodeId;
+      afterNode.parentNode = node;
+      node.pseudoElements.returns(new Map([[Protocol.DOM.PseudoType.After, [afterNode]]]));
+
+      const matchedStyles = await getMatchedStyles({
+        node,
+        matchedPayload: [ruleMatch('div.b', [{name: '--color', value: 'green'}, {name: '--bg-color', value: 'red'}])],
+        pseudoPayload: [
+          {
+            pseudoType: Protocol.DOM.PseudoType.After,
+            matches: [ruleMatch(
+                '.b::after',
+                [
+                  {name: '--color', value: 'blue'},
+                  {name: '--color2', value: 'var(--color)'},
+                  {name: '--color3', value: 'var(--bg-color)'},
+                ])],
+          },
+        ],
+      });
+
+      // Compute the variable value as it is visible to `startingCascade` and compare with the expectation
+      const testComputedVariableValueEquals =
+          (name: string, startingCascade: SDK.CSSStyleDeclaration.CSSStyleDeclaration, expectedValue: string) => {
+            const {value} = matchedStyles.computeCSSVariable(startingCascade, name)!;
+            assert.strictEqual(value, expectedValue);
+          };
+
+      const styles = matchedStyles.pseudoStyles(Protocol.DOM.PseudoType.After);
+      assert.lengthOf(styles, 1);
+      const pseudoStyle = styles[0];
+      testComputedVariableValueEquals('--color', pseudoStyle, 'blue');
+      testComputedVariableValueEquals('--color2', pseudoStyle, 'blue');
+      testComputedVariableValueEquals('--color3', pseudoStyle, 'red');
     });
 
     describe('cyclic references', () => {
@@ -406,14 +502,21 @@ describe('CSSMatchedStyles', () => {
     function checkResolution(
         matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles,
         properties: Array<Protocol.CSS.CSSProperty&{expectedValue?: string}>): void {
-      const ownProperties = new Map(matchedStyles.nodeStyles()
-                                        .find(style => style.type === SDK.CSSStyleDeclaration.Type.Regular)
-                                        ?.allProperties()
-                                        .map(property => [property.name, property]));
+      // Find all winning properties (declarations), flattening all matched
+      // rules. We reverse the list such that stronger properties (set later)
+      // can overwrite weaker ones (set earlier).
+      const ownProperties = new Map<string, SDK.CSSProperty.CSSProperty>();
+      for (const style of [...matchedStyles.nodeStyles()].reverse()) {
+        if (style.type === SDK.CSSStyleDeclaration.Type.Regular || style.type === SDK.CSSStyleDeclaration.Type.Inline) {
+          for (const property of style.allProperties()) {
+            ownProperties.set(property.name, property);
+          }
+        }
+      }
 
       for (const {name: propertyName, expectedValue} of properties) {
         const property = ownProperties.get(propertyName);
-        assert.isOk(property);
+        assert.isOk(property, propertyName);
 
         let resolvedValue: SDK.CSSMatchedStyles.CSSValueSource|null = new SDK.CSSMatchedStyles.CSSValueSource(property);
         while (resolvedValue?.value && SDK.CSSMetadata.CSSMetadata.isCSSWideKeyword(resolvedValue?.value)) {
@@ -655,6 +758,37 @@ describe('CSSMatchedStyles', () => {
       const resolved = matchedStyles.resolveGlobalKeyword(inlineProperty, SDK.CSSMetadata.CSSWideKeyword.REVERT_LAYER);
       assert.strictEqual(resolved?.value, 'author-origin');
     });
+
+    it('correctly resolves the keyword `revert-rule`', async () => {
+      const properties = [
+        {name: 'color', value: 'revert-rule', expectedValue: 'previous-rule'},
+      ];
+
+      const mainRule = ruleMatch('div', properties);
+      const previousRule = ruleMatch('div', [{name: 'color', value: 'previous-rule'}]);
+      const matchedStyles = await getMatchedStyles({
+        matchedPayload: [previousRule, mainRule],
+        node,
+      });
+      checkResolution(matchedStyles, properties);
+    });
+
+    it('correctly resolves the keyword `revert-rule` when reverting from inline style', async () => {
+      const inlineProperties = [
+        {name: 'color', value: 'revert-rule', expectedValue: 'authored-rule'},
+      ];
+      const properties = [
+        {name: 'color', value: 'authored-rule'},
+      ];
+      const mainRule = ruleMatch('div', properties);
+      const inlinePayload = ruleMatch('', inlineProperties).rule.style;
+      const matchedStyles = await getMatchedStyles({
+        inlinePayload,
+        matchedPayload: [mainRule],
+        node,
+      });
+      checkResolution(matchedStyles, inlineProperties);
+    });
   });
 
   it('can correctly resolve properties by name', async () => {
@@ -696,10 +830,115 @@ describe('CSSMatchedStyles', () => {
     assert.strictEqual(matchedStyles.resolveProperty('color', styles[0])?.value, 'y');
     assert.isNull(matchedStyles.resolveProperty('background-color', styles[0]));
   });
+
+  it('reads attributes from the parent node of a pseudo-element', async () => {
+    const node = sinon.createStubInstance(SDK.DOMModel.DOMNode);
+    node.id = 1 as Protocol.DOM.NodeId;
+    node.nodeType.returns(Node.ELEMENT_NODE);
+    node.getAttribute.callsFake((name: string) => `parent-${name}`);
+    const pseudoElement = sinon.createStubInstance(SDK.DOMModel.DOMNode);
+    pseudoElement.id = 2 as Protocol.DOM.NodeId;
+    pseudoElement.nodeType.returns(Node.ELEMENT_NODE);
+    pseudoElement.parentNode = node;
+    pseudoElement.pseudoType.returns('before');
+    const matchedStyles = await getMatchedStyles({
+      matchedPayload: [ruleMatch('div::before', {content: 'attr(data-content)'})],
+      node: pseudoElement,
+    });
+
+    const property = matchedStyles.rawAttributeValueFromStyle(matchedStyles.nodeStyles()[0], 'data-content');
+    assert.strictEqual(property, 'parent-data-content');
+  });
+
+  it('evaluates variables with attr() calls in the same way as blink', async () => {
+    const attributes = [
+      {name: 'data-test-nonexistent', value: 'attr(data-nonexistent)'},
+      {name: 'data-test-nonexistent-raw-string', value: 'attr(data-nonexistent raw-string)'},
+      {name: 'data-test-empty', value: ''},
+      {name: 'data-test-self-loop', value: 'attr(data-test-self-loop)'},
+      {name: 'data-test-loop-1', value: 'attr(data-test-loop-2 type(<length>), 1px)'},
+      {name: 'data-test-loop-2', value: 'var(--test-loop-1, 2px)'},
+      {name: 'data-test-loop-indirect-2', value: 'attr(data-test-loop-1 type(<length>), 6px)'},
+      {name: 'data-test-number', value: '70'},
+      {name: 'data-test-length', value: 'attr(data-test-number in)'},
+      {name: 'data-test-bad-unit', value: 'attr(data-test-number parsecs, 2px)'},
+      {name: 'data-test-bad-type', value: 'attr(data-test-number type(<nomber>), 2)'},
+      {name: 'data-cant-parse', value: 'attr('},
+    ];
+    const variables = [
+      {name: '--test-missing', value: 'attr(data-nonexistent)'},
+      {name: '--test-missing-fallback', value: 'attr(data-nonexistent, 2px)'},
+      {name: '--test-missing-var-indirect', value: 'var(--test-missing, 2px)'},
+      {name: '--test-missing-attr-indirect-raw', value: 'attr(data-test-nonexistent, 2px)'},
+      {name: '--test-missing-attr-indirect', value: 'attr(data-test-nonexistent type(*), 2px)'},
+      {name: '--test-missing-raw-string', value: 'attr(data-nonexistent raw-string)'},
+      {name: '--test-missing-raw-string-fallback', value: 'attr(data-nonexistent raw-string, 2px)'},
+      {name: '--test-missing-raw-string-var-indirect', value: 'var(--test-missing-raw-string, 2px)'},
+      {name: '--test-missing-raw-string-attr-indirect', value: 'attr(data-test-nonexistent-raw-string, 2px)'},
+      {name: '--test-empty-any', value: 'attr(data-test-empty type(*))'},
+      {name: '--test-empty-number', value: 'attr(data-test-empty type(<number>))'},
+      {name: '--test-empty-any-fallback', value: 'attr(data-test-empty type(*), 2px)'},
+      {name: '--test-empty-number-fallback', value: 'attr(data-test-empty type(<number>), 2px)'},
+      {name: '--test-self-loop', value: 'attr(data-test-self-loop type(*))'},
+      {name: '--test-self-loop-raw', value: 'attr(data-test-self-loop)'},
+      {name: '--test-self-loop-fallback', value: 'attr(data-test-self-loop type(*), 2px)'},
+      {name: '--test-self-loop-fallback-2', value: 'var(--test-self-loop-fallback, 4px)'},
+      {name: '--test-self-loop-fallback-self', value: 'attr(data-test-self-loop type(*), attr(data-test-self-loop))'},
+      {name: '--test-loop-1', value: 'var(--test-loop-2, 3px)'},
+      {name: '--test-loop-2', value: 'attr(data-test-loop-1 type(<length>), 4px)'},
+      {name: '--test-loop-indirect-1', value: 'attr(data-test-loop-1 type(<length>), 5px)'},
+      {name: '--test-loop-indirect-2', value: 'attr(data-test-loop-indirect-2 type(<length>), 7px)'},
+      {name: '--test-number', value: 'attr(data-test-number type(<number>))'},
+      {name: '--test-number-to-length', value: 'attr(data-test-number in)'},
+      {
+        name: '--test-number-as-length',
+        value: 'attr(data-test-number type(<length>), var(--test-self-loop-fallback-2))'
+      },
+      {name: '--test-length', value: 'attr(data-test-length type(<length>))'},
+      {name: '--test-bad-unit-indirect', value: 'attr(data-test-bad-unit type(*), 4px)'},
+      {name: '--test-bad-type-indirect', value: 'attr(data-test-bad-type type(*), 4)'},
+      {name: '--test-cant-parse', value: 'attr(data-cant-parse type(*), red)'},
+    ];
+    // Create an element
+    const element = document.createElement('div');
+    for (const {name, value} of attributes) {
+      element.setAttribute(name, value);
+    }
+    for (const {name, value} of variables) {
+      element.style.setProperty(name, value);
+    }
+
+    renderElementIntoDOM(element);
+    const computedProperties = element.computedStyleMap();
+
+    const node = sinon.createStubInstance(SDK.DOMModel.DOMNode);
+    node.id = 1 as Protocol.DOM.NodeId;
+    node.nodeType.returns(Node.ELEMENT_NODE);
+    // Create a sinon stub to return the requested attribute
+    node.getAttribute.callsFake((name: string) => attributes.find(attr => attr.name === name)?.value);
+
+    const matchedStyles = await getMatchedStyles({
+      matchedPayload: [ruleMatch('div', variables)],
+      node,
+    });
+
+    for (const {name} of variables) {
+      const frontendComputedValue =
+          matchedStyles.computeCSSVariable(matchedStyles.nodeStyles()[0], name)?.value ?? null;
+      const backendComputedValue = computedProperties.get(name) ?? null;
+      if (backendComputedValue === null) {
+        assert.isNull(frontendComputedValue, `evaluating variable ${name}`);
+      } else {
+        assert.strictEqual(frontendComputedValue, backendComputedValue.toString(), `evaluating variable ${name}`);
+      }
+    }
+  });
 });
 
 describeWithMockConnection('NodeCascade', () => {
   it('correctly marks custom properties as Overloaded if they are registered as inherits: false', async () => {
+    setMockConnectionResponseHandler(
+        'CSS.getEnvironmentVariables', () => ({} as Protocol.CSS.GetEnvironmentVariablesResponse));
     const target = createTarget();
     const cssModel = new SDK.CSSModel.CSSModel(target);
     const parentNode = sinon.createStubInstance(SDK.DOMModel.DOMNode);
@@ -767,5 +1006,68 @@ describeWithMockConnection('NodeCascade', () => {
     });
 
     assert.deepEqual(matchedStyles.availableCSSVariables(matchedStyles.nodeStyles()[0]), ['--inner']);
+  });
+
+  describe('isPropertyOverriddenByAnimation', () => {
+    it('returns true when a property is overridden by an animation', async () => {
+      const animationStyle = {
+        style: {
+          cssProperties: [{name: 'opacity', value: '1'}],
+          shorthandEntries: [],
+        },
+      } as Protocol.CSS.CSSAnimationStyle;
+
+      const matchedStyles = await getMatchedStyles({
+        matchedPayload: [ruleMatch('div', [{name: 'opacity', value: '0.5'}])],
+        animationStylesPayload: [animationStyle],
+      });
+
+      const styles = matchedStyles.nodeStyles();
+      const regularStyle = styles.find(style => style.type === SDK.CSSStyleDeclaration.Type.Regular);
+      assert.exists(regularStyle);
+      const property = regularStyle.allProperties().find(p => p.name === 'opacity');
+      assert.exists(property);
+
+      assert.isTrue(matchedStyles.isPropertyOverriddenByAnimation(property));
+    });
+
+    it('returns true when a property is overridden by a transition', async () => {
+      const transitionStyle = {
+        cssProperties: [{name: 'opacity', value: '1'}],
+        shorthandEntries: [],
+      } as Protocol.CSS.CSSStyle;
+
+      const matchedStyles = await getMatchedStyles({
+        matchedPayload: [ruleMatch('div', [{name: 'opacity', value: '0.5'}])],
+        transitionsStylePayload: transitionStyle,
+      });
+
+      const styles = matchedStyles.nodeStyles();
+      const regularStyle = styles.find(style => style.type === SDK.CSSStyleDeclaration.Type.Regular);
+      assert.exists(regularStyle);
+      const property = regularStyle.allProperties().find(p => p.name === 'opacity');
+      assert.exists(property);
+
+      assert.isTrue(matchedStyles.isPropertyOverriddenByAnimation(property));
+    });
+
+    it('returns false when a property is overridden by another regular property', async () => {
+      const matchedStyles = await getMatchedStyles({
+        matchedPayload: [
+          ruleMatch('div', [{name: 'opacity', value: '0.5'}]),
+          ruleMatch('div.active', [{name: 'opacity', value: '1'}]),  // Higher specificity
+        ],
+      });
+
+      const styles = matchedStyles.nodeStyles();
+      const regularStyle = styles.find(
+          style => style.type === SDK.CSSStyleDeclaration.Type.Regular &&
+              style.allProperties().find(p => p.value === '0.5'));
+      assert.exists(regularStyle);
+      const property = regularStyle.allProperties().find(p => p.name === 'opacity');
+      assert.exists(property);
+
+      assert.isFalse(matchedStyles.isPropertyOverriddenByAnimation(property));
+    });
   });
 });

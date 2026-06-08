@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,7 +6,7 @@ import type * as Common from '../../core/common/common.js';
 import type * as Platform from '../../core/platform/platform.js';
 
 import {ContentData, type ContentDataOrError} from './ContentData.js';
-import type {ContentProvider, DeferredContent, SearchMatch} from './ContentProvider.js';
+import type {ContentProvider, SearchMatch} from './ContentProvider.js';
 import {performSearchInContentData} from './TextUtils.js';
 
 export class StaticContentProvider implements ContentProvider {
@@ -36,10 +36,6 @@ export class StaticContentProvider implements ContentProvider {
 
   contentType(): Common.ResourceType.ResourceType {
     return this.#contentType;
-  }
-
-  requestContent(): Promise<DeferredContent> {
-    return this.#lazyContent().then(ContentData.asDeferredContent.bind(undefined));
   }
 
   requestContentData(): Promise<ContentDataOrError> {

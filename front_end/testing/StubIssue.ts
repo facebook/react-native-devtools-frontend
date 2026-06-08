@@ -1,9 +1,9 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Protocol from '../generated/protocol.js';
-// eslint-disable-next-line rulesdir/es-modules-import
+// eslint-disable-next-line @devtools/es-modules-import
 import {
   Issue,
   IssueCategory,
@@ -19,7 +19,7 @@ export class StubIssue extends Issue {
   private mockIssueCategory?: IssueCategory;
 
   constructor(code: string, requestIds: string[], cookieNames: string[], issueKind = IssueKind.IMPROVEMENT) {
-    super(code);
+    super(code, null);
     this.requestIds = requestIds;
     this.cookieNames = cookieNames;
     this.issueKind = issueKind;

@@ -1,8 +1,8 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as path from 'path';
+import * as path from 'node:path';
 import * as puppeteer from 'puppeteer-core';
 import {dumpCollectedErrors} from 'test/conductor/events.js';
 import * as MochaHooks from 'test/conductor/mocha_hooks.js';
@@ -14,7 +14,7 @@ import {
 } from 'test/conductor/puppeteer-state.js';
 import {setTestServerPort} from 'test/conductor/server_port.js';
 import {TestConfig} from 'test/conductor/test_config.js';
-import {click} from 'test/shared/helper.js';
+import { getBrowserAndPagesWrappers } from 'test/shared/non_hosted_wrappers';
 
 const EXTENSION_DIR = path.join(__dirname, '..', '..', '..', 'DevTools_CXX_Debugging.stage2', 'gen');
 const DEVTOOLS_DIR = path.join(__dirname, '..', '..', '..', 'devtools-frontend', 'gen');
@@ -43,8 +43,7 @@ async function beforeAll() {
       `--disable-extensions-except=${EXTENSION_DIR}`,
       `--window-size=${defaultViewport.width + 20, defaultViewport.height + 100}`,
       `--custom-devtools-frontend=${new URL(`${DEVTOOLS_DIR}/front_end`, 'file://').href}`,
-      '--disable-features=RenderDocument',
-      '--enable-features=DevToolsVeLogging:testing/true',
+      '--disable-features=RenderDocument,DevToolsAiPromptApi',
     ],
   });
 
@@ -63,6 +62,9 @@ async function beforeAll() {
     throw new Error('Could not find frontend page');
   }
   await frontend.setViewport(defaultViewport);
+  const devToolsVeLogging = {enabled: true, testing: true};
+  await frontend.evaluateOnNewDocument(`globalThis.hostConfigForTesting = ${JSON.stringify({devToolsVeLogging})};`);
+  await frontend.reload();
 
   setBrowserAndPages({frontend, target, browser: conn});
 }
@@ -76,16 +78,16 @@ async function afterAll() {
 }
 
 async function beforeEach() {
-  const {frontend} = getBrowserAndPages();
-  await frontend.evaluate(() => {
+  const {devToolsPage} = getBrowserAndPagesWrappers();
+  await devToolsPage.evaluate(() => {
     localStorage.clear();
     const experiments = JSON.parse(localStorage.getItem('experiments') ?? '{}');
     experiments['instrumentationBreakpoints'] = true;
     localStorage.setItem('experiments', JSON.stringify(experiments));
   });
-  await frontend.reload();
-  await click('[aria-label="Customize and control DevTools"]');
-  await click('[aria-label="Undock into separate window"]');
+  await devToolsPage.reload();
+  await devToolsPage.click('[aria-label="Customize and control DevTools"]');
+  await devToolsPage.click('[aria-label="Undock into separate window"]');
 }
 
 async function afterEach() {

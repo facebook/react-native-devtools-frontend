@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -62,6 +62,10 @@ it('can highlight JavaScript with `import { default as name }` syntax', testHigh
 [keyword import] {[keyword default] [keyword as] [definition name]} [keyword from] [string 'module'];
 `, 'text/javascript')),
 
+it('can highlight JavaScript with `import defer` syntax', testHighlight(`
+[keyword import] [keyword defer] [definition feature] [keyword from] [string './some-feature.js'];
+`, 'text/javascript')),
+
 it('can highlight JavaScript with `new.target` syntax', testHighlight(`
 [keyword new].[property target]
 `, 'text/javascript'));
@@ -70,6 +74,10 @@ it('can highlight JavaScript with `new.target` syntax', testHighlight(`
 [keyword type] [type X] = {
   [property x]: [type boolean]
 }`, 'text/typescript'));
+
+it('can highlight TypeScript with the new `satisfies` keyword', testHighlight(`
+[keyword const] [definition bar] = {} [keyword satisfies] [type X];
+`, 'text/typescript'));
 
 it('can highlight TypeScript with the new `using` keyword', testHighlight(`
 [keyword using] [definition resource] = [variable getResource]()

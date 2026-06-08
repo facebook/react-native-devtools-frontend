@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Chromium Authors. All rights reserved.
+ * Copyright 2021 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -49,6 +49,16 @@ div {
   text-decoration: underline;
   cursor: pointer;
   outline-offset: 2px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: var(--sys-size-6);
+
+  &:focus-visible {
+    outline: 2px solid var(--sys-color-state-focus-ring);
+    outline-offset: 0;
+    border-radius: var(--sys-shape-corner-extra-small);
+  }
 }
 
 button.link {

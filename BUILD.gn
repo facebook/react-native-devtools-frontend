@@ -1,4 +1,4 @@
-# Copyright 2014 The Chromium Authors. All rights reserved.
+# Copyright 2014 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -16,7 +16,6 @@ import("./third_party/blink/public/public_features.gni")
 devtools_frontend_resources_deps = [
   ":favicon",
   "front_end",
-  "test",
 ]
 
 group("devtools_all_files") {
@@ -25,9 +24,14 @@ group("devtools_all_files") {
     # This enables us to test bots with whitespace changes.
     "scripts/whitespaces.txt",
   ]
-  data_deps = devtools_frontend_resources_deps
 
-  public_deps = [ "front_end/ui/components/docs" ]
+  data_deps = devtools_frontend_resources_deps + [
+                "front_end:web_test_resources",
+                "scripts/hosted_mode",
+                "test",
+              ]
+  deps = [ ":frontend_indexer_tsconfig" ]
+  public_deps = [ "scripts/component_docs" ]
 }
 
 group("devtools_frontend_resources") {
@@ -35,7 +39,6 @@ group("devtools_frontend_resources") {
   deps = [
     ":assert_grd",
     ":assert_third_party_readmes",
-    ":frontend_indexer_tsconfig",
   ]
 }
 
@@ -87,9 +90,9 @@ action("assert_third_party_readmes") {
 }
 
 _expected_grd_files = []
-_expected_grd_files += grd_files_release_sources
-if (is_debug) {
-  _expected_grd_files += grd_files_debug_sources
+_expected_grd_files += grd_files_bundled_sources
+if (!devtools_bundle) {
+  _expected_grd_files += grd_files_unbundled_sources
 }
 
 generated_file("expected_grd_files") {
@@ -205,3 +208,10 @@ ts_library("frontend_indexer_tsconfig") {
 copy_to_gen("favicon") {
   sources = [ "favicon.ico" ]
 }
+
+group("mcp") {
+  deps = [ "./mcp" ]
+}
+
+# TODO(@nvitkov): When http://b/469573569 is fixed
+write_file("$target_gen_dir/package.json", "{}")

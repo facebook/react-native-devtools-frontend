@@ -1,38 +1,13 @@
-/*
- * Copyright (C) 2011 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2011 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
-/* eslint-disable rulesdir/prefer-private-class-members */
+/* eslint-disable @devtools/prefer-private-class-members */
 
 import * as i18n from '../../core/i18n/i18n.js';
+import type * as PlatformApi from '../../core/platform/api/api.js';
 import * as Platform from '../../core/platform/platform.js';
-import * as HeapSnapshotModel from '../../models/heap_snapshot_model/heap_snapshot_model.js';
+import * as HeapSnapshotModel from '../../models/heap_snapshot/heap_snapshot.js';
 
 import {AllocationProfile} from './AllocationProfile.js';
 import type {HeapSnapshotWorkerDispatcher} from './HeapSnapshotWorkerDispatcher.js';
@@ -197,7 +172,7 @@ export class HeapSnapshotEdgeIterator implements HeapSnapshotItemIterator {
 
 export class HeapSnapshotRetainerEdge implements HeapSnapshotItem {
   protected snapshot: HeapSnapshot;
-  #retainerIndexInternal!: number;
+  #retainerIndex!: number;
   #globalEdgeIndex!: number;
   #retainingNodeIndex?: number;
   #edgeInstance?: JSHeapSnapshotEdge|null;
@@ -224,7 +199,7 @@ export class HeapSnapshotRetainerEdge implements HeapSnapshotItem {
   }
 
   node(): HeapSnapshotNode {
-    return this.nodeInternal();
+    return this.#node();
   }
 
   nodeIndex(): number {
@@ -236,11 +211,11 @@ export class HeapSnapshotRetainerEdge implements HeapSnapshotItem {
   }
 
   retainerIndex(): number {
-    return this.#retainerIndexInternal;
+    return this.#retainerIndex;
   }
 
   setRetainerIndex(retainerIndex: number): void {
-    if (retainerIndex === this.#retainerIndexInternal) {
+    if (retainerIndex === this.#retainerIndex) {
       return;
     }
 
@@ -248,7 +223,7 @@ export class HeapSnapshotRetainerEdge implements HeapSnapshotItem {
       throw new Error('Snapshot does not contain retaining edges or retaining nodes');
     }
 
-    this.#retainerIndexInternal = retainerIndex;
+    this.#retainerIndex = retainerIndex;
     this.#globalEdgeIndex = this.snapshot.retainingEdges[retainerIndex];
     this.#retainingNodeIndex = this.snapshot.retainingNodes[retainerIndex];
     this.#edgeInstance = null;
@@ -259,7 +234,7 @@ export class HeapSnapshotRetainerEdge implements HeapSnapshotItem {
     this.setRetainerIndex(edgeIndex);
   }
 
-  private nodeInternal(): HeapSnapshotNode {
+  #node(): HeapSnapshotNode {
     if (!this.#nodeInstance) {
       this.#nodeInstance = this.snapshot.createNode(this.#retainingNodeIndex);
     }
@@ -278,7 +253,7 @@ export class HeapSnapshotRetainerEdge implements HeapSnapshotItem {
   }
 
   itemIndex(): number {
-    return this.#retainerIndexInternal;
+    return this.#retainerIndex;
   }
 
   serialize(): HeapSnapshotModel.HeapSnapshotModel.Edge {
@@ -659,9 +634,11 @@ export class HeapSnapshotProgress {
   }
 }
 
-// An "interface" to be used when classifying plain JS objects in the snapshot.
-// An object matches the interface if it contains every listed property (even
-// if it also contains extra properties).
+/**
+ * An "interface" to be used when classifying plain JS objects in the snapshot.
+ * An object matches the interface if it contains every listed property (even
+ * if it also contains extra properties).
+ **/
 interface InterfaceDefinition {
   name: string;
   properties: string[];
@@ -686,7 +663,8 @@ function formatProblemReport(snapshot: HeapSnapshot, report: HeapSnapshotProblem
       })
       .join('\n  ');
 }
-function reportProblemToPrimaryWorker(problemReport: HeapSnapshotProblemReport, port: MessagePort): void {
+function reportProblemToPrimaryWorker(
+    problemReport: HeapSnapshotProblemReport, port: PlatformApi.HostRuntime.WorkerMessagePort): void {
   port.postMessage({problemReport});
 }
 
@@ -704,11 +682,9 @@ export interface Profile {
   /* eslint-enable @typescript-eslint/naming-convention */
 }
 
-export interface LiveObjects {
-  [x: number]: {count: number, size: number, ids: number[]};
-}
+export type LiveObjects = Record<number, {count: number, size: number, ids: number[]}>;
 
-// The first batch of data sent from the primary worker to the secondary.
+/** The first batch of data sent from the primary worker to the secondary. **/
 interface SecondaryInitArgumentsStep1 {
   // For each edge ordinal, this array contains the ordinal of the pointed-to node.
   edgeToNodeOrdinals: Uint32Array;
@@ -720,7 +696,7 @@ interface SecondaryInitArgumentsStep1 {
   nodeFieldCount: number;
 }
 
-// The second batch of data sent from the primary worker to the secondary.
+/** The second batch of data sent from the primary worker to the secondary. **/
 interface SecondaryInitArgumentsStep2 {
   rootNodeOrdinal: number;
   // An array with one bit per edge, where each bit indicates whether the edge
@@ -728,7 +704,7 @@ interface SecondaryInitArgumentsStep2 {
   essentialEdgesBuffer: ArrayBuffer;
 }
 
-// The third batch of data sent from the primary worker to the secondary.
+/** The third batch of data sent from the primary worker to the secondary. **/
 interface SecondaryInitArgumentsStep3 {
   // For each node ordinal, this array contains the node's shallow size.
   nodeSelfSizes: Uint32Array;
@@ -739,12 +715,12 @@ type ArgumentsToBuildRetainers = SecondaryInitArgumentsStep1;
 interface Retainers {
   // For each node ordinal, this array contains the index of the first retaining edge
   // in the retainingEdges and retainingNodes arrays.
-  firstRetainerIndex: Uint32Array;
+  firstRetainerIndex: Uint32Array<ArrayBuffer>;
   // For each retaining edge, this array contains the "from" node's index.
-  retainingNodes: Uint32Array;
+  retainingNodes: Uint32Array<ArrayBuffer>;
   // For each retaining edge, this array contains the index in containmentEdges
   // where you can find other info about the edge, such as its type and name.
-  retainingEdges: Uint32Array;
+  retainingEdges: Uint32Array<ArrayBuffer>;
 }
 
 interface ArgumentsToComputeDominatorsAndRetainedSizes extends SecondaryInitArgumentsStep1, Retainers,
@@ -753,16 +729,16 @@ interface ArgumentsToComputeDominatorsAndRetainedSizes extends SecondaryInitArgu
   // should be used when computing dominators.
   essentialEdges: Platform.TypedArrayUtilities.BitVector;
   // A message port for reporting problems to the primary worker.
-  port: MessagePort;
+  port: PlatformApi.HostRuntime.WorkerMessagePort;
   // For each node ordinal, this array will contain the node's shallow size.
   nodeSelfSizesPromise: Promise<Uint32Array>;
 }
 
 interface DominatorsAndRetainedSizes {
   // For each node ordinal, this array contains the ordinal of its immediate dominating node.
-  dominatorsTree: Uint32Array;
+  dominatorsTree: Uint32Array<ArrayBuffer>;
   // For each node ordinal, this array contains the size of the subgraph it dominates, including its own size.
-  retainedSizes: Float64Array;
+  retainedSizes: Float64Array<ArrayBuffer>;
 }
 
 interface ArgumentsToBuildDominatedNodes extends ArgumentsToComputeDominatorsAndRetainedSizes,
@@ -772,29 +748,31 @@ interface DominatedNodes {
   // For each node ordinal, the index of its first child node in dominatedNodes.
   // Together with dominatedNodes, this allows traversing down the dominators tree,
   // whereas dominatorsTree allows upward traversal.
-  firstDominatedNodeIndex: Uint32Array;
+  firstDominatedNodeIndex: Uint32Array<ArrayBuffer>;
   // Node indexes of child nodes in the dominator tree.
-  dominatedNodes: Uint32Array;
+  dominatedNodes: Uint32Array<ArrayBuffer>;
 }
 
-// The data transferred from the secondary worker to the primary.
+/** The data transferred from the secondary worker to the primary. **/
 interface ResultsFromSecondWorker extends Retainers, DominatorsAndRetainedSizes, DominatedNodes {}
 
-// Initialization work is split into two threads. This class is the entry point
-// for work done by the second thread.
+/**
+ * Initialization work is split into two threads. This class is the entry point
+ * for work done by the second thread.
+ **/
 export class SecondaryInitManager {
   argsStep1: Promise<SecondaryInitArgumentsStep1>;
   argsStep2: Promise<SecondaryInitArgumentsStep2>;
   argsStep3: Promise<SecondaryInitArgumentsStep3>;
-  constructor(port: MessagePort) {
+  constructor(port: PlatformApi.HostRuntime.WorkerMessagePort) {
     const {promise: argsStep1, resolve: resolveArgsStep1} = Promise.withResolvers<SecondaryInitArgumentsStep1>();
     this.argsStep1 = argsStep1;
     const {promise: argsStep2, resolve: resolveArgsStep2} = Promise.withResolvers<SecondaryInitArgumentsStep2>();
     this.argsStep2 = argsStep2;
     const {promise: argsStep3, resolve: resolveArgsStep3} = Promise.withResolvers<SecondaryInitArgumentsStep3>();
     this.argsStep3 = argsStep3;
-    port.onmessage = e => {
-      const data = e.data;
+    const listener = (e: unknown): void => {
+      const data = (e as PlatformApi.HostRuntime.WorkerMessageEvent).data;
       switch (data.step) {
         case 1:
           resolveArgsStep1(data.args);
@@ -804,9 +782,12 @@ export class SecondaryInitManager {
           break;
         case 3:
           resolveArgsStep3(data.args);
+          port.removeEventListener('message', listener);
           break;
       }
     };
+    port.addEventListener('message', listener);
+    port.start();
     void this.initialize(port);
   }
 
@@ -814,7 +795,7 @@ export class SecondaryInitManager {
     return (await this.argsStep3).nodeSelfSizes;
   }
 
-  private async initialize(port: MessagePort): Promise<void> {
+  private async initialize(port: PlatformApi.HostRuntime.WorkerMessagePort): Promise<void> {
     try {
       const argsStep1 = await this.argsStep1;
       const retainers = HeapSnapshot.buildRetainers(argsStep1);
@@ -829,22 +810,23 @@ export class SecondaryInitManager {
       };
       const dominatorsAndRetainedSizes = await HeapSnapshot.calculateDominatorsAndRetainedSizes(args);
       const dominatedNodesOutputs = HeapSnapshot.buildDominatedNodes({...args, ...dominatorsAndRetainedSizes});
-      const results: ResultsFromSecondWorker = {
+      const resultsFromSecondWorker: ResultsFromSecondWorker = {
         ...retainers,
         ...dominatorsAndRetainedSizes,
         ...dominatedNodesOutputs,
       };
-      port.postMessage({resultsFromSecondWorker: results}, {
-        transfer: [
-          results.dominatorsTree.buffer,
-          results.firstRetainerIndex.buffer,
-          results.retainedSizes.buffer,
-          results.retainingEdges.buffer,
-          results.retainingNodes.buffer,
-          results.dominatedNodes.buffer,
-          results.firstDominatedNodeIndex.buffer,
-        ]
-      });
+      port.postMessage({resultsFromSecondWorker}, [
+        // DominatorsAndRetainedSizes
+        resultsFromSecondWorker.dominatorsTree.buffer,
+        resultsFromSecondWorker.retainedSizes.buffer,
+        // Retainers
+        resultsFromSecondWorker.firstRetainerIndex.buffer,
+        resultsFromSecondWorker.retainingNodes.buffer,
+        resultsFromSecondWorker.retainingEdges.buffer,
+        // DominatedNodes
+        resultsFromSecondWorker.firstDominatedNodeIndex.buffer,
+        resultsFromSecondWorker.dominatedNodes.buffer,
+      ]);
     } catch (e) {
       port.postMessage({error: e + '\n' + e?.stack});
     }
@@ -894,25 +876,13 @@ export abstract class HeapSnapshot {
   readonly #progress: HeapSnapshotProgress;
   readonly #noDistance = -5;
   rootNodeIndexInternal = 0;
-  #snapshotDiffs: {
-    [x: string]: {
-      [x: string]: HeapSnapshotModel.HeapSnapshotModel.Diff,
-    },
-  } = {};
-  #aggregatesForDiffInternal?: {
+  #snapshotDiffs: Record<string, Record<string, HeapSnapshotModel.HeapSnapshotModel.Diff>> = {};
+  #aggregatesForDiff?: {
     interfaceDefinitions: string,
-    aggregates: {
-      [x: string]: HeapSnapshotModel.HeapSnapshotModel.AggregateForDiff,
-    },
+    aggregates: Record<string, HeapSnapshotModel.HeapSnapshotModel.AggregateForDiff>,
   };
-  #aggregates: {
-    [x: string]: {
-      [x: string]: AggregatedInfo,
-    },
-  } = {};
-  #aggregatesSortedFlags: {
-    [x: string]: boolean,
-  } = {};
+  #aggregates: Record<string, Record<string, HeapSnapshotModel.HeapSnapshotModel.AggregatedInfo>> = {};
+  #aggregatesSortedFlags: Record<string, boolean> = {};
   profile: Profile;
   nodeTypeOffset!: number;
   nodeNameOffset!: number;
@@ -989,7 +959,7 @@ export abstract class HeapSnapshot {
     this.#edgeNamesThatAreNotWeakMaps = Platform.TypedArrayUtilities.createBitVector(this.strings.length);
   }
 
-  async initialize(secondWorker: MessagePort): Promise<void> {
+  async initialize(secondWorker: PlatformApi.HostRuntime.WorkerMessagePort): Promise<void> {
     const meta = this.#metaNode;
 
     this.nodeTypeOffset = meta.node_fields.indexOf('type');
@@ -1098,20 +1068,24 @@ export abstract class HeapSnapshot {
     this.#progress.updateStatus('Finished processing.');
   }
 
-  private startInitStep1InSecondThread(secondWorker: MessagePort): Promise<ResultsFromSecondWorker> {
+  private startInitStep1InSecondThread(secondWorker: PlatformApi.HostRuntime.WorkerMessagePort):
+      Promise<ResultsFromSecondWorker> {
     const resultsFromSecondWorker = new Promise<ResultsFromSecondWorker>((resolve, reject) => {
-      secondWorker.onmessage = (event: MessageEvent) => {
-        const data = event.data;
+      const listener = (e: unknown): void => {
+        const data = (e as PlatformApi.HostRuntime.WorkerMessageEvent).data;
         if (data?.problemReport) {
           const problemReport: HeapSnapshotProblemReport = data.problemReport;
           console.warn(formatProblemReport(this, problemReport));
         } else if (data?.resultsFromSecondWorker) {
-          const resultsFromSecondWorker: ResultsFromSecondWorker = data.resultsFromSecondWorker;
-          resolve(resultsFromSecondWorker);
+          secondWorker.removeEventListener('message', listener);
+          resolve(data.resultsFromSecondWorker);
         } else if (data?.error) {
+          secondWorker.removeEventListener('message', listener);
           reject(data.error);
         }
       };
+      secondWorker.addEventListener('message', listener);
+      secondWorker.start();
     });
     const edgeCount = this.#edgeCount;
     const {containmentEdges, edgeToNodeOffset, edgeFieldsCount, nodeFieldCount} = this;
@@ -1135,14 +1109,14 @@ export abstract class HeapSnapshot {
     return resultsFromSecondWorker;
   }
 
-  private startInitStep2InSecondThread(secondWorker: MessagePort): void {
+  private startInitStep2InSecondThread(secondWorker: PlatformApi.HostRuntime.WorkerMessagePort): void {
     const rootNodeOrdinal = this.rootNodeIndexInternal / this.nodeFieldCount;
     const essentialEdges = this.initEssentialEdges();
     const args: SecondaryInitArgumentsStep2 = {rootNodeOrdinal, essentialEdgesBuffer: essentialEdges.buffer};
     secondWorker.postMessage({step: 2, args}, [essentialEdges.buffer]);
   }
 
-  private startInitStep3InSecondThread(secondWorker: MessagePort): void {
+  private startInitStep3InSecondThread(secondWorker: PlatformApi.HostRuntime.WorkerMessagePort): void {
     const {nodes, nodeFieldCount, nodeSelfSizeOffset, nodeCount} = this;
     const nodeSelfSizes = new Uint32Array(nodeCount);
     for (let nodeOrdinal = 0; nodeOrdinal < nodeCount; ++nodeOrdinal) {
@@ -1324,7 +1298,7 @@ export abstract class HeapSnapshot {
   }
 
   aggregatesWithFilter(nodeFilter: HeapSnapshotModel.HeapSnapshotModel.NodeFilter):
-      {[x: string]: HeapSnapshotModel.HeapSnapshotModel.Aggregate} {
+      Record<string, HeapSnapshotModel.HeapSnapshotModel.AggregatedInfo> {
     const filter = this.createFilter(nodeFilter);
     // @ts-expect-error key is added in createFilter
     const key = filter ? filter.key : 'allObjects';
@@ -1350,7 +1324,7 @@ export abstract class HeapSnapshot {
       return undefined;
     }
 
-    const set: {[x: number]: boolean} = {};
+    const set: Record<number, boolean> = {};
     for (let i = 0; i < traceIds.length; i++) {
       set[traceIds[i]] = true;
     }
@@ -1399,7 +1373,7 @@ export abstract class HeapSnapshot {
     switch (filterName) {
       case 'objectsRetainedByDetachedDomNodes':
         // Traverse the graph, avoiding detached nodes.
-        traverse((node: HeapSnapshotNode, edge: HeapSnapshotEdge) => {
+        traverse((_node: HeapSnapshotNode, edge: HeapSnapshotEdge) => {
           return edge.node().detachedness() !== DOMLinkState.DETACHED;
         });
         markUnreachableNodes();
@@ -1439,13 +1413,78 @@ export abstract class HeapSnapshot {
         }
         return getBit;
       }
+      case 'objectsRetainedByEventHandlers': {
+        // This filter is based on the assumption that event handler functions are contained
+        // (directly or indirectly) by V8EventListener nodes. In particular, the callback_object_
+        // field of V8EventListener points to either the function used as the event handler,
+        // or to a framework-specific wrapper object that in turn contains the actual handler.
+        //
+        // The filter works in two steps:
+        // 1. Identify all event handler functions and mark them in a bitmap.
+        // 2. Traverse the graph, avoiding paths that pass through any of the event handlers
+        const node = this.createNode(0);
+        const nodeFieldCount = this.nodeFieldCount;
+
+        // First, identify which nodes are event handlers
+        const eventHandlerBitmap = Platform.TypedArrayUtilities.createBitVector(this.nodeCount);
+
+        // Iterate all nodes looking for V8EventListener objects
+        for (let i = 0; i < this.nodeCount; ++i) {
+          node.nodeIndex = i * nodeFieldCount;
+
+          // Check if this node is a V8EventListener
+          if (node.rawName() === 'V8EventListener') {
+            // Get the callback_object_ (edge "1")
+            const callbackNode = this.getEdgeTarget(node, '1');
+            if (!callbackNode) {
+              continue;
+            }
+
+            const callbackOrdinal = callbackNode.nodeIndex / nodeFieldCount;
+
+            // Check if callback has a "code" edge (direct function handler)
+            if (this.getEdgeTarget(callbackNode, 'code')) {
+              eventHandlerBitmap.setBit(callbackOrdinal);
+              continue;
+            }
+
+            // Check if any child has a "code" edge (framework wrapper)
+            let foundChildWithCode = false;
+            for (let childEdgeIt = callbackNode.edges(); childEdgeIt.hasNext(); childEdgeIt.next()) {
+              const childNode = childEdgeIt.item().node();
+              if (this.getEdgeTarget(childNode, 'code')) {
+                eventHandlerBitmap.setBit(childNode.nodeIndex / nodeFieldCount);
+                foundChildWithCode = true;
+                break;
+              }
+            }
+
+            // Fallback to marking the callback node itself
+            if (!foundChildWithCode) {
+              eventHandlerBitmap.setBit(callbackOrdinal);
+            }
+          }
+        }
+
+        // Traverse the graph, avoiding paths that pass through event handlers
+        traverse((currentNode: HeapSnapshotNode, edge: HeapSnapshotEdge) => {
+          const targetNode = edge.node();
+          const targetOrdinal = targetNode.nodeIndex / nodeFieldCount;
+          // Return false (don't traverse) if the target node is an event handler
+          return !eventHandlerBitmap.getBit(targetOrdinal);
+        });
+
+        markUnreachableNodes();
+
+        return (node: HeapSnapshotNode) => !getBit(node);
+      }
     }
     throw new Error('Invalid filter name');
   }
 
   getAggregatesByClassKey(sortedIndexes: boolean, key?: string, filter?: ((arg0: HeapSnapshotNode) => boolean)):
-      {[x: string]: HeapSnapshotModel.HeapSnapshotModel.Aggregate} {
-    let aggregates: {[x: string]: HeapSnapshotModel.HeapSnapshotModel.Aggregate};
+      Record<string, HeapSnapshotModel.HeapSnapshotModel.AggregatedInfo> {
+    let aggregates: Record<string, HeapSnapshotModel.HeapSnapshotModel.AggregatedInfo>;
     if (key && this.#aggregates[key]) {
       aggregates = this.#aggregates[key];
     } else {
@@ -1460,7 +1499,7 @@ export abstract class HeapSnapshot {
       // for class keys.
       aggregates = Object.create(null);
       for (const [classKey, aggregate] of aggregatesMap.entries()) {
-        const newKey = this.classKeyFromClassKeyInternal(classKey);
+        const newKey = this.#classKeyFromClassKey(classKey);
         aggregates[newKey] = aggregate;
       }
       if (key) {
@@ -1475,9 +1514,7 @@ export abstract class HeapSnapshot {
       }
     }
 
-    return aggregates as {
-      [x: string]: HeapSnapshotModel.HeapSnapshotModel.Aggregate,
-    };
+    return aggregates;
   }
 
   allocationTracesTops(): HeapSnapshotModel.HeapSnapshotModel.SerializedAllocationNode[] {
@@ -1497,9 +1534,10 @@ export abstract class HeapSnapshot {
     return this.#allocationProfile.serializeAllocationStack(allocationNodeId);
   }
 
-  aggregatesForDiff(interfaceDefinitions: string): {[x: string]: HeapSnapshotModel.HeapSnapshotModel.AggregateForDiff} {
-    if (this.#aggregatesForDiffInternal?.interfaceDefinitions === interfaceDefinitions) {
-      return this.#aggregatesForDiffInternal.aggregates;
+  aggregatesForDiff(interfaceDefinitions: string):
+      Record<string, HeapSnapshotModel.HeapSnapshotModel.AggregateForDiff> {
+    if (this.#aggregatesForDiff?.interfaceDefinitions === interfaceDefinitions) {
+      return this.#aggregatesForDiff.aggregates;
     }
 
     // Temporarily apply the interface definitions from the other snapshot.
@@ -1507,7 +1545,7 @@ export abstract class HeapSnapshot {
     this.applyInterfaceDefinitions(JSON.parse(interfaceDefinitions) as InterfaceDefinition[]);
     const aggregates = this.getAggregatesByClassKey(true, 'allObjects');
     this.applyInterfaceDefinitions(originalInterfaceDefinitions ?? []);
-    const result: {[x: string]: HeapSnapshotModel.HeapSnapshotModel.AggregateForDiff} = {};
+    const result: Record<string, HeapSnapshotModel.HeapSnapshotModel.AggregateForDiff> = {};
 
     const node = this.createNode();
     for (const classKey in aggregates) {
@@ -1524,7 +1562,7 @@ export abstract class HeapSnapshot {
       result[classKey] = {name: node.className(), indexes, ids, selfSizes};
     }
 
-    this.#aggregatesForDiffInternal = {interfaceDefinitions, aggregates: result};
+    this.#aggregatesForDiff = {interfaceDefinitions, aggregates: result};
     return result;
   }
 
@@ -1625,8 +1663,9 @@ export abstract class HeapSnapshot {
     }
   }
 
-  private buildAggregates(filter?: ((arg0: HeapSnapshotNode) => boolean)): Map<string|number, AggregatedInfo> {
-    const aggregates = new Map<string|number, AggregatedInfo>();
+  private buildAggregates(filter?: ((arg0: HeapSnapshotNode) => boolean)):
+      Map<string|number, HeapSnapshotModel.HeapSnapshotModel.AggregatedInfo> {
+    const aggregates = new Map<string|number, HeapSnapshotModel.HeapSnapshotModel.AggregatedInfo>();
 
     const nodes = this.nodes;
     const nodesLength = nodes.length;
@@ -1675,7 +1714,8 @@ export abstract class HeapSnapshot {
   }
 
   private calculateClassesRetainedSize(
-      aggregates: Map<string|number, AggregatedInfo>, filter?: ((arg0: HeapSnapshotNode) => boolean)): void {
+      aggregates: Map<string|number, HeapSnapshotModel.HeapSnapshotModel.AggregatedInfo>,
+      filter?: ((arg0: HeapSnapshotNode) => boolean)): void {
     const rootNodeIndex = this.rootNodeIndexInternal;
     const node = this.createNode(rootNodeIndex);
     const list = [rootNodeIndex];
@@ -1697,7 +1737,7 @@ export abstract class HeapSnapshot {
       const dominatedIndexTo = firstDominatedNodeIndex[nodeOrdinal + 1];
 
       if (!seen && (!filter || filter(node)) && node.selfSize()) {
-        (aggregates.get(classKey) as AggregatedInfo).maxRet += node.retainedSize();
+        (aggregates.get(classKey) as HeapSnapshotModel.HeapSnapshotModel.AggregatedInfo).maxRet += node.retainedSize();
         if (dominatedIndexFrom !== dominatedIndexTo) {
           seenClassKeys.set(classKey, true);
           sizes.push(list.length);
@@ -1717,7 +1757,7 @@ export abstract class HeapSnapshot {
     }
   }
 
-  private sortAggregateIndexes(aggregates: {[x: string]: AggregatedInfo}): void {
+  private sortAggregateIndexes(aggregates: Record<string, HeapSnapshotModel.HeapSnapshotModel.AggregatedInfo>): void {
     const nodeA = this.createNode();
     const nodeB = this.createNode();
 
@@ -2194,8 +2234,10 @@ export abstract class HeapSnapshot {
   private inferInterfaceDefinitions(): InterfaceDefinition[] {
     const {edgePropertyType} = this;
 
-    // First, produce a set of candidate definitions by iterating the properties
-    // on every plain JS Object in the snapshot.
+    /**
+     * First, produce a set of candidate definitions by iterating the properties
+     * on every plain JS Object in the snapshot.
+     **/
     interface InterfaceDefinitionCandidate extends InterfaceDefinition {
       // How many objects start with these properties in this order.
       count: number;
@@ -2270,7 +2312,7 @@ export abstract class HeapSnapshot {
     this.#aggregates = {};
     this.#aggregatesSortedFlags = {};
 
-    // Information about a named interface.
+    /** Information about a named interface. **/
     interface MatchInfo {
       name: string;
       // The number of properties listed in the interface definition.
@@ -2289,9 +2331,11 @@ export abstract class HeapSnapshot {
       return a.index <= b.index ? a : b;
     }
 
-    // A node in the tree which allows us to search for interfaces matching an object.
-    // Each edge in this tree represents adding a property, starting from an empty
-    // object. Properties must be iterated in sorted order.
+    /**
+     * A node in the tree which allows us to search for interfaces matching an object.
+     * Each edge in this tree represents adding a property, starting from an empty
+     * object. Properties must be iterated in sorted order.
+     **/
     interface PropertyTreeNode {
       // All possible successors from this node. Keys are property names.
       next: Map<string, PropertyTreeNode>;
@@ -2425,6 +2469,22 @@ export abstract class HeapSnapshot {
   private addString(string: string): number {
     this.strings.push(string);
     return this.strings.length - 1;
+  }
+
+  /**
+   * Gets the target node of an edge with the specified name.
+   * @param node The source node to search from
+   * @param edgeName The name of the edge to find
+   * @returns The target node if found, null otherwise
+   */
+  private getEdgeTarget(node: HeapSnapshotNode, edgeName: string): HeapSnapshotNode|null {
+    for (let edgeIt = node.edges(); edgeIt.hasNext(); edgeIt.next()) {
+      const edge = edgeIt.item();
+      if (edge.name() === edgeName) {
+        return edge.node();
+      }
+    }
+    return null;
   }
 
   /**
@@ -2619,17 +2679,13 @@ export abstract class HeapSnapshot {
 
   calculateSnapshotDiff(
       baseSnapshotId: string,
-      baseSnapshotAggregates: {[x: string]: HeapSnapshotModel.HeapSnapshotModel.AggregateForDiff}):
-      {[x: string]: HeapSnapshotModel.HeapSnapshotModel.Diff} {
-    let snapshotDiff: {[x: string]: HeapSnapshotModel.HeapSnapshotModel.Diff}|{
-      [x: string]: HeapSnapshotModel.HeapSnapshotModel.Diff,
-    } = this.#snapshotDiffs[baseSnapshotId];
+      baseSnapshotAggregates: Record<string, HeapSnapshotModel.HeapSnapshotModel.AggregateForDiff>):
+      Record<string, HeapSnapshotModel.HeapSnapshotModel.Diff> {
+    let snapshotDiff: Record<string, HeapSnapshotModel.HeapSnapshotModel.Diff> = this.#snapshotDiffs[baseSnapshotId];
     if (snapshotDiff) {
       return snapshotDiff;
     }
-    snapshotDiff = ({} as {
-      [x: string]: HeapSnapshotModel.HeapSnapshotModel.Diff,
-    });
+    snapshotDiff = {};
 
     const aggregates = this.getAggregatesByClassKey(true, 'allObjects');
     for (const classKey in baseSnapshotAggregates) {
@@ -2656,7 +2712,7 @@ export abstract class HeapSnapshot {
 
   private calculateDiffForClass(
       baseAggregate: HeapSnapshotModel.HeapSnapshotModel.AggregateForDiff,
-      aggregate?: HeapSnapshotModel.HeapSnapshotModel.Aggregate): HeapSnapshotModel.HeapSnapshotModel.Diff|null {
+      aggregate?: HeapSnapshotModel.HeapSnapshotModel.AggregatedInfo): HeapSnapshotModel.HeapSnapshotModel.Diff|null {
     const baseIds = baseAggregate.ids;
     const baseIndexes = baseAggregate.indexes;
     const baseSelfSizes = baseAggregate.selfSizes;
@@ -2721,26 +2777,16 @@ export abstract class HeapSnapshot {
   // Converts an internal class key, suitable for categorizing within this
   // snapshot, to a public class key, which can be used in comparisons
   // between multiple snapshots.
-  classKeyFromClassKeyInternal(key: string|number): string {
+  #classKeyFromClassKey(key: string|number): string {
     return typeof key === 'number' ? (',' + this.strings[key]) : key;
   }
 
   nodeClassKey(snapshotObjectId: number): string|null {
     const node = this.nodeForSnapshotObjectId(snapshotObjectId);
     if (node) {
-      return this.classKeyFromClassKeyInternal(node.classKeyInternal());
+      return this.#classKeyFromClassKey(node.classKeyInternal());
     }
     return null;
-  }
-
-  idsOfObjectsWithName(name: string): number[] {
-    const ids = [];
-    for (let it = this.allNodes(); it.hasNext(); it.next()) {
-      if (it.item().name() === name) {
-        ids.push(it.item().id());
-      }
-    }
-    return ids;
   }
 
   createEdgesProvider(nodeIndex: number): HeapSnapshotEdgesProvider {
@@ -2921,7 +2967,7 @@ interface HeapSnapshotMetaInfo {
   trace_function_info_fields: string[];
   trace_node_fields: string[];
   sample_fields: string[];
-  type_strings: {[key: string]: string};
+  type_strings: Record<string, string>;
   /* eslint-enable @typescript-eslint/naming-convention */
 }
 
@@ -2940,7 +2986,7 @@ export interface HeapSnapshotHeader {
 export abstract class HeapSnapshotItemProvider {
   protected readonly iterator: HeapSnapshotItemIterator;
   readonly #indexProvider: HeapSnapshotItemIndexProvider;
-  readonly #isEmptyInternal: boolean;
+  readonly #isEmpty: boolean;
   protected iterationOrder: number[]|null;
   protected currentComparator: HeapSnapshotModel.HeapSnapshotModel.ComparatorConfig|null;
   #sortedPrefixLength: number;
@@ -2948,7 +2994,7 @@ export abstract class HeapSnapshotItemProvider {
   constructor(iterator: HeapSnapshotItemIterator, indexProvider: HeapSnapshotItemIndexProvider) {
     this.iterator = iterator;
     this.#indexProvider = indexProvider;
-    this.#isEmptyInternal = !iterator.hasNext();
+    this.#isEmpty = !iterator.hasNext();
     this.iterationOrder = null;
     this.currentComparator = null;
     this.#sortedPrefixLength = 0;
@@ -2966,7 +3012,7 @@ export abstract class HeapSnapshotItemProvider {
   }
 
   isEmpty(): boolean {
-    return this.#isEmptyInternal;
+    return this.#isEmpty;
   }
 
   serializeItemsRange(begin: number, end: number): HeapSnapshotModel.HeapSnapshotModel.ItemsRange {
@@ -3672,7 +3718,7 @@ export class JSHeapSnapshot extends HeapSnapshot {
   }
 }
 
-// Creates and initializes a JSHeapSnapshot using only one thread.
+/** Creates and initializes a JSHeapSnapshot using only one thread. **/
 export async function createJSHeapSnapshotForTesting(profile: Profile): Promise<JSHeapSnapshot> {
   const result = new JSHeapSnapshot(profile, new HeapSnapshotProgress());
   const channel = new MessageChannel();
@@ -3682,10 +3728,6 @@ export async function createJSHeapSnapshotForTesting(profile: Profile): Promise<
 }
 
 export class JSHeapSnapshotNode extends HeapSnapshotNode {
-  constructor(snapshot: JSHeapSnapshot, nodeIndex?: number) {
-    super(snapshot, nodeIndex);
-  }
-
   canBeQueried(): boolean {
     const snapshot = (this.snapshot as JSHeapSnapshot);
     const flags = snapshot.flagsOfNode(this);
@@ -3802,7 +3844,7 @@ export class JSHeapSnapshotNode extends HeapSnapshotNode {
       nextFromEnd = !nextFromEnd;
     }
     if (edgeIndexFromStart <= edgeIndexFromEnd) {
-      categoryNameStart += ', ...';
+      categoryNameStart += ', …';
     }
     if (categoryNameEnd.length > 1) {
       categoryNameStart += ', ';
@@ -3865,10 +3907,6 @@ export class JSHeapSnapshotNode extends HeapSnapshotNode {
 }
 
 export class JSHeapSnapshotEdge extends HeapSnapshotEdge {
-  constructor(snapshot: JSHeapSnapshot, edgeIndex?: number) {
-    super(snapshot, edgeIndex);
-  }
-
   override clone(): JSHeapSnapshotEdge {
     const snapshot = (this.snapshot as JSHeapSnapshot);
     return new JSHeapSnapshotEdge(snapshot, this.edgeIndex);
@@ -3876,10 +3914,10 @@ export class JSHeapSnapshotEdge extends HeapSnapshotEdge {
 
   override hasStringName(): boolean {
     if (!this.isShortcut()) {
-      return this.hasStringNameInternal();
+      return this.#hasStringName();
     }
     // @ts-expect-error parseInt is successful against numbers.
-    return isNaN(parseInt(this.nameInternal(), 10));
+    return isNaN(parseInt(this.#name(), 10));
   }
 
   isElement(): boolean {
@@ -3907,7 +3945,7 @@ export class JSHeapSnapshotEdge extends HeapSnapshotEdge {
   }
 
   override name(): string {
-    const name = this.nameInternal();
+    const name = this.#name();
     if (!this.isShortcut()) {
       return String(name);
     }
@@ -3940,14 +3978,14 @@ export class JSHeapSnapshotEdge extends HeapSnapshotEdge {
     return '?' + name + '?';
   }
 
-  private hasStringNameInternal(): boolean {
+  #hasStringName(): boolean {
     const type = this.rawType();
     const snapshot = this.snapshot;
     return type !== snapshot.edgeElementType && type !== snapshot.edgeHiddenType;
   }
 
-  private nameInternal(): string|number {
-    return this.hasStringNameInternal() ? this.snapshot.strings[this.nameOrIndex()] : this.nameOrIndex();
+  #name(): string|number {
+    return this.#hasStringName() ? this.snapshot.strings[this.nameOrIndex()] : this.nameOrIndex();
   }
 
   private nameOrIndex(): number {
@@ -3959,7 +3997,7 @@ export class JSHeapSnapshotEdge extends HeapSnapshotEdge {
   }
 
   override nameIndex(): number {
-    if (!this.hasStringNameInternal()) {
+    if (!this.#hasStringName()) {
       throw new Error('Edge does not have string name');
     }
     return this.nameOrIndex();
@@ -3967,10 +4005,6 @@ export class JSHeapSnapshotEdge extends HeapSnapshotEdge {
 }
 
 export class JSHeapSnapshotRetainerEdge extends HeapSnapshotRetainerEdge {
-  constructor(snapshot: JSHeapSnapshot, retainerIndex: number) {
-    super(snapshot, retainerIndex);
-  }
-
   override clone(): JSHeapSnapshotRetainerEdge {
     const snapshot = (this.snapshot as JSHeapSnapshot);
     return new JSHeapSnapshotRetainerEdge(snapshot, this.retainerIndex());
@@ -3991,12 +4025,4 @@ export class JSHeapSnapshotRetainerEdge extends HeapSnapshotRetainerEdge {
   isWeak(): boolean {
     return this.edge().isWeak();
   }
-}
-export interface AggregatedInfo {
-  count: number;
-  distance: number;
-  self: number;
-  maxRet: number;
-  name: string;
-  idxs: number[];
 }

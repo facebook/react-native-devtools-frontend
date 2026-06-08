@@ -1,4 +1,7 @@
-/*
+/* Copyright 2026 The Chromium Authors
+ * Use of this source code is governed by a BSD-style license that can be
+ * found in the LICENSE file.
+ *
  * Copyright (C) 2006, 2007, 2008 Apple Inc.  All rights reserved.
  * Copyright (C) 2009 Anthony Ricaud <rik@webkit.org>
  *
@@ -41,10 +44,24 @@
 .style-panes-wrapper {
   overflow: hidden scroll;
   background-color: var(--sys-color-cdt-base-container);
+}
 
-  & > div:not(:last-child) {
+.style-panes-wrapper:not(.computed-styles-pane-wrapper) > div:not(:last-child) {
     border-bottom: 1px solid var(--sys-color-divider);
-  }
+}
+
+.style-panes-wrapper > div:has(+ .ai-code-completion-summary-toolbar-container) {
+  border-bottom: 0;
+}
+
+.style-panes-wrapper .ai-code-completion-summary-toolbar-container {
+  container-type: inline-size;
+  flex-shrink: 0;
+  overflow: hidden;
+  position: fixed;
+  bottom: 0;
+  background-color: var(--sys-color-cdt-base-container);
+  width: 100%;
 }
 
 #elements-content:not(.elements-wrap) > div {
@@ -69,15 +86,6 @@ devtools-tree-outline {
   overflow: auto;
 }
 
-.axtree-button {
-  position: absolute;
-  top: var(--sys-size-8);
-  right: var(--sys-size-9);
-  background-color: var(--sys-color-cdt-base-container);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1;
-  border-radius: var(--sys-shape-corner-full);
-  box-shadow: var(--sys-elevation-level1);
+.computed-styles-wrapper {
+  flex-shrink: 0;
 }

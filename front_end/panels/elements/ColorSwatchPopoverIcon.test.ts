@@ -1,10 +1,11 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Bindings from '../../models/bindings/bindings.js';
+import * as ComputedStyle from '../../models/computed_style/computed_style.js';
 import * as Workspace from '../../models/workspace/workspace.js';
 import {describeWithEnvironment, setupActionRegistry} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
@@ -29,8 +30,8 @@ describeWithMockConnection('ColorSwatchPopoverIcon', () => {
           sinon.createStubInstance(SDK.CSSStyleDeclaration.CSSStyleDeclaration), 0, 'color', 'red', true, false, true,
           false, '', undefined, []);
       const treeElement = new Elements.StylePropertyTreeElement.StylePropertyTreeElement({
-        stylesPane:
-            new Elements.StylesSidebarPane.StylesSidebarPane(new Elements.ComputedStyleModel.ComputedStyleModel()),
+        stylesContainer:
+            new Elements.StylesSidebarPane.StylesSidebarPane(new ComputedStyle.ComputedStyleModel.ComputedStyleModel()),
         section: sinon.createStubInstance(Elements.StylePropertiesSection.StylePropertiesSection),
         matchedStyles: await getMatchedStyles(),
         property,
@@ -50,12 +51,12 @@ describeWithMockConnection('ColorSwatchPopoverIcon', () => {
       icon.addEventListener(
           Elements.ColorSwatchPopoverIcon.ColorSwatchPopoverIconEvents.COLOR_CHANGED, iconColorChanged);
       icon.showPopover();
-      assert.isTrue(showPopoverStub.calledOnce);
+      sinon.assert.calledOnce(showPopoverStub);
       const spectrum = showPopoverStub.args[0][0];
       assert.instanceOf(spectrum, ColorPicker.Spectrum.Spectrum);
       sinon.stub(spectrum, 'colorName').returns('--yellow');
       spectrum.dispatchEventToListeners(ColorPicker.Spectrum.Events.COLOR_CHANGED, 'yellow');
-      assert.isTrue(iconColorChanged.calledOnce);
+      sinon.assert.calledOnce(iconColorChanged);
       assert.strictEqual(iconColorChanged.args[0][0].data.asString(), '#ffff00');
       assert.strictEqual(iconColorChanged.args[0][0].data.getAuthoredText(), 'var(--yellow)');
     });

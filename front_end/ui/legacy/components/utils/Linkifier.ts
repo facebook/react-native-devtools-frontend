@@ -1,32 +1,8 @@
-/*
- * Copyright (C) 2012 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2012 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+/* eslint-disable @devtools/no-imperative-dom-api, @devtools/no-lit-render-outside-of-view */
 
 import * as Common from '../../../../core/common/common.js';
 import * as Host from '../../../../core/host/host.js';
@@ -36,34 +12,38 @@ import * as SDK from '../../../../core/sdk/sdk.js';
 import type * as Protocol from '../../../../generated/protocol.js';
 import * as Bindings from '../../../../models/bindings/bindings.js';
 import * as Breakpoints from '../../../../models/breakpoints/breakpoints.js';
+import type * as StackTrace from '../../../../models/stack_trace/stack_trace.js';
 import * as TextUtils from '../../../../models/text_utils/text_utils.js';
 import type * as Trace from '../../../../models/trace/trace.js';
 import * as Workspace from '../../../../models/workspace/workspace.js';
-import type * as IconButton from '../../../components/icon_button/icon_button.js';
+import * as UIHelpers from '../../../helpers/helpers.js';
+import {Directives, html, type LitTemplate, render, type TemplateResult} from '../../../lit/lit.js';
 import * as VisualLogging from '../../../visual_logging/visual_logging.js';
 import * as UI from '../../legacy.js';
 
+const {ref, ifDefined, classMap} = Directives;
+
 const UIStrings = {
   /**
-   *@description Text in Linkifier
+   * @description Text in Linkifier
    */
   unknown: '(unknown)',
   /**
-   *@description Text short for automatic
+   * @description Text short for automatic
    */
   auto: 'auto',
   /**
-   *@description Text in Linkifier
-   *@example {Sources panel} PH1
+   * @description Text in Linkifier
+   * @example {Sources panel} PH1
    */
   revealInS: 'Reveal in {PH1}',
   /**
-   *@description Text for revealing an item in its destination
+   * @description Text for revealing an item in its destination
    */
   reveal: 'Reveal',
   /**
-   *@description A context menu item in the Linkifier
-   *@example {Extension} PH1
+   * @description A context menu item in the Linkifier
+   * @example {Extension} PH1
    */
   openUsingS: 'Open using {PH1}',
   /**
@@ -85,7 +65,8 @@ const infoByAnchor = new WeakMap<Node, LinkInfo>();
 
 const textByAnchor = new WeakMap<Node, string>();
 
-const linkHandlers = new Map<string, LinkHandler>();
+// Maps a DevTools Extension origin to a particular LinkHandler.
+const linkHandlers = new Map<string, LinkHandlerRegistration>();
 
 let linkHandlerSettingInstance: Common.Settings.Setting<string>;
 
@@ -249,9 +230,9 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
       sourceURL: Platform.DevToolsPath.UrlString, lineNumber: number|undefined, options?: LinkifyOptions): HTMLElement
       |null {
     let fallbackAnchor: HTMLElement|null = null;
-    const linkifyURLOptions: LinkifyURLOptions = {
+    const linkifyURLOptions = {
       lineNumber,
-      maxLength: this.maxLength,
+      maxLength: options?.maxLength ?? this.maxLength,
       columnNumber: options?.columnNumber,
       showColumnNumber: Boolean(options?.showColumnNumber),
       className: options?.className,
@@ -260,7 +241,7 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
       userMetric: options?.userMetric,
       jslogContext: options?.jslogContext || 'script-location',
       omitOrigin: options?.omitOrigin,
-    };
+    } satisfies LinkifyURLOptions;
     const {columnNumber, className = ''} = linkifyURLOptions;
     if (sourceURL) {
       fallbackAnchor = Linkifier.linkifyURL(sourceURL, linkifyURLOptions);
@@ -304,6 +285,7 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
 
     const linkDisplayOptions: LinkDisplayOptions = {
       showColumnNumber: linkifyURLOptions.showColumnNumber ?? false,
+      maxLength: linkifyURLOptions.maxLength,
       revealBreakpoint: options?.revealBreakpoint,
     };
 
@@ -344,13 +326,14 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
   }
 
   linkifyRawLocation(
-      rawLocation: SDK.DebuggerModel.Location, fallbackUrl: Platform.DevToolsPath.UrlString,
-      className?: string): Element {
+      rawLocation: SDK.DebuggerModel.Location, fallbackUrl: Platform.DevToolsPath.UrlString, className?: string,
+      options?: LinkifyOptions): HTMLElement {
     return this.linkifyScriptLocation(
         rawLocation.debuggerModel.target(), rawLocation.scriptId, fallbackUrl, rawLocation.lineNumber, {
           columnNumber: rawLocation.columnNumber,
           className,
           inlineFrameIndex: rawLocation.inlineFrameIndex,
+          tabStop: options?.tabStop,
         });
   }
 
@@ -365,6 +348,70 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
     return this.maybeLinkifyScriptLocation(
         target, String(callFrame.scriptId) as Protocol.Runtime.ScriptId,
         callFrame.url as Platform.DevToolsPath.UrlString, callFrame.lineNumber, linkifyOptions);
+  }
+
+  static linkifyUILocation(uiLocation: Workspace.UISourceCode.UILocation, options?: LinkifyOptions): HTMLElement {
+    const linkifyURLOptions = {
+      ...options,
+      lineNumber: uiLocation.lineNumber,
+      columnNumber: uiLocation.columnNumber,
+      showColumnNumber: Boolean(options?.showColumnNumber),
+      className: options?.className,
+      tabStop: options?.tabStop,
+      inlineFrameIndex: options?.inlineFrameIndex ?? 0,
+      userMetric: options?.userMetric,
+      jslogContext: options?.jslogContext || 'script-location',
+      omitOrigin: options?.omitOrigin,
+    } satisfies LinkifyURLOptions;
+    const {className = ''} = linkifyURLOptions;
+    const fallbackAnchor = Linkifier.linkifyURL(uiLocation.uiSourceCode.url(), linkifyURLOptions);
+    const isIgnoreListed = (options?.ignoreListManager ?? Workspace.IgnoreListManager.IgnoreListManager.instance())
+                               .isUserIgnoreListedURL(uiLocation.uiSourceCode.url());
+    fallbackAnchor.classList.toggle('ignore-list-link', isIgnoreListed);
+
+    const createLinkOptions: CreateLinkOptions = {
+      tabStop: options?.tabStop,
+      jslogContext: 'script-location',
+    };
+    const {link, linkInfo} = Linkifier.createLink(
+        fallbackAnchor?.textContent ? fallbackAnchor.textContent : '', className, createLinkOptions);
+    linkInfo.fallback = fallbackAnchor;
+    linkInfo.userMetric = options?.userMetric;
+
+    const linkDisplayOptions: LinkDisplayOptions = {
+      showColumnNumber: linkifyURLOptions.showColumnNumber ?? false,
+      maxLength: linkifyURLOptions.maxLength ?? UI.UIUtils.MaxLengthForDisplayedURLs,
+      revealBreakpoint: options?.revealBreakpoint,
+    };
+
+    Linkifier.updateAnchorFromUILocation(link, linkDisplayOptions, uiLocation, options?.ignoreListManager);
+
+    return link;
+  }
+
+  static linkifyStackTraceFrame(frame: StackTrace.StackTrace.Frame, options?: LinkifyOptions): HTMLElement {
+    const linkifyURLOptions = {
+      ...options,
+      lineNumber: frame.line,
+      columnNumber: frame.column,
+      showColumnNumber: Boolean(options?.showColumnNumber),
+      className: options?.className,
+      tabStop: options?.tabStop,
+      inlineFrameIndex: options?.inlineFrameIndex ?? 0,
+      userMetric: options?.userMetric,
+      jslogContext: options?.jslogContext || 'script-location',
+      omitOrigin: options?.omitOrigin,
+    } satisfies LinkifyURLOptions;
+    const fallbackAnchor = Linkifier.linkifyURL(frame.url as Platform.DevToolsPath.UrlString, linkifyURLOptions);
+    if (!frame.uiSourceCode) {
+      const isIgnoreListed = (options?.ignoreListManager ?? Workspace.IgnoreListManager.IgnoreListManager.instance())
+                                 .isUserIgnoreListedURL(frame.url as Platform.DevToolsPath.UrlString);
+      fallbackAnchor.classList.toggle('ignore-list-link', isIgnoreListed);
+      return fallbackAnchor;
+    }
+
+    const uiLocation = frame.uiSourceCode.uiLocation(frame.line, frame.column);
+    return Linkifier.linkifyUILocation(uiLocation, options);
   }
 
   linkifyStackTraceTopFrame(target: SDK.Target.Target|null, stackTrace: Protocol.Runtime.StackTrace): HTMLElement {
@@ -390,11 +437,9 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
     // associated, whereas all active targets have one such pool. This ensures
     // that the fallbackAnchor is only ever used when the target was disposed.
     const pool = this.locationPoolByTarget.get(target);
-    if (!pool) {
-      console.assert(target.isDisposed());
+    if (!pool || target.isDisposed()) {
       return fallbackAnchor;
     }
-    console.assert(!target.isDisposed());
 
     // All targets that can report stack traces also have a debugger model.
     const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel) as SDK.DebuggerModel.DebuggerModel;
@@ -403,7 +448,7 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
     linkInfo.enableDecorator = this.useLinkDecorator;
     linkInfo.fallback = fallbackAnchor;
 
-    const linkDisplayOptions = {showColumnNumber: false};
+    const linkDisplayOptions = {showColumnNumber: false, maxLength: this.maxLength};
 
     const updateDelegate = async(liveLocation: Bindings.LiveLocation.LiveLocation): Promise<void> => {
       await this.updateAnchor(link, linkDisplayOptions, liveLocation);
@@ -434,7 +479,7 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
       return link;
     }
 
-    const linkDisplayOptions = {showColumnNumber: false};
+    const linkDisplayOptions = {showColumnNumber: false, maxLength: this.maxLength};
 
     const updateDelegate = async(liveLocation: Bindings.LiveLocation.LiveLocation): Promise<void> => {
       await this.updateAnchor(link, linkDisplayOptions, liveLocation);
@@ -482,17 +527,21 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
     }
     const uiLocation = await liveLocation.uiLocation();
     if (!uiLocation) {
-      if (liveLocation instanceof Bindings.CSSWorkspaceBinding.LiveLocation) {
-        const header = (liveLocation).header();
-        if (header?.ownerNode) {
-          anchor.addEventListener('click', event => {
-            event.consume(true);
-            void Common.Revealer.reveal(header.ownerNode || null);
-          }, false);
-          Linkifier.setTrimmedText(anchor, '<style>');
-        }
-      }
+      anchor.classList.add('invalid-link');
+      anchor.removeAttribute('role');
+      return;
+    }
 
+    this.#anchorUpdaters.set(anchor, function(this: Linkifier, anchor: HTMLElement) {
+      void this.updateAnchor(anchor, options, liveLocation);
+    });
+    Linkifier.updateAnchorFromUILocation(anchor, options, uiLocation);
+  }
+
+  private static updateAnchorFromUILocation(
+      anchor: HTMLElement, options: LinkDisplayOptions, uiLocation: Workspace.UISourceCode.UILocation|null,
+      ignoreListManager?: Workspace.IgnoreListManager.IgnoreListManager): void {
+    if (!uiLocation) {
       anchor.classList.add('invalid-link');
       anchor.removeAttribute('role');
       return;
@@ -504,10 +553,7 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
     }
 
     const text = uiLocation.linkText(true /* skipTrim */, options.showColumnNumber);
-    Linkifier.setTrimmedText(anchor, text, this.maxLength);
-    this.#anchorUpdaters.set(anchor, function(this: Linkifier, anchor: HTMLElement) {
-      void this.updateAnchor(anchor, options, liveLocation);
-    });
+    Linkifier.setTrimmedText(anchor, text, options.maxLength);
 
     let titleText: string = uiLocation.uiSourceCode.url();
     if (uiLocation.uiSourceCode.mimeType() === 'application/wasm') {
@@ -523,7 +569,8 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
       }
     }
     UI.Tooltip.Tooltip.install(anchor, titleText);
-    anchor.classList.toggle('ignore-list-link', await liveLocation.isIgnoreListed());
+    const isIgnoreListed = Boolean(uiLocation?.isIgnoreListed(ignoreListManager));
+    anchor.classList.toggle('ignore-list-link', isIgnoreListed);
     Linkifier.updateLinkDecorations(anchor);
   }
 
@@ -535,18 +582,15 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
     if (!decorator || !info.uiLocation) {
       return;
     }
-    if (info.icon?.parentElement) {
-      anchor.removeChild(info.icon);
-    }
     const icon = decorator.linkIcon(info.uiLocation.uiSourceCode);
-    if (icon) {
-      icon.style.setProperty('margin-right', '2px');
-      anchor.insertBefore(icon, anchor.firstChild);
+    if (icon && anchor instanceof HTMLElement && anchor.firstElementChild instanceof HTMLElement) {
+      anchor.firstElementChild?.style.setProperty('margin-left', '2px');
+      render(icon, anchor, {renderBefore: anchor.firstElementChild});
     }
     info.icon = icon;
   }
 
-  static linkifyURL(url: Platform.DevToolsPath.UrlString, options?: LinkifyURLOptions): HTMLElement {
+  static renderLinkifiedUrl(url: Platform.DevToolsPath.UrlString, options?: LinkifyURLOptions): TemplateResult {
     options = options || {
       showColumnNumber: false,
       inlineFrameIndex: 0,
@@ -561,16 +605,14 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
     const maxLength = options.maxLength || UI.UIUtils.MaxLengthForDisplayedURLs;
     const bypassURLTrimming = options.bypassURLTrimming;
     const omitOrigin = options.omitOrigin;
-    if (!url || Common.ParsedURL.schemeIs(url, 'javascript:')) {
-      const element = document.createElement('span');
-      if (className) {
-        element.className = className;
-      }
 
-      element.textContent = text || url || i18nString(UIStrings.unknown);
-      return element;
+    if (!url || Common.ParsedURL.schemeIs(url, 'javascript:')) {
+      // clang-format off
+      return html`<span class=${className}>${text || url || i18nString(UIStrings.unknown)}</span>`;
+      // clang-format on
     }
 
+    // FIXME: Bindings.ResourceUtils.displayNameForURL should be called in presenters.
     let linkText = text || Bindings.ResourceUtils.displayNameForURL(url);
 
     if (omitOrigin) {
@@ -595,16 +637,21 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
       tabStop: options.tabStop,
       bypassURLTrimming,
       jslogContext: options.jslogContext || 'url',
+      lineNumber,
+      columnNumber,
+      userMetric: options?.userMetric,
+      onRef: options.onRef,
     };
-    const {link, linkInfo} = Linkifier.createLink(linkText, className, linkOptions);
-    if (lineNumber) {
-      linkInfo.lineNumber = lineNumber;
-    }
-    if (columnNumber) {
-      linkInfo.columnNumber = columnNumber;
-    }
-    linkInfo.userMetric = options?.userMetric;
-    return link;
+    return Linkifier.renderLink(linkText, className, linkOptions);
+  }
+
+  /**
+   * @deprecated use renderLinkifiedUrl.
+   */
+  static linkifyURL(url: Platform.DevToolsPath.UrlString, options?: LinkifyURLOptions): HTMLElement {
+    const container = document.createDocumentFragment();
+    render(Linkifier.renderLinkifiedUrl(url, options), container);
+    return container.firstElementChild as HTMLElement;
   }
 
   static linkifyRevealable(
@@ -621,60 +668,93 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
     return link;
   }
 
+  private static renderLink(text: string|HTMLElement, className: string, options: CreateLinkOptions = {}):
+      TemplateResult {
+    const {maxLength, title, href, preventClick, tabStop, bypassURLTrimming, jslogContext} = options;
+    const classes: Record<string, boolean> = {
+      'devtools-link': true,
+      'text-button': !preventClick,
+      'link-style': !preventClick,
+      'devtools-link-prevent-click': !!preventClick,
+    };
+    // More than one class name may be passed.
+    for (const cls of className.split(' ')) {
+      if (cls) {
+        classes[cls] = true;
+      }
+    }
+    const handler = (event: MouseEvent|KeyboardEvent): void => {
+      if (event instanceof KeyboardEvent && event.key !== Platform.KeyboardUtilities.ENTER_KEY && event.key !== ' ') {
+        return;
+      }
+      // [RN] Report whether the clicked stack frame had a resolved live location.
+      const clickedLinkInfo = Linkifier.linkInfo(event.currentTarget as Element);
+      Host.rnPerfMetrics.stackTraceFrameClicked(Boolean(clickedLinkInfo?.liveLocation));
+      if (Linkifier.handleClick(event)) {
+        event.consume(true);
+      }
+    };
+    const createRef = (): ReturnType<typeof ref> => {
+      return ref(link => {
+        if (!link) {
+          return;
+        }
+        options.onRef?.(link as HTMLElement);
+        if (text instanceof HTMLElement) {
+          link.appendChild(text);
+        } else if (bypassURLTrimming) {
+          link.classList.add('devtools-link-styled-trim');
+          Linkifier.appendTextWithoutHashes(link, text);
+        } else {
+          Linkifier.setTrimmedText(link, text, maxLength);
+        }
+        const linkInfo = {
+          icon: null,
+          enableDecorator: false,
+          uiLocation: null,
+          liveLocation: null,
+          url: options.href || null,
+          lineNumber: options.lineNumber ?? null,
+          columnNumber: options.columnNumber ?? null,
+          inlineFrameIndex: 0,
+          revealable: null,
+          fallback: null,
+          userMetric: options.userMetric,
+        };
+        infoByAnchor.set(link, linkInfo);
+      });
+    };
+    const jslog = VisualLogging.link(jslogContext).track({click: true});
+    // clang-format off
+    return preventClick ? html`<span
+      class=${classMap(classes)}
+      .href=${href}
+      title=${ifDefined(title ? title : undefined)}
+      jslog=${jslog}
+      .tabIndex=${tabStop ? 0 : -1}
+      role="link"
+      ${createRef()}></span>` : html`<button
+        @click=${handler}
+        @keydown=${handler}
+        class=${classMap(classes)}
+        .href=${href}
+        title=${ifDefined(title ? title : undefined)}
+        jslog=${jslog}
+        .tabIndex=${tabStop ? 0 : -1}
+        role="link"
+        ${createRef()}></button>`;
+    // clang-format on
+  }
+
+  /**
+   * @deprecated use renderLink.
+   */
   private static createLink(text: string|HTMLElement, className: string, options: CreateLinkOptions = {}):
       {link: HTMLElement, linkInfo: LinkInfo} {
-    const {maxLength, title, href, preventClick, tabStop, bypassURLTrimming, jslogContext} = options;
-    const link = document.createElement(options.preventClick ? 'span' : 'button');
-    if (className) {
-      link.className = className;
-    }
-    link.classList.add('devtools-link');
-    if (!options.preventClick) {
-      link.classList.add('text-button', 'link-style');
-    }
-    if (title) {
-      UI.Tooltip.Tooltip.install(link, title);
-    }
-    if (href) {
-      // @ts-expect-error
-      link.href = href;
-    }
-    link.setAttribute('jslog', `${VisualLogging.link(jslogContext).track({click: true})}`);
-
-    if (text instanceof HTMLElement) {
-      link.appendChild(text);
-    } else if (bypassURLTrimming) {
-      link.classList.add('devtools-link-styled-trim');
-      Linkifier.appendTextWithoutHashes(link, text);
-    } else {
-      Linkifier.setTrimmedText(link, text, maxLength);
-    }
-
-    const linkInfo = {
-      icon: null,
-      enableDecorator: false,
-      uiLocation: null,
-      liveLocation: null,
-      url: href || null,
-      lineNumber: null,
-      columnNumber: null,
-      inlineFrameIndex: 0,
-      revealable: null,
-      fallback: null,
-    };
-    infoByAnchor.set(link, linkInfo);
-    if (!preventClick) {
-      link.addEventListener('click', event => {
-        Host.rnPerfMetrics.stackTraceFrameClicked(linkInfo.liveLocation !== null);
-        if (Linkifier.handleClick(event)) {
-          event.consume(true);
-        }
-      }, false);
-    } else {
-      link.classList.add('devtools-link-prevent-click');
-    }
-    UI.ARIAUtils.markAsLink(link);
-    link.tabIndex = tabStop ? 0 : -1;
+    const container = document.createDocumentFragment();
+    render(Linkifier.renderLink(text, className, options), container);
+    const link = container.firstElementChild as HTMLElement;
+    const linkInfo = infoByAnchor.get(link) as LinkInfo;
     return {link, linkInfo};
   }
 
@@ -768,14 +848,47 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
     return linkHandlerSettingInstance;
   }
 
-  static registerLinkHandler(title: string, handler: LinkHandler): void {
-    linkHandlers.set(title, handler);
+  static registerLinkHandler(registration: LinkHandlerRegistration): void {
+    for (const origin of linkHandlers.keys()) {
+      const existingHandler = linkHandlers.get(origin);
+      if (existingHandler?.scheme === registration.scheme) {
+        const schemeString = registration.scheme ? `scheme '${registration.scheme}'` : 'all schemes';
+        Common.Console.Console.instance().warn(
+            `DevTools extension '${registration.title}' registered with setOpenResourceHandler for ${
+                schemeString}, which is already registered by '${
+                existingHandler?.title}'. This can lead to unexpected results.`);
+      }
+    }
+
+    linkHandlers.set(registration.origin, registration);
     LinkHandlerSettingUI.instance().update();
   }
 
-  static unregisterLinkHandler(title: string): void {
-    linkHandlers.delete(title);
+  static unregisterLinkHandler(registration: LinkHandlerRegistration): void {
+    const {origin} = registration;
+    linkHandlers.delete(origin);
     LinkHandlerSettingUI.instance().update();
+  }
+
+  // The primary filter implementation for the openResourceHandlers. Returns false
+  // if the handler is NOT supposed to handle the `url`. Usually, this happens if
+  // a handler has registered for a particular `scheme` and the scheme for that url
+  // does not match. If no openResourceScheme is provided, it means the handler is
+  // interested in all urls (except those handled by scheme-specific handlers, see
+  // otherSchemeRegistrations).
+  static shouldHandleOpenResource(
+      openResourceScheme: string|null, url: Platform.DevToolsPath.UrlString,
+      otherSchemeRegistrations: Set<string>): boolean {
+    // If this is a scheme-specific handler, make sure the registered scheme is
+    // present in the url.
+    if (openResourceScheme) {
+      return url.startsWith(openResourceScheme);
+    }
+
+    // Global handlers (that register for no scheme) can handle all urls, with the
+    // exception of urls that scheme-specific handlers have registered for.
+    const scheme = URL.parse(url)?.protocol || '';
+    return !otherSchemeRegistrations.has(scheme);
   }
 
   static uiLocation(link: Element): Workspace.UISourceCode.UILocation|null {
@@ -825,24 +938,35 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
         handler: () => Common.Revealer.reveal(revealable),
       });
     }
-    if (contentProvider) {
-      const lineNumber = uiLocation ? uiLocation.lineNumber : info.lineNumber || 0;
-      for (const title of linkHandlers.keys()) {
-        const handler = linkHandlers.get(title);
-        if (!handler) {
-          continue;
-        }
-        const action = {
-          section: 'reveal',
-          title: i18nString(UIStrings.openUsingS, {PH1: title}),
-          jslogContext: 'open-using',
-          handler: handler.bind(null, contentProvider, lineNumber),
-        };
-        if (title === Linkifier.linkHandlerSetting().get()) {
-          result.unshift(action);
-        } else {
-          result.push(action);
-        }
+
+    const contentProviderOrUrl = contentProvider || url;
+    const lineNumber = uiLocation ? uiLocation.lineNumber : info.lineNumber || 0;
+    const columnNumber = uiLocation ? uiLocation.columnNumber : info.columnNumber || 0;
+
+    // Build the set of schemes that the currently registered extensions handle
+    // (not counting ones that are scheme-agnostic).
+    const specificSchemeHandlers = new Set<string>();
+    for (const registration of linkHandlers.values()) {
+      if (registration.scheme) {
+        specificSchemeHandlers.add(registration.scheme);
+      }
+    }
+
+    for (const registration of linkHandlers.values().filter(r => r.handler)) {
+      const {title, handler, shouldHandleOpenResource} = registration;
+      if (url && !shouldHandleOpenResource(url, specificSchemeHandlers)) {
+        continue;
+      }
+      const action = {
+        section: 'reveal',
+        title: i18nString(UIStrings.openUsingS, {PH1: title}),
+        jslogContext: 'open-using',
+        handler: handler.bind(null, contentProviderOrUrl, lineNumber, columnNumber),
+      };
+      if (title === Linkifier.linkHandlerSetting().get()) {
+        result.unshift(action);
+      } else {
+        result.push(action);
       }
     }
     if (resource || info.url) {
@@ -850,7 +974,7 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
         section: 'reveal',
         title: UI.UIUtils.openLinkExternallyLabel(),
         jslogContext: 'open-in-new-tab',
-        handler: () => UI.UIUtils.openInNewTab(url),
+        handler: () => UIHelpers.openInNewTab(url),
       });
       result.push({
         section: 'clipboard',
@@ -875,7 +999,7 @@ export class Linkifier extends Common.ObjectWrapper.ObjectWrapper<EventTypes> im
 }
 
 export interface LinkDecorator extends Common.EventTarget.EventTarget<LinkDecorator.EventTypes> {
-  linkIcon(uiSourceCode: Workspace.UISourceCode.UISourceCode): IconButton.Icon.Icon|null;
+  linkIcon(uiSourceCode: Workspace.UISourceCode.UISourceCode): LitTemplate|null;
 }
 
 export namespace LinkDecorator {
@@ -909,7 +1033,7 @@ export class LinkContextMenuProvider implements UI.ContextMenu.Provider<Node> {
 
 let linkHandlerSettingUIInstance: LinkHandlerSettingUI;
 
-export class LinkHandlerSettingUI implements UI.SettingsUI.SettingUI {
+export class LinkHandlerSettingUI {
   private element: HTMLSelectElement;
 
   private constructor() {
@@ -950,8 +1074,14 @@ export class LinkHandlerSettingUI implements UI.SettingsUI.SettingUI {
     Linkifier.linkHandlerSetting().set(value);
   }
 
-  settingElement(): Element|null {
-    return UI.SettingsUI.createCustomSetting(i18nString(UIStrings.linkHandling), this.element);
+  settingElement(): Element {
+    const p = document.createElement('p');
+    p.classList.add('settings-select');
+    const label = p.createChild('label');
+    label.textContent = i18nString(UIStrings.linkHandling);
+    UI.ARIAUtils.bindLabelToControl(label, this.element);
+    p.appendChild(this.element);
+    return p;
   }
 }
 
@@ -964,10 +1094,7 @@ function listenForNewComponentLinkifierEvents(): void {
   listeningToNewEvents = true;
 
   window.addEventListener('linkifieractivated', function(event: Event) {
-    // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const unknownEvent = (event as any);
-    const eventWithData = (unknownEvent as {
+    const eventWithData = (event as unknown as {
       data: LinkInfo,
     });
     Linkifier.handleClickFromNewComponentLand(eventWithData.data);
@@ -997,13 +1124,14 @@ export class ContentProviderContextMenuProvider implements
                   contentUrl),
           {jslogContext: 'open-in-new-tab'});
     }
-    for (const title of linkHandlers.keys()) {
-      const handler = linkHandlers.get(title);
-      if (!handler) {
+    for (const origin of linkHandlers.keys()) {
+      const registration = linkHandlers.get(origin);
+      if (!registration) {
         continue;
       }
+      const {title} = registration;
       contextMenu.revealSection().appendItem(
-          i18nString(UIStrings.openUsingS, {PH1: title}), handler.bind(null, contentProvider, 0),
+          i18nString(UIStrings.openUsingS, {PH1: title}), registration.handler.bind(null, contentProvider, 0),
           {jslogContext: 'open-using'});
     }
     if (contentProvider instanceof SDK.NetworkRequest.NetworkRequest) {
@@ -1031,7 +1159,7 @@ export class ContentProviderContextMenuProvider implements
 }
 
 interface LinkInfo {
-  icon: IconButton.Icon.Icon|null;
+  icon: LitTemplate|null;
   enableDecorator: boolean;
   uiLocation: Workspace.UISourceCode.UILocation|null;
   liveLocation: Bindings.LiveLocation.LiveLocation|null;
@@ -1059,13 +1187,14 @@ export interface LinkifyURLOptions {
   userMetric?: Host.UserMetrics.Action;
   jslogContext?: string;
   omitOrigin?: boolean;
+  onRef?: (el: HTMLElement) => void;
 }
 
 export interface LinkifyOptions {
   className?: string;
   columnNumber?: number;
   showColumnNumber?: boolean;
-  inlineFrameIndex: number;
+  inlineFrameIndex?: number;
   tabStop?: boolean;
   userMetric?: Host.UserMetrics.Action;
   jslogContext?: string;
@@ -1075,6 +1204,8 @@ export interface LinkifyOptions {
    * {@link LinkDisplayOptions.revealBreakpoint}
    */
   revealBreakpoint?: boolean;
+  maxLength?: number;
+  ignoreListManager?: Workspace.IgnoreListManager.IgnoreListManager;
 }
 
 interface CreateLinkOptions {
@@ -1085,10 +1216,15 @@ interface CreateLinkOptions {
   tabStop?: boolean;
   bypassURLTrimming?: boolean;
   jslogContext?: string;
+  lineNumber?: number;
+  columnNumber?: number;
+  userMetric?: Host.UserMetrics.Action;
+  onRef?: (el: HTMLElement) => void;
 }
 
 interface LinkDisplayOptions {
   showColumnNumber: boolean;
+  maxLength: number;
 
   /**
    * If true, we'll check if there is a breakpoint at the UILocation we get
@@ -1099,7 +1235,33 @@ interface LinkDisplayOptions {
   revealBreakpoint?: boolean;
 }
 
-export type LinkHandler = (arg0: TextUtils.ContentProvider.ContentProvider, arg1: number) => void;
+/**
+ * The filter function for the openResourceHandlers. Returns true if the `url`
+ * should be considered for a particular handler. `specificSchemeHandlers`
+ * is the set of all schemes handled by all registered DevTools extensions
+ * (that specify a particular scheme).
+ **/
+export type LinkHandlerPredicate = (url: Platform.DevToolsPath.UrlString, specificSchemeHandlers: Set<string>) =>
+    boolean;
+
+export type LinkHandler =
+    (arg0: TextUtils.ContentProvider.ContentProvider|Platform.DevToolsPath.UrlString, lineNumber: number,
+     columnNumber?: number) => void;
+
+export interface LinkHandlerRegistration {
+  // The title (read: manifest name) of DevTools extension registering as an openResourceHandler.
+  // This value is provided by the developer of the extension.
+  title: string;
+  // The origin of the DevTools extension handling the url.
+  origin: Platform.DevToolsPath.UrlString;
+  // The scheme that the handler wants to register for. If set, only links that match this scheme
+  // will be considered, otherwise all links will be considered.
+  scheme?: string;
+  // The openResourceHandler handling the requests to open a resource.
+  handler: LinkHandler;
+  // A filter function used to determine whether the `handler` wants to handle the link clicks.
+  shouldHandleOpenResource: LinkHandlerPredicate;
+}
 
 export const enum Events {
   LIVE_LOCATION_UPDATED = 'liveLocationUpdated',
@@ -1107,4 +1269,46 @@ export const enum Events {
 
 export interface EventTypes {
   [Events.LIVE_LOCATION_UPDATED]: Bindings.LiveLocation.LiveLocation;
+}
+
+interface ScriptLocationViewInput {
+  target?: SDK.Target.Target;
+  scriptId?: Protocol.Runtime.ScriptId;
+  sourceURL: Platform.DevToolsPath.UrlString;
+  lineNumber?: number;
+  options?: LinkifyOptions;
+  linkifier: Linkifier;
+}
+
+type ScriptLocationView = (input: ScriptLocationViewInput, output: undefined, target: HTMLElement) => void;
+
+const DEFAULT_SCRIPT_LOCATION_VIEW: ScriptLocationView = (input, _output, target) => {
+  render(
+      html`${
+          input.linkifier.linkifyScriptLocation(
+              input.target ?? null, input.scriptId ?? null, input.sourceURL, input.lineNumber, input.options)}`,
+      target);
+};
+
+export class ScriptLocationLink extends UI.Widget.Widget {
+  target?: SDK.Target.Target;
+  scriptId?: Protocol.Runtime.ScriptId;
+  sourceURL = '' as Platform.DevToolsPath.UrlString;
+  lineNumber?: number;
+  options?: LinkifyOptions;
+  linkifier = new Linkifier();
+  #view: ScriptLocationView;
+
+  constructor(element: HTMLElement, view = DEFAULT_SCRIPT_LOCATION_VIEW) {
+    super(element);
+    this.#view = view;
+  }
+
+  override performUpdate(): void {
+    this.#view(this, undefined, this.contentElement);
+  }
+
+  override onDetach(): void {
+    this.linkifier.dispose();
+  }
 }

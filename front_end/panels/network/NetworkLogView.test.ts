@@ -1,12 +1,10 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
-import {assertNotNullOrUndefined} from '../../core/platform/platform.js';
-import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import * as HAR from '../../models/har/har.js';
@@ -17,16 +15,21 @@ import {
   getMenu,
   getMenuItemLabels,
 } from '../../testing/ContextMenuHelpers.js';
-import {dispatchClickEvent, raf} from '../../testing/DOMHelpers.js';
+import {assertScreenshot, dispatchClickEvent, raf, renderElementIntoDOM} from '../../testing/DOMHelpers.js';
 import {
   createTarget,
   describeWithEnvironment,
+  registerActions,
   registerNoopActions,
-  stubNoopSettings
+  stubNoopSettings,
 } from '../../testing/EnvironmentHelpers.js';
 import {expectCalled} from '../../testing/ExpectStubCall.js';
 import {stubFileManager} from '../../testing/FileManagerHelpers.js';
-import {describeWithMockConnection, dispatchEvent} from '../../testing/MockConnection.js';
+import {
+  describeWithMockConnection,
+  dispatchEvent,
+  setMockConnectionResponseHandler
+} from '../../testing/MockConnection.js';
 import {activate} from '../../testing/ResourceTreeHelpers.js';
 import * as RenderCoordinator from '../../ui/components/render_coordinator/render_coordinator.js';
 import * as UI from '../../ui/legacy/legacy.js';
@@ -41,6 +44,8 @@ describeWithMockConnection('NetworkLogView', () => {
   let networkLog: Logs.NetworkLog.NetworkLog;
 
   beforeEach(() => {
+    setMockConnectionResponseHandler('Debugger.enable', () => ({} as Protocol.Debugger.EnableResponse));
+    setMockConnectionResponseHandler('Storage.getStorageKey', () => ({} as Protocol.Storage.GetStorageKeyResponse));
     const dummyStorage = new Common.Settings.SettingsStorage({});
 
     for (const settingName of ['network-color-code-resource-types', 'network.group-by-frame']) {
@@ -55,6 +60,7 @@ describeWithMockConnection('NetworkLogView', () => {
       syncedStorage: dummyStorage,
       globalStorage: dummyStorage,
       localStorage: dummyStorage,
+      settingRegistrations: Common.SettingRegistration.getRegisteredSettings(),
     });
     registerNoopActions(['network.toggle-recording', 'inspector-main.reload']);
 
@@ -75,10 +81,11 @@ describeWithMockConnection('NetworkLogView', () => {
   });
 
   let nextId = 0;
-  function createNetworkRequest(
-      url: string,
-      options: {requestHeaders?: SDK.NetworkRequest.NameValue[], finished?: boolean, target?: SDK.Target.Target}):
-      SDK.NetworkRequest.NetworkRequest {
+  function createNetworkRequest(url: string, options: {
+    requestHeaders?: SDK.NetworkRequest.NameValue[],
+    finished?: boolean,
+    target?: SDK.Target.Target,
+  }): SDK.NetworkRequest.NetworkRequest {
     const effectiveTarget = options.target || target;
     const networkManager = effectiveTarget.model(SDK.NetworkManager.NetworkManager);
     assert.exists(networkManager);
@@ -106,8 +113,7 @@ describeWithMockConnection('NetworkLogView', () => {
   function createEnvironment() {
     const filterBar = new UI.FilterBar.FilterBar('network-panel', true);
     networkLogView = createNetworkLogView(filterBar);
-    networkLogView.markAsRoot();
-    networkLogView.show(document.body);
+    renderElementIntoDOM(networkLogView);
     const rootNode = networkLogView.columns().dataGrid().rootNode();
 
     return {rootNode, filterBar, networkLogView};
@@ -127,7 +133,7 @@ describeWithMockConnection('NetworkLogView', () => {
   });
 
   // Note this isn't an ideal test as the internal headers are generated rather than explicitly added,
-  // are only added on HTTP/2 and HTTP/3, have a preceeding colon like `:authority` but it still tests
+  // are only added on HTTP/2 and HTTP/3, have a preceding colon like `:authority` but it still tests
   // the stripping function.
   it('generates a valid curl command while stripping internal headers', async () => {
     const request = createNetworkRequest(urlString`http://localhost`, {
@@ -182,6 +188,171 @@ describeWithMockConnection('NetworkLogView', () => {
     );
   });
 
+  it('generates a valid curl command when header values contain CRLF', async () => {
+    const request = createNetworkRequest(urlString`http://localhost`, {
+      requestHeaders: [{name: 'cookie', value: 'query=evil\r\n & cmd /c calc.exe \n\n'}],
+    });
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'unix'),
+        'curl \'http://localhost\' -b $\'query=evil\\r\\n & cmd /c calc.exe \\n\\n\'',
+    );
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'win'),
+        'curl ^\"http://localhost^\" -b ^\"query=evil^\n\n ^& cmd /c calc.exe ^\n\n^\n\n^\"',
+    );
+  });
+
+  it('generates a valid curl command when header values contain tabs or form feed', async () => {
+    const request = createNetworkRequest(urlString`http://localhost`, {
+      requestHeaders: [{name: 'cookie', value: 'query=evil\t\v\f\r\n & cmd /c calc.exe \n\n'}],
+    });
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'unix'),
+        'curl \'http://localhost\' -b $\'query=evil\\u0009\\u000b\\u000c\\r\\n & cmd /c calc.exe \\n\\n\'',
+    );
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'win'),
+        'curl ^\"http://localhost^\" -b ^\"query=evil   ^\n\n ^& cmd /c calc.exe ^\n\n^\n\n^\"',
+    );
+  });
+
+  it('generates a valid curl command when header values contain CR only', async () => {
+    const request = createNetworkRequest(urlString`http://localhost`, {
+      requestHeaders: [{name: 'cookie', value: 'query=evil\r & cmd /c calc.exe'}],
+    });
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'unix'),
+        'curl \'http://localhost\' -b $\'query=evil\\r & cmd /c calc.exe\'',
+    );
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'win'),
+        'curl ^\"http://localhost^\" -b ^\"query=evil^\n\n ^& cmd /c calc.exe^\"',
+    );
+  });
+
+  it('generates a valid curl command for a POST request with data', async () => {
+    const request = createNetworkRequest(urlString`http://localhost`, {});
+    request.requestMethod = 'POST';
+    request.setRequestFormData(true, '123');
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'unix'),
+        'curl \'http://localhost\' --data-raw \'123\'',
+    );
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'win'),
+        'curl ^"http://localhost^" --data-raw ^"123^"');
+  });
+
+  it('generates a valid curl command for a POST request with urlencoded data', async () => {
+    const request = createNetworkRequest(urlString`http://localhost`, {
+      requestHeaders: [{name: 'Content-Type', value: 'application/x-www-form-urlencoded'}],
+    });
+    request.requestMethod = 'POST';
+    request.setRequestFormData(true, '1&b');
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'unix'),
+        'curl \'http://localhost\' \\\n  -H \'Content-Type: application/x-www-form-urlencoded\' \\\n  --data-raw \'1&b\'',
+    );
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'win'),
+        'curl ^"http://localhost^" ^\n  -H ^"Content-Type: application/x-www-form-urlencoded^" ^\n  --data-raw ^"1^&b^"');
+  });
+
+  it('generates a valid curl command for a POST request with JSON data', async () => {
+    const request = createNetworkRequest(urlString`http://localhost`, {
+      requestHeaders: [{name: 'Content-Type', value: 'application/json'}],
+    });
+    request.requestMethod = 'POST';
+    request.setRequestFormData(true, '{"a":1}');
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'unix'),
+        'curl \'http://localhost\' \\\n  -H \'Content-Type: application/json\' \\\n  --data-raw \'{"a":1}\'',
+    );
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'win'),
+        'curl ^"http://localhost^" ^\n  -H ^"Content-Type: application/json^" ^\n  --data-raw ^"^{^\\^"a^\\^":1^}^"');
+  });
+
+  it('generates a valid curl command for a POST request with binary data', async () => {
+    const request = createNetworkRequest(urlString`http://localhost`, {
+      requestHeaders: [{name: 'Content-Type', value: 'application/binary'}],
+    });
+    request.requestMethod = 'POST';
+    request.setRequestFormData(true, '1234\r\n00\x02\x03\x04\x05\'"!');
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'unix'),
+        'curl \'http://localhost\' \\\n  -H \'Content-Type: application/binary\' \\\n  --data-raw $\'1234\\r\\n00\\u0002\\u0003\\u0004\\u0005\\\'"\\u0021\'',
+    );
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'win'),
+        'curl ^"http://localhost^" ^\n  -H ^"Content-Type: application/binary^" ^\n  --data-raw ^"1234^\n\n00^ ^ ^ ^ \'^\\^"^!^"');
+  });
+
+  it('generates a valid curl command for a POST request with binary data containing %', async () => {
+    const request = createNetworkRequest(urlString`http://localhost`, {
+      requestHeaders: [{name: 'Content-Type', value: 'application/binary'}],
+    });
+    request.requestMethod = 'POST';
+    request.setRequestFormData(true, '%OS%\\r\\n%%OS%%\\r\\n"\\\\"\'$&!');
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'unix'),
+        'curl \'http://localhost\' \\\n  -H \'Content-Type: application/binary\' \\\n  --data-raw $\'%OS%\\\\r\\\\n%%OS%%\\\\r\\\\n"\\\\\\\\"\\\'$&\\u0021\'');
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'win'),
+        'curl ^"http://localhost^" ^\n  -H ^"Content-Type: application/binary^" ^\n  --data-raw ^"^%^OS^%^\\^\\r^\\^\\n^%^%^OS^%^%^\\^\\r^\\^\\n^\\^"^\\^\\^\\^\\^\\^"\'^$^&^!^"');
+  });
+
+  it('generates a valid curl command for a URL with special characters', async () => {
+    const request = createNetworkRequest(urlString`http://example.com/?a=[]{}`, {});
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'unix'),
+        'curl \'http://example.com/?a=\\[\\]\\{\\}\'',
+    );
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'win'),
+        'curl ^"http://example.com/?a=^\\[^\\]^\\{^\\}^"');
+  });
+
+  it('generates a valid curl command stripping pseudo-headers', async () => {
+    const request = createNetworkRequest(urlString`http://localhost`, {
+      requestHeaders: [
+        {name: ':host', value: 'h'},
+        {name: 'version', value: 'v'},
+      ],
+    });
+    const actual = await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'unix');
+    const expected = 'curl \'http://localhost\'';
+    assert.strictEqual(actual, expected);
+  });
+
+  it('generates a curl command with an unescaped method', async () => {
+    const request = createNetworkRequest(urlString`http://localhost`, {});
+    request.requestMethod = '|evilcommand|';
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'unix'),
+        'curl \'http://localhost\' -X \'|evilcommand|\'',
+    );
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'win'),
+        'curl ^"http://localhost^" -X ^"^|evilcommand^|^"');
+  });
+
+  it('generates a valid curl command for urlencoded data starting with @', async () => {
+    const request = createNetworkRequest(urlString`http://localhost`, {
+      requestHeaders: [{name: 'Content-Type', value: 'application/x-www-form-urlencoded'}],
+    });
+    request.requestMethod = 'POST';
+    request.setRequestFormData(true, '@/etc/passwd');
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'unix'),
+        'curl \'http://localhost\' \\\n  -H \'Content-Type: application/x-www-form-urlencoded\' \\\n  --data-raw \'@/etc/passwd\'',
+    );
+    assert.strictEqual(
+        await Network.NetworkLogView.NetworkLogView.generateCurlCommand(request, 'win'),
+        'curl ^\"http://localhost^\" ^\n  -H ^\"Content-Type: application/x-www-form-urlencoded^\" ^\n  --data-raw ^\"^@/etc/passwd^\"',
+    );
+  });
+
   const tests = (inScope: boolean) => () => {
     beforeEach(() => {
       networkLogView = createNetworkLogView();
@@ -198,11 +369,11 @@ describeWithMockConnection('NetworkLogView', () => {
       resourceTreeModel.dispatchEventToListeners(SDK.ResourceTreeModel.Events.Load, {resourceTreeModel, loadTime: 5});
       resourceTreeModel.dispatchEventToListeners(SDK.ResourceTreeModel.Events.DOMContentLoaded, 6);
       if (inScope) {
-        assert.isTrue(addEventDividers.calledTwice);
-        assert.isTrue(addEventDividers.getCall(0).calledWith([5], 'network-load-divider'));
-        assert.isTrue(addEventDividers.getCall(1).calledWith([6], 'network-dcl-divider'));
+        sinon.assert.calledTwice(addEventDividers);
+        sinon.assert.calledWith(addEventDividers.getCall(0), [5], 'network-load-divider');
+        sinon.assert.calledWith(addEventDividers.getCall(1), [6], 'network-dcl-divider');
       } else {
-        assert.isFalse(addEventDividers.called);
+        sinon.assert.notCalled(addEventDividers);
       }
     });
 
@@ -226,12 +397,12 @@ describeWithMockConnection('NetworkLogView', () => {
       if (inScope) {
         assert.isTrue(
             harWriterWrite.calledOnceWith(sinon.match.any, [FINISHED_REQUEST_1, FINISHED_REQUEST_2], sinon.match.any));
-        assert.isTrue(fileManager.save.calledOnce);
-        assert.isTrue(fileManager.close.calledOnce);
+        sinon.assert.calledOnce(fileManager.save);
+        sinon.assert.calledOnce(fileManager.close);
       } else {
-        assert.isFalse(harWriterWrite.called);
-        assert.isFalse(fileManager.save.called);
-        assert.isFalse(fileManager.close.called);
+        sinon.assert.notCalled(harWriterWrite);
+        sinon.assert.notCalled(fileManager.save);
+        sinon.assert.notCalled(fileManager.close);
       }
     });
 
@@ -254,8 +425,7 @@ describeWithMockConnection('NetworkLogView', () => {
           entries: [makeHarEntry(URL_1), makeHarEntry(URL_2)],
         },
       };
-      networkLogView.markAsRoot();
-      networkLogView.show(document.body);
+      renderElementIntoDOM(networkLogView);
       const blob = new Blob([JSON.stringify(har)], {type: 'text/plain'});
       const file = new File([blob], 'log.har');
       await networkLogView.onLoadFromFile(file);
@@ -283,8 +453,7 @@ describeWithMockConnection('NetworkLogView', () => {
       resourceTreeModel.dispatchEventToListeners(
           SDK.ResourceTreeModel.Events.Load, {resourceTreeModel, loadTime: 0.686191});
       resourceTreeModel.dispatchEventToListeners(SDK.ResourceTreeModel.Events.DOMContentLoaded, 0.683709);
-      networkLogView.markAsRoot();
-      networkLogView.show(document.body);
+      renderElementIntoDOM(networkLogView);
 
       const toolbar = networkLogView.summaryToolbar();
       const textElements = toolbar.querySelectorAll('.toolbar-text');
@@ -317,8 +486,7 @@ describeWithMockConnection('NetworkLogView', () => {
     const request2 = createNetworkRequest('url2', {target});
     const request3 = createNetworkRequest('url3', {target: anotherTarget});
     networkLogView = createNetworkLogView();
-    networkLogView.markAsRoot();
-    networkLogView.show(document.body);
+    renderElementIntoDOM(networkLogView);
     await RenderCoordinator.done();
 
     const rootNode = networkLogView.columns().dataGrid().rootNode();
@@ -345,8 +513,7 @@ describeWithMockConnection('NetworkLogView', () => {
     const request2 = createNetworkRequest('url2', {target});
     const request3 = createNetworkRequest('url3', {target: anotherTarget});
     networkLogView = createNetworkLogView();
-    networkLogView.markAsRoot();
-    networkLogView.show(document.body);
+    renderElementIntoDOM(networkLogView);
     await RenderCoordinator.done();
 
     const rootNode = networkLogView.columns().dataGrid().rootNode();
@@ -360,25 +527,7 @@ describeWithMockConnection('NetworkLogView', () => {
         [request1, request2, request3]);
   });
 
-  it('hide Chrome extension requests from checkbox', async () => {
-    createNetworkRequest('chrome-extension://url1', {target});
-    createNetworkRequest('url2', {target});
-    let rootNode;
-    let filterBar;
-    ({rootNode, filterBar, networkLogView} = createEnvironment());
-    const hideExtCheckbox = getCheckbox(filterBar, 'Hide \'chrome-extension://\' URLs');
-
-    assert.deepEqual(
-        rootNode.children.map(n => (n as Network.NetworkDataGridNode.NetworkNode).request()?.url()),
-        [urlString`chrome-extension://url1`, urlString`url2`]);
-
-    clickCheckbox(hideExtCheckbox);
-    assert.deepEqual(
-        rootNode.children.map(n => (n as Network.NetworkDataGridNode.NetworkNode).request()?.url()), [urlString`url2`]);
-  });
-
-  it('can hide Chrome extension requests from dropdown', async () => {
-    Root.Runtime.experiments.enableForTest(Root.Runtime.ExperimentName.NETWORK_PANEL_FILTER_BAR_REDESIGN);
+  it('can hide Chrome extension requests', async () => {
     createNetworkRequest('chrome-extension://url1', {target});
     createNetworkRequest('url2', {target});
     let rootNode;
@@ -410,7 +559,6 @@ describeWithMockConnection('NetworkLogView', () => {
   });
 
   it('displays correct count for more filters', async () => {
-    Root.Runtime.experiments.enableForTest(Root.Runtime.ExperimentName.NETWORK_PANEL_FILTER_BAR_REDESIGN);
     let filterBar;
     ({filterBar, networkLogView} = createEnvironment());
     const dropdown = await getMoreTypesDropdown(filterBar);
@@ -430,27 +578,7 @@ describeWithMockConnection('NetworkLogView', () => {
     softMenu.discard();
   });
 
-  it('can filter requests with blocked response cookies from checkbox', async () => {
-    const request1 = createNetworkRequest('url1', {target});
-    request1.blockedResponseCookies = () => [{
-      blockedReasons: [Protocol.Network.SetCookieBlockedReason.SameSiteNoneInsecure],
-      cookie: null,
-      cookieLine: 'foo=bar; SameSite=None',
-    }];
-    createNetworkRequest('url2', {target});
-    let rootNode;
-    let filterBar;
-    ({rootNode, filterBar, networkLogView} = createEnvironment());
-    const blockedCookiesCheckbox = getCheckbox(filterBar, 'Show only requests with blocked response cookies');
-    clickCheckbox(blockedCookiesCheckbox);
-    assert.deepEqual(rootNode.children.map(n => (n as Network.NetworkDataGridNode.NetworkNode).request()?.url()), [
-      urlString`url1`,
-    ]);
-  });
-
-  it('can filter requests with blocked response cookies from dropdown', async () => {
-    Root.Runtime.experiments.enableForTest(Root.Runtime.ExperimentName.NETWORK_PANEL_FILTER_BAR_REDESIGN);
-
+  it('can filter requests with blocked response cookies', async () => {
     const request1 = createNetworkRequest('url1', {target});
     request1.blockedResponseCookies = () => [{
       blockedReasons: [Protocol.Network.SetCookieBlockedReason.SameSiteNoneInsecure],
@@ -488,7 +616,6 @@ describeWithMockConnection('NetworkLogView', () => {
   });
 
   it('lists selected options in more filters tooltip', async () => {
-    Root.Runtime.experiments.enableForTest(Root.Runtime.ExperimentName.NETWORK_PANEL_FILTER_BAR_REDESIGN);
     let filterBar;
     ({filterBar, networkLogView} = createEnvironment());
 
@@ -507,7 +634,6 @@ describeWithMockConnection('NetworkLogView', () => {
   });
 
   it('updates tooltip to default when more filters option deselected', async () => {
-    Root.Runtime.experiments.enableForTest(Root.Runtime.ExperimentName.NETWORK_PANEL_FILTER_BAR_REDESIGN);
     let filterBar;
     ({filterBar, networkLogView} = createEnvironment());
 
@@ -531,8 +657,7 @@ describeWithMockConnection('NetworkLogView', () => {
   it('can remove requests', async () => {
     networkLogView = createNetworkLogView();
     const request = createNetworkRequest('url1', {target});
-    networkLogView.markAsRoot();
-    networkLogView.show(document.body);
+    renderElementIntoDOM(networkLogView);
 
     const rootNode = networkLogView.columns().dataGrid().rootNode();
     assert.lengthOf(rootNode.children, 1);
@@ -546,8 +671,7 @@ describeWithMockConnection('NetworkLogView', () => {
         'network.show-options-to-generate-har-with-sensitive-data', false);
     createNetworkRequest('url1', {target});
     networkLogView = createNetworkLogView(new UI.FilterBar.FilterBar('network-panel', true));
-    networkLogView.markAsRoot();
-    networkLogView.show(document.body);
+    renderElementIntoDOM(networkLogView);
     networkLogView.columns().dataGrid().rootNode().children[0].select();
     const {element} = networkLogView.columns().dataGrid();
 
@@ -605,10 +729,10 @@ describeWithMockConnection('NetworkLogView', () => {
 
     // set up overrides
     r2.originalResponseHeaders = [{name: 'content-type', value: 'x'}];
-    r2.responseHeaders = [{name: 'content-type', value: 'overriden'}];
+    r2.responseHeaders = [{name: 'content-type', value: 'overridden'}];
     r3.hasOverriddenContent = true;
     r4.originalResponseHeaders = [{name: 'age', value: 'x'}];
-    r4.responseHeaders = [{name: 'age', value: 'overriden'}];
+    r4.responseHeaders = [{name: 'age', value: 'overridden'}];
     r4.hasOverriddenContent = true;
 
     return {urlNotOverridden, urlHeaderOverridden, urlContentOverridden, urlHeaderAndContentOverridden};
@@ -620,9 +744,7 @@ describeWithMockConnection('NetworkLogView', () => {
     const filterBar = new UI.FilterBar.FilterBar('network-panel', true);
     networkLogView = createNetworkLogView(filterBar);
     networkLogView.setTextFilterValue('has-overrides:yes');
-
-    networkLogView.markAsRoot();
-    networkLogView.show(document.body);
+    renderElementIntoDOM(networkLogView);
     const rootNode = networkLogView.columns().dataGrid().rootNode();
 
     assert.deepEqual(rootNode.children.map(n => (n as Network.NetworkDataGridNode.NetworkNode).request()?.url()), [
@@ -639,8 +761,7 @@ describeWithMockConnection('NetworkLogView', () => {
     networkLogView = createNetworkLogView(filterBar);
     networkLogView.setTextFilterValue('has-overrides:no');
 
-    networkLogView.markAsRoot();
-    networkLogView.show(document.body);
+    renderElementIntoDOM(networkLogView);
     const rootNode = networkLogView.columns().dataGrid().rootNode();
 
     assert.deepEqual(rootNode.children.map(n => (n as Network.NetworkDataGridNode.NetworkNode).request()?.url()), [
@@ -655,8 +776,7 @@ describeWithMockConnection('NetworkLogView', () => {
     networkLogView = createNetworkLogView(filterBar);
     networkLogView.setTextFilterValue('has-overrides:headers');
 
-    networkLogView.markAsRoot();
-    networkLogView.show(document.body);
+    renderElementIntoDOM(networkLogView);
     const rootNode = networkLogView.columns().dataGrid().rootNode();
 
     assert.deepEqual(rootNode.children.map(n => (n as Network.NetworkDataGridNode.NetworkNode).request()?.url()), [
@@ -672,8 +792,7 @@ describeWithMockConnection('NetworkLogView', () => {
     networkLogView = createNetworkLogView(filterBar);
     networkLogView.setTextFilterValue('has-overrides:content');
 
-    networkLogView.markAsRoot();
-    networkLogView.show(document.body);
+    renderElementIntoDOM(networkLogView);
     const rootNode = networkLogView.columns().dataGrid().rootNode();
 
     assert.deepEqual(rootNode.children.map(n => (n as Network.NetworkDataGridNode.NetworkNode).request()?.url()), [
@@ -689,14 +808,59 @@ describeWithMockConnection('NetworkLogView', () => {
     networkLogView = createNetworkLogView(filterBar);
     networkLogView.setTextFilterValue('has-overrides:tent');  // partial text
 
-    networkLogView.markAsRoot();
-    networkLogView.show(document.body);
+    renderElementIntoDOM(networkLogView);
     const rootNode = networkLogView.columns().dataGrid().rootNode();
 
     assert.deepEqual(rootNode.children.map(n => (n as Network.NetworkDataGridNode.NetworkNode).request()?.url()), [
       urlContentOverridden,
       urlHeaderAndContentOverridden,
     ]);
+  });
+
+  function createRequestsWithAndWithoutTestHeader() {
+    const urlWithTestHeader = urlString`https://example.com/request-with-test-header`;
+    const urlWithoutTestHeader = urlString`https://example.com/request-without-test-header`;
+
+    const requestWithHeader = createNetworkRequest(urlWithTestHeader, {target});
+    const requestWithoutHeader = createNetworkRequest(urlWithoutTestHeader, {target});
+
+    requestWithHeader.requestHeaders = () => [{name: 'Accept-Language', value: 'US'}];
+    requestWithoutHeader.requestHeaders = () => [{name: 'Cache-Control', value: 'public'}];
+
+    return {
+      urlWithTestHeader,
+      urlWithoutTestHeader,
+    };
+  }
+
+  it('filters requests with has-request-header', async () => {
+    const {urlWithTestHeader} = createRequestsWithAndWithoutTestHeader();
+
+    const filterBar = new UI.FilterBar.FilterBar('network-panel', true);
+    networkLogView = createNetworkLogView(filterBar);
+    networkLogView.setTextFilterValue('has-request-header:Accept-Language');
+
+    renderElementIntoDOM(networkLogView);
+
+    const rootNode = networkLogView.columns().dataGrid().rootNode();
+    const visibleUrls = rootNode.children.map(n => (n as Network.NetworkDataGridNode.NetworkNode).request()?.url());
+
+    assert.deepEqual(visibleUrls, [urlWithTestHeader]);
+  });
+
+  it('does not match any request if header name is not present', async () => {
+    createRequestsWithAndWithoutTestHeader();
+
+    const filterBar = new UI.FilterBar.FilterBar('network-panel', true);
+    networkLogView = createNetworkLogView(filterBar);
+    networkLogView.setTextFilterValue('has-request-header:Nonexistent-Header');
+
+    renderElementIntoDOM(networkLogView);
+
+    const rootNode = networkLogView.columns().dataGrid().rootNode();
+    const visibleUrls = rootNode.children.map(n => (n as Network.NetworkDataGridNode.NetworkNode).request()?.url());
+
+    assert.deepEqual(visibleUrls, []);
   });
 
   it('filters localized resource categories', async () => {
@@ -713,8 +877,7 @@ describeWithMockConnection('NetworkLogView', () => {
     const filterBar = new UI.FilterBar.FilterBar('network-panel', true);
     networkLogView = createNetworkLogView(filterBar);
 
-    networkLogView.markAsRoot();
-    networkLogView.show(document.body);
+    renderElementIntoDOM(networkLogView);
     const rootNode = networkLogView.columns().dataGrid().rootNode();
     const shownRequestUrls = () => rootNode.children.map(
         n => (n as Network.NetworkDataGridNode.NetworkNode).request()?.url() as string | undefined);
@@ -735,8 +898,7 @@ describeWithMockConnection('NetworkLogView', () => {
 
     const filterBar = new UI.FilterBar.FilterBar('network-panel', true);
     networkLogView = createNetworkLogView(filterBar);
-    networkLogView.markAsRoot();
-    networkLogView.show(document.body);
+    renderElementIntoDOM(networkLogView);
     const copyText = sinon.stub(Host.InspectorFrontendHost.InspectorFrontendHostInstance, 'copyText').resolves();
 
     // Set network filter
@@ -760,17 +922,17 @@ describeWithMockConnection('NetworkLogView', () => {
     assert.isDefined(copyAllURLs);
     contextMenu.invokeHandler(copyAllURLs.id());
     await expectCalled(copyText);
-    assert.strictEqual(copyText.callCount, 1);
+    sinon.assert.callCount(copyText, 1);
     assert.deepEqual(copyText.lastCall.args, [`url-header-overridden
 url-header-und-content-overridden`]);
     copyText.resetHistory();
 
-    const copyAllCurlComnmands = findMenuItemWithLabel(
+    const copyAllCurlCommands = findMenuItemWithLabel(
         footerSection, Host.Platform.isWin() ? 'Copy all listed as cURL (bash)' : 'Copy all listed as cURL');
-    assert.isDefined(copyAllCurlComnmands);
-    contextMenu.invokeHandler(copyAllCurlComnmands.id());
+    assert.isDefined(copyAllCurlCommands);
+    contextMenu.invokeHandler(copyAllCurlCommands.id());
     await expectCalled(copyText);
-    assert.strictEqual(copyText.callCount, 1);
+    sinon.assert.callCount(copyText, 1);
     assert.deepEqual(copyText.lastCall.args, [`curl 'url-header-overridden' ;
 curl 'url-header-und-content-overridden'`]);
     copyText.resetHistory();
@@ -779,7 +941,7 @@ curl 'url-header-und-content-overridden'`]);
     assert.isDefined(copyAllFetchCall);
     contextMenu.invokeHandler(copyAllFetchCall.id());
     await expectCalled(copyText);
-    assert.strictEqual(copyText.callCount, 1);
+    sinon.assert.callCount(copyText, 1);
     assert.deepEqual(copyText.lastCall.args, [`fetch("url-header-overridden", {
   "body": null,
   "method": "GET",
@@ -798,7 +960,7 @@ fetch("url-header-und-content-overridden", {
     assert.isDefined(copyAllPowerShell);
     contextMenu.invokeHandler(copyAllPowerShell.id());
     await expectCalled(copyText);
-    assert.strictEqual(copyText.callCount, 1);
+    sinon.assert.callCount(copyText, 1);
     assert.deepEqual(copyText.lastCall.args, [`Invoke-WebRequest -UseBasicParsing -Uri "url-header-overridden";\r
 Invoke-WebRequest -UseBasicParsing -Uri "url-header-und-content-overridden"`]);
     // Clear network filter
@@ -807,16 +969,16 @@ Invoke-WebRequest -UseBasicParsing -Uri "url-header-und-content-overridden"`]);
 
     contextMenu.invokeHandler(copyAllURLs.id());
     await expectCalled(copyText);
-    assert.strictEqual(copyText.callCount, 1);
+    sinon.assert.callCount(copyText, 1);
     assert.deepEqual(copyText.lastCall.args, [`url-not-overridden
 url-header-overridden
 url-content-overridden
 url-header-und-content-overridden`]);
     copyText.resetHistory();
 
-    contextMenu.invokeHandler(copyAllCurlComnmands.id());
+    contextMenu.invokeHandler(copyAllCurlCommands.id());
     await expectCalled(copyText);
-    assert.strictEqual(copyText.callCount, 1);
+    sinon.assert.callCount(copyText, 1);
     assert.deepEqual(copyText.lastCall.args, [`curl 'url-not-overridden' ;
 curl 'url-header-overridden' ;
 curl 'url-content-overridden' ;
@@ -825,7 +987,7 @@ curl 'url-header-und-content-overridden'`]);
 
     contextMenu.invokeHandler(copyAllFetchCall.id());
     await expectCalled(copyText);
-    assert.strictEqual(copyText.callCount, 1);
+    sinon.assert.callCount(copyText, 1);
     assert.deepEqual(copyText.lastCall.args, [`fetch("url-not-overridden", {
   "body": null,
   "method": "GET",
@@ -854,7 +1016,7 @@ fetch("url-header-und-content-overridden", {
 
     contextMenu.invokeHandler(copyAllPowerShell.id());
     await expectCalled(copyText);
-    assert.strictEqual(copyText.callCount, 1);
+    sinon.assert.callCount(copyText, 1);
     assert.deepEqual(copyText.lastCall.args, [`Invoke-WebRequest -UseBasicParsing -Uri "url-not-overridden";\r
 Invoke-WebRequest -UseBasicParsing -Uri "url-header-overridden";\r
 Invoke-WebRequest -UseBasicParsing -Uri "url-content-overridden";\r
@@ -872,30 +1034,239 @@ Invoke-WebRequest -UseBasicParsing -Uri "url-header-und-content-overridden"`]);
     assert.notExists(columns['--this-does-not-exist-for-sure']);
   });
 
-  it('treats unknown columns with title in persistence setting as custom header', async () => {
+  it('treats unknown columns with title and prefix in persistence setting as custom header', async () => {
     const columnSettings = Common.Settings.Settings.instance().createSetting('network-log-columns', {});
+    // Custom request and response headers are prefixed with 'request-header-' and 'response-header-'
+    // respectively, so this column should be treated as a custom header.
+    const requestHeaderId = 'request-header-custom-request-header';
+    const responseHeaderId = 'response-header-custom-response-header';
+    const customRequestTitle = 'Custom-Request-Header';
+    const customResponseTitle = 'Custom-Response-Header';
     columnSettings.set({
-      'custom-header-for-test': {visible: false, title: 'Custom-Header'},
+      [requestHeaderId]: {visible: false, title: customRequestTitle},
+      [responseHeaderId]: {visible: false, title: customResponseTitle},
     });
+
     networkLogView = createNetworkLogView();
     const dataGrid = networkLogView.columns().dataGrid();
     const columns = dataGrid.columns;
-    assert.exists(columns['custom-header-for-test']);
+
+    assert.exists(columns[requestHeaderId], 'Custom request header column should exist');
+    assert.exists(columns[responseHeaderId], 'Custom response header column should exist');
 
     const contextMenuShow = sinon.stub(UI.ContextMenu.ContextMenu.prototype, 'show').resolves();
     const header = dataGrid.element.querySelector('thead');
+    assert.exists(header);
     const event = new MouseEvent('contextmenu');
     sinon.stub(event, 'target').value(header);
     dataGrid.element.dispatchEvent(event);
 
-    assert.isTrue(contextMenuShow.calledOnce);
-    const responseHeadersSubMenu = contextMenuShow.thisValues[0].footerSection().items.find(
-        (item: UI.ContextMenu.Item) => item.buildDescriptor().label === 'Response Headers');
-    assert.exists(responseHeadersSubMenu);
+    sinon.assert.calledOnce(contextMenuShow);
+    const contextMenu = contextMenuShow.thisValues[0];
+
+    const requestHeadersSubMenu = contextMenu.footerSection().items.find(
+        (item: UI.ContextMenu.Item) => item.buildDescriptor().label === 'Request headers');
+    assert.exists(requestHeadersSubMenu, '"Request headers" submenu should exist');
+    assert.instanceOf(requestHeadersSubMenu, UI.ContextMenu.SubMenu);
+    const customRequestHeaderItem = requestHeadersSubMenu.defaultSection().items.find(
+        (item: UI.ContextMenu.Item) => item.buildDescriptor().label === customRequestTitle);
+    assert.exists(customRequestHeaderItem, 'Custom request header item should be in the "Request headers" submenu');
+
+    const responseHeadersSubMenu = contextMenu.footerSection().items.find(
+        (item: UI.ContextMenu.Item) => item.buildDescriptor().label === 'Response headers');
+    assert.exists(responseHeadersSubMenu, '"Response headers" submenu should exist');
     assert.instanceOf(responseHeadersSubMenu, UI.ContextMenu.SubMenu);
-    const customHeaderItem = responseHeadersSubMenu.defaultSection().items.find(
-        (item: UI.ContextMenu.Item) => item.buildDescriptor().label === 'Custom-Header');
-    assert.exists(customHeaderItem);
+    const customResponseHeaderItem = responseHeadersSubMenu.defaultSection().items.find(
+        (item: UI.ContextMenu.Item) => item.buildDescriptor().label === customResponseTitle);
+    assert.exists(customResponseHeaderItem, 'Custom response header item should be in the "Response headers" submenu');
+  });
+
+  describe('Request blocking and throttling', () => {
+    beforeEach(() => {
+      SDK.NetworkManager.MultitargetNetworkManager.instance({forceNew: true});
+    });
+    async function invokeMenuItem(menu: string, action: string): Promise<void> {
+      const {networkLogView} = createEnvironment();
+      createNetworkRequest('http://foo.com/bar', {target});
+      await RenderCoordinator.done();
+      networkLogView.columns().dataGrid().rootNode().children[0].select();
+      const contextMenu = getContextMenuForElement(networkLogView.columns().dataGrid().element);
+      const subMenu = findMenuItemWithLabel(contextMenu.debugSection(), menu);
+      assert.instanceOf(subMenu, UI.ContextMenu.SubMenu);
+      const item = findMenuItemWithLabel(subMenu.debugSection(), action);
+      assert.exists(item);
+      contextMenu.invokeHandler(item.id());
+    }
+
+    it('can block a request URL', async () => {
+      const showView = sinon.stub(UI.ViewManager.ViewManager.instance(), 'showView');
+      await invokeMenuItem('Block requests', 'Block request URL');
+      assert.isTrue(SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions.conditionsEnabled);
+      const conditions = SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions.conditions.toArray();
+      assert.lengthOf(conditions, 1);
+      assert.strictEqual(conditions[0].constructorString, '*://foo.com/bar');
+      assert.strictEqual(conditions[0].conditions, SDK.NetworkManager.BlockingConditions);
+      sinon.assert.calledOnceWithExactly(showView, 'network.blocked-urls');
+    });
+
+    it('can unblock a request URL', async () => {
+      const showView = sinon.stub(UI.ViewManager.ViewManager.instance(), 'showView');
+      const conditions = SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions;
+      conditions.add(SDK.NetworkManager.RequestCondition.createFromSetting({url: '*://foo.com/bar', enabled: true}));
+      await invokeMenuItem('Block requests', 'Unblock *://foo.com/bar');
+      assert.strictEqual(conditions.count, 0);
+      sinon.assert.calledOnceWithExactly(showView, 'network.blocked-urls');
+    });
+
+    it('can block a request domain', async () => {
+      const showView = sinon.stub(UI.ViewManager.ViewManager.instance(), 'showView');
+      await invokeMenuItem('Block requests', 'Block request domain');
+      assert.isTrue(SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions.conditionsEnabled);
+      const conditions = SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions.conditions.toArray();
+      assert.lengthOf(conditions, 1);
+      assert.strictEqual(conditions[0].constructorString, '*://foo.com');
+      assert.strictEqual(conditions[0].conditions, SDK.NetworkManager.BlockingConditions);
+      sinon.assert.calledOnceWithExactly(showView, 'network.blocked-urls');
+    });
+
+    it('can unblock a request domain', async () => {
+      const showView = sinon.stub(UI.ViewManager.ViewManager.instance(), 'showView');
+      const conditions = SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions;
+      conditions.add(SDK.NetworkManager.RequestCondition.createFromSetting({url: '*://foo.com', enabled: true}));
+      await invokeMenuItem('Block requests', 'Unblock *://foo.com');
+      assert.strictEqual(conditions.count, 0);
+      sinon.assert.calledOnceWithExactly(showView, 'network.blocked-urls');
+    });
+
+    it('can throttle a request URL', async () => {
+      const showView = sinon.stub(UI.ViewManager.ViewManager.instance(), 'showView');
+      await invokeMenuItem('Throttle requests', 'Throttle request URL');
+      assert.isTrue(SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions.conditionsEnabled);
+      const conditions = SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions.conditions.toArray();
+      assert.lengthOf(conditions, 1);
+      assert.strictEqual(conditions[0].constructorString, '*://foo.com/bar');
+      assert.strictEqual(conditions[0].conditions, SDK.NetworkManager.Slow3GConditions);
+      sinon.assert.calledOnceWithExactly(showView, 'network.blocked-urls');
+    });
+
+    it('can unthrottle a request URL', async () => {
+      const showView = sinon.stub(UI.ViewManager.ViewManager.instance(), 'showView');
+      const conditions = SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions;
+      conditions.add(SDK.NetworkManager.RequestCondition.create(
+          SDK.NetworkManager.RequestURLPattern.create(
+              '*://foo.com/bar' as SDK.NetworkManager.URLPatternConstructorString) as
+              SDK.NetworkManager.RequestURLPattern,
+          SDK.NetworkManager.Slow3GConditions));
+      await invokeMenuItem('Throttle requests', 'Stop throttling *://foo.com/bar');
+      assert.strictEqual(conditions.count, 0);
+      sinon.assert.calledOnceWithExactly(showView, 'network.blocked-urls');
+    });
+
+    it('can change from blocking to throttling', async () => {
+      const showView = sinon.stub(UI.ViewManager.ViewManager.instance(), 'showView');
+      SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions.add(
+          SDK.NetworkManager.RequestCondition.createFromSetting({url: '*://foo.com/bar', enabled: true}));
+      await invokeMenuItem('Throttle requests', 'Throttle request URL');
+      assert.isTrue(SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions.conditionsEnabled);
+      const conditions = SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions.conditions.toArray();
+      assert.lengthOf(conditions, 1);
+      assert.strictEqual(conditions[0].constructorString, '*://foo.com/bar');
+      assert.strictEqual(conditions[0].conditions, SDK.NetworkManager.Slow3GConditions);
+      sinon.assert.calledOnceWithExactly(showView, 'network.blocked-urls');
+    });
+
+    it('can change from throttling to blocking', async () => {
+      const showView = sinon.stub(UI.ViewManager.ViewManager.instance(), 'showView');
+      SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions.add(
+          SDK.NetworkManager.RequestCondition.create(
+              SDK.NetworkManager.RequestURLPattern.create(
+                  '*://foo.com/bar' as SDK.NetworkManager.URLPatternConstructorString) as
+                  SDK.NetworkManager.RequestURLPattern,
+              SDK.NetworkManager.Slow3GConditions));
+      await invokeMenuItem('Block requests', 'Block request URL');
+      assert.isTrue(SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions.conditionsEnabled);
+      const conditions = SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions.conditions.toArray();
+      assert.lengthOf(conditions, 1);
+      assert.strictEqual(conditions[0].constructorString, '*://foo.com/bar');
+      assert.strictEqual(conditions[0].conditions, SDK.NetworkManager.BlockingConditions);
+      sinon.assert.calledOnceWithExactly(showView, 'network.blocked-urls');
+    });
+  });
+
+  it('displays throttled requests correctly', async () => {
+    setMockConnectionResponseHandler('Network.setBlockedURLs', () => ({}));
+    setMockConnectionResponseHandler('Network.overrideNetworkState', () => ({}));
+    setMockConnectionResponseHandler(
+        'Network.emulateNetworkConditionsByRule',
+        params => params.matchedNetworkConditions.length > 0 ? {ruleIds: [ruleId]} : {ruleIds: []});
+
+    SDK.NetworkManager.MultitargetNetworkManager.instance({forceNew: true});
+    networkLogView = createNetworkLogView();
+    const container = renderElementIntoDOM(document.createElement('div'), {includeCommonStyles: true});
+    networkLogView.markAsRoot();
+    networkLogView.show(container);
+    networkLogView.columns().switchViewMode(true);
+    networkLogView.setRecording(true);
+    const ruleId = 'rule-id';
+
+    SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions.conditionsEnabled = true;
+    SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions.add(
+        SDK.NetworkManager.RequestCondition.create(
+            SDK.NetworkManager.RequestURLPattern.create(
+                'http://localhost:*' as SDK.NetworkManager.URLPatternConstructorString) as
+                SDK.NetworkManager.RequestURLPattern,
+            SDK.NetworkManager.Slow3GConditions));
+    await SDK.NetworkManager.MultitargetNetworkManager.instance().requestConditions.conditionsAppliedForTest();
+
+    const request = createNetworkRequest(urlString`http://localhost`, {finished: true});
+    request.timing = {
+      requestTime: 0,
+      proxyStart: 0,
+      proxyEnd: 0,
+      dnsStart: 0,
+      dnsEnd: 0,
+      connectStart: 0,
+      connectEnd: 0,
+      sslStart: 0,
+      sslEnd: 0,
+      workerStart: 0,
+      workerReady: 0,
+      workerFetchStart: 0,
+      workerRespondWithSettled: 0,
+      sendStart: 0,
+      sendEnd: 10,
+      pushStart: 0,
+      pushEnd: 0,
+      receiveHeadersStart: 0,
+      receiveHeadersEnd: 0
+    };
+    request.endTime = 100;
+    request.addExtraRequestInfo({
+      blockedRequestCookies: [],
+      includedRequestCookies: [],
+      requestHeaders: [],
+      connectTiming: {requestTime: 0},
+      appliedNetworkConditionsId: ruleId,
+    });
+    const networkManager = SDK.NetworkManager.NetworkManager.forRequest(request);
+    assert.exists(networkManager);
+    networkLog.modelAdded(networkManager);
+    networkManager.dispatchEventToListeners(SDK.NetworkManager.Events.LoadingFinished, request);
+    networkLogView.element.style.height = '100px';
+    networkLogView.element.style.width = '400px';
+    networkLogView.columns().dataGrid().updateInstantly();
+
+    await assertScreenshot('network-log/throttled-request.png');
+
+    await RenderCoordinator.done();
+    const icons = Array.from(container.querySelectorAll('devtools-icon'));
+    assert.deepEqual(icons.map(e => e.title), ['Other (throttled to 3G)', 'Request was throttled (3G)']);
+
+    const appliedConditions = SDK.NetworkManager.MultitargetNetworkManager.instance().appliedRequestConditions(request);
+    assert.exists(appliedConditions);
+    const revealStub = sinon.stub(Common.Revealer.RevealerRegistry.instance(), 'reveal');
+    icons[1].click();
+    sinon.assert.calledOnceWithExactly(revealStub, appliedConditions, false);
   });
 });
 
@@ -905,18 +1276,21 @@ describeWithMockConnection('NetworkLogView placeholder', () => {
 
   beforeEach(() => {
     stubNoopSettings();
-    UI.ActionRegistration.registerActionExtension({
-      actionId: START_RECORDING_ID,
-      category: UI.ActionRegistration.ActionCategory.NETWORK,
-      title: () => 'mock' as Platform.UIString.LocalizedString,
-      toggleable: true,
-    });
-    UI.ActionRegistration.registerActionExtension({
-      actionId: RELOAD_ID,
-      category: UI.ActionRegistration.ActionCategory.NETWORK,
-      title: () => 'mock' as Platform.UIString.LocalizedString,
-      toggleable: true,
-    });
+
+    registerActions([
+      {
+        actionId: START_RECORDING_ID,
+        category: UI.ActionRegistration.ActionCategory.NETWORK,
+        title: () => 'mock' as Platform.UIString.LocalizedString,
+        toggleable: true,
+      },
+      {
+        actionId: RELOAD_ID,
+        category: UI.ActionRegistration.ActionCategory.NETWORK,
+        title: () => 'mock' as Platform.UIString.LocalizedString,
+        toggleable: true,
+      }
+    ]);
     sinon.stub(UI.ShortcutRegistry.ShortcutRegistry, 'instance').returns({
       shortcutTitleForAction: () => 'Ctrl',
       shortcutsForAction: () => [new UI.KeyboardShortcut.KeyboardShortcut(
@@ -928,7 +1302,7 @@ describeWithMockConnection('NetworkLogView placeholder', () => {
     const networkLogView = createNetworkLogView();
     testPlaceholderText(
         networkLogView, 'No network activity recorded',
-        'Record network log to display network activity by using the \"Start recording\" button or by hitting Ctrl.');
+        'Record network log to display network activity by using the \"Start recording\" button or by pressing Ctrl.');
     testPlaceholderButton(networkLogView, 'Start recording', START_RECORDING_ID);
   });
 
@@ -938,7 +1312,7 @@ describeWithMockConnection('NetworkLogView placeholder', () => {
 
     testPlaceholderText(
         networkLogView, 'Currently recording network activity',
-        'Perform a request or reload the page by using the \"Reload page\" button or by hitting Ctrl.');
+        'Perform a request or reload the page by using the \"Reload page\" button or by pressing Ctrl.');
     testPlaceholderButton(networkLogView, 'Reload page', RELOAD_ID);
   });
 });
@@ -954,8 +1328,37 @@ describeWithEnvironment('NetworkLogView', () => {
     try {
       createNetworkLogView();
     } catch {
-      assert.fail('Creating the network view without registring the actions shouldn\'t fail.');
+      assert.fail('Creating the network view without registering the actions shouldn\'t fail.');
     }
+  });
+
+  it('shows Debug with AI menu and submenu items when the flag is on', () => {
+    stubNoopSettings();
+    registerActions([{
+      actionId: 'drjones.network-panel-context',
+      title: () => 'Debug with AI' as Platform.UIString.LocalizedString,
+      category: UI.ActionRegistration.ActionCategory.GLOBAL,
+    }]);
+
+    const filterBar = new UI.FilterBar.FilterBar('network-test');
+    const progressBarContainer = document.createElement('div');
+    const setting = Common.Settings.Settings.instance().createSetting('network-log-large-rows', false);
+    const networkLogView = new Network.NetworkLogView.NetworkLogView(filterBar, progressBarContainer, setting);
+    const request = SDK.NetworkRequest.NetworkRequest.create(
+        'requestId' as Protocol.Network.RequestId, Platform.DevToolsPath.urlString`https://www.example.com/script.js`,
+        Platform.DevToolsPath.urlString``, null, null, null);
+
+    const event = new Event('contextmenu');
+    sinon.stub(event, 'target').value(document);
+    const contextMenu = new UI.ContextMenu.ContextMenu(event);
+
+    networkLogView.handleContextMenuForRequest(contextMenu, request);
+
+    const debugWithAiItem = contextMenu.buildDescriptor().subItems?.find(item => item.label === 'Debug with AI');
+    assert.exists(debugWithAiItem);
+    assert.deepEqual(
+        debugWithAiItem?.subItems?.map(item => item.label),
+        ['Start a chat', 'Explain purpose', 'Explain slowness', 'Explain failures', 'Assess security headers']);
   });
 });
 
@@ -980,22 +1383,9 @@ function testPlaceholderButton(
   const action = UI.ActionRegistry.ActionRegistry.instance().getAction(actionId);
   const spy = sinon.spy(action, 'execute');
 
-  assert.isTrue(spy.notCalled);
+  sinon.assert.notCalled(spy);
   dispatchClickEvent(button);
-  assert.isTrue(spy.calledOnce);
-}
-
-function clickCheckbox(checkbox: HTMLInputElement) {
-  checkbox.checked = true;
-  const event = new Event('change');
-  checkbox.dispatchEvent(event);
-}
-
-function getCheckbox(filterBar: UI.FilterBar.FilterBar, title: string) {
-  const checkbox =
-      filterBar.element.querySelector(`[title="${title}"] dt-checkbox`)?.shadowRoot?.querySelector('input') || null;
-  assert.instanceOf(checkbox, HTMLInputElement);
-  return checkbox;
+  sinon.assert.calledOnce(spy);
 }
 
 async function getMoreTypesDropdown(filterBar: UI.FilterBar.FilterBar): Promise<HTMLElement> {
@@ -1017,7 +1407,7 @@ function getMoreFiltersActiveCount(filterBar: UI.FilterBar.FilterBar): string {
 
 function getDropdownItem(softMenu: UI.ContextMenu.ContextMenu, label: string) {
   const item = findMenuItemWithLabel(softMenu.defaultSection(), label);
-  assertNotNullOrUndefined(item);
+  assert.isOk(item);
   return item;
 }
 

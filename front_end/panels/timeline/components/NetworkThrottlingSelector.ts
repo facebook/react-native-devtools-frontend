@@ -1,25 +1,22 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view */
 
+import '../../../ui/kit/kit.js';
 import '../../../ui/components/menus/menus.js';
 
 import * as Common from '../../../core/common/common.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Platform from '../../../core/platform/platform.js';
 import * as SDK from '../../../core/sdk/sdk.js';
-import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as ComponentHelpers from '../../../ui/components/helpers/helpers.js';
 import type * as Menus from '../../../ui/components/menus/menus.js';
 import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 import * as MobileThrottling from '../../mobile_throttling/mobile_throttling.js';
 
-import networkThrottlingSelectorStylesRaw from './networkThrottlingSelector.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const networkThrottlingSelectorStyles = new CSSStyleSheet();
-networkThrottlingSelectorStyles.replaceSync(networkThrottlingSelectorStylesRaw.cssText);
+import networkThrottlingSelectorStyles from './networkThrottlingSelector.css.js';
 
 const {html, nothing} = Lit;
 
@@ -94,7 +91,6 @@ export class NetworkThrottlingSelector extends HTMLElement {
   }
 
   connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [networkThrottlingSelectorStyles];
     SDK.NetworkManager.MultitargetNetworkManager.instance().addEventListener(
         SDK.NetworkManager.MultitargetNetworkManager.Events.CONDITIONS_CHANGED, this.#onConditionsChanged, this);
 
@@ -177,15 +173,15 @@ export class NetworkThrottlingSelector extends HTMLElement {
 
     let recommendedInfoEl;
     if (this.#recommendedConditions && this.#currentConditions === SDK.NetworkManager.NoThrottlingConditions) {
-      recommendedInfoEl = html`<devtools-button
+      recommendedInfoEl = html`<devtools-icon
         title=${i18nString(UIStrings.recommendedThrottlingReason)}
-        .iconName=${'info'}
-        .variant=${Buttons.Button.Variant.ICON}
-      ></devtools-button>`;
+        name=info></devtools-icon>`;
     }
 
     // clang-format off
+    /* eslint-disable @devtools/no-deprecated-component-usages */
     const output = html`
+      <style>${networkThrottlingSelectorStyles}</style>
       <devtools-select-menu
         @selectmenuselected=${this.#onMenuItemSelected}
         .showDivider=${true}
@@ -234,6 +230,7 @@ export class NetworkThrottlingSelector extends HTMLElement {
       </devtools-select-menu>
       ${recommendedInfoEl}
     `;
+    /* eslint-enable @devtools/no-deprecated-component-usages */
     // clang-format on
     Lit.render(output, this.#shadow, {host: this});
   };

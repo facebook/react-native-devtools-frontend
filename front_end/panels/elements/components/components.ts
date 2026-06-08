@@ -1,10 +1,9 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as AccessibilityTreeNode from './AccessibilityTreeNode.js';
 import * as AdornerManager from './AdornerManager.js';
-import * as AnchorFunctionLinkSwatch from './AnchorFunctionLinkSwatch.js';
 import * as ComputedStyleProperty from './ComputedStyleProperty.js';
 import * as ComputedStyleTrace from './ComputedStyleTrace.js';
 import * as CSSHintDetailsView from './CSSHintDetailsView.js';
@@ -15,16 +14,12 @@ import * as CSSVariableValueView from './CSSVariableValueView.js';
 import * as ElementsBreadcrumbs from './ElementsBreadcrumbs.js';
 import * as ElementsBreadcrumbsUtils from './ElementsBreadcrumbsUtils.js';
 import * as ElementsTreeExpandButton from './ElementsTreeExpandButton.js';
-import * as Helper from './Helper.js';
-import * as LayoutPane from './LayoutPane.js';
-import * as LayoutPaneUtils from './LayoutPaneUtils.js';
 import * as QueryContainer from './QueryContainer.js';
 import * as StylePropertyEditor from './StylePropertyEditor.js';
 
 export {
   AccessibilityTreeNode,
   AdornerManager,
-  AnchorFunctionLinkSwatch,
   ComputedStyleProperty,
   ComputedStyleTrace,
   CSSHintDetailsView,
@@ -35,9 +30,6 @@ export {
   ElementsBreadcrumbs,
   ElementsBreadcrumbsUtils,
   ElementsTreeExpandButton,
-  Helper,
-  LayoutPane,
-  LayoutPaneUtils,
   QueryContainer,
   StylePropertyEditor,
 };

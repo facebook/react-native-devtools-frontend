@@ -1,36 +1,14 @@
-/*
- * Copyright (C) 2013 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2013 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import * as Root from '../../core/root/root.js';
+import * as SettingsUI from '../../ui/legacy/components/settings_ui/settings_ui.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
@@ -89,13 +67,13 @@ const UIStrings = {
       'Highlights elements (teal) that can slow down scrolling, including touch & wheel event handlers and other main-thread scrolling situations.',
   /**
    * @description The name of a checkbox setting in the Rendering tool. This setting highlights the
-   * rendering frames for ads that are found on the page.
+   * rendering elements for ads that are found on the page.
    */
-  highlightAdFrames: 'Highlight ad frames',
+  highlightAds: 'Highlight ads',
   /**
-   * @description Explanation text for the 'Highlight ad frames' setting in the Rendering tool.
+   * @description Explanation text for the 'Highlight ads' setting in the Rendering tool.
    */
-  highlightsFramesRedDetectedToBe: 'Highlights frames (red) detected to be ads.',
+  highlightsElementsRedDetectedToBe: 'Highlights elements (red) detected to be ads.',
   /**
    * @description The name of a checkbox setting in the Rendering tool. This setting prevents the
    * webpage from loading 'local' fonts. Local fonts are fonts that are installed on the user's
@@ -159,15 +137,23 @@ const UIStrings = {
    */
   forcesVisionDeficiencyEmulation: 'Forces vision deficiency emulation',
   /**
+   * @description Explanation text for the 'Emulate OS text scale' setting in the Rendering tool.
+   */
+  forcesOsTextScaleEmulation: 'Forces OS text scale emulation',
+  /**
    * @description The name of a checkbox setting in the Rendering tool. This setting disables the
    * page from loading images with the AVIF format.
    */
   disableAvifImageFormat: 'Disable `AVIF` image format',
   /**
-   * @description Explanation text for both the 'Disable AVIF image format' and 'Disable WebP image
-   * format' settings in the Rendering tool.
+   * @description Explanation text for the image format disabling settings in the Rendering tool.
    */
   requiresAPageReloadToApplyAnd: 'Requires a page reload to apply and disables caching for image requests.',
+  /**
+   * @description The name of a checkbox setting in the Rendering tool. This setting disables the
+   * page from loading images with the JPEG XL format.
+   */
+  disableJpegXlImageFormat: 'Disable `JPEG XL` image format',
   /**
    * @description The name of a checkbox setting in the Rendering tool. This setting disables the
    * page from loading images with the WebP format.
@@ -203,9 +189,15 @@ const supportsPrefersContrast = (): boolean => {
   return window.matchMedia(query).matches;
 };
 
+const supportsJpegXl = (): boolean => {
+  return Boolean(Root.Runtime.hostConfig.devToolsJpegXlImageFormat?.enabled);
+};
+
 export class RenderingOptionsView extends UI.Widget.VBox {
+  #jpegXlCheckboxAdded = false;
+
   constructor() {
-    super(true);
+    super({useShadowDom: true});
     this.registerRequiredCSS(renderingOptionsStyles);
 
     this.element.setAttribute('jslog', `${VisualLogging.panel('rendering').track({resize: true})}`);
@@ -226,7 +218,7 @@ export class RenderingOptionsView extends UI.Widget.VBox {
         i18nString(UIStrings.scrollingPerformanceIssues), i18nString(UIStrings.highlightsElementsTealThatCan),
         Common.Settings.Settings.instance().moduleSetting('show-scroll-bottleneck-rects'));
     this.#appendCheckbox(
-        i18nString(UIStrings.highlightAdFrames), i18nString(UIStrings.highlightsFramesRedDetectedToBe),
+        i18nString(UIStrings.highlightAds), i18nString(UIStrings.highlightsElementsRedDetectedToBe),
         Common.Settings.Settings.instance().moduleSetting('show-ad-highlights'));
     this.#appendCheckbox(
         i18nString(UIStrings.disableLocalFonts), i18nString(UIStrings.disablesLocalSourcesInFontface),
@@ -279,28 +271,52 @@ export class RenderingOptionsView extends UI.Widget.VBox {
 
     this.contentElement.createChild('div').classList.add('panel-section-separator');
 
-    this.#appendCheckbox(
-        i18nString(UIStrings.disableAvifImageFormat), i18nString(UIStrings.requiresAPageReloadToApplyAnd),
-        Common.Settings.Settings.instance().moduleSetting('avif-format-disabled'));
+    this.#appendSelect(
+        i18nString(UIStrings.forcesOsTextScaleEmulation),
+        Common.Settings.Settings.instance().moduleSetting('emulated-os-text-scale'));
+
+    this.contentElement.createChild('div').classList.add('panel-section-separator');
+
+    const avifFormatDisabledSetting = Common.Settings.Settings.instance().moduleSetting('avif-format-disabled');
+    const jpegXlFormatDisabledSetting = Common.Settings.Settings.instance().moduleSetting('jpeg-xl-format-disabled');
+    const webpFormatDisabledSetting = Common.Settings.Settings.instance().moduleSetting('webp-format-disabled');
 
     this.#appendCheckbox(
+        i18nString(UIStrings.disableAvifImageFormat), i18nString(UIStrings.requiresAPageReloadToApplyAnd),
+        avifFormatDisabledSetting);
+
+    const webpCheckbox = this.#appendCheckbox(
         i18nString(UIStrings.disableWebpImageFormat), i18nString(UIStrings.requiresAPageReloadToApplyAnd),
-        Common.Settings.Settings.instance().moduleSetting('webp-format-disabled'));
+        webpFormatDisabledSetting);
+
+    this.#appendJpegXlCheckboxWhenSupported(webpCheckbox, jpegXlFormatDisabledSetting);
 
     this.contentElement.createChild('div').classList.add('panel-section-separator');
   }
 
   #appendCheckbox(
       label: Common.UIString.LocalizedString, subtitle: Common.UIString.LocalizedString,
-      setting: Common.Settings.Setting<boolean>, metric?: UI.SettingsUI.UserMetricOptions): UI.UIUtils.CheckboxLabel {
+      setting: Common.Settings.Setting<boolean>, metric?: UI.UIUtils.UserMetricOptions): UI.UIUtils.CheckboxLabel {
     const checkbox = UI.UIUtils.CheckboxLabel.create(label, false, subtitle, setting.name);
-    UI.SettingsUI.bindCheckbox(checkbox.checkboxElement, setting, metric);
+    UI.UIUtils.bindCheckbox(checkbox, setting, metric);
     this.contentElement.appendChild(checkbox);
     return checkbox;
   }
 
+  #appendJpegXlCheckboxWhenSupported(
+      webpCheckbox: UI.UIUtils.CheckboxLabel, jpegXlFormatDisabledSetting: Common.Settings.Setting<boolean>): void {
+    if (this.#jpegXlCheckboxAdded || !supportsJpegXl()) {
+      return;
+    }
+
+    this.#jpegXlCheckboxAdded = true;
+    webpCheckbox.before(this.#appendCheckbox(
+        i18nString(UIStrings.disableJpegXlImageFormat), i18nString(UIStrings.requiresAPageReloadToApplyAnd),
+        jpegXlFormatDisabledSetting));
+  }
+
   #appendSelect(label: string, setting: Common.Settings.Setting<unknown>): void {
-    const control = UI.SettingsUI.createControlForSetting(setting, label);
+    const control = SettingsUI.SettingsUI.createControlForSetting(setting, label);
     if (control) {
       this.contentElement.appendChild(control);
     }

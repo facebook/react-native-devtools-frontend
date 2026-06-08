@@ -20,6 +20,7 @@ devtools_module("rn_fusebox") {
     "../../core/i18n:bundle",
     "../../core/root:bundle",
     "../../core/sdk:bundle",
+    "../../ui/kit:bundle",
     "../../ui/legacy:bundle",
   ]
 }

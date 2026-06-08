@@ -1,4 +1,4 @@
-# Copyright 2019 The Chromium Authors. All rights reserved.
+# Copyright 2019 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """
@@ -22,8 +22,7 @@ def root_path():
     if path.basename(PARENT_PATH) == 'renderer':
         # Chromium repository
         return path.dirname(path.dirname(path.dirname(PARENT_PATH)))
-    elif path.basename(PARENT_PATH) == 'devtools-frontend' or path.basename(
-            PARENT_PATH) == 'devtools-frontend-internal':
+    elif path.basename(PARENT_PATH) == 'devtools-frontend':
         # External repository, integrated build
         return path.dirname(path.dirname(PARENT_PATH))
     else:
@@ -55,48 +54,8 @@ def node_modules_path():
     return path.join(devtools_root_path(), 'node_modules')
 
 
-def eslint_path():
-    return path.join(node_modules_path(), 'eslint', 'bin', 'eslint.js')
-
-
-def mocha_path():
-    return path.join(node_modules_path(), 'mocha', 'bin', 'mocha')
-
-
-def karma_path():
-    return path.join(node_modules_path(), 'karma', 'bin', 'karma')
-
-
-def typescript_compiler_path():
-    return path.join(node_modules_path(), 'typescript', 'bin', 'tsc')
-
-
-def hosted_mode_script_path():
-    return path.join(devtools_root_path(), 'scripts', 'hosted_mode',
-                     'server.js')
-
-
 def esbuild_path():
     return path.join(devtools_root_path(), 'third_party', 'esbuild', 'esbuild')
-
-
-def autoninja_path():
-    return path.join(devtools_root_path(), 'third_party', 'depot_tools',
-                     'autoninja')
-
-
-def downloaded_chrome_binary_path():
-    return path.abspath(
-        path.join(
-            *{
-                'Linux': (devtools_root_path(), 'third_party', 'chrome',
-                          'chrome-linux', 'chrome'),
-                'Darwin': (devtools_root_path(), 'third_party', 'chrome',
-                           'chrome-mac', 'Google Chrome for Testing.app',
-                           'Contents', 'MacOS', 'Google Chrome for Testing'),
-                'Windows': (devtools_root_path(), 'third_party', 'chrome',
-                            'chrome-win', 'chrome.exe'),
-            }[platform.system()]))
 
 
 def license_checker_path():
@@ -107,26 +66,43 @@ def license_checker_path():
 def rollup_path():
     return path.join(
         node_modules_path(),
-        '@rollup',
-        'wasm-node',
+        'rollup',
         'dist',
         'bin',
         'rollup',
     )
 
 
-def package_lock_json_path():
-    return path.join(devtools_root_path(), 'package-lock.json')
-
-
 def package_json_path():
     return path.join(devtools_root_path(), 'package.json')
 
 
-def browser_protocol_path():
-    return path.join(third_party_path(), 'blink', 'public',
-                     'devtools_protocol', 'browser_protocol.pdl')
+def downloaded_chrome_binary_path():
+    machine = platform.machine().lower()
+    arch = 'arm64' if machine in ('arm64', 'aarch64') else 'x64'
 
+    paths = {
+        'linux':
+        path.join('chrome-linux', 'chrome-linux64', 'chrome'),
+        'darwin':
+        path.join(
+            f'chrome-mac-{arch}',
+            f'chrome-mac-{arch}',
+            'Google Chrome for Testing.app',
+            'Contents',
+            'MacOS',
+            'Google Chrome for Testing',
+        ),
+        'win32':
+        path.join('chrome-win', 'chrome-win64', 'chrome.exe'),
+    }
 
-def custom_devtools_frontend_path(target):
-    return path.join(root_path(), 'out', target, 'gen', 'front_end')
+    current_os = sys.platform
+    if current_os.startswith('linux'):
+        current_os = 'linux'
+
+    if current_os not in paths:
+        raise NotImplementedError(f"OS {current_os} is not supported.")
+
+    return path.join(devtools_root_path(), 'third_party', 'chrome',
+                     paths[current_os])

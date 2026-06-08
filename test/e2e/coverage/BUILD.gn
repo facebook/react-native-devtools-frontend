@@ -1,17 +1,14 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("../../../scripts/build/typescript/typescript.gni")
 
-node_ts_library("coverage") {
+ts_e2e_library("coverage") {
   sources = [
-    "coverage-with-source-map_test.ts",
-    "coverage_test.ts",
+    "coverage-with-source-map.test.ts",
+    "coverage.test.ts",
   ]
 
-  deps = [
-    "../../shared",
-    "../helpers",
-  ]
+  deps = [ "../helpers" ]
 }

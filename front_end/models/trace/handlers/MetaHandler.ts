@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,15 +6,19 @@ import * as Platform from '../../../core/platform/platform.js';
 import * as Helpers from '../helpers/helpers.js';
 import * as Types from '../types/types.js';
 
+import type {FinalizeOptions} from './types.js';
+
+let config: {showAllEvents: boolean};
+
 // We track the renderer processes we see in each frame on the way through the trace.
-const rendererProcessesByFrameId: FrameProcessData = new Map();
+let rendererProcessesByFrameId: FrameProcessData = new Map();
 
 // We will often want to key data by Frame IDs, and commonly we'll care most
 // about the main frame's ID, so we store and expose that.
 let mainFrameId = '';
 let mainFrameURL = '';
 
-const framesByProcessId = new Map<Types.Events.ProcessID, Map<string, Types.Events.TraceFrame>>();
+let framesByProcessId = new Map<Types.Events.ProcessID, Map<string, Types.Events.TraceFrame>>();
 
 // We will often want to key data by the browser process, GPU process and top
 // level renderer IDs, so keep a track on those.
@@ -22,17 +26,21 @@ let browserProcessId: Types.Events.ProcessID = Types.Events.ProcessID(-1);
 let browserThreadId: Types.Events.ThreadID = Types.Events.ThreadID(-1);
 let gpuProcessId: Types.Events.ProcessID = Types.Events.ProcessID(-1);
 let gpuThreadId: Types.Events.ThreadID = Types.Events.ThreadID(-1);
-let viewportRect: DOMRect|null = null;
+let viewportRect: {x: number, y: number, width: number, height: number}|null = null;
 let devicePixelRatio: number|null = null;
 
-const processNames = new Map<Types.Events.ProcessID, Types.Events.ProcessName>();
+let processNames = new Map<Types.Events.ProcessID, Types.Events.ProcessName>();
 
-const topLevelRendererIds = new Set<Types.Events.ProcessID>();
-const traceBounds: Types.Timing.TraceWindowMicro = {
-  min: Types.Timing.Micro(Number.POSITIVE_INFINITY),
-  max: Types.Timing.Micro(Number.NEGATIVE_INFINITY),
-  range: Types.Timing.Micro(Number.POSITIVE_INFINITY),
-};
+let topLevelRendererIds = new Set<Types.Events.ProcessID>();
+
+function makeNewTraceBounds(): Types.Timing.TraceWindowMicro {
+  return {
+    min: Types.Timing.Micro(Number.POSITIVE_INFINITY),
+    max: Types.Timing.Micro(Number.NEGATIVE_INFINITY),
+    range: Types.Timing.Micro(Number.POSITIVE_INFINITY),
+  };
+}
+let traceBounds: Types.Timing.TraceWindowMicro = makeNewTraceBounds();
 
 /**
  * These represent the user navigating. Values such as First Contentful Paint,
@@ -49,14 +57,15 @@ const traceBounds: Types.Timing.TraceWindowMicro = {
  * main frame navigations, so calculating this list here is better than
  * filtering either of the below maps over and over again at the UI layer.
  */
-const navigationsByFrameId = new Map<string, Types.Events.NavigationStart[]>();
-const navigationsByNavigationId = new Map<string, Types.Events.NavigationStart>();
-const finalDisplayUrlByNavigationId = new Map<string, string>();
-const mainFrameNavigations: Types.Events.NavigationStart[] = [];
+let navigationsByFrameId = new Map<string, Types.Events.NavigationStart[]>();
+let navigationsByNavigationId = new Map<string, Types.Events.NavigationStart>();
+let softNavigationsById = new Map<number, Types.Events.SoftNavigationStart>();
+let finalDisplayUrlByNavigationId = new Map<string, string>();
+let mainFrameNavigations: Types.Events.NavigationStart[] = [];
 
 // Represents all the threads in the trace, organized by process. This is mostly for internal
 // bookkeeping so that during the finalize pass we can obtain the main and browser thread IDs.
-const threadsInProcess = new Map<Types.Events.ProcessID, Map<Types.Events.ThreadID, Types.Events.ThreadName>>();
+let threadsInProcess = new Map<Types.Events.ProcessID, Map<Types.Events.ThreadID, Types.Events.ThreadName>>();
 
 let traceStartedTimeFromTracingStartedEvent = Types.Timing.Micro(-1);
 const eventPhasesOfInterestForTraceBounds = new Set([
@@ -71,35 +80,35 @@ const eventPhasesOfInterestForTraceBounds = new Set([
 // - TracingStartedInPage
 // - TracingStartedInBrowser
 // - TracingSessionIdForWorker
+// - CpuProfile
 // These are all events which indicate this is a Chrome browser trace.
 let traceIsGeneric = true;
 const CHROME_WEB_TRACE_EVENTS = new Set([
   Types.Events.Name.TRACING_STARTED_IN_PAGE,
   Types.Events.Name.TRACING_SESSION_ID_FOR_WORKER,
   Types.Events.Name.TRACING_STARTED_IN_BROWSER,
-
+  Types.Events.Name.CPU_PROFILE,
 ]);
 
 export function reset(): void {
-  navigationsByFrameId.clear();
-  navigationsByNavigationId.clear();
-  finalDisplayUrlByNavigationId.clear();
-  processNames.clear();
-  mainFrameNavigations.length = 0;
+  navigationsByFrameId = new Map();
+  navigationsByNavigationId = new Map();
+  softNavigationsById = new Map();
+  finalDisplayUrlByNavigationId = new Map();
+  processNames = new Map();
+  mainFrameNavigations = [];
 
   browserProcessId = Types.Events.ProcessID(-1);
   browserThreadId = Types.Events.ThreadID(-1);
   gpuProcessId = Types.Events.ProcessID(-1);
   gpuThreadId = Types.Events.ThreadID(-1);
   viewportRect = null;
-  topLevelRendererIds.clear();
-  threadsInProcess.clear();
-  rendererProcessesByFrameId.clear();
-  framesByProcessId.clear();
+  topLevelRendererIds = new Set();
+  threadsInProcess = new Map();
+  rendererProcessesByFrameId = new Map();
+  framesByProcessId = new Map();
 
-  traceBounds.min = Types.Timing.Micro(Number.POSITIVE_INFINITY);
-  traceBounds.max = Types.Timing.Micro(Number.NEGATIVE_INFINITY);
-  traceBounds.range = Types.Timing.Micro(Number.POSITIVE_INFINITY);
+  traceBounds = makeNewTraceBounds();
   traceStartedTimeFromTracingStartedEvent = Types.Timing.Micro(-1);
 
   traceIsGeneric = true;
@@ -180,7 +189,7 @@ export function handleEvent(event: Types.Events.Event): void {
     const viewportY = rectAsArray[1];
     const viewportWidth = rectAsArray[2];
     const viewportHeight = rectAsArray[5];
-    viewportRect = new DOMRect(viewportX, viewportY, viewportWidth, viewportHeight);
+    viewportRect = {x: viewportX, y: viewportY, width: viewportWidth, height: viewportHeight};
     devicePixelRatio = event.args.data.dpr;
   }
 
@@ -317,6 +326,10 @@ export function handleEvent(event: Types.Events.Event): void {
     return;
   }
 
+  if (Types.Events.isSoftNavigationStart(event)) {
+    softNavigationsById.set(event.args.context.performanceTimelineNavigationId, event);
+  }
+
   // Update `finalDisplayUrlByNavigationId` to reflect the latest redirect for each navigation.
   if (Types.Events.isResourceSendRequest(event)) {
     if (event.args.data.resourceType !== 'Document') {
@@ -346,7 +359,9 @@ export function handleEvent(event: Types.Events.Event): void {
   }
 }
 
-export async function finalize(): Promise<void> {
+export async function finalize(options?: FinalizeOptions): Promise<void> {
+  config = {showAllEvents: Boolean(options?.showAllEvents)};
+
   // We try to set the minimum time by finding the event with the smallest
   // timestamp. However, if we also got a timestamp from the
   // TracingStartedInBrowser event, we should always use that.
@@ -428,6 +443,7 @@ export async function finalize(): Promise<void> {
 }
 
 export interface MetaHandlerData {
+  config: {showAllEvents: boolean};
   traceIsGeneric: boolean;
   traceBounds: Types.Timing.TraceWindowMicro;
   browserProcessId: Types.Events.ProcessID;
@@ -435,7 +451,14 @@ export interface MetaHandlerData {
   browserThreadId: Types.Events.ThreadID;
   gpuProcessId: Types.Events.ProcessID;
   navigationsByFrameId: Map<string, Types.Events.NavigationStart[]>;
+  /**
+   * This does not include soft navigations.
+   *
+   * TODO(crbug.com/414468047): include soft navs here, so that
+   * PageLoadMetricsHandler and insights can use this map for all navigation types.
+   */
   navigationsByNavigationId: Map<string, Types.Events.NavigationStart>;
+  softNavigationsById: Map<number, Types.Events.SoftNavigationStart>;
   /**
    * The user-visible URL displayed to users in the address bar.
    * This captures:
@@ -465,31 +488,34 @@ export interface MetaHandlerData {
   frameByProcessId: Map<Types.Events.ProcessID, Map<string, Types.Events.TraceFrame>>;
   mainFrameNavigations: Types.Events.NavigationStart[];
   gpuThreadId?: Types.Events.ThreadID;
-  viewportRect?: DOMRect;
+  viewportRect?: {x: number, y: number, width: number, height: number};
   devicePixelRatio?: number;
 }
 
-// Each frame has a single render process at a given time but it can have
-// multiple render processes  during a trace, for example if a navigation
-// occurred in the frame. This map tracks the process that was active for
-// each frame at each point in time. Also, because a process can be
-// assigned to multiple URLs, there is a window for each URL a process
-// was assigned.
-//
-// Note that different sites always end up in different render
-// processes, however two different URLs can point to the same site.
-// For example: https://google.com and https://maps.google.com point to
-// the same site.
-// Read more about this in
-// https://developer.chrome.com/articles/renderingng-architecture/#threads
-// and https://web.dev/same-site-same-origin/
+/**
+ * Each frame has a single render process at a given time but it can have
+ * multiple render processes  during a trace, for example if a navigation
+ * occurred in the frame. This map tracks the process that was active for
+ * each frame at each point in time. Also, because a process can be
+ * assigned to multiple URLs, there is a window for each URL a process
+ * was assigned.
+ *
+ * Note that different sites always end up in different render
+ * processes, however two different URLs can point to the same site.
+ * For example: https://google.com and https://maps.google.com point to
+ * the same site.
+ * Read more about this in
+ * https://developer.chrome.com/articles/renderingng-architecture/#threads
+ * and https://web.dev/same-site-same-origin/
+ **/
 export type FrameProcessData =
     Map<string,
         Map<Types.Events.ProcessID, Array<{frame: Types.Events.TraceFrame, window: Types.Timing.TraceWindowMicro}>>>;
 
 export function data(): MetaHandlerData {
   return {
-    traceBounds: {...traceBounds},
+    config,
+    traceBounds,
     browserProcessId,
     browserThreadId,
     processNames,
@@ -501,6 +527,7 @@ export function data(): MetaHandlerData {
     mainFrameURL,
     navigationsByFrameId,
     navigationsByNavigationId,
+    softNavigationsById,
     finalDisplayUrlByNavigationId,
     threadsInProcess,
     rendererProcessesByFrame: rendererProcessesByFrameId,

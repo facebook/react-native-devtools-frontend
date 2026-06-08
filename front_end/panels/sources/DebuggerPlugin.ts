@@ -1,32 +1,8 @@
-/*
- * Copyright (C) 2011 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2011 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
@@ -34,23 +10,28 @@ import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
+import * as Badges from '../../models/badges/badges.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import * as Breakpoints from '../../models/breakpoints/breakpoints.js';
 import * as Formatter from '../../models/formatter/formatter.js';
 import * as SourceMapScopes from '../../models/source_map_scopes/source_map_scopes.js';
+import * as StackTrace from '../../models/stack_trace/stack_trace.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
 import * as Workspace from '../../models/workspace/workspace.js';
 import * as CodeMirror from '../../third_party/codemirror.next/codemirror.next.js';
 import * as Buttons from '../../ui/components/buttons/buttons.js';
 import * as TextEditor from '../../ui/components/text_editor/text_editor.js';
+import * as Tooltips from '../../ui/components/tooltips/tooltips.js';
 import * as ObjectUI from '../../ui/legacy/components/object_ui/object_ui.js';
 import * as SourceFrame from '../../ui/legacy/components/source_frame/source_frame.js';
 import * as UI from '../../ui/legacy/legacy.js';
+import {render} from '../../ui/lit/lit.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import {AddDebugInfoURLDialog} from './AddSourceMapURLDialog.js';
 import {BreakpointEditDialog} from './BreakpointEditDialog.js';
-import * as SourceComponents from './components/components.js';
+import {BreakpointsSidebarController} from './BreakpointsView.js';
+import {convertMissingDebugInfo} from './CallStackSidebarPane.js';
 import {Plugin} from './Plugin.js';
 import {SourcesPanel} from './SourcesPanel.js';
 
@@ -58,117 +39,117 @@ const {EMPTY_BREAKPOINT_CONDITION, NEVER_PAUSE_HERE_CONDITION} = Breakpoints.Bre
 
 const UIStrings = {
   /**
-   *@description Text in Debugger Plugin of the Sources panel
+   * @description Text in Debugger Plugin of the Sources panel
    */
   thisScriptIsOnTheDebuggersIgnore: 'This script is on the debugger\'s ignore list',
   /**
-   *@description Text to stop preventing the debugger from stepping into library code
+   * @description Text to stop preventing the debugger from stepping into library code
    */
   removeFromIgnoreList: 'Remove from ignore list',
   /**
-   *@description Text of a button in the Sources panel Debugger Plugin to configure ignore listing in Settings
+   * @description Text of a button in the Sources panel Debugger Plugin to configure ignore listing in Settings
    */
   configure: 'Configure',
   /**
-   *@description Text to add a breakpoint
+   * @description Text to add a breakpoint
    */
   addBreakpoint: 'Add breakpoint',
   /**
-   *@description A context menu item in the Debugger Plugin of the Sources panel
+   * @description A context menu item in the Debugger Plugin of the Sources panel
    */
   addConditionalBreakpoint: 'Add conditional breakpoint…',
   /**
-   *@description A context menu item in the Debugger Plugin of the Sources panel
+   * @description A context menu item in the Debugger Plugin of the Sources panel
    */
   addLogpoint: 'Add logpoint…',
   /**
-   *@description A context menu item in the Debugger Plugin of the Sources panel
+   * @description A context menu item in the Debugger Plugin of the Sources panel
    */
   neverPauseHere: 'Never pause here',
   /**
-   *@description Context menu command to delete/remove a breakpoint that the user
+   * @description Context menu command to delete/remove a breakpoint that the user
    *has set. One line of code can have multiple breakpoints. Always >= 1 breakpoint.
    */
   removeBreakpoint: '{n, plural, =1 {Remove breakpoint} other {Remove all breakpoints in line}}',
   /**
-   *@description A context menu item in the Debugger Plugin of the Sources panel
+   * @description A context menu item in the Debugger Plugin of the Sources panel
    */
   editBreakpoint: 'Edit breakpoint…',
   /**
-   *@description Context menu command to disable (but not delete) a breakpoint
+   * @description Context menu command to disable (but not delete) a breakpoint
    *that the user has set. One line of code can have multiple breakpoints. Always
    *>= 1 breakpoint.
    */
   disableBreakpoint: '{n, plural, =1 {Disable breakpoint} other {Disable all breakpoints in line}}',
   /**
-   *@description Context menu command to enable a breakpoint that the user has
+   * @description Context menu command to enable a breakpoint that the user has
    *set. One line of code can have multiple breakpoints. Always >= 1 breakpoint.
    */
   enableBreakpoint: '{n, plural, =1 {Enable breakpoint} other {Enable all breakpoints in line}}',
   /**
-   *@description Text in Debugger Plugin of the Sources panel
+   * @description Text in Debugger Plugin of the Sources panel
    */
   addSourceMap: 'Add source map…',
   /**
-   *@description Text in Debugger Plugin of the Sources panel
+   * @description Text in Debugger Plugin of the Sources panel
    */
   addWasmDebugInfo: 'Add DWARF debug info…',
   /**
-   *@description Text in Debugger Plugin of the Sources panel
+   * @description Text in Debugger Plugin of the Sources panel
    */
   sourceMapLoaded: 'Source map loaded',
   /**
-   *@description Title of the Filtered List WidgetProvider of Quick Open
-   *@example {Ctrl+P Ctrl+O} PH1
+   * @description Title of the Filtered List WidgetProvider of Quick Open
+   * @example {Ctrl+P Ctrl+O} PH1
    */
   associatedFilesAreAvailable: 'Associated files are available via file tree or {PH1}.',
   /**
-   *@description Text in Debugger Plugin of the Sources panel
+   * @description Text in Debugger Plugin of the Sources panel
    */
   associatedFilesShouldBeAdded:
       'Associated files should be added to the file tree. You can debug these resolved source files as regular JavaScript files.',
   /**
-   *@description Text in Debugger Plugin of the Sources panel
+   * @description Text in Debugger Plugin of the Sources panel
    */
   theDebuggerWillSkipStepping: 'The debugger will skip stepping through this script, and will not stop on exceptions.',
   /**
-   *@description Text in Debugger Plugin of the Sources panel
+   * @description Text in Debugger Plugin of the Sources panel
    */
   sourceMapSkipped: 'Source map skipped for this file',
   /**
-   *@description Text in Debugger Plugin of the Sources panel
+   * @description Text in Debugger Plugin of the Sources panel
    */
   sourceMapFailed: 'Source map failed to load',
   /**
-   *@description Text in Debugger Plugin of the Sources panel
+   * @description Text in Debugger Plugin of the Sources panel
    */
   debuggingPowerReduced: 'DevTools can\'t show authored sources, but you can debug the deployed code.',
   /**
-   *@description Text in Debugger Plugin of the Sources panel
+   * @description Text in Debugger Plugin of the Sources panel
    */
   reloadForSourceMap: 'To enable again, make sure the file isn\'t on the ignore list and reload.',
   /**
-   *@description Text in Debugger Plugin of the Sources panel
-   *@example {http://site.com/lib.js.map} PH1
-   *@example {HTTP error: status code 404, net::ERR_UNKNOWN_URL_SCHEME} PH2
+   * @description Text in Debugger Plugin of the Sources panel
+   * @example {http://site.com/lib.js.map} PH1
+   * @example {HTTP error: status code 404, net::ERR_UNKNOWN_URL_SCHEME} PH2
    */
   errorLoading: 'Error loading url {PH1}: {PH2}',
   /**
-   *@description Error message that is displayed in UI when a file needed for debugging information for a call frame is missing
-   *@example {src/myapp.debug.wasm.dwp} PH1
+   * @description Error message that is displayed in UI when a file needed for debugging information for a call frame is missing
+   * @example {src/myapp.debug.wasm.dwp} PH1
    */
   debugFileNotFound: 'Failed to load debug file "{PH1}".',
   /**
-   *@description Error message that is displayed when no debug info could be loaded
-   *@example {app.wasm} PH1
+   * @description Error message that is displayed when no debug info could be loaded
+   * @example {app.wasm} PH1
    */
   debugInfoNotFound: 'Failed to load any debug info for {PH1}',
   /**
-   *@description Text of a button to open up details on a request when no debug info could be loaded
+   * @description Text of a button to open up details on a request when no debug info could be loaded
    */
   showRequest: 'Show request',
   /**
-   *@description Tooltip text that shows on hovering over a button to see more details on a request
+   * @description Tooltip text that shows on hovering over a button to see more details on a request
    */
   openDeveloperResources: 'Opens the request in the Developer resource panel',
 } as const;
@@ -221,7 +202,6 @@ export class DebuggerPlugin extends Plugin {
   // truth for re-creating the breakpoints.
   private breakpoints: BreakpointDescription[] = [];
   private continueToLocations: Array<{from: number, to: number, async: boolean, click: () => void}>|null = null;
-  private readonly liveLocationPool: Bindings.LiveLocation.LiveLocationPool;
   // When the editor content is changed by the user, this becomes
   // true. When the plugin is muted, breakpoints show up as disabled
   // and can't be manipulated. It is cleared again when the content is
@@ -232,7 +212,7 @@ export class DebuggerPlugin extends Plugin {
   // locations, so breakpoint manipulation is permanently disabled.
   private initializedMuted: boolean;
   private ignoreListInfobar: UI.Infobar.Infobar|null;
-  private refreshBreakpointsTimeout: undefined|number = undefined;
+  private refreshBreakpointsTimeout?: number;
   private activeBreakpointDialog: BreakpointEditDialog|null = null;
   #activeBreakpointEditRequest?: BreakpointEditRequest = undefined;
   #scheduledFinishingActiveDialog = false;
@@ -268,10 +248,10 @@ export class DebuggerPlugin extends Plugin {
         SDK.PageResourceLoader.Events.UPDATE, this.showSourceMapInfobarIfNeeded.bind(this), this);
 
     this.ignoreListCallback = this.showIgnoreListInfobarIfNeeded.bind(this);
-    Bindings.IgnoreListManager.IgnoreListManager.instance().addChangeListener(this.ignoreListCallback);
+    Workspace.IgnoreListManager.IgnoreListManager.instance().addChangeListener(this.ignoreListCallback);
 
-    UI.Context.Context.instance().addFlavorChangeListener(SDK.DebuggerModel.CallFrame, this.callFrameChanged, this);
-    this.liveLocationPool = new Bindings.LiveLocation.LiveLocationPool();
+    UI.Context.Context.instance().addFlavorChangeListener(
+        StackTrace.StackTrace.DebuggableFrameFlavor, this.callFrameChanged, this);
 
     this.updateScriptFiles();
 
@@ -439,7 +419,7 @@ export class DebuggerPlugin extends Plugin {
       return;
     }
 
-    if (!Bindings.IgnoreListManager.IgnoreListManager.instance().isUserOrSourceMapIgnoreListedUISourceCode(
+    if (!Workspace.IgnoreListManager.IgnoreListManager.instance().isUserOrSourceMapIgnoreListedUISourceCode(
             uiSourceCode)) {
       this.hideIgnoreListInfobar();
       return;
@@ -450,7 +430,7 @@ export class DebuggerPlugin extends Plugin {
     }
 
     function unIgnoreList(): void {
-      Bindings.IgnoreListManager.IgnoreListManager.instance().unIgnoreListUISourceCode(uiSourceCode);
+      Workspace.IgnoreListManager.IgnoreListManager.instance().unIgnoreListUISourceCode(uiSourceCode);
     }
 
     const infobar = new UI.Infobar.Infobar(
@@ -482,13 +462,13 @@ export class DebuggerPlugin extends Plugin {
 
   attachInfobar(bar: UI.Infobar.Infobar): void {
     if (this.editor) {
-      this.editor.dispatch({effects: SourceFrame.SourceFrame.addInfobar.of(bar)});
+      this.editor.dispatch({effects: SourceFrame.SourceFrame.addSourceFrameInfobar.of({element: bar.element})});
     }
   }
 
   removeInfobar(bar: UI.Infobar.Infobar|null): void {
     if (this.editor && bar) {
-      this.editor.dispatch({effects: SourceFrame.SourceFrame.removeInfobar.of(bar)});
+      this.editor.dispatch({effects: SourceFrame.SourceFrame.removeSourceFrameInfobar.of({element: bar.element})});
     }
   }
 
@@ -501,6 +481,7 @@ export class DebuggerPlugin extends Plugin {
   }
 
   override willHide(): void {
+    super.willHide();
     this.popoverHelper?.hidePopover();
   }
 
@@ -529,7 +510,8 @@ export class DebuggerPlugin extends Plugin {
         contextMenu.debugSection().appendItem(
             i18nString(UIStrings.addBreakpoint),
             this.createNewBreakpoint.bind(
-                this, line, EMPTY_BREAKPOINT_CONDITION, /* enabled */ true, /* isLogpoint */ false),
+                this, line, EMPTY_BREAKPOINT_CONDITION,
+                /* enabled */ true, /* isLogpoint */ false),
             {jslogContext: 'add-breakpoint'});
         if (supportsConditionalBreakpoints) {
           contextMenu.debugSection().appendItem(i18nString(UIStrings.addConditionalBreakpoint), () => {
@@ -541,7 +523,8 @@ export class DebuggerPlugin extends Plugin {
           contextMenu.debugSection().appendItem(
               i18nString(UIStrings.neverPauseHere),
               this.createNewBreakpoint.bind(
-                  this, line, NEVER_PAUSE_HERE_CONDITION, /* enabled */ true, /* isLogpoint */ false),
+                  this, line, NEVER_PAUSE_HERE_CONDITION, /* enabled */ true,
+                  /* isLogpoint */ false),
               {jslogContext: 'never-pause-here'});
         }
       }
@@ -614,7 +597,7 @@ export class DebuggerPlugin extends Plugin {
 
     if (this.uiSourceCode.project().type() === Workspace.Workspace.projectTypes.Network &&
         Common.Settings.Settings.instance().moduleSetting('js-source-maps-enabled').get() &&
-        !Bindings.IgnoreListManager.IgnoreListManager.instance().isUserIgnoreListedURL(this.uiSourceCode.url())) {
+        !Workspace.IgnoreListManager.IgnoreListManager.instance().isUserIgnoreListedURL(this.uiSourceCode.url())) {
       if (this.scriptFileForDebuggerModel.size) {
         const scriptFile: Bindings.ResourceScriptMapping.ResourceScriptFile =
             this.scriptFileForDebuggerModel.values().next().value as Bindings.ResourceScriptMapping.ResourceScriptFile;
@@ -678,10 +661,6 @@ export class DebuggerPlugin extends Plugin {
     return true;
   }
 
-  private isVariableIdentifier(tokenType: string): boolean {
-    return tokenType === 'VariableName' || tokenType === 'VariableDefinition';
-  }
-
   private isIdentifier(tokenType: string): boolean {
     return tokenType === 'VariableName' || tokenType === 'VariableDefinition' || tokenType === 'PropertyName' ||
         tokenType === 'PropertyDefinition';
@@ -701,11 +680,11 @@ export class DebuggerPlugin extends Plugin {
       return null;
     }
 
-    const selectedCallFrame =
-        (UI.Context.Context.instance().flavor(SDK.DebuggerModel.CallFrame) as SDK.DebuggerModel.CallFrame);
-    if (!selectedCallFrame) {
+    const debuggableFrame = UI.Context.Context.instance().flavor(StackTrace.StackTrace.DebuggableFrameFlavor);
+    if (!debuggableFrame) {
       return null;
     }
+    const selectedCallFrame = debuggableFrame.sdkFrame;
 
     let textPosition = editor.editor.posAtCoords(event);
     if (!textPosition) {
@@ -770,10 +749,6 @@ export class DebuggerPlugin extends Plugin {
           returnByValue: false,
           generatePreview: false,
           throwOnSideEffect,
-          timeout: undefined,
-          disableBreaks: undefined,
-          replMode: undefined,
-          allowUnsafeEvalBlockedByCSP: undefined,
         });
         if (!result || 'error' in result || !result.object ||
             (result.object.type === 'object' && result.object.subtype === 'error')) {
@@ -781,8 +756,9 @@ export class DebuggerPlugin extends Plugin {
         }
         objectPopoverHelper =
             await ObjectUI.ObjectPopoverHelper.ObjectPopoverHelper.buildObjectPopover(result.object, popover);
-        const potentiallyUpdatedCallFrame = UI.Context.Context.instance().flavor(SDK.DebuggerModel.CallFrame);
-        if (!objectPopoverHelper || selectedCallFrame !== potentiallyUpdatedCallFrame) {
+        const potentiallyUpdatedCallFrame =
+            UI.Context.Context.instance().flavor(StackTrace.StackTrace.DebuggableFrameFlavor);
+        if (!objectPopoverHelper || debuggableFrame !== potentiallyUpdatedCallFrame) {
           debuggerModel.runtimeModel().releaseObjectGroup('popover');
           if (objectPopoverHelper) {
             objectPopoverHelper.dispose();
@@ -919,18 +895,21 @@ export class DebuggerPlugin extends Plugin {
     const isLogpointForDialog = breakpoint?.isLogpoint() ?? Boolean(isLogpoint);
     const decorationElement = document.createElement('div');
     const compartment = new CodeMirror.Compartment();
-    const dialog = new BreakpointEditDialog(line.number - 1, oldCondition, isLogpointForDialog, async result => {
+    const dialog = new BreakpointEditDialog();
+    dialog.editorLineNumber = line.number - 1;
+    dialog.oldCondition = oldCondition,
+    dialog.breakpointType = isLogpointForDialog ? SDK.DebuggerModel.BreakpointType.LOGPOINT :
+                                                  SDK.DebuggerModel.BreakpointType.CONDITIONAL_BREAKPOINT;
+    dialog.onFinish = async result => {
       this.activeBreakpointDialog = null;
       this.#activeBreakpointEditRequest = undefined;
       dialog.detach();
       editor.dispatch({effects: compartment.reconfigure([])});
       if (!result.committed) {
-        SourceComponents.BreakpointsView.BreakpointsSidebarController.instance().breakpointEditFinished(
-            breakpoint, false);
+        BreakpointsSidebarController.instance().breakpointEditFinished(breakpoint, false);
         return;
       }
-      SourceComponents.BreakpointsView.BreakpointsSidebarController.instance().breakpointEditFinished(
-          breakpoint, oldCondition !== result.condition);
+      BreakpointsSidebarController.instance().breakpointEditFinished(breakpoint, oldCondition !== result.condition);
       if (breakpoint) {
         breakpoint.setCondition(result.condition, result.isLogpoint);
       } else if (location) {
@@ -939,7 +918,7 @@ export class DebuggerPlugin extends Plugin {
       } else {
         await this.createNewBreakpoint(line, result.condition, /* enabled */ true, result.isLogpoint);
       }
-    });
+    };
     editor.dispatch({
       effects: CodeMirror.StateEffect.appendConfig.of(compartment.of(CodeMirror.EditorView.decorations.of(
           CodeMirror.Decoration.set([CodeMirror.Decoration
@@ -965,7 +944,7 @@ export class DebuggerPlugin extends Plugin {
               dialog.saveAndFinish();
               this.#scheduledFinishingActiveDialog = false;
             } else {
-              dialog.focusEditor();
+              dialog.focus();
             }
           }
         }, 200);
@@ -974,7 +953,7 @@ export class DebuggerPlugin extends Plugin {
 
     dialog.markAsExternallyManaged();
     dialog.show(decorationElement);
-    dialog.focusEditor();
+    dialog.focus();
     this.activeBreakpointDialog = dialog;
     this.#activeBreakpointEditRequest = breakpointEditRequest;
 
@@ -1037,10 +1016,11 @@ export class DebuggerPlugin extends Plugin {
     if (!executionContext) {
       return null;
     }
-    const callFrame = UI.Context.Context.instance().flavor(SDK.DebuggerModel.CallFrame);
-    if (!callFrame) {
+    const debuggableFrame = UI.Context.Context.instance().flavor(StackTrace.StackTrace.DebuggableFrameFlavor);
+    if (!debuggableFrame) {
       return null;
     }
+    const callFrame = debuggableFrame.sdkFrame;
     const url = this.uiSourceCode.url();
 
     const rawLocationToEditorOffset: (location: SDK.DebuggerModel.Location|null) => Promise<number|null> = location =>
@@ -1107,10 +1087,11 @@ export class DebuggerPlugin extends Plugin {
     if (!executionContext || !this.editor) {
       return;
     }
-    const callFrame = UI.Context.Context.instance().flavor(SDK.DebuggerModel.CallFrame);
-    if (!callFrame) {
+    const debuggableFrame = UI.Context.Context.instance().flavor(StackTrace.StackTrace.DebuggableFrameFlavor);
+    if (!debuggableFrame) {
       return;
     }
+    const callFrame = debuggableFrame.sdkFrame;
     const start = callFrame.functionLocation() || callFrame.location();
     const debuggerModel = callFrame.debuggerModel;
 
@@ -1164,7 +1145,7 @@ export class DebuggerPlugin extends Plugin {
       }
       if (syntaxType === 'new') {
         const callee = syntaxNode.parent?.getChild('Expression');
-        if (callee && callee.name === 'VariableName' && state.sliceDoc(callee.from, callee.to) === 'Worker') {
+        if (callee?.name === 'VariableName' && state.sliceDoc(callee.from, callee.to) === 'Worker') {
           asyncCall = syntaxNode.parent;
         }
       }
@@ -1306,7 +1287,7 @@ export class DebuggerPlugin extends Plugin {
       } else if (main.condition()) {
         gutterClass += ' cm-breakpoint-conditional';
       }
-      gutterMarkers.push((new BreakpointGutterMarker(gutterClass, lineStart)).range(lineStart));
+      gutterMarkers.push((new BreakpointGutterMarker(gutterClass, lineStart, main.condition())).range(lineStart));
     }
 
     const addPossibleBreakpoints = (line: CodeMirror.Line, locations: Workspace.UISourceCode.UILocation[]): void => {
@@ -1397,7 +1378,8 @@ export class DebuggerPlugin extends Plugin {
       const line = this.editor.state.doc.lineAt(editorLocation);
       const uiLocation = this.transformer.editorLocationToUILocation(line.number - 1, editorLocation - line.from);
       void this.setBreakpoint(
-          uiLocation.lineNumber, uiLocation.columnNumber, EMPTY_BREAKPOINT_CONDITION, /* enabled */ true,
+          uiLocation.lineNumber, uiLocation.columnNumber, EMPTY_BREAKPOINT_CONDITION,
+          /* enabled */ true,
           /* isLogpoint */ false);
     }
   }
@@ -1484,7 +1466,9 @@ export class DebuggerPlugin extends Plugin {
     });
   }
 
-  private updateMissingDebugInfoInfobar(warning: SDK.DebuggerModel.MissingDebugInfoDetails|null): void {
+  private updateMissingDebugInfoInfobar(
+      warning: {resources: SDK.DebuggerModel.MissingDebugFiles[], details: Platform.UIString.LocalizedString}|
+      null): void {
     if (this.missingDebugInfoBar) {
       return;
     }
@@ -1565,7 +1549,7 @@ export class DebuggerPlugin extends Plugin {
     }
 
     const resource = this.getSourceMapResource();
-    if (resource && resource.success === null) {
+    if (resource?.success === null) {
       // Don't create the infobar until we know whether loading succeeded or failed.
       return;
     }
@@ -1687,6 +1671,9 @@ export class DebuggerPlugin extends Plugin {
         this.uiSourceCode, lineNumber, columnNumber, condition, enabled, isLogpoint,
         Breakpoints.BreakpointManager.BreakpointOrigin.USER_ACTION);
     this.breakpointWasSetForTest(lineNumber, columnNumber, condition, enabled);
+    if (bp) {
+      Badges.UserBadges.instance().recordAction(Badges.BadgeAction.BREAKPOINT_ADDED);
+    }
     return bp;
   }
 
@@ -1695,24 +1682,22 @@ export class DebuggerPlugin extends Plugin {
   }
 
   private async callFrameChanged(): Promise<void> {
-    this.liveLocationPool.disposeAll();
-    const callFrame = UI.Context.Context.instance().flavor(SDK.DebuggerModel.CallFrame);
-    if (!callFrame) {
-      this.setExecutionLocation(null);
+    const frameFlavor = UI.Context.Context.instance().flavor(StackTrace.StackTrace.DebuggableFrameFlavor);
+    if (frameFlavor?.frame.uiSourceCode?.canonicalScriptId() === this.uiSourceCode.canonicalScriptId()) {
+      const uiLocation = new Workspace.UISourceCode.UILocation(
+          frameFlavor.frame.uiSourceCode, frameFlavor.frame.line, frameFlavor.frame.column);
+      this.setExecutionLocation(uiLocation);
+      if (frameFlavor.frame.missingDebugInfo) {
+        this.updateMissingDebugInfoInfobar(
+            convertMissingDebugInfo(frameFlavor.frame.missingDebugInfo, frameFlavor.sdkFrame.functionName));
+      } else {
+        this.updateMissingDebugInfoInfobar(null);
+      }
+      // We are paused and the user is specifically looking at this UISourceCode either because
+      // this file is on top of stack, or the user explicitly selected a stack frame for this UISourceCode.
+      this.#recordSourcesPanelDebuggedMetrics();
     } else {
-      await Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance().createCallFrameLiveLocation(
-          callFrame.location(), async (liveLocation: Bindings.LiveLocation.LiveLocation) => {
-            const uiLocation = await liveLocation.uiLocation();
-            if (uiLocation && uiLocation.uiSourceCode.canonicalScriptId() === this.uiSourceCode.canonicalScriptId()) {
-              this.setExecutionLocation(uiLocation);
-              this.updateMissingDebugInfoInfobar(callFrame.missingDebugInfoDetails);
-              // We are paused and the user is specifically looking at this UISourceCode either because
-              // this file is on top of stack, or the user explicitly selected a stack frame for this UISourceCode.
-              this.#recordSourcesPanelDebuggedMetrics();
-            } else {
-              this.setExecutionLocation(null);
-            }
-          }, this.liveLocationPool);
+      this.setExecutionLocation(null);
     }
   }
 
@@ -1772,7 +1757,7 @@ export class DebuggerPlugin extends Plugin {
     this.uiSourceCode.removeEventListener(
         Workspace.UISourceCode.Events.WorkingCopyCommitted, this.workingCopyCommitted, this);
 
-    Bindings.IgnoreListManager.IgnoreListManager.instance().removeChangeListener(this.ignoreListCallback);
+    Workspace.IgnoreListManager.IgnoreListManager.instance().removeChangeListener(this.ignoreListCallback);
 
     debuggerPluginForUISourceCode.delete(this.uiSourceCode);
     super.dispose();
@@ -1782,8 +1767,8 @@ export class DebuggerPlugin extends Plugin {
     // still running or scheduled will early return and not do any work.
     this.editor = undefined;
 
-    UI.Context.Context.instance().removeFlavorChangeListener(SDK.DebuggerModel.CallFrame, this.callFrameChanged, this);
-    this.liveLocationPool.disposeAll();
+    UI.Context.Context.instance().removeFlavorChangeListener(
+        StackTrace.StackTrace.DebuggableFrameFlavor, this.callFrameChanged, this);
   }
 
   /**
@@ -1815,14 +1800,15 @@ export class BreakpointLocationRevealer implements
     if (debuggerPlugin) {
       debuggerPlugin.editBreakpointLocation(breakpointLocation);
     } else {
-      SourceComponents.BreakpointsView.BreakpointsSidebarController.instance().breakpointEditFinished(
-          breakpointLocation.breakpoint, false);
+      BreakpointsSidebarController.instance().breakpointEditFinished(breakpointLocation.breakpoint, false);
     }
   }
 }
 
-// Enumerate non-breakable lines (lines without a known corresponding
-// position in the UISource).
+/**
+ * Enumerate non-breakable lines (lines without a known corresponding
+ * position in the UISource).
+ **/
 async function computeNonBreakableLines(
     state: CodeMirror.EditorState, transformer: SourceFrame.SourceFrame.Transformer,
     sourceCode: Workspace.UISourceCode.UISourceCode): Promise<readonly number[]> {
@@ -1859,7 +1845,9 @@ function muteGutterMarkers(markers: CodeMirror.RangeSet<CodeMirror.GutterMarker>
     if (!/cm-breakpoint-disabled/.test(className)) {
       className += ' cm-breakpoint-disabled';
     }
-    newMarkers.push(new BreakpointGutterMarker(className, from).range(from));
+    newMarkers.push(new BreakpointGutterMarker(
+                        className, from, marker instanceof BreakpointGutterMarker ? marker.condition : undefined)
+                        .range(from));
   });
   return CodeMirror.RangeSet.of(newMarkers, false);
 }
@@ -1935,11 +1923,16 @@ class BreakpointInlineMarker extends CodeMirror.WidgetType {
 }
 
 class BreakpointGutterMarker extends CodeMirror.GutterMarker {
+  static nextTooltipId = 0;
   readonly #position: number;
+  readonly condition: Breakpoints.BreakpointManager.UserCondition|undefined;
 
-  constructor(override readonly elementClass: string, position: number) {
+  constructor(
+      override readonly elementClass: string, position: number,
+      condition?: Breakpoints.BreakpointManager.UserCondition) {
     super();
     this.#position = position;
+    this.condition = condition;
   }
 
   override eq(other: BreakpointGutterMarker): boolean {
@@ -1952,7 +1945,21 @@ class BreakpointGutterMarker extends CodeMirror.GutterMarker {
     const line = view.state.doc.lineAt(this.#position).number;
     const formatNumber = view.state.facet(SourceFrame.SourceFrame.LINE_NUMBER_FORMATTER);
     div.textContent = formatNumber(line, view.state);
-    return div;
+    if (!this.condition) {
+      return div;
+    }
+    const container = document.createElement('div');
+    const id = `cm-breakpoint-tooltip-${BreakpointGutterMarker.nextTooltipId++}`;
+    div.setAttribute('aria-details', id);
+    container.appendChild(div);
+    const tooltip = new Tooltips.Tooltip.Tooltip({
+      id,
+      anchor: div,
+      jslogContext: 'breakpoint-tooltip',
+    });
+    tooltip.append(this.condition);
+    container.appendChild(tooltip);
+    return container;
   }
 }
 
@@ -2036,11 +2043,12 @@ class ValueDecoration extends CodeMirror.WidgetType {
       const propertyCount = value.preview ? value.preview.properties.length : 0;
       const entryCount = value.preview?.entries ? value.preview.entries.length : 0;
       if (value.preview && propertyCount + entryCount < 10) {
-        formatter.appendObjectPreview(nameValuePair, value.preview, false /* isEntry */);
+        /* eslint-disable-next-line  @devtools/no-lit-render-outside-of-view */
+        render(formatter.renderObjectPreview(value.preview), nameValuePair.createChild('span'));
       } else {
         const propertyValue = ObjectUI.ObjectPropertiesSection.ObjectPropertiesSection.createPropertyValue(
             value, /* wasThrown */ false, /* showPreview */ false);
-        nameValuePair.appendChild(propertyValue.element);
+        nameValuePair.appendChild(propertyValue);
       }
     }
     return widget;
@@ -2078,8 +2086,10 @@ export function getVariableNamesByLine(
   toPos = editorState.doc.lineAt(toPos).from;
   const tree = CodeMirror.syntaxTree(editorState);
 
-  // Sibling scope is a scope that does not contain the current position.
-  // We will exclude variables that are defined (and used in those scopes (since we are currently outside of their lifetime).
+  /**
+   * Sibling scope is a scope that does not contain the current position.
+   * We will exclude variables that are defined (and used in those scopes (since we are currently outside of their lifetime).
+   **/
   function isSiblingScopeNode(node: {name: string, from: number, to: number}): boolean {
     return isScopeNode(node.name) && (node.to < currentPos || currentPos < node.from);
   }

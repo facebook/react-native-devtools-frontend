@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,12 +14,14 @@ import type * as Models from './Models.js';
 export type InsightSetContext = InsightSetContextWithoutNavigation|InsightSetContextWithNavigation;
 
 export interface InsightSetContextWithoutNavigation {
+  options: Types.Configuration.ParseOptions;
   bounds: Types.Timing.TraceWindowMicro;
   frameId: string;
   navigation?: never;
 }
 
 export interface InsightSetContextWithNavigation {
+  options: Types.Configuration.ParseOptions;
   bounds: Types.Timing.TraceWindowMicro;
   frameId: string;
   navigation: Types.Events.NavigationStart;
@@ -28,6 +30,7 @@ export interface InsightSetContextWithNavigation {
 }
 
 export interface LanternContext {
+  requests: Array<Lantern.Types.NetworkRequest<Types.Events.SyntheticNetworkRequest>>;
   graph: Lantern.Graph.Node<Types.Events.SyntheticNetworkRequest>;
   simulator: Lantern.Simulation.Simulator<Types.Events.SyntheticNetworkRequest>;
   metrics: Record<string, Lantern.Metrics.MetricResult>;
@@ -73,20 +76,33 @@ export type InsightModel<UIStrings extends Record<string, string> = Record<strin
       strings: UIStrings,
       title: Common.UIString.LocalizedString,
       description: Common.UIString.LocalizedString,
+      docs: string,
       category: InsightCategory,
       state: 'pass' | 'fail' | 'informative',
+      /** Used by RelatedInsightChips.ts */
       relatedEvents?: RelatedEventsMap | Types.Events.Event[],
       warnings?: InsightWarning[],
       metricSavings?: MetricSavings,
+      /**
+       * An estimate for the number of bytes that this insight deems to have been wasted.
+       * Bytes are in terms of transfer size: for each component of savings related to an
+       * individual request, the insight will estimate its impact on transfer size by using
+       * the compression ratio of the resource.
+       *
+       * This field is only displayed for informational purposes.
+       */
+      wastedBytes?: number,
       frameId?: string,
       /**
        * If this insight is attached to a navigation, this stores its ID.
        */
-      navigationId?: string,
+      navigation?: Types.Events.NavigationStart,
+      /** This is lazily-generated because some insights may create many overlays. */
+      createOverlays?: () => Types.Overlays.Overlay[],
     };
 
 export type PartialInsightModel<T> =
-    Omit<T, 'strings'|'title'|'description'|'category'|'state'|'insightKey'|'navigationId'|'frameId'>;
+    Omit<T, 'strings'|'title'|'description'|'docs'|'category'|'state'|'insightKey'|'navigationId'|'frameId'>;
 
 /**
  * Contains insights for a specific navigation. If a trace began after a navigation already started,
@@ -94,21 +110,31 @@ export type PartialInsightModel<T> =
  * navigation (or the end of the trace).
  */
 export interface InsightSet {
-  /** If for a navigation, this is the navigationId. Else it is Trace.Types.Events.NO_NAVIGATION. */
+  /** If for a navigation, this is of the form "NAVIGATION_(index)". Else it is Trace.Types.Events.NO_NAVIGATION. */
   id: Types.Events.NavigationId;
   /** The URL to show in the accordion list. */
   url: URL;
   frameId: string;
   bounds: Types.Timing.TraceWindowMicro;
+  /** Contains results for all non-errored insights. */
   model: InsightModels;
+  /** Contains errors for all insights that had an internal error. */
+  modelErrors: InsightModelErrors;
   navigation?: Types.Events.NavigationStart;
 }
 
 /**
- * Contains insights for a specific insight set.
+ * Contains insights for a specific insight set. If missing, it error'd.
  */
 export type InsightModels = {
-  [I in keyof InsightModelsType]: ReturnType<InsightModelsType[I]['generateInsight']>;
+  [I in keyof InsightModelsType]?: ReturnType<InsightModelsType[I]['generateInsight']>;
+};
+
+/**
+ * Contains an internal error for each insight in a specific insight set.
+ */
+export type InsightModelErrors = {
+  [I in keyof InsightModelsType]?: Error;
 };
 
 /**
@@ -119,9 +145,9 @@ export type InsightModels = {
  */
 export type TraceInsightSets = Map<Types.Events.NavigationId, InsightSet>;
 
-export const enum InsightKeys {
-  LCP_PHASES = 'LCPPhases',
-  INTERACTION_TO_NEXT_PAINT = 'InteractionToNextPaint',
+export enum InsightKeys {
+  LCP_BREAKDOWN = 'LCPBreakdown',
+  INP_BREAKDOWN = 'INPBreakdown',
   CLS_CULPRITS = 'CLSCulprits',
   THIRD_PARTIES = 'ThirdParties',
   DOCUMENT_LATENCY = 'DocumentLatency',
@@ -136,4 +162,7 @@ export const enum InsightKeys {
   RENDER_BLOCKING = 'RenderBlocking',
   SLOW_CSS_SELECTOR = 'SlowCSSSelector',
   VIEWPORT = 'Viewport',
+  MODERN_HTTP = 'ModernHTTP',
+  CACHE = 'Cache',
+  CHARACTER_SET = 'CharacterSet',
 }

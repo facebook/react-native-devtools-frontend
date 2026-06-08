@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -88,7 +88,7 @@ describeWithEnvironment('SamplesHandler', function() {
         ): Trace.Types.Events.ProfileChunk {
       return {
         cat: '',
-        name: 'ProfileChunk',
+        name: Trace.Types.Events.Name.PROFILE_CHUNK,
         ph: Trace.Types.Events.Phase.SAMPLE,
         pid,
         tid: Trace.Types.Events.ThreadID(0),
@@ -119,7 +119,7 @@ describeWithEnvironment('SamplesHandler', function() {
       const E = 4;
       const root = 9;
       const mockProfileEvent: Trace.Types.Events.Profile = {
-        name: 'Profile',
+        name: Trace.Types.Events.Name.PROFILE,
         id,
         args: {data: {startTime: Trace.Types.Timing.Micro(0)}},
         cat: '',
@@ -256,7 +256,7 @@ describeWithEnvironment('SamplesHandler', function() {
       const cpuProfileData = profileById.values().next().value as Trace.Handlers.ModelHandlers.Samples.ProfileData;
       const cpuProfile = cpuProfileData.rawProfile;
       assert.deepEqual(
-          Object.keys(cpuProfile), ['startTime', 'endTime', 'nodes', 'samples', 'timeDeltas', 'lines', 'traceIds']);
+          Object.keys(cpuProfile), ['startTime', 'endTime', 'nodes', 'samples', 'timeDeltas', 'lines', 'columns']);
       assert.lengthOf(cpuProfile.nodes, 153);
       assert.strictEqual(cpuProfile.startTime, 287510826176);
       assert.strictEqual(cpuProfile.endTime, 287510847633);
@@ -289,20 +289,293 @@ describeWithEnvironment('SamplesHandler', function() {
     });
   });
 
+  describe('profile source selection', () => {
+    const pid = Trace.Types.Events.ProcessID(42);
+    const tid = Trace.Types.Events.ThreadID(7);
+
+    type ProfileStreamEvent = Trace.Types.Events.Profile|Trace.Types.Events.ProfileChunk;
+
+    function makeProfileEvent(id: Trace.Types.Events.ProfileID, source: string): Trace.Types.Events.Profile {
+      return {
+        cat: '',
+        name: Trace.Types.Events.Name.PROFILE,
+        ph: Trace.Types.Events.Phase.SAMPLE,
+        pid,
+        tid,
+        ts: Trace.Types.Timing.Micro(0),
+        id,
+        args: {data: {startTime: Trace.Types.Timing.Micro(0), source: source as Trace.Types.Events.ProfileSource}},
+      };
+    }
+
+    function makeProfileChunkEvent(
+        id: Trace.Types.Events.ProfileID,
+        source: string,
+        samples: number[],
+        timeDeltas: number[],
+        nodes: Array<{id: number, children: number[]}> =
+            [
+              {id: 0, children: [1]},
+              {id: 1, children: []},
+            ],
+        ): Trace.Types.Events.ProfileChunk {
+      return {
+        cat: '',
+        name: Trace.Types.Events.Name.PROFILE_CHUNK,
+        ph: Trace.Types.Events.Phase.SAMPLE,
+        pid,
+        tid,
+        ts: Trace.Types.Timing.Micro(1),
+        id,
+        args: {
+          data: {
+            source: source as Trace.Types.Events.ProfileSource,
+            cpuProfile: {
+              samples: samples.map(Trace.Types.Events.CallFrameID),
+              nodes: nodes.map(n => ({
+                                 id: Trace.Types.Events.CallFrameID(n.id),
+                                 children: n.children,
+                                 callFrame: {functionName: '', scriptId: 0, columnNumber: 0, lineNumber: 0, url: ''},
+                               })),
+            },
+            timeDeltas: timeDeltas.map(Trace.Types.Timing.Micro),
+          },
+        },
+      };
+    }
+
+    function makeProfileStream({
+      id,
+      source,
+      samples = [1],
+      timeDeltas = [10],
+      nodes,
+    }: {
+      id: Trace.Types.Events.ProfileID,
+      source: string,
+      samples?: number[],
+      timeDeltas?: number[],
+      nodes?: Array<{id: number, children: number[]}>,
+    }): ProfileStreamEvent[] {
+      const events: ProfileStreamEvent[] = [];
+      events.push(makeProfileEvent(id, source));
+      events.push(makeProfileChunkEvent(id, source, samples, timeDeltas, nodes ?? [
+        {id: 0, children: [1]},
+        {id: 1, children: []},
+      ]));
+      return events;
+    }
+
+    async function runSelectionScenario(events: ProfileStreamEvent[], isCPUProfile = false) {
+      Trace.Handlers.ModelHandlers.Samples.reset();
+      Trace.Handlers.ModelHandlers.Meta.reset();
+
+      for (const event of events) {
+        Trace.Handlers.ModelHandlers.Samples.handleEvent(event);
+      }
+
+      await Trace.Handlers.ModelHandlers.Meta.finalize();
+      await Trace.Handlers.ModelHandlers.Samples.finalize({isCPUProfile});
+
+      const profileByThread = Trace.Handlers.ModelHandlers.Samples.data().profilesInProcess.get(pid);
+      assert.exists(profileByThread);
+      const selected = profileByThread?.get(tid);
+      assert.exists(selected);
+      return selected!;
+    }
+
+    it('selects Internal stream over SelfProfiling in performance trace', async () => {
+      const internalId = Trace.Types.Events.ProfileID('0xE');
+      const selfProfilingId = Trace.Types.Events.ProfileID('0xJ');
+
+      const selected = await runSelectionScenario([
+        ...makeProfileStream({
+          id: internalId,
+          source: 'Internal',
+        }),
+        ...makeProfileStream({
+          id: selfProfilingId,
+          source: 'SelfProfiling',
+        }),
+      ]);
+
+      assert.strictEqual(selected.profileId, internalId);
+    });
+
+    it('prefers Inspector stream over Internal in CPU profile mode', async () => {
+      const inspectorId = Trace.Types.Events.ProfileID('0xD');
+      const internalId = Trace.Types.Events.ProfileID('0xE');
+
+      const selected = await runSelectionScenario(
+          [
+            ...makeProfileStream({
+              id: inspectorId,
+              source: 'Inspector',
+            }),
+            ...makeProfileStream({
+              id: internalId,
+              source: 'Internal',
+            }),
+          ],
+          true);
+
+      assert.strictEqual(selected.profileId, inspectorId);
+    });
+
+    it('prefers Internal stream over Inspector in performance trace mode', async () => {
+      const internalId = Trace.Types.Events.ProfileID('0xI');
+      const inspectorId = Trace.Types.Events.ProfileID('0xD');
+
+      const selected = await runSelectionScenario([
+        ...makeProfileStream({
+          id: internalId,
+          source: 'Internal',
+        }),
+        ...makeProfileStream({
+          id: inspectorId,
+          source: 'Inspector',
+        }),
+      ]);
+
+      assert.strictEqual(selected.profileId, internalId);
+    });
+
+    it('selects complete priority order in CPU profile mode', async () => {
+      const inspectorId = Trace.Types.Events.ProfileID('0xD');
+      const internalId = Trace.Types.Events.ProfileID('0xE');
+      const selfProfilingId = Trace.Types.Events.ProfileID('0xJ');
+
+      const selected = await runSelectionScenario(
+          [
+            ...makeProfileStream({
+              id: selfProfilingId,
+              source: 'SelfProfiling',
+            }),
+            ...makeProfileStream({
+              id: internalId,
+              source: 'Internal',
+            }),
+            ...makeProfileStream({
+              id: inspectorId,
+              source: 'Inspector',
+            }),
+          ],
+          true);
+
+      assert.strictEqual(selected.profileId, inspectorId);
+    });
+
+    it('selects complete priority order in performance trace mode', async () => {
+      const inspectorId = Trace.Types.Events.ProfileID('0xD');
+      const internalId = Trace.Types.Events.ProfileID('0xE');
+      const selfProfilingId = Trace.Types.Events.ProfileID('0xJ');
+
+      const selected = await runSelectionScenario([
+        ...makeProfileStream({
+          id: selfProfilingId,
+          source: 'SelfProfiling',
+        }),
+        ...makeProfileStream({
+          id: inspectorId,
+          source: 'Inspector',
+        }),
+        ...makeProfileStream({
+          id: internalId,
+          source: 'Internal',
+        }),
+      ]);
+
+      assert.strictEqual(selected.profileId, internalId);
+    });
+
+    it('falls back to first candidate when no recognized sources exist', async () => {
+      const firstUnknownId = Trace.Types.Events.ProfileID('0xU1');
+      const secondUnknownId = Trace.Types.Events.ProfileID('0xU2');
+
+      const events: ProfileStreamEvent[] = [
+        ...makeProfileStream({
+          id: firstUnknownId,
+          source: 'Unspecified',
+        }),
+        ...makeProfileStream({
+          id: secondUnknownId,
+          source: 'CustomSource',
+        }),
+      ];
+
+      const selected = await runSelectionScenario(events);
+
+      // Falls back to candidates[0] when no priority matches
+      assert.strictEqual(selected.profileId, firstUnknownId);
+    });
+
+    it('ignores profiles with unknown sources in priority matching', async () => {
+      const inspectorId = Trace.Types.Events.ProfileID('0xD');
+      const unknownId = Trace.Types.Events.ProfileID('0xU');
+
+      const events: ProfileStreamEvent[] = [
+        ...makeProfileStream({
+          id: unknownId,
+          source: 'Unspecified',
+        }),
+        ...makeProfileStream({
+          id: inspectorId,
+          source: 'Inspector',
+        }),
+      ];
+
+      const selected = await runSelectionScenario(events, true);
+
+      assert.strictEqual(selected.profileId, inspectorId);
+    });
+
+    it('falls back to SelfProfiling when higher priority sources absent', async () => {
+      const selfProfilingId = Trace.Types.Events.ProfileID('0xJ');
+
+      const selected = await runSelectionScenario(
+          [
+            ...makeProfileStream({
+              id: selfProfilingId,
+              source: 'SelfProfiling',
+            }),
+          ],
+          true);
+
+      assert.strictEqual(selected.profileId, selfProfilingId);
+    });
+
+    it('selects available source even when not in priority list for CPU profile mode', async () => {
+      const internalId = Trace.Types.Events.ProfileID('0xE');
+
+      const selected = await runSelectionScenario(
+          [
+            ...makeProfileStream({
+              id: internalId,
+              source: 'Internal',
+            }),
+          ],
+          true);
+
+      assert.strictEqual(selected.profileId, internalId);
+    });
+  });
+
   describe('getProfileCallFunctionName', () => {
-    // Find an event from the trace that represents some work. The use of
-    // this specific call frame event is not for any real reason.
-    function getProfileEventAndNode(parsedTrace: Trace.Handlers.Types.ParsedTrace): {
+    /**
+     * Find an event from the trace that represents some work. The use of
+     * this specific call frame event is not for any real reason.
+     **/
+    function getProfileEventAndNode(data: Trace.Handlers.Types.HandlerData): {
       entry: Trace.Types.Events.SyntheticProfileCall,
       profileNode: CPUProfile.ProfileTreeModel.ProfileNode,
     } {
-      const mainThread = getMainThread(parsedTrace.Renderer);
+      const mainThread = getMainThread(data.Renderer);
       let foundNode: CPUProfile.ProfileTreeModel.ProfileNode|null = null;
       let foundEntry: Trace.Types.Events.SyntheticProfileCall|null = null;
 
       for (const entry of mainThread.entries) {
         if (Trace.Types.Events.isProfileCall(entry) && entry.callFrame.functionName === 'performConcurrentWorkOnRoot') {
-          const profile = parsedTrace.Samples.profilesInProcess.get(entry.pid)?.get(entry.tid);
+          const profile = data.Samples.profilesInProcess.get(entry.pid)?.get(entry.tid);
           const node = profile?.parsedProfile.nodeById(entry.nodeId);
           if (node) {
             foundNode = node;
@@ -324,33 +597,25 @@ describeWithEnvironment('SamplesHandler', function() {
       };
     }
 
-    it('falls back to the call frame name if the ProfileNode name is empty', async function() {
-      const {parsedTrace} = await TraceLoader.traceEngine(this, 'react-hello-world.json.gz');
-      const {entry, profileNode} = getProfileEventAndNode(parsedTrace);
-      // Store and then reset this: we are doing this to test the fallback to
-      // the entry callFrame.functionName property. After the assertion we
-      // reset this to avoid impacting other tests.
-      const originalProfileNodeName = profileNode.functionName;
-      profileNode.setFunctionName('');
+    it('falls back to the call frame name if the ProfileNode originalFunctionName is empty', async function() {
+      const {data} = await TraceLoader.traceEngine(this, 'react-hello-world.json.gz');
+      const {entry, profileNode} = getProfileEventAndNode(data);
+      assert.isNull(profileNode.originalFunctionName);
       assert.strictEqual(
-          Trace.Handlers.ModelHandlers.Samples.getProfileCallFunctionName(parsedTrace.Samples, entry),
+          Trace.Handlers.ModelHandlers.Samples.getProfileCallFunctionName(data.Samples, entry),
           'performConcurrentWorkOnRoot');
-      // St
-      profileNode.setFunctionName(originalProfileNodeName);
     });
 
-    it('uses the profile name if it has been set', async function() {
-      const {parsedTrace} = await TraceLoader.traceEngine(this, 'react-hello-world.json.gz');
-      const {entry, profileNode} = getProfileEventAndNode(parsedTrace);
-      // Store and then reset this: we are doing this to test the fallback to
-      // the entry callFrame.functionName property. After the assertion we
-      // reset this to avoid impacting other tests.
-      const originalProfileNodeName = profileNode.functionName;
-      profileNode.setFunctionName('testing-profile-name');
+    it('uses the profile originalFunctionName if it has been set', async function() {
+      const {data} = await TraceLoader.traceEngine(this, 'react-hello-world.json.gz');
+      const {entry, profileNode} = getProfileEventAndNode(data);
+      assert.isNull(profileNode.originalFunctionName);
+      profileNode.setOriginalFunctionName('testing-profile-name');
       assert.strictEqual(
-          Trace.Handlers.ModelHandlers.Samples.getProfileCallFunctionName(parsedTrace.Samples, entry),
-          'testing-profile-name');
-      profileNode.setFunctionName(originalProfileNodeName);
+          Trace.Handlers.ModelHandlers.Samples.getProfileCallFunctionName(data.Samples, entry), 'testing-profile-name');
+
+      // Don't impact other tests.
+      profileNode.setOriginalFunctionName(null);
     });
   });
 });

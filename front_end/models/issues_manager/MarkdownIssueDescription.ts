@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -105,7 +105,7 @@ const validPlaceholderNamePattern = /PLACEHOLDER_[a-zA-Z][a-zA-Z0-9]*/;
  *
  * Example:
  *   const str = "This is markdown with `code` and two placeholders, namely {PLACEHOLDER_PH1} and {PLACEHOLDER_PH2}".
- *   const result = substitePlaceholders(str, new Map([['PLACEHOLDER_PH1', 'foo'], ['PLACEHOLDER_PH2', 'bar']]));
+ *   const result = substitutePlaceholders(str, new Map([['PLACEHOLDER_PH1', 'foo'], ['PLACEHOLDER_PH2', 'bar']]));
  *
  * Exported only for unit testing.
  */
@@ -129,7 +129,7 @@ export function substitutePlaceholders(markdown: string, substitutions?: Map<str
   return result;
 }
 
-// Ensure that all provided placeholders match the naming pattern.
+/** Ensure that all provided placeholders match the naming pattern. **/
 function validatePlaceholders(placeholders: Set<string>): void {
   const invalidPlaceholders = [...placeholders].filter(placeholder => !validPlaceholderNamePattern.test(placeholder));
   if (invalidPlaceholders.length > 0) {

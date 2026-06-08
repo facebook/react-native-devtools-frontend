@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,16 +12,15 @@ import type * as LinearMemoryInspector from './linear_memory_inspector.js';
 
 const UIStrings = {
   /**
-   *@description Title of the Linear Memory inspector tool
+   * @description Title of the Linear Memory inspector tool
    */
   memoryInspector: 'Memory inspector',
   /**
-   *@description Command for showing the 'Memory inspector' tool
+   * @description Command for showing the 'Memory inspector' tool
    */
   showMemoryInspector: 'Show Memory inspector',
 } as const;
-const str_ =
-    i18n.i18n.registerUIStrings('panels/linear_memory_inspector/linear_memory_inspector-meta.ts', UIStrings);
+const str_ = i18n.i18n.registerUIStrings('panels/linear_memory_inspector/linear_memory_inspector-meta.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
 let loadedLinearMemoryInspectorModule: (typeof LinearMemoryInspector|undefined);
@@ -51,7 +50,6 @@ UI.ContextMenu.registerProvider({
     const LinearMemoryInspector = await loadLinearMemoryInspectorModule();
     return LinearMemoryInspector.LinearMemoryInspectorController.LinearMemoryInspectorController.instance();
   },
-  experiment: undefined,
   contextTypes() {
     return [
       ObjectUI.ObjectPropertiesSection.ObjectPropertyTreeElement,

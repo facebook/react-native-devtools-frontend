@@ -1,4 +1,4 @@
-# Copyright 2022 The Chromium Authors. All rights reserved.
+# Copyright 2022 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -9,19 +9,21 @@ import("../visibility.gni")
 
 devtools_module("source_map_scopes") {
   sources = [
+    "FunctionCodeResolver.ts",
     "NamesResolver.ts",
     "ScopeChainModel.ts",
-    "ScopeTreeCache.ts",
   ]
 
   deps = [
     "../../core/common:bundle",
     "../../core/platform:bundle",
+    "../../core/root:bundle",
     "../../core/sdk:bundle",
+    "../../generated:protocol",
     "../../models/bindings:bundle",
     "../../models/formatter:bundle",
     "../../models/text_utils:bundle",
-    "../../models/workspace:bundle",
+    "../workspace:bundle",
   ]
 }
 
@@ -37,7 +39,9 @@ devtools_entrypoint("bundle") {
     "../../panels/timeline/*",
     "../../ui/components/text_editor/*",
     "../../ui/legacy/components/object_ui/*",
+    "../ai_assistance/*",
     "../breakpoints/*",
+    "../trace_source_maps_resolver/*",
   ]
 
   visibility += devtools_models_visibility
@@ -46,9 +50,9 @@ devtools_entrypoint("bundle") {
 ts_library("unittests") {
   testonly = true
   sources = [
+    "FunctionCodeResolver.test.ts",
     "NamesResolver.test.ts",
     "ScopeChainModel.test.ts",
-    "ScopeTreeCache.test.ts",
   ]
 
   deps = [

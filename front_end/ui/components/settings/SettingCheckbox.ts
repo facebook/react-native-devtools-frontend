@@ -1,8 +1,11 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view, @devtools/enforce-custom-element-definitions-location */
 
+import '../tooltips/tooltips.js';
 import './SettingDeprecationWarning.js';
+import '../../kit/kit.js';
 
 import type * as Common from '../../../core/common/common.js';
 import * as Host from '../../../core/host/host.js';
@@ -12,17 +15,13 @@ import * as VisualLogging from '../../visual_logging/visual_logging.js';
 import * as Buttons from '../buttons/buttons.js';
 import * as Input from '../input/input.js';
 
-import settingCheckboxStylesRaw from './settingCheckbox.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const settingCheckboxStyles = new CSSStyleSheet();
-settingCheckboxStyles.replaceSync(settingCheckboxStylesRaw.cssText);
+import settingCheckboxStyles from './settingCheckbox.css.js';
 
 const {html, Directives: {ifDefined}} = Lit;
 
 const UIStrings = {
   /**
-   *@description Text that is usually a hyperlink to more documentation
+   * @description Text that is usually a hyperlink to more documentation
    */
   learnMore: 'Learn more',
 } as const;
@@ -43,10 +42,6 @@ export class SettingCheckbox extends HTMLElement {
   #setting?: Common.Settings.Setting<boolean>;
   #changeListenerDescriptor?: Common.EventTarget.EventDescriptor;
   #textOverride?: string;
-
-  connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [Input.checkboxStyles, settingCheckboxStyles];
-  }
 
   set data(data: SettingCheckboxData) {
     if (this.#changeListenerDescriptor && this.#setting) {
@@ -73,26 +68,67 @@ export class SettingCheckbox extends HTMLElement {
     }
 
     const learnMore = this.#setting.learnMore();
-    if (learnMore && learnMore.url) {
-      const url = learnMore.url;
+    if (learnMore) {
+      const jsLogContext = `${this.#setting.name}-documentation`;
       const data: Buttons.Button.ButtonData = {
-        iconName: 'help',
+        iconName: 'info',
         variant: Buttons.Button.Variant.ICON,
         size: Buttons.Button.Size.SMALL,
-        jslogContext: `${this.#setting.name}-documentation`,
-        title: i18nString(UIStrings.learnMore),
+        jslogContext: jsLogContext,
       };
-      const handleClick = (event: MouseEvent): void => {
-        Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(url);
-        event.consume();
-      };
-      return html`<devtools-button
-                    class=learn-more
-                    @click=${handleClick}
-                    .data=${data}></devtools-button>`;
+
+      const url = learnMore.url;
+      if (learnMore.tooltip) {
+        const id = `${this.#setting.name}-information`;
+        // clang-format off
+        return html`
+          <devtools-button
+            class="info-icon"
+            aria-details=${id}
+            aria-disabled=true
+            accessibleLabel=${learnMore.tooltip()}
+            .data=${data}
+          ></devtools-button>
+          <devtools-tooltip id=${id} variant="rich">
+            <span>${learnMore.tooltip()}</span><br />
+            ${url
+              ? html`<devtools-link
+                  href=${url}
+                  class="link"
+                  .jslogContext=${jsLogContext}
+                  >${i18nString(UIStrings.learnMore)}</devtools-link
+                >`
+              : Lit.nothing}
+          </devtools-tooltip>
+        `;
+        // clang-format on
+      }
+      if (url) {
+        const handleClick = (event: MouseEvent): void => {
+          Host.InspectorFrontendHost.InspectorFrontendHostInstance.openInNewTab(url);
+          event.consume();
+        };
+        data.iconName = 'help';
+        data.title = i18nString(UIStrings.learnMore);
+        // clang-format off
+        return html`<devtools-button
+          class="info-icon"
+          @click=${handleClick}
+          .data=${data}
+        ></devtools-button>`;
+        // clang-format on
+      }
     }
 
     return undefined;
+  }
+
+  get checked(): boolean {
+    if (!this.#setting || this.#setting.disabledReasons().length > 0) {
+      return false;
+    }
+
+    return this.#setting.get();
   }
 
   #render(): void {
@@ -101,7 +137,7 @@ export class SettingCheckbox extends HTMLElement {
     }
 
     const icon = this.icon();
-    const title = `${this.#setting.learnMore() ? this.#setting.learnMore()?.tooltip() : ''}`;
+    const title = `${this.#setting.learnMore() ? this.#setting.learnMore()?.tooltip?.() : ''}`;
     const disabledReasons = this.#setting.disabledReasons();
     const reason = disabledReasons.length ?
         html`
@@ -112,14 +148,16 @@ export class SettingCheckbox extends HTMLElement {
         Lit.nothing;
     Lit.render(
         html`
+      <style>${Input.checkboxStyles}</style>
+      <style>${settingCheckboxStyles}</style>
       <p>
         <label title=${title}>
           <input
             type="checkbox"
-            .checked=${disabledReasons.length ? false : this.#setting.get()}
+            .checked=${this.checked}
             ?disabled=${this.#setting.disabled()}
             @change=${this.#checkboxChanged}
-            jslog=${VisualLogging.toggle().track({click: true}).context(this.#setting.name)}
+            jslog=${VisualLogging.toggle().track({change: true}).context(this.#setting.name)}
             aria-label=${this.#setting.title()}
           />
           ${this.#textOverride || this.#setting.title()}${reason}
@@ -138,6 +176,7 @@ export class SettingCheckbox extends HTMLElement {
   }
 }
 
+// eslint-disable-next-line @devtools/enforce-custom-element-prefix
 customElements.define('setting-checkbox', SettingCheckbox);
 
 declare global {

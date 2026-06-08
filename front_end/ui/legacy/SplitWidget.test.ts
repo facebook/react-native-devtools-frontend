@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,6 +26,14 @@ describeWithEnvironment('SplitWidget', () => {
       // Now it toggles to make it visible again
       assert.isTrue(widget.toggleSidebar());
     });
+  });
+
+  it('can be set to vertical and back', () => {
+    const widget = new SplitWidget(false, false);
+    widget.setVertical(true);
+    assert.isTrue(widget.isVertical());
+    widget.setVertical(false);
+    assert.isFalse(widget.isVertical());
   });
 
   it('can be instantiated from the template', async () => {

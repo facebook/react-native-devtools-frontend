@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,6 +7,7 @@ import {
   setupActionRegistry,
 } from '../../testing/EnvironmentHelpers.js';
 import * as RenderCoordinator from '../../ui/components/render_coordinator/render_coordinator.js';
+import * as UI from '../../ui/legacy/legacy.js';
 
 import * as Components from './components/components.js';
 import * as Models from './models/models.js';
@@ -40,7 +41,7 @@ describeWithEnvironment('RecorderController', () => {
   }
 
   describe('Navigation', () => {
-    it('should return back to the previous page on recordingcancelled event', async () => {
+    it('should return back to the previous page if recording was cancelled', async () => {
       const previousPage = RecorderController.Pages.ALL_RECORDINGS_PAGE;
       const controller = new RecorderController.RecorderController();
       controller.setCurrentPageForTesting(previousPage);
@@ -50,14 +51,7 @@ describeWithEnvironment('RecorderController', () => {
       controller.connectedCallback();
       await RenderCoordinator.done();
 
-      const createRecordingView = controller.shadowRoot?.querySelector(
-          'devtools-create-recording-view',
-      );
-      assert.isOk(createRecordingView);
-      createRecordingView?.dispatchEvent(
-          new Components.CreateRecordingView.RecordingCancelledEvent(),
-      );
-
+      await controller.onRecordingCancelled();
       assert.strictEqual(controller.getCurrentPageForTesting(), previousPage);
     });
   });
@@ -67,9 +61,15 @@ describeWithEnvironment('RecorderController', () => {
         controller: RecorderController.RecorderController,
         event: Event,
         ): Promise<void> {
-      const recordingView = controller.shadowRoot?.querySelector(
-          'devtools-recording-view',
+      const recordingViewWidgetElement = controller.shadowRoot?.querySelector<HTMLElement>(
+          '.recording-view',
       );
+      if (!recordingViewWidgetElement) {
+        throw new Error('Could not find RecordingView widget element');
+      }
+      const widget = UI.Widget.Widget.getOrCreateWidget(recordingViewWidgetElement);
+      await widget.updateComplete;
+      const recordingView = widget.contentElement?.querySelector('.recording-view');
       assert.isOk(recordingView);
       recordingView?.dispatchEvent(event);
       await RenderCoordinator.done();

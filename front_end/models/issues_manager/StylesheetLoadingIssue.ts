@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,39 +13,35 @@ export const lateImportStylesheetLoadingCode = [
   Protocol.Audits.StyleSheetLoadingIssueReason.LateImportRule,
 ].join('::');
 
-export class StylesheetLoadingIssue extends Issue {
-  #issueDetails: Protocol.Audits.StylesheetLoadingIssueDetails;
-  constructor(issueDetails: Protocol.Audits.StylesheetLoadingIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel) {
+export class StylesheetLoadingIssue extends Issue<Protocol.Audits.StylesheetLoadingIssueDetails> {
+  constructor(
+      issueDetails: Protocol.Audits.StylesheetLoadingIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel|null) {
     const code =
         `${Protocol.Audits.InspectorIssueCode.StylesheetLoadingIssue}::${issueDetails.styleSheetLoadingIssueReason}`;
-    super(code, issuesModel);
-    this.#issueDetails = issueDetails;
+    super(code, issueDetails, issuesModel);
   }
 
   override sources(): Protocol.Audits.SourceCodeLocation[] {
-    return [this.#issueDetails.sourceCodeLocation];
+    return [this.details().sourceCodeLocation];
   }
   override requests(): Protocol.Audits.AffectedRequest[] {
-    if (!this.#issueDetails.failedRequestInfo) {
+    const details = this.details();
+    if (!details.failedRequestInfo) {
       return [];
     }
-    const {url, requestId} = this.#issueDetails.failedRequestInfo;
+    const {url, requestId} = details.failedRequestInfo;
     if (!requestId) {
       return [];
     }
     return [{url, requestId}];
   }
 
-  details(): Protocol.Audits.StylesheetLoadingIssueDetails {
-    return this.#issueDetails;
-  }
-
   primaryKey(): string {
-    return JSON.stringify(this.#issueDetails);
+    return JSON.stringify(this.details());
   }
 
   getDescription(): MarkdownIssueDescription {
-    switch (this.#issueDetails.styleSheetLoadingIssueReason) {
+    switch (this.details().styleSheetLoadingIssueReason) {
       case Protocol.Audits.StyleSheetLoadingIssueReason.LateImportRule:
         return {
           file: 'stylesheetLateImport.md',
@@ -67,8 +63,9 @@ export class StylesheetLoadingIssue extends Issue {
     return IssueKind.PAGE_ERROR;
   }
 
-  static fromInspectorIssue(issueModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):
-      StylesheetLoadingIssue[] {
+  static fromInspectorIssue(
+      issueModel: SDK.IssuesModel.IssuesModel|null,
+      inspectorIssue: Protocol.Audits.InspectorIssue): StylesheetLoadingIssue[] {
     const stylesheetLoadingDetails = inspectorIssue.details.stylesheetLoadingIssueDetails;
     if (!stylesheetLoadingDetails) {
       console.warn('Stylesheet loading issue without details received');

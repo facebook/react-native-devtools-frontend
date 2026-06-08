@@ -1,6 +1,7 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -16,13 +17,13 @@ import {unescapeCssString} from './StylesSidebarPane.js';
 
 const UIStrings = {
   /**
-   *@description Text that is announced by the screen reader when the user focuses on an input field for entering the name of a CSS property in the Styles panel
-   *@example {margin} PH1
+   * @description Text that is announced by the screen reader when the user focuses on an input field for entering the name of a CSS property in the Styles panel
+   * @example {margin} PH1
    */
   cssPropertyName: '`CSS` property name: {PH1}',
   /**
-   *@description Text that is announced by the screen reader when the user focuses on an input field for entering the value of a CSS property in the Styles panel
-   *@example {10px} PH1
+   * @description Text that is announced by the screen reader when the user focuses on an input field for entering the value of a CSS property in the Styles panel
+   * @example {10px} PH1
    */
   cssPropertyValue: '`CSS` property value: {PH1}',
 } as const;
@@ -56,8 +57,10 @@ export function rendererBase<MatchT extends SDK.CSSPropertyParser.Match>(
   return RendererBase;
 }
 
-// This class implements highlighting for rendered nodes in value traces. On hover, all nodes belonging to the same
-// Match (using object identity) are highlighted.
+/**
+ * This class implements highlighting for rendered nodes in value traces. On hover, all nodes belonging to the same
+ * Match (using object identity) are highlighted.
+ **/
 export class Highlighting {
   static readonly REGISTRY_NAME = 'css-value-tracing';
   // This holds a stack of active ranges, the top-stack is the currently highlighted set. mouseenter and mouseleave
@@ -144,19 +147,21 @@ export class Highlighting {
   }
 }
 
-// This class is used to guide value tracing when passed to the Renderer. Tracing has two phases. First, substitutions
-// such as var() are applied step by step. In each step, all vars in the value are replaced by their definition until no
-// vars remain. In the second phase, we evaluate other functions such as calc() or min() or color-mix(). Which CSS
-// function types are actually substituted or evaluated is not relevant here, rather it is decided by an individual
-// MatchRenderer.
-//
-// Callers don't need to keep track of the tracing depth (i.e., the number of substitution/evaluation steps).
-// TracingContext is stateful and keeps track of the deps, so callers can progressively produce steps by calling
-// TracingContext#nextSubstitution or TracingContext#nextEvaluation. Calling Renderer with the tracing context will then
-// produce the next step of tracing. The tracing depth is passed to the individual MatchRenderers by way of
-// TracingContext#substitution or TracingContext#applyEvaluation/TracingContext#evaluation (see function-level comments
-// about how these two play together), which MatchRenderers call to request a fresh TracingContext for the next level of
-// substitution/evaluation.
+/**
+ * This class is used to guide value tracing when passed to the Renderer. Tracing has two phases. First, substitutions
+ * such as var() are applied step by step. In each step, all vars in the value are replaced by their definition until no
+ * vars remain. In the second phase, we evaluate other functions such as calc() or min() or color-mix(). Which CSS
+ * function types are actually substituted or evaluated is not relevant here, rather it is decided by an individual
+ * MatchRenderer.
+ *
+ * Callers don't need to keep track of the tracing depth (i.e., the number of substitution/evaluation steps).
+ * TracingContext is stateful and keeps track of the depth, so callers can progressively produce steps by calling
+ * TracingContext#nextSubstitution or TracingContext#nextEvaluation. Calling Renderer with the tracing context will then
+ * produce the next step of tracing. The tracing depth is passed to the individual MatchRenderers by way of
+ * TracingContext#substitution or TracingContext#applyEvaluation/TracingContext#evaluation (see function-level comments
+ * about how these two play together), which MatchRenderers call to request a fresh TracingContext for the next level of
+ * substitution/evaluation.
+ **/
 export class TracingContext {
   #substitutionDepth = 0;
   #hasMoreSubstitutions: boolean;
@@ -164,23 +169,46 @@ export class TracingContext {
   #evaluationCount = 0;
   #appliedEvaluations = 0;
   #hasMoreEvaluations = true;
+  #longhandOffset: number;
   readonly #highlighting: Highlighting;
   #parsedValueCache = new Map<SDK.CSSProperty.CSSProperty|SDK.CSSMatchedStyles.CSSRegisteredProperty, {
     matchedStyles: SDK.CSSMatchedStyles.CSSMatchedStyles,
     computedStyles: Map<string, string>,
     parsedValue: SDK.CSSPropertyParser.BottomUpTreeMatching|null,
   }>();
+  #root: {match: SDK.CSSPropertyParser.Match, context: RenderingContext}|null = null;
+  #propertyName: string|null;
+  #asyncEvalCallbacks: Array<(() => Promise<boolean>)|undefined> = [];
+  readonly expandPercentagesInShorthands: boolean;
 
-  constructor(highlighting: Highlighting, matchedResult?: SDK.CSSPropertyParser.BottomUpTreeMatching) {
+  constructor(
+      highlighting: Highlighting, expandPercentagesInShorthands: boolean, initialLonghandOffset = 0,
+      matchedResult?: SDK.CSSPropertyParser.BottomUpTreeMatching) {
     this.#highlighting = highlighting;
     this.#hasMoreSubstitutions =
         matchedResult?.hasMatches(
-            SDK.CSSPropertyParserMatchers.VariableMatch, SDK.CSSPropertyParserMatchers.BaseVariableMatch) ??
+            SDK.CSSPropertyParserMatchers.VariableMatch, SDK.CSSPropertyParserMatchers.BaseVariableMatch,
+            SDK.CSSPropertyParserMatchers.AttributeMatch, SDK.CSSPropertyParserMatchers.EnvFunctionMatch) ??
         false;
+    this.#propertyName = matchedResult?.ast.propertyName ?? null;
+    this.#longhandOffset = initialLonghandOffset;
+    this.expandPercentagesInShorthands = expandPercentagesInShorthands;
   }
 
   get highlighting(): Highlighting {
     return this.#highlighting;
+  }
+
+  get root(): {match: SDK.CSSPropertyParser.Match, context: RenderingContext}|null {
+    return this.#root;
+  }
+
+  get propertyName(): string|null {
+    return this.#propertyName;
+  }
+
+  get longhandOffset(): number {
+    return this.#longhandOffset;
   }
 
   renderingContext(context: RenderingContext): RenderingContext {
@@ -195,6 +223,7 @@ export class TracingContext {
     }
     this.#substitutionDepth++;
     this.#hasMoreSubstitutions = false;
+    this.#asyncEvalCallbacks = [];
     return true;
   }
 
@@ -208,11 +237,8 @@ export class TracingContext {
     this.#appliedEvaluations = 0;
     this.#hasMoreEvaluations = false;
     this.#evaluationCount++;
+    this.#asyncEvalCallbacks = [];
     return true;
-  }
-
-  didApplyEvaluations(): boolean {
-    return this.#appliedEvaluations > 0;
   }
 
   #setHasMoreEvaluations(value: boolean): void {
@@ -225,14 +251,17 @@ export class TracingContext {
   // Evaluations are applied bottom up, i.e., innermost sub-expressions are evaluated first before evaluating any
   // function call. This function produces TracingContexts for each of the arguments of the function call which should
   // be passed to the Renderer calls for the respective subtrees.
-  evaluation(args: unknown[]): TracingContext[]|null {
+  evaluation(args: unknown[], root: {match: SDK.CSSPropertyParser.Match, context: RenderingContext}|null = null):
+      TracingContext[]|null {
     const childContexts = args.map(() => {
-      const child = new TracingContext(this.#highlighting);
+      const child = new TracingContext(this.#highlighting, this.expandPercentagesInShorthands);
       child.#parent = this;
       child.#substitutionDepth = this.#substitutionDepth;
       child.#evaluationCount = this.#evaluationCount;
       child.#hasMoreSubstitutions = this.#hasMoreSubstitutions;
       child.#parsedValueCache = this.#parsedValueCache;
+      child.#root = root;
+      child.#propertyName = this.propertyName;
       return child;
     });
     return childContexts;
@@ -245,16 +274,24 @@ export class TracingContext {
     this.#appliedEvaluations = Math.max(this.#appliedEvaluations, value);
   }
 
-  // After rendering the arguments of a function call, the TracingContext produced by TracingContext#evaluation need
-  // to be passed here to determine whether the "current" function call should be evaluated or not.
-  applyEvaluation(children: TracingContext[]): boolean {
+  // After rendering the arguments of a function call, the TracingContext produced by TracingContext#evaluation need to
+  // be passed here to determine whether the "current" function call should be evaluated or not. If so, the
+  // evaluation callback is run. The callback should return synchronously an array of Nodes as placeholder to be
+  // rendered immediately and optionally a callback for asynchronous updates of the placeholder nodes. The callback
+  // returns a boolean indicating whether the update was successful or not.
+  applyEvaluation(
+      children: TracingContext[],
+      evaluation: () => ({placeholder: Node[], asyncEvalCallback?: () => Promise<boolean>})): Node[]|null {
     if (this.#evaluationCount === 0 || children.some(child => child.#appliedEvaluations >= this.#evaluationCount)) {
       this.#setHasMoreEvaluations(true);
-      return false;
+      children.forEach(child => this.#asyncEvalCallbacks.push(...child.#asyncEvalCallbacks));
+      return null;
     }
     this.#setAppliedEvaluations(
         children.map(child => child.#appliedEvaluations).reduce((a, b) => Math.max(a, b), 0) + 1);
-    return true;
+    const {placeholder, asyncEvalCallback} = evaluation();
+    this.#asyncEvalCallbacks.push(asyncEvalCallback);
+    return placeholder;
   }
 
   #setHasMoreSubstitutions(): void {
@@ -267,17 +304,25 @@ export class TracingContext {
   // Request a tracing context for the next level of substitutions. If this returns null, no further substitution should
   // be applied on this branch of the AST. Otherwise, the TracingContext should be passed to the Renderer call for the
   // substitution subtree.
-  substitution(): TracingContext|null {
+  substitution(root: {match: SDK.CSSPropertyParser.Match, context: RenderingContext}|null = null): TracingContext|null {
     if (this.#substitutionDepth <= 0) {
       this.#setHasMoreSubstitutions();
       return null;
     }
-    const child = new TracingContext(this.#highlighting);
+    const child = new TracingContext(this.#highlighting, this.expandPercentagesInShorthands);
     child.#parent = this;
     child.#substitutionDepth = this.#substitutionDepth - 1;
     child.#evaluationCount = this.#evaluationCount;
     child.#hasMoreSubstitutions = false;
     child.#parsedValueCache = this.#parsedValueCache;
+    child.#root = root;
+    // Async evaluation callbacks need to be gathered across substitution contexts so that they bubble to the root. That
+    // is not the case for evaluation contexts since `applyEvaluation` conditionally collects callbacks for its subtree
+    // already.
+    child.#asyncEvalCallbacks = this.#asyncEvalCallbacks;
+    child.#longhandOffset =
+        this.#longhandOffset + (root?.context.matchedResult.getComputedLonghandName(root?.match.node) ?? 0);
+    child.#propertyName = this.propertyName;
     return child;
   }
 
@@ -293,6 +338,12 @@ export class TracingContext {
     this.#parsedValueCache.set(declaration, {matchedStyles, computedStyles, parsedValue});
     return parsedValue;
   }
+
+  // If this returns `false`, all evaluations for this trace line have failed.
+  async runAsyncEvaluations(): Promise<boolean> {
+    const results = await Promise.all(this.#asyncEvalCallbacks.map(callback => callback?.()));
+    return results.some(result => result !== false);
+  }
 }
 
 export class RenderingContext {
@@ -303,7 +354,7 @@ export class RenderingContext {
               MatchRenderer<SDK.CSSPropertyParser.Match>>,
       readonly matchedResult: SDK.CSSPropertyParser.BottomUpTreeMatching,
       readonly cssControls?: SDK.CSSPropertyParser.CSSControlMap, readonly options: {readonly?: boolean} = {},
-      readonly tracing?: TracingContext) {
+      readonly tracing?: TracingContext, readonly signal?: AbortSignal) {
   }
 
   addControl(cssType: string, control: HTMLElement): void {
@@ -315,6 +366,34 @@ export class RenderingContext {
         controls.push(control);
       }
     }
+  }
+
+  getComputedLonghandName(node: CodeMirror.SyntaxNode): string|null {
+    if (!this.matchedResult.ast.propertyName) {
+      return null;
+    }
+    const longhands =
+        SDK.CSSMetadata.cssMetadata().getLonghands(this.tracing?.propertyName ?? this.matchedResult.ast.propertyName);
+    if (!longhands) {
+      return null;
+    }
+    const index = this.matchedResult.getComputedLonghandName(node);
+    return longhands[index + (this.tracing?.longhandOffset ?? 0)] ?? null;
+  }
+
+  findParent<MatchT extends SDK.CSSPropertyParser.Match>(
+      node: CodeMirror.SyntaxNode|null, matchType: Platform.Constructor.Constructor<MatchT>): MatchT|null {
+    while (node) {
+      const match = this.matchedResult.getMatch(node);
+      if (match instanceof matchType) {
+        return match;
+      }
+      node = node.parent;
+    }
+    if (this.tracing?.root) {
+      return this.tracing.root.context.findParent(this.tracing.root.match.node, matchType);
+    }
+    return null;
   }
 }
 
@@ -335,11 +414,12 @@ export class Renderer extends SDK.CSSPropertyParser.TreeWalker {
         readonly?: boolean,
       },
       tracing: TracingContext|undefined,
+      signal: AbortSignal|undefined,
   ) {
     super(ast);
     this.#matchedResult = matchedResult;
     this.#context =
-        new RenderingContext(this.ast, property, renderers, this.#matchedResult, cssControls, options, tracing);
+        new RenderingContext(this.ast, property, renderers, this.#matchedResult, cssControls, options, tracing, signal);
   }
 
   static render(nodeOrNodes: CodeMirror.SyntaxNode|CodeMirror.SyntaxNode[], context: RenderingContext):
@@ -351,8 +431,8 @@ export class Renderer extends SDK.CSSPropertyParser.TreeWalker {
     const renderers = nodeOrNodes.map(
         node => this.walkExcludingSuccessors(
             context.ast.subtree(node), context.property, context.renderers, context.matchedResult, cssControls,
-            context.options, context.tracing));
-    const nodes = renderers.map(node => node.#output).reduce(mergeWithSpacing);
+            context.options, context.tracing, context.signal));
+    const nodes = renderers.map(node => node.#output).reduce(mergeWithSpacing, []);
     return {nodes, cssControls};
   }
 
@@ -397,6 +477,7 @@ export class Renderer extends SDK.CSSPropertyParser.TreeWalker {
     nameElement.className = 'webkit-css-property';
     nameElement.textContent = name;
     nameElement.normalize();
+    nameElement.tabIndex = -1;
     return nameElement;
   }
 
@@ -411,8 +492,8 @@ export class Renderer extends SDK.CSSPropertyParser.TreeWalker {
   static renderValueElement(
       property: SDK.CSSProperty.CSSProperty|{name: string, value: string},
       matchedResult: SDK.CSSPropertyParser.BottomUpTreeMatching|null,
-      renderers: Array<MatchRenderer<SDK.CSSPropertyParser.Match>>,
-      tracing?: TracingContext): {valueElement: HTMLElement, cssControls: SDK.CSSPropertyParser.CSSControlMap} {
+      renderers: Array<MatchRenderer<SDK.CSSPropertyParser.Match>>, tracing?: TracingContext,
+      signal?: AbortSignal): {valueElement: HTMLElement, cssControls: SDK.CSSPropertyParser.CSSControlMap} {
     const valueElement = document.createElement('span');
     valueElement.setAttribute(
         'jslog', `${VisualLogging.value().track({
@@ -421,7 +502,8 @@ export class Renderer extends SDK.CSSPropertyParser.TreeWalker {
         })}`);
     UI.ARIAUtils.setLabel(valueElement, i18nString(UIStrings.cssPropertyValue, {PH1: property.value}));
     valueElement.className = 'value';
-    const {nodes, cssControls} = this.renderValueNodes(property, matchedResult, renderers, tracing);
+    valueElement.tabIndex = -1;
+    const {nodes, cssControls} = this.renderValueNodes(property, matchedResult, renderers, tracing, signal);
     nodes.forEach(node => valueElement.appendChild(node));
     valueElement.normalize();
     return {valueElement, cssControls};
@@ -430,8 +512,8 @@ export class Renderer extends SDK.CSSPropertyParser.TreeWalker {
   static renderValueNodes(
       property: SDK.CSSProperty.CSSProperty|{name: string, value: string},
       matchedResult: SDK.CSSPropertyParser.BottomUpTreeMatching|null,
-      renderers: Array<MatchRenderer<SDK.CSSPropertyParser.Match>>,
-      tracing?: TracingContext): {nodes: Node[], cssControls: SDK.CSSPropertyParser.CSSControlMap} {
+      renderers: Array<MatchRenderer<SDK.CSSPropertyParser.Match>>, tracing?: TracingContext,
+      signal?: AbortSignal): {nodes: Node[], cssControls: SDK.CSSPropertyParser.CSSControlMap} {
     if (!matchedResult) {
       return {nodes: [document.createTextNode(property.value)], cssControls: new Map()};
     }
@@ -443,7 +525,7 @@ export class Renderer extends SDK.CSSPropertyParser.TreeWalker {
 
     const context = new RenderingContext(
         matchedResult.ast, property instanceof SDK.CSSProperty.CSSProperty ? property : null, rendererMap,
-        matchedResult, undefined, {}, tracing);
+        matchedResult, undefined, {}, tracing, signal);
     return Renderer.render([matchedResult.ast.tree, ...matchedResult.ast.trailingNodes], context);
   }
 }
@@ -459,7 +541,7 @@ export class URLRenderer extends rendererBase(SDK.CSSPropertyParserMatchers.URLM
     const container = document.createDocumentFragment();
     UI.UIUtils.createTextChild(container, 'url(');
     let hrefUrl: Platform.DevToolsPath.UrlString|null = null;
-    if (this.rule && this.rule.resourceURL()) {
+    if (this.rule?.resourceURL()) {
       hrefUrl = Common.ParsedURL.ParsedURL.completeURL(this.rule.resourceURL(), url);
     } else if (this.node) {
       hrefUrl = this.node.resolveURL(url);

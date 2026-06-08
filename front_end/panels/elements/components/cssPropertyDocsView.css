@@ -1,11 +1,11 @@
 /*
- * Copyright 2023 The Chromium Authors. All rights reserved.
+ * Copyright 2023 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
 
 .docs-popup-wrapper {
-  max-width: 350px;
+  max-width: 420px;
   font-size: 12px;
   line-height: 1.4;
 }
@@ -31,7 +31,13 @@
   justify-content: space-between;
 }
 
-.dont-show {
+#baseline {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+#baseline-icon {
+  width: 18px;
+  height: 18px;
 }

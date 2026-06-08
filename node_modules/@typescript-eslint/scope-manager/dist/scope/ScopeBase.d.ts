@@ -59,7 +59,7 @@ export declare abstract class ScopeBase<Type extends ScopeType, Block extends TS
      * The {@link Reference}s that are not resolved with this scope.
      * @public
      */
-    readonly through: Reference[];
+    through: Reference[];
     readonly type: Type;
     /**
      * Reference to the parent {@link Scope}.
@@ -77,8 +77,7 @@ export declare abstract class ScopeBase<Type extends ScopeType, Block extends TS
     readonly variableScope: VariableScope;
     constructor(scopeManager: ScopeManager, type: Type, upperScope: Upper, block: Block, isMethodDefinition: boolean);
     private isVariableScope;
-    private shouldStaticallyCloseForGlobal;
-    close(scopeManager: ScopeManager): Scope | null;
+    close(_scopeManager: ScopeManager): Scope | null;
     shouldStaticallyClose(): boolean;
     /**
      * To override by function scopes.
@@ -95,4 +94,3 @@ export declare abstract class ScopeBase<Type extends ScopeType, Block extends TS
     referenceValue(node: TSESTree.Identifier | TSESTree.JSXIdentifier, assign?: ReferenceFlag, writeExpr?: TSESTree.Expression | null, maybeImplicitGlobal?: ReferenceImplicitGlobal | null, init?: boolean): void;
 }
 export {};
-//# sourceMappingURL=ScopeBase.d.ts.map

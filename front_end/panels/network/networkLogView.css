@@ -1,31 +1,7 @@
 /*
- * Copyright (C) 2013 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ * Copyright 2013 The Chromium Authors
+ * Use of this source code is governed by a BSD-style license that can be
+ * found in the LICENSE file.
  */
 
 .network-log-grid.data-grid {
@@ -146,7 +122,7 @@
   color: inherit;
   background-color: transparent;
   outline-offset: 0;
-  height: 16px;
+  max-height: 16px;
 }
 
 .network-error-row,
@@ -155,6 +131,7 @@
   color: var(--sys-color-error) !important;
 }
 
+.network-throttled-row,
 .network-warning-row,
 .network-warning-row .network-cell-subtitle {
   color: var(--sys-color-yellow);
@@ -196,6 +173,13 @@
 .network-log-grid.data-grid:focus tr.selected .network-cell-subtitle,
 .network-log-grid.data-grid:focus tr.selected .network-dim-cell {
   color: var(--sys-color-on-tonal-container);
+}
+
+.network-log-grid.data-grid tr.selected.network-throttled-row,
+.network-log-grid.data-grid tr.selected.network-throttled-row .devtools-link,
+.network-log-grid.data-grid tr.selected.network-throttled-row .network-cell-subtitle,
+.network-log-grid.data-grid tr.selected.network-throttled-row .network-dim-cell {
+  color: var(--sys-color-yellow);
 }
 
 .network-header-subtitle {
@@ -250,6 +234,33 @@
   filter: brightness(0) saturate(100%) invert(35%) sepia(76%) saturate(1413%) hue-rotate(338deg) brightness(92%) contrast(103%);
 }
 
+.network-throttled-row {
+  devtools-icon {
+    color: var(--sys-color-yellow);
+    vertical-align: middle;
+    width: 16px;
+    height: 16px;
+  }
+
+  .image.icon::before,
+  devtools-icon.icon::before {
+    background-color: var(--sys-color-yellow);
+    content: var(--image-file-empty);
+    width: 35%;
+    height: 35%;
+    border-radius: 50%;
+    outline: var(--sys-size-1) solid var(--icon-gap-focus-selected);
+    top: 60%;
+    left: 55%;
+    position: absolute;
+    z-index: 1;
+  }
+}
+
+td.time-column {
+  vertical-align: middle;
+}
+
 .data-grid-data-grid-node devtools-icon[name="arrow-up-down-circle"],
 .network-log-grid.data-grid.small .icon {
   width: 16px;
@@ -260,6 +271,12 @@
 .data-grid-data-grid-node .ai-button-container {
   display: none;
   float: right;
+
+  devtools-floating-button {
+    position: absolute;
+    z-index: 999;
+    margin-left: -17px;
+  }
 }
 
 .data-grid-data-grid-node:hover .ai-button-container {

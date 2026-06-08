@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,6 +9,14 @@ import * as Root from './root.js';
 describe('Runtime', () => {
   beforeEach(() => {
     Root.Runtime.experiments.clearForTest();
+  });
+
+  it('getChromeVersion result has the correct shape', () => {
+    const version = Root.Runtime.getChromeVersion();
+    if (!version) {
+      return;
+    }
+    assert.isTrue(/^\d{3}\.0\.0\.0$/.test(version));
   });
 
   describe('Module', () => {
@@ -54,15 +62,159 @@ describe('Runtime', () => {
   });
 
   it('allConfigurableExperiments returns all registered experiments', () => {
-    Root.Runtime.experiments.register('example', 'example' as Platform.UIString.LocalizedString);
-    Root.Runtime.experiments.register('configurable', 'configurable' as Platform.UIString.LocalizedString);
+    Root.Runtime.experiments.register(
+        Root.ExperimentNames.ExperimentName.FONT_EDITOR, 'font editor' as Platform.UIString.LocalizedString);
+    const dummyExperiment = 'dummy-experiment' as Root.ExperimentNames.ExperimentName;
+    Root.Runtime.experiments.register(dummyExperiment, 'dummy experiment' as Platform.UIString.LocalizedString);
 
     const experiments = Root.Runtime.experiments.allConfigurableExperiments();
 
-    assert.deepEqual(experiments.map(experiment => experiment.name), ['example', 'configurable']);
+    assert.deepEqual(
+        experiments.map(experiment => experiment.name),
+        [Root.ExperimentNames.ExperimentName.FONT_EDITOR, dummyExperiment]);
   });
 
-  it('getChromeVersion result has the correct shape', () => {
-    assert.isTrue(/^\d{3}\.0\.0\.0$/.test(Root.Runtime.getChromeVersion()));
+  describe('ExperimentsSupport', () => {
+    beforeEach(() => {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('experiments');
+      }
+    });
+
+    it('throws for unknown experiment', () => {
+      const support = new Root.Runtime.ExperimentsSupport();
+      assert.throws(() => support.isEnabled('test-experiment' as Root.ExperimentNames.ExperimentName));
+    });
+
+    it('throws if registering the same experiment twice', () => {
+      const support = new Root.Runtime.ExperimentsSupport();
+      support.register(
+          'experiment' as Root.ExperimentNames.ExperimentName, 'experiment title' as Platform.UIString.LocalizedString);
+      assert.throws(() => {
+        support.register(
+            'experiment' as Root.ExperimentNames.ExperimentName,
+            'experiment title' as Platform.UIString.LocalizedString);
+      });
+    });
+
+    it('registers an experiment', () => {
+      const support = new Root.Runtime.ExperimentsSupport();
+      support.register(
+          'experiment' as Root.ExperimentNames.ExperimentName, 'experiment title' as Platform.UIString.LocalizedString);
+      assert.isFalse(support.isEnabled('experiment' as Root.ExperimentNames.ExperimentName));
+      support.setEnabled('experiment' as Root.ExperimentNames.ExperimentName, true);
+      assert.isTrue(support.isEnabled('experiment' as Root.ExperimentNames.ExperimentName));
+    });
+
+    it('registers a host experiment', () => {
+      const support = new Root.Runtime.ExperimentsSupport();
+      support.registerHostExperiment({
+        name: 'experiment' as Root.ExperimentNames.ExperimentName,
+        title: 'experiment title',
+        aboutFlag: 'about:flag',
+        isEnabled: false,
+        requiresChromeRestart: false,
+      });
+      assert.isFalse(support.isEnabled('experiment' as Root.ExperimentNames.ExperimentName));
+    });
+
+    it('enables a host experiment', () => {
+      const support = new Root.Runtime.ExperimentsSupport();
+      support.registerHostExperiment({
+        name: 'experiment' as Root.ExperimentNames.ExperimentName,
+        title: 'experiment title',
+        aboutFlag: 'about:flag',
+        isEnabled: false,
+        requiresChromeRestart: false,
+      });
+      support.setEnabled('experiment' as Root.ExperimentNames.ExperimentName, true);
+      assert.isTrue(support.isEnabled('experiment' as Root.ExperimentNames.ExperimentName));
+    });
+
+    it('enables an experiment by default', () => {
+      const support = new Root.Runtime.ExperimentsSupport();
+      support.register(
+          'experiment' as Root.ExperimentNames.ExperimentName, 'experiment title' as Platform.UIString.LocalizedString);
+      support.enableExperimentsByDefault(['experiment' as Root.ExperimentNames.ExperimentName]);
+      assert.isTrue(support.isEnabled('experiment' as Root.ExperimentNames.ExperimentName));
+    });
+
+    it('enables an experiment via the server', () => {
+      const support = new Root.Runtime.ExperimentsSupport();
+      support.register(
+          'experiment' as Root.ExperimentNames.ExperimentName, 'experiment title' as Platform.UIString.LocalizedString);
+      support.setServerEnabledExperiments(['experiment' as Root.ExperimentNames.ExperimentName]);
+      assert.isTrue(support.isEnabled('experiment' as Root.ExperimentNames.ExperimentName));
+    });
+
+    it('enables a host experiment via initialization', () => {
+      const support = new Root.Runtime.ExperimentsSupport();
+      support.registerHostExperiment({
+        name: 'experiment' as Root.ExperimentNames.ExperimentName,
+        title: 'experiment title',
+        aboutFlag: 'about:flag',
+        isEnabled: true,
+        requiresChromeRestart: false,
+      });
+      assert.isTrue(support.isEnabled('experiment' as Root.ExperimentNames.ExperimentName));
+    });
+
+    it('enables an experiment for test', () => {
+      const support = new Root.Runtime.ExperimentsSupport();
+      support.register(
+          'experiment' as Root.ExperimentNames.ExperimentName, 'experiment title' as Platform.UIString.LocalizedString);
+      assert.isFalse(support.isEnabled('experiment' as Root.ExperimentNames.ExperimentName));
+      support.enableForTest('experiment' as Root.ExperimentNames.ExperimentName);
+      assert.isTrue(support.isEnabled('experiment' as Root.ExperimentNames.ExperimentName));
+    });
+
+    it('enables a host experiment for test', () => {
+      const support = new Root.Runtime.ExperimentsSupport();
+      support.registerHostExperiment({
+        name: 'experiment' as Root.ExperimentNames.ExperimentName,
+        title: 'experiment title',
+        aboutFlag: 'about:flag',
+        isEnabled: false,
+        requiresChromeRestart: false,
+      });
+      assert.isFalse(support.isEnabled('experiment' as Root.ExperimentNames.ExperimentName));
+      support.enableForTest('experiment' as Root.ExperimentNames.ExperimentName);
+      assert.isTrue(support.isEnabled('experiment' as Root.ExperimentNames.ExperimentName));
+    });
+
+    it('throws if registering a host experiment with the same name as an existing experiment', () => {
+      const support = new Root.Runtime.ExperimentsSupport();
+      support.register(
+          'experiment' as Root.ExperimentNames.ExperimentName, 'experiment title' as Platform.UIString.LocalizedString);
+      assert.throws(() => {
+        support.registerHostExperiment({
+          name: 'experiment' as Root.ExperimentNames.ExperimentName,
+          title: 'experiment title',
+          aboutFlag: 'about:flag',
+          isEnabled: false,
+          requiresChromeRestart: false,
+        });
+      });
+    });
+
+    it('throws if registering a host experiment with the same name as an existing host experiment', () => {
+      const support = new Root.Runtime.ExperimentsSupport();
+      support.registerHostExperiment({
+        name: 'experiment' as Root.ExperimentNames.ExperimentName,
+        title: 'experiment title',
+        aboutFlag: 'about:flag',
+        isEnabled: false,
+        requiresChromeRestart: false,
+      });
+      assert.throws(() => {
+        support.registerHostExperiment({
+          name: 'experiment' as Root.ExperimentNames.ExperimentName,
+          title: 'experiment title',
+          aboutFlag: 'about:flag',
+          isEnabled: false,
+          requiresChromeRestart: false,
+        });
+      });
+    });
   });
 });

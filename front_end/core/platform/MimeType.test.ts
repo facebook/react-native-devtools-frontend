@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -181,6 +181,7 @@ describe('isTextType', () => {
     ['application/manifest+json', true],
     ['multipart/mixed', true],
     ['application/vnd.linkedin.normalized+json+2.1', true],
+    ['application/x-amz-json-1.0', true],
   ]);
 
   it('determines if a mime type has text content', () => {

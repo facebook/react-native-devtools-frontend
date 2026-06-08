@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,15 +11,11 @@ import type {MarkdownIssueDescription} from './MarkdownIssueDescription.js';
 
 const UIStrings = {
   /**
-   *@description Label for the link for CORS Local Network Access issues
+   * @description Label for the link for CORS Local Network Access issues
    */
   corsLocalNetworkAccess: 'Local Network Access',
   /**
-   *@description Label for the link for CORS private network issues
-   */
-  corsPrivateNetworkAccess: 'Private Network Access',
-  /**
-   *@description Label for the link for CORS network issues
+   * @description Label for the link for CORS network issues
    */
   CORS: 'Cross-Origin Resource Sharing (`CORS`)',
 } as const;
@@ -27,7 +23,7 @@ const str_ = i18n.i18n.registerUIStrings('models/issues_manager/CorsIssue.ts', U
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export const enum IssueCode {
-  INSECURE_PRIVATE_NETWORK = 'CorsIssue::InsecurePrivateNetwork',
+  INSECURE_LOCAL_NETWORK = 'CorsIssue::InsecureLocalNetwork',
   INVALID_HEADER_VALUES = 'CorsIssue::InvalidHeaders',
   WILDCARD_ORIGN_NOT_ALLOWED = 'CorsIssue::WildcardOriginWithCredentials',
   PREFLIGHT_RESPONSE_INVALID = 'CorsIssue::PreflightResponseInvalid',
@@ -43,13 +39,8 @@ export const enum IssueCode {
   // TODO(https://crbug.com/1263483): Remove this once it's removed from CDP.
   PREFLIGHT_INVALID_ALLOW_EXTERNAL = 'CorsIssue::PreflightInvalidAllowExternal',
   NO_CORS_REDIRECT_MODE_NOT_FOLLOW = 'CorsIssue::NoCorsRedirectModeNotFollow',
-  INVALID_PRIVATE_NETWORK_ACCESS = 'CorsIssue::InvalidPrivateNetworkAccess',
-  UNEXPECTED_PRIVATE_NETWORK_ACCESS = 'CorsIssue::UnexpectedPrivateNetworkAccess',
-  PREFLIGHT_ALLOW_PRIVATE_NETWORK_ERROR = 'CorsIssue::PreflightAllowPrivateNetworkError',
-  PREFLIGHT_MISSING_PRIVATE_NETWORK_ACCESS_ID = 'CorsIssue::PreflightMissingPrivateNetworkAccessId',
-  PREFLIGHT_MISSING_PRIVATE_NETWORK_ACCESS_NAME = 'CorsIssue::PreflightMissingPrivateNetworkAccessName',
-  PRIVATE_NETWORK_ACCESS_PERMISSION_UNAVAILABLE = 'CorsIssue::PrivateNetworkAccessPermissionUnavailable',
-  PRIVATE_NETWORK_ACCESS_PERMISSION_DENIED = 'CorsIssue::PrivateNetworkAccessPermissionDenied',
+
+  INVALID_LOCAL_NETWORK_ACCESS = 'CorsIssue::InvalidLocalNetworkAccess',
   LOCAL_NETWORK_ACCESS_PERMISSION_DENIED = 'CorsIssue::LocalNetworkAccessPermissionDenied',
 }
 
@@ -91,66 +82,30 @@ function getIssueCode(details: Protocol.Audits.CorsIssueDetails): IssueCode {
       return IssueCode.PREFLIGHT_MISSING_ALLOW_EXTERNAL;
     case Protocol.Network.CorsError.PreflightInvalidAllowExternal:
       return IssueCode.PREFLIGHT_INVALID_ALLOW_EXTERNAL;
-    case Protocol.Network.CorsError.InsecurePrivateNetwork:
-      return IssueCode.INSECURE_PRIVATE_NETWORK;
+    case Protocol.Network.CorsError.InsecureLocalNetwork:
+      return IssueCode.INSECURE_LOCAL_NETWORK;
     case Protocol.Network.CorsError.NoCorsRedirectModeNotFollow:
       return IssueCode.NO_CORS_REDIRECT_MODE_NOT_FOLLOW;
-    case Protocol.Network.CorsError.InvalidPrivateNetworkAccess:
-      return IssueCode.INVALID_PRIVATE_NETWORK_ACCESS;
-    case Protocol.Network.CorsError.UnexpectedPrivateNetworkAccess:
-      return IssueCode.UNEXPECTED_PRIVATE_NETWORK_ACCESS;
-    case Protocol.Network.CorsError.PreflightMissingAllowPrivateNetwork:
-    case Protocol.Network.CorsError.PreflightInvalidAllowPrivateNetwork:
-      return IssueCode.PREFLIGHT_ALLOW_PRIVATE_NETWORK_ERROR;
-    case Protocol.Network.CorsError.PreflightMissingPrivateNetworkAccessId:
-      return IssueCode.PREFLIGHT_MISSING_PRIVATE_NETWORK_ACCESS_ID;
-    case Protocol.Network.CorsError.PreflightMissingPrivateNetworkAccessName:
-      return IssueCode.PREFLIGHT_MISSING_PRIVATE_NETWORK_ACCESS_NAME;
-    case Protocol.Network.CorsError.PrivateNetworkAccessPermissionUnavailable:
-      return IssueCode.PRIVATE_NETWORK_ACCESS_PERMISSION_UNAVAILABLE;
-    case Protocol.Network.CorsError.PrivateNetworkAccessPermissionDenied:
-      return IssueCode.PRIVATE_NETWORK_ACCESS_PERMISSION_DENIED;
+    case Protocol.Network.CorsError.InvalidLocalNetworkAccess:
+      return IssueCode.INVALID_LOCAL_NETWORK_ACCESS;
     case Protocol.Network.CorsError.LocalNetworkAccessPermissionDenied:
       return IssueCode.LOCAL_NETWORK_ACCESS_PERMISSION_DENIED;
   }
 }
 
-export class CorsIssue extends Issue<IssueCode> {
-  #issueDetails: Protocol.Audits.CorsIssueDetails;
-
+export class CorsIssue extends Issue<Protocol.Audits.CorsIssueDetails, IssueCode> {
   constructor(
-      issueDetails: Protocol.Audits.CorsIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel,
+      issueDetails: Protocol.Audits.CorsIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel|null,
       issueId: Protocol.Audits.IssueId|undefined) {
-    super(getIssueCode(issueDetails), issuesModel, issueId);
-    this.#issueDetails = issueDetails;
+    super(getIssueCode(issueDetails), issueDetails, issuesModel, issueId);
   }
 
   getCategory(): IssueCategory {
     return IssueCategory.CORS;
   }
 
-  details(): Protocol.Audits.CorsIssueDetails {
-    return this.#issueDetails;
-  }
-
   getDescription(): MarkdownIssueDescription|null {
-    switch (getIssueCode(this.#issueDetails)) {
-      case IssueCode.INSECURE_PRIVATE_NETWORK:
-        return {
-          file: 'corsInsecurePrivateNetwork.md',
-          links: [{
-            link: 'https://developer.chrome.com/blog/private-network-access-update',
-            linkTitle: i18nString(UIStrings.corsPrivateNetworkAccess),
-          }],
-        };
-      case IssueCode.PREFLIGHT_ALLOW_PRIVATE_NETWORK_ERROR:
-        return {
-          file: 'corsPreflightAllowPrivateNetworkError.md',
-          links: [{
-            link: 'https://developer.chrome.com/blog/private-network-access-update',
-            linkTitle: i18nString(UIStrings.corsPrivateNetworkAccess),
-          }],
-        };
+    switch (getIssueCode(this.details())) {
       case IssueCode.INVALID_HEADER_VALUES:
         return {
           file: 'corsInvalidHeaderValues.md',
@@ -239,53 +194,36 @@ export class CorsIssue extends Issue<IssueCode> {
             linkTitle: i18nString(UIStrings.CORS),
           }],
         };
-      // TODO(1462857): Change the link after we have a blog post for PNA
-      // permission prompt.
-      case IssueCode.PREFLIGHT_MISSING_PRIVATE_NETWORK_ACCESS_ID:
-      case IssueCode.PREFLIGHT_MISSING_PRIVATE_NETWORK_ACCESS_NAME:
-        return {
-          file: 'corsPrivateNetworkPermissionDenied.md',
-          links: [{
-            link: 'https://developer.chrome.com/blog/private-network-access-update',
-            linkTitle: i18nString(UIStrings.corsPrivateNetworkAccess),
-          }],
-        };
+      case IssueCode.INSECURE_LOCAL_NETWORK:
       case IssueCode.LOCAL_NETWORK_ACCESS_PERMISSION_DENIED:
         return {
           file: 'corsLocalNetworkAccessPermissionDenied.md',
           links: [{
-            link: 'https://chromestatus.com/feature/5152728072060928',
+            link: 'https://developer.chrome.com/blog/local-network-access',
             linkTitle: i18nString(UIStrings.corsLocalNetworkAccess),
           }],
         };
       case IssueCode.PREFLIGHT_MISSING_ALLOW_EXTERNAL:
       case IssueCode.PREFLIGHT_INVALID_ALLOW_EXTERNAL:
-      case IssueCode.INVALID_PRIVATE_NETWORK_ACCESS:
-      case IssueCode.UNEXPECTED_PRIVATE_NETWORK_ACCESS:
-      case IssueCode.PRIVATE_NETWORK_ACCESS_PERMISSION_UNAVAILABLE:
-      case IssueCode.PRIVATE_NETWORK_ACCESS_PERMISSION_DENIED:
+      case IssueCode.INVALID_LOCAL_NETWORK_ACCESS:
         return null;
     }
   }
 
   primaryKey(): string {
-    return JSON.stringify(this.#issueDetails);
+    return JSON.stringify(this.details());
   }
 
   getKind(): IssueKind {
-    if (this.#issueDetails.isWarning &&
-        (this.#issueDetails.corsErrorStatus.corsError === Protocol.Network.CorsError.InsecurePrivateNetwork ||
-         this.#issueDetails.corsErrorStatus.corsError ===
-             Protocol.Network.CorsError.PreflightMissingAllowPrivateNetwork ||
-         this.#issueDetails.corsErrorStatus.corsError ===
-             Protocol.Network.CorsError.PreflightInvalidAllowPrivateNetwork)) {
+    if (this.details().isWarning &&
+        this.details().corsErrorStatus.corsError === Protocol.Network.CorsError.InsecureLocalNetwork) {
       return IssueKind.BREAKING_CHANGE;
     }
     return IssueKind.PAGE_ERROR;
   }
 
-  static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):
-      CorsIssue[] {
+  static fromInspectorIssue(
+      issuesModel: SDK.IssuesModel.IssuesModel|null, inspectorIssue: Protocol.Audits.InspectorIssue): CorsIssue[] {
     const corsIssueDetails = inspectorIssue.details.corsIssueDetails;
     if (!corsIssueDetails) {
       console.warn('Cors issue without details received.');

@@ -1,0 +1,301 @@
+/* eslint-disable color-named, no-duplicate-selectors */
+/* stylelint-disable plugin/use_theme_colors */
+/*
+ * Copyright 2026 The Chromium Authors
+ * Use of this source code is governed by a BSD-style license that can be
+ * found in the LICENSE file.
+ */
+
+:root {
+  --gemini-logo: url("data:image/svg+xml,%0A%3Csvg%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2065%2065%22%3E%3Cmask%20id%3D%22maskme%22%20style%3D%22mask-type%3Aalpha%22%20maskUnits%3D%22userSpaceOnUse%22%20x%3D%220%22%20y%3D%220%22%20width%3D%2265%22%20height%3D%2265%22%3E%3Cpath%20d%3D%22M32.447%200c.68%200%201.273.465%201.439%201.125a38.904%2038.904%200%20001.999%205.905c2.152%205%205.105%209.376%208.854%2013.125%203.751%203.75%208.126%206.703%2013.125%208.855a38.98%2038.98%200%20005.906%201.999c.66.166%201.124.758%201.124%201.438%200%20.68-.464%201.273-1.125%201.439a38.902%2038.902%200%2000-5.905%201.999c-5%202.152-9.375%205.105-13.125%208.854-3.749%203.751-6.702%208.126-8.854%2013.125a38.973%2038.973%200%2000-2%205.906%201.485%201.485%200%2001-1.438%201.124c-.68%200-1.272-.464-1.438-1.125a38.913%2038.913%200%2000-2-5.905c-2.151-5-5.103-9.375-8.854-13.125-3.75-3.749-8.125-6.702-13.125-8.854a38.973%2038.973%200%2000-5.905-2A1.485%201.485%200%20010%2032.448c0-.68.465-1.272%201.125-1.438a38.903%2038.903%200%20005.905-2c5-2.151%209.376-5.104%2013.125-8.854%203.75-3.749%206.703-8.125%208.855-13.125a38.972%2038.972%200%20001.999-5.905A1.485%201.485%200%200132.447%200z%22%20fill%3D%22%23000%22/%3E%3Cpath%20d%3D%22M32.447%200c.68%200%201.273.465%201.439%201.125a38.904%2038.904%200%20001.999%205.905c2.152%205%205.105%209.376%208.854%2013.125%203.751%203.75%208.126%206.703%2013.125%208.855a38.98%2038.98%200%20005.906%201.999c.66.166%201.124.758%201.124%201.438%200%20.68-.464%201.273-1.125%201.439a38.902%2038.902%200%2000-5.905%201.999c-5%202.152-9.375%205.105-13.125%208.854-3.749%203.751-6.702%208.126-8.854%2013.125a38.973%2038.973%200%2000-2%205.906%201.485%201.485%200%2001-1.438%201.124c-.68%200-1.272-.464-1.438-1.125a38.913%2038.913%200%2000-2-5.905c-2.151-5-5.103-9.375-8.854-13.125-3.75-3.749-8.125-6.702-13.125-8.854a38.973%2038.973%200%2000-5.905-2A1.485%201.485%200%20010%2032.448c0-.68.465-1.272%201.125-1.438a38.903%2038.903%200%20005.905-2c5-2.151%209.376-5.104%2013.125-8.854%203.75-3.749%206.703-8.125%208.855-13.125a38.972%2038.972%200%20001.999-5.905A1.485%201.485%200%200132.447%200z%22%20fill%3D%22url%28%23prefix__paint0_linear_2001_67%29%22/%3E%3C/mask%3E%3Cg%20mask%3D%22url%28%23maskme%29%22%3E%3Cg%20filter%3D%22url%28%23prefix__filter0_f_2001_67%29%22%3E%3Cpath%20d%3D%22M-5.859%2050.734c7.498%202.663%2016.116-2.33%2019.249-11.152%203.133-8.821-.406-18.131-7.904-20.794-7.498-2.663-16.116%202.33-19.25%2011.151-3.132%208.822.407%2018.132%207.905%2020.795z%22%20fill%3D%22%23FFE432%22/%3E%3C/g%3E%3Cg%20filter%3D%22url%28%23prefix__filter1_f_2001_67%29%22%3E%3Cpath%20d%3D%22M27.433%2021.649c10.3%200%2018.651-8.535%2018.651-19.062%200-10.528-8.35-19.062-18.651-19.062S8.78-7.94%208.78%202.587c0%2010.527%208.35%2019.062%2018.652%2019.062z%22%20fill%3D%22%23FC413D%22/%3E%3C/g%3E%3Cg%20filter%3D%22url%28%23prefix__filter2_f_2001_67%29%22%3E%3Cpath%20d%3D%22M20.184%2082.608c10.753-.525%2018.918-12.244%2018.237-26.174-.68-13.93-9.95-24.797-20.703-24.271C6.965%2032.689-1.2%2044.407-.519%2058.337c.681%2013.93%209.95%2024.797%2020.703%2024.271z%22%20fill%3D%22%2300B95C%22/%3E%3C/g%3E%3Cg%20filter%3D%22url%28%23prefix__filter3_f_2001_67%29%22%3E%3Cpath%20d%3D%22M20.184%2082.608c10.753-.525%2018.918-12.244%2018.237-26.174-.68-13.93-9.95-24.797-20.703-24.271C6.965%2032.689-1.2%2044.407-.519%2058.337c.681%2013.93%209.95%2024.797%2020.703%2024.271z%22%20fill%3D%22%2300B95C%22/%3E%3C/g%3E%3Cg%20filter%3D%22url%28%23prefix__filter4_f_2001_67%29%22%3E%3Cpath%20d%3D%22M30.954%2074.181c9.014-5.485%2011.427-17.976%205.389-27.9-6.038-9.925-18.241-13.524-27.256-8.04-9.015%205.486-11.428%2017.977-5.39%2027.902%206.04%209.924%2018.242%2013.523%2027.257%208.038z%22%20fill%3D%22%2300B95C%22/%3E%3C/g%3E%3Cg%20filter%3D%22url%28%23prefix__filter5_f_2001_67%29%22%3E%3Cpath%20d%3D%22M67.391%2042.993c10.132%200%2018.346-7.91%2018.346-17.666%200-9.757-8.214-17.667-18.346-17.667s-18.346%207.91-18.346%2017.667c0%209.757%208.214%2017.666%2018.346%2017.666z%22%20fill%3D%22%233186FF%22/%3E%3C/g%3E%3Cg%20filter%3D%22url%28%23prefix__filter6_f_2001_67%29%22%3E%3Cpath%20d%3D%22M-13.065%2040.944c9.33%207.094%2022.959%204.869%2030.442-4.972%207.483-9.84%205.987-23.569-3.343-30.663C4.704-1.786-8.924.439-16.408%2010.28c-7.483%209.84-5.986%2023.57%203.343%2030.664z%22%20fill%3D%22%23FBBC04%22/%3E%3C/g%3E%3Cg%20filter%3D%22url%28%23prefix__filter7_f_2001_67%29%22%3E%3Cpath%20d%3D%22M34.74%2051.43c11.135%207.656%2025.896%205.524%2032.968-4.764%207.073-10.287%203.779-24.832-7.357-32.488C49.215%206.52%2034.455%208.654%2027.382%2018.94c-7.072%2010.288-3.779%2024.833%207.357%2032.49z%22%20fill%3D%22%233186FF%22/%3E%3C/g%3E%3Cg%20filter%3D%22url%28%23prefix__filter8_f_2001_67%29%22%3E%3Cpath%20d%3D%22M54.984-2.336c2.833%203.852-.808%2011.34-8.131%2016.727-7.324%205.387-15.557%206.631-18.39%202.78-2.833-3.853.807-11.342%208.13-16.728%207.324-5.387%2015.558-6.631%2018.39-2.78z%22%20fill%3D%22%23749BFF%22/%3E%3C/g%3E%3Cg%20filter%3D%22url%28%23prefix__filter9_f_2001_67%29%22%3E%3Cpath%20d%3D%22M31.727%2016.104C43.053%205.598%2046.94-8.626%2040.41-15.666c-6.53-7.04-21.006-4.232-32.332%206.274s-15.214%2024.73-8.683%2031.77c6.53%207.04%2021.006%204.232%2032.332-6.274z%22%20fill%3D%22%23FC413D%22/%3E%3C/g%3E%3Cg%20filter%3D%22url%28%23prefix__filter10_f_2001_67%29%22%3E%3Cpath%20d%3D%22M8.51%2053.838c6.732%204.818%2014.46%205.55%2017.262%201.636%202.802-3.915-.384-10.994-7.116-15.812-6.731-4.818-14.46-5.55-17.261-1.636-2.802%203.915.383%2010.994%207.115%2015.812z%22%20fill%3D%22%23FFEE48%22/%3E%3C/g%3E%3C/g%3E%3Cdefs%3E%3Cfilter%20id%3D%22prefix__filter0_f_2001_67%22%20x%3D%22-19.824%22%20y%3D%2213.152%22%20width%3D%2239.274%22%20height%3D%2243.217%22%20filterUnits%3D%22userSpaceOnUse%22%20color-interpolation-filters%3D%22sRGB%22%3E%3CfeFlood%20flood-opacity%3D%220%22%20result%3D%22BackgroundImageFix%22/%3E%3CfeBlend%20in%3D%22SourceGraphic%22%20in2%3D%22BackgroundImageFix%22%20result%3D%22shape%22/%3E%3CfeGaussianBlur%20stdDeviation%3D%222.46%22%20result%3D%22effect1_foregroundBlur_2001_67%22/%3E%3C/filter%3E%3Cfilter%20id%3D%22prefix__filter1_f_2001_67%22%20x%3D%22-15.001%22%20y%3D%22-40.257%22%20width%3D%2284.868%22%20height%3D%2285.688%22%20filterUnits%3D%22userSpaceOnUse%22%20color-interpolation-filters%3D%22sRGB%22%3E%3CfeFlood%20flood-opacity%3D%220%22%20result%3D%22BackgroundImageFix%22/%3E%3CfeBlend%20in%3D%22SourceGraphic%22%20in2%3D%22BackgroundImageFix%22%20result%3D%22shape%22/%3E%3CfeGaussianBlur%20stdDeviation%3D%2211.891%22%20result%3D%22effect1_foregroundBlur_2001_67%22/%3E%3C/filter%3E%3Cfilter%20id%3D%22prefix__filter2_f_2001_67%22%20x%3D%22-20.776%22%20y%3D%2211.927%22%20width%3D%2279.454%22%20height%3D%2290.916%22%20filterUnits%3D%22userSpaceOnUse%22%20color-interpolation-filters%3D%22sRGB%22%3E%3CfeFlood%20flood-opacity%3D%220%22%20result%3D%22BackgroundImageFix%22/%3E%3CfeBlend%20in%3D%22SourceGraphic%22%20in2%3D%22BackgroundImageFix%22%20result%3D%22shape%22/%3E%3CfeGaussianBlur%20stdDeviation%3D%2210.109%22%20result%3D%22effect1_foregroundBlur_2001_67%22/%3E%3C/filter%3E%3Cfilter%20id%3D%22prefix__filter3_f_2001_67%22%20x%3D%22-20.776%22%20y%3D%2211.927%22%20width%3D%2279.454%22%20height%3D%2290.916%22%20filterUnits%3D%22userSpaceOnUse%22%20color-interpolation-filters%3D%22sRGB%22%3E%3CfeFlood%20flood-opacity%3D%220%22%20result%3D%22BackgroundImageFix%22/%3E%3CfeBlend%20in%3D%22SourceGraphic%22%20in2%3D%22BackgroundImageFix%22%20result%3D%22shape%22/%3E%3CfeGaussianBlur%20stdDeviation%3D%2210.109%22%20result%3D%22effect1_foregroundBlur_2001_67%22/%3E%3C/filter%3E%3Cfilter%20id%3D%22prefix__filter4_f_2001_67%22%20x%3D%22-19.845%22%20y%3D%2215.459%22%20width%3D%2279.731%22%20height%3D%2281.505%22%20filterUnits%3D%22userSpaceOnUse%22%20color-interpolation-filters%3D%22sRGB%22%3E%3CfeFlood%20flood-opacity%3D%220%22%20result%3D%22BackgroundImageFix%22/%3E%3CfeBlend%20in%3D%22SourceGraphic%22%20in2%3D%22BackgroundImageFix%22%20result%3D%22shape%22/%3E%3CfeGaussianBlur%20stdDeviation%3D%2210.109%22%20result%3D%22effect1_foregroundBlur_2001_67%22/%3E%3C/filter%3E%3Cfilter%20id%3D%22prefix__filter5_f_2001_67%22%20x%3D%2229.832%22%20y%3D%22-11.552%22%20width%3D%2275.117%22%20height%3D%2273.758%22%20filterUnits%3D%22userSpaceOnUse%22%20color-interpolation-filters%3D%22sRGB%22%3E%3CfeFlood%20flood-opacity%3D%220%22%20result%3D%22BackgroundImageFix%22/%3E%3CfeBlend%20in%3D%22SourceGraphic%22%20in2%3D%22BackgroundImageFix%22%20result%3D%22shape%22/%3E%3CfeGaussianBlur%20stdDeviation%3D%229.606%22%20result%3D%22effect1_foregroundBlur_2001_67%22/%3E%3C/filter%3E%3Cfilter%20id%3D%22prefix__filter6_f_2001_67%22%20x%3D%22-38.583%22%20y%3D%22-16.253%22%20width%3D%2278.135%22%20height%3D%2278.758%22%20filterUnits%3D%22userSpaceOnUse%22%20color-interpolation-filters%3D%22sRGB%22%3E%3CfeFlood%20flood-opacity%3D%220%22%20result%3D%22BackgroundImageFix%22/%3E%3CfeBlend%20in%3D%22SourceGraphic%22%20in2%3D%22BackgroundImageFix%22%20result%3D%22shape%22/%3E%3CfeGaussianBlur%20stdDeviation%3D%228.706%22%20result%3D%22effect1_foregroundBlur_2001_67%22/%3E%3C/filter%3E%3Cfilter%20id%3D%22prefix__filter7_f_2001_67%22%20x%3D%228.107%22%20y%3D%22-5.966%22%20width%3D%2278.877%22%20height%3D%2277.539%22%20filterUnits%3D%22userSpaceOnUse%22%20color-interpolation-filters%3D%22sRGB%22%3E%3CfeFlood%20flood-opacity%3D%220%22%20result%3D%22BackgroundImageFix%22/%3E%3CfeBlend%20in%3D%22SourceGraphic%22%20in2%3D%22BackgroundImageFix%22%20result%3D%22shape%22/%3E%3CfeGaussianBlur%20stdDeviation%3D%227.775%22%20result%3D%22effect1_foregroundBlur_2001_67%22/%3E%3C/filter%3E%3Cfilter%20id%3D%22prefix__filter8_f_2001_67%22%20x%3D%2213.587%22%20y%3D%22-18.488%22%20width%3D%2256.272%22%20height%3D%2251.81%22%20filterUnits%3D%22userSpaceOnUse%22%20color-interpolation-filters%3D%22sRGB%22%3E%3CfeFlood%20flood-opacity%3D%220%22%20result%3D%22BackgroundImageFix%22/%3E%3CfeBlend%20in%3D%22SourceGraphic%22%20in2%3D%22BackgroundImageFix%22%20result%3D%22shape%22/%3E%3CfeGaussianBlur%20stdDeviation%3D%226.957%22%20result%3D%22effect1_foregroundBlur_2001_67%22/%3E%3C/filter%3E%3Cfilter%20id%3D%22prefix__filter9_f_2001_67%22%20x%3D%22-15.526%22%20y%3D%22-31.297%22%20width%3D%2270.856%22%20height%3D%2269.306%22%20filterUnits%3D%22userSpaceOnUse%22%20color-interpolation-filters%3D%22sRGB%22%3E%3CfeFlood%20flood-opacity%3D%220%22%20result%3D%22BackgroundImageFix%22/%3E%3CfeBlend%20in%3D%22SourceGraphic%22%20in2%3D%22BackgroundImageFix%22%20result%3D%22shape%22/%3E%3CfeGaussianBlur%20stdDeviation%3D%225.876%22%20result%3D%22effect1_foregroundBlur_2001_67%22/%3E%3C/filter%3E%3Cfilter%20id%3D%22prefix__filter10_f_2001_67%22%20x%3D%22-14.168%22%20y%3D%2220.964%22%20width%3D%2255.501%22%20height%3D%2251.571%22%20filterUnits%3D%22userSpaceOnUse%22%20color-interpolation-filters%3D%22sRGB%22%3E%3CfeFlood%20flood-opacity%3D%220%22%20result%3D%22BackgroundImageFix%22/%3E%3CfeBlend%20in%3D%22SourceGraphic%22%20in2%3D%22BackgroundImageFix%22%20result%3D%22shape%22/%3E%3CfeGaussianBlur%20stdDeviation%3D%227.273%22%20result%3D%22effect1_foregroundBlur_2001_67%22/%3E%3C/filter%3E%3ClinearGradient%20id%3D%22prefix__paint0_linear_2001_67%22%20x1%3D%2218.447%22%20y1%3D%2243.42%22%20x2%3D%2252.153%22%20y2%3D%2215.004%22%20gradientUnits%3D%22userSpaceOnUse%22%3E%3Cstop%20stop-color%3D%22%234893FC%22/%3E%3Cstop%20offset%3D%22.27%22%20stop-color%3D%22%234893FC%22/%3E%3Cstop%20offset%3D%22.777%22%20stop-color%3D%22%23969DFF%22/%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23BD99FE%22/%3E%3C/linearGradient%3E%3C/defs%3E%3C/svg%3E%0A");
+}
+
+#floaty-dialog-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.green-dev-floaty-dialog {
+  width: 100%;
+  height: 100%;
+  background-color: #fff;
+  display: flex;
+  flex-direction: column;
+  font-family: sans-serif;
+  color: #333;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+
+/* Header extending upwards */
+.green-dev-floaty-dialog-header {
+  position: relative;
+  height: 70px;
+  margin-top: -20px;
+  background-color: #d3e3fd;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 34px 10px 11px;
+  box-sizing: border-box;
+}
+
+.green-dev-floaty-dialog-header-text {
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.green-dev-floaty-dialog-close-button {
+  width: 20px;
+  height: 20px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23333' d='M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12z'/%3E%3C/svg%3E");
+  background-size: cover;
+  cursor: pointer;
+  border: none;
+  background-color: transparent;
+  padding: 0;
+}
+
+/* Main content area of the white card */
+.green-dev-floaty-dialog-content {
+  flex-grow: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* Important for flex-grow with overflow */
+}
+
+.green-dev-floaty-dialog-chat-container {
+  flex-grow: 1;
+  margin-bottom: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+}
+
+.message {
+  padding: 8px 12px;
+  border-radius: 12px;
+  max-width: 85%;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+  white-space: pre-wrap; /* Preserve newlines */
+  flex-shrink: 0;
+  min-height: min-content;
+}
+
+.user-message {
+  align-self: flex-end;
+  background-color: #d3e3fd;
+  color: #0b57d0;
+  border-bottom-right-radius: 2px;
+}
+
+.ai-message {
+  align-self: flex-start;
+  background-color: #fff;
+  color: #333;
+  border: 1px solid #e0e0e0;
+  border-bottom-left-radius: 2px;
+}
+
+.message-details-toggle {
+  font-size: 11px;
+  color: #0b57d0;
+  cursor: pointer;
+  margin-top: 4px;
+  text-decoration: underline;
+}
+
+.message-details-toggle:hover {
+  color: #0842a0;
+}
+
+.message-details {
+  font-size: 11px;
+  color: #666;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+  font-family: var(--monospace-font-family);
+}
+
+.thought, .action {
+  margin-bottom: 6px;
+  white-space: pre-wrap;
+}
+
+.thought {
+  font-style: italic;
+}
+
+.green-dev-floaty-dialog-top-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px; /* Space between top row and blue card */
+}
+
+.green-dev-floaty-dialog-gemini-icon {
+  width: 24px;
+  height: 24px;
+  background-image: var(--gemini-logo);
+  background-size: cover;
+  margin-right: 10px;
+}
+
+.green-dev-floaty-dialog-checkmark-icon {
+  width: 20px;
+  height: 20px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%234CAF50' d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E");
+  background-size: cover;
+  margin-right: 5px;
+}
+
+.green-dev-floaty-dialog-context-text {
+  font-weight: bold;
+}
+
+/* Blue card at the bottom */
+.green-dev-floaty-dialog-blue-card {
+  position: relative;
+  background-color: #edf2fa; /* Light blue */
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid #d3e3fd;
+  flex-shrink: 0;
+}
+
+.green-dev-floaty-dialog-node-description {
+  font-size: 11px;
+  font-family: var(--monospace-font-family);
+  color: #0b57d0;
+  background-color: #d3e3fd;
+  padding: 2px 8px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.green-dev-floaty-dialog-text-field {
+  flex-grow: 1;
+  background-color: #fff;
+  border: 1px solid #a7d9f0;
+  border-radius: 20px; /* Pill shape */
+  padding: 8px 16px;
+  font-size: 14px;
+  color: #333;
+  margin-right: 8px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.green-dev-floaty-dialog-text-field:focus {
+  border-color: #0b57d0;
+}
+
+.green-dev-floaty-dialog-play-button {
+  width: 30px;
+  height: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%231976D2' d='M8 5v14l11-7z'/%3E%3C/svg%3E");
+  background-size: cover;
+  cursor: pointer;
+  border: none;
+  background-color: transparent;
+  padding: 0;
+}
+
+.green-dev-floaty-minimal {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  background-color: #fff;
+  background-image: var(--gemini-logo);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 32px;
+  cursor: pointer;
+  pointer-events: all;
+  z-index: 1001;
+  border-radius: 12px;
+  box-shadow: 0 4px 8px rgb(0 0 0 / 20%);
+  padding: 5px;
+}
+
+.green-dev-floaty-disclaimer {
+  font-size: 15px;
+  color: #666;
+  text-align: center;
+  margin-top: 8px;
+  position: relative; /* For tooltip positioning */
+}
+
+.disclaimer-link {
+  color: #666; /* Match text color */
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.disclaimer-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 100%; /* Position above */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  padding: 12px;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 20%);
+  z-index: 1000;
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #333;
+}
+
+.disclaimer-link:hover + .disclaimer-tooltip,
+.disclaimer-tooltip:hover {
+  display: block;
+}
+
+.learn-more-link {
+  color: #0b57d0;
+  text-decoration: none;
+}
+
+.learn-more-link:hover {
+  text-decoration: underline;
+}

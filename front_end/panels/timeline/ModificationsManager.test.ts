@@ -1,16 +1,17 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Trace from '../../models/trace/trace.js';
 import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
+import {allThreadEntriesInTrace} from '../../testing/TraceHelpers.js';
 import {TraceLoader} from '../../testing/TraceLoader.js';
 
 import * as Timeline from './timeline.js';
 
 describeWithEnvironment('ModificationsManager', () => {
   it('applies modifications when present in a trace file', async function() {
-    await TraceLoader.traceEngine(null, 'web-dev-modifications.json.gz');
+    await TraceLoader.traceEngine(this, 'web-dev-modifications.json.gz');
     const modificationsManager = Timeline.ModificationsManager.ModificationsManager.activeManager();
     if (!modificationsManager) {
       throw new Error('Modifications manager does not exist.');
@@ -35,7 +36,7 @@ describeWithEnvironment('ModificationsManager', () => {
   });
 
   it('generates a serializable modifications json ', async function() {
-    await TraceLoader.traceEngine(null, 'web-dev-modifications.json.gz');
+    await TraceLoader.traceEngine(this, 'web-dev-modifications.json.gz');
     const modificationsManager = Timeline.ModificationsManager.ModificationsManager.activeManager();
     if (!modificationsManager) {
       throw new Error('Modifications manager does not exist.');
@@ -61,41 +62,47 @@ describeWithEnvironment('ModificationsManager', () => {
   });
 
   it('creates annotations and generates correct json for annotations', async function() {
-    const parsedTrace = (await TraceLoader.traceEngine(null, 'web-dev-with-commit.json.gz')).parsedTrace;
+    const parsedTrace = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
     // Get any entres to create a label and a link with.
-    const entry = parsedTrace.Renderer.allTraceEntries[0];
-    const entry2 = parsedTrace.Renderer.allTraceEntries[1];
+    const entry = allThreadEntriesInTrace(parsedTrace)[0];
+    const entry2 = allThreadEntriesInTrace(parsedTrace)[1];
 
     const modificationsManager = Timeline.ModificationsManager.ModificationsManager.activeManager();
     assert.isOk(modificationsManager);
 
-    modificationsManager.createAnnotation({
-      type: 'ENTRY_LABEL',
-      entry,
-      label: 'entry label',
-    });
+    modificationsManager.createAnnotation(
+        {
+          type: 'ENTRY_LABEL',
+          entry,
+          label: 'entry label',
+        },
+        {loadedFromFile: false, muteAriaNotifications: false});
 
-    modificationsManager.createAnnotation({
-      type: 'ENTRIES_LINK',
-      state: Trace.Types.File.EntriesLinkState.CONNECTED,
-      entryFrom: entry,
-      entryTo: entry2,
-    });
+    modificationsManager.createAnnotation(
+        {
+          type: 'ENTRIES_LINK',
+          state: Trace.Types.File.EntriesLinkState.CONNECTED,
+          entryFrom: entry,
+          entryTo: entry2,
+        },
+        {loadedFromFile: false, muteAriaNotifications: false});
 
-    modificationsManager.createAnnotation({
-      type: 'TIME_RANGE',
-      bounds: {
-        min: Trace.Types.Timing.Micro(0),
-        max: Trace.Types.Timing.Micro(10),
-        range: Trace.Types.Timing.Micro(10),
-      },
-      label: 'range label',
-    });
+    modificationsManager.createAnnotation(
+        {
+          type: 'TIME_RANGE',
+          bounds: {
+            min: Trace.Types.Timing.Micro(0),
+            max: Trace.Types.Timing.Micro(10),
+            range: Trace.Types.Timing.Micro(10),
+          },
+          label: 'range label',
+        },
+        {loadedFromFile: false, muteAriaNotifications: false});
 
     const modifications = modificationsManager.toJSON().annotations;
     assert.deepEqual(modifications, {
       entryLabels: [{
-        entry: 'r-38',
+        entry: 'r-39',
         label: 'entry label',
       }],
       labelledTimeRanges: [{
@@ -107,34 +114,38 @@ describeWithEnvironment('ModificationsManager', () => {
         label: 'range label',
       }],
       linksBetweenEntries: [{
-        entryFrom: 'r-38',
-        entryTo: 'r-39',
+        entryFrom: 'r-39',
+        entryTo: 'r-42',
       }],
     });
   });
 
   it('does not add the annotation link between entries into the json saved into metadata if `entryTo` does not exist',
      async function() {
-       const parsedTrace = (await TraceLoader.traceEngine(null, 'web-dev-with-commit.json.gz')).parsedTrace;
+       const parsedTrace = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
        // Get any entry to create links with.
-       const entry = parsedTrace.Renderer.allTraceEntries[0];
-       const entry2 = parsedTrace.Renderer.allTraceEntries[1];
+       const entry = allThreadEntriesInTrace(parsedTrace)[0];
+       const entry2 = allThreadEntriesInTrace(parsedTrace)[1];
 
        const modificationsManager = Timeline.ModificationsManager.ModificationsManager.activeManager();
        assert.isOk(modificationsManager);
 
-       modificationsManager.createAnnotation({
-         type: 'ENTRIES_LINK',
-         state: Trace.Types.File.EntriesLinkState.CONNECTED,
-         entryFrom: entry,
-         entryTo: entry2,
-       });
+       modificationsManager.createAnnotation(
+           {
+             type: 'ENTRIES_LINK',
+             state: Trace.Types.File.EntriesLinkState.CONNECTED,
+             entryFrom: entry,
+             entryTo: entry2,
+           },
+           {loadedFromFile: false, muteAriaNotifications: false});
 
-       modificationsManager.createAnnotation({
-         type: 'ENTRIES_LINK',
-         state: Trace.Types.File.EntriesLinkState.PENDING_TO_EVENT,
-         entryFrom: entry2,
-       });
+       modificationsManager.createAnnotation(
+           {
+             type: 'ENTRIES_LINK',
+             state: Trace.Types.File.EntriesLinkState.PENDING_TO_EVENT,
+             entryFrom: entry2,
+           },
+           {loadedFromFile: false, muteAriaNotifications: false});
 
        // Make sure only the link with both 'to' and 'from' entries in in the generated JSON
        const modifications = modificationsManager.toJSON().annotations;
@@ -142,29 +153,31 @@ describeWithEnvironment('ModificationsManager', () => {
          entryLabels: [],
          labelledTimeRanges: [],
          linksBetweenEntries: [{
-           entryFrom: 'r-38',
-           entryTo: 'r-39',
+           entryFrom: 'r-39',
+           entryTo: 'r-42',
          }],
        });
      });
 
   it('correctly identifies if a connection between entries already exists', async function() {
-    const parsedTrace = (await TraceLoader.traceEngine(null, 'web-dev-with-commit.json.gz')).parsedTrace;
+    const parsedTrace = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
     // Get any entry to create links with.
-    const entry1 = parsedTrace.Renderer.allTraceEntries[0];
-    const entry2 = parsedTrace.Renderer.allTraceEntries[1];
-    const entry3 = parsedTrace.Renderer.allTraceEntries[2];
+    const entry1 = allThreadEntriesInTrace(parsedTrace)[0];
+    const entry2 = allThreadEntriesInTrace(parsedTrace)[1];
+    const entry3 = allThreadEntriesInTrace(parsedTrace)[2];
 
     const modificationsManager = Timeline.ModificationsManager.ModificationsManager.activeManager();
     assert.isOk(modificationsManager);
 
     // Create a connection between entry 1 and entry 2
-    modificationsManager.createAnnotation({
-      type: 'ENTRIES_LINK',
-      state: Trace.Types.File.EntriesLinkState.CONNECTED,
-      entryFrom: entry1,
-      entryTo: entry2,
-    });
+    modificationsManager.createAnnotation(
+        {
+          type: 'ENTRIES_LINK',
+          state: Trace.Types.File.EntriesLinkState.CONNECTED,
+          entryFrom: entry1,
+          entryTo: entry2,
+        },
+        {loadedFromFile: false, muteAriaNotifications: false});
 
     // Chech if a connection between entries 1 and 3 exists
     const existsBetween1And3 = modificationsManager.linkAnnotationBetweenEntriesExists(entry1, entry3);
@@ -183,41 +196,47 @@ describeWithEnvironment('ModificationsManager', () => {
   });
 
   it('deletes time ranges with an empty label from the annotations list', async function() {
-    await TraceLoader.traceEngine(null, 'web-dev-with-commit.json.gz');
+    await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
     const modificationsManager = Timeline.ModificationsManager.ModificationsManager.activeManager();
     assert.isOk(modificationsManager);
 
-    modificationsManager.createAnnotation({
-      type: 'TIME_RANGE',
-      bounds: {
-        min: Trace.Types.Timing.Micro(0),
-        max: Trace.Types.Timing.Micro(10),
-        range: Trace.Types.Timing.Micro(10),
-      },
-      label: 'label',
-    });
+    modificationsManager.createAnnotation(
+        {
+          type: 'TIME_RANGE',
+          bounds: {
+            min: Trace.Types.Timing.Micro(0),
+            max: Trace.Types.Timing.Micro(10),
+            range: Trace.Types.Timing.Micro(10),
+          },
+          label: 'label',
+        },
+        {loadedFromFile: false, muteAriaNotifications: false});
 
     // Create time range with empty label that shoud be removed
-    modificationsManager.createAnnotation({
-      type: 'TIME_RANGE',
-      bounds: {
-        min: Trace.Types.Timing.Micro(3),
-        max: Trace.Types.Timing.Micro(10),
-        range: Trace.Types.Timing.Micro(7),
-      },
-      label: '',
-    });
+    modificationsManager.createAnnotation(
+        {
+          type: 'TIME_RANGE',
+          bounds: {
+            min: Trace.Types.Timing.Micro(3),
+            max: Trace.Types.Timing.Micro(10),
+            range: Trace.Types.Timing.Micro(7),
+          },
+          label: '',
+        },
+        {loadedFromFile: false, muteAriaNotifications: false});
 
     // Create time range with empty label that shoud be removed
-    modificationsManager.createAnnotation({
-      type: 'TIME_RANGE',
-      bounds: {
-        min: Trace.Types.Timing.Micro(5),
-        max: Trace.Types.Timing.Micro(10),
-        range: Trace.Types.Timing.Micro(5),
-      },
-      label: '',
-    });
+    modificationsManager.createAnnotation(
+        {
+          type: 'TIME_RANGE',
+          bounds: {
+            min: Trace.Types.Timing.Micro(5),
+            max: Trace.Types.Timing.Micro(10),
+            range: Trace.Types.Timing.Micro(5),
+          },
+          label: '',
+        },
+        {loadedFromFile: false, muteAriaNotifications: false});
 
     modificationsManager.deleteEmptyRangeAnnotations();
     const modifications = modificationsManager.toJSON().annotations;
@@ -231,114 +250,5 @@ describeWithEnvironment('ModificationsManager', () => {
                        },
                        label: 'label',
                      }]);
-  });
-
-  it('correctly gets all annotations associated with an entry', async function() {
-    const parsedTrace = (await TraceLoader.traceEngine(null, 'web-dev-with-commit.json.gz')).parsedTrace;
-    const modificationsManager = Timeline.ModificationsManager.ModificationsManager.activeManager();
-    assert.isOk(modificationsManager);
-
-    // Get any entry to create annotations with.
-    const entryToFindAnnotationsFor = parsedTrace.Renderer.allTraceEntries[0];
-    const entry2 = parsedTrace.Renderer.allTraceEntries[1];
-    const entry3 = parsedTrace.Renderer.allTraceEntries[2];
-
-    // Create a connection between entry we are looking for annotations for and another entry.
-    // This link should be a part of associated with the entry annotations.
-    modificationsManager.createAnnotation({
-      type: 'ENTRIES_LINK',
-      state: Trace.Types.File.EntriesLinkState.CONNECTED,
-      entryFrom: entry2,
-      entryTo: entryToFindAnnotationsFor,
-    });
-
-    // Create a link between random entries
-    modificationsManager.createAnnotation({
-      type: 'ENTRIES_LINK',
-      state: Trace.Types.File.EntriesLinkState.CONNECTED,
-      entryFrom: entry3,
-      entryTo: entry2,
-    });
-
-    // Label for the entry we are looking for annotations for.
-    // This label should be a part of associated with the entry annotations.
-    modificationsManager.createAnnotation({
-      type: 'ENTRY_LABEL',
-      entry: entryToFindAnnotationsFor,
-      label: 'entry label',
-    });
-
-    const annotationsForEntry = modificationsManager.annotationsForEntry(entryToFindAnnotationsFor);
-
-    // Make sure the method returns annotations that `entryToFindAnnotationsFor` is a part of
-    assert.deepEqual(
-        annotationsForEntry,
-        [
-          {
-            type: 'ENTRIES_LINK',
-            state: Trace.Types.File.EntriesLinkState.CONNECTED,
-            entryFrom: entry2,
-            entryTo: entryToFindAnnotationsFor,
-          },
-          {
-            type: 'ENTRY_LABEL',
-            entry: entryToFindAnnotationsFor,
-            label: 'entry label',
-          },
-        ],
-    );
-  });
-
-  it('deletes all annotations associated with an entry', async function() {
-    const parsedTrace = (await TraceLoader.traceEngine(null, 'web-dev-with-commit.json.gz')).parsedTrace;
-    const modificationsManager = Timeline.ModificationsManager.ModificationsManager.activeManager();
-    assert.isOk(modificationsManager);
-
-    // Get any entry to create annotations with.
-    const entryToFindAnnotationsFor = parsedTrace.Renderer.allTraceEntries[0];
-    const entry2 = parsedTrace.Renderer.allTraceEntries[1];
-    const entry3 = parsedTrace.Renderer.allTraceEntries[2];
-
-    // Create a connection between entry we are looking for annotations for and another entry.
-    // This link should be deleted.
-    modificationsManager.createAnnotation({
-      type: 'ENTRIES_LINK',
-      state: Trace.Types.File.EntriesLinkState.CONNECTED,
-      entryFrom: entry2,
-      entryTo: entryToFindAnnotationsFor,
-    });
-
-    // Create a link between random entries.
-    // This annotation should not be deleted/
-    modificationsManager.createAnnotation({
-      type: 'ENTRIES_LINK',
-      state: Trace.Types.File.EntriesLinkState.CONNECTED,
-      entryFrom: entry3,
-      entryTo: entry2,
-    });
-
-    // Label for the entry we are looking for annotations for.
-    // This link should be deleted.
-    modificationsManager.createAnnotation({
-      type: 'ENTRY_LABEL',
-      entry: entryToFindAnnotationsFor,
-      label: 'entry label',
-    });
-
-    modificationsManager.deleteEntryAnnotations(entryToFindAnnotationsFor);
-    const annotationsForEntry = modificationsManager.getAnnotations();
-
-    // Make sure the method deleted all annotations that `entryToFindAnnotationsFor` is a part of
-    assert.deepEqual(
-        annotationsForEntry,
-        [
-          {
-            type: 'ENTRIES_LINK',
-            state: Trace.Types.File.EntriesLinkState.CONNECTED,
-            entryFrom: entry3,
-            entryTo: entry2,
-          },
-        ],
-    );
   });
 });

@@ -1,4 +1,4 @@
-# Copyright 2023 The Chromium Authors. All rights reserved.
+# Copyright 2023 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -17,17 +17,19 @@ generate_css("css_files") {
   ]
 }
 
-devtools_module("menus") {
+devtools_ui_module("menus") {
   sources = [
     "Menu.ts",
     "SelectMenu.ts",
   ]
   deps = [
     "../../../../front_end/core/platform:bundle",
-    "../../../../front_end/services/window_bounds:bundle",
     "../../../../front_end/ui/components/buttons:bundle",
     "../../../../front_end/ui/components/helpers:bundle",
     "../../../../front_end/ui/components/render_coordinator:bundle",
+    "../../legacy:bundle",
+    "../../lit:bundle",
+    "../../visual_logging:bundle",
     "../dialogs:bundle",
   ]
 }
@@ -43,7 +45,7 @@ devtools_entrypoint("bundle") {
   visibility = [ "*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [ "SelectMenu.test.ts" ]

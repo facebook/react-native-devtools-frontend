@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,7 +11,7 @@ import type {MarkdownIssueDescription} from './MarkdownIssueDescription.js';
 
 const UIStrings = {
   /**
-   *@description Label for the link for SharedArrayBuffer Issues. The full text reads "Enabling `SharedArrayBuffer`"
+   * @description Label for the link for SharedArrayBuffer Issues. The full text reads "Enabling `SharedArrayBuffer`"
    * and is the title of an article that describes how to enable a JavaScript feature called SharedArrayBuffer.
    */
   enablingSharedArrayBuffer: 'Enabling `SharedArrayBuffer`',
@@ -19,21 +19,15 @@ const UIStrings = {
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/SharedArrayBufferIssue.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-export class SharedArrayBufferIssue extends Issue {
-  #issueDetails: Protocol.Audits.SharedArrayBufferIssueDetails;
-
-  constructor(issueDetails: Protocol.Audits.SharedArrayBufferIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel) {
+export class SharedArrayBufferIssue extends Issue<Protocol.Audits.SharedArrayBufferIssueDetails> {
+  constructor(
+      issueDetails: Protocol.Audits.SharedArrayBufferIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel|null) {
     const umaCode = [Protocol.Audits.InspectorIssueCode.SharedArrayBufferIssue, issueDetails.type].join('::');
-    super({code: Protocol.Audits.InspectorIssueCode.SharedArrayBufferIssue, umaCode}, issuesModel);
-    this.#issueDetails = issueDetails;
+    super({code: Protocol.Audits.InspectorIssueCode.SharedArrayBufferIssue, umaCode}, issueDetails, issuesModel);
   }
 
   getCategory(): IssueCategory {
     return IssueCategory.OTHER;
-  }
-
-  details(): Protocol.Audits.SharedArrayBufferIssueDetails {
-    return this.#issueDetails;
   }
 
   getDescription(): MarkdownIssueDescription {
@@ -47,18 +41,19 @@ export class SharedArrayBufferIssue extends Issue {
   }
 
   primaryKey(): string {
-    return JSON.stringify(this.#issueDetails);
+    return JSON.stringify(this.details());
   }
 
   getKind(): IssueKind {
-    if (this.#issueDetails.isWarning) {
+    if (this.details().isWarning) {
       return IssueKind.BREAKING_CHANGE;
     }
     return IssueKind.PAGE_ERROR;
   }
 
-  static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):
-      SharedArrayBufferIssue[] {
+  static fromInspectorIssue(
+      issuesModel: SDK.IssuesModel.IssuesModel|null,
+      inspectorIssue: Protocol.Audits.InspectorIssue): SharedArrayBufferIssue[] {
     const sabIssueDetails = inspectorIssue.details.sharedArrayBufferIssueDetails;
     if (!sabIssueDetails) {
       console.warn('SAB transfer issue without details received.');

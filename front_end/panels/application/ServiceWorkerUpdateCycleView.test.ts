@@ -1,16 +1,17 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
-import {describeWithLocale} from '../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../testing/LocaleHelpers.js';
 
 import * as Resources from './application.js';
 
 import View = Resources.ServiceWorkerUpdateCycleView;
 
-describeWithLocale('ServiceWorkerUpdateCycleView', () => {
+describe('ServiceWorkerUpdateCycleView', () => {
+  setupLocaleHooks();
   let versionId = 0;
   const registrationId = 'fake-sw-id' as Protocol.ServiceWorker.RegistrationID;
 

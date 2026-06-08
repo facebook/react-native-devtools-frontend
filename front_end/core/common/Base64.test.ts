@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@ describe('Base64 decoder', () => {
   function decode(str: string) {
     const encoded = btoa(str);
     const decoded = Common.Base64.decode(encoded);
-    const view = new DataView(decoded);
+    const view = new DataView(decoded.buffer);
     for (let idx = 0; idx < str.length; idx++) {
       assert.strictEqual(view.getUint8(idx), str.charCodeAt(idx));
     }

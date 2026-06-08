@@ -1,138 +1,121 @@
-/*
- * Copyright (C) 2013 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2013 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 import * as i18n from '../../core/i18n/i18n.js';
-import type * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
+import * as ComputedStyle from '../../models/computed_style/computed_style.js';
 import * as UI from '../../ui/legacy/legacy.js';
+import {html, render} from '../../ui/lit/lit.js';
 
-import {type ComputedStyleModel, Events} from './ComputedStyleModel.js';
 import platformFontsWidgetStyles from './platformFontsWidget.css.js';
 
 const UIStrings = {
   /**
-   *@description Section title text content in Platform Fonts Widget of the Elements panel
+   * @description Section title text content in Platform Fonts Widget of the Elements panel
    */
   renderedFonts: 'Rendered Fonts',
   /**
-   *@description Font property title text content in Platform Fonts Widget of the Elements panel
+   * @description Font property title text content in Platform Fonts Widget of the Elements panel
    */
   familyName: 'Family name',
   /**
-   *@description Font property title text content in Platform Fonts Widget of the Elements panel
+   * @description Font property title text content in Platform Fonts Widget of the Elements panel
    */
   postScriptName: 'PostScript name',
   /**
-   *@description Font property title text content in Platform Fonts Widget of the Elements panel
+   * @description Font property title text content in Platform Fonts Widget of the Elements panel
    */
   fontOrigin: 'Font origin',
   /**
-   *@description Text in Platform Fonts Widget of the Elements panel
+   * @description Text in Platform Fonts Widget of the Elements panel
    */
   networkResource: 'Network resource',
   /**
-   *@description Text in Platform Fonts Widget of the Elements panel
+   * @description Text in Platform Fonts Widget of the Elements panel
    */
   localFile: 'Local file',
   /**
-   *@description Text in Platform Fonts Widget of the Elements panel. Indicates a number of glyphs (characters) .
+   * @description Text in Platform Fonts Widget of the Elements panel. Indicates a number of glyphs (characters) .
    */
   dGlyphs: '{n, plural, =1 {(# glyph)} other {(# glyphs)}}',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/elements/PlatformFontsWidget.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-export class PlatformFontsWidget extends UI.ThrottledWidget.ThrottledWidget {
-  private readonly sharedModel: ComputedStyleModel;
-  private readonly sectionTitle: HTMLDivElement;
-  private readonly fontStatsSection: HTMLElement;
+interface PlatformFontsWidgetInput {
+  platformFonts: Protocol.CSS.PlatformFontUsage[]|null;
+}
 
-  constructor(sharedModel: ComputedStyleModel) {
-    super(true);
+type View = (input: PlatformFontsWidgetInput, output: object, target: HTMLElement) => void;
+
+export const DEFAULT_VIEW: View = (input, _output, target) => {
+  const isEmptySection = !input.platformFonts?.length;
+
+  // clang-format off
+  render(html`
+    <style>${platformFontsWidgetStyles}</style>
+    <div class="platform-fonts">
+      ${isEmptySection ? '' : html`
+        <div class="title">${i18nString(UIStrings.renderedFonts)}</div>
+        <div class="stats-section">
+          ${input.platformFonts?.map(platformFont => {
+            const fontOrigin = platformFont.isCustomFont ? i18nString(UIStrings.networkResource) : i18nString(UIStrings.localFile);
+            const usage = platformFont.glyphCount;
+            return html`
+              <div class="font-stats-item">
+                <div><span class="font-property-name">${i18nString(UIStrings.familyName)}</span>: ${platformFont.familyName}</div>
+                <div><span class="font-property-name">${i18nString(UIStrings.postScriptName)}</span>: ${platformFont.postScriptName}</div>
+                <div><span class="font-property-name">${i18nString(UIStrings.fontOrigin)}</span>: ${fontOrigin}<span class="font-usage">${i18nString(UIStrings.dGlyphs, {n: usage})}</span></div>
+              </div>
+            `;
+          })}
+        </div>
+      `}
+    </div>`,
+    target);
+  // clang-format on
+};
+
+export class PlatformFontsWidget extends UI.Widget.VBox {
+  readonly #view: View;
+  #sharedModel: ComputedStyle.ComputedStyleModel.ComputedStyleModel|null = null;
+
+  constructor(element?: HTMLElement, view: View = DEFAULT_VIEW) {
+    super(element, {useShadowDom: true});
+    this.#view = view;
     this.registerRequiredCSS(platformFontsWidgetStyles);
-
-    this.sharedModel = sharedModel;
-    this.sharedModel.addEventListener(Events.CSS_MODEL_CHANGED, this.update, this);
-    this.sharedModel.addEventListener(Events.COMPUTED_STYLE_CHANGED, this.update, this);
-
-    this.sectionTitle = document.createElement('div');
-    this.sectionTitle.classList.add('title');
-    this.contentElement.classList.add('platform-fonts');
-    this.contentElement.appendChild(this.sectionTitle);
-    this.sectionTitle.textContent = i18nString(UIStrings.renderedFonts);
-    this.fontStatsSection = this.contentElement.createChild('div', 'stats-section');
   }
 
-  override doUpdate(): Promise<void> {
-    const cssModel = this.sharedModel.cssModel();
-    const node = this.sharedModel.node();
+  get sharedModel(): ComputedStyle.ComputedStyleModel.ComputedStyleModel|null {
+    return this.#sharedModel;
+  }
+
+  set sharedModel(model: ComputedStyle.ComputedStyleModel.ComputedStyleModel) {
+    if (model !== this.sharedModel) {
+      this.sharedModel?.removeEventListener(
+          ComputedStyle.ComputedStyleModel.Events.CSS_MODEL_CHANGED, this.requestUpdate, this);
+      this.sharedModel?.removeEventListener(
+          ComputedStyle.ComputedStyleModel.Events.COMPUTED_STYLE_CHANGED, this.requestUpdate, this);
+
+      model.addEventListener(ComputedStyle.ComputedStyleModel.Events.CSS_MODEL_CHANGED, this.requestUpdate, this);
+      model.addEventListener(ComputedStyle.ComputedStyleModel.Events.COMPUTED_STYLE_CHANGED, this.requestUpdate, this);
+    }
+
+    this.#sharedModel = model;
+    void this.requestUpdate();
+  }
+
+  override async performUpdate(): Promise<void> {
+    const cssModel = this.#sharedModel?.cssModel();
+    const node = this.#sharedModel?.node;
     if (!node || !cssModel) {
-      return Promise.resolve();
-    }
-
-    return cssModel.getPlatformFonts(node.id).then(this.refreshUI.bind(this, node));
-  }
-
-  private refreshUI(node: SDK.DOMModel.DOMNode, platformFonts: Protocol.CSS.PlatformFontUsage[]|null): void {
-    if (this.sharedModel.node() !== node) {
+      this.#view({platformFonts: null}, {}, this.contentElement);
       return;
     }
 
-    this.fontStatsSection.removeChildren();
-
-    const isEmptySection = !platformFonts?.length;
-    this.sectionTitle.classList.toggle('hidden', isEmptySection);
-    if (isEmptySection || !platformFonts) {
-      return;
-    }
-
-    platformFonts.sort(function(a, b) {
-      return b.glyphCount - a.glyphCount;
-    });
-
-    for (const platformFont of platformFonts) {
-      const fontStatElement = this.fontStatsSection.createChild('div', 'font-stats-item');
-      const familyNameElement = fontStatElement.createChild('div');
-      familyNameElement.textContent = `${UIStrings.familyName}: ${platformFont.familyName}`;
-
-      const postScriptNameElement = fontStatElement.createChild('div');
-      postScriptNameElement.textContent = `${UIStrings.postScriptName}: ${platformFont.postScriptName}`;
-
-      const fontOriginElement = fontStatElement.createChild('div');
-      const fontOrigin =
-          platformFont.isCustomFont ? i18nString(UIStrings.networkResource) : i18nString(UIStrings.localFile);
-      fontOriginElement.textContent = `${UIStrings.fontOrigin}: ${fontOrigin}`;
-
-      const fontUsageElement = fontOriginElement.createChild('span', 'font-usage');
-      const usage = platformFont.glyphCount;
-      fontUsageElement.textContent = i18nString(UIStrings.dGlyphs, {n: usage});
-    }
+    const platformFonts = await cssModel.getPlatformFonts(node.id);
+    const sortedPlatformFonts = platformFonts?.sort((a, b) => b.glyphCount - a.glyphCount) || null;
+    this.#view({platformFonts: sortedPlatformFonts}, {}, this.contentElement);
   }
 }

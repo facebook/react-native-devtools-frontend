@@ -1,0 +1,282 @@
+/* eslint-disable color-named, no-duplicate-selectors */
+/* stylelint-disable plugin/use_theme_colors */
+/*
+ * Copyright 2026 The Chromium Authors
+ * Use of this source code is governed by a BSD-style license that can be
+ * found in the LICENSE file.
+ */
+
+:root {
+  --gemini-logo: url("data:image/svg+xml,%0A%3Csvg%20fill%3D%22none%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2065%2065%22%3E%3Cmask%20id%3D%22maskme%22%20style%3D%22mask-type%3Aalpha%22%20maskUnits%3D%22userSpaceOnUse%22%20x%3D%220%22%20y%3D%220%22%20width%3D%2265%22%20height%3D%2265%22%3E%3Cpath%20d%3D%22M32.447%200c.68%200%201.273.465%201.439%201.125a38.904%2038.904%200%20001.999%205.905c2.152%205%205.105%209.376%208.854%2013.125%203.751%203.75%208.126%206.703%2013.125%208.855a38.98%2038.98%200%20005.906%201.999c.66.166%201.124.758%201.124%201.438%200%20.68-.464%201.273-1.125%201.439a38.902%2038.902%200%2000-5.905%201.999c-5%202.152-9.375%205.105-13.125%208.854-3.749%203.751-6.702%208.126-8.854%2013.125a38.973%2038.973%200%2000-2%205.906%201.485%201.485%200%2001-1.438%201.124c-.68%200-1.272-.464-1.438-1.125a38.913%2038.913%200%2000-2-5.905c-2.151-5-5.103-9.375-8.854-13.125-3.75-3.749-8.125-6.702-13.125-8.854a38.973%2038.973%200%2000-5.905-2A1.485%201.485%200%20010%2032.448c0-.68.465-1.272%201.125-1.438a38.903%2038.903%200%20005.905-2c5-2.151%209.376-5.104%2013.125-8.854%203.75-3.749%206.703-8.125%208.855-13.125a38.972%2038.972%200%20001.999-5.905A1.485%201.485%200%200132.447%200z%22%20fill%3D%22%23000%22/%3E%3Cpath%20d%3D%22M32.447%200c.68%200%201.273.465%201.439%201.125a38.904%2038.904%200%20001.999%205.905c2.152%205%205.105%209.376%208.854%2013.125%203.751%203.75%208.126%206.703%2013.125%208.855a38.98%2038.98%200%20005.906%201.999c.66.166%201.124.758%201.124%201.438%200%20.68-.464%201.273-1.125%201.439a38.902%2038.902%200%2000-5.905%201.999c-5%202.152-9.375%205.105-13.125%208.854-3.749%203.751-6.702%208.126-8.854%2013.125a38.973%2038.973%200%2000-2%205.906%201.485%201.485%200%2001-1.438%201.124c-.68%200-1.272-.464-1.438-1.125a38.913%2038.913%200%2000-2-5.905c-2.151-5-5.103-9.375-8.854-13.125-3.75-3.749-8.125-6.702-13.125-8.854a38.973%2038.973%200%2000-5.905-2A1.485%201.485%200%20010%2032.448c0-.68.465-1.272%201.125-1.438a38.903%2038.903%200%20005.905-2c5-2.151%209.376-5.104%2013.125-8.854%203.75-3.749%206.703-8.125%208.855-13.125a38.972%2038.972%200%20001.999-5.905A1.485%201.485%200%200132.447%200z%22%20fill%3D%22%23000%22/%3E%3Cpath%20d%3D%22M32.447%200c.68%200%201.273.465%201.439%201.125a38.904%2038.904%200%20001.999%205.905c2.152%205%205.105%209.376%208.854%2013.125%203.751%203.75%208.126%206.703%2013.125%208.855a38.98%2038.98%200%20005.906%201.999c.66.166%201.124.758%201.124%201.438%200%20.68-.464%201.273-1.125%201.439a38.902%2038.902%200%2000-5.905%201.999c-5%202.152-9.375%205.105-13.125%208.854-3.749%203.751-6.702%208.126-8.854%2013.125a38.973%2038.973%200%2000-2%205.906%201.485%201.485%200%2001-1.438%201.124c-.68%200-1.272-.464-1.438-1.125a38.913%2038.913%200%2000-2-5.905c-2.151-5-5.103-9.375-8.854-13.125-3.75-3.749-8.125-6.702-13.125-8.854a38.973%2038.973%200%2000-5.905-2A1.485%201.485%200%20010%2032.448c0-.68.465-1.272%201.125-1.438a38.903%2038.903%200%20005.905-2c5-2.151%209.376-5.104%2013.125-8.854%203.75-3.749%206.703-8.125%208.855-13.125a38.972%2038.972%200%20001.999-5.905A1.485%201.485%200%200132.447%200z%22%20fill%3D%22%23000%22/%3E%3Cpath%20d%3D%22M32.447%200c.68%200%201.273.465%201.439%201.125a38.904%2038.904%200%20001.999%205.905c2.152%205%205.105%209.376%208.854%2013.125%203.751%203.75%208.126%206.703%2013.125%208.855a38.98%2038.98%200%20005.906%201.999c.66.166%201.124.758%201.124%201.438%200%20.68-.464%201.273-1.125%201.439a38.902%2038.902%200%2000-5.905%201.999c-5%202.152-9.375%205.105-13.125%208.854-3.749%203.751-6.702%208.126-8.854%2013.125a38.973%2038.973%200%2000-2%205.906%201.485%201.485%200%2001-1.438%201.124c-.68%200-1.272-.464-1.438-1.125a38.913%2038.913%200%2000-2-5.905c-2.151-5-5.103-9.375-8.854-13.125-3.75-3.749-8.125-6.702-13.125-8.854a38.973%2038.973%200%2000-5.905-2A1.485%201.485%200%20010%2032.448c0-.68.465-1.272%201.125-1.438a38.903%2038.903%200%20005.905-2c5-2.151%209.376-5.104%2013.125-8.854%203.75-3.749%206.703-8.125%208.855-13.125a38.972%2038.972%200%20001.999-5.905A1.485%201.485%200%200132.447%200z%22%20fill%3D%22%23000%22/%3E%3C/mask%3E%3Cg%20mask%3D%22url%28%23maskme%29%22%3E%3Cpath%20d%3D%22M32.447%200c25.437%200%2046.062%2020.625%2046.062%2046.062%200%2025.438-20.625%2046.063-46.062%2046.063-25.438%200-46.062-20.625-46.062-46.063C-13.615%2020.625%207.01%200%2032.447%200z%22%20fill%3D%22%231967D2%22/%3E%3Cpath%20d%3D%22M65%200v65H0V0h65z%22%20fill%3D%22%231967D2%22/%3E%3Cpath%20d%3D%22M63.79%2033.567L33.567%2063.79%201.21%2031.433%2031.433%201.21%2063.79%2033.567z%22%20fill%3D%22%23fff%22%20style%3D%22mix-blend-mode%3Asoft-light%22/%3E%3C/g%3E%3C/svg%3E");
+}
+
+.green-dev-floaty-dialog {
+  width: 100%;
+  height: 100%;
+  background-color: #fff;
+  display: flex;
+  flex-direction: column;
+  font-family: sans-serif;
+  color: #333;
+  font-size: 16px;
+  box-sizing: border-box;
+}
+
+/* Header extending upwards */
+.green-dev-floaty-dialog-header {
+  position: relative;
+  height: 70px;
+  margin-top: -20px;
+  background-color: #d3e3fd;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 34px 10px 11px;
+  box-sizing: border-box;
+}
+
+.green-dev-floaty-dialog-header-text {
+  font-weight: bold;
+  font-size: 18px;
+}
+
+.green-dev-floaty-dialog-close-button {
+  width: 20px;
+  height: 20px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23333' d='M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12z'/%3E%3C/svg%3E");
+  background-size: cover;
+  cursor: pointer;
+  border: none;
+  background-color: transparent;
+  padding: 0;
+}
+
+/* Main content area of the white card */
+.green-dev-floaty-dialog-content {
+  flex-grow: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0; /* Important for flex-grow with overflow */
+}
+
+.green-dev-floaty-dialog-chat-container {
+  flex-grow: 1;
+  margin-bottom: 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+}
+
+.message {
+  padding: 8px 12px;
+  border-radius: 12px;
+  max-width: 85%;
+  overflow-wrap: break-word;
+  line-height: 1.4;
+  white-space: pre-wrap; /* Preserve newlines */
+}
+
+.user-message {
+  align-self: flex-end;
+  background-color: #d3e3fd;
+  color: #0b57d0;
+  border-bottom-right-radius: 2px;
+}
+
+.ai-message {
+  align-self: flex-start;
+  background-color: #fff;
+  color: #333;
+  border: 1px solid #e0e0e0;
+  border-bottom-left-radius: 2px;
+}
+
+.message-details-toggle {
+  font-size: 11px;
+  color: #0b57d0;
+  cursor: pointer;
+  margin-top: 4px;
+  text-decoration: underline;
+}
+
+.message-details-toggle:hover {
+  color: #0842a0;
+}
+
+.message-details {
+  font-size: 11px;
+  color: #666;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+  font-family: var(--monospace-font-family);
+}
+
+.thought, .action {
+  margin-bottom: 6px;
+  white-space: pre-wrap;
+}
+
+.thought {
+  font-style: italic;
+}
+
+.green-dev-floaty-dialog-top-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px; /* Space between top row and blue card */
+}
+
+.green-dev-floaty-dialog-gemini-icon {
+  width: 24px;
+  height: 24px;
+  background-image: var(--gemini-logo);
+  background-size: cover;
+  margin-right: 10px;
+}
+
+.green-dev-floaty-dialog-checkmark-icon {
+  width: 20px;
+  height: 20px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%234CAF50' d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E");
+  background-size: cover;
+  margin-right: 5px;
+}
+
+.green-dev-floaty-dialog-context-text {
+  font-weight: bold;
+}
+
+/* Blue card at the bottom */
+.green-dev-floaty-dialog-blue-card {
+  position: relative;
+  background-color: #edf2fa; /* Light blue */
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid #d3e3fd;
+}
+
+.green-dev-floaty-dialog-node-description {
+  font-size: 11px;
+  font-family: var(--monospace-font-family);
+  color: #0b57d0;
+  background-color: #d3e3fd;
+  padding: 2px 8px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.input-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.green-dev-floaty-dialog-text-field {
+  flex-grow: 1;
+  background-color: #fff;
+  border: 1px solid #a7d9f0;
+  border-radius: 20px; /* Pill shape */
+  padding: 8px 16px;
+  font-size: 14px;
+  color: #333;
+  margin-right: 8px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.green-dev-floaty-dialog-text-field:focus {
+  border-color: #0b57d0;
+}
+
+.green-dev-floaty-dialog-play-button {
+  width: 30px;
+  height: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%231976D2' d='M8 5v14l11-7z'/%3E%3C/svg%3E");
+  background-size: cover;
+  cursor: pointer;
+  border: none;
+  background-color: transparent;
+  padding: 0;
+}
+
+.green-dev-floaty-minimal {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  background-color: #fff;
+  background-image: var(--gemini-logo);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 32px;
+  cursor: pointer;
+  pointer-events: all;
+  z-index: 1001;
+  border-radius: 12px;
+  box-shadow: 0 4px 8px rgb(0 0 0 / 20%);
+  padding: 5px;
+}
+
+.green-dev-floaty-disclaimer {
+  font-size: 15px;
+  color: #666;
+  text-align: center;
+  margin-top: 8px;
+  position: relative; /* For tooltip positioning */
+}
+
+.disclaimer-link {
+  color: #666; /* Match text color */
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.disclaimer-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 100%; /* Position above */
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  padding: 12px;
+  background-color: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 20%);
+  z-index: 1000;
+  text-align: left;
+  font-size: 16px;
+  line-height: 1.4;
+  color: #333;
+  white-space: normal; /* Ensure text wraps */
+}
+
+.disclaimer-link:hover + .disclaimer-tooltip,
+.disclaimer-tooltip:hover {
+  display: block;
+}
+
+.learn-more-link {
+  color: #0b57d0;
+  text-decoration: none;
+}
+
+.learn-more-link:hover {
+  text-decoration: underline;
+}

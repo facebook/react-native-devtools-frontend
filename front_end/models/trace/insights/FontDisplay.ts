@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,7 +23,7 @@ export const UIStrings = {
    * @description Text to tell the user about the font-display CSS feature to help improve a the UX of a page.
    */
   description:
-      'Consider setting [`font-display`](https://developer.chrome.com/blog/font-display) to `swap` or `optional` to ensure text is consistently visible. `swap` can be further optimized to mitigate layout shifts with [font metric overrides](https://developer.chrome.com/blog/font-fallbacks).',
+      'Consider setting [`font-display`](https://developer.chrome.com/docs/performance/insights/font-display) to `swap` or `optional` to ensure text is consistently visible. `swap` can be further optimized to mitigate layout shifts with [font metric overrides](https://developer.chrome.com/blog/font-fallbacks).',
   /** Column for a font loaded by the page to render text. */
   fontColumn: 'Font',
   /** Column for the amount of time wasted. */
@@ -50,23 +50,27 @@ function finalize(partialModel: PartialInsightModel<FontDisplayInsightModel>): F
     strings: UIStrings,
     title: i18nString(UIStrings.title),
     description: i18nString(UIStrings.description),
+    docs: 'https://developer.chrome.com/docs/performance/insights/font-display',
     category: InsightCategory.INP,
     state: partialModel.fonts.find(font => font.wastedTime > 0) ? 'fail' : 'pass',
     ...partialModel,
   };
 }
 
-export function generateInsight(
-    parsedTrace: Handlers.Types.ParsedTrace, context: InsightSetContext): FontDisplayInsightModel {
+export function isFontDisplayInsight(model: InsightModel): model is FontDisplayInsightModel {
+  return model.insightKey === InsightKeys.FONT_DISPLAY;
+}
+
+export function generateInsight(data: Handlers.Types.HandlerData, context: InsightSetContext): FontDisplayInsightModel {
   const fonts: RemoteFont[] = [];
-  for (const remoteFont of parsedTrace.LayoutShifts.remoteFonts) {
+  for (const remoteFont of data.LayoutShifts.remoteFonts) {
     const event = remoteFont.beginRemoteFontLoadEvent;
     if (!Helpers.Timing.eventIsInBounds(event, context.bounds)) {
       continue;
     }
 
     const requestId = `${event.pid}.${event.args.id}`;
-    const request = parsedTrace.NetworkRequests.byId.get(requestId);
+    const request = data.NetworkRequests.byId.get(requestId);
     if (!request) {
       continue;
     }
@@ -104,4 +108,12 @@ export function generateInsight(
     fonts,
     metricSavings: {FCP: savings},
   });
+}
+
+export function createOverlays(model: FontDisplayInsightModel): Types.Overlays.Overlay[] {
+  return model.fonts.map(font => ({
+                           type: 'ENTRY_OUTLINE',
+                           entry: font.request,
+                           outlineReason: font.wastedTime ? 'ERROR' : 'INFO',
+                         }));
 }

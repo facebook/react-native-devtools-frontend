@@ -1,11 +1,14 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
+/* eslint-disable @devtools/no-lit-render-outside-of-view */
 
 import * as Host from '../../../core/host/host.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import type * as Protocol from '../../../generated/protocol.js';
 import * as Persistence from '../../../models/persistence/persistence.js';
+import * as TextUtils from '../../../models/text_utils/text_utils.js';
 import * as Workspace from '../../../models/workspace/workspace.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as ComponentHelpers from '../../../ui/components/helpers/helpers.js';
@@ -13,44 +16,40 @@ import * as UI from '../../../ui/legacy/legacy.js';
 import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import HeadersViewStylesRaw from './HeadersView.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const HeadersViewStyles = new CSSStyleSheet();
-HeadersViewStyles.replaceSync(HeadersViewStylesRaw.cssText);
+import headersViewStyles from './HeadersView.css.js';
 
 const {html} = Lit;
 
 const UIStrings = {
   /**
-   *@description The title of a button that adds a field to input a header in the editor form.
+   * @description The title of a button that adds a field to input a header in the editor form.
    */
   addHeader: 'Add a header',
   /**
-   *@description The title of a button that removes a field to input a header in the editor form.
+   * @description The title of a button that removes a field to input a header in the editor form.
    */
   removeHeader: 'Remove this header',
   /**
-   *@description The title of a button that removes a section for defining header overrides in the editor form.
+   * @description The title of a button that removes a section for defining header overrides in the editor form.
    */
   removeBlock: 'Remove this \'`ApplyTo`\'-section',
   /**
-   *@description Error message for files which cannot not be parsed.
-   *@example {.headers} PH1
+   * @description Error message for files which cannot not be parsed.
+   * @example {.headers} PH1
    */
   errorWhenParsing: 'Error when parsing \'\'{PH1}\'\'.',
   /**
-   *@description Explainer for files which cannot be parsed.
-   *@example {.headers} PH1
+   * @description Explainer for files which cannot be parsed.
+   * @example {.headers} PH1
    */
   parsingErrorExplainer:
       'This is most likely due to a syntax error in \'\'{PH1}\'\'. Try opening this file in an external editor to fix the error or delete the file and re-create the override.',
   /**
-   *@description Button text for a button which adds an additional header override rule.
+   * @description Button text for a button which adds an additional header override rule.
    */
   addOverrideRule: 'Add override rule',
   /**
-   *@description Text which is a hyperlink to more documentation
+   * @description Text which is a hyperlink to more documentation
    */
   learnMore: 'Learn more',
 } as const;
@@ -65,8 +64,11 @@ export class HeadersView extends UI.View.SimpleView {
   #uiSourceCode: Workspace.UISourceCode.UISourceCode;
 
   constructor(uiSourceCode: Workspace.UISourceCode.UISourceCode) {
-    super(i18n.i18n.lockedString('HeadersView'));
-    this.element.setAttribute('jslog', `${VisualLogging.pane('headers-view')}`);
+    super({
+      title: i18n.i18n.lockedString('HeadersView'),
+      viewId: 'headers-view',
+      jslog: `${VisualLogging.pane('headers-view')}`,
+    });
     this.#uiSourceCode = uiSourceCode;
     this.#uiSourceCode.addEventListener(
         Workspace.UISourceCode.Events.WorkingCopyChanged, this.#onWorkingCopyChanged, this);
@@ -77,8 +79,8 @@ export class HeadersView extends UI.View.SimpleView {
   }
 
   async #setInitialData(): Promise<void> {
-    const content = await this.#uiSourceCode.requestContent();
-    this.#setComponentData(content.content || '');
+    const contentDataOrError = await this.#uiSourceCode.requestContentData();
+    this.#setComponentData(TextUtils.ContentData.ContentData.textOr(contentDataOrError, ''));
   }
 
   #setComponentData(content: string): void {
@@ -130,7 +132,6 @@ export interface HeadersViewComponentData {
 
 export class HeadersViewComponent extends HTMLElement {
   readonly #shadow = this.attachShadow({mode: 'open'});
-  readonly #boundRender = this.#render.bind(this);
   #headerOverrides: Persistence.NetworkPersistenceManager.HeaderOverride[] = [];
   #uiSourceCode: Workspace.UISourceCode.UISourceCode|null = null;
   #parsingError = false;
@@ -148,15 +149,11 @@ export class HeadersViewComponent extends HTMLElement {
     this.addEventListener('contextmenu', this.#onContextMenu.bind(this));
   }
 
-  connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [HeadersViewStyles];
-  }
-
   set data(data: HeadersViewComponentData) {
     this.#headerOverrides = data.headerOverrides;
     this.#uiSourceCode = data.uiSourceCode;
     this.#parsingError = data.parsingError;
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
+    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
   }
 
   // 'Enter' key should not create a new line in the contenteditable. Focus
@@ -348,6 +345,7 @@ export class HeadersViewComponent extends HTMLElement {
       const fileName = this.#uiSourceCode?.name() || '.headers';
       // clang-format off
       Lit.render(html`
+        <style>${headersViewStyles}</style>
         <div class="center-wrapper">
           <div class="centered">
             <div class="error-header">${i18nString(UIStrings.errorWhenParsing, {PH1: fileName})}</div>
@@ -361,6 +359,7 @@ export class HeadersViewComponent extends HTMLElement {
 
     // clang-format off
     Lit.render(html`
+      <style>${headersViewStyles}</style>
       ${this.#headerOverrides.map((headerOverride, blockIndex) =>
         html`
           ${this.#renderApplyToRow(headerOverride.applyTo, blockIndex)}
@@ -378,10 +377,10 @@ export class HeadersViewComponent extends HTMLElement {
         ${i18nString(UIStrings.addOverrideRule)}
       </devtools-button>
       <div class="learn-more-row">
-        <x-link
+        <devtools-link
             href="https://goo.gle/devtools-override"
             class="link"
-            jslog=${VisualLogging.link('learn-more').track({click: true})}>${i18nString(UIStrings.learnMore)}</x-link>
+            jslogContext=${'learn-more'}>${i18nString(UIStrings.learnMore)}</devtools-link>
       </div>
     `, this.#shadow, {host: this});
     // clang-format on
@@ -405,7 +404,7 @@ export class HeadersViewComponent extends HTMLElement {
     // clang-format off
     return html`
       <div class="row" data-block-index=${blockIndex}
-           jslog=${VisualLogging.treeItem(pattern === '*' ? pattern : undefined)}>
+           jslog=${VisualLogging.treeItem(pattern === '*' ? pattern : undefined).track({resize: true})}>
         <div>${i18n.i18n.lockedString('Apply to')}</div>
         <div class="separator">:</div>
         ${this.#renderEditable(pattern, 'apply-to')}
@@ -428,7 +427,7 @@ export class HeadersViewComponent extends HTMLElement {
     // clang-format off
     return html`
       <div class="row padded" data-block-index=${blockIndex} data-header-index=${headerIndex}
-           jslog=${VisualLogging.treeItem(header.name).parent('headers-editor-row-parent')}>
+           jslog=${VisualLogging.treeItem(header.name).parent('headers-editor-row-parent').track({resize: true})}>
         ${this.#renderEditable(header.name, 'header-name red', true)}
         <div class="separator">:</div>
         ${this.#renderEditable(header.value, 'header-value')}

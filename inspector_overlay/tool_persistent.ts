@@ -1,32 +1,6 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-//  Copyright (C) 2012 Google Inc. All rights reserved.
-
-//  Redistribution and use in source and binary forms, with or without
-//  modification, are permitted provided that the following conditions
-//  are met:
-
-//  1.  Redistributions of source code must retain the above copyright
-//      notice, this list of conditions and the following disclaimer.
-//  2.  Redistributions in binary form must reproduce the above copyright
-//      notice, this list of conditions and the following disclaimer in the
-//      documentation and/or other materials provided with the distribution.
-//  3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
-//      its contributors may be used to endorse or promote products derived
-//      from this software without specific prior written permission.
-
-//  THIS SOFTWARE IS PROVIDED BY APPLE AND ITS CONTRIBUTORS "AS IS" AND ANY
-//  EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-//  WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-//  DISCLAIMED. IN NO EVENT SHALL APPLE OR ITS CONTRIBUTORS BE LIABLE FOR ANY
-//  DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-//  (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-//  LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-//  ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-//  (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
-//  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import {Overlay, type ResetData} from './common.js';
 import {type Delegate, DragResizeHandler, ResizerType} from './drag_resize_handler.js';
@@ -35,6 +9,7 @@ import {drawLayoutFlexContainerHighlight, type FlexContainerHighlight} from './h
 import {drawLayoutGridHighlight, type GridHighlight} from './highlight_grid_common.js';
 import {drawIsolatedElementHighlight, type IsolatedElementHighlight} from './highlight_isolated_element.js';
 import {drawScrollSnapHighlight, type ScrollSnapHighlight} from './highlight_scroll_snap.js';
+import type {GreenDevAnchorsHighlight, GreenDevAnchorsOverlay} from './tool_green_dev_anchors.js';
 
 export interface PersistentToolMessage {
   highlightType: string;
@@ -91,11 +66,17 @@ export class PersistentOverlay extends Overlay {
     initialHeight: number,
   }>();
   private dragHandler?: DragResizeHandler;
+  private greenDevAnchorsOverlay?: GreenDevAnchorsOverlay;
+
+  setGreenDevAnchorsOverlay(greenDevAnchorsOverlay: GreenDevAnchorsOverlay) {
+    this.greenDevAnchorsOverlay = greenDevAnchorsOverlay;
+  }
 
   override reset(data: ResetData) {
     super.reset(data);
     this.gridLabelState.gridLayerCounter = 0;
     this.gridLabels.innerHTML = '';
+    this.greenDevAnchorsOverlay?.reset(data);
   }
 
   renderGridMarkup() {
@@ -139,9 +120,7 @@ export class PersistentOverlay extends Overlay {
 
   drawFlexContainerHighlight(highlight: FlexContainerHighlight) {
     this.context.save();
-    drawLayoutFlexContainerHighlight(
-        highlight, this.context, this.deviceScaleFactor, this.canvasWidth, this.canvasHeight,
-        this.emulationScaleFactor);
+    drawLayoutFlexContainerHighlight(highlight, this.context, this.emulationScaleFactor);
     this.context.restore();
   }
 
@@ -155,6 +134,13 @@ export class PersistentOverlay extends Overlay {
     this.context.save();
     drawContainerQueryHighlight(highlight, this.context, this.emulationScaleFactor);
     this.context.restore();
+  }
+
+  drawGreenDevFloatyAnchors(highlights: GreenDevAnchorsHighlight[]) {
+    if (this.greenDevAnchorsOverlay && !this.greenDevAnchorsOverlay.installed) {
+      this.greenDevAnchorsOverlay.install();
+    }
+    this.greenDevAnchorsOverlay?.drawGreenDevAnchors(highlights);
   }
 
   drawIsolatedElementHighlight(highlight: IsolatedElementHighlight) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Chromium Authors. All rights reserved.
+ * Copyright 2021 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -9,6 +9,11 @@
   border: 1px solid var(--sys-color-divider) !important; /* stylelint-disable-line declaration-no-important */
   /* See: crbug.com/1152736 for color variable migration. */
   line-height: 120%;
+
+  :focus-visible {
+    outline: 2px solid var(--sys-color-state-focus-ring);
+    outline-offset: -2px;
+  }
 }
 
 .data-grid table {
@@ -110,8 +115,12 @@
   user-select: text;
 }
 
-.data-grid tr:has(th) {
-  background-color: var(--sys-color-surface1);
+.data-grid tr {
+  background-color: var(--sys-color-surface);
+
+  &:has(th) {
+    background-color: var(--sys-color-surface1);
+  }
 }
 
 .data-grid th {
@@ -126,8 +135,8 @@
   border-left-width: 0;
 }
 
-.data-grid tr.selected td,
-.data-grid tr.selected th {
+.data-grid:focus-within tr.selected td,
+.data-grid:focus-within tr.selected th {
   border-left-color: var(--sys-color-divider-on-tonal-container);
 }
 
@@ -249,7 +258,8 @@
 }
 
 .data-grid.no-selection:focus-visible {
-  border: 1px solid var(--sys-color-state-focus-ring) !important; /* stylelint-disable-line declaration-no-important */
+  outline: 2px solid var(--sys-color-state-focus-ring);
+  outline-offset: -2px;
 }
 
 .data-grid:focus tbody tr.selected {
@@ -334,6 +344,11 @@
 
   .data-grid.no-selection:focus-visible * {
     color: ButtonText;
+  }
+
+  .data-grid tbody tr.revealed:not(.data-grid-filler-row, .selected):hover,
+  .data-grid:focus-within tbody tr.revealed.selected {
+    background-color: Highlight;
   }
 
   .data-grid th.sortable:hover *,

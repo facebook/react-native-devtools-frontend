@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,6 @@ import {
   renderElementIntoDOM,
 } from '../../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
-import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 
 import * as Components from './components.js';
 
@@ -17,14 +16,19 @@ describeWithEnvironment('RelatedInsightChips', () => {
   // Event doesn't matter, so let's keep this test quick and avoid parsing a trace.
   const FAKE_EVENT = {} as unknown as Trace.Types.Events.Event;
 
-  it('renders nothing if the event has no insights', async () => {
+  async function renderComponent(relatedMap: Components.RelatedInsightChips.EventToRelatedInsightsMap):
+      Promise<HTMLElement> {
     const component = new Components.RelatedInsightChips.RelatedInsightChips();
     renderElementIntoDOM(component);
     component.activeEvent = FAKE_EVENT;
-    component.eventToRelatedInsightsMap = new Map();
-    await RenderCoordinator.done();
-    assert.isOk(component.shadowRoot);
-    assert.strictEqual(component.shadowRoot.childElementCount, 0);
+    component.eventToInsightsMap = relatedMap;
+    await component.updateComplete;
+    return component.contentElement;
+  }
+
+  it('renders nothing if the event has no insights', async () => {
+    const output = await renderComponent(new Map());
+    assert.strictEqual(output.childElementCount, 0);
   });
 
   it('renders a chip for each insight the given event is associated with', async () => {
@@ -36,14 +40,8 @@ describeWithEnvironment('RelatedInsightChips', () => {
     const relatedMap: Components.RelatedInsightChips.EventToRelatedInsightsMap = new Map();
     relatedMap.set(FAKE_EVENT, [relatedInsight]);
 
-    const component = new Components.RelatedInsightChips.RelatedInsightChips();
-    renderElementIntoDOM(component);
-    component.activeEvent = FAKE_EVENT;
-    component.eventToRelatedInsightsMap = relatedMap;
-    await RenderCoordinator.done();
-    assert.isOk(component.shadowRoot);
-
-    const chips = component.shadowRoot.querySelectorAll<HTMLElement>('li.insight-chip');
+    const element = await renderComponent(relatedMap);
+    const chips = element.querySelectorAll<HTMLElement>('li.insight-chip');
     assert.lengthOf(chips, 1);
     const text = getCleanTextContentFromElements(chips[0], 'button .insight-label');
     assert.deepEqual(text, ['Some fake insight']);
@@ -61,23 +59,17 @@ describeWithEnvironment('RelatedInsightChips', () => {
     const relatedMap: Components.RelatedInsightChips.EventToRelatedInsightsMap = new Map();
     relatedMap.set(FAKE_EVENT, [relatedInsight]);
 
-    const component = new Components.RelatedInsightChips.RelatedInsightChips();
-    renderElementIntoDOM(component);
-    component.activeEvent = FAKE_EVENT;
-    component.eventToRelatedInsightsMap = relatedMap;
-    await RenderCoordinator.done();
-    assert.isOk(component.shadowRoot);
-
-    const regularChips = component.shadowRoot.querySelectorAll<HTMLElement>('li.insight-chip');
+    const element = await renderComponent(relatedMap);
+    const regularChips = element.querySelectorAll<HTMLElement>('li.insight-chip');
     assert.lengthOf(regularChips, 1);
 
-    const optimizationChips = component.shadowRoot.querySelectorAll<HTMLElement>('li.insight-message-box');
+    const optimizationChips = element.querySelectorAll<HTMLElement>('li.insight-message-box');
     assert.lengthOf(optimizationChips, 2);
 
     const text1 = getCleanTextContentFromElements(optimizationChips[0], 'button');
-    assert.deepEqual(text1, ['Insight: Some fake insight Message 1']);
+    assert.deepEqual(text1, ['Insight: Some fake insight\nMessage 1']);
     const text2 = getCleanTextContentFromElements(optimizationChips[1], 'button');
-    assert.deepEqual(text2, ['Insight: Some fake insight Message 2']);
+    assert.deepEqual(text2, ['Insight: Some fake insight\nMessage 2']);
   });
 
   it('calls the activateInsight function when the insight is clicked', async () => {
@@ -89,17 +81,11 @@ describeWithEnvironment('RelatedInsightChips', () => {
     };
     const relatedMap: Components.RelatedInsightChips.EventToRelatedInsightsMap = new Map();
     relatedMap.set(FAKE_EVENT, [relatedInsight]);
+    const element = await renderComponent(relatedMap);
 
-    const component = new Components.RelatedInsightChips.RelatedInsightChips();
-    renderElementIntoDOM(component);
-    component.activeEvent = FAKE_EVENT;
-    component.eventToRelatedInsightsMap = relatedMap;
-    await RenderCoordinator.done();
-    assert.isOk(component.shadowRoot);
-
-    const button = component.shadowRoot.querySelector('button');
+    const button = element.querySelector('button');
     assert.isOk(button);
     dispatchClickEvent(button);
-    assert.isTrue(activateStub.called);
+    sinon.assert.called(activateStub);
   });
 });

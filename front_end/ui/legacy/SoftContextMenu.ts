@@ -1,36 +1,12 @@
-/*
- * Copyright (C) 2011 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2011 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
-import * as IconButton from '../../ui/components/icon_button/icon_button.js';
+import {createIcon} from '../../ui/kit/kit.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import * as ARIAUtils from './ARIAUtils.js';
@@ -42,26 +18,30 @@ import {createTextChild, ElementFocusRestorer} from './UIUtils.js';
 
 const UIStrings = {
   /**
-   *@description Text exposed to screen readers on checked items.
+   * @description Text exposed to screen readers on checked items.
    */
   checked: 'checked',
   /**
-   *@description Accessible text exposed to screen readers when the screen reader encounters an unchecked checkbox.
+   * @description Accessible text exposed to screen readers when the screen reader encounters an unchecked checkbox.
    */
   unchecked: 'unchecked',
   /**
-   *@description Accessibility label for checkable SoftContextMenuItems with shortcuts
-   *@example {Open File} PH1
-   *@example {Ctrl + P} PH2
-   *@example {checked} PH3
+   * @description Accessibility label for checkable SoftContextMenuItems with shortcuts
+   * @example {Open File} PH1
+   * @example {Ctrl + P} PH2
+   * @example {checked} PH3
    */
   sSS: '{PH1}, {PH2}, {PH3}',
   /**
-   *@description Generic text with two placeholders separated by a comma
-   *@example {1 613 680} PH1
-   *@example {44 %} PH2
+   * @description Generic text with two placeholders separated by a comma
+   * @example {1 613 680} PH1
+   * @example {44 %} PH2
    */
   sS: '{PH1}, {PH2}',
+  /**
+   * @description Accessible text exposed to screen readers appended to menu items that have a new badge.
+   */
+  newFeature: 'This is a new feature',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/SoftContextMenu.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -72,11 +52,11 @@ export class SoftContextMenu {
   private parentMenu: SoftContextMenu|undefined;
   private highlightedMenuItemElement: HTMLElement|null;
   detailsForElementMap: WeakMap<HTMLElement, ElementMenuDetails>;
-  private document?: Document;
+  private document!: Document;
   private glassPane?: GlassPane;
-  private contextMenuElement?: HTMLElement;
+  private contextMenuElement!: HTMLElement;
   private focusRestorer?: ElementFocusRestorer;
-  private hideOnUserMouseDownUnlessInMenu?: ((event: Event) => void);
+  private hideOnUserMouseDownUnlessInMenu?: (event: Event) => void;
   private activeSubMenuElement?: HTMLElement;
   private subMenu?: SoftContextMenu;
   private onMenuClosed?: () => void;
@@ -238,21 +218,18 @@ export class SoftContextMenu {
 
     // If the menu contains a checkbox, add checkbox space in front of the label to align the items
     if (menuContainsCheckbox) {
-      const checkMarkElement = IconButton.Icon.create('checkmark', 'checkmark');
+      const checkMarkElement = createIcon('checkmark', 'checkmark');
       menuItemElement.appendChild(checkMarkElement);
     }
     if (item.tooltip) {
       Tooltip.install(menuItemElement, item.tooltip);
     }
-    const detailsForElement: ElementMenuDetails = {
-      actionId: undefined,
-      isSeparator: undefined,
-      customElement: undefined,
-      subItems: undefined,
-      subMenuTimer: undefined,
-    };
+    const detailsForElement: ElementMenuDetails = {};
 
-    if (item.jslogContext && !item.element?.hasAttribute('jslog')) {
+    // Only add a jslog context if the item has a label. Menu items without a
+    // label are containers for custom elements, which are responsible for adding
+    // their own `jslog` attributes.
+    if (item.jslogContext && item.label) {
       if (item.type === 'checkbox') {
         menuItemElement.setAttribute(
             'jslog', `${VisualLogging.toggle().track({click: true}).context(item.jslogContext)}`);
@@ -304,7 +281,15 @@ export class SoftContextMenu {
     } else if (item.shortcut) {
       accessibleName = i18nString(UIStrings.sS, {PH1: String(item.label), PH2: item.shortcut});
     }
+    if (item.element?.className === 'new-badge') {
+      accessibleName = i18nString(UIStrings.sS, {PH1: String(item.label), PH2: i18nString(UIStrings.newFeature)});
+    }
     ARIAUtils.setLabel(menuItemElement, accessibleName);
+
+    if (item.isExperimentalFeature) {
+      const experimentIcon = createIcon('experiment');
+      menuItemElement.appendChild(experimentIcon);
+    }
 
     this.detailsForElementMap.set(menuItemElement, detailsForElement);
 
@@ -318,22 +303,18 @@ export class SoftContextMenu {
     ARIAUtils.markAsMenuItemSubMenu(menuItemElement);
     this.detailsForElementMap.set(menuItemElement, {
       subItems: item.subItems,
-      actionId: undefined,
-      isSeparator: undefined,
-      customElement: undefined,
-      subMenuTimer: undefined,
     });
 
     // If the menu contains a checkbox, add checkbox space in front of the label to align the items
     if (menuContainsCheckbox) {
-      const checkMarkElement = IconButton.Icon.create('checkmark', 'checkmark soft-context-menu-item-checkmark');
+      const checkMarkElement = createIcon('checkmark', 'checkmark soft-context-menu-item-checkmark');
       menuItemElement.appendChild(checkMarkElement);
     }
 
     createTextChild(menuItemElement, item.label || '');
     ARIAUtils.setExpanded(menuItemElement, false);
 
-    const subMenuArrowElement = IconButton.Icon.create('keyboard-arrow-right', 'soft-context-menu-item-submenu-arrow');
+    const subMenuArrowElement = createIcon('keyboard-arrow-right', 'soft-context-menu-item-submenu-arrow');
     menuItemElement.appendChild(subMenuArrowElement);
 
     menuItemElement.addEventListener('mousedown', this.menuItemMouseDown.bind(this), false);
@@ -344,7 +325,8 @@ export class SoftContextMenu {
     menuItemElement.addEventListener('mouseleave', (this.menuItemMouseLeave.bind(this) as EventListener), false);
 
     if (item.jslogContext) {
-      menuItemElement.setAttribute('jslog', `${VisualLogging.item().context(item.jslogContext)}`);
+      menuItemElement.setAttribute(
+          'jslog', `${VisualLogging.item(item.jslogContext).track({click: true, resize: true})}`);
     }
     return menuItemElement;
   }
@@ -353,11 +335,7 @@ export class SoftContextMenu {
     const separatorElement = document.createElement('div');
     separatorElement.classList.add('soft-context-menu-separator');
     this.detailsForElementMap.set(separatorElement, {
-      subItems: undefined,
-      actionId: undefined,
       isSeparator: true,
-      customElement: undefined,
-      subMenuTimer: undefined,
     });
     separatorElement.createChild('div', 'separator-line');
     return separatorElement;
@@ -375,7 +353,7 @@ export class SoftContextMenu {
   }
 
   private root(): SoftContextMenu {
-    let root: SoftContextMenu = (this as SoftContextMenu);
+    let root: SoftContextMenu = this;
     while (root.parentMenu) {
       root = root.parentMenu;
     }
@@ -544,8 +522,7 @@ export class SoftContextMenu {
     }
   }
 
-  private menuKeyDown(event: Event): void {
-    const keyboardEvent = (event as KeyboardEvent);
+  private menuKeyDown(keyboardEvent: KeyboardEvent): void {
     function onEnterOrSpace(this: SoftContextMenu): void {
       if (!this.highlightedMenuItemElement) {
         return;
@@ -649,6 +626,8 @@ export interface SoftContextMenuDescriptor {
   shortcut?: string;
   tooltip?: Platform.UIString.LocalizedString;
   jslogContext?: string;
+  /** A no-op. For native context menus, feature name will request showing a new badge. */
+  featureName?: string;
 }
 interface ElementMenuDetails {
   customElement?: HTMLElement;

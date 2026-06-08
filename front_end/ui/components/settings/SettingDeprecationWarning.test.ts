@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,12 +17,12 @@ function createWarningElement(deprecationNotice: Common.SettingRegistration.Sett
   };
   const component = new SettingComponents.SettingDeprecationWarning.SettingDeprecationWarning();
   component.data = new Common.Settings.Deprecation(registration);
-  const element = component.shadowRoot?.firstElementChild as HTMLElement | undefined;
+  const element = component.shadowRoot!.querySelector('devtools-icon');
   return {component, element};
 }
 
 const warning = () => 'Warning' as Platform.UIString.LocalizedString;
-const EXPERIMENT_NAME = 'testExperiment';
+const EXPERIMENT_NAME = 'testExperiment' as Root.ExperimentNames.ExperimentName;
 
 describe('SettingDeprecationWarning', () => {
   beforeEach(() => {

@@ -1,36 +1,6 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2011 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-/*
- * Copyright (C) 2011 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the #name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
 
 import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 import * as Protocol from '../../generated/protocol.js';
@@ -134,7 +104,8 @@ export class ResourceTreeModel extends SDKModel<EventTypes> {
     if (!this.framesInternal.has(frameId)) {
       return null;
     }
-    const response = await this.storageAgent.invoke_getStorageKeyForFrame({frameId});
+
+    const response = await this.storageAgent.invoke_getStorageKey({frameId});
     if (response.getError() === 'Frame tree node for given frame not found') {
       return null;
     }
@@ -262,12 +233,15 @@ export class ResourceTreeModel extends SDKModel<EventTypes> {
   documentOpened(framePayload: Protocol.Page.Frame): void {
     this.frameNavigated(framePayload, undefined);
     const frame = this.framesInternal.get(framePayload.id);
-    if (frame && !frame.getResourcesMap().get(framePayload.url)) {
-      const frameResource = this.createResourceFromFramePayload(
-          framePayload, framePayload.url as Platform.DevToolsPath.UrlString, Common.ResourceType.resourceTypes.Document,
-          framePayload.mimeType, null, null);
-      frameResource.isGenerated = true;
-      frame.addResource(frameResource);
+    if (frame) {
+      this.dispatchEventToListeners(Events.DocumentOpened, frame);
+      if (!frame.getResourcesMap().get(framePayload.url)) {
+        const frameResource = this.createResourceFromFramePayload(
+            framePayload, framePayload.url as Platform.DevToolsPath.UrlString,
+            Common.ResourceType.resourceTypes.Document, framePayload.mimeType, null, null);
+        frameResource.isGenerated = true;
+        frame.addResource(frameResource);
+      }
     }
   }
 
@@ -611,6 +585,7 @@ export enum Events {
   FrameDetached = 'FrameDetached',
   FrameResized = 'FrameResized',
   FrameWillNavigate = 'FrameWillNavigate',
+  DocumentOpened = 'DocumentOpened',
   PrimaryPageChanged = 'PrimaryPageChanged',
   ResourceAdded = 'ResourceAdded',
   WillLoadCachedResources = 'WillLoadCachedResources',
@@ -633,6 +608,7 @@ export interface EventTypes {
   [Events.FrameDetached]: {frame: ResourceTreeFrame, isSwap: boolean};
   [Events.FrameResized]: void;
   [Events.FrameWillNavigate]: ResourceTreeFrame;
+  [Events.DocumentOpened]: ResourceTreeFrame;
   [Events.PrimaryPageChanged]: {frame: ResourceTreeFrame, type: PrimaryPageChangeType};
   [Events.ResourceAdded]: Resource;
   [Events.WillLoadCachedResources]: void;
@@ -650,60 +626,57 @@ export interface EventTypes {
 
 export class ResourceTreeFrame {
   #model: ResourceTreeModel;
-  #sameTargetParentFrameInternal: ResourceTreeFrame|null;
-  readonly #idInternal: Protocol.Page.FrameId;
+  #sameTargetParentFrame: ResourceTreeFrame|null;
+  readonly #id: Protocol.Page.FrameId;
   crossTargetParentFrameId: string|null = null;
-  #loaderIdInternal: Protocol.Network.LoaderId;
-  #nameInternal: string|null|undefined;
-  #urlInternal: Platform.DevToolsPath.UrlString;
-  #domainAndRegistryInternal: string;
+  #loaderId: Protocol.Network.LoaderId;
+  #name: string|null|undefined;
+  #url: Platform.DevToolsPath.UrlString;
+  #domainAndRegistry: string;
   #securityOrigin: string|null;
   #securityOriginDetails?: Protocol.Page.SecurityOriginDetails;
-  #storageKeyInternal?: Promise<string|null>;
-  #unreachableUrlInternal: Platform.DevToolsPath.UrlString;
-  #adFrameStatusInternal?: Protocol.Page.AdFrameStatus;
+  #storageKey?: Promise<string|null>;
+  #unreachableUrl: Platform.DevToolsPath.UrlString;
+  #adFrameStatus?: Protocol.Page.AdFrameStatus;
   #secureContextType: Protocol.Page.SecureContextType|null;
   #crossOriginIsolatedContextType: Protocol.Page.CrossOriginIsolatedContextType|null;
   #gatedAPIFeatures: Protocol.Page.GatedAPIFeatures[]|null;
   #creationStackTrace: Protocol.Runtime.StackTrace|null;
   #creationStackTraceTarget: Target|null = null;
-  #childFramesInternal = new Set<ResourceTreeFrame>();
+  #childFrames = new Set<ResourceTreeFrame>();
   resourcesMap = new Map<Platform.DevToolsPath.UrlString, Resource>();
   backForwardCacheDetails: {
-    restoredFromCache: boolean|undefined,
     explanations: Protocol.Page.BackForwardCacheNotRestoredExplanation[],
-    explanationsTree: Protocol.Page.BackForwardCacheNotRestoredExplanationTree|undefined,
+    restoredFromCache?: boolean,
+    explanationsTree?: Protocol.Page.BackForwardCacheNotRestoredExplanationTree,
   } = {
-    restoredFromCache: undefined,
     explanations: [],
-    explanationsTree: undefined,
   };
 
   constructor(
       model: ResourceTreeModel, parentFrame: ResourceTreeFrame|null, frameId: Protocol.Page.FrameId,
       payload: Protocol.Page.Frame|null, creationStackTrace: Protocol.Runtime.StackTrace|null) {
     this.#model = model;
-    this.#sameTargetParentFrameInternal = parentFrame;
-    this.#idInternal = frameId;
+    this.#sameTargetParentFrame = parentFrame;
+    this.#id = frameId;
 
-    this.#loaderIdInternal = payload?.loaderId ?? '' as Protocol.Network.LoaderId;
-    this.#nameInternal = payload?.name;
-    this.#urlInternal =
-        payload && payload.url as Platform.DevToolsPath.UrlString || Platform.DevToolsPath.EmptyUrlString;
-    this.#domainAndRegistryInternal = (payload?.domainAndRegistry) || '';
+    this.#loaderId = payload?.loaderId ?? '' as Protocol.Network.LoaderId;
+    this.#name = payload?.name;
+    this.#url = payload && payload.url as Platform.DevToolsPath.UrlString || Platform.DevToolsPath.EmptyUrlString;
+    this.#domainAndRegistry = (payload?.domainAndRegistry) || '';
     this.#securityOrigin = payload?.securityOrigin ?? null;
     this.#securityOriginDetails = payload?.securityOriginDetails;
-    this.#unreachableUrlInternal =
+    this.#unreachableUrl =
         (payload && payload.unreachableUrl as Platform.DevToolsPath.UrlString) || Platform.DevToolsPath.EmptyUrlString;
-    this.#adFrameStatusInternal = payload?.adFrameStatus;
+    this.#adFrameStatus = payload?.adFrameStatus;
     this.#secureContextType = payload?.secureContextType ?? null;
     this.#crossOriginIsolatedContextType = payload?.crossOriginIsolatedContextType ?? null;
     this.#gatedAPIFeatures = payload?.gatedAPIFeatures ?? null;
 
     this.#creationStackTrace = creationStackTrace;
 
-    if (this.#sameTargetParentFrameInternal) {
-      this.#sameTargetParentFrameInternal.#childFramesInternal.add(this);
+    if (this.#sameTargetParentFrame) {
+      this.#sameTargetParentFrame.#childFrames.add(this);
     }
   }
 
@@ -736,29 +709,27 @@ export class ResourceTreeFrame {
   }
 
   navigate(framePayload: Protocol.Page.Frame): void {
-    this.#loaderIdInternal = framePayload.loaderId;
-    this.#nameInternal = framePayload.name;
-    this.#urlInternal = framePayload.url as Platform.DevToolsPath.UrlString;
-    this.#domainAndRegistryInternal = framePayload.domainAndRegistry;
+    this.#loaderId = framePayload.loaderId;
+    this.#name = framePayload.name;
+    this.#url = framePayload.url as Platform.DevToolsPath.UrlString;
+    this.#domainAndRegistry = framePayload.domainAndRegistry;
     this.#securityOrigin = framePayload.securityOrigin;
     this.#securityOriginDetails = framePayload.securityOriginDetails;
     void this.getStorageKey(/* forceFetch */ true);
-    this.#unreachableUrlInternal =
+    this.#unreachableUrl =
         framePayload.unreachableUrl as Platform.DevToolsPath.UrlString || Platform.DevToolsPath.EmptyUrlString;
-    this.#adFrameStatusInternal = framePayload?.adFrameStatus;
+    this.#adFrameStatus = framePayload?.adFrameStatus;
     this.#secureContextType = framePayload.secureContextType;
     this.#crossOriginIsolatedContextType = framePayload.crossOriginIsolatedContextType;
     this.#gatedAPIFeatures = framePayload.gatedAPIFeatures;
     this.backForwardCacheDetails = {
-      restoredFromCache: undefined,
       explanations: [],
-      explanationsTree: undefined,
     };
 
-    const mainResource = this.resourcesMap.get(this.#urlInternal);
+    const mainResource = this.resourcesMap.get(this.#url);
     this.resourcesMap.clear();
     this.removeChildFrames();
-    if (mainResource && mainResource.loaderId === this.#loaderIdInternal) {
+    if (mainResource && mainResource.loaderId === this.#loaderId) {
       this.addResource(mainResource);
     }
   }
@@ -768,24 +739,24 @@ export class ResourceTreeFrame {
   }
 
   get id(): Protocol.Page.FrameId {
-    return this.#idInternal;
+    return this.#id;
   }
 
   get name(): string {
-    return this.#nameInternal || '';
+    return this.#name || '';
   }
 
   get url(): Platform.DevToolsPath.UrlString {
-    return this.#urlInternal;
+    return this.#url;
   }
 
   domainAndRegistry(): string {
-    return this.#domainAndRegistryInternal;
+    return this.#domainAndRegistry;
   }
 
-  async getAdScriptId(frameId: Protocol.Page.FrameId): Promise<Protocol.Page.AdScriptId|null> {
-    const res = await this.#model.agent.invoke_getAdScriptId({frameId});
-    return res.adScriptId || null;
+  async getAdScriptAncestry(frameId: Protocol.Page.FrameId): Promise<Protocol.Network.AdAncestry|null> {
+    const res = await this.#model.agent.invoke_getAdScriptAncestry({frameId});
+    return res.adScriptAncestry || null;
   }
 
   get securityOrigin(): string|null {
@@ -797,37 +768,37 @@ export class ResourceTreeFrame {
   }
 
   getStorageKey(forceFetch: boolean): Promise<string|null> {
-    if (!this.#storageKeyInternal || forceFetch) {
-      this.#storageKeyInternal = this.#model.storageKeyForFrame(this.#idInternal);
+    if (!this.#storageKey || forceFetch) {
+      this.#storageKey = this.#model.storageKeyForFrame(this.#id);
     }
-    return this.#storageKeyInternal;
+    return this.#storageKey;
   }
 
   unreachableUrl(): Platform.DevToolsPath.UrlString {
-    return this.#unreachableUrlInternal;
+    return this.#unreachableUrl;
   }
 
   get loaderId(): Protocol.Network.LoaderId {
-    return this.#loaderIdInternal;
+    return this.#loaderId;
   }
 
   adFrameType(): Protocol.Page.AdFrameType {
-    return this.#adFrameStatusInternal?.adFrameType || Protocol.Page.AdFrameType.None;
+    return this.#adFrameStatus?.adFrameType || Protocol.Page.AdFrameType.None;
   }
 
   adFrameStatus(): Protocol.Page.AdFrameStatus|undefined {
-    return this.#adFrameStatusInternal;
+    return this.#adFrameStatus;
   }
 
   get childFrames(): ResourceTreeFrame[] {
-    return [...this.#childFramesInternal];
+    return [...this.#childFrames];
   }
 
   /**
    * Returns the parent frame if both #frames are part of the same process/target.
    */
   sameTargetParentFrame(): ResourceTreeFrame|null {
-    return this.#sameTargetParentFrameInternal;
+    return this.#sameTargetParentFrame;
   }
 
   /**
@@ -868,7 +839,7 @@ export class ResourceTreeFrame {
    * https://chromium.googlesource.com/chromium/src/+/HEAD/docs/frame_trees.md
    */
   isMainFrame(): boolean {
-    return !this.#sameTargetParentFrameInternal;
+    return !this.#sameTargetParentFrame;
   }
 
   /**
@@ -877,7 +848,7 @@ export class ResourceTreeFrame {
    * https://chromium.googlesource.com/chromium/src/+/HEAD/docs/frame_trees.md
    */
   isOutermostFrame(): boolean {
-    return this.#model.target().parentTarget()?.type() !== Type.FRAME && !this.#sameTargetParentFrameInternal &&
+    return this.#model.target().parentTarget()?.type() !== Type.FRAME && !this.#sameTargetParentFrame &&
         !this.crossTargetParentFrameId;
   }
 
@@ -887,18 +858,18 @@ export class ResourceTreeFrame {
    * https://chromium.googlesource.com/chromium/src/+/HEAD/docs/frame_trees.md
    */
   isPrimaryFrame(): boolean {
-    return !this.#sameTargetParentFrameInternal &&
-        this.#model.target() === TargetManager.instance().primaryPageTarget();
+    return !this.#sameTargetParentFrame &&
+        this.#model.target() === this.#model.target().targetManager().primaryPageTarget();
   }
 
   removeChildFrame(frame: ResourceTreeFrame, isSwap: boolean): void {
-    this.#childFramesInternal.delete(frame);
+    this.#childFrames.delete(frame);
     frame.remove(isSwap);
   }
 
   private removeChildFrames(): void {
-    const frames = this.#childFramesInternal;
-    this.#childFramesInternal = new Set();
+    const frames = this.#childFrames;
+    this.#childFrames = new Set();
     for (const frame of frames) {
       frame.remove(false);
     }
@@ -921,7 +892,7 @@ export class ResourceTreeFrame {
 
   addRequest(request: NetworkRequest): void {
     let resource = this.resourcesMap.get(request.url());
-    if (resource && resource.request === request) {
+    if (resource?.request === request) {
       // Already in the tree, we just got an extra update.
       return;
     }
@@ -941,7 +912,7 @@ export class ResourceTreeFrame {
     if (resource) {
       return resource;
     }
-    for (const frame of this.#childFramesInternal) {
+    for (const frame of this.#childFrames) {
       const resource = frame.resourceForURL(url);
       if (resource) {
         return resource;
@@ -957,7 +928,7 @@ export class ResourceTreeFrame {
       }
     }
 
-    for (const frame of this.#childFramesInternal) {
+    for (const frame of this.#childFrames) {
       if (frame.callForFrameResources(callback)) {
         return true;
       }
@@ -969,12 +940,12 @@ export class ResourceTreeFrame {
     if (this.isOutermostFrame()) {
       return i18n.i18n.lockedString('top');
     }
-    const subtitle = new Common.ParsedURL.ParsedURL(this.#urlInternal).displayName;
+    const subtitle = new Common.ParsedURL.ParsedURL(this.#url).displayName;
     if (subtitle) {
-      if (!this.#nameInternal) {
+      if (!this.#name) {
         return subtitle;
       }
-      return this.#nameInternal + ' (' + subtitle + ')';
+      return this.#name + ' (' + subtitle + ')';
     }
     return i18n.i18n.lockedString('iframe');
   }
@@ -984,7 +955,7 @@ export class ResourceTreeFrame {
     if (!parentFrame) {
       return null;
     }
-    return await parentFrame.resourceTreeModel().domModel().getOwnerNodeForFrame(this.#idInternal);
+    return await parentFrame.resourceTreeModel().domModel().getOwnerNodeForFrame(this.#id);
   }
 
   async getOwnerDOMNodeOrDocument(): Promise<DOMNode|null> {
@@ -1002,7 +973,7 @@ export class ResourceTreeFrame {
     const parentFrame = this.parentFrame();
     const parentTarget = this.resourceTreeModel().target().parentTarget();
     const highlightFrameOwner = async(domModel: DOMModel): Promise<void> => {
-      const deferredNode = await domModel.getOwnerNodeForFrame(this.#idInternal);
+      const deferredNode = await domModel.getOwnerNodeForFrame(this.#id);
       if (deferredNode) {
         domModel.overlayModel().highlightInOverlay({deferredNode, selectorList: ''}, 'all', true);
       }
@@ -1029,8 +1000,8 @@ export class ResourceTreeFrame {
   }
 
   async getPermissionsPolicyState(): Promise<Protocol.Page.PermissionsPolicyFeatureState[]|null> {
-    const response = await this.resourceTreeModel().target().pageAgent().invoke_getPermissionsPolicyState(
-        {frameId: this.#idInternal});
+    const response =
+        await this.resourceTreeModel().target().pageAgent().invoke_getPermissionsPolicyState({frameId: this.#id});
     if (response.getError()) {
       return null;
     }
@@ -1038,8 +1009,7 @@ export class ResourceTreeFrame {
   }
 
   async getOriginTrials(): Promise<Protocol.Page.OriginTrial[]> {
-    const response =
-        await this.resourceTreeModel().target().pageAgent().invoke_getOriginTrials({frameId: this.#idInternal});
+    const response = await this.resourceTreeModel().target().pageAgent().invoke_getOriginTrials({frameId: this.#id});
     if (response.getError()) {
       return [];
     }

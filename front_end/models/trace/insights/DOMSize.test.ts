@@ -1,16 +1,19 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
+import {describeWithEnvironment, expectConsoleLogs} from '../../../testing/EnvironmentHelpers.js';
 import {getFirstOrError, getInsightOrError, processTrace} from '../../../testing/InsightHelpers.js';
 
 describeWithEnvironment('DOMSize', function() {
   // Processing traces in this file can take a while due to a performance bottleneck
   // b/38254550
   this.timeout(30_000);
+  expectConsoleLogs({
+    error: ['Error: missing metric scores for specified navigation'],
+  });
 
-  it('finds layout reflows and style recalcs affected by DOM size', async () => {
+  it('finds layout reflows and style recalcs affected by DOM size', async function() {
     const {data, insights} = await processTrace(this, 'dom-size.json.gz');
 
     // 1 large DOM update was triggered before the first navigation
@@ -29,7 +32,7 @@ describeWithEnvironment('DOMSize', function() {
     }
   });
 
-  it('finds largest DOM stats event', async () => {
+  it('finds largest DOM stats event', async function() {
     const {data, insights} = await processTrace(this, 'multi-frame-dom-stats.json.gz');
 
     const insight =
@@ -42,7 +45,7 @@ describeWithEnvironment('DOMSize', function() {
     assert.strictEqual(domStats.maxChildren!.nodeName, 'BODY');
   });
 
-  it('separates dom stats in a cross-origin navigation', async () => {
+  it('separates dom stats in a cross-origin navigation', async function() {
     const {data, insights} = await processTrace(this, 'dom-size-overlap.json.gz');
 
     const navigations =

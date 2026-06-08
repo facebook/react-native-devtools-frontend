@@ -1,28 +1,24 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import type * as Protocol from '../../generated/protocol.js';
 
-import type {SourceMapV3} from './SourceMap.js';
-
-export interface RehydratingScript {
-  scriptId: Protocol.Runtime.ScriptId;
-  isolate: string;
-  url: string;
-  executionContextId: Protocol.Runtime.ExecutionContextId;
-  startLine: number;
-  startColumn: number;
-  endLine: number;
-  endColumn: number;
-  hash: string;
-  isModule?: boolean;
-  hasSourceURL?: boolean;
-  sourceMapURL?: string;
-  sourceURL?: string;
-  length?: number;
+/** This object is emitted to ScriptParsed and also used in the RehydratingConnection **/
+export interface RehydratingScript extends Protocol.Debugger.ScriptParsedEvent {
   sourceText?: string;
-  auxData?: RehydratingExecutionContextAuxData;
+  executionContextAuxData?: RehydratingExecutionContextAuxData;
+  isolate: string;
+  /** The manually provided string via the `//# sourceURL` directive. Meanwhile the `url` is the script's `src`  */
+  sourceURL?: string;
+  pid: number;
+}
+
+export interface RehydratingResource {
+  url: string;
+  content: string;
+  frame: string;
+  mimeType: string;
 }
 
 export interface RehydratingExecutionContextAuxData {
@@ -31,24 +27,27 @@ export interface RehydratingExecutionContextAuxData {
   type?: string;
 }
 
-export interface RehydratingExecutionContext {
-  id: Protocol.Runtime.ExecutionContextId;
-  origin: string;
+export interface RehydratingExecutionContext extends Protocol.Runtime.ExecutionContextDescription {
+  /** AKA V8ContextToken. https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/inspector/inspector_trace_events.cc;l=1229;drc=3c88f61e18b043e70c225d8d57c77832a85e7f58 */
   v8Context?: string;
-  name?: string;
   auxData?: RehydratingExecutionContextAuxData;
-  isolate?: string;
+  isolate: string;
 }
 
 export interface RehydratingTarget {
-  targetId: Protocol.Page.FrameId;
+  targetId: Protocol.Target.TargetID;
   type: string;
   url: string;
   pid?: number;
   isolate?: string;
 }
 
-export type HydratingDataPerTarget = Map<RehydratingTarget, [RehydratingExecutionContext[], RehydratingScript[]]>;
+export interface HydratingDataPerTarget {
+  target: RehydratingTarget;
+  executionContexts: RehydratingExecutionContext[];
+  scripts: RehydratingScript[];
+  resources: RehydratingResource[];
+}
 
 export interface ProtocolMessage {
   id: number;
@@ -66,19 +65,10 @@ export interface ProtocolResponse {
   id: number;
 }
 
-export type ServerMessage = (ProtocolEvent|ProtocolMessage|ProtocolResponse)&{
-  [others: string]: unknown,
-};
+export type ServerMessage = (ProtocolEvent|ProtocolMessage|ProtocolResponse)&Record<string, unknown>;
 
 export interface Session {
   target: RehydratingTarget;
   executionContexts: RehydratingExecutionContext[];
   scripts: RehydratingScript[];
-}
-
-// TODO: we need to resolve the inability to use Trace model types inside SDK. For
-// now, duplicate a minimal type here.
-export interface TraceFile {
-  traceEvents: readonly object[];
-  metadata: {sourceMaps?: Array<{sourceMapUrl: string, sourceMap: SourceMapV3}>};
 }

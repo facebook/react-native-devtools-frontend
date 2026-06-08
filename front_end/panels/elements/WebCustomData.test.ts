@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -31,7 +31,7 @@ describe('WebCustomData', () => {
       const webCustomData = new Elements.WebCustomData.WebCustomData('http://does-not-matter.com/');
       fetchResolve({
         properties: [
-          {name: 'display', description: 'In combiniation with \'float\' ...'},
+          {name: 'display', description: 'In combination with \'float\' ...'},
         ],
       });
       await webCustomData.fetchPromiseForTest;
@@ -40,7 +40,7 @@ describe('WebCustomData', () => {
 
       assert.exists(property);
       assert.strictEqual(property.name, 'display');
-      assert.strictEqual(property.description, 'In combiniation with \'float\' ...');
+      assert.strictEqual(property.description, 'In combination with \'float\' ...');
     });
 
     it('returns undefined while the .json is loading', async () => {

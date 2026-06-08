@@ -1,0 +1,144 @@
+Title: ContextSelectionAgent buildRequest structure matches the snapshot
+Content:
+{
+  "client": "CHROME_DEVTOOLS",
+  "current_message": {
+    "parts": [
+      {
+        "text": "test input"
+      }
+    ],
+    "role": 1
+  },
+  "historical_contexts": [
+    {
+      "parts": [
+        {
+          "text": "question"
+        }
+      ],
+      "role": 1
+    },
+    {
+      "parts": [
+        {
+          "text": "answer"
+        }
+      ],
+      "role": 2
+    }
+  ],
+  "function_declarations": [
+    {
+      "name": "listNetworkRequests",
+      "description": "Gives a list of network requests including URL, status code, and duration.",
+      "parameters": {
+        "type": 6,
+        "description": "",
+        "nullable": true,
+        "required": [],
+        "properties": {}
+      }
+    },
+    {
+      "name": "selectNetworkRequest",
+      "description": "Selects a specific network request to further provide information about. Use this when asked about network requests issues.",
+      "parameters": {
+        "type": 6,
+        "description": "",
+        "nullable": true,
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": 1,
+            "description": "The id of the network request",
+            "nullable": false
+          }
+        }
+      }
+    },
+    {
+      "name": "listSourceFiles",
+      "description": "Returns a list of all files in the project.",
+      "parameters": {
+        "type": 6,
+        "description": "",
+        "nullable": true,
+        "required": [],
+        "properties": {}
+      }
+    },
+    {
+      "name": "selectSourceFile",
+      "description": "Selects a source file. Use this when asked about files on the page. Use listSourceFiles to find the file ID.",
+      "parameters": {
+        "type": 6,
+        "description": "",
+        "nullable": true,
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": 3,
+            "description": "The id (URL) of the file you want to select.",
+            "nullable": false
+          }
+        }
+      }
+    },
+    {
+      "name": "performanceRecordAndReload",
+      "description": "Records a new performance trace. Use this to measure and debug performance metrics and Core Web Vitals like Largest Contentful Paint (LCP), Interaction to Next Paint (INP), and Cumulative Layout Shift (CLS).",
+      "parameters": {
+        "type": 6,
+        "description": "",
+        "nullable": true,
+        "required": [],
+        "properties": {}
+      }
+    },
+    {
+      "name": "runLighthouseAudits",
+      "description": "Records a Lighthouse audit on the current page. Use this to debug accessibility, SEO, and best practices. (For performance metrics like LCP, use performanceRecordAndReload instead).",
+      "parameters": {
+        "type": 6,
+        "description": "",
+        "nullable": true,
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "type": 1,
+            "description": "The mode to run Lighthouse in. Your ONLY options are \"navigation\" or \"snapshot\". You should determine this based on the user's question. If the user is asking specifically about accessibility, you can run in \"snapshot\" mode which avoids reloading the page. If the user asks for a full Lighthouse report, you should run in \"navigation\" mode which is the default. These are the only options you can pass.",
+            "nullable": false
+          }
+        }
+      }
+    },
+    {
+      "name": "inspectDom",
+      "description": "Prompts user to select a DOM element from the page. Use this when you don't know which element is selected.",
+      "parameters": {
+        "type": 6,
+        "description": "",
+        "nullable": true,
+        "required": [],
+        "properties": {}
+      }
+    }
+  ],
+  "options": {},
+  "metadata": {
+    "disable_user_content_logging": false,
+    "string_session_id": "sessionId",
+    "user_tier": 3,
+    "client_version": "unit_test"
+  },
+  "functionality_type": 5,
+  "client_feature": 25
+}
+=== end content

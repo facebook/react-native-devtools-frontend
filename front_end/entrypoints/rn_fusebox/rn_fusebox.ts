@@ -16,6 +16,7 @@ import '../../panels/react_devtools/react_devtools_profiler-meta.js';
 import '../../panels/rn_welcome/rn_welcome-meta.js';
 import '../../panels/timeline/timeline-meta.js';
 
+import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
@@ -165,7 +166,16 @@ UI.Toolbar.registerToolbarItem({
   },
 });
 
-new FuseboxAppMetadataObserverModule.FuseboxAppMetadataObserver(SDK.TargetManager.TargetManager.instance());
-new FuseboxFeatureObserverModule.FuseboxFeatureObserver(SDK.TargetManager.TargetManager.instance());
+// Construct Fusebox model observers in an early-initialization runnable.
+// MainImpl swaps the global DevToolsContext (owner of the TargetManager singleton)
+// during bootstrap, so observers created during entrypoint eval bind to an orphaned
+// TargetManager. The runnable defers construction until the live TargetManager exists.
+Common.Runnable.registerEarlyInitializationRunnable(() => ({
+  async run() {
+    const targetManager = SDK.TargetManager.TargetManager.instance();
+    new FuseboxAppMetadataObserverModule.FuseboxAppMetadataObserver(targetManager);
+    new FuseboxFeatureObserverModule.FuseboxFeatureObserver(targetManager);
+  },
+}));
 
 Host.rnPerfMetrics.entryPointLoadingFinished('rn_fusebox');

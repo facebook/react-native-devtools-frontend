@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,15 +8,15 @@ import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
-import * as Bindings from '../../models/bindings/bindings.js';
 import * as Trace from '../../models/trace/trace.js';
 
+import * as RecordingMetadata from './RecordingMetadata.js';
 import type {Client} from './TimelineController.js';
 
 const UIStrings = {
   /**
-   *@description Text in Timeline Loader of the Performance panel
-   *@example {Unknown JSON format} PH1
+   * @description Text in Timeline Loader of the Performance panel
+   * @example {Unknown JSON format} PH1
    */
   malformedTimelineDataS: 'Malformed timeline data: {PH1}',
 } as const;
@@ -24,18 +24,12 @@ const str_ = i18n.i18n.registerUIStrings('panels/timeline/TimelineLoader.ts', UI
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 /**
- * This class handles loading traces from file and URL, and from the Lighthouse panel
- * It also handles loading cpuprofiles from file, url and console.profileEnd()
- *
- * Meanwhile, the normal trace recording flow bypasses TimelineLoader entirely,
- * as it's handled from TracingManager => TimelineController.
+ * This class handles loading traces from URL, and from the Lighthouse panel
+ * It also handles loading cpuprofiles from url and console.profileEnd()
  */
-export class TimelineLoader implements Common.StringOutputStream.OutputStream {
+export class TimelineLoader {
   private client: Client|null;
   private canceledCallback: (() => void)|null;
-  private buffer: string;
-  private firstRawChunk: boolean;
-  private totalSize!: number;
   private filter: Trace.Extras.TraceFilter.TraceFilter|null;
   #traceIsCPUProfile: boolean;
   #collectedEvents: Trace.Types.Events.Event[] = [];
@@ -47,8 +41,6 @@ export class TimelineLoader implements Common.StringOutputStream.OutputStream {
   constructor(client: Client) {
     this.client = client;
     this.canceledCallback = null;
-    this.buffer = '';
-    this.firstRawChunk = true;
     this.filter = null;
     this.#traceIsCPUProfile = false;
     this.#metadata = null;
@@ -58,27 +50,36 @@ export class TimelineLoader implements Common.StringOutputStream.OutputStream {
     });
   }
 
-  static async loadFromFile(file: File, client: Client): Promise<TimelineLoader> {
+  static loadFromParsedJsonFile(contents: ParsedJSONFile, client: Client): TimelineLoader {
     const loader = new TimelineLoader(client);
-    const fileReader = new Bindings.FileUtils.ChunkedFileReader(file);
-    loader.canceledCallback = fileReader.cancel.bind(fileReader);
-    loader.totalSize = file.size;
-    // We'll resolve and return the loader instance before finalizing the trace.
-    setTimeout(async () => {
-      const success = await fileReader.read(loader);
-      if (!success && fileReader.error()) {
-        // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        loader.reportErrorAndCancelLoading((fileReader.error() as any).message);
+
+    window.setTimeout(async () => {
+      client.loadingStarted();
+      try {
+        loader.#processParsedFile(contents);
+        await loader.close();
+      } catch (e: unknown) {
+        await loader.close();
+        const message = e instanceof Error ? e.message : '';
+        return loader.reportErrorAndCancelLoading(i18nString(UIStrings.malformedTimelineDataS, {PH1: message}));
       }
     });
+
     return loader;
   }
 
   static loadFromEvents(events: Trace.Types.Events.Event[], client: Client): TimelineLoader {
     const loader = new TimelineLoader(client);
     window.setTimeout(async () => {
-      void loader.addEvents(events);
+      void loader.addEvents(events, null);
+    });
+    return loader;
+  }
+
+  static loadFromTraceFile(traceFile: Trace.Types.File.TraceFile, client: Client): TimelineLoader {
+    const loader = new TimelineLoader(client);
+    window.setTimeout(async () => {
+      void loader.addEvents(traceFile.traceEvents, traceFile.metadata);
     });
     return loader;
   }
@@ -92,7 +93,7 @@ export class TimelineLoader implements Common.StringOutputStream.OutputStream {
           profile, Trace.Types.Events.ThreadID(1));
 
       window.setTimeout(async () => {
-        void loader.addEvents(contents.traceEvents);
+        void loader.addEvents(contents.traceEvents, null);
       });
     } catch (e) {
       console.error(e.stack);
@@ -110,7 +111,7 @@ export class TimelineLoader implements Common.StringOutputStream.OutputStream {
     Host.ResourceLoader.loadAsStream(url, null, stream, finishedCallback, allowRemoteFilePaths);
 
     async function finishedCallback(
-        success: boolean, _headers: {[x: string]: string},
+        success: boolean, _headers: Record<string, string>,
         errorDescription: Host.ResourceLoader.LoadErrorDescription): Promise<void> {
       if (!success) {
         return loader.reportErrorAndCancelLoading(errorDescription.message);
@@ -146,9 +147,8 @@ export class TimelineLoader implements Common.StringOutputStream.OutputStream {
       return;
     }
 
-    if ('metadata' in trace) {
-      this.#metadata = trace.metadata;
-
+    if (!Array.isArray(trace) && 'traceEvents' in trace) {
+      this.#metadata = trace.metadata ?? {};
       // Older traces set these fields even when throttling is not active, while newer traces do not.
       // Clear them out on load to simplify usage.
       if (this.#metadata.cpuThrottling === 1) {
@@ -166,7 +166,9 @@ export class TimelineLoader implements Common.StringOutputStream.OutputStream {
     }
   }
 
-  async addEvents(events: readonly Trace.Types.Events.Event[]): Promise<void> {
+  async addEvents(events: readonly Trace.Types.Events.Event[], metadata: Trace.Types.File.MetaData|null):
+      Promise<void> {
+    this.#metadata = metadata;
     this.client?.loadingStarted();
     /**
      * See the `eventsPerChunk` comment in `models/trace/types/Configuration.ts`.
@@ -195,42 +197,6 @@ export class TimelineLoader implements Common.StringOutputStream.OutputStream {
     }
   }
 
-  /**
-   * As TimelineLoader implements `Common.StringOutputStream.OutputStream`, `write()` is called when a
-   * Common.StringOutputStream.StringOutputStream instance has decoded a chunk. This path is only used
-   * by `loadFromFile()`; it's NOT used by `loadFromEvents` or `loadFromURL`.
-   */
-  async write(chunk: string, endOfFile: boolean): Promise<void> {
-    if (!this.client) {
-      return await Promise.resolve();
-    }
-    this.buffer += chunk;
-    if (this.firstRawChunk) {
-      this.client.loadingStarted();
-      // Ensure we paint the loading dialog before continuing
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      this.firstRawChunk = false;
-    } else {
-      let progress = undefined;
-      progress = this.buffer.length / this.totalSize;
-      // For compressed traces, we can't provide a definite progress percentage. So, just keep it moving.
-      // For other traces, calculate a loaded part.
-      progress = progress > 1 ? progress - Math.floor(progress) : progress;
-      this.client.loadingProgress(progress);
-    }
-
-    if (endOfFile) {
-      let trace;
-      try {
-        trace = JSON.parse(this.buffer) as ParsedJSONFile;
-        this.#processParsedFile(trace);
-      } catch (e) {
-        this.reportErrorAndCancelLoading(i18nString(UIStrings.malformedTimelineDataS, {PH1: e.toString()}));
-      }
-      return;
-    }
-  }
-
   private reportErrorAndCancelLoading(message?: string): void {
     if (message) {
       Common.Console.Console.instance().error(message);
@@ -248,7 +214,7 @@ export class TimelineLoader implements Common.StringOutputStream.OutputStream {
 
   private async finalizeTrace(): Promise<void> {
     if (!this.#metadata && this.#traceIsCPUProfile) {
-      this.#metadata = {dataOrigin: Trace.Types.File.DataOrigin.CPU_PROFILE};
+      this.#metadata = RecordingMetadata.forCPUProfile();
     }
 
     await (this.client as Client).loadingComplete(this.#collectedEvents, this.filter, this.#metadata);
@@ -274,4 +240,4 @@ export class TimelineLoader implements Common.StringOutputStream.OutputStream {
 /**
  * Used when we parse the input, but do not yet know if it is a raw CPU Profile or a Trace
  **/
-type ParsedJSONFile = Trace.Types.File.Contents|Protocol.Profiler.Profile;
+export type ParsedJSONFile = Trace.Types.File.Contents|Protocol.Profiler.Profile;

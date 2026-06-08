@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,80 +8,144 @@ import type * as Platform from '../platform/platform.js';
 import {UserVisibleError} from '../platform/platform.js';
 
 import type {
-  HydratingDataPerTarget, RehydratingExecutionContext, RehydratingScript, RehydratingTarget, TraceFile} from
+  HydratingDataPerTarget, RehydratingExecutionContext, RehydratingResource, RehydratingScript, RehydratingTarget} from
   './RehydratingObject.js';
 import type {SourceMapV3} from './SourceMap.js';
+import type {TraceObject} from './TraceObject.js';
 
-interface RehydratingTraceBase {
+interface EventBase {
   cat: string;
   pid: number;
   args: {data: object};
+  name: string;
 }
 
-interface TraceEventTargetRundown extends RehydratingTraceBase {
+/**
+ * While called 'TargetRundown', this event is emitted for each script that is compiled or evaluated.
+ * Within EnhancedTraceParser, this event is used to construct targets and execution contexts (and to associate scripts to frames).
+ *
+ * See `inspector_target_rundown_event::Data` https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/inspector/inspector_trace_events.cc;l=1189-1232;drc=48d6f7175422b2c969c14258f9f8d5b196c28d18
+ */
+export interface RundownScriptCompiled extends EventBase {
   cat: 'disabled-by-default-devtools.target-rundown';
+  name: 'ScriptCompiled'|'ModuleEvaluated';
   args: {
     data: {
       frame: Protocol.Page.FrameId,
-      frameType: string,
+      frameType: 'page'|'iframe',
       url: string,
-      isolate: string,
+      /**
+       * Older traces were a number, but this is an unsigned 64 bit value, so that was a bug.
+       * New traces use string instead. See https://crbug.com/447654178.
+       */
+      isolate: string|number,
+      /** AKA V8ContextToken. https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/inspector/inspector_trace_events.cc;l=1229;drc=3c88f61e18b043e70c225d8d57c77832a85e7f58 */
       v8context: string,
       origin: string,
-      scriptId: Protocol.Runtime.ScriptId,
+      scriptId: number,
+      /** script->World().isMainWorld() */
       isDefault?: boolean,
-      contextType?: string,
+      contextType?: 'default'|'isolated'|'worker',
     },
   };
 }
-
-interface TraceEventScriptRundown extends RehydratingTraceBase {
+/**
+ * When profiling starts, all currently loaded scripts are emitted via this event.
+ *
+ * See `Script::TraceScriptRundown()` https://source.chromium.org/chromium/chromium/src/+/main:v8/src/objects/script.cc;l=184-220;drc=328f6c467b940f322544567740c9c871064d045c
+ */
+export interface RundownScript extends EventBase {
   cat: 'disabled-by-default-devtools.v8-source-rundown';
+  name: 'ScriptCatchup';
   args: {
     data: {
-      isolate: string,
+      /**
+       * Older traces were a number, but this is an unsigned 64 bit value, so that was a bug.
+       * New traces use string instead. See https://crbug.com/447654178.
+       */
+      isolate: string|number,
       executionContextId: Protocol.Runtime.ExecutionContextId,
-      scriptId: Protocol.Runtime.ScriptId,
-      startLine: number,
-      startColumn: number,
-      endLine: number,
-      endColumn: number,
-      url: string,
-      hash: string,
+      scriptId: number,
       isModule: boolean,
+      /** aka HasSourceURLComment */
       hasSourceUrl: boolean,
+      // These don't actually get set in v8.
+      url?: string,
+      hash?: string,
+      /** value of the sourceURL comment. */
       sourceUrl?: string,
+      /* value of the sourceMappingURL comment */
       sourceMapUrl?: string,
+      /** If true, the source map url was a data URL, so the `sourceMapUrl` was removed. */
+      sourceMapUrlElided?: boolean,
+      startLine?: number,
+      startColumn?: number,
+      endLine?: number,
+      endColumn?: number,
     },
   };
 }
 
-interface TraceEventScriptRundownSource extends RehydratingTraceBase {
+export interface RundownScriptSource extends EventBase {
   cat: 'disabled-by-default-devtools.v8-source-rundown-sources';
+  name: 'ScriptCatchup'|'LargeScriptCatchup'|'TooLargeScriptCatchup';
   args: {
     data: {
-      isolate: string,
-      scriptId: Protocol.Runtime.ScriptId,
+      isolate: number,
+      scriptId: number,
       length?: number,
       sourceText?: string,
     },
   };
 }
 
+interface TracingStartedInBrowser extends EventBase {
+  cat: 'disabled-by-default-devtools.timeline';
+  args: {
+    data: {
+      frames: [{
+        frame: Protocol.Page.FrameId,
+        isInPrimaryMainFrame: boolean,
+        isOutermostMainFrame: boolean,
+        parent: Protocol.Page.FrameId,
+        processId: number,
+        url: string,
+        pid: number,
+      }],
+    },
+  };
+}
+
+interface FunctionCall extends EventBase {
+  cat: 'devtools.timeline';
+  args: {
+    data: {
+      frame: Protocol.Page.FrameId,
+      scriptId: Protocol.Runtime.ScriptId,
+      /**
+       * Older traces were a number, but this is an unsigned 64 bit value, so that was a bug.
+       * New traces use string instead. See https://crbug.com/447654178.
+       */
+      isolate?: string|number,
+    },
+  };
+}
+
 export class EnhancedTracesParser {
-  #trace: TraceFile;
-  #scriptRundownEvents: TraceEventScriptRundown[] = [];
+  #trace: TraceObject;
+  #scriptRundownEvents: RundownScript[] = [];
   #scriptToV8Context: Map<string, string> = new Map<string, string>();
-  #scriptToFrame: Map<string, string> = new Map<string, string>();
+  #scriptToFrame: Map<string, Protocol.Page.FrameId> = new Map<string, Protocol.Page.FrameId>();
   #scriptToScriptSource: Map<string, string> = new Map<string, string>();
   #largeScriptToScriptSource: Map<string, string[]> = new Map<string, string[]>();
   #scriptToSourceLength: Map<string, number> = new Map<string, number>();
   #targets: RehydratingTarget[] = [];
   #executionContexts: RehydratingExecutionContext[] = [];
   #scripts: RehydratingScript[] = [];
+  #resources: RehydratingResource[] = [];
   static readonly enhancedTraceVersion: number = 1;
 
-  constructor(trace: TraceFile) {
+  constructor(trace: TraceObject) {
     this.#trace = trace;
 
     // Initialize with the trace provided.
@@ -94,17 +158,46 @@ export class EnhancedTracesParser {
 
   parseEnhancedTrace(): void {
     for (const event of this.#trace.traceEvents) {
-      if (this.isTargetRundownEvent(event)) {
+      if (this.isTracingStartedInBrowser(event)) {
+        // constructs all targets by devtools.timeline TracingStartedInBrowser
+        const data = event.args?.data;
+        for (const frame of data.frames) {
+          if (frame.url === 'about:blank') {
+            continue;
+          }
+          if (!frame.isInPrimaryMainFrame) {
+            continue;
+          }
+
+          const frameId = frame.frame as string as Protocol.Target.TargetID;
+          if (!this.#targets.find(target => target.targetId === frameId)) {
+            const frameType = frame.isOutermostMainFrame ? 'page' : 'iframe';
+            this.#targets.push({
+              targetId: frameId,
+              type: frameType,
+              pid: frame.processId,
+              url: frame.url,
+            });
+          }
+        }
+      } else if (this.isFunctionCallEvent(event)) {
+        // constructs all script to frame mapping with devtools.timeline FunctionCall
+        const data = event.args?.data;
+        if (data.isolate) {
+          this.#scriptToFrame.set(this.getScriptIsolateId(data.isolate, data.scriptId), data.frame);
+        }
+      } else if (this.isRundownScriptCompiled(event)) {
         // Set up script to v8 context mapping
         const data = event.args?.data;
         this.#scriptToV8Context.set(this.getScriptIsolateId(data.isolate, data.scriptId), data.v8context);
         this.#scriptToFrame.set(this.getScriptIsolateId(data.isolate, data.scriptId), data.frame);
-        // Add target
-        if (!this.#targets.find(target => target.targetId === data.frame)) {
+        // All the targets should've been added by the TracingStartedInBrowser event, but just in case we're missing some there
+        const frameId = data.frame as string as Protocol.Target.TargetID;
+        if (!this.#targets.find(target => target.targetId === frameId)) {
           this.#targets.push({
-            targetId: data.frame,
+            targetId: frameId,
             type: data.frameType,
-            isolate: data.isolate,
+            isolate: String(data.isolate),
             pid: event.pid,
             url: data.url,
           });
@@ -120,31 +213,36 @@ export class EnhancedTracesParser {
               isDefault: data.isDefault,
               type: data.contextType,
             },
-            isolate: data.isolate,
+            isolate: String(data.isolate),
+            name: data.origin,
+            uniqueId: `${data.v8context}-${data.isolate}`,
           });
         }
-      } else if (this.isScriptRundownEvent(event)) {
+      } else if (this.isRundownScript(event)) {
         this.#scriptRundownEvents.push(event);
         const data = event.args.data;
         // Add script
-        if (!this.#scripts.find(script => script.scriptId === data.scriptId && script.isolate === data.isolate)) {
+        if (!this.#scripts.find(
+                script => script.scriptId === String(data.scriptId) && script.isolate === String(data.isolate))) {
           this.#scripts.push({
-            scriptId: data.scriptId,
-            isolate: data.isolate,
+            scriptId: String(data.scriptId) as Protocol.Runtime.ScriptId,
+            isolate: String(data.isolate),
+            buildId: '',
             executionContextId: data.executionContextId,
-            startLine: data.startLine,
-            startColumn: data.startColumn,
-            endLine: data.endLine,
-            endColumn: data.endColumn,
-            hash: data.hash,
+            startLine: data.startLine ?? 0,
+            startColumn: data.startColumn ?? 0,
+            endLine: data.endLine ?? 0,
+            endColumn: data.endColumn ?? 0,
+            hash: data.hash ?? '',
             isModule: data.isModule,
-            url: data.url,
+            url: data.url ?? '',
             hasSourceURL: data.hasSourceUrl,
-            sourceURL: data.sourceUrl,
+            sourceURL: data.sourceUrl ?? '',
             sourceMapURL: data.sourceMapUrl,
+            pid: event.pid,
           });
         }
-      } else if (this.isScriptRundownSourceEvent(event)) {
+      } else if (this.isRundownScriptSource(event)) {
         // Set up script to source text and length mapping
         const data = event.args.data;
         const scriptIsolateId = this.getScriptIsolateId(data.isolate, data.scriptId);
@@ -168,7 +266,7 @@ export class EnhancedTracesParser {
     }
   }
 
-  data(): HydratingDataPerTarget {
+  data(): HydratingDataPerTarget[] {
     // Put back execution context id
     const v8ContextToExecutionContextId: Map<string, Protocol.Runtime.ExecutionContextId> =
         new Map<string, Protocol.Runtime.ExecutionContextId>();
@@ -202,10 +300,15 @@ export class EnhancedTracesParser {
         }
       }
       // put in the aux data
-      script.auxData =
-          this.#executionContexts
-              .find(context => context.id === script.executionContextId && context.isolate === script.isolate)
-              ?.auxData;
+      const linkedExecutionContext = this.#executionContexts.find(
+          context => context.id === script.executionContextId && context.isolate === script.isolate);
+      if (linkedExecutionContext) {
+        script.executionContextAuxData = linkedExecutionContext.auxData;
+        // If a script successfully mapped to an execution context and aux data, link script to frame
+        if (script.executionContextAuxData?.frameId) {
+          this.#scriptToFrame.set(scriptIsolateId, script.executionContextAuxData?.frameId);
+        }
+      }
     });
 
     for (const script of this.#scripts) {
@@ -214,19 +317,18 @@ export class EnhancedTracesParser {
       // Encoded as a data url so that the debugger model makes no network request.
       // NOTE: consider passing directly as object and hacking `parsedScriptSource` in DebuggerModel.ts to handle
       // this fake event. Would avoid a lot of wasteful (de)serialization. Maybe add SDK.Script.hydratedSourceMap.
-      script.sourceMapURL = this.getEncodedSourceMapUrl(script);
+      this.resolveSourceMap(script);
     }
 
-    const data = new Map<RehydratingTarget, [RehydratingExecutionContext[], RehydratingScript[]]>();
-    for (const target of this.#targets) {
-      data.set(target, this.groupContextsAndScriptsUnderTarget(target, this.#executionContexts, this.#scripts));
-    }
-    return data;
+    this.#resources = this.#trace.metadata.resources ?? [];
+
+    return this.groupContextsAndScriptsUnderTarget(
+        this.#targets, this.#executionContexts, this.#scripts, this.#resources);
   }
 
-  private getEncodedSourceMapUrl(script: RehydratingScript): string|undefined {
+  private resolveSourceMap(script: RehydratingScript): void {
     if (script.sourceMapURL?.startsWith('data:')) {
-      return script.sourceMapURL;
+      return;
     }
 
     const sourceMap = this.getSourceMapFromMetadata(script);
@@ -234,12 +336,11 @@ export class EnhancedTracesParser {
       return;
     }
 
-    try {
-      return `data:text/plain;base64,${btoa(JSON.stringify(sourceMap))}`;
-    } catch {
-      // TODO(cjamcl): getting InvalidCharacterError (try loading dupe-js.json.gz).
-      return;
-    }
+    // Note: this encoding + re-parsing overhead cost ~10ms per 1MB of JSON on my
+    // Mac M1 Pro.
+    // See https://crrev.com/c/6490409/comments/f294c12a_69781e24
+    const payload = encodeURIComponent(JSON.stringify(sourceMap));
+    script.sourceMapURL = `data:application/json;charset=utf-8,${payload}`;
   }
 
   private getSourceMapFromMetadata(script: RehydratingScript): SourceMapV3|undefined {
@@ -249,7 +350,8 @@ export class EnhancedTracesParser {
       return;
     }
 
-    const frame = this.#scriptToFrame.get(this.getScriptIsolateId(isolate, scriptId));
+    const frame =
+        this.#scriptToFrame.get(this.getScriptIsolateId(isolate, scriptId)) as string as Protocol.Target.TargetID;
     if (!frame) {
       return;
     }
@@ -277,45 +379,156 @@ export class EnhancedTracesParser {
     return sourceMap;
   }
 
-  private getScriptIsolateId(isolate: string, scriptId: Protocol.Runtime.ScriptId): string {
-    return scriptId + '@' + isolate;
+  private getScriptIsolateId(isolate: number|string, scriptId: Protocol.Runtime.ScriptId|number): string {
+    return `${scriptId}@${isolate}`;
   }
 
-  private isTraceEvent(event: unknown): event is RehydratingTraceBase {
-    return 'cat' in (event as RehydratingTraceBase) && 'pid' in (event as RehydratingTraceBase) &&
-        'args' in (event as RehydratingTraceBase) && 'data' in (event as RehydratingTraceBase).args;
+  private getExecutionContextIsolateId(isolate: number|string, executionContextId: Protocol.Runtime.ExecutionContextId):
+      string {
+    return `${executionContextId}@${isolate}`;
   }
 
-  private isTargetRundownEvent(event: unknown): event is TraceEventTargetRundown {
+  private isTraceEvent(event: unknown): event is EventBase {
+    return 'cat' in (event as EventBase) && 'pid' in (event as EventBase) && 'args' in (event as EventBase) &&
+        'data' in (event as EventBase).args;
+  }
+
+  private isRundownScriptCompiled(event: unknown): event is RundownScriptCompiled {
     return this.isTraceEvent(event) && event.cat === 'disabled-by-default-devtools.target-rundown';
   }
 
-  private isScriptRundownEvent(event: unknown): event is TraceEventScriptRundown {
+  private isRundownScript(event: unknown): event is RundownScript {
     return this.isTraceEvent(event) && event.cat === 'disabled-by-default-devtools.v8-source-rundown';
   }
 
-  private isScriptRundownSourceEvent(event: unknown): event is TraceEventScriptRundownSource {
+  private isRundownScriptSource(event: unknown): event is RundownScriptSource {
     return this.isTraceEvent(event) && event.cat === 'disabled-by-default-devtools.v8-source-rundown-sources';
   }
 
+  private isTracingStartedInBrowser(event: unknown): event is TracingStartedInBrowser {
+    return this.isTraceEvent(event) && event.cat === 'disabled-by-default-devtools.timeline' &&
+        event.name === 'TracingStartedInBrowser';
+  }
+
+  private isFunctionCallEvent(event: unknown): event is FunctionCall {
+    return this.isTraceEvent(event) && event.cat === 'devtools.timeline' && event.name === 'FunctionCall';
+  }
+
   private groupContextsAndScriptsUnderTarget(
-      target: RehydratingTarget, executionContexts: RehydratingExecutionContext[],
-      scripts: RehydratingScript[]): [RehydratingExecutionContext[], RehydratingScript[]] {
-    const filteredExecutionContexts: RehydratingExecutionContext[] = [];
-    const filteredScripts: RehydratingScript[] = [];
+      targets: RehydratingTarget[], executionContexts: RehydratingExecutionContext[], scripts: RehydratingScript[],
+      resources: RehydratingResource[]): HydratingDataPerTarget[] {
+    const data: HydratingDataPerTarget[] = [];
+    const targetIds = new Set<Protocol.Target.TargetID>();
+    const targetToExecutionContexts: Map<string, RehydratingExecutionContext[]> =
+        new Map<Protocol.Target.TargetID, RehydratingExecutionContext[]>();
+    // We want to keep track of how each execution context is linked to targets so we may use this
+    // information to link scripts with no target to a target
+    const executionContextIsolateToTarget: Map<string, Protocol.Target.TargetID> =
+        new Map<string, Protocol.Target.TargetID>();
+    const targetToScripts: Map<Protocol.Target.TargetID, RehydratingScript[]> =
+        new Map<Protocol.Target.TargetID, RehydratingScript[]>();
+    const orphanScripts: RehydratingScript[] = [];
+    const targetToResources: Map<Protocol.Target.TargetID, RehydratingResource[]> =
+        new Map<Protocol.Target.TargetID, RehydratingResource[]>();
+
+    // Initialize all the mapping needed
+    for (const target of targets) {
+      targetIds.add(target.targetId);
+      targetToExecutionContexts.set(target.targetId, []);
+      targetToScripts.set(target.targetId, []);
+      targetToResources.set(target.targetId, []);
+    }
+
+    // Put all of the known execution contexts under respective targets
     for (const executionContext of executionContexts) {
-      if (executionContext.auxData?.frameId === target.targetId) {
-        filteredExecutionContexts.push(executionContext);
+      const frameId = executionContext.auxData?.frameId as string as Protocol.Target.TargetID;
+      if (frameId && targetIds.has(frameId)) {
+        targetToExecutionContexts.get(frameId)?.push(executionContext);
+        executionContextIsolateToTarget.set(
+            this.getExecutionContextIsolateId(executionContext.isolate, executionContext.id), frameId);
+      } else {
+        console.error('Execution context can\'t be linked to a target', executionContext);
       }
     }
+
+    // Put all of the scripts under respective targets with collected information
     for (const script of scripts) {
-      if (script.auxData === null) {
-        console.error(script + ' missing aux data');
-      }
-      if (script.auxData?.frameId === target.targetId) {
-        filteredScripts.push(script);
+      const scriptExecutionContextIsolateId =
+          this.getExecutionContextIsolateId(script.isolate, script.executionContextId);
+      const scriptFrameId = script.executionContextAuxData?.frameId as string as Protocol.Target.TargetID;
+      if (script.executionContextAuxData?.frameId && targetIds.has(scriptFrameId)) {
+        targetToScripts.get(scriptFrameId)?.push(script);
+        executionContextIsolateToTarget.set(scriptExecutionContextIsolateId, scriptFrameId);
+      } else if (this.#scriptToFrame.has(this.getScriptIsolateId(script.isolate, script.scriptId))) {
+        const targetId = this.#scriptToFrame.get(this.getScriptIsolateId(script.isolate, script.scriptId)) as string as
+            Protocol.Target.TargetID;
+        if (targetId) {
+          targetToScripts.get(targetId)?.push(script);
+          executionContextIsolateToTarget.set(scriptExecutionContextIsolateId, targetId);
+        }
+      } else {
+        // These scripts are not linked to any target
+        orphanScripts.push(script);
       }
     }
-    return [filteredExecutionContexts, filteredScripts];
+
+    // If a script is not linked to a target, use executionContext@isolate to link to a target
+    // Using PID is the last resort
+    for (const orphanScript of orphanScripts) {
+      const orphanScriptExecutionContextIsolateId =
+          this.getExecutionContextIsolateId(orphanScript.isolate, orphanScript.executionContextId);
+      const frameId = executionContextIsolateToTarget.get(orphanScriptExecutionContextIsolateId);
+
+      if (frameId) {
+        // Found a link via execution context, use it.
+        targetToScripts.get(frameId)?.push(orphanScript);
+      } else if (orphanScript.pid) {
+        const target = targets.find(target => target.pid === orphanScript.pid);
+        if (target) {
+          targetToScripts.get(target.targetId)?.push(orphanScript);
+        }
+      } else {
+        console.error('Script can\'t be linked to any target', orphanScript);
+      }
+    }
+
+    for (const resource of resources) {
+      const frameId = resource.frame as Protocol.Target.TargetID;
+      if (targetIds.has(frameId)) {
+        targetToResources.get(frameId)?.push(resource);
+      }
+    }
+
+    // Now all the scripts are linked to a target, we want to make sure all the scripts are pointing to a valid
+    // execution context. If not, we will create an artificial execution context for the script
+    for (const target of targets) {
+      const targetId = target.targetId;
+      const executionContexts = targetToExecutionContexts.get(targetId) || [];
+      const scripts = targetToScripts.get(targetId) || [];
+      const resources = targetToResources.get(targetId) || [];
+      for (const script of scripts) {
+        if (!executionContexts.find(context => context.id === script.executionContextId)) {
+          const artificialContext: RehydratingExecutionContext = {
+            id: script.executionContextId,
+            origin: '',
+            v8Context: '',
+            name: '',
+            auxData: {
+              frameId: targetId as string as Protocol.Page.FrameId,
+              isDefault: false,
+              type: 'type',
+            },
+            isolate: script.isolate,
+            uniqueId: `${targetId}-${script.isolate}`,
+          };
+          executionContexts.push(artificialContext);
+        }
+      }
+
+      // Finally, we put all the information into the data structure we want to return as.
+      data.push({target, executionContexts, scripts, resources});
+    }
+
+    return data;
   }
 }

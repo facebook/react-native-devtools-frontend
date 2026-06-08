@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,14 +8,15 @@ import {
   getEventPromise,
   renderElementIntoDOM,
 } from '../../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../../testing/LocaleHelpers.js';
 import * as RenderCoordinator from '../render_coordinator/render_coordinator.js';
 
 import * as Linkifier from './linkifier.js';
 
 const {urlString} = Platform.DevToolsPath;
 
-describeWithLocale('Linkifier', () => {
+describe('Linkifier', () => {
+  setupLocaleHooks();
   it('renders a link when given a URL', async () => {
     const component = new Linkifier.Linkifier.Linkifier();
     component.data = {

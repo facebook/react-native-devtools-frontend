@@ -3,10 +3,10 @@
  * Copyright 2020 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
-import type * as Bidi from 'chromium-bidi/lib/cjs/protocol/protocol.js';
 import type { Protocol } from 'devtools-protocol';
+import type * as Bidi from 'webdriver-bidi-protocol';
 import type { CDPSession } from '../api/CDPSession.js';
-import type { ContinueRequestOverrides, ResponseForRequest } from '../api/HTTPRequest.js';
+import type { ContinueRequestOverrides, InterceptResolutionState, ResponseForRequest } from '../api/HTTPRequest.js';
 import { HTTPRequest, type ResourceType } from '../api/HTTPRequest.js';
 import type { Request } from './core/Request.js';
 import type { BidiFrame } from './Frame.js';
@@ -17,10 +17,12 @@ export declare const requests: WeakMap<Request, BidiHTTPRequest>;
  */
 export declare class BidiHTTPRequest extends HTTPRequest {
     #private;
-    static from(bidiRequest: Request, frame: BidiFrame, redirect?: BidiHTTPRequest): BidiHTTPRequest;
+    static from(bidiRequest: Request, frame: BidiFrame, isNetworkInterceptionEnabled: boolean, redirect?: BidiHTTPRequest): BidiHTTPRequest;
     readonly id: string;
     private constructor();
     get client(): CDPSession;
+    protected canBeIntercepted(): boolean;
+    interceptResolutionState(): InterceptResolutionState;
     url(): string;
     resourceType(): ResourceType;
     method(): string;
@@ -36,10 +38,10 @@ export declare class BidiHTTPRequest extends HTTPRequest {
     initiator(): Protocol.Network.Initiator | undefined;
     redirectChain(): BidiHTTPRequest[];
     frame(): BidiFrame;
-    continue(overrides?: ContinueRequestOverrides, priority?: number | undefined): Promise<void>;
     _continue(overrides?: ContinueRequestOverrides): Promise<void>;
     _abort(): Promise<void>;
     _respond(response: Partial<ResponseForRequest>, _priority?: number): Promise<void>;
     timing(): Bidi.Network.FetchTimingInfo;
+    getResponseContent(): Promise<Uint8Array>;
 }
 //# sourceMappingURL=HTTPRequest.d.ts.map

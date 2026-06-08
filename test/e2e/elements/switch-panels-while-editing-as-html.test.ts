@@ -1,0 +1,28 @@
+// Copyright 2021 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import {findSubMenuEntryItem} from '../helpers/context-menu-helpers.js';
+import {
+  expandSelectedNodeRecursively,
+  navigateToElementsTab,
+} from '../helpers/elements-helpers.js';
+import {openSourcesPanel} from '../helpers/sources-helpers.js';
+
+describe('The Elements tab', function() {
+  it('does not break when switching panels while editing as HTML', async ({devToolsPage, inspectedPage}) => {
+    await inspectedPage.goToResource('elements/switch-panels-while-editing-as-html.html');
+    await expandSelectedNodeRecursively(devToolsPage);
+    const elementsContentPanel = await devToolsPage.waitFor('#elements-content');
+    const selectedNode = await devToolsPage.waitForElementWithTextContent('Inspected Node', elementsContentPanel);
+    await selectedNode.click({button: 'right'});
+    const editAsHTMLOption = await findSubMenuEntryItem('Edit as HTML', devToolsPage);
+    await editAsHTMLOption.click();
+    await devToolsPage.waitFor('.elements-disclosure devtools-text-editor');
+    await openSourcesPanel(devToolsPage);
+    await navigateToElementsTab(devToolsPage, {
+      expectExistingPanel: true,
+    });
+    await devToolsPage.waitForNone('.elements-disclosure devtools-text-editor');
+  });
+});

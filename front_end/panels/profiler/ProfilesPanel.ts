@@ -1,6 +1,7 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 /*
  * Copyright (C) 2008 Apple Inc. All Rights Reserved.
@@ -31,15 +32,26 @@ import '../../ui/legacy/legacy.js';
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
-import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
-import * as IconButton from '../../ui/components/icon_button/icon_button.js';
-// eslint-disable-next-line rulesdir/es-modules-import
+import {createIcon} from '../../ui/kit/kit.js';
+// eslint-disable-next-line @devtools/es-modules-import
 import objectValueStyles from '../../ui/legacy/components/object_ui/objectValue.css.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
+import {
+  DetachedElementsProfileHeader,
+  DetachedElementsProfileType,
+  DetachedElementsProfileView
+} from './HeapDetachedElementsView.js';
 import heapProfilerStyles from './heapProfiler.css.js';
+import {HeapProfileView, SamplingHeapProfileHeader, SamplingHeapProfileType} from './HeapProfileView.js';
+import {
+  HeapProfileHeader,
+  HeapSnapshotProfileType,
+  HeapSnapshotView,
+  TrackingHeapSnapshotProfileType
+} from './HeapSnapshotView.js';
 import {
   type DataDisplayDelegate,
   ProfileEvents as ProfileTypeEvents,
@@ -50,40 +62,69 @@ import {Events as ProfileLauncherEvents, ProfileLauncherView} from './ProfileLau
 import {ProfileSidebarTreeElement} from './ProfileSidebarTreeElement.js';
 import profilesPanelStyles from './profilesPanel.css.js';
 import profilesSidebarTreeStyles from './profilesSidebarTree.css.js';
+import type {ProfileTypeRegistry} from './ProfileTypeRegistry.js';
+import {WritableProfileHeader} from './ProfileView.js';
 
 const UIStrings = {
   /**
-   *@description Text in Profiles Panel of a profiler tool
-   *@example {'.js', '.json'} PH1
+   * @description Text in Profiles Panel of a profiler tool
+   * @example {'.js', '.json'} PH1
    */
   cantLoadFileSupportedFile: 'Can’t load file. Supported file extensions: \'\'{PH1}\'\'.',
   /**
-   *@description Text in Profiles Panel of a profiler tool
+   * @description Text in Profiles Panel of a profiler tool
    */
   cantLoadProfileWhileAnother: 'Can’t load profile while another profile is being recorded.',
   /**
-   *@description Text in Profiles Panel of a profiler tool
+   * @description Text in Profiles Panel of a profiler tool
    */
   profileLoadingFailed: 'Profile loading failed',
   /**
-   *@description Text in Profiles Panel of a profiler tool
-   *@example {cannot open file} PH1
+   * @description Text in Profiles Panel of a profiler tool
+   * @example {cannot open file} PH1
    */
   failReason: 'Reason: {PH1}.',
   /**
-   *@description Text in Profiles Panel of a profiler tool
-   *@example {2} PH1
+   * @description Text in Profiles Panel of a profiler tool
+   * @example {2} PH1
    */
   runD: 'Run {PH1}',
   /**
-   *@description Text in Profiles Panel of a profiler tool
+   * @description Text in Profiles Panel of a profiler tool
    */
   profiles: 'Profiles',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/profiler/ProfilesPanel.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
+
+function createSidebarTreeElement(
+    profiler: ProfileHeader, dataDisplayDelegate: DataDisplayDelegate): ProfileSidebarTreeElement {
+  if (profiler instanceof HeapProfileHeader) {
+    return new ProfileSidebarTreeElement(dataDisplayDelegate, profiler, 'heap-snapshot-sidebar-tree-item');
+  }
+  if (profiler instanceof WritableProfileHeader) {
+    return new ProfileSidebarTreeElement(dataDisplayDelegate, profiler, 'profile-sidebar-tree-item');
+  }
+
+  throw new Error('Not implemented.');
+}
+
+function createView(profiler: ProfileHeader, dataDisplayDelegate: DataDisplayDelegate, registry: ProfileTypeRegistry):
+    UI.View.SimpleView {
+  if (profiler instanceof HeapProfileHeader) {
+    return new HeapSnapshotView(dataDisplayDelegate, profiler, registry);
+  }
+  if (profiler instanceof SamplingHeapProfileHeader) {
+    return new HeapProfileView(profiler);
+  }
+  if (profiler instanceof DetachedElementsProfileHeader) {
+    return new DetachedElementsProfileView(dataDisplayDelegate, profiler);
+  }
+
+  throw new Error('Not implemented.');
+}
+
 export class ProfilesPanel extends UI.Panel.PanelWithSidebar implements DataDisplayDelegate {
-  readonly profileTypes: ProfileType[];
   profilesItemTreeElement: ProfilesSidebarTreeElement;
   sidebarTree: UI.TreeOutline.TreeOutlineInShadow;
   profileViews: HTMLDivElement;
@@ -99,14 +140,21 @@ export class ProfilesPanel extends UI.Panel.PanelWithSidebar implements DataDisp
     profile: ProfileHeader,
     view: UI.Widget.Widget,
   }>;
-  typeIdToSidebarSection: {
-    [x: string]: ProfileTypeSidebarSection,
-  };
+  typeIdToSidebarSection: Record<string, ProfileTypeSidebarSection>;
   fileSelectorElement!: HTMLInputElement;
   selectedProfileType?: ProfileType;
-  constructor(name: string, profileTypes: ProfileType[], recordingActionId: string) {
+  static registry: ProfileTypeRegistry = {
+    heapSnapshotProfileType: new HeapSnapshotProfileType(),
+    trackingHeapSnapshotProfileType: new TrackingHeapSnapshotProfileType(),
+    samplingHeapProfileType: new SamplingHeapProfileType(),
+    detachedElementProfileType: new DetachedElementsProfileType(),
+  };
+
+  constructor(
+      name: string,
+      recordingActionId: string,
+  ) {
     super(name);
-    this.profileTypes = profileTypes;
     this.registerRequiredCSS(objectValueStyles, profilesPanelStyles, heapProfilerStyles);
 
     const mainContainer = new UI.Widget.VBox();
@@ -181,8 +229,11 @@ export class ProfilesPanel extends UI.Panel.PanelWithSidebar implements DataDisp
         SDK.HeapProfilerModel.HeapProfilerModel, this.updateProfileTypeSpecificUI, this);
   }
 
-  onKeyDown(ev: Event): void {
-    const event = (ev as KeyboardEvent);
+  get profileTypes(): ProfileType[] {
+    return Object.values(ProfilesPanel.registry);
+  }
+
+  onKeyDown(event: KeyboardEvent): void {
     let handled = false;
     if (event.key === 'ArrowDown' && !event.altKey) {
       handled = this.sidebarTree.selectNext();
@@ -243,7 +294,7 @@ export class ProfilesPanel extends UI.Panel.PanelWithSidebar implements DataDisp
     if (!this.toggleRecordAction.enabled()) {
       return true;
     }
-    const toggleButton = Platform.DOMUtilities.deepActiveElement(this.element.ownerDocument);
+    const toggleButton = UI.DOMUtilities.deepActiveElement(this.element.ownerDocument);
     const type = this.selectedProfileType;
     if (!type) {
       return true;
@@ -440,7 +491,7 @@ export class ProfilesPanel extends UI.Panel.PanelWithSidebar implements DataDisp
     if (index !== -1) {
       return this.profileToView[index].view;
     }
-    const view = profile.createView(this);
+    const view = createView(profile, this, ProfilesPanel.registry);
     view.element.classList.add('profile-view');
     this.profileToView.push({profile, view});
     return view;
@@ -477,9 +528,7 @@ export class ProfilesPanel extends UI.Panel.PanelWithSidebar implements DataDisp
 export class ProfileTypeSidebarSection extends UI.TreeOutline.TreeElement {
   dataDisplayDelegate: DataDisplayDelegate;
   readonly profileTreeElements: ProfileSidebarTreeElement[];
-  profileGroups: {
-    [x: string]: ProfileGroup,
-  };
+  profileGroups: Record<string, ProfileGroup>;
 
   constructor(dataDisplayDelegate: DataDisplayDelegate, profileType: ProfileType) {
     super(profileType.treeItemTitle, true);
@@ -495,16 +544,18 @@ export class ProfileTypeSidebarSection extends UI.TreeOutline.TreeElement {
   addProfileHeader(profile: ProfileHeader): void {
     this.hidden = false;
     const profileType = profile.profileType();
-    let sidebarParent: (ProfileGroupSidebarTreeElement|null)|this = this;
-    const profileTreeElement =
-        (profile.createSidebarTreeElement(this.dataDisplayDelegate) as ProfileSidebarTreeElement);
+    let sidebarParent: ProfileGroupSidebarTreeElement|null|this = this;
+    const profileTreeElement = createSidebarTreeElement(profile, this.dataDisplayDelegate);
     this.profileTreeElements.push(profileTreeElement);
 
     if (!profile.fromFile() && profileType.profileBeingRecorded() !== profile) {
       const profileTitle = profile.title;
       let group: ProfileGroup = this.profileGroups[profileTitle];
       if (!group) {
-        group = new ProfileGroup();
+        group = {
+          profileSidebarTreeElements: [],
+          sidebarTreeElement: null,
+        };
         this.profileGroups[profileTitle] = group;
       }
       group.profileSidebarTreeElements.push(profileTreeElement);
@@ -609,19 +660,14 @@ export class ProfileTypeSidebarSection extends UI.TreeOutline.TreeElement {
   }
 }
 
-export class ProfileGroup {
+export interface ProfileGroup {
   profileSidebarTreeElements: ProfileSidebarTreeElement[];
   sidebarTreeElement: ProfileGroupSidebarTreeElement|null;
-  constructor() {
-    this.profileSidebarTreeElements = [];
-    this.sidebarTreeElement = null;
-  }
 }
 
 export class ProfileGroupSidebarTreeElement extends UI.TreeOutline.TreeElement {
   readonly dataDisplayDelegate: DataDisplayDelegate;
   profileTitle: string;
-  override toggleOnClick: boolean;
 
   constructor(dataDisplayDelegate: DataDisplayDelegate, title: string) {
     super('', true);
@@ -673,7 +719,7 @@ export class ProfilesSidebarTreeElement extends UI.TreeOutline.TreeElement {
         .createChild('span', 'title-container')
         .createChild('span', 'title')
         .textContent = i18nString(UIStrings.profiles);
-    this.setLeadingIcons([IconButton.Icon.create('tune')]);
+    this.setLeadingIcons([createIcon('tune')]);
   }
 }
 

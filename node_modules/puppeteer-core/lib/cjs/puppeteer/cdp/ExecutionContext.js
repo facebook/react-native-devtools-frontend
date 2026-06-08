@@ -59,6 +59,7 @@ var __disposeResources = (this && this.__disposeResources) || (function (Suppres
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ExecutionContext = void 0;
 const CDPSession_js_1 = require("../api/CDPSession.js");
+const AriaQueryHandler_js_1 = require("../common/AriaQueryHandler.js");
 const EventEmitter_js_1 = require("../common/EventEmitter.js");
 const LazyArg_js_1 = require("../common/LazyArg.js");
 const ScriptInjector_js_1 = require("../common/ScriptInjector.js");
@@ -67,7 +68,6 @@ const AsyncIterableUtil_js_1 = require("../util/AsyncIterableUtil.js");
 const disposable_js_1 = require("../util/disposable.js");
 const Function_js_1 = require("../util/Function.js");
 const Mutex_js_1 = require("../util/Mutex.js");
-const AriaQueryHandler_js_1 = require("./AriaQueryHandler.js");
 const Binding_js_1 = require("./Binding.js");
 const ElementHandle_js_1 = require("./ElementHandle.js");
 const JSHandle_js_1 = require("./JSHandle.js");
@@ -349,9 +349,10 @@ class ExecutionContext extends EventEmitter_js_1.EventEmitter {
             if (exceptionDetails) {
                 throw (0, utils_js_1.createEvaluationError)(exceptionDetails);
             }
-            return returnByValue
-                ? (0, utils_js_1.valueFromRemoteObject)(remoteObject)
-                : this.#world.createCdpHandle(remoteObject);
+            if (returnByValue) {
+                return (0, utils_js_1.valueFromPrimitiveRemoteObject)(remoteObject);
+            }
+            return this.#world.createCdpHandle(remoteObject);
         }
         const functionDeclaration = (0, Function_js_1.stringifyFunction)(pageFunction);
         const functionDeclarationWithSourceUrl = util_js_1.SOURCE_URL_REGEX.test(functionDeclaration)
@@ -389,9 +390,10 @@ class ExecutionContext extends EventEmitter_js_1.EventEmitter {
         if (exceptionDetails) {
             throw (0, utils_js_1.createEvaluationError)(exceptionDetails);
         }
-        return returnByValue
-            ? (0, utils_js_1.valueFromRemoteObject)(remoteObject)
-            : this.#world.createCdpHandle(remoteObject);
+        if (returnByValue) {
+            return (0, utils_js_1.valueFromPrimitiveRemoteObject)(remoteObject);
+        }
+        return this.#world.createCdpHandle(remoteObject);
         async function convertArgumentAsync(context, arg) {
             if (arg instanceof LazyArg_js_1.LazyArg) {
                 arg = await arg.get(context);

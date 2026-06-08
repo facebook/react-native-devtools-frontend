@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,7 @@ import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import * as TextUtils from '../text_utils/text_utils.js';
 
-import type {HAREntry, HARLog, HARPage, HARTimings} from './HARFormat.js';
+import type {HARCookie, HAREntry, HARLog, HARPage, HARTimings} from './HARFormat.js';
 
 export class Importer {
   static requestsFromHARLog(log: HARLog): SDK.NetworkRequest.NetworkRequest[] {
@@ -60,6 +60,26 @@ export class Importer {
     pageLoad.contentLoadTime = Number(page.pageTimings.onContentLoad) * 1000;
     pageLoad.loadTime = Number(page.pageTimings.onLoad) * 1000;
     return pageLoad;
+  }
+
+  static fillCookieFromHARCookie(type: SDK.Cookie.Type, harCookie: HARCookie): SDK.Cookie.Cookie {
+    const cookie = new SDK.Cookie.Cookie(harCookie.name, harCookie.value, type);
+    if (harCookie.path) {
+      cookie.addAttribute(SDK.Cookie.Attribute.PATH, harCookie.path);
+    }
+    if (harCookie.domain) {
+      cookie.addAttribute(SDK.Cookie.Attribute.DOMAIN, harCookie.domain);
+    }
+    if (harCookie.expires) {
+      cookie.addAttribute(SDK.Cookie.Attribute.EXPIRES, harCookie.expires.getTime());
+    }
+    if (harCookie.httpOnly) {
+      cookie.addAttribute(SDK.Cookie.Attribute.HTTP_ONLY);
+    }
+    if (harCookie.secure) {
+      cookie.addAttribute(SDK.Cookie.Attribute.SECURE);
+    }
+    return cookie;
   }
 
   static fillRequestFromHAREntry(
@@ -117,12 +137,50 @@ export class Importer {
         async () =>
             new TextUtils.ContentData.ContentData(contentText ?? '', isBase64, mimeType ?? '', charset ?? undefined));
 
+    const importedEventSourceMessages = entry.customAsArray('eventSourceMessages');
+
+    if (importedEventSourceMessages) {
+      for (const message of importedEventSourceMessages) {
+        if (message.time === undefined || message.eventName === undefined || message.eventId === undefined) {
+          continue;
+        }
+        // message.data may be undefined, if saved in a sanitized context
+
+        request.addEventSourceMessage(message.time, message.eventName, message.eventId, message.data);
+      }
+    } else if (request.mimeType === Platform.MimeType.MimeType.EVENTSTREAM && contentText) {
+      const issueTime = entry.startedDateTime.getTime() / 1000;
+      const onEvent = (eventName: string, data: string, eventId: string): void => {
+        request.addEventSourceMessage(issueTime, eventName, eventId, data);
+      };
+      const parser = new SDK.ServerSentEventProtocol.ServerSentEventsParser(onEvent, charset ?? undefined);
+      let text = contentText;
+      if (isBase64) {
+        const bytes = Common.Base64.decode(contentText);
+        text = new TextDecoder(charset ?? undefined).decode(bytes);
+      }
+      parser.addTextChunk(text);
+    }
+
     // Timing data.
     Importer.setupTiming(request, issueTime, entry.time, entry.timings);
 
     // Meta data.
     request.setRemoteAddress(entry.serverIPAddress || '', Number(entry.connection) || 80);
     request.setResourceType(Importer.getResourceType(request, entry, pageLoad));
+
+    // Request cookies.
+    const includedRequestCookies = entry.request.cookies.map(
+        cookie => ({
+          cookie: this.fillCookieFromHARCookie(SDK.Cookie.Type.REQUEST, cookie),
+        }),
+    );
+    request.setIncludedRequestCookies(includedRequestCookies);
+
+    // Response cookies.
+    const responseCookies =
+        entry.response.cookies.map(this.fillCookieFromHARCookie.bind(this, SDK.Cookie.Type.RESPONSE));
+    request.responseCookies = responseCookies;
 
     const priority = entry.customAsString('priority');
     // @ts-expect-error This accesses the globalThis['Protocol'] where the enum is an actual JS object and not just a TS const enum.
@@ -200,7 +258,7 @@ export class Importer {
       }
     }
 
-    if (pageLoad && pageLoad.mainRequest === request) {
+    if (pageLoad?.mainRequest === request) {
       return Common.ResourceType.resourceTypes.Document;
     }
 

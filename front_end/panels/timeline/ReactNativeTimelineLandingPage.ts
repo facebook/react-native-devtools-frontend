@@ -3,7 +3,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../ui/kit/kit.js';
+
 import * as i18n from '../../core/i18n/i18n.js';
+import * as uiI18n from '../../ui/i18n/i18n.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 const UIStrings = {
@@ -52,9 +55,9 @@ export class ReactNativeTimelineLandingPage extends UI.Widget.VBox {
             return e;
         }
 
-        const learnMoreNode = UI.XLink.XLink.create(
-            'https://developer.chrome.com/docs/devtools/evaluate-performance/', i18nString(UIStrings.learnmore), undefined,
-            undefined, 'learn-more');
+        const learnMoreNode = document.createElement('devtools-link');
+        learnMoreNode.setAttribute('href', 'https://developer.chrome.com/docs/devtools/evaluate-performance/');
+        learnMoreNode.textContent = i18nString(UIStrings.learnmore);
 
         const recordKey = encloseWithTag(
             'b',
@@ -64,12 +67,23 @@ export class ReactNativeTimelineLandingPage extends UI.Widget.VBox {
         this.contentElement.classList.add('legacy');
         const centered = this.contentElement.createChild('div');
 
-        const recordButton = UI.UIUtils.createInlineButton(UI.Toolbar.Toolbar.createActionButton(this.toggleRecordAction));
+        // [RN] createInlineButton was removed upstream; inline an equivalent toolbar wrapper.
+        // Mirrors the styling the old UI.UIUtils.createInlineButton applied (inlineButton.css)
+        // so the button sits inline within the sentence instead of wrapping onto its own line.
+        const recordButton = document.createElement('span');
+        recordButton.classList.add('inline-button');
+        recordButton.style.cssText =
+            'display: inline-flex; justify-content: center; vertical-align: sub; position: relative; ' +
+            'width: 28px; margin: 2px; border: 1px solid var(--sys-color-neutral-outline); ' +
+            'border-radius: 4px; background-color: var(--sys-color-cdt-base-container);';
+        const recordButtonToolbar = document.createElement('devtools-toolbar') as UI.Toolbar.Toolbar;
+        recordButtonToolbar.appendToolbarItem(UI.Toolbar.Toolbar.createActionButton(this.toggleRecordAction));
+        recordButton.appendChild(recordButtonToolbar);
 
-        centered.createChild('p').appendChild(i18n.i18n.getFormatLocalizedString(
+        centered.createChild('p').appendChild(uiI18n.getFormatLocalizedString(
             str_, UIStrings.clickTheRecordButtonSOrHitSTo, {PH1: recordButton, PH2: recordKey}));
 
-        centered.createChild('p').appendChild(i18n.i18n.getFormatLocalizedString(
+        centered.createChild('p').appendChild(uiI18n.getFormatLocalizedString(
             str_, UIStrings.afterRecordingSelectAnAreaOf, {PH1: navigateNode, PH2: learnMoreNode}));
     }
 }

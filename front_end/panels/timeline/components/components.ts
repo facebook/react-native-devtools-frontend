@@ -1,11 +1,13 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Breadcrumbs from './Breadcrumbs.js';
 import * as BreadcrumbsUI from './BreadcrumbsUI.js';
 import * as CPUThrottlingSelector from './CPUThrottlingSelector.js';
+import * as CWVMetrics from './CWVMetrics.js';
 import * as DetailsView from './DetailsView.js';
+import * as ExportTraceOptions from './ExportTraceOptions.js';
 import * as FieldSettingsDialog from './FieldSettingsDialog.js';
 import * as IgnoreListSetting from './IgnoreListSetting.js';
 import * as InteractionBreakdown from './InteractionBreakdown.js';
@@ -21,6 +23,7 @@ import * as Sidebar from './Sidebar.js';
 import * as SidebarAnnotationsTab from './SidebarAnnotationsTab.js';
 import * as SidebarInsightsTab from './SidebarInsightsTab.js';
 import * as SidebarSingleInsightSet from './SidebarSingleInsightSet.js';
+import * as TimelineRangeSummaryView from './TimelineRangeSummaryView.js';
 import * as TimelineSummary from './TimelineSummary.js';
 import * as Utils from './Utils.js';
 
@@ -28,7 +31,9 @@ export {
   Breadcrumbs,
   BreadcrumbsUI,
   CPUThrottlingSelector,
+  CWVMetrics,
   DetailsView,
+  ExportTraceOptions,
   FieldSettingsDialog,
   IgnoreListSetting,
   InteractionBreakdown,
@@ -44,6 +49,7 @@ export {
   SidebarAnnotationsTab,
   SidebarInsightsTab,
   SidebarSingleInsightSet,
+  TimelineRangeSummaryView,
   TimelineSummary,
   Utils,
 };

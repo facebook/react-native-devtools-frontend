@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 The Chromium Authors. All rights reserved.
+ * Copyright 2017 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -11,6 +11,10 @@
   line-height: 15px;
   display: flex;
   flex-wrap: wrap;
+  appearance: none;
+  border-width: 0;
+  background-color: var(--sys-color-cdt-base-container);
+  width: 100%;
 }
 
 .thread-item + .thread-item {
@@ -39,14 +43,11 @@
 }
 
 .selected-thread-icon {
-  display: none;
   position: absolute;
   top: 3px;
   left: 4px;
-}
-
-.thread-item.selected .selected-thread-icon {
-  display: block;
+  width: 16px;
+  height: 16px;
 }
 
 @media (forced-colors: active) {

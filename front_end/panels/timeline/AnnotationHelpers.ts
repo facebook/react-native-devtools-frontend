@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,51 +8,49 @@ import * as Trace from '../../models/trace/trace.js';
 import * as TraceBounds from '../../services/trace_bounds/trace_bounds.js';
 
 import type {AnnotationModifiedEvent} from './ModificationsManager.js';
-import type * as Overlays from './overlays/overlays.js';
-import * as Utils from './utils/utils.js';
 
 const UIStrings = {
   /**
-   *@description text used to announce to a screen reader that they have entered the mode to edit the label
+   * @description text used to announce to a screen reader that they have entered the mode to edit the label
    */
   srEnterLabelEditMode: 'Editing the annotation label text',
   /**
-   *@description text used to announce to a screen reader that the entry label text has been updated
-   *@example {Hello world} PH1
+   * @description text used to announce to a screen reader that the entry label text has been updated
+   * @example {Hello world} PH1
    */
   srLabelTextUpdated: 'Label updated to {PH1}',
   /**
-   *@description text used to announce to a screen reader that the bounds of a time range annotation have been upodated
-   *@example {13ms} PH1
-   *@example {20ms} PH2
+   * @description text used to announce to a screen reader that the bounds of a time range annotation have been upodated
+   * @example {13ms} PH1
+   * @example {20ms} PH2
    */
   srTimeRangeBoundsUpdated: 'Time range updated, starting at {PH1} and ending at {PH2}',
   /**
-   *@description label for a time range overlay
+   * @description label for a time range overlay
    */
   timeRange: 'time range',
   /**
-   *@description label for a entry label overlay
+   * @description label for a entry label overlay
    */
   entryLabel: 'entry label',
   /**
-   *@description label for a connected entries overlay
+   * @description label for a connected entries overlay
    */
   entriesLink: 'connected entries',
   /**
-   *@description screen reader text to announce that an annotation has been removed
-   *@example {Entry Label} PH1
+   * @description screen reader text to announce that an annotation has been removed
+   * @example {Entry Label} PH1
    */
   srAnnotationRemoved: 'The {PH1} annotation has been removed',
   /**
-   *@description screen reader text to announce that an annotation has been added
-   *@example {Entry Label} PH1
+   * @description screen reader text to announce that an annotation has been added
+   * @example {Entry Label} PH1
    */
   srAnnotationAdded: 'The {PH1} annotation has been added',
   /**
-   *@description screen reader text to announce the two events that the connected entries annotation links to
-   *@example {Paint} PH1
-   *@example {Function call} PH2
+   * @description screen reader text to announce the two events that the connected entries annotation links to
+   * @example {Paint} PH1
+   * @example {Function call} PH2
    */
   srEntriesLinked: 'The connected entries annotation now links from {PH1} to {PH2}',
 
@@ -136,27 +134,27 @@ export function getAnnotationWindow(
   return annotationWindow;
 }
 
-export function isTimeRangeLabel(overlay: Overlays.Overlays.TimelineOverlay):
-    overlay is Overlays.Overlays.TimeRangeLabel {
+export function isTimeRangeLabel(overlay: Trace.Types.Overlays.Overlay):
+    overlay is Trace.Types.Overlays.TimeRangeLabel {
   return overlay.type === 'TIME_RANGE';
 }
 
-export function isEntriesLink(overlay: Overlays.Overlays.TimelineOverlay): overlay is Overlays.Overlays.EntriesLink {
+export function isEntriesLink(overlay: Trace.Types.Overlays.Overlay): overlay is Trace.Types.Overlays.EntriesLink {
   return overlay.type === 'ENTRIES_LINK';
 }
 
-export function isEntryLabel(overlay: Overlays.Overlays.TimelineOverlay): overlay is Overlays.Overlays.EntryLabel {
+export function isEntryLabel(overlay: Trace.Types.Overlays.Overlay): overlay is Trace.Types.Overlays.EntryLabel {
   return overlay.type === 'ENTRY_LABEL';
 }
 
-function labelForOverlay(overlay: Overlays.Overlays.TimelineOverlay): string|null {
+function labelForOverlay(overlay: Trace.Types.Overlays.Overlay): string|null {
   if (isTimeRangeLabel(overlay) || isEntryLabel(overlay)) {
     return overlay.label;
   }
   return null;
 }
 
-export function ariaDescriptionForOverlay(overlay: Overlays.Overlays.TimelineOverlay): string|null {
+export function ariaDescriptionForOverlay(overlay: Trace.Types.Overlays.Overlay): string|null {
   if (isTimeRangeLabel(overlay)) {
     return i18nString(UIStrings.timeRange);
   }
@@ -173,6 +171,9 @@ export function ariaDescriptionForOverlay(overlay: Overlays.Overlays.TimelineOve
 }
 
 export function ariaAnnouncementForModifiedEvent(event: AnnotationModifiedEvent): string|null {
+  if (event.muteAriaNotifications) {
+    return null;
+  }
   const {overlay, action} = event;
   switch (action) {
     case 'Remove': {
@@ -219,14 +220,17 @@ export function ariaAnnouncementForModifiedEvent(event: AnnotationModifiedEvent)
     }
     case 'UpdateLinkToEntry': {
       if (isEntriesLink(overlay) && overlay.entryFrom && overlay.entryTo) {
-        const from = Utils.EntryName.nameForEntry(overlay.entryFrom);
-        const to = Utils.EntryName.nameForEntry(overlay.entryTo);
+        const from = Trace.Name.forEntry(overlay.entryFrom);
+        const to = Trace.Name.forEntry(overlay.entryTo);
         return (i18nString(UIStrings.srEntriesLinked, {PH1: from, PH2: to}));
       }
       break;
     }
     case 'EnterLabelEditState': {
       return (i18nString(UIStrings.srEnterLabelEditMode));
+    }
+    case 'LabelBringForward': {
+      break;
     }
     default:
       Platform.assertNever(action, 'Unsupported action for AnnotationModifiedEvent');

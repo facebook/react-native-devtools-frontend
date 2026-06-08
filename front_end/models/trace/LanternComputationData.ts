@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,14 +10,15 @@ import type * as Types from './types/types.js';
 
 type NetworkRequest = Lantern.Types.NetworkRequest<Types.Events.SyntheticNetworkRequest>;
 
-function createProcessedNavigation(parsedTrace: Handlers.Types.ParsedTrace, frameId: string, navigationId: string):
-    Lantern.Types.Simulation.ProcessedNavigation {
-  const scoresByNav = parsedTrace.PageLoadMetrics.metricScoresByFrameId.get(frameId);
+function createProcessedNavigation(
+    data: Handlers.Types.HandlerData, frameId: string,
+    navigation: Types.Events.NavigationStart): Lantern.Types.Simulation.ProcessedNavigation {
+  const scoresByNav = data.PageLoadMetrics.metricScoresByFrameId.get(frameId);
   if (!scoresByNav) {
     throw new Lantern.Core.LanternError('missing metric scores for frame');
   }
 
-  const scores = scoresByNav.get(navigationId);
+  const scores = scoresByNav.get(navigation);
   if (!scores) {
     throw new Lantern.Core.LanternError('missing metric scores for specified navigation');
   }
@@ -85,9 +86,9 @@ function findWorkerThreads(trace: Lantern.Types.Trace): Map<number, number[]> {
 }
 
 function createLanternRequest(
-    parsedTrace: Readonly<Handlers.Types.ParsedTrace>, workerThreads: Map<number, number[]>,
+    parsedTrace: Readonly<Handlers.Types.HandlerData>, workerThreads: Map<number, number[]>,
     request: Types.Events.SyntheticNetworkRequest): NetworkRequest|undefined {
-  if (request.args.data.connectionId === undefined || request.args.data.connectionReused === undefined) {
+  if (request.args.data.hasResponse && request.args.data.connectionId === undefined) {
     throw new Lantern.Core.LanternError('Trace is too old');
   }
 
@@ -102,6 +103,7 @@ function createLanternRequest(
     // These two timings are not included in the trace.
     workerFetchStart: -1,
     workerRespondWithSettled: -1,
+    receiveHeadersStart: -1,
     ...request.args.data.timing,
   } :
                                             undefined;
@@ -166,8 +168,8 @@ function createLanternRequest(
   return {
     rawRequest: request,
     requestId: request.args.data.requestId,
-    connectionId: request.args.data.connectionId,
-    connectionReused: request.args.data.connectionReused,
+    connectionId: request.args.data.connectionId ?? 0,
+    connectionReused: request.args.data.connectionReused ?? false,
     url: request.args.data.url,
     protocol: request.args.data.protocol,
     parsedURL: createParsedUrl(url),
@@ -191,11 +193,7 @@ function createLanternRequest(
     priority: request.args.data.priority,
     frameId: request.args.data.frame,
     fromWorker,
-    // Set later.
-    redirects: undefined,
-    redirectSource: undefined,
-    redirectDestination: undefined,
-    initiatorRequest: undefined,
+    serverResponseTime: request.args.data.lrServerResponseTime,
   };
 }
 
@@ -272,29 +270,32 @@ function linkInitiators(lanternRequests: NetworkRequest[]): void {
 }
 
 function createNetworkRequests(
-    trace: Lantern.Types.Trace, parsedTrace: Handlers.Types.ParsedTrace, startTime = 0,
+    trace: Lantern.Types.Trace, data: Handlers.Types.HandlerData, startTime = 0,
     endTime = Number.POSITIVE_INFINITY): NetworkRequest[] {
   const workerThreads = findWorkerThreads(trace);
 
-  const lanternRequests: NetworkRequest[] = [];
-  for (const request of parsedTrace.NetworkRequests.byTime) {
+  const lanternRequestsNoRedirects: NetworkRequest[] = [];
+  for (const request of data.NetworkRequests.byTime) {
     if (request.ts >= startTime && request.ts < endTime) {
-      const lanternRequest = createLanternRequest(parsedTrace, workerThreads, request);
+      const lanternRequest = createLanternRequest(data, workerThreads, request);
       if (lanternRequest) {
-        lanternRequests.push(lanternRequest);
+        lanternRequestsNoRedirects.push(lanternRequest);
       }
     }
   }
 
+  const lanternRequests: NetworkRequest[] = [];
+
   // Trace Engine consolidates all redirects into a single request object, but lantern needs
   // an entry for each redirected request.
-  for (const request of [...lanternRequests]) {
+  for (const request of [...lanternRequestsNoRedirects]) {
     if (!request.rawRequest) {
       continue;
     }
 
     const redirects = request.rawRequest.args.data.redirects;
     if (!redirects.length) {
+      lanternRequests.push(request);
       continue;
     }
 
@@ -341,6 +342,7 @@ function createNetworkRequests(
       lanternRequests.push(redirectedRequest);
     }
     requestChain.push(request);
+    lanternRequests.push(request);
 
     for (let i = 0; i < requestChain.length; i++) {
       const request = requestChain[i];
@@ -362,14 +364,12 @@ function createNetworkRequests(
 
   linkInitiators(lanternRequests);
 
-  // This would already be sorted by rendererStartTime, if not for the redirect unwrapping done
-  // above.
-  return lanternRequests.sort((a, b) => a.rendererStartTime - b.rendererStartTime);
+  return lanternRequests;
 }
 
 function collectMainThreadEvents(
-    trace: Lantern.Types.Trace, parsedTrace: Handlers.Types.ParsedTrace): Lantern.Types.TraceEvent[] {
-  const Meta = parsedTrace.Meta;
+    trace: Lantern.Types.Trace, data: Handlers.Types.HandlerData): Lantern.Types.TraceEvent[] {
+  const Meta = data.Meta;
   const mainFramePids = Meta.mainFrameNavigations.length ? new Set(Meta.mainFrameNavigations.map(nav => nav.pid)) :
                                                            Meta.topLevelRendererIds;
 
@@ -405,9 +405,9 @@ function collectMainThreadEvents(
 }
 
 function createGraph(
-    requests: Lantern.Types.NetworkRequest[], trace: Lantern.Types.Trace, parsedTrace: Handlers.Types.ParsedTrace,
+    requests: Lantern.Types.NetworkRequest[], trace: Lantern.Types.Trace, data: Handlers.Types.HandlerData,
     url?: Lantern.Types.Simulation.URL): Lantern.Graph.Node<Types.Events.SyntheticNetworkRequest> {
-  const mainThreadEvents = collectMainThreadEvents(trace, parsedTrace);
+  const mainThreadEvents = collectMainThreadEvents(trace, data);
 
   // url defines the initial request that the Lantern graph starts at (the root node) and the
   // main document request. These are equal if there are no redirects.

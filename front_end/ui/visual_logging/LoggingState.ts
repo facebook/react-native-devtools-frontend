@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 import type {Loggable} from './Loggable.js';
@@ -65,9 +65,11 @@ export function registerParentProvider(name: string, provider: ParentProvider): 
   parentProviders.set(name, provider);
 }
 
-const parentMap = new WeakMap<Element, Element>();
-registerParentProvider('mapped', (e: Element) => parentMap.get(e));
+/** MUST NOT BE EXPORTED */
+const PARENT = Symbol('veParent');
+type ElementWithParent = Element&{[PARENT]?: Element};
+registerParentProvider('mapped', (e: ElementWithParent) => e[PARENT]);
 
-export function setMappedParent(element: Element, parent: Element): void {
-  parentMap.set(element, parent);
+export function setMappedParent(element: ElementWithParent, parent: Element): void {
+  element[PARENT] = parent;
 }

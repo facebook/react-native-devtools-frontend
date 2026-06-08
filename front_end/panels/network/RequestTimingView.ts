@@ -1,647 +1,615 @@
-/*
- * Copyright (C) 2010 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2010 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+/* eslint-disable @devtools/no-imperative-dom-api */
+import '../../ui/kit/kit.js';
 
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import * as Logs from '../../models/logs/logs.js';
+import * as NetworkTimeCalculator from '../../models/network_time_calculator/network_time_calculator.js';
+import * as uiI18n from '../../ui/i18n/i18n.js';
 import * as ObjectUI from '../../ui/legacy/components/object_ui/object_ui.js';
 import * as UI from '../../ui/legacy/legacy.js';
+import {Directives, html, type LitTemplate, nothing, render} from '../../ui/lit/lit.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
-import {Events, type NetworkTimeCalculator} from './NetworkTimeCalculator.js';
 import networkingTimingTableStyles from './networkTimingTable.css.js';
 
+const {repeat, classMap, ifDefined} = Directives;
 const UIStrings = {
   /**
-   *@description Text used to label the time taken to receive an HTTP/2 Push message.
+   * @description Text used to label the time taken to receive an HTTP/2 Push message.
    */
   receivingPush: 'Receiving `Push`',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   queueing: 'Queueing',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   stalled: 'Stalled',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   initialConnection: 'Initial connection',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   dnsLookup: 'DNS Lookup',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   proxyNegotiation: 'Proxy negotiation',
   /**
-   *@description Text used to label the time taken to read an HTTP/2 Push message.
+   * @description Text used to label the time taken to read an HTTP/2 Push message.
    */
   readingPush: 'Reading `Push`',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   contentDownload: 'Content Download',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   requestSent: 'Request sent',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   requestToServiceworker: 'Request to `ServiceWorker`',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   startup: 'Startup',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   respondwith: 'respondWith',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   ssl: 'SSL',
   /**
-   *@description Text for sum
+   * @description Text for sum
    */
   total: 'Total',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   waitingTtfb: 'Waiting for server response',
   /**
-   *@description Text in Signed Exchange Info View of the Network panel
+   * @description Text in Signed Exchange Info View of the Network panel
    */
   label: 'Label',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   routerEvaluation: 'Router Evaluation',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   routerCacheLookup: 'Cache Lookup',
   /**
-   *@description Inner element text content in Network Log View Columns of the Network panel
+   * @description Inner element text content in Network Log View Columns of the Network panel
    */
   waterfall: 'Waterfall',
   /**
-   *@description Text for the duration of something
+   * @description Text for the duration of something
    */
   duration: 'Duration',
   /**
-   *@description Text of a DOM element in Request Timing View of the Network panel
-   *@example {120.39ms} PH1
+   * @description Text of a DOM element in Request Timing View of the Network panel
+   * @example {120.39ms} PH1
    */
   queuedAtS: 'Queued at {PH1}',
   /**
-   *@description Text of a DOM element in Request Timing View of the Network panel
-   *@example {120.39ms} PH1
+   * @description Text of a DOM element in Request Timing View of the Network panel
+   * @example {120.39ms} PH1
    */
   startedAtS: 'Started at {PH1}',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   serverPush: 'Server Push',
   /**
-   *@description Text of a DOM element in Request Timing View of the Network panel
+   * @description Text of a DOM element in Request Timing View of the Network panel
    */
   resourceScheduling: 'Resource Scheduling',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   connectionStart: 'Connection Start',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
-  requestresponse: 'Request/Response',
+  requestResponse: 'Request/Response',
   /**
-   *@description Text of a DOM element in Request Timing View of the Network panel
+   * @description Text of a DOM element in Request Timing View of the Network panel
    */
   cautionRequestIsNotFinishedYet: 'CAUTION: request is not finished yet!',
   /**
-   *@description Text in Request Timing View of the Network panel
+   * @description Text in Request Timing View of the Network panel
    */
   explanation: 'Explanation',
   /**
-   *@description Text of a DOM element in Request Timing View of the Network panel
+   * @description Text of a DOM element in Request Timing View of the Network panel
    */
   serverTiming: 'Server Timing',
   /**
-   *@description Text of a DOM element in Request Timing View of the Network panel
+   * @description Text of a DOM element in Request Timing View of the Network panel
    */
   time: 'TIME',
   /**
-   *@description Label for the Server Timing API
+   * @description Label for the Server Timing API
    */
   theServerTimingApi: 'the Server Timing API',
   /**
-   *@description Text to inform about the ServerTiming API, which can be used to report timing information to DevTools about the substeps that the server performed to answer the requests. Timing information is, e.g., the duration of the substep.
-   *@example {https://web.dev/custom-metrics/#server-timing-api} PH1
+   * @description Text to inform about the ServerTiming API, which can be used to report timing information to DevTools about the substeps that the server performed to answer the requests. Timing information is, e.g., the duration of the substep.
+   * @example {https://web.dev/custom-metrics/#server-timing-api} PH1
    */
   duringDevelopmentYouCanUseSToAdd:
       'During development, you can use {PH1} to add insights into the server-side timing of this request.',
   /**
-   *@description Header for last column of network timing tab.
+   * @description Header for last column of network timing tab.
    */
   durationC: 'DURATION',
   /**
-   *@description Description for treeitem in ServiceWorker Fetch Details
+   * @description Description for treeitem in ServiceWorker Fetch Details
    */
   originalRequest: 'Original Request',
   /**
-   *@description Description for treeitem in ServiceWorker Fetch Details
+   * @description Description for treeitem in ServiceWorker Fetch Details
    */
   responseReceived: 'Response Received',
   /**
-   *@description Text for an unspecified service worker response source
+   * @description Text for an unspecified service worker response source
    */
   unknown: 'Unknown',
   /**
-   *@description Displays how a particular response was fetched
-   *@example {Network fetch} PH1
+   * @description Displays how a particular response was fetched
+   * @example {Network fetch} PH1
    */
   sourceOfResponseS: 'Source of response: {PH1}',
   /**
-   *@description Name of storage cache from which a response was fetched
-   *@example {v1} PH1
+   * @description Name of storage cache from which a response was fetched
+   * @example {v1} PH1
    */
   cacheStorageCacheNameS: 'Cache storage cache name: {PH1}',
   /**
-   *@description Text for unknown cache storage name
+   * @description Text for unknown cache storage name
    */
   cacheStorageCacheNameUnknown: 'Cache storage cache name: Unknown',
   /**
-   *@description Time at which a response was retrieved
-   *@example {Fri Apr 10 2020 17:20:27 GMT-0700 (Pacific Daylight Time)} PH1
+   * @description Time at which a response was retrieved
+   * @example {Fri Apr 10 2020 17:20:27 GMT-0700 (Pacific Daylight Time)} PH1
    */
   retrievalTimeS: 'Retrieval Time: {PH1}',
   /**
-   *@description Text used to show that serviceworker fetch response source is ServiceWorker Cache Storage
+   * @description Text used to show that serviceworker fetch response source is ServiceWorker Cache Storage
    */
   serviceworkerCacheStorage: '`ServiceWorker` cache storage',
   /**
-   *@description Text used to show that serviceworker fetch response source is HTTP cache
+   * @description Text used to show that serviceworker fetch response source is HTTP cache
    */
   fromHttpCache: 'From HTTP cache',
   /**
-   *@description Text used to show that data was retrieved via a Network fetch
+   * @description Text used to show that data was retrieved via a Network fetch
    */
   networkFetch: 'Network fetch',
   /**
-   *@description Text used to show that data was retrieved using ServiceWorker fallback code
+   * @description Text used to show that data was retrieved using ServiceWorker fallback code
    */
   fallbackCode: 'Fallback code',
   /**
-   *@description Name of the specified source for SW static routing API.
-   *@example {network} PH1
+   * @description Name of the specified source for SW static routing API.
+   * @example {network} PH1
    */
   routerMatchedSource: 'Matched source: {PH1}',
   /**
-   *@description Name of the actually used source for SW static routing API.
-   *@example {network} PH1
+   * @description Name of the actually used source for SW static routing API.
+   * @example {network} PH1
    */
   routerActualSource: 'Actual source: {PH1}',
+  /**
+   * @description Cell title in Network Data Grid Node of the Network panel
+   * @example {Fast 4G} PH1
+   */
+  wasThrottled: 'Request was throttled ({PH1})',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/network/RequestTimingView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
+
+function timeRangeTitle(name: NetworkTimeCalculator.RequestTimeRangeNames): string {
+  switch (name) {
+    case NetworkTimeCalculator.RequestTimeRangeNames.PUSH:
+      return i18nString(UIStrings.receivingPush);
+    case NetworkTimeCalculator.RequestTimeRangeNames.QUEUEING:
+      return i18nString(UIStrings.queueing);
+    case NetworkTimeCalculator.RequestTimeRangeNames.BLOCKING:
+      return i18nString(UIStrings.stalled);
+    case NetworkTimeCalculator.RequestTimeRangeNames.CONNECTING:
+      return i18nString(UIStrings.initialConnection);
+    case NetworkTimeCalculator.RequestTimeRangeNames.DNS:
+      return i18nString(UIStrings.dnsLookup);
+    case NetworkTimeCalculator.RequestTimeRangeNames.PROXY:
+      return i18nString(UIStrings.proxyNegotiation);
+    case NetworkTimeCalculator.RequestTimeRangeNames.RECEIVING_PUSH:
+      return i18nString(UIStrings.readingPush);
+    case NetworkTimeCalculator.RequestTimeRangeNames.RECEIVING:
+      return i18nString(UIStrings.contentDownload);
+    case NetworkTimeCalculator.RequestTimeRangeNames.SENDING:
+      return i18nString(UIStrings.requestSent);
+    case NetworkTimeCalculator.RequestTimeRangeNames.SERVICE_WORKER:
+      return i18nString(UIStrings.requestToServiceworker);
+    case NetworkTimeCalculator.RequestTimeRangeNames.SERVICE_WORKER_PREPARATION:
+      return i18nString(UIStrings.startup);
+    case NetworkTimeCalculator.RequestTimeRangeNames.SERVICE_WORKER_ROUTER_EVALUATION:
+      return i18nString(UIStrings.routerEvaluation);
+    case NetworkTimeCalculator.RequestTimeRangeNames.SERVICE_WORKER_CACHE_LOOKUP:
+      return i18nString(UIStrings.routerCacheLookup);
+    case NetworkTimeCalculator.RequestTimeRangeNames.SERVICE_WORKER_RESPOND_WITH:
+      return i18nString(UIStrings.respondwith);
+    case NetworkTimeCalculator.RequestTimeRangeNames.SSL:
+      return i18nString(UIStrings.ssl);
+    case NetworkTimeCalculator.RequestTimeRangeNames.TOTAL:
+      return i18nString(UIStrings.total);
+    case NetworkTimeCalculator.RequestTimeRangeNames.WAITING:
+      return i18nString(UIStrings.waitingTtfb);
+    default:
+      return name;
+  }
+}
+
+function groupHeader(name: NetworkTimeCalculator.RequestTimeRangeNames): string {
+  if (name === NetworkTimeCalculator.RequestTimeRangeNames.PUSH) {
+    return i18nString(UIStrings.serverPush);
+  }
+  if (name === NetworkTimeCalculator.RequestTimeRangeNames.QUEUEING) {
+    return i18nString(UIStrings.resourceScheduling);
+  }
+  if (NetworkTimeCalculator.ConnectionSetupRangeNames.has(name)) {
+    return i18nString(UIStrings.connectionStart);
+  }
+  if (NetworkTimeCalculator.ServiceWorkerRangeNames.has(name)) {
+    return 'Service Worker';
+  }
+  return i18nString(UIStrings.requestResponse);
+}
+
+function getLocalizedResponseSourceForCode(swResponseSource: Protocol.Network.ServiceWorkerResponseSource):
+    Common.UIString.LocalizedString {
+  switch (swResponseSource) {
+    case Protocol.Network.ServiceWorkerResponseSource.CacheStorage:
+      return i18nString(UIStrings.serviceworkerCacheStorage);
+    case Protocol.Network.ServiceWorkerResponseSource.HttpCache:
+      return i18nString(UIStrings.fromHttpCache);
+    case Protocol.Network.ServiceWorkerResponseSource.Network:
+      return i18nString(UIStrings.networkFetch);
+    default:
+      return i18nString(UIStrings.fallbackCode);
+  }
+}
+
+interface ViewInput {
+  requestUnfinished: boolean;
+  requestStartTime: number;
+  requestIssueTime: number;
+  totalDuration: number;
+  startTime: number;
+  endTime: number;
+  timeRanges: NetworkTimeCalculator.RequestTimeRange[];
+  calculator: NetworkTimeCalculator.NetworkTimeCalculator;
+  serverTimings: SDK.ServerTiming.ServerTiming[];
+  fetchDetails?: UI.TreeOutline.TreeOutlineInShadow;
+  routerDetails?: UI.TreeOutline.TreeOutlineInShadow;
+  wasThrottled?: SDK.NetworkManager.AppliedNetworkConditions;
+}
+
+type View = (input: ViewInput, output: object, target: HTMLElement) => void;
+export const DEFAULT_VIEW: View = (input, output, target) => {
+  const revealThrottled = (): void => {
+    if (input.wasThrottled) {
+      void Common.Revealer.reveal(input.wasThrottled);
+    }
+  };
+  const scale = 100 / (input.endTime - input.startTime);
+  const isClickable = (range: NetworkTimeCalculator.RequestTimeRange): boolean =>
+      range.name === 'serviceworker-respondwith' || range.name === 'serviceworker-routerevaluation';
+  const addServerTiming = (serverTiming: SDK.ServerTiming.ServerTiming): LitTemplate => {
+    const colorGenerator =
+        new Common.Color.Generator({min: 0, max: 360, count: 36}, {min: 50, max: 80, count: undefined}, 80);
+    const isTotal = serverTiming.metric.toLowerCase() === 'total';
+    const metricDesc = [serverTiming.metric, serverTiming.description].filter(Boolean).join(' — ');
+    const left =
+        serverTiming.value === null ? -1 : scale * (input.endTime - input.startTime - (serverTiming.value / 1000));
+    const lastRange =
+        input.timeRanges.findLast(range => range.name !== NetworkTimeCalculator.RequestTimeRangeNames.TOTAL);
+    const lastTimingRightEdge = lastRange ? (scale * (input.endTime - lastRange.end)) : 100;
+
+    const classes = classMap({
+      ['network-timing-footer']: isTotal,
+      ['server-timing-row']: !isTotal,
+      // Mark entries from a bespoke format
+      ['synthetic']: serverTiming.metric.startsWith('(c'),
+    });
+
+    // clang-format off
+    return html`
+      <tr class=${classes}>
+        <td title=${metricDesc} class=network-timing-metric>
+          ${metricDesc}
+        </td>
+        ${serverTiming.value === null ? nothing : html`
+          <td class=server-timing-cell--value-bar>
+            <div class=network-timing-row>
+              ${left < 0 // don't chart values too big or too small
+                ? nothing
+                : html`<span
+                    class="network-timing-bar server-timing"
+                    data-background=${ifDefined(isTotal ? undefined : colorGenerator.colorForID(serverTiming.metric))}
+                    data-left=${left}
+                    data-right=${lastTimingRightEdge}>${'\u200B'}</span>`}
+            </div>
+          </td>
+          <td class=server-timing-cell--value-text>
+            <div class=network-timing-bar-title>
+              ${i18n.TimeUtilities.millisToString(serverTiming.value, true)}
+            </div>
+          </td>
+        `}
+      </tr>`;
+    // clang-format on
+  };
+
+  const onActivate = (e: KeyboardEvent|MouseEvent): void => {
+    if ('key' in e && !Platform.KeyboardUtilities.isEnterOrSpaceKey(e)) {
+      return;
+    }
+    const target = e.target as Element | null;
+    if (!target?.classList.contains('network-fetch-timing-bar-clickable')) {
+      return;
+    }
+    const isExpanded = target.ariaExpanded === 'true';
+    target.ariaExpanded = isExpanded ? 'false' : 'true';
+    if (!isExpanded) {
+      Host.userMetrics.actionTaken(Host.UserMetrics.Action.NetworkPanelServiceWorkerRespondWith);
+    }
+  };
+
+  const throttledRequestTitle = input.wasThrottled ? i18nString(UIStrings.wasThrottled, {
+    PH1: typeof input.wasThrottled.conditions.title === 'string' ? input.wasThrottled.conditions.title :
+                                                                   input.wasThrottled.conditions.title()
+  }) :
+                                                     undefined;
+
+  const classes = classMap({
+    ['network-timing-table']: true,
+    ['resource-timing-table']: true,
+  });
+
+  const timeRangeGroups: Array<{name: string, ranges: NetworkTimeCalculator.RequestTimeRange[]}> = [];
+  for (const range of input.timeRanges) {
+    if (range.name === NetworkTimeCalculator.RequestTimeRangeNames.TOTAL) {
+      continue;
+    }
+    const groupName = groupHeader(range.name);
+    const tail = timeRangeGroups.at(-1);
+    if (tail?.name !== groupName) {
+      timeRangeGroups.push({name: groupName, ranges: [range]});
+    } else {
+      tail.ranges.push(range);
+    }
+  }
+
+  // clang-format off
+  render(html`
+    <style>${networkingTimingTableStyles}</style>
+    <table
+      class=${classes}
+      jslog=${VisualLogging.pane('timing').track({
+        resize: true
+      })}>
+        <colgroup>
+          <col class=labels>
+          <col class=bars>
+          <col class=duration>
+        </colgroup>
+        <thead class=network-timing-start>
+          <tr>
+            <th scope=col>
+              <span class=network-timing-hidden-header>${i18nString(UIStrings.label)}</span>
+            </th>
+            <th scope=col>
+              <span class=network-timing-hidden-header>${i18nString(UIStrings.waterfall)}</span>
+            </th>
+            <th scope=col>
+              <span class=network-timing-hidden-header>${i18nString(UIStrings.duration)}</span>
+            </th>
+          </tr>
+          <tr>
+            <td colspan = 3>
+              ${i18nString(UIStrings.queuedAtS, {PH1: input.calculator.formatValue(input.requestIssueTime, 2)})}
+            </td>
+          </tr>
+          <tr>
+            <td colspan=3>
+              ${i18nString(UIStrings.startedAtS, {PH1: input.calculator.formatValue(input.requestStartTime, 2)})}
+            </td>
+          </tr>
+        </thead>
+        ${timeRangeGroups.map(group => html`
+          <tr class=network-timing-table-header>
+            <td role=heading aria-level=2>
+              ${group.name}
+            </td>
+            <td></td>
+            <td>${i18nString(UIStrings.durationC)}</td>
+          </tr>
+          ${repeat(group.ranges, range => html`
+            <tr>
+              ${isClickable(range) ? html`<td
+                  tabindex=0
+                  role=button
+                  aria-expanded=false
+                  @click=${onActivate}
+                  @keydown=${onActivate}
+                  class=network-fetch-timing-bar-clickable>
+                    ${timeRangeTitle(range.name)}
+                </td>`
+                : html`<td>
+                    ${timeRangeTitle(range.name)}
+                </td>`}
+              <td>
+                <div
+                  class=network-timing-row
+                  aria-label=${i18nString(UIStrings.startedAtS, {PH1: input.calculator.formatValue(range.start, 2)})}>
+                    <span
+                      class="network-timing-bar ${range.name}"
+                      data-left=${scale * (range.start - input.startTime)}
+                      data-right=${scale * (input.endTime - range.end)}>${'\u200B'}</span>
+                </div>
+              </td>
+              <td>
+                <div class=network-timing-bar-title>
+                  ${i18n.TimeUtilities.secondsToString(range.end - range.start, true)}
+                </div>
+              </td>
+            </tr>
+            ${range.name === 'serviceworker-respondwith' && input.fetchDetails ? html`
+              <tr class="network-fetch-timing-bar-details network-fetch-timing-bar-details-collapsed">
+                ${input.fetchDetails.element}
+              </tr>`
+              : nothing}
+            ${range.name === 'serviceworker-routerevaluation' && input.routerDetails ? html`
+              <tr class="router-evaluation-timing-bar-details network-fetch-timing-bar-details-collapsed">
+                ${input.routerDetails.element}
+              </tr>`
+              : nothing}
+          `)}
+        `)}
+        ${input.requestUnfinished ? html`
+          <tr>
+            <td class=caution colspan=3>
+              ${i18nString(UIStrings.cautionRequestIsNotFinishedYet)}
+            </td>
+          </tr>` : nothing}
+       <tr class=network-timing-footer>
+         <td colspan=1>
+           <devtools-link
+             href="https://developer.chrome.com/docs/devtools/network/reference/#timing-explanation"
+             class=devtools-link
+             jslogcontext="explanation">
+               ${i18nString(UIStrings.explanation)}
+           </devtools-link>
+         <td></td>
+         <td class=${input.wasThrottled ? 'throttled' : ''} title=${ifDefined(throttledRequestTitle)}>
+           ${input.wasThrottled ? html` <devtools-icon name=watch @click=${revealThrottled}></devtools-icon>` : nothing}
+           ${i18n.TimeUtilities.secondsToString(input.totalDuration, true)}
+         </td>
+       </tr>
+       <tr class=network-timing-table-header>
+         <td colspan=3>
+           <hr class=break />
+         </td>
+       </tr>
+       <tr class=network-timing-table-header>
+         <td>${i18nString(UIStrings.serverTiming)}</td>
+         <td></td>
+         <td>${i18nString(UIStrings.time)}</td>
+       </tr>
+       ${repeat(input.serverTimings.filter(item => item.metric.toLowerCase() !== 'total'), addServerTiming)}
+       ${repeat(input.serverTimings.filter(item => item.metric.toLowerCase() === 'total'), addServerTiming)}
+       ${input.serverTimings.length === 0 ? html`
+         <tr>
+           <td colspan=3>
+${uiI18n.getFormatLocalizedStringTemplate(str_, UIStrings.duringDevelopmentYouCanUseSToAdd, {PH1:
+                                                  html`<devtools-link href="https://web.dev/custom-metrics/#server-timing-api" .jslogContext=${'server-timing-api'}>${i18nString(UIStrings.theServerTimingApi)}</devtools-link>`})}
+           </td>
+         </tr>` : nothing}
+      </table>`, target, {container: {classes: ['resource-timing-view']}});
+  // clang-format on
+};
+
 export class RequestTimingView extends UI.Widget.VBox {
-  private request: SDK.NetworkRequest.NetworkRequest;
-  private calculator: NetworkTimeCalculator;
-  private lastMinimumBoundary: number;
-  private tableElement?: Element;
-  constructor(request: SDK.NetworkRequest.NetworkRequest, calculator: NetworkTimeCalculator) {
-    super();
-    this.registerRequiredCSS(networkingTimingTableStyles);
-    this.element.classList.add('resource-timing-view');
-
-    this.request = request;
-    this.calculator = calculator;
-    this.lastMinimumBoundary = -1;
+  #request?: SDK.NetworkRequest.NetworkRequest;
+  #calculator?: NetworkTimeCalculator.NetworkTimeCalculator;
+  #lastMinimumBoundary = -1;
+  readonly #view: View;
+  constructor(target?: HTMLElement, view = DEFAULT_VIEW) {
+    super(target);
+    this.#view = view;
   }
 
-  private static timeRangeTitle(name: RequestTimeRangeNames): string {
-    switch (name) {
-      case RequestTimeRangeNames.PUSH:
-        return i18nString(UIStrings.receivingPush);
-      case RequestTimeRangeNames.QUEUEING:
-        return i18nString(UIStrings.queueing);
-      case RequestTimeRangeNames.BLOCKING:
-        return i18nString(UIStrings.stalled);
-      case RequestTimeRangeNames.CONNECTING:
-        return i18nString(UIStrings.initialConnection);
-      case RequestTimeRangeNames.DNS:
-        return i18nString(UIStrings.dnsLookup);
-      case RequestTimeRangeNames.PROXY:
-        return i18nString(UIStrings.proxyNegotiation);
-      case RequestTimeRangeNames.RECEIVING_PUSH:
-        return i18nString(UIStrings.readingPush);
-      case RequestTimeRangeNames.RECEIVING:
-        return i18nString(UIStrings.contentDownload);
-      case RequestTimeRangeNames.SENDING:
-        return i18nString(UIStrings.requestSent);
-      case RequestTimeRangeNames.SERVICE_WORKER:
-        return i18nString(UIStrings.requestToServiceworker);
-      case RequestTimeRangeNames.SERVICE_WORKER_PREPARATION:
-        return i18nString(UIStrings.startup);
-      case RequestTimeRangeNames.SERVICE_WORKER_ROUTER_EVALUATION:
-        return i18nString(UIStrings.routerEvaluation);
-      case RequestTimeRangeNames.SERVICE_WORKER_CACHE_LOOKUP:
-        return i18nString(UIStrings.routerCacheLookup);
-      case RequestTimeRangeNames.SERVICE_WORKER_RESPOND_WITH:
-        return i18nString(UIStrings.respondwith);
-      case RequestTimeRangeNames.SSL:
-        return i18nString(UIStrings.ssl);
-      case RequestTimeRangeNames.TOTAL:
-        return i18nString(UIStrings.total);
-      case RequestTimeRangeNames.WAITING:
-        return i18nString(UIStrings.waitingTtfb);
-      default:
-        return name;
-    }
+  static create(request: SDK.NetworkRequest.NetworkRequest, calculator: NetworkTimeCalculator.NetworkTimeCalculator):
+      RequestTimingView {
+    const view = new RequestTimingView();
+    view.request = request;
+    view.calculator = calculator;
+    view.requestUpdate();
+    return view;
   }
 
-  static calculateRequestTimeRanges(request: SDK.NetworkRequest.NetworkRequest, navigationStart: number):
-      RequestTimeRange[] {
-    const result: RequestTimeRange[] = [];
-    function addRange(name: RequestTimeRangeNames, start: number, end: number): void {
-      if (start < Number.MAX_VALUE && start <= end) {
-        result.push({name, start, end});
-      }
+  override performUpdate(): void {
+    if (!this.#request || !this.#calculator) {
+      return;
     }
-
-    function firstPositive(numbers: number[]): number|undefined {
-      for (let i = 0; i < numbers.length; ++i) {
-        if (numbers[i] > 0) {
-          return numbers[i];
-        }
-      }
-      return undefined;
-    }
-
-    function addOffsetRange(name: RequestTimeRangeNames, start: number, end: number): void {
-      if (start >= 0 && end >= 0) {
-        addRange(name, startTime + (start / 1000), startTime + (end / 1000));
-      }
-    }
-
-    // In some situations, argument `start` may come before `startTime` (`timing.requestStart`). This is especially true
-    // in cases such as SW static routing API where fields like `workerRouterEvaluationStart` or `workerCacheLookupStart`
-    // is set before setting `timing.requestStart`. If the `start` and `end` is known to be a valid value (i.e. not default
-    // invalid value -1 or undefined), we allow adding the range.
-    function addMaybeNegativeOffsetRange(name: RequestTimeRangeNames, start: number, end: number): void {
-      addRange(name, startTime + (start / 1000), startTime + (end / 1000));
-    }
-
-    const timing = request.timing;
-    if (!timing) {
-      const start = request.issueTime() !== -1 ? request.issueTime() : request.startTime !== -1 ? request.startTime : 0;
-      const hasDifferentIssueAndStartTime =
-          request.issueTime() !== -1 && request.startTime !== -1 && request.issueTime() !== request.startTime;
-      const middle = (request.responseReceivedTime === -1) ?
-          (hasDifferentIssueAndStartTime ? request.startTime : Number.MAX_VALUE) :
-          request.responseReceivedTime;
-      const end = (request.endTime === -1) ? Number.MAX_VALUE : request.endTime;
-      addRange(RequestTimeRangeNames.TOTAL, start, end);
-      addRange(RequestTimeRangeNames.BLOCKING, start, middle);
-      const state =
-          request.responseReceivedTime === -1 ? RequestTimeRangeNames.CONNECTING : RequestTimeRangeNames.RECEIVING;
-      addRange(state, middle, end);
-      return result;
-    }
-
-    const issueTime = request.issueTime();
-    const startTime = timing.requestTime;
-    const endTime = firstPositive([request.endTime, request.responseReceivedTime]) || startTime;
-
-    addRange(RequestTimeRangeNames.TOTAL, issueTime < startTime ? issueTime : startTime, endTime);
-    if (timing.pushStart) {
-      const pushEnd = timing.pushEnd || endTime;
-      // Only show the part of push that happened after the navigation/reload.
-      // Pushes that happened on the same connection before we started main request will not be shown.
-      if (pushEnd > navigationStart) {
-        addRange(RequestTimeRangeNames.PUSH, Math.max(timing.pushStart, navigationStart), pushEnd);
-      }
-    }
-    if (issueTime < startTime) {
-      addRange(RequestTimeRangeNames.QUEUEING, issueTime, startTime);
-    }
-
-    const responseReceived = (request.responseReceivedTime - startTime) * 1000;
-    if (request.fetchedViaServiceWorker) {
-      addOffsetRange(RequestTimeRangeNames.BLOCKING, 0, timing.workerStart);
-      addOffsetRange(RequestTimeRangeNames.SERVICE_WORKER_PREPARATION, timing.workerStart, timing.workerReady);
-      addOffsetRange(
-          RequestTimeRangeNames.SERVICE_WORKER_RESPOND_WITH, timing.workerFetchStart, timing.workerRespondWithSettled);
-      addOffsetRange(RequestTimeRangeNames.SERVICE_WORKER, timing.workerReady, timing.sendEnd);
-      addOffsetRange(RequestTimeRangeNames.WAITING, timing.sendEnd, responseReceived);
-    } else if (!timing.pushStart) {
-      const blockingEnd =
-          firstPositive([timing.dnsStart, timing.connectStart, timing.sendStart, responseReceived]) || 0;
-      addOffsetRange(RequestTimeRangeNames.BLOCKING, 0, blockingEnd);
-      addOffsetRange(RequestTimeRangeNames.PROXY, timing.proxyStart, timing.proxyEnd);
-      addOffsetRange(RequestTimeRangeNames.DNS, timing.dnsStart, timing.dnsEnd);
-      addOffsetRange(RequestTimeRangeNames.CONNECTING, timing.connectStart, timing.connectEnd);
-      addOffsetRange(RequestTimeRangeNames.SSL, timing.sslStart, timing.sslEnd);
-      addOffsetRange(RequestTimeRangeNames.SENDING, timing.sendStart, timing.sendEnd);
-      addOffsetRange(
-          RequestTimeRangeNames.WAITING,
-          Math.max(timing.sendEnd, timing.connectEnd, timing.dnsEnd, timing.proxyEnd, blockingEnd), responseReceived);
-    }
-
-    const {serviceWorkerRouterInfo} = request;
-    if (serviceWorkerRouterInfo) {
-      if (timing.workerRouterEvaluationStart) {
-        // Depending on the source,the next timestamp will be different. Determine the timestamp by checking
-        // the matched and actual source.
-        let routerEvaluationEnd = timing.sendStart;
-        if (serviceWorkerRouterInfo?.matchedSourceType === Protocol.Network.ServiceWorkerRouterSource.Cache &&
-            timing.workerCacheLookupStart) {
-          routerEvaluationEnd = timing.workerCacheLookupStart;
-        } else if (
-            serviceWorkerRouterInfo?.actualSourceType === Protocol.Network.ServiceWorkerRouterSource.FetchEvent) {
-          routerEvaluationEnd = timing.workerStart;
-        }
-        addMaybeNegativeOffsetRange(
-            RequestTimeRangeNames.SERVICE_WORKER_ROUTER_EVALUATION, timing.workerRouterEvaluationStart,
-            routerEvaluationEnd);
-      }
-
-      if (timing.workerCacheLookupStart) {
-        let cacheLookupEnd = timing.sendStart;
-        if (serviceWorkerRouterInfo?.actualSourceType === Protocol.Network.ServiceWorkerRouterSource.Cache) {
-          cacheLookupEnd = timing.receiveHeadersStart;
-        }
-        addMaybeNegativeOffsetRange(
-            RequestTimeRangeNames.SERVICE_WORKER_CACHE_LOOKUP, timing.workerCacheLookupStart, cacheLookupEnd);
-      }
-    }
-
-    if (request.endTime !== -1) {
-      addRange(
-          timing.pushStart ? RequestTimeRangeNames.RECEIVING_PUSH : RequestTimeRangeNames.RECEIVING,
-          request.responseReceivedTime, endTime);
-    }
-
-    return result;
-  }
-
-  static createTimingTable(request: SDK.NetworkRequest.NetworkRequest, calculator: NetworkTimeCalculator): Element {
-    const tableElement = document.createElement('table');
-    tableElement.classList.add('network-timing-table');
-    tableElement.setAttribute('jslog', `${VisualLogging.pane('timing').track({resize: true})}`);
-    const colgroup = tableElement.createChild('colgroup');
-    colgroup.createChild('col', 'labels');
-    colgroup.createChild('col', 'bars');
-    colgroup.createChild('col', 'duration');
-
-    const timeRanges = RequestTimingView.calculateRequestTimeRanges(request, calculator.minimumBoundary());
+    const timeRanges =
+        NetworkTimeCalculator.calculateRequestTimeRanges(this.#request, this.#calculator.minimumBoundary());
     const startTime = timeRanges.map(r => r.start).reduce((a, b) => Math.min(a, b));
     const endTime = timeRanges.map(r => r.end).reduce((a, b) => Math.max(a, b));
-    const scale = 100 / (endTime - startTime);
+    const total = timeRanges.findLast(range => range.name === NetworkTimeCalculator.RequestTimeRangeNames.TOTAL);
+    const totalDuration = total ? total?.end - total?.start : 0;
+    const conditions = SDK.NetworkManager.MultitargetNetworkManager.instance().appliedRequestConditions(this.#request);
 
-    let connectionHeader;
-    let serviceworkerHeader;
-    let dataHeader;
-    let queueingHeader;
-    let totalDuration = 0;
-
-    const startTimeHeader = tableElement.createChild('thead', 'network-timing-start');
-    const tableHeaderRow = startTimeHeader.createChild('tr');
-    const activityHeaderCell = tableHeaderRow.createChild('th');
-    activityHeaderCell.createChild('span', 'network-timing-hidden-header').textContent = i18nString(UIStrings.label);
-    activityHeaderCell.scope = 'col';
-    const waterfallHeaderCell = tableHeaderRow.createChild('th');
-    waterfallHeaderCell.createChild('span', 'network-timing-hidden-header').textContent =
-        i18nString(UIStrings.waterfall);
-    waterfallHeaderCell.scope = 'col';
-    const durationHeaderCell = tableHeaderRow.createChild('th');
-    durationHeaderCell.createChild('span', 'network-timing-hidden-header').textContent = i18nString(UIStrings.duration);
-    durationHeaderCell.scope = 'col';
-
-    const queuedCell = startTimeHeader.createChild('tr').createChild('td');
-    const startedCell = startTimeHeader.createChild('tr').createChild('td');
-    queuedCell.colSpan = startedCell.colSpan = 3;
-    UI.UIUtils.createTextChild(
-        queuedCell, i18nString(UIStrings.queuedAtS, {PH1: calculator.formatValue(request.issueTime(), 2)}));
-    UI.UIUtils.createTextChild(
-        startedCell, i18nString(UIStrings.startedAtS, {PH1: calculator.formatValue(request.startTime, 2)}));
-
-    let right;
-    for (let i = 0; i < timeRanges.length; ++i) {
-      const range = timeRanges[i];
-      const rangeName = range.name;
-      if (rangeName === RequestTimeRangeNames.TOTAL) {
-        totalDuration = range.end - range.start;
-        continue;
-      }
-      if (rangeName === RequestTimeRangeNames.PUSH) {
-        createHeader(i18nString(UIStrings.serverPush));
-      } else if (rangeName === RequestTimeRangeNames.QUEUEING) {
-        if (!queueingHeader) {
-          queueingHeader = createHeader(i18nString(UIStrings.resourceScheduling));
-        }
-      } else if (ConnectionSetupRangeNames.has(rangeName)) {
-        if (!connectionHeader) {
-          connectionHeader = createHeader(i18nString(UIStrings.connectionStart));
-        }
-      } else if (ServiceWorkerRangeNames.has(rangeName)) {
-        if (!serviceworkerHeader) {
-          serviceworkerHeader = createHeader('Service Worker');
-        }
-      } else if (!dataHeader) {
-        dataHeader = createHeader(i18nString(UIStrings.requestresponse));
-      }
-
-      const left = (scale * (range.start - startTime));
-      right = (scale * (endTime - range.end));
-      const duration = range.end - range.start;
-
-      const tr = tableElement.createChild('tr');
-      const timingBarTitleElement = tr.createChild('td');
-      UI.UIUtils.createTextChild(timingBarTitleElement, RequestTimingView.timeRangeTitle(rangeName));
-
-      const row = tr.createChild('td').createChild('div', 'network-timing-row');
-      const bar = row.createChild('span', 'network-timing-bar ' + rangeName);
-      bar.style.left = left + '%';
-      bar.style.right = right + '%';
-      bar.textContent = '\u200B';  // Important for 0-time items to have 0 width.
-      UI.ARIAUtils.setLabel(row, i18nString(UIStrings.startedAtS, {PH1: calculator.formatValue(range.start, 2)}));
-      const label = tr.createChild('td').createChild('div', 'network-timing-bar-title');
-      label.textContent = i18n.TimeUtilities.secondsToString(duration, true);
-
-      if (range.name === 'serviceworker-respondwith') {
-        timingBarTitleElement.classList.add('network-fetch-timing-bar-clickable');
-        tableElement.createChild('tr', 'network-fetch-timing-bar-details');
-
-        timingBarTitleElement.setAttribute('tabindex', '0');
-        timingBarTitleElement.setAttribute('role', 'switch');
-        UI.ARIAUtils.setChecked(timingBarTitleElement, false);
-      }
-
-      if (range.name === 'serviceworker-routerevaluation') {
-        timingBarTitleElement.classList.add('network-fetch-timing-bar-clickable');
-        tableElement.createChild('tr', 'router-evaluation-timing-bar-details');
-
-        timingBarTitleElement.setAttribute('tabindex', '0');
-        timingBarTitleElement.setAttribute('role', 'switch');
-        UI.ARIAUtils.setChecked(timingBarTitleElement, false);
-      }
-    }
-
-    if (!request.finished && !request.preserved) {
-      const cell = tableElement.createChild('tr').createChild('td', 'caution');
-      cell.colSpan = 3;
-      UI.UIUtils.createTextChild(cell, i18nString(UIStrings.cautionRequestIsNotFinishedYet));
-    }
-
-    const footer = tableElement.createChild('tr', 'network-timing-footer');
-    const note = footer.createChild('td');
-    note.colSpan = 1;
-    const explanationLink = UI.XLink.XLink.create(
-        'https://developer.chrome.com/docs/devtools/network/reference/#timing-explanation',
-        i18nString(UIStrings.explanation), undefined, undefined, 'explanation');
-    note.appendChild(explanationLink);
-    footer.createChild('td');
-    UI.UIUtils.createTextChild(footer.createChild('td'), i18n.TimeUtilities.secondsToString(totalDuration, true));
-
-    const serverTimings = request.serverTimings;
-
-    const lastTimingRightEdge = right === undefined ? 100 : right;
-
-    const breakElement = tableElement.createChild('tr', 'network-timing-table-header').createChild('td');
-    breakElement.colSpan = 3;
-    breakElement.createChild('hr', 'break');
-
-    const serverHeader = tableElement.createChild('tr', 'network-timing-table-header');
-    UI.UIUtils.createTextChild(serverHeader.createChild('td'), i18nString(UIStrings.serverTiming));
-    serverHeader.createChild('td');
-    UI.UIUtils.createTextChild(serverHeader.createChild('td'), i18nString(UIStrings.time));
-
-    if (!serverTimings) {
-      const informationRow = tableElement.createChild('tr');
-      const information = informationRow.createChild('td');
-      information.colSpan = 3;
-
-      const link = UI.XLink.XLink.create(
-          'https://web.dev/custom-metrics/#server-timing-api', i18nString(UIStrings.theServerTimingApi), undefined,
-          undefined, 'server-timing-api');
-      information.appendChild(
-          i18n.i18n.getFormatLocalizedString(str_, UIStrings.duringDevelopmentYouCanUseSToAdd, {PH1: link}));
-
-      return tableElement;
-    }
-
-    serverTimings.filter(item => item.metric.toLowerCase() !== 'total')
-        .forEach(item => addTiming(item, lastTimingRightEdge));
-    serverTimings.filter(item => item.metric.toLowerCase() === 'total')
-        .forEach(item => addTiming(item, lastTimingRightEdge));
-
-    return tableElement;
-
-    function addTiming(serverTiming: SDK.ServerTiming.ServerTiming, right: number): void {
-      const colorGenerator =
-          new Common.Color.Generator({min: 0, max: 360, count: 36}, {min: 50, max: 80, count: undefined}, 80);
-      const isTotal = serverTiming.metric.toLowerCase() === 'total';
-      const tr = tableElement.createChild('tr', isTotal ? 'network-timing-footer' : 'server-timing-row');
-      const metric = tr.createChild('td', 'network-timing-metric');
-      const description = serverTiming.description || serverTiming.metric;
-      UI.UIUtils.createTextChild(metric, description);
-      UI.Tooltip.Tooltip.install(metric, description);
-      const row = tr.createChild('td').createChild('div', 'network-timing-row');
-
-      if (serverTiming.value === null) {
-        return;
-      }
-      const left = scale * (endTime - startTime - (serverTiming.value / 1000));
-      if (left >= 0) {  // don't chart values too big or too small
-        const bar = row.createChild('span', 'network-timing-bar server-timing');
-        bar.style.left = left + '%';
-        bar.style.right = right + '%';
-        bar.textContent = '\u200B';  // Important for 0-time items to have 0 width.
-        if (!isTotal) {
-          bar.style.backgroundColor = colorGenerator.colorForID(serverTiming.metric);
-        }
-      }
-      const label = tr.createChild('td').createChild('div', 'network-timing-bar-title');
-      label.textContent = i18n.TimeUtilities.millisToString(serverTiming.value, true);
-    }
-
-    function createHeader(title: string): Element {
-      const dataHeader = tableElement.createChild('tr', 'network-timing-table-header');
-      const headerCell = dataHeader.createChild('td');
-      UI.UIUtils.createTextChild(headerCell, title);
-      UI.ARIAUtils.markAsHeading(headerCell, 2);
-      UI.UIUtils.createTextChild(dataHeader.createChild('td'), '');
-      UI.UIUtils.createTextChild(dataHeader.createChild('td'), i18nString(UIStrings.durationC));
-      return dataHeader;
-    }
+    const input: ViewInput = {
+      startTime,
+      endTime,
+      totalDuration,
+      serverTimings: this.#request.serverTimings ?? [],
+      calculator: this.#calculator,
+      requestStartTime: this.#request.startTime,
+      requestIssueTime: this.#request.issueTime(),
+      requestUnfinished: !this.#request.finished,
+      fetchDetails: this.#fetchDetailsTree(),
+      routerDetails: this.#routerDetailsTree(),
+      wasThrottled: conditions?.urlPattern ? conditions : undefined,
+      timeRanges,
+    };
+    this.#view(input, {}, this.contentElement);
   }
 
-  private constructFetchDetailsView(): void {
-    if (!this.tableElement) {
-      return;
+  #fetchDetailsTree(): UI.TreeOutline.TreeOutlineInShadow|undefined {
+    if (!this.#request?.fetchedViaServiceWorker) {
+      return undefined;
     }
-
-    const document = this.tableElement.ownerDocument;
-    const fetchDetailsElement = document.querySelector('.network-fetch-timing-bar-details');
-
-    if (!fetchDetailsElement) {
-      return;
-    }
-
-    fetchDetailsElement.classList.add('network-fetch-timing-bar-details-collapsed');
-
-    self.onInvokeElement(this.tableElement, this.onToggleFetchDetails.bind(this, fetchDetailsElement));
-
     const detailsView = new UI.TreeOutline.TreeOutlineInShadow();
-    fetchDetailsElement.appendChild(detailsView.element);
 
-    const origRequest = Logs.NetworkLog.NetworkLog.instance().originalRequestForURL(this.request.url());
+    const origRequest = Logs.NetworkLog.NetworkLog.instance().originalRequestForURL(this.#request.url());
     if (origRequest) {
       const requestObject = SDK.RemoteObject.RemoteObject.fromLocalObject(origRequest);
-      const requestTreeElement = new ObjectUI.ObjectPropertiesSection.RootElement(requestObject);
+      const requestTreeElement = new ObjectUI.ObjectPropertiesSection.RootElement(
+          new ObjectUI.ObjectPropertiesSection.ObjectTree(requestObject, {
+            readOnly: true,
+            propertiesMode: ObjectUI.ObjectPropertiesSection.ObjectPropertiesMode.OWN_AND_INTERNAL_AND_INHERITED,
+          }));
       requestTreeElement.title = i18nString(UIStrings.originalRequest);
       detailsView.appendChild(requestTreeElement);
     }
 
-    const response = Logs.NetworkLog.NetworkLog.instance().originalResponseForURL(this.request.url());
+    const response = Logs.NetworkLog.NetworkLog.instance().originalResponseForURL(this.#request.url());
     if (response) {
       const responseObject = SDK.RemoteObject.RemoteObject.fromLocalObject(response);
-      const responseTreeElement = new ObjectUI.ObjectPropertiesSection.RootElement(responseObject);
+      const responseTreeElement = new ObjectUI.ObjectPropertiesSection.RootElement(
+          new ObjectUI.ObjectPropertiesSection.ObjectTree(responseObject, {
+            readOnly: true,
+            propertiesMode: ObjectUI.ObjectPropertiesSection.ObjectPropertiesMode.OWN_AND_INTERNAL_AND_INHERITED,
+          }));
       responseTreeElement.title = i18nString(UIStrings.responseReceived);
       detailsView.appendChild(responseTreeElement);
     }
@@ -649,9 +617,9 @@ export class RequestTimingView extends UI.Widget.VBox {
     const serviceWorkerResponseSource = document.createElement('div');
     serviceWorkerResponseSource.classList.add('network-fetch-details-treeitem');
     let swResponseSourceString = i18nString(UIStrings.unknown);
-    const swResponseSource = this.request.serviceWorkerResponseSource();
+    const swResponseSource = this.#request.serviceWorkerResponseSource();
     if (swResponseSource) {
-      swResponseSourceString = this.getLocalizedResponseSourceForCode(swResponseSource);
+      swResponseSourceString = getLocalizedResponseSourceForCode(swResponseSource);
     }
     serviceWorkerResponseSource.textContent = i18nString(UIStrings.sourceOfResponseS, {PH1: swResponseSourceString});
 
@@ -660,7 +628,7 @@ export class RequestTimingView extends UI.Widget.VBox {
 
     const cacheNameElement = document.createElement('div');
     cacheNameElement.classList.add('network-fetch-details-treeitem');
-    const responseCacheStorageName = this.request.getResponseCacheStorageCacheName();
+    const responseCacheStorageName = this.#request.getResponseCacheStorageCacheName();
     if (responseCacheStorageName) {
       cacheNameElement.textContent = i18nString(UIStrings.cacheStorageCacheNameS, {PH1: responseCacheStorageName});
     } else {
@@ -670,7 +638,7 @@ export class RequestTimingView extends UI.Widget.VBox {
     const cacheNameTreeElement = new UI.TreeOutline.TreeElement(cacheNameElement);
     detailsView.appendChild(cacheNameTreeElement);
 
-    const retrievalTime = this.request.getResponseRetrievalTime();
+    const retrievalTime = this.#request.getResponseRetrievalTime();
     if (retrievalTime) {
       const responseTimeElement = document.createElement('div');
       responseTimeElement.classList.add('network-fetch-details-treeitem');
@@ -678,64 +646,20 @@ export class RequestTimingView extends UI.Widget.VBox {
       const responseTimeTreeElement = new UI.TreeOutline.TreeElement(responseTimeElement);
       detailsView.appendChild(responseTimeTreeElement);
     }
+    return detailsView;
   }
 
-  private getLocalizedResponseSourceForCode(swResponseSource: Protocol.Network.ServiceWorkerResponseSource):
-      Common.UIString.LocalizedString {
-    switch (swResponseSource) {
-      case Protocol.Network.ServiceWorkerResponseSource.CacheStorage:
-        return i18nString(UIStrings.serviceworkerCacheStorage);
-      case Protocol.Network.ServiceWorkerResponseSource.HttpCache:
-        return i18nString(UIStrings.fromHttpCache);
-      case Protocol.Network.ServiceWorkerResponseSource.Network:
-        return i18nString(UIStrings.networkFetch);
-      default:
-        return i18nString(UIStrings.fallbackCode);
+  #routerDetailsTree(): UI.TreeOutline.TreeOutlineInShadow|undefined {
+    if (!this.#request?.serviceWorkerRouterInfo) {
+      return undefined;
     }
-  }
-
-  private onToggleFetchDetails(fetchDetailsElement: Element, event: Event): void {
-    if (!event.target) {
-      return;
-    }
-
-    const target = (event.target as Element);
-    if (target.classList.contains('network-fetch-timing-bar-clickable')) {
-      if (fetchDetailsElement.classList.contains('network-fetch-timing-bar-details-collapsed')) {
-        Host.userMetrics.actionTaken(Host.UserMetrics.Action.NetworkPanelServiceWorkerRespondWith);
-      }
-      const expanded = target.getAttribute('aria-checked') === 'true';
-      target.setAttribute('aria-checked', String(!expanded));
-
-      fetchDetailsElement.classList.toggle('network-fetch-timing-bar-details-collapsed');
-      fetchDetailsElement.classList.toggle('network-fetch-timing-bar-details-expanded');
-    }
-  }
-
-  private constructRouterEvaluationView(): void {
-    if (!this.tableElement) {
-      return;
-    }
-
-    const routerEvaluationDetailsElement = this.tableElement.querySelector('.router-evaluation-timing-bar-details');
-    if (!routerEvaluationDetailsElement) {
-      return;
-    }
-
-    routerEvaluationDetailsElement.classList.add('network-fetch-timing-bar-details-collapsed');
-
-    self.onInvokeElement(
-        this.tableElement, this.onToggleRouterEvaluationDetails.bind(this, routerEvaluationDetailsElement));
 
     const detailsView = new UI.TreeOutline.TreeOutlineInShadow();
-    routerEvaluationDetailsElement.appendChild(detailsView.element);
 
-    const {serviceWorkerRouterInfo} = this.request;
+    const {serviceWorkerRouterInfo} = this.#request;
     if (!serviceWorkerRouterInfo) {
       return;
     }
-
-    const document = this.tableElement.ownerDocument;
 
     // Add matched source type element
     const matchedSourceTypeElement = document.createElement('div');
@@ -756,102 +680,47 @@ export class RequestTimingView extends UI.Widget.VBox {
 
     const actualSourceTypeTreeElement = new UI.TreeOutline.TreeElement(actualSourceTypeElement);
     detailsView.appendChild(actualSourceTypeTreeElement);
+
+    return detailsView;
   }
 
-  private onToggleRouterEvaluationDetails(routerEvaluationDetailsElement: Element, event: Event): void {
-    if (!event.target) {
-      return;
+  set request(request: SDK.NetworkRequest.NetworkRequest) {
+    this.#request = request;
+    if (this.isShowing()) {
+      this.#request.addEventListener(SDK.NetworkRequest.Events.TIMING_CHANGED, this.requestUpdate, this);
+      this.#request.addEventListener(SDK.NetworkRequest.Events.FINISHED_LOADING, this.requestUpdate, this);
+      this.requestUpdate();
     }
+  }
 
-    const target = (event.target as Element);
-    if (target.classList.contains('network-fetch-timing-bar-clickable')) {
-      const expanded = target.getAttribute('aria-checked') === 'true';
-      target.setAttribute('aria-checked', String(!expanded));
-
-      routerEvaluationDetailsElement.classList.toggle('network-fetch-timing-bar-details-collapsed');
-      routerEvaluationDetailsElement.classList.toggle('network-fetch-timing-bar-details-expanded');
+  set calculator(calculator: NetworkTimeCalculator.NetworkTimeCalculator) {
+    this.#calculator = calculator;
+    if (this.isShowing()) {
+      this.#calculator.addEventListener(NetworkTimeCalculator.Events.BOUNDARIES_CHANGED, this.boundaryChanged, this);
+      this.requestUpdate();
     }
   }
 
   override wasShown(): void {
-    this.request.addEventListener(SDK.NetworkRequest.Events.TIMING_CHANGED, this.refresh, this);
-    this.request.addEventListener(SDK.NetworkRequest.Events.FINISHED_LOADING, this.refresh, this);
-    this.calculator.addEventListener(Events.BOUNDARIES_CHANGED, this.boundaryChanged, this);
-    this.refresh();
+    super.wasShown();
+    this.#request?.addEventListener(SDK.NetworkRequest.Events.TIMING_CHANGED, this.requestUpdate, this);
+    this.#request?.addEventListener(SDK.NetworkRequest.Events.FINISHED_LOADING, this.requestUpdate, this);
+    this.#calculator?.addEventListener(NetworkTimeCalculator.Events.BOUNDARIES_CHANGED, this.boundaryChanged, this);
+    this.requestUpdate();
   }
 
   override willHide(): void {
-    this.request.removeEventListener(SDK.NetworkRequest.Events.TIMING_CHANGED, this.refresh, this);
-    this.request.removeEventListener(SDK.NetworkRequest.Events.FINISHED_LOADING, this.refresh, this);
-    this.calculator.removeEventListener(Events.BOUNDARIES_CHANGED, this.boundaryChanged, this);
-  }
-
-  private refresh(): void {
-    if (this.tableElement) {
-      this.tableElement.remove();
-    }
-
-    this.tableElement = RequestTimingView.createTimingTable(this.request, this.calculator);
-    this.tableElement.classList.add('resource-timing-table');
-    this.element.appendChild(this.tableElement);
-
-    if (this.request.fetchedViaServiceWorker) {
-      this.constructFetchDetailsView();
-    }
-
-    if (this.request.serviceWorkerRouterInfo) {
-      this.constructRouterEvaluationView();
-    }
+    super.willHide();
+    this.#request?.removeEventListener(SDK.NetworkRequest.Events.TIMING_CHANGED, this.requestUpdate, this);
+    this.#request?.removeEventListener(SDK.NetworkRequest.Events.FINISHED_LOADING, this.requestUpdate, this);
+    this.#calculator?.removeEventListener(NetworkTimeCalculator.Events.BOUNDARIES_CHANGED, this.boundaryChanged, this);
   }
 
   private boundaryChanged(): void {
     const minimumBoundary = this.calculator.minimumBoundary();
-    if (minimumBoundary !== this.lastMinimumBoundary) {
-      this.lastMinimumBoundary = minimumBoundary;
-      this.refresh();
+    if (minimumBoundary !== this.#lastMinimumBoundary) {
+      this.#lastMinimumBoundary = minimumBoundary;
+      this.requestUpdate();
     }
   }
-}
-
-export const enum RequestTimeRangeNames {
-  PUSH = 'push',
-  QUEUEING = 'queueing',
-  BLOCKING = 'blocking',
-  CONNECTING = 'connecting',
-  DNS = 'dns',
-  PROXY = 'proxy',
-  RECEIVING = 'receiving',
-  RECEIVING_PUSH = 'receiving-push',
-  SENDING = 'sending',
-  SERVICE_WORKER = 'serviceworker',
-  SERVICE_WORKER_PREPARATION = 'serviceworker-preparation',
-  SERVICE_WORKER_RESPOND_WITH = 'serviceworker-respondwith',
-  SERVICE_WORKER_ROUTER_EVALUATION = 'serviceworker-routerevaluation',
-  SERVICE_WORKER_CACHE_LOOKUP = 'serviceworker-cachelookup',
-  SSL = 'ssl',
-  TOTAL = 'total',
-  WAITING = 'waiting',
-}
-
-export const ServiceWorkerRangeNames = new Set<RequestTimeRangeNames>([
-  RequestTimeRangeNames.SERVICE_WORKER,
-  RequestTimeRangeNames.SERVICE_WORKER_PREPARATION,
-  RequestTimeRangeNames.SERVICE_WORKER_RESPOND_WITH,
-  RequestTimeRangeNames.SERVICE_WORKER_ROUTER_EVALUATION,
-  RequestTimeRangeNames.SERVICE_WORKER_CACHE_LOOKUP,
-]);
-
-export const ConnectionSetupRangeNames = new Set<RequestTimeRangeNames>([
-  RequestTimeRangeNames.QUEUEING,
-  RequestTimeRangeNames.BLOCKING,
-  RequestTimeRangeNames.CONNECTING,
-  RequestTimeRangeNames.DNS,
-  RequestTimeRangeNames.PROXY,
-  RequestTimeRangeNames.SSL,
-]);
-
-export interface RequestTimeRange {
-  name: RequestTimeRangeNames;
-  start: number;
-  end: number;
 }

@@ -1,6 +1,7 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 /*
  * Copyright (C) 2007, 2008 Apple Inc.  All rights reserved.
@@ -41,59 +42,44 @@ import * as UI from '../../legacy.js';
 
 import imageViewStyles from './imageView.css.js';
 
-declare global {
-  interface FileSystemWritableFileStream extends WritableStream {
-    write(data: unknown): Promise<void>;
-    close(): Promise<void>;
-  }
-
-  interface FileSystemHandle {
-    createWritable(): Promise<FileSystemWritableFileStream>;
-  }
-
-  interface Window {
-    showSaveFilePicker(opts: unknown): Promise<FileSystemHandle>;
-  }
-}
-
 const UIStrings = {
   /**
-   *@description Text in Image View of the Sources panel
+   * @description Text in Image View of the Sources panel
    */
   image: 'Image',
   /**
-   *@description Text that appears when user drag and drop something (for example, a file) in Image View of the Sources panel
+   * @description Text that appears when user drag and drop something (for example, a file) in Image View of the Sources panel
    */
   dropImageFileHere: 'Drop image file here',
   /**
-   *@description Text to indicate the source of an image
-   *@example {example.com} PH1
+   * @description Text to indicate the source of an image
+   * @example {example.com} PH1
    */
   imageFromS: 'Image from {PH1}',
   /**
-   *@description Text in Image View of the Sources panel
-   *@example {2} PH1
-   *@example {2} PH2
+   * @description Text in Image View of the Sources panel
+   * @example {2} PH1
+   * @example {2} PH2
    */
   dD: '{PH1} × {PH2}',
   /**
-   *@description A context menu item in the Image View of the Sources panel
+   * @description A context menu item in the Image View of the Sources panel
    */
   copyImageUrl: 'Copy image URL',
   /**
-   *@description A context menu item in the Image View of the Sources panel
+   * @description A context menu item in the Image View of the Sources panel
    */
   copyImageAsDataUri: 'Copy image as data URI',
   /**
-   *@description A context menu item in the Image View of the Sources panel
+   * @description A context menu item in the Image View of the Sources panel
    */
   openImageInNewTab: 'Open image in new tab',
   /**
-   *@description A context menu item in the Image Preview
+   * @description A context menu item in the Image Preview
    */
-  saveImageAs: 'Save image as...',
+  saveImageAs: 'Save image as…',
   /**
-   *@description The default file name when downloading a file
+   * @description The default file name when downloading a file
    */
   download: 'download',
 } as const;
@@ -102,7 +88,7 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 export class ImageView extends UI.View.SimpleView {
   private url: Platform.DevToolsPath.UrlString;
   private parsedURL: Common.ParsedURL.ParsedURL;
-  private readonly mimeType: string;
+
   private readonly contentProvider: TextUtils.ContentProvider.ContentProvider;
   private uiSourceCode: Workspace.UISourceCode.UISourceCode|null;
   private readonly sizeLabel: UI.Toolbar.ToolbarText;
@@ -113,14 +99,16 @@ export class ImageView extends UI.View.SimpleView {
   private imagePreviewElement: HTMLImageElement;
   private cachedContent?: TextUtils.ContentData.ContentData;
   constructor(mimeType: string, contentProvider: TextUtils.ContentProvider.ContentProvider) {
-    super(i18nString(UIStrings.image));
+    super({
+      title: i18nString(UIStrings.image),
+      viewId: 'image',
+      jslog: `${VisualLogging.pane('image-view')}`,
+    });
     this.registerRequiredCSS(imageViewStyles);
     this.element.tabIndex = -1;
     this.element.classList.add('image-view');
-    this.element.setAttribute('jslog', `${VisualLogging.pane('image-view')}`);
     this.url = contentProvider.contentURL();
     this.parsedURL = new Common.ParsedURL.ParsedURL(this.url);
-    this.mimeType = mimeType;
     this.contentProvider = contentProvider;
     this.uiSourceCode = contentProvider instanceof Workspace.UISourceCode.UISourceCode ? contentProvider : null;
     if (this.uiSourceCode) {
@@ -153,6 +141,7 @@ export class ImageView extends UI.View.SimpleView {
   }
 
   override wasShown(): void {
+    super.wasShown();
     void this.updateContentIfNeeded();
   }
 
@@ -174,7 +163,10 @@ export class ImageView extends UI.View.SimpleView {
     }
 
     this.cachedContent = content;
-    const imageSrc = content.asDataUrl() ?? this.url;
+    const imageSrc = content.asImagePreviewUrl();
+    if (imageSrc === null) {
+      return;
+    }
     const loadPromise = new Promise(x => {
       this.imagePreviewElement.onload = x;
     });
@@ -223,8 +215,7 @@ export class ImageView extends UI.View.SimpleView {
   }
 
   private async saveImage(): Promise<void> {
-    const imageDataURL = this.cachedContent?.asDataUrl();
-    if (!imageDataURL) {
+    if (!this.cachedContent) {
       return;
     }
 
@@ -239,7 +230,10 @@ export class ImageView extends UI.View.SimpleView {
       suggestedName = decodeURIComponent(this.parsedURL.displayName);
     }
 
-    const blob = await fetch(imageDataURL).then(r => r.blob());
+    const blob = this.cachedContent.asBlob();
+    if (!blob) {
+      return;
+    }
     try {
       const handle = await window.showSaveFilePicker({suggestedName});
       const writable = await handle.createWritable();

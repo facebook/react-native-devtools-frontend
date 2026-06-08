@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -28,7 +28,7 @@ node_action("generate_css_vars") {
 }
 
 node_action("optimize_images") {
-  script = "node_modules/@rollup/wasm-node/dist/bin/rollup"
+  script = "node_modules/rollup/dist/bin/rollup"
 
   _bundled_entrypoint = target_gen_dir + "/Images.prebundle.js"
   _output_file_location = target_gen_dir + "/Images.js"
@@ -48,10 +48,6 @@ node_action("optimize_images") {
   ]
 
   args = [
-    # TODO(crbug.com/1098074): We need to hide warnings that are written stderr,
-    # as Chromium does not process the returncode of the subprocess correctly
-    # and instead looks if `stderr` is empty.
-    "--silent",
     "--config",
     rebase_path("rollup.config.mjs", root_build_dir),
     "--input",

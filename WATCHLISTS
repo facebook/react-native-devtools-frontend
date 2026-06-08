@@ -1,4 +1,4 @@
-# Copyright (c) 2019 The Chromium Authors. All rights reserved.
+# Copyright 2019 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -21,17 +21,13 @@
     },
     'third_party': {
       'filepath': 'front_end/third_party/',
-    },
-    'uielements': {
-      'filepath': 'front_end/ui/components/',
     }
   },
 
   'WATCHLISTS': {
     'all': ['devtools-reviews+devtools@chromium.org'],
-    'chromedriver': ['johnchen+watch@chromium.org'],
+    'chromedriver': [],
     'lighthouse': ['lighthouse-eng+devtools-cl@google.com'],
     'third_party': ['devtools-reviews+third_party@chromium.org'],
-    'uielements': ['devtools-gm3-reviewer@rotations.google.com'],
   },
 }

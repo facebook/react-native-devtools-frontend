@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -54,5 +54,25 @@ describe('CSSQuery', () => {
 
     queryText.click();
     assert.strictEqual(clickListener.callCount, 1, 'query text click listener should be triggered by clicking');
+  });
+
+  it('renders a name-only container query correctly', () => {
+    const component = new ElementsComponents.CSSQuery.CSSQuery();
+    renderElementIntoDOM(component);
+    component.data = {
+      queryPrefix: '@container',
+      queryName: '--bar',
+      queryText: '',
+      jslogContext: 'foo',
+    };
+
+    const queryElement = component.shadowRoot!.querySelector<HTMLElement>('.query');
+    assert.isNotNull(queryElement, 'query element should exist');
+
+    assert.strictEqual(
+        queryElement.innerText,
+        '@container --bar {',
+        'text content of query element should match query text',
+    );
   });
 });

@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,14 +14,16 @@ import type {HandlerName} from './types.js';
 const MILLISECONDS_TO_MICROSECONDS = 1000;
 const SECONDS_TO_MICROSECONDS = 1000000;
 
-// Network requests from traces are actually formed of 5 trace records.
-// This handler tracks all trace records based on the request ID, and
-// then creates a new synthetic trace event for those network requests.
-//
-// This interface, then, defines the shape of the object we intend to
-// keep for each request in the trace. In the finalize we will convert
-// these 5 types of trace records to a synthetic complete event that
-// represents a composite of these trace records.
+/**
+ * Network requests from traces are actually formed of 5 trace records.
+ * This handler tracks all trace records based on the request ID, and
+ * then creates a new synthetic trace event for those network requests.
+ *
+ * This interface, then, defines the shape of the object we intend to
+ * keep for each request in the trace. In the finalize we will convert
+ * these 5 types of trace records to a synthetic complete event that
+ * represents a composite of these trace records.
+ **/
 export interface TraceEventsForNetworkRequest {
   changePriority?: Types.Events.ResourceChangePriority;
   willSendRequests?: Types.Events.ResourceWillSendRequest[];
@@ -30,6 +32,7 @@ export interface TraceEventsForNetworkRequest {
   resourceFinish?: Types.Events.ResourceFinish;
   receivedData?: Types.Events.ResourceReceivedData[];
   resourceMarkAsCached?: Types.Events.ResourceMarkAsCached;
+  preloadRenderBlockingStatusChange?: Types.Events.PreloadRenderBlockingStatusChangeEvent[];
 }
 
 export interface WebSocketTraceDataForFrame {
@@ -46,41 +49,46 @@ export interface WebSocketTraceDataForWorker {
 }
 export type WebSocketTraceData = WebSocketTraceDataForFrame|WebSocketTraceDataForWorker;
 
-const webSocketData = new Map<number, WebSocketTraceData>();
+let webSocketData = new Map<number, WebSocketTraceData>();
+let linkPreconnectEvents: Types.Events.LinkPreconnect[] = [];
+
 interface NetworkRequestData {
   byId: Map<string, Types.Events.SyntheticNetworkRequest>;
-  byOrigin: Map<string, {
-    renderBlocking: Types.Events.SyntheticNetworkRequest[],
-    nonRenderBlocking: Types.Events.SyntheticNetworkRequest[],
-    all: Types.Events.SyntheticNetworkRequest[],
-  }>;
   byTime: Types.Events.SyntheticNetworkRequest[];
-  eventToInitiator: Map<Types.Events.SyntheticNetworkRequest, Types.Events.SyntheticNetworkRequest>;
+  requestIdsByURL: Map<string, string[]>;
+  /**
+   * IMPORTANT: you should prefer to use `Trace.Extras.Initiator` to find the initiator.
+   * This is because backend trace events have some bugs which means the initiators are not always accurate.
+   * See crrev.com/c/7032169 for context.
+   */
+  incompleteInitiator: Map<Types.Events.SyntheticNetworkRequest, Types.Events.SyntheticNetworkRequest>;
   webSocket: WebSocketTraceData[];
   entityMappings: HandlerHelpers.EntityMappings;
+  linkPreconnectEvents: Types.Events.LinkPreconnect[];
 }
 
-const requestMap = new Map<string, TraceEventsForNetworkRequest>();
-const requestsById = new Map<string, Types.Events.SyntheticNetworkRequest>();
-const requestsByOrigin = new Map<string, {
-  renderBlocking: Types.Events.SyntheticNetworkRequest[],
-  nonRenderBlocking: Types.Events.SyntheticNetworkRequest[],
-  all: Types.Events.SyntheticNetworkRequest[],
-}>();
-const requestsByTime: Types.Events.SyntheticNetworkRequest[] = [];
+let requestMap = new Map<string, TraceEventsForNetworkRequest>();
+let requestsById = new Map<string, Types.Events.SyntheticNetworkRequest>();
+let requestsByTime: Types.Events.SyntheticNetworkRequest[] = [];
 
-const networkRequestEventByInitiatorUrl = new Map<string, Types.Events.SyntheticNetworkRequest[]>();
-const eventToInitiatorMap = new Map<Types.Events.SyntheticNetworkRequest, Types.Events.SyntheticNetworkRequest>();
+/**
+ * URL => RequestId[]. There can be multiple requests for a single URL.
+ */
+let requestIdsByURL = new Map<string, string[]>();
+
+let networkRequestEventByInitiatorUrl = new Map<string, Types.Events.SyntheticNetworkRequest[]>();
+let eventToInitiatorMap = new Map<Types.Events.SyntheticNetworkRequest, Types.Events.SyntheticNetworkRequest>();
 
 /**
  * These are to store ThirdParty data relationships between entities and events. To reduce iterating through data
  * more than we have to, here we start building the caches. After this, the RendererHandler will update
  * the relationships. When handling ThirdParty references, use the one in the RendererHandler instead.
  */
-const entityMappings: HandlerHelpers.EntityMappings = {
+let entityMappings: HandlerHelpers.EntityMappings = {
   eventsByEntity: new Map<HandlerHelpers.Entity, Types.Events.Event[]>(),
   entityByEvent: new Map<Types.Events.Event, HandlerHelpers.Entity>(),
   createdEntityCache: new Map<string, HandlerHelpers.Entity>(),
+  entityByUrlCache: new Map<string, HandlerHelpers.Entity>(),
 };
 
 function storeTraceEventWithRequestId<K extends keyof TraceEventsForNetworkRequest>(
@@ -103,9 +111,9 @@ function storeTraceEventWithRequestId<K extends keyof TraceEventsForNetworkReque
   }
 }
 
-function firstPositiveValueInList(entries: number[]): number {
+function firstPositiveValueInList(entries: Array<number|null>): number {
   for (const entry of entries) {
-    if (entry > 0) {
+    if (entry && entry > 0) {
       return entry;
     }
   }
@@ -117,16 +125,20 @@ function firstPositiveValueInList(entries: number[]): number {
 }
 
 export function reset(): void {
-  requestsById.clear();
-  requestsByOrigin.clear();
-  requestMap.clear();
-  requestsByTime.length = 0;
-  networkRequestEventByInitiatorUrl.clear();
-  eventToInitiatorMap.clear();
-  webSocketData.clear();
-  entityMappings.eventsByEntity.clear();
-  entityMappings.entityByEvent.clear();
-  entityMappings.createdEntityCache.clear();
+  requestsById = new Map();
+  requestMap = new Map();
+  requestsByTime = [];
+  networkRequestEventByInitiatorUrl = new Map();
+  eventToInitiatorMap = new Map();
+  webSocketData = new Map();
+  requestIdsByURL = new Map();
+  entityMappings = {
+    eventsByEntity: new Map<HandlerHelpers.Entity, Types.Events.Event[]>(),
+    entityByEvent: new Map<Types.Events.Event, HandlerHelpers.Entity>(),
+    createdEntityCache: new Map<string, HandlerHelpers.Entity>(),
+    entityByUrlCache: new Map<string, HandlerHelpers.Entity>(),
+  };
+  linkPreconnectEvents = [];
 }
 
 export function handleEvent(event: Types.Events.Event): void {
@@ -165,6 +177,10 @@ export function handleEvent(event: Types.Events.Event): void {
     return;
   }
 
+  if (Types.Events.isPreloadRenderBlockingStatusChangeEvent(event)) {
+    storeTraceEventWithRequestId(event.args.data.requestId, 'preloadRenderBlockingStatusChange', [event]);
+  }
+
   if (Types.Events.isWebSocketCreate(event) || Types.Events.isWebSocketInfo(event) ||
       Types.Events.isWebSocketTransfer(event)) {
     const identifier = event.args.data.identifier;
@@ -188,6 +204,11 @@ export function handleEvent(event: Types.Events.Event): void {
 
     webSocketData.get(identifier)?.events.push(event);
   }
+
+  if (Types.Events.isLinkPreconnect(event)) {
+    linkPreconnectEvents.push(event);
+    return;
+  }
 }
 
 export async function finalize(): Promise<void> {
@@ -195,7 +216,7 @@ export async function finalize(): Promise<void> {
   for (const [requestId, request] of requestMap.entries()) {
     // If we have an incomplete set of events here, we choose to drop the network
     // request rather than attempt to synthesize the missing data.
-    if (!request.sendRequests || !request.receiveResponse) {
+    if (!request.sendRequests) {
       continue;
     }
 
@@ -235,12 +256,41 @@ export async function finalize(): Promise<void> {
       });
     }
 
+    const firstSendRequest = request.sendRequests[0];
+    const finalSendRequest = request.sendRequests[request.sendRequests.length - 1];
+
+    // We currently do not want to include data URI requests. We may revisit this in the future.
+    if (finalSendRequest.args.data.url.startsWith('data:')) {
+      continue;
+    }
+
+    /**
+     * LR loses transfer size information, but passes it in the 'X-TotalFetchedSize' header.
+     * 'X-TotalFetchedSize' is the canonical transfer size in LR.
+     *
+     * In Lightrider, due to instrumentation limitations, our values for encodedDataLength are bogus
+     * and not valid. However the resource's true encodedDataLength/transferSize is shared via a
+     * special response header, X-TotalFetchedSize. In this situation, we read this value from
+     * responseReceived, use it for the transferSize and ignore the original encodedDataLength values.
+     */
+    // @ts-expect-error
+    const isLightrider = globalThis.isLightrider;
+    if (isLightrider && request.resourceFinish && request.receiveResponse?.args.data.headers) {
+      const lrSizeHeader = request.receiveResponse.args.data.headers.find(h => h.name === 'X-TotalFetchedSize');
+      if (lrSizeHeader) {
+        const size = parseFloat(lrSizeHeader.value);
+        if (!isNaN(size)) {
+          request.resourceFinish.args.data.encodedDataLength = size;
+        }
+      }
+    }
+
     // If a ResourceFinish event with an encoded data length is received,
     // then the resource was not cached; it was fetched before it was
     // requested, e.g. because it was pushed in this navigation.
     const isPushedResource = request.resourceFinish?.args.data.encodedDataLength !== 0;
     // This works around crbug.com/998397, which reports pushed resources, and resources served by a service worker as disk cached.
-    const isDiskCached = request.receiveResponse.args.data.fromCache &&
+    const isDiskCached = !!request.receiveResponse && request.receiveResponse.args.data.fromCache &&
         !request.receiveResponse.args.data.fromServiceWorker && !isPushedResource;
     // If the request contains a resourceMarkAsCached event, it was served from memory cache.
     // The timing data returned is from the original (uncached) request, which
@@ -256,14 +306,71 @@ export async function finalize(): Promise<void> {
     const isMemoryCached = request.resourceMarkAsCached !== undefined;
     // If a request has `resourceMarkAsCached` field, the `timing` field is not correct.
     // So let's discard it and override to 0 (which will be handled in later logic if timing field is undefined).
-    const timing = isMemoryCached ? undefined : request.receiveResponse.args.data.timing;
-    // If a non-cached request has no |timing| indicates data URLs, we ignore it.
-    if (!timing && !isMemoryCached) {
-      continue;
+    let timing = isMemoryCached ? undefined : request.receiveResponse?.args.data.timing;
+
+    /**
+     * LR gets additional, accurate timing information from its underlying fetch infrastructure.  This
+     * is passed in via X-Headers similar to 'X-TotalFetchedSize'.
+     *
+     * See `_updateTimingsForLightrider` in Lighthouse for more detail.
+     */
+    let lrServerResponseTime;
+    if (isLightrider && request.receiveResponse?.args.data.headers) {
+      timing = {
+        requestTime: Helpers.Timing.microToSeconds(request.sendRequests.at(0)?.ts ?? 0 as Types.Timing.Micro),
+        connectEnd: 0 as Types.Timing.Milli,
+        connectStart: 0 as Types.Timing.Milli,
+        dnsEnd: 0 as Types.Timing.Milli,
+        dnsStart: 0 as Types.Timing.Milli,
+        proxyEnd: 0 as Types.Timing.Milli,
+        proxyStart: 0 as Types.Timing.Milli,
+        pushEnd: 0 as Types.Timing.Milli,
+        pushStart: 0 as Types.Timing.Milli,
+        receiveHeadersEnd: 0 as Types.Timing.Milli,
+        receiveHeadersStart: 0 as Types.Timing.Milli,
+        sendEnd: 0 as Types.Timing.Milli,
+        sendStart: 0 as Types.Timing.Milli,
+        sslEnd: 0 as Types.Timing.Milli,
+        sslStart: 0 as Types.Timing.Milli,
+        workerReady: 0 as Types.Timing.Milli,
+        workerStart: 0 as Types.Timing.Milli,
+
+        ...timing,
+      };
+
+      const TCPMsHeader = request.receiveResponse.args.data.headers.find(h => h.name === 'X-TCPMs');
+      const TCPMs = TCPMsHeader ? Math.max(0, parseInt(TCPMsHeader.value, 10)) : 0;
+
+      if (request.receiveResponse.args.data.protocol.startsWith('h3')) {
+        timing.connectStart = 0 as Types.Timing.Milli;
+        timing.connectEnd = TCPMs as Types.Timing.Milli;
+      } else {
+        timing.connectStart = 0 as Types.Timing.Milli;
+        timing.sslStart = TCPMs / 2 as Types.Timing.Milli;
+        timing.connectEnd = TCPMs as Types.Timing.Milli;
+        timing.sslEnd = TCPMs as Types.Timing.Milli;
+      }
+
+      // Lightrider does not have any equivalent for `sendEnd` timing values. The
+      // closest we can get to the server response time is from a header that
+      // Lightrider sets.
+      const ResponseMsHeader = request.receiveResponse.args.data.headers.find(h => h.name === 'X-ResponseMs');
+      if (ResponseMsHeader) {
+        lrServerResponseTime = Math.max(0, parseInt(ResponseMsHeader.value, 10)) as Types.Timing.Milli;
+      }
     }
 
-    const firstSendRequest = request.sendRequests[0];
-    const finalSendRequest = request.sendRequests[request.sendRequests.length - 1];
+    // TODO: consider allowing chrome / about.
+    const allowedProtocols = [
+      'blob:',
+      'file:',
+      'filesystem:',
+      'http:',
+      'https:',
+    ];
+    if (!allowedProtocols.some(p => firstSendRequest.args.data.url.startsWith(p))) {
+      continue;
+    }
 
     const initialPriority = finalSendRequest.args.data.priority;
     let finalPriority = initialPriority;
@@ -334,13 +441,14 @@ export async function finalize(): Promise<void> {
     // Otherwise it is whichever positive number comes first from the following timing info:
     // DNS start, Connection start, Send Start, or the time duration between our start time and
     // receiving a response.
-    const stalled = timing ? Types.Timing.Micro(firstPositiveValueInList([
-      timing.dnsStart * MILLISECONDS_TO_MICROSECONDS,
-      timing.connectStart * MILLISECONDS_TO_MICROSECONDS,
-      timing.sendStart * MILLISECONDS_TO_MICROSECONDS,
-      (request.receiveResponse.ts - endRedirectTime),
-    ])) :
-                             Types.Timing.Micro(request.receiveResponse.ts - startTime);
+    const stalled = timing ?
+        Types.Timing.Micro(firstPositiveValueInList([
+          timing.dnsStart * MILLISECONDS_TO_MICROSECONDS,
+          timing.connectStart * MILLISECONDS_TO_MICROSECONDS,
+          timing.sendStart * MILLISECONDS_TO_MICROSECONDS,
+          request.receiveResponse ? (request.receiveResponse.ts - endRedirectTime) : null,
+        ])) :
+        (request.receiveResponse ? Types.Timing.Micro(request.receiveResponse.ts - startTime) : Types.Timing.Micro(0));
 
     // Sending HTTP request
     // =======================
@@ -357,6 +465,15 @@ export async function finalize(): Promise<void> {
         Types.Timing.Micro((timing.receiveHeadersEnd - timing.sendEnd) * MILLISECONDS_TO_MICROSECONDS) :
         Types.Timing.Micro(0);
 
+    // Server Response Time
+    // =======================
+    // Time from when the send finished going to when the first byte of headers were received.
+    const serverResponseTime = timing ?
+        Types.Timing.Micro(
+            ((timing.receiveHeadersStart ?? timing.receiveHeadersEnd) - timing.sendEnd) *
+            MILLISECONDS_TO_MICROSECONDS) :
+        Types.Timing.Micro(0);
+
     // Download
     // =======================
     // Time from receipt of headers to the finish time.
@@ -364,8 +481,9 @@ export async function finalize(): Promise<void> {
         Types.Timing.Micro(
             timing.requestTime * SECONDS_TO_MICROSECONDS + timing.receiveHeadersEnd * MILLISECONDS_TO_MICROSECONDS) :
         startTime;
-    const download = timing ? Types.Timing.Micro(((finishTime || downloadStart) - downloadStart)) :
-                              Types.Timing.Micro(endTime - request.receiveResponse.ts);
+    const download = timing     ? Types.Timing.Micro(((finishTime || downloadStart) - downloadStart)) :
+        request.receiveResponse ? Types.Timing.Micro(endTime - request.receiveResponse.ts) :
+                                  Types.Timing.Micro(0);
 
     const totalTime = Types.Timing.Micro(networkDuration + processingDuration);
 
@@ -386,13 +504,24 @@ export async function finalize(): Promise<void> {
         Types.Timing.Micro(0);
 
     // Finally get some of the general data from the trace events.
-    const {frame, url, renderBlocking} = finalSendRequest.args.data;
+    const {frame, url, renderBlocking: sendRequestIsRenderBlocking} = finalSendRequest.args.data;
     const {encodedDataLength, decodedBodyLength} =
         request.resourceFinish ? request.resourceFinish.args.data : {encodedDataLength: 0, decodedBodyLength: 0};
     const parsedUrl = new URL(url);
     const isHttps = parsedUrl.protocol === 'https:';
     const requestingFrameUrl =
         Helpers.Trace.activeURLForFrameAtTime(frame, finalSendRequest.ts, rendererProcessesByFrame) || '';
+
+    // A resource that is preloaded (and not marked as render-blocking) can
+    // become render-blocked later via a PreloadRenderBlockingStatusChange. In
+    // this case, we take the render-blocking value of the last
+    // PreloadRenderBlockingStatusChange for this request.
+    const preloadRenderBlockingStatusChange =
+        request.preloadRenderBlockingStatusChange?.at(-1)?.args.data.renderBlocking;
+
+    // In the event the property isn't set, assume non-blocking.
+    const isRenderBlocking = preloadRenderBlockingStatusChange ?? sendRequestIsRenderBlocking ?? 'non_blocking';
+
     // Construct a synthetic trace event for this network request.
     const networkEvent =
         Helpers.SyntheticEvents.SyntheticEventsManager.registerSyntheticEvent<Types.Events.SyntheticNetworkRequest>({
@@ -421,35 +550,37 @@ export async function finalize(): Promise<void> {
                 stalled,
                 totalTime,
                 waiting,
+                serverResponseTime,
               },
               // All fields below are from TraceEventsForNetworkRequest.
               decodedBodyLength,
               encodedDataLength,
               frame,
-              fromServiceWorker: request.receiveResponse.args.data.fromServiceWorker,
+              fromServiceWorker: request.receiveResponse?.args.data.fromServiceWorker,
               isLinkPreload: finalSendRequest.args.data.isLinkPreload || false,
-              mimeType: request.receiveResponse.args.data.mimeType,
+              mimeType: request.receiveResponse?.args.data.mimeType ?? '',
               priority: finalPriority,
               initialPriority,
-              protocol: request.receiveResponse.args.data.protocol ?? 'unknown',
+              protocol: request.receiveResponse?.args.data.protocol ?? 'unknown',
               redirects,
-              // In the event the property isn't set, assume non-blocking.
-              renderBlocking: renderBlocking ?? 'non_blocking',
+              renderBlocking: isRenderBlocking,
               requestId,
               requestingFrameUrl,
               requestMethod: finalSendRequest.args.data.requestMethod,
               resourceType: finalSendRequest.args.data.resourceType ?? Protocol.Network.ResourceType.Other,
-              statusCode: request.receiveResponse.args.data.statusCode,
-              responseHeaders: request.receiveResponse.args.data.headers || [],
+              statusCode: request.receiveResponse?.args.data.statusCode ?? 0,
+              responseHeaders: request.receiveResponse?.args.data.headers ?? null,
               fetchPriorityHint: finalSendRequest.args.data.fetchPriorityHint ?? 'auto',
               initiator: finalSendRequest.args.data.initiator,
               stackTrace: finalSendRequest.args.data.stackTrace,
               timing,
+              lrServerResponseTime,
               url,
               failed: request.resourceFinish?.args.data.didFail ?? false,
               finished: Boolean(request.resourceFinish),
-              connectionId: request.receiveResponse.args.data.connectionId,
-              connectionReused: request.receiveResponse.args.data.connectionReused,
+              hasResponse: Boolean(request.receiveResponse),
+              connectionId: request.receiveResponse?.args.data.connectionId,
+              connectionReused: request.receiveResponse?.args.data.connectionReused,
             },
           },
           cat: 'loading',
@@ -463,34 +594,21 @@ export async function finalize(): Promise<void> {
           tid: finalSendRequest.tid,
         });
 
-    const requests = Platform.MapUtilities.getWithDefault(requestsByOrigin, parsedUrl.host, () => {
-      return {
-        renderBlocking: [],
-        nonRenderBlocking: [],
-        all: [],
-      };
-    });
-
-    // For ease of rendering we sometimes want to differentiate between
-    // render-blocking and non-render-blocking, so we divide the data here.
-    if (!Helpers.Network.isSyntheticNetworkRequestEventRenderBlocking(networkEvent)) {
-      requests.nonRenderBlocking.push(networkEvent);
-    } else {
-      requests.renderBlocking.push(networkEvent);
-    }
-
     // However, there are also times where we just want to loop through all
     // the captured requests, so here we store all of them together.
-    requests.all.push(networkEvent);
     requestsByTime.push(networkEvent);
     requestsById.set(networkEvent.args.data.requestId, networkEvent);
+
+    const requestsForUrl = requestIdsByURL.get(networkEvent.args.data.url) ?? [];
+    requestsForUrl.push(networkEvent.args.data.requestId);
+    requestIdsByURL.set(networkEvent.args.data.url, requestsForUrl);
 
     // Update entity relationships for network events
     HandlerHelpers.addNetworkRequestToEntityMapping(networkEvent, entityMappings, request);
 
     // Establish initiator relationships
     const initiatorUrl = networkEvent.args.data.initiator?.url ||
-        Helpers.Trace.getZeroIndexedStackTraceForEvent(networkEvent)?.at(0)?.url;
+        Helpers.Trace.getStackTraceTopCallFrameInEventPayload(networkEvent)?.url;
     if (initiatorUrl) {
       const events = networkRequestEventByInitiatorUrl.get(initiatorUrl) ?? [];
       events.push(networkEvent);
@@ -507,21 +625,24 @@ export async function finalize(): Promise<void> {
       }
     }
   }
+
   finalizeWebSocketData();
 }
 
 export function data(): NetworkRequestData {
   return {
     byId: requestsById,
-    byOrigin: requestsByOrigin,
     byTime: requestsByTime,
-    eventToInitiator: eventToInitiatorMap,
+    requestIdsByURL,
+    incompleteInitiator: eventToInitiatorMap,
     webSocket: [...webSocketData.values()],
     entityMappings: {
-      entityByEvent: new Map(entityMappings.entityByEvent),
-      eventsByEntity: new Map(entityMappings.eventsByEntity),
-      createdEntityCache: new Map(entityMappings.createdEntityCache),
+      entityByEvent: entityMappings.entityByEvent,
+      eventsByEntity: entityMappings.eventsByEntity,
+      createdEntityCache: entityMappings.createdEntityCache,
+      entityByUrlCache: entityMappings.entityByUrlCache,
     },
+    linkPreconnectEvents,
   };
 }
 

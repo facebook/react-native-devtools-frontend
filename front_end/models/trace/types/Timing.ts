@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,5 +25,6 @@ export interface TraceWindow<TimeFormat extends Micro|Milli> {
   range: TimeFormat;
 }
 
+/** See front_end/models/trace/helpers/Timing.ts for helpful utility functions like traceWindowFromMicroSeconds **/
 export type TraceWindowMicro = TraceWindow<Micro>;
 export type TraceWindowMilli = TraceWindow<Milli>;

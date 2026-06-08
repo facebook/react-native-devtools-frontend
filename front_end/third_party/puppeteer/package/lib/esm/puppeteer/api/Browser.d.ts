@@ -7,11 +7,12 @@
 import type { ChildProcess } from 'node:child_process';
 import type { Protocol } from 'devtools-protocol';
 import type { ProtocolType } from '../common/ConnectOptions.js';
-import type { Cookie, CookieData } from '../common/Cookie.js';
+import type { Cookie, CookieData, DeleteCookiesRequest } from '../common/Cookie.js';
 import type { DownloadBehavior } from '../common/DownloadBehavior.js';
 import { EventEmitter, type EventType } from '../common/EventEmitter.js';
 import { asyncDisposeSymbol, disposeSymbol } from '../util/disposable.js';
 import type { BrowserContext } from './BrowserContext.js';
+import type { Extension } from './Extension.js';
 import type { Page } from './Page.js';
 import type { Target } from './Target.js';
 /**
@@ -53,8 +54,23 @@ export type IsPageTargetCallback = (target: Target) => boolean;
 export declare const WEB_PERMISSION_TO_PROTOCOL_PERMISSION: Map<Permission, Protocol.Browser.PermissionType>;
 /**
  * @public
+ * @deprecated in favor of {@link PermissionDescriptor}.
  */
 export type Permission = 'accelerometer' | 'ambient-light-sensor' | 'background-sync' | 'camera' | 'clipboard-read' | 'clipboard-sanitized-write' | 'clipboard-write' | 'geolocation' | 'gyroscope' | 'idle-detection' | 'keyboard-lock' | 'magnetometer' | 'microphone' | 'midi-sysex' | 'midi' | 'notifications' | 'payment-handler' | 'persistent-storage' | 'pointer-lock';
+/**
+ * @public
+ */
+export interface PermissionDescriptor {
+    name: string;
+    userVisibleOnly?: boolean;
+    sysex?: boolean;
+    panTiltZoom?: boolean;
+    allowWithoutSanitization?: boolean;
+}
+/**
+ * @public
+ */
+export type PermissionState = 'granted' | 'denied' | 'prompt';
 /**
  * @public
  */
@@ -135,6 +151,92 @@ export interface BrowserEvents extends Record<EventType, unknown> {
  */
 export interface DebugInfo {
     pendingProtocolErrors: Error[];
+}
+/**
+ * @public
+ */
+export type WindowState = 'normal' | 'minimized' | 'maximized' | 'fullscreen';
+/**
+ * @public
+ */
+export interface WindowBounds {
+    left?: number;
+    top?: number;
+    width?: number;
+    height?: number;
+    windowState?: WindowState;
+}
+/**
+ * @public
+ */
+export type WindowId = string;
+/**
+ * @public
+ */
+export type CreatePageOptions = ({
+    type?: 'tab';
+} | {
+    type: 'window';
+    windowBounds?: WindowBounds;
+}) & {
+    /**
+     * Whether to create the page in the background.
+     *
+     * @defaultValue `false`
+     */
+    background?: boolean;
+};
+/**
+ * @public
+ */
+export interface ScreenOrientation {
+    angle: number;
+    type: string;
+}
+/**
+ * @public
+ */
+export interface ScreenInfo {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    availLeft: number;
+    availTop: number;
+    availWidth: number;
+    availHeight: number;
+    devicePixelRatio: number;
+    colorDepth: number;
+    orientation: ScreenOrientation;
+    isExtended: boolean;
+    isInternal: boolean;
+    isPrimary: boolean;
+    label: string;
+    id: string;
+}
+/**
+ * @public
+ */
+export interface WorkAreaInsets {
+    top?: number;
+    left?: number;
+    bottom?: number;
+    right?: number;
+}
+/**
+ * @public
+ */
+export interface AddScreenParams {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    workAreaInsets?: WorkAreaInsets;
+    devicePixelRatio?: number;
+    rotation?: number;
+    colorDepth?: number;
+    label?: string;
+    isInternal?: boolean;
 }
 /**
  * {@link Browser} represents a browser instance that is either:
@@ -240,7 +342,15 @@ export declare abstract class Browser extends EventEmitter<BrowserEvents> {
      * Creates a new {@link Page | page} in the
      * {@link Browser.defaultBrowserContext | default browser context}.
      */
-    abstract newPage(): Promise<Page>;
+    abstract newPage(options?: CreatePageOptions): Promise<Page>;
+    /**
+     * Gets the specified window {@link WindowBounds | bounds}.
+     */
+    abstract getWindowBounds(windowId: WindowId): Promise<WindowBounds>;
+    /**
+     * Sets the specified window {@link WindowBounds | bounds}.
+     */
+    abstract setWindowBounds(windowId: WindowId, windowBounds: WindowBounds): Promise<void>;
     /**
      * Gets all active {@link Target | targets}.
      *
@@ -277,10 +387,12 @@ export declare abstract class Browser extends EventEmitter<BrowserEvents> {
      * returns all {@link Page | pages} in all
      * {@link BrowserContext | browser contexts}.
      *
+     * @param includeAll - experimental, setting to true includes all kinds of pages.
+     *
      * @remarks Non-visible {@link Page | pages}, such as `"background_page"`,
      * will not be listed here. You can find them using {@link Target.page}.
      */
-    pages(): Promise<Page[]>;
+    pages(includeAll?: boolean): Promise<Page[]>;
     /**
      * Gets a string representing this {@link Browser | browser's} name and
      * version.
@@ -297,7 +409,7 @@ export declare abstract class Browser extends EventEmitter<BrowserEvents> {
      * Gets this {@link Browser | browser's} original user agent.
      *
      * {@link Page | Pages} can override the user agent with
-     * {@link Page.setUserAgent}.
+     * {@link Page.(setUserAgent:2) }.
      *
      */
     abstract userAgent(): Promise<string>;
@@ -339,6 +451,69 @@ export declare abstract class Browser extends EventEmitter<BrowserEvents> {
      */
     deleteCookie(...cookies: Cookie[]): Promise<void>;
     /**
+     * Deletes cookies matching the provided filters from the default
+     * {@link BrowserContext}.
+     *
+     * @remarks
+     *
+     * Shortcut for
+     * {@link BrowserContext.deleteMatchingCookies |
+     * browser.defaultBrowserContext().deleteMatchingCookies()}.
+     */
+    deleteMatchingCookies(...filters: DeleteCookiesRequest[]): Promise<void>;
+    /**
+     * Sets the permission for a specific origin in the default
+     * {@link BrowserContext}.
+     *
+     * @remarks
+     *
+     * Shortcut for
+     * {@link BrowserContext.setPermission |
+     * browser.defaultBrowserContext().setPermission()}.
+     *
+     * @param origin - The origin to set the permission for.
+     * @param permission - The permission descriptor.
+     * @param state - The state of the permission.
+     *
+     * @public
+     */
+    setPermission(origin: string, ...permissions: Array<{
+        permission: PermissionDescriptor;
+        state: PermissionState;
+    }>): Promise<void>;
+    /**
+     * Installs an extension and returns the ID. In Chrome, this is only
+     * available if the browser was created using `pipe: true` and the
+     * `--enable-unsafe-extension-debugging` flag is set.
+     */
+    abstract installExtension(path: string): Promise<string>;
+    /**
+     * Uninstalls an extension. In Chrome, this is only available if the browser
+     * was created using `pipe: true` and the
+     * `--enable-unsafe-extension-debugging` flag is set.
+     */
+    abstract uninstallExtension(id: string): Promise<void>;
+    /**
+     * Gets a list of {@link ScreenInfo | screen information objects}.
+     */
+    abstract screens(): Promise<ScreenInfo[]>;
+    /**
+     * Adds a new screen, returns the added {@link ScreenInfo | screen information object}.
+     *
+     * @remarks
+     *
+     * Only supported in headless mode.
+     */
+    abstract addScreen(params: AddScreenParams): Promise<ScreenInfo>;
+    /**
+     * Removes a screen.
+     *
+     * @remarks
+     *
+     * Only supported in headless mode. Fails if the primary screen id is specified.
+     */
+    abstract removeScreen(screenId: string): Promise<void>;
+    /**
      * Whether Puppeteer is connected to this {@link Browser | browser}.
      *
      * @deprecated Use {@link Browser | Browser.connected}.
@@ -367,5 +542,20 @@ export declare abstract class Browser extends EventEmitter<BrowserEvents> {
      * @experimental
      */
     abstract get debugInfo(): DebugInfo;
+    /**
+     * @internal
+     */
+    abstract isNetworkEnabled(): boolean;
+    /**
+     * Retrieves a map of all extensions installed in the browser, where the keys
+     * are extension IDs and the values are the corresponding {@link Extension} instances.
+     *
+     * @public
+     */
+    abstract extensions(): Promise<Map<string, Extension>>;
+    /**
+     * @internal
+     */
+    abstract isIssuesEnabled(): boolean;
 }
 //# sourceMappingURL=Browser.d.ts.map

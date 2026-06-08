@@ -1,27 +1,28 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import type * as Platform from '../../core/platform/platform.js';
-import type * as SDK from '../../core/sdk/sdk.js';
 import * as Components from '../../ui/legacy/components/utils/utils.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 /**
  * ImagePreviewPopover sets listeners on the container element to display
  * an image preview if needed. The image URL comes from the event (mouseover) target
- * in a propery identified by HrefSymbol. To enable preview for any child element
+ * in a property identified by HrefSymbol. To enable preview for any child element
  * set the property HrefSymbol.
  */
 export class ImagePreviewPopover {
   private readonly getLinkElement: (arg0: Event) => Element | null;
-  private readonly getDOMNode: (arg0: Element) => SDK.DOMModel.DOMNode | null;
   private readonly popover: UI.PopoverHelper.PopoverHelper;
+
+  #getNodeFeatures: (link: Element) => Promise<Components.ImagePreview.PrecomputedFeatures|undefined>;
+
   constructor(
-      container: Element, getLinkElement: (arg0: Event) => Element | null,
-      getDOMNode: (arg0: Element) => SDK.DOMModel.DOMNode | null) {
+      container: HTMLElement, getLinkElement: (arg0: Event) => Element | null,
+      getNodeFeatures: (arg0: Element) => Promise<Components.ImagePreview.PrecomputedFeatures|undefined>) {
     this.getLinkElement = getLinkElement;
-    this.getDOMNode = getDOMNode;
+    this.#getNodeFeatures = getNodeFeatures;
     this.popover =
         new UI.PopoverHelper.PopoverHelper(container, this.handleRequest.bind(this), 'elements.image-preview');
     this.popover.setTimeout(0, 100);
@@ -38,15 +39,9 @@ export class ImagePreviewPopover {
     }
     return {
       box: link.boxInWindow(),
-      hide: undefined,
       show: async (popover: UI.GlassPane.GlassPane) => {
-        const node = this.getDOMNode((link));
-        if (!node) {
-          return false;
-        }
-        const precomputedFeatures = await Components.ImagePreview.ImagePreview.loadDimensionsForNode(node);
-        const preview = await Components.ImagePreview.ImagePreview.build(node.domModel().target(), href, true, {
-          imageAltText: undefined,
+        const precomputedFeatures = await this.#getNodeFeatures(link);
+        const preview = await Components.ImagePreview.ImagePreview.build(href, true, {
           precomputedFeatures,
           align: Components.ImagePreview.Align.CENTER,
         });

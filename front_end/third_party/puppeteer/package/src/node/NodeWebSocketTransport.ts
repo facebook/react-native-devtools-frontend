@@ -6,7 +6,7 @@
 import NodeWebSocket from 'ws';
 
 import type {ConnectionTransport} from '../common/ConnectionTransport.js';
-import {packageVersion} from '../generated/version.js';
+import {packageVersion} from '../util/version.js';
 
 /**
  * @internal
@@ -20,7 +20,6 @@ export class NodeWebSocketTransport implements ConnectionTransport {
       const ws = new NodeWebSocket(url, [], {
         followRedirects: true,
         perMessageDeflate: false,
-        // @ts-expect-error https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketaddress-protocols-options
         allowSynchronousEvents: false,
         maxPayload: 256 * 1024 * 1024, // 256Mb
         headers: {

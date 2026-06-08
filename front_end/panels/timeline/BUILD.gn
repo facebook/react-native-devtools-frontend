@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -7,6 +7,7 @@ import("../../../scripts/build/ninja/devtools_module.gni")
 import("../../../scripts/build/ninja/devtools_pre_built.gni")
 import("../../../scripts/build/ninja/generate_css.gni")
 import("../../../scripts/build/ninja/node.gni")
+import("../../../scripts/build/ninja/vars.gni")
 import("../../../scripts/build/typescript/typescript.gni")
 import("../visibility.gni")
 
@@ -21,7 +22,7 @@ node_action("generate_easter_egg_file") {
 
   outputs = [ "$target_gen_dir/EasterEgg.js" ]
   data = outputs
-  if (is_debug) {
+  if (!devtools_bundle) {
     metadata = {
       grd_files = outputs
     }
@@ -39,6 +40,8 @@ devtools_pre_built("easter-egg") {
 
 generate_css("css_files") {
   sources = [
+    "thirdPartyTreeView.css",
+    "timelineDetailsView.css",
     "timelineFlameChartView.css",
     "timelineFlamechartPopover.css",
     "timelineHistoryManager.css",
@@ -47,24 +50,22 @@ generate_css("css_files") {
     "timelinePanel.css",
     "timelineSelectorStatsView.css",
     "timelineStatusDialog.css",
+    "timelineTreeView.css",
   ]
 }
 
-devtools_module("timeline") {
+devtools_ui_module("timeline") {
   sources = [
     "ActiveFilters.ts",
     "AnimationsTrackAppender.ts",
     "AnnotationHelpers.ts",
     "AppenderUtils.ts",
     "BenchmarkEvents.ts",
-    "CLSLinkifier.ts",
     "CompatibilityTracksAppender.ts",
     "CountersGraph.ts",
     "EntriesFilter.ts",
-    "EventsSerializer.ts",
     "EventsTimelineTreeView.ts",
     "ExtensionTrackAppender.ts",
-    "FreshRecording.ts",
     "GPUTrackAppender.ts",
     "Initiators.ts",
     "InteractionsTrackAppender.ts",
@@ -73,7 +74,9 @@ devtools_module("timeline") {
     "ModificationsManager.ts",
     "NetworkTrackAppender.ts",
     "ReactNativeTimelineLandingPage.ts",
+    "RecordingMetadata.ts",
     "SaveFileFormatter.ts",
+    "StatusDialog.ts",
     "TargetForEvent.ts",
     "ThirdPartyTreeView.ts",
     "ThreadAppender.ts",
@@ -96,37 +99,62 @@ devtools_module("timeline") {
     "TimelineUIUtils.ts",
     "TimingsTrackAppender.ts",
     "TracingLayerTree.ts",
+    "TrackConfigBanner.ts",
+    "TrackConfiguration.ts",
     "UIDevtoolsController.ts",
     "UIDevtoolsUtils.ts",
   ]
 
   deps = [
     ":easter-egg",
+    "../../core/common:bundle",
     "../../core/host:bundle",
     "../../core/i18n:bundle",
+    "../../core/platform:bundle",
     "../../core/root:bundle",
+    "../../core/sdk:bundle",
     "../../generated:protocol",
+    "../../models/ai_assistance:bundle",
+    "../../models/badges:bundle",
+    "../../models/bindings:bundle",
     "../../models/cpu_profile:bundle",
+    "../../models/crux-manager:bundle",
+    "../../models/emulation:bundle",
     "../../models/extensions:bundle",
+    "../../models/geometry:bundle",
+    "../../models/live-metrics:bundle",
     "../../models/source_map_scopes:bundle",
+    "../../models/text_utils:bundle",
     "../../models/trace:bundle",
+    "../../models/trace_source_maps_resolver:bundle",
     "../../models/workspace:bundle",
+    "../../panels/common:bundle",
     "../../panels/coverage:bundle",
     "../../panels/layer_viewer:bundle",
     "../../panels/mobile_throttling:bundle",
     "../../panels/profiler:bundle",
     "../../services/trace_bounds:bundle",
+    "../../services/tracing:bundle",
+    "../../ui/components/adorners:bundle",
     "../../ui/components/buttons:bundle",
     "../../ui/components/code_highlighter:bundle",  # trace event highlighting
-    "../../ui/components/icon_button:bundle",
+    "../../ui/components/dialogs:bundle",
+    "../../ui/components/helpers:bundle",
+    "../../ui/components/legacy_wrapper:bundle",
     "../../ui/components/linkifier:bundle",
     "../../ui/components/menus:bundle",
-    "../../ui/components/panel_feedback:bundle",
+    "../../ui/components/snackbars:bundle",
+    "../../ui/i18n:bundle",
+    "../../ui/kit:bundle",
+    "../../ui/legacy:bundle",
     "../../ui/legacy/components/data_grid:bundle",
     "../../ui/legacy/components/perf_ui:bundle",
+    "../../ui/legacy/components/settings_ui:bundle",
     "../../ui/legacy/components/utils:bundle",
     "../../ui/legacy/theme_support:bundle",
     "../../ui/lit:bundle",
+    "../../ui/visual_logging:bundle",
+    "../common:bundle",
     "./components:bundle",
     "./extensions:bundle",
     "./overlays:bundle",
@@ -146,11 +174,11 @@ devtools_entrypoint("bundle") {
 
   visibility = [
     ":*",
-    "../../../test/interactions/panels/performance/timeline/*",
-    "../../../test/perf/*",
+    "../../../test/e2e/*",
     "../../entrypoints/*",
     "../../models/trace/handlers:unittests",
     "../../panels/ai_assistance/*",
+    "../../services/tracing/*",
     "../../testing",
     "../../testing/*",
     "../../ui/components/docs/performance_panel/*",
@@ -172,6 +200,7 @@ devtools_entrypoint("meta") {
     "../../core/common:bundle",
     "../../core/i18n:bundle",
     "../../core/root:bundle",
+    "../../core/sdk:bundle",
     "../../panels/profiler:bundle",
     "../../ui/legacy:bundle",
     "./components:bundle",
@@ -180,17 +209,17 @@ devtools_entrypoint("meta") {
   visibility = [ "../../entrypoints/*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [
     "AnnotationHelpers.test.ts",
     "Breadcrumbs.test.ts",
+    "CountersGraph.test.ts",
     "EntriesFilter.test.ts",
-    "EventsSerializer.test.ts",
-    "FreshRecording.test.ts",
     "Initiators.test.ts",
     "ModificationsManager.test.ts",
+    "RecordingMetadata.test.ts",
     "SaveFileFormatter.test.ts",
     "ThirdPartyTreeView.test.ts",
     "TimelineController.test.ts",
@@ -206,6 +235,8 @@ ts_library("unittests") {
     "TimelineSelection.test.ts",
     "TimelineTreeView.test.ts",
     "TimelineUIUtils.test.ts",
+    "TrackConfigBanner.test.ts",
+    "TrackConfiguration.test.ts",
   ]
 
   deps = [
@@ -215,8 +246,11 @@ ts_library("unittests") {
     "../../core/sdk:bundle",
     "../../models/bindings:bundle",
     "../../models/trace:bundle",
+    "../../models/trace_source_maps_resolver:bundle",
     "../../models/workspace:bundle",
     "../../testing",
+    "../../ui/legacy/components/utils:bundle",
+    "../../ui/legacy/theme_support:bundle",
     "./components:bundle",
   ]
 }

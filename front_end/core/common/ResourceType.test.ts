@@ -1,8 +1,8 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../testing/LocaleHelpers.js';
 import * as Platform from '../platform/platform.js';
 
 import * as Common from './common.js';
@@ -25,7 +25,8 @@ describe('ResourceCategory class', () => {
   });
 });
 
-describeWithEnvironment('ResourceType class', () => {
+describe('ResourceType class', () => {
+  setupLocaleHooks();
   it('is able to be instantiated successfully', () => {
     const testResourceCategory = new ResourceCategory('category name', categoryTestTitle, categoryTestShortTitle);
     const resourceType = new ResourceType('Type Test Name', typeTestTitle, testResourceCategory, true);
@@ -125,16 +126,6 @@ describeWithEnvironment('ResourceType class', () => {
     assert.strictEqual(result.title(), 'Wasm', 'title was not set correctly');
     assert.strictEqual(result.category().title(), 'WebAssembly', 'category title was not set correctly');
     assert.strictEqual(result.category().shortTitle(), 'Wasm', 'category short title was not set correctly');
-    assert.isFalse(result.isTextType(), 'resource type was not set correctly');
-  });
-
-  it('is able to return an web bundle resource from the string "application/webbundle"', () => {
-    const result = ResourceType.fromMimeTypeOverride('application/webbundle');
-    assert.instanceOf(result, ResourceType, 'result type is incorrect');
-    assert.strictEqual(result.name(), 'webbundle', 'name was not set correctly');
-    assert.strictEqual(result.title(), 'WebBundle', 'title was not set correctly');
-    assert.strictEqual(result.category().title(), 'Other', 'category title was not set correctly');
-    assert.strictEqual(result.category().shortTitle(), 'Other', 'category short title was not set correctly');
     assert.isFalse(result.isTextType(), 'resource type was not set correctly');
   });
 

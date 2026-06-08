@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -33,6 +33,10 @@ export class ServerSentEventsParser {
 
   async addBase64Chunk(raw: Protocol.binary): Promise<void> {
     await this.#decoder.addBase64Chunk(raw);
+  }
+
+  addTextChunk(chunk: string): void {
+    this.#onTextChunk(chunk);
   }
 
   #onTextChunk(chunk: string): void {
@@ -113,7 +117,7 @@ class Base64TextDecoder {
   }
 
   async addBase64Chunk(chunk: Protocol.binary): Promise<void> {
-    const binString = window.atob(chunk);
+    const binString = globalThis.atob(chunk);
     const bytes = Uint8Array.from(binString, m => m.codePointAt(0) as number);
 
     await this.#writer.ready;

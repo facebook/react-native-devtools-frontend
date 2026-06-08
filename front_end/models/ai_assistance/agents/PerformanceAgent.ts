@@ -1,213 +1,467 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../../core/common/common.js';
 import * as Host from '../../../core/host/host.js';
 import * as i18n from '../../../core/i18n/i18n.js';
+import * as Platform from '../../../core/platform/platform.js';
 import * as Root from '../../../core/root/root.js';
-import * as TimelineUtils from '../../../panels/timeline/utils/utils.js';
-import * as PanelUtils from '../../../panels/utils/utils.js';
+import * as SDK from '../../../core/sdk/sdk.js';
+import * as Tracing from '../../../services/tracing/tracing.js';
+import * as Annotations from '../../annotations/annotations.js';
+import * as Logs from '../../logs/logs.js';
+import * as SourceMapScopes from '../../source_map_scopes/source_map_scopes.js';
+import * as TextUtils from '../../text_utils/text_utils.js';
 import * as Trace from '../../trace/trace.js';
+import {
+  PerformanceInsightFormatter,
+} from '../data_formatters/PerformanceInsightFormatter.js';
+import {PerformanceTraceFormatter} from '../data_formatters/PerformanceTraceFormatter.js';
+import {debugLog} from '../debug.js';
+import {AICallTree} from '../performance/AICallTree.js';
+import {AgentFocus} from '../performance/AIContext.js';
 
 import {
-  AgentType,
   AiAgent,
+  type AiWidget,
   type ContextResponse,
   ConversationContext,
+  type ConversationSuggestion,
+  type ConversationSuggestions,
+  type FunctionCallHandlerResult,
+  type ParsedResponse,
   type RequestOptions,
+  type ResponseData,
   ResponseType,
 } from './AiAgent.js';
+
+const UIStringsNotTranslated = {
+  /**
+   * @description Shown when the agent is investigating network activity
+   */
+  networkActivitySummary: 'Investigating network activity',
+  /**
+   * @description Shown when the agent is investigating main thread activity
+   */
+  mainThreadActivity: 'Investigating main thread activity',
+} as const;
+const lockedString = i18n.i18n.lockedString;
+
+/**
+ * Labels used to identify specific periods or categories in the trace for getting main thread summary.
+ * Supports hardcoded phases, dynamic navigation IDs (`NAVIGATION_X`), and insight models.
+ */
+export type MainThreadSectionLabel = 'nav-to-lcp'|'lcp-ttfb'|'lcp-render-delay'|'trace-bounds'|'NO_NAVIGATION'|
+                                     `NAVIGATION_${string}`|keyof Trace.Insights.Types.InsightModels;
 
 /**
  * WARNING: preamble defined in code is only used when userTier is
  * TESTERS. Otherwise, a server-side preamble is used (see
  * chrome_preambles.gcl). Sync local changes with the server-side.
  */
+
+const GREEN_DEV_ANNOTATIONS_INSTRUCTIONS = `
+- CRITICAL: You also have access to functions called addElementAnnotation and addNeworkRequestAnnotation,
+which should be used to highlight elements and network requests (respectively).
+
+- CRITICAL: Each time an element or a network request is mentioned, you MUST ALSO call the functions
+  addElementAnnotation (for an element) or addNeworkRequestAnnotation (for a network request).
+- CRITICAL: Don't add more than one annotation per element or network request.
+- These functions should be called as soon as you identify the entity that needs to be highlighted.
+- In addition to this, the addElementAnnotation function should always be called for the LCP element, if known.
+- The annotationMessage should be descriptive and relevant to why the element or network request is being highlighted.
+`;
+
+const GREEN_DEV_FRESH_TRACE_ANNOTATIONS_INSTRUCTIONS = `
+When referring to an element for which you know the nodeId, always call the function addElementAnnotation, specifying
+the id and an annotation reason.
+When referring to a network request for which you know the eventKey for, always call the function
+addNetworkRequestAnnotation, specifying the id and an annotation reason.
+- CRITICAL: Each time you add an annotating link you MUST ALSO call the function addElementAnnotation.
+- CRITICAL: Each time you describe an element or network request as being problematic you MUST call the function
+addElementAnnotation and specify an annotation reason.
+- CRITICAL: Each time you describe a network request as being problematic you MUST call the function
+addNetworkRequestAnnotation and specify an annotation reason.
+- CRITICAL: If you spot ANY of the following problems:
+  - Render-blocking elements/network requests.
+  - Significant long task (especially on main thread).
+  - Layout shifts (e.g. due to unsized images).
+  ... then you MUST call addNetworkRequestAnnotation for ALL network requests and addaddElementAnnotation for all
+  elements described in your conclusion.
+`;
+
 /**
- * Preamble clocks in at ~970 tokens.
+ * Preamble clocks in at ~1341 tokens.
  *   The prose is around 4.5 chars per token.
  * The data can be as bad as 1.8 chars per token
  *
  * Check token length in https://aistudio.google.com/
  */
-const preamble = `You are an expert performance analyst embedded within Chrome DevTools.
-You meticulously examine web application behavior captured by the Chrome DevTools Performance Panel and Chrome tracing.
-You will receive a structured text representation of a call tree, derived from a user-selected call frame within a performance trace's flame chart.
-This tree originates from the root task associated with the selected call frame.
+const preamble = `You are an assistant, expert in web performance and highly skilled with Chrome DevTools.
 
-Each call frame is presented in the following format:
+Your primary goal is to provide actionable advice to web developers about their web page by using the Chrome Performance Panel and analyzing a trace. You may need to diagnose problems yourself, or you may be given direction for what to focus on by the user.
 
-Node: $id - $name
-Selected: true (if this is the call frame selected by the user)
-Duration: $duration (milliseconds, including children)
-Self Time: $self (milliseconds, excluding children, defaults to 0)
-URL: $url_number (reference to the "All URLs" list)
-Children:
-  * $child.id - $child.name
+You will be provided a summary of a trace: some performance metrics; the most critical network requests; a bottom-up call graph summary; and a brief overview of available insights. Each insight has information about potential performance issues with the page.
 
-Key definitions:
+Always call getInsightDetails to gather more data on an insight or the actual LCP element BEFORE mentioning any specific details about them.
 
-* name: A concise string describing the call frame (e.g., 'Evaluate Script', 'render', 'fetchData').
-* id: A unique numerical identifier for the call frame.
-* Selected: Indicates if this is the call frame the user focused on. **Only one node will have "Selected: true".**
-* URL: The index of the URL associated with this call frame, referencing the "All URLs" list.
-* Duration: The total execution time of the call frame, including its children.
-* Self Time: The time spent directly within the call frame, excluding its children's execution.
-* Children: A list of child call frames, showing their IDs and names.
+You have functions available to learn more about the trace. Use these to confirm hypotheses, or to further explore the trace when diagnosing performance issues.
 
-Your objective is to provide a comprehensive analysis of the **selected call frame and the entire call tree** and its context within the performance recording, including:
+You will be given bounds representing a time range within the trace. Bounds include a min and a max time in microseconds. max is always bigger than min in a bounds.
 
-1.  **Functionality:** Clearly describe the purpose and actions of the selected call frame based on its properties (name, URL, etc.).
-2.  **Execution Flow:**
-    * **Ancestors:** Trace the execution path from the root task to the selected call frame, explaining the sequence of parent calls.
-    * **Descendants:** Analyze the child call frames, identifying the tasks they initiate and any performance-intensive sub-tasks.
-3.  **Performance Metrics:**
-    * **Duration and Self Time:** Report the execution time of the call frame and its children.
-    * **Relative Cost:** Evaluate the contribution of the call frame to the overall duration of its parent tasks and the entire trace.
-    * **Bottleneck Identification:** Identify potential performance bottlenecks based on duration and self time, including long-running tasks or idle periods.
-4.  **Optimization Recommendations:** Provide specific, actionable suggestions for improving the performance of the selected call frame and its related tasks, focusing on resource management and efficiency. Only provide recommendations if they are based on data present in the call tree.
+The 3 main performance metrics are:
+- LCP: "Largest Contentful Paint"
+- INP: "Interaction to Next Paint"
+- CLS: "Cumulative Layout Shift"
 
-# Important Guidelines:
+Trace events referenced in the information given to you will be marked with an \`eventKey\`. For example: \`LCP element: <img src="..."> (eventKey: r-123, ts: 123456)\`
+You can use this key with \`getEventByKey\` to get more information about that trace event. For example: \`getEventByKey('r-123')\`
+You can also use this key with \`selectEventByKey\` to show the user a specific event
 
-* Maintain a concise and technical tone suitable for software engineers.
-* Exclude call frame IDs and URL indices from your response.
-* **Critical:** If asked about sensitive topics (religion, race, politics, sexuality, gender, etc.), respond with: "My expertise is limited to website performance analysis. I cannot provide information on that topic.".
-* **Critical:** Refrain from providing answers on non-web-development topics, such as legal, financial, medical, or personal advice.
+## Step-by-step instructions for debugging performance issues
 
-## Example Session:
+Note: if the user asks a specific question about the trace (such as "What is my LCP?", or "How many requests were render-blocking?"), directly answer their question using available data. However, if the user asks a general question like "What performance issues exist?" or requests an investigation, you MUST NOT give a generic answer. You must treat it as a full performance investigation (Step 1) and call main thread functions to find specific issues. Generic advice like "reduce long tasks" without specific details is UNACCEPTABLE.
 
-All URLs:
-* 0 - app.js
 
-Call Tree:
+### Step 1: Determine a performance problem to investigate
 
-Node: 1 - main
-Selected: false
-Duration: 500
-Self Time: 100
-Children:
-  * 2 - update
+- If the trace summary indicates that the main performance metrics (LCP, INP, CLS) are all within good thresholds, acknowledge this to the user. In this case, let the user know that they can try recording a trace with mobile emulation and throttling options and show them how.
+- With help from the user, determine what performance problem to focus on.
+- If the user is not specific about what problem to investigate, help them by doing a investigation yourself focus on performance improvements for better LCP, INP and CLS. Present to the user options with 1-sentence summaries. Mention what performance metrics each option impacts. Call as many functions and confirm the data thoroughly: never present an option without being certain it is a real performance issue.
+- Focus on identifying the problem in Step 1 and save solution suggestions for Step 2.
+- Once a performance problem has been identified for investigation, move on to step 2.
 
-Node: 2 - update
-Selected: false
-Duration: 200
-Self Time: 50
-Children:
-  * 3 - animate
+#### Response Structure
 
-Node: 3 - animate
-Selected: true
-Duration: 150
-Self Time: 20
-URL: 0
-Children:
-  * 4 - calculatePosition
-  * 5 - applyStyles
+- Rank the options from most impactful to least impactful, and present them to the user in that order.
+- Limit the number of performance problem options presented to the user to a maximum of 2.
 
-Node: 4 - calculatePosition
-Selected: false
-Duration: 80
-Self Time: 80
+### Step 2: Suggest solutions
 
-Node: 5 - applyStyles
-Selected: false
-Duration: 50
-Self Time: 50
+- Suggest solutions to remedy the identified performance problem. Be as specific as possible, using data from the trace via the provided functions to back up everything you say. You should prefer specific solutions, but absent any specific solution you may suggest general solutions (such as from an insight's documentation links).
+- If you are unsure, be honest and present information that can be helpful for further investigation.
+- A good first step to discover solutions is to consider the insights, but you should also validate all potential advice by analyzing the trace until you are confident about the root cause of a performance issue.
 
-Analyze the selected call frame.
+#### Response Structure
 
-Example Response:
+- If available, point out the root cause(s) of the problem.
+  - Example: "**Root Cause**: The page is slow because of [reason]."
+  - Example: "**Root Causes**:"
+    - [Reason 1]
+    - [Reason 2]
+- if applicable, list actionable solution suggestion(s) in order of impact:
+  - Example: "**Suggestion**: [Suggestion 1]
+  - Example: "**Suggestions**:"
+    - [Suggestion 1]
+    - [Suggestion 2]
 
-The selected call frame is 'animate', responsible for visual animations within 'app.js'.
-It took 150ms total, with 20ms spent directly within the function.
-The 'calculatePosition' and 'applyStyles' child functions consumed the remaining 130ms.
-The 'calculatePosition' function, taking 80ms, is a potential bottleneck.
-Consider optimizing the position calculation logic or reducing the frequency of calls to improve animation performance.
+## Guidelines
+
+- You must call \`getMainThreadTrackSummaryByLabel\` (with the relevant label) to investigate the main thread activity before giving the user a reply or suggesting solutions for any performance problem or insight. This applies even if you already have some information about that period from \`getInsightDetails\` or the initial trace summary.
+- Dig Deeper: Before replying, you should really dig into the main thread activity to uncover what the performance issues actually are. Do not solely rely on the information from the initial data; ensure you identify the root cause before suggesting solutions.
+- No Shortcutting: Even if the initial facts contain specific line numbers or function names, you are not allowed to reply using only that information. You MUST call \`getMainThreadTrackSummaryByLabel\` to inspect its context before describing it to the user.
+- Look for Aggregated Cost: Performance issues are not always caused by a single "Long Task". Many small, frequent events (like unthrottled \`mousemove\` or \`scroll\` handlers) can add up to significant main thread blockage. Use the Bottom-Up summary in \`getMainThreadTrackSummaryByLabel\` to identify functions with high total time, even if they are not associated with a Long Task.
+- Use the provided functions to get detailed performance data. Prioritize functions that provide context relevant to the performance issue being investigated.
+- Before finalizing your advice, look over it and validate using any relevant functions. If something seems off, refine the advice before giving it to the user.
+- Base your analysis and advice solely on the data retrieved through the provided functions. Always use the provided functions to gather sufficient data when needed.
+- Use absolute microsecond timestamps for any function that requires a \`min\` and \`max\` bounds. These timestamps can be found in the trace summary or within the details of an insight.
+- Available labels for \`getMainThreadTrackSummaryByLabel\` include:
+  - \`trace-bounds\` (entire trace)
+  - \`nav-to-lcp\` (navigation to LCP)
+  - \`lcp-ttfb\` (LCP TTFB phase)
+  - \`lcp-render-delay\` (LCP render delay phase)
+  - Insight names: \`LCPBreakdown\`, \`INPBreakdown\`, \`CLSCulprits\`, \`ThirdParties\`, \`DocumentLatency\`, \`DOMSize\`, \`DuplicatedJavaScript\`, \`FontDisplay\`, \`ForcedReflow\`, \`ImageDelivery\`, \`LCPDiscovery\`, \`LegacyJavaScript\`, \`NetworkDependencyTree\`, \`RenderBlocking\`, \`SlowCSSSelector\`, \`Viewport\`, \`ModernHTTP\`, \`Cache\`, \`CharacterSet\`
+  - Navigation IDs: \`NAVIGATION_0\`, \`NAVIGATION_1\`, etc.
+- Use \`getEventByKey\` to get data on a specific trace event. This is great for root-cause analysis or validating any assumptions.
+- Provide clear, actionable recommendations. Avoid technical jargon unless necessary, and explain any technical terms used.
+- If you see a generic task like "Task", "Evaluate script" or "(anonymous)" in the main thread activity, try to look at its children to see what actual functions are executed and refer to those. When referencing the main thread activity, be as specific as you can. Ensure you identify to the user relevant functions and which script they were defined in. Avoid referencing "Task", "Evaluate script" and "(anonymous)" nodes if possible and instead focus on their children.
+- Structure your response using markdown headings and bullet points for improved readability.
+- Be direct and to the point. Avoid unnecessary introductory phrases or filler content. Focus on delivering actionable advice efficiently.
+
+## Strict Constraints
+
+Adhere to the following critical requirements:
+
+- Never show bounds to the user.
+- Never show eventKey to the user.
+- Ensure your responses only use ms for time units.
+- Ensure numbers for time units are rounded to the nearest whole number.
+- Ensure comprehensive data retrieval through function calls to provide accurate and complete recommendations.
+- If the user asks a specific question about web performance that doesn't have anything to do with the trace, don't call any functions and be succinct in your answer.
+- Before suggesting changing the format of an image, consider what format it is already in. For example, if the mime type is image/webp, do not suggest to the user that the image is converted to WebP, as the image is already in that format.
+- Do not mention the functions you call to gather information about the trace (e.g., \`getEventByKey\`, \`getMainThreadTrackSummaryByLabel\`) in your output. These are internal implementation details that should be hidden from the user.
+- Do not mention that you are an AI, or refer to yourself in the third person. You are simulating a performance expert.
+- If asked about sensitive topics (religion, race, politics, sexuality, gender, etc.), respond with: "My expertise is limited to website performance analysis. I cannot provide information on that topic.".
+- Do not provide answers on non-web-development topics, such as legal, financial, medical, or personal advice.
+- Use the precision of Strunk & White, the brevity of Hemingway, and the simple clarity of Vonnegut. Don't add repeated information, and keep the whole answer short.
 `;
 
-/*
-* Strings that don't need to be translated at this time.
-*/
-const UIStringsNotTranslate = {
-  analyzingCallTree: 'Analyzing call tree',
-} as const;
+const extraPreambleWhenNotExternal = `Additional notes:
 
-const lockedString = i18n.i18n.lockedString;
+When referring to a trace event that has a corresponding \`eventKey\`, annotate your output using markdown link syntax. For example:
+- When referring to an event that is a long task: [Long task](#r-123)
+- When referring to a URL for which you know the eventKey of: [https://www.example.com](#s-1827)
+- Never show the eventKey (like "eventKey: s-1852") in your running text. When using markdown links, the URL must be only the hash (e.g., \`#s-1852\`), never \`eventKey: s-1852\`.
 
-export class CallTreeContext extends ConversationContext<TimelineUtils.AICallTree.AICallTree> {
-  #callTree: TimelineUtils.AICallTree.AICallTree;
+When asking the user to make a choice between options, output a list of choices at the end of your text response. The format is \`SUGGESTIONS: ["suggestion1", "suggestion2", "suggestion3"]\`. This MUST start on a newline, and be a single line.
+`;
 
-  constructor(callTree: TimelineUtils.AICallTree.AICallTree) {
+const freshTracePreamble = `Additional notes:
+
+When referring to an element for which you know the nodeId, annotate your output using markdown link syntax:
+- For example, if nodeId is 23: [LCP element](#node-23)
+- This link will reveal the element in the Elements panel
+- Never mention node or nodeId when referring to the element, and especially not in the link text.
+- When referring to the LCP, it's useful to also mention what the LCP element is via its nodeId. Use the markdown link syntax to do so.
+`;
+
+enum ScorePriority {
+  REQUIRED = 3,
+  CRITICAL = 2,
+  DEFAULT = 1,
+}
+
+export class PerformanceTraceContext extends ConversationContext<AgentFocus> {
+  static fromParsedTrace(parsedTrace: Trace.TraceModel.ParsedTrace): PerformanceTraceContext {
+    return new PerformanceTraceContext(AgentFocus.fromParsedTrace(parsedTrace));
+  }
+
+  static fromInsight(parsedTrace: Trace.TraceModel.ParsedTrace, insight: Trace.Insights.Types.InsightModel):
+      PerformanceTraceContext {
+    return new PerformanceTraceContext(AgentFocus.fromInsight(parsedTrace, insight));
+  }
+
+  static fromCallTree(callTree: AICallTree): PerformanceTraceContext {
+    return new PerformanceTraceContext(AgentFocus.fromCallTree(callTree));
+  }
+
+  #focus: AgentFocus;
+  external = false;
+
+  constructor(focus: AgentFocus) {
     super();
-    this.#callTree = callTree;
+    this.#focus = focus;
   }
 
   override getOrigin(): string {
-    // Although in this context we expect the call tree to have a selected node
-    // as the entrypoint into the "Ask AI" tool is via selecting a node, it is
-    // possible to build trees without a selected node, in which case we
-    // fallback to the root node.
-    const node = this.#callTree.selectedNode ?? this.#callTree.rootNode;
-    const selectedEvent = node.event;
-    // Get the non-resolved (ignore sourcemaps) URL for the event. We use the
-    // non-resolved URL as in the context of the AI Assistance panel, we care
-    // about the origin it was served on.
-    const nonResolvedURL = Trace.Handlers.Helpers.getNonResolvedURL(selectedEvent, this.#callTree.parsedTrace);
-    if (nonResolvedURL) {
-      const origin = Common.ParsedURL.ParsedURL.extractOrigin(nonResolvedURL);
-      if (origin) {  // origin could be the empty string.
-        return origin;
-      }
+    try {
+      const url = new URL(this.#focus.parsedTrace.data.Meta.mainFrameURL);
+      return url.origin;
+    } catch {
+      const {min, max} = this.#focus.parsedTrace.data.Meta.traceBounds;
+      return `trace-${min}-${max}`;
     }
-    // Generate a random "origin". We do this rather than return an empty
-    // string or some "unknown" string so that each event without a definite
-    // URL is considered a new, standalone origin. This is safer from a privacy
-    // & security perspective, else we risk bucketing events together that
-    // should not be. We also don't want to make it entirely random so we
-    // cannot calculate it deterministically.
-    const uuid = `${selectedEvent.name}_${selectedEvent.pid}_${selectedEvent.tid}_${selectedEvent.ts}`;
-    return uuid;
   }
 
-  override getItem(): TimelineUtils.AICallTree.AICallTree {
-    return this.#callTree;
-  }
-
-  override getIcon(): HTMLElement {
-    const iconData = {
-      iconName: 'performance',
-      color: 'var(--sys-color-on-surface-subtle)',
-    };
-    const icon = PanelUtils.PanelUtils.createIconElement(iconData, 'Performance');
-    icon.classList.add('icon');
-    return icon;
+  override getItem(): AgentFocus {
+    return this.#focus;
   }
 
   override getTitle(): string {
-    const event = this.#callTree.selectedNode?.event ?? this.#callTree.rootNode.event;
-    if (!event) {
-      return 'unknown';
+    const focus = this.#focus;
+
+    let url = focus.primaryInsightSet?.url;
+    if (!url) {
+      url = new URL(focus.parsedTrace.data.Meta.mainFrameURL);
     }
 
-    return TimelineUtils.EntryName.nameForEntry(event);
+    const parts = [`Trace: ${url.hostname}`];
+    if (focus.insight) {
+      parts.push(focus.insight.title);
+    }
+    if (focus.event) {
+      parts.push(Trace.Name.forEntry(focus.event));
+    }
+    if (focus.callTree) {
+      const node = focus.callTree.selectedNode ?? focus.callTree.rootNode;
+      parts.push(Trace.Name.forEntry(node.event));
+    }
+    return parts.join(' – ');
   }
+
+  /**
+   * Presents the default suggestions that are shown when the user first clicks
+   * "Ask AI".
+   */
+  override async getSuggestions(): Promise<ConversationSuggestions|undefined> {
+    const focus = this.#focus;
+
+    if (focus.callTree) {
+      return [
+        {title: 'What\'s the purpose of this work?', jslogContext: 'performance-default'},
+        {title: 'Where is time being spent?', jslogContext: 'performance-default'},
+        {title: 'How can I optimize this?', jslogContext: 'performance-default'},
+      ];
+    }
+
+    if (focus.insight) {
+      return new PerformanceInsightFormatter(focus, focus.insight).getSuggestions();
+    }
+
+    const suggestions: ConversationSuggestions =
+        [{title: 'What performance issues exist with my page?', jslogContext: 'performance-default'}];
+
+    const insightSet = focus.primaryInsightSet;
+    if (insightSet) {
+      const lcp = Trace.Insights.Common.getLCP(insightSet);
+      const cls = Trace.Insights.Common.getCLS(insightSet);
+      const inp = Trace.Insights.Common.getINP(insightSet);
+
+      const ModelHandlers = Trace.Handlers.ModelHandlers;
+      const GOOD = Trace.Handlers.ModelHandlers.PageLoadMetrics.ScoreClassification.GOOD;
+
+      const poorMetrics = new Set<Trace.Insights.Types.InsightKeys>();
+
+      if (lcp && ModelHandlers.PageLoadMetrics.scoreClassificationForLargestContentfulPaint(lcp.value) !== GOOD) {
+        suggestions.push({title: 'How can I improve LCP?', jslogContext: 'performance-default'});
+        poorMetrics.add(Trace.Insights.Types.InsightKeys.LCP_BREAKDOWN);
+        poorMetrics.add(Trace.Insights.Types.InsightKeys.LCP_DISCOVERY);
+      }
+      if (inp && ModelHandlers.UserInteractions.scoreClassificationForInteractionToNextPaint(inp.value) !== GOOD) {
+        suggestions.push({title: 'How can I improve INP?', jslogContext: 'performance-default'});
+        poorMetrics.add(Trace.Insights.Types.InsightKeys.INP_BREAKDOWN);
+      }
+      if (cls && ModelHandlers.LayoutShifts.scoreClassificationForLayoutShift(cls.value) !== GOOD) {
+        suggestions.push({title: 'How can I improve CLS?', jslogContext: 'performance-default'});
+        poorMetrics.add(Trace.Insights.Types.InsightKeys.CLS_CULPRITS);
+      }
+
+      // Add up to 4 suggestions total (including those already added) from the top failing insights
+      // that aren't already covered by CWV suggestions.
+      const additionalSuggestionsRequired = Math.max(0, 4 - suggestions.length);
+      if (additionalSuggestionsRequired > 0) {
+        const failingInsightSuggestions =
+            Object.values(insightSet.model)
+                .filter(model => {
+                  return model.state !== 'pass' && Trace.Insights.Common.isInsightKey(model.insightKey) &&
+                      !poorMetrics.has(model.insightKey);
+                })
+                .map(model => new PerformanceInsightFormatter(focus, model).getSuggestions().at(-1))
+                .filter((suggestion): suggestion is ConversationSuggestion => !!suggestion)
+                .slice(0, additionalSuggestionsRequired);
+        suggestions.push(...failingInsightSuggestions);
+      }
+    }
+
+    return suggestions;
+  }
+}
+
+// 16k Tokens * ~4 char per token.
+const MAX_FUNCTION_RESULT_BYTE_LENGTH = 16384 * 4;
+
+const STATIC_LABEL_NAMES: Record<string, string> = {
+  'nav-to-lcp': 'navigation to LCP',
+  'lcp-ttfb': 'LCP to TTFB',
+  'lcp-render-delay': 'LCP render delay',
+  'trace-bounds': 'the entire trace',
+  NO_NAVIGATION: 'the period before the first navigation',
+};
+
+/**
+ * Converts the label name we use in the code to a human readable one that is
+ * shown to the user.
+ */
+export function getLabelName(label: MainThreadSectionLabel, focus: AgentFocus): string {
+  if (STATIC_LABEL_NAMES[label]) {
+    return STATIC_LABEL_NAMES[label];
+  }
+
+  const {parsedTrace} = focus;
+  const insightSetById = parsedTrace.insights?.get(label as Trace.Types.Events.NavigationId);
+  if (insightSetById) {
+    return `navigation to ${insightSetById.url.href}`;
+  }
+
+  // Go through all the insights we have to find the first one that matches to find the title.
+  // TODO(b/505291090): make it easier to look up Insight titles from a key.
+  for (const insightSet of parsedTrace.insights?.values() ?? []) {
+    const model = insightSet.model[label as keyof Trace.Insights.Types.InsightModels];
+    if (model) {
+      return `${model.title} insight`;
+    }
+  }
+
+  return label;
 }
 
 /**
  * One agent instance handles one conversation. Create a new agent
  * instance for a new conversation.
  */
-export class PerformanceAgent extends AiAgent<TimelineUtils.AICallTree.AICallTree> {
-  override readonly type = AgentType.PERFORMANCE;
+export class PerformanceAgent extends AiAgent<AgentFocus> {
   readonly preamble = preamble;
+  #formatter: PerformanceTraceFormatter|null = null;
+  #lastEventForEnhancedQuery: Trace.Types.Events.Event|undefined;
+  #lastInsightForEnhancedQuery: Trace.Insights.Types.InsightModel|undefined;
 
-  // We have to set the type of clientFeature here to be the entire enum
-  // because in PerformanceAnnotationsAgent.ts we override it.
-  // TODO(b/406961576): split the agents apart rather than have one extend the other.
-  readonly clientFeature: Host.AidaClient.ClientFeature = Host.AidaClient.ClientFeature.CHROME_PERFORMANCE_AGENT;
+  /**
+   * Cache of all function calls made by the agent. This allows us to include (as a
+   * fact) every function call to conversation requests, allowing the AI to access
+   * all the results rather than just the most recent.
+   *
+   * TODO(b/442392194): I'm not certain this is needed. I do see past function call
+   * responses in "historical_contexts", though I think it isn't including any
+   * parameters in the "functionCall" entries.
+   *
+   * The record key is the result of a function's displayInfoFromArgs.
+   */
+  #functionCallCacheForFocus = new Map<AgentFocus, Record<string, Host.AidaClient.RequestFact>>();
+
+  #notExternalExtraPreambleFact: Host.AidaClient.RequestFact = {
+    text: extraPreambleWhenNotExternal,
+    metadata: {source: 'devtools', score: ScorePriority.CRITICAL}
+  };
+  #freshTraceExtraPreambleFact: Host.AidaClient.RequestFact = {
+    text: freshTracePreamble,
+    metadata: {source: 'devtools', score: ScorePriority.CRITICAL}
+  };
+  #greenDevAnnotationsFact: Host.AidaClient.RequestFact = {
+    text: GREEN_DEV_ANNOTATIONS_INSTRUCTIONS,
+    metadata: {source: 'devtools', score: ScorePriority.CRITICAL}
+  };
+  #greenDevFreshTraceAnnotationsFact: Host.AidaClient.RequestFact = {
+    text: GREEN_DEV_FRESH_TRACE_ANNOTATIONS_INSTRUCTIONS,
+    metadata: {source: 'devtools', score: ScorePriority.CRITICAL}
+  };
+  #networkDataDescriptionFact: Host.AidaClient.RequestFact = {
+    text: PerformanceTraceFormatter.networkDataFormatDescription,
+    metadata: {source: 'devtools', score: ScorePriority.CRITICAL}
+  };
+  #callFrameDataDescriptionFact: Host.AidaClient.RequestFact = {
+    text: PerformanceTraceFormatter.callFrameDataFormatDescription,
+    metadata: {source: 'devtools', score: ScorePriority.CRITICAL}
+  };
+  #traceFacts: Host.AidaClient.RequestFact[] = [];
+
+  /**
+   * These facts do not contain page data, they are static instructions to the
+   * LLM, so we don't need to add them to the disclosure.
+   */
+  #factsToNeverDisclose = new Set<Host.AidaClient.RequestFact>([
+    this.#callFrameDataDescriptionFact,
+    this.#networkDataDescriptionFact,
+    this.#freshTraceExtraPreambleFact,
+    this.#notExternalExtraPreambleFact,
+    this.#greenDevAnnotationsFact,
+    this.#greenDevFreshTraceAnnotationsFact,
+  ]);
+
+  /**
+   * When we enhance the query with additional information, we need to know it
+   * so we can show it in the disclosure UI. This is cleared and then populated
+   * on each prompt.
+   */
+  #additionalSelectionsForQuery: string[] = [];
+
+  get clientFeature(): Host.AidaClient.ClientFeature {
+    return Host.AidaClient.ClientFeature.CHROME_PERFORMANCE_FULL_AGENT;
+  }
   get userTier(): string|undefined {
-    return Root.Runtime.hostConfig.devToolsAiAssistancePerformanceAgent?.userTier;
+    return Boolean(Root.Runtime.hostConfig.devToolsGreenDevUi?.enabled) ?
+        'TESTERS' :
+        Root.Runtime.hostConfig.devToolsAiAssistancePerformanceAgent?.userTier;
   }
   get options(): RequestOptions {
     const temperature = Root.Runtime.hostConfig.devToolsAiAssistancePerformanceAgent?.temperature;
@@ -220,39 +474,1122 @@ export class PerformanceAgent extends AiAgent<TimelineUtils.AICallTree.AICallTre
   }
 
   async *
-      handleContextDetails(aiCallTree: ConversationContext<TimelineUtils.AICallTree.AICallTree>|null):
-          AsyncGenerator<ContextResponse, void, void> {
+      handleContextDetails(context: ConversationContext<AgentFocus>|null): AsyncGenerator<ContextResponse, void, void> {
+    if (!context) {
+      return;
+    }
+
+    const contextDisclosure: string[] = [];
+
+    for (const fact of this.currentFacts()) {
+      if (this.#factsToNeverDisclose.has(fact)) {
+        continue;
+      }
+      contextDisclosure.push(fact.text);
+    }
+    contextDisclosure.push(...this.#additionalSelectionsForQuery);
+
+    const focus = context.getItem();
+    const widgets = this.#getWidgetsForFocus(focus);
+
     yield {
       type: ResponseType.CONTEXT,
-      title: lockedString(UIStringsNotTranslate.analyzingCallTree),
       details: [
         {
-          title: 'Selected call tree',
-          text: aiCallTree?.getItem().serialize() ?? '',
+          title: 'Trace details',
+          text: contextDisclosure.join('\n'),
         },
       ],
+      widgets,
     };
   }
 
-  #contextSet = new WeakSet();
+  // Show different widgets with the first reply depending on the initial context:
+  // Specific task (call tree) -> timeline summary & bottom up tree widgets
+  // LCP Insight -> LCP breakdown & CWV widgets
+  // Whole Trace or insight other than LCP -> CWV widget
+  #getWidgetsForFocus(focus: AgentFocus): AiWidget[] {
+    const widgets: AiWidget[] = [];
 
-  override async enhanceQuery(query: string, aiCallTree: ConversationContext<TimelineUtils.AICallTree.AICallTree>|null):
-      Promise<string> {
-    const treeItem = aiCallTree?.getItem();
-    let treeStr = treeItem?.serialize();
-
-    // Collect the queries from previous messages in this session
-
-    // If this is a followup chat about the same call tree, don't include the call tree serialization again.
-    // We don't need to repeat it and we'd rather have more the context window space.
-    if (treeItem && this.#contextSet.has(treeItem) && treeStr) {
-      treeStr = undefined;
+    // Case 1: Specific task (call tree) -> timeline summary & bottom up tree widgets
+    if (focus.callTree) {
+      const event = focus.callTree.selectedNode?.event;
+      if (event) {
+        const {startTime, endTime} = Trace.Helpers.Timing.eventTimingsMicroSeconds(event);
+        const bounds = Trace.Helpers.Timing.traceWindowFromMicroSeconds(startTime, endTime);
+        widgets.push({
+          name: 'TIMELINE_RANGE_SUMMARY',
+          data: {
+            bounds,
+            parsedTrace: focus.parsedTrace,
+            track: 'main',
+          },
+        });
+        widgets.push({
+          name: 'BOTTOM_UP_TREE',
+          data: {
+            bounds,
+            parsedTrace: focus.parsedTrace,
+          },
+        });
+      }
+      return widgets;
     }
-    if (treeItem && !this.#contextSet.has(treeItem)) {
-      this.#contextSet.add(treeItem);
+
+    // Case 2: Insight -> PERF_INSIGHT widget
+    if (focus.insight) {
+      const insightKey = focus.insight.insightKey;
+      if (Trace.Insights.Common.isInsightKey(insightKey)) {
+        widgets.push({
+          name: 'PERF_INSIGHT',
+          data: {
+            insight: insightKey,
+            insightData: focus.insight,
+          },
+        });
+      }
     }
 
-    const perfEnhancementQuery = treeStr ? `${treeStr}\n\n# User request\n\n` : '';
-    return `${perfEnhancementQuery}${query}`;
+    // Case 3: Whole Trace or insight other than LCP -> CWV widget
+    const primaryInsightSet = focus.primaryInsightSet;
+    if (primaryInsightSet) {
+      widgets.push({
+        name: 'CORE_VITALS',
+        data: {
+          parsedTrace: focus.parsedTrace,
+          insightSetKey: primaryInsightSet.id,
+        },
+      });
+    }
+
+    return widgets;
+  }
+
+  #callTreeContextSet = new WeakSet();
+
+  #isFunctionResponseTooLarge(response: string): boolean {
+    return response.length > MAX_FUNCTION_RESULT_BYTE_LENGTH;
+  }
+
+  /**
+   * Sometimes the model will output URLs as plaintext; or a markdown link
+   * where the link is the actual URL. This function transforms such output
+   * to an eventKey link.
+   *
+   * A simple way to see when this gets utilized is:
+   *   1. go to paulirish.com, record a trace
+   *   2. say "What performance issues exist with my page?"
+   *   3. then say "images"
+   */
+  #parseForKnownUrls(response: string): string {
+    const focus = this.context?.getItem();
+    if (!focus) {
+      return response;
+    }
+
+    // Regex with two main parts, separated by | (OR):
+    // 1. (\[(.*?)\]\((.*?)\)): Captures a full markdown link.
+    //    - Group 1: The whole link, e.g., "[text](url)"
+    //    - Group 2: The link text, e.g., "text"
+    //    - Group 3: The link destination, e.g., "url"
+    // 2. (https?:\/\/[^\s<>()]+): Captures a standalone URL.
+    //    - Group 4: The standalone URL, e.g., "https://google.com"
+    const urlRegex = /(\[(.*?)\][ \t]*\((.*?)\))|(https?:\/\/[^\s<>()]+)/g;
+
+    return response.replace(urlRegex, (match, markdownLink, linkText, linkDest, standaloneUrlText) => {
+      if (markdownLink) {
+        if (linkDest.startsWith('#')) {
+          return match;
+        }
+
+        const eventKeyMatch = linkDest.match(/eventKey:\s*([^\s,)]+)/);
+        if (eventKeyMatch) {
+          const eventKey = eventKeyMatch[1];
+          return `[${linkText}](#${eventKey})`;
+        }
+
+        const event = focus.lookupEvent(linkDest as Trace.Types.File.SerializableKey);
+        if (event) {
+          return `[${linkText}](#${linkDest})`;
+        }
+      }
+
+      const urlText = linkDest ?? standaloneUrlText;
+      if (!urlText) {
+        return match;
+      }
+
+      const request = focus.parsedTrace.data.NetworkRequests.byTime.find(request => request.args.data.url === urlText);
+      if (!request) {
+        return match;
+      }
+
+      const eventKey = focus.eventsSerializer.keyForEvent(request);
+      if (!eventKey) {
+        return match;
+      }
+
+      return `[${urlText}](#${eventKey})`;
+    });
+  }
+
+  #parseMarkdown(response: string): string {
+    /**
+     * Sometimes the LLM responds with code chunks that wrap a text based markdown response.
+     * If this happens, we want to remove those before continuing.
+     * See b/405054694 for more details.
+     */
+    const FIVE_BACKTICKS = '`````';
+    if (response.startsWith(FIVE_BACKTICKS) && response.endsWith(FIVE_BACKTICKS)) {
+      return response.slice(FIVE_BACKTICKS.length, -FIVE_BACKTICKS.length);
+    }
+
+    return response;
+  }
+
+  override parseTextResponse(response: string): ParsedResponse {
+    const parsedResponse = super.parseTextResponse(response);
+    parsedResponse.answer = this.#parseForKnownUrls(parsedResponse.answer);
+    parsedResponse.answer = this.#parseMarkdown(parsedResponse.answer);
+    return parsedResponse;
+  }
+
+  override async enhanceQuery(query: string, context: PerformanceTraceContext|null): Promise<string> {
+    if (!context) {
+      this.clearDeclaredFunctions();
+      return query;
+    }
+
+    this.clearDeclaredFunctions();
+    this.#declareFunctions(context);
+
+    const focus = context.getItem();
+    const selected: string[] = [];
+
+    if (focus.event) {
+      const includeEventInfo = focus.event !== this.#lastEventForEnhancedQuery;
+      this.#lastEventForEnhancedQuery = focus.event;
+      if (includeEventInfo) {
+        selected.push(`User selected an event ${this.#formatter?.serializeEvent(focus.event)}.\n\n`);
+      }
+    }
+
+    if (focus.callTree) {
+      // If this is a followup chat about the same call tree, don't include the call tree serialization again.
+      // We don't need to repeat it and we'd rather have more the context window space.
+      let contextString = '';
+      if (!this.#callTreeContextSet.has(focus.callTree)) {
+        contextString = focus.callTree.serialize();
+        this.#callTreeContextSet.add(focus.callTree);
+      }
+
+      if (contextString) {
+        selected.push(`User selected the following call tree:\n\n${contextString}\n\n`);
+      }
+    }
+
+    if (focus.insight) {
+      // We only need to add Insight info to a prompt when the context changes. For example:
+      // User clicks Insight A. We need to send info on Insight A with the prompt.
+      // User asks follow up question. We do not need to resend Insight A with the prompt.
+      // User clicks Insight B. We now need to send info on Insight B with the prompt.
+      // User clicks Insight A. We should resend the Insight info with the prompt.
+      const includeInsightInfo = focus.insight !== this.#lastInsightForEnhancedQuery;
+      this.#lastInsightForEnhancedQuery = focus.insight;
+
+      if (includeInsightInfo) {
+        selected.push(`User selected the ${focus.insight.insightKey} insight.\n\n`);
+      }
+    }
+
+    this.#additionalSelectionsForQuery = selected;
+    if (!selected.length) {
+      return query;
+    }
+
+    selected.push(`# User query\n\n${query}`);
+    return selected.join('');
+  }
+
+  override async * run(initialQuery: string, options: {
+    selected: PerformanceTraceContext|null,
+    signal?: AbortSignal,
+  }): AsyncGenerator<ResponseData, void, void> {
+    const focus = options.selected?.getItem();
+
+    // Clear any previous facts in case the user changed the active context.
+    this.clearFacts();
+    if (options.selected && focus) {
+      await this.#addFacts(options.selected);
+    }
+
+    yield* super.run(initialQuery, options);
+  }
+
+  #createFactForTraceSummary(): void {
+    if (!this.#formatter) {
+      return;
+    }
+
+    const text = this.#formatter.formatTraceSummary();
+    if (!text) {
+      return;
+    }
+
+    this.#traceFacts.push(
+        {text: `Trace summary:\n${text}`, metadata: {source: 'devtools', score: ScorePriority.REQUIRED}});
+  }
+
+  async #createFactForCriticalRequests(): Promise<void> {
+    if (!this.#formatter) {
+      return;
+    }
+
+    const text = await this.#formatter.formatCriticalRequests();
+    if (!text) {
+      return;
+    }
+
+    this.#traceFacts.push({
+      text,
+      metadata: {source: 'devtools', score: ScorePriority.CRITICAL},
+    });
+  }
+
+  async #createFactForMainThreadBottomUpSummary(): Promise<void> {
+    if (!this.#formatter) {
+      return;
+    }
+
+    const formatter = this.#formatter;
+    const text = await formatter.formatMainThreadBottomUpSummary();
+    if (!text) {
+      return;
+    }
+
+    this.#traceFacts.push({
+      text,
+      metadata: {source: 'devtools', score: ScorePriority.CRITICAL},
+    });
+  }
+
+  async #createFactForThirdPartySummary(): Promise<void> {
+    if (!this.#formatter) {
+      return;
+    }
+
+    const text = await this.#formatter.formatThirdPartySummary();
+    if (!text) {
+      return;
+    }
+
+    this.#traceFacts.push({
+      text,
+      metadata: {source: 'devtools', score: ScorePriority.CRITICAL},
+    });
+  }
+
+  async #createFactForLongestTasks(): Promise<void> {
+    if (!this.#formatter) {
+      return;
+    }
+
+    const text = await this.#formatter.formatLongestTasks();
+    if (!text) {
+      return;
+    }
+
+    this.#traceFacts.push({
+      text,
+      metadata: {source: 'devtools', score: ScorePriority.CRITICAL},
+    });
+  }
+
+  async #addFacts(context: PerformanceTraceContext): Promise<void> {
+    const focus = context.getItem();
+
+    if (!context.external) {
+      this.addFact(this.#notExternalExtraPreambleFact);
+    }
+
+    const annotationsEnabled = Annotations.AnnotationRepository.annotationsEnabled();
+    if (annotationsEnabled) {
+      this.addFact(this.#greenDevAnnotationsFact);
+    }
+
+    const isFresh = Tracing.FreshRecording.Tracker.instance().recordingIsFresh(focus.parsedTrace);
+    if (isFresh) {
+      this.addFact(this.#freshTraceExtraPreambleFact);
+      if (annotationsEnabled) {
+        this.addFact(this.#greenDevFreshTraceAnnotationsFact);
+      }
+    }
+
+    this.addFact(this.#callFrameDataDescriptionFact);
+    this.addFact(this.#networkDataDescriptionFact);
+
+    if (!this.#traceFacts.length) {
+      const target = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
+      if (!target) {
+        throw new Error('missing target');
+      }
+
+      this.#formatter = new PerformanceTraceFormatter(focus);
+      this.#formatter.resolveFunctionCode =
+          async (url: Platform.DevToolsPath.UrlString, line: number, column: number) => {
+        if (!target) {
+          return null;
+        }
+
+        return await SourceMapScopes.FunctionCodeResolver.getFunctionCodeFromLocation(
+            target, url, line, column, {contextLength: 200, contextLineLength: 5, appendProfileData: true});
+      };
+      this.#createFactForTraceSummary();
+      await this.#createFactForCriticalRequests();
+      await this.#createFactForMainThreadBottomUpSummary();
+      await this.#createFactForThirdPartySummary();
+      await this.#createFactForLongestTasks();
+    }
+
+    for (const fact of this.#traceFacts) {
+      this.addFact(fact);
+    }
+
+    const cachedFunctionCalls = this.#functionCallCacheForFocus.get(focus);
+    if (cachedFunctionCalls) {
+      for (const fact of Object.values(cachedFunctionCalls)) {
+        this.addFact(fact);
+      }
+    }
+  }
+
+  #cacheFunctionResult(focus: AgentFocus, key: string, result: string): void {
+    const fact: Host.AidaClient.RequestFact = {
+      text: `This is the result of calling ${key}:\n${result}`,
+      metadata: {source: key, score: ScorePriority.DEFAULT},
+    };
+    const cache = this.#functionCallCacheForFocus.get(focus) ?? {};
+    cache[key] = fact;
+    this.#functionCallCacheForFocus.set(focus, cache);
+  }
+
+  async #handleMainThreadTrackSummary(
+      bounds: Trace.Types.Timing.TraceWindowMicro,
+      focus: AgentFocus,
+      functionName: string,
+      cacheKey: string,
+      ): Promise<FunctionCallHandlerResult<{summary: string}>> {
+    const formatter = this.#formatter;
+    if (!formatter) {
+      throw new Error('missing formatter');
+    }
+    const summary = await formatter.formatMainThreadTrackSummary(bounds);
+    if (this.#isFunctionResponseTooLarge(summary)) {
+      return {
+        error:
+            `${functionName} response is too large. Try investigating using other functions, or a more narrow bounds`,
+      };
+    }
+
+    const byteCount = Platform.StringUtilities.countWtf8Bytes(summary);
+    Host.userMetrics.performanceAIMainThreadActivityResponseSize(byteCount);
+
+    this.#cacheFunctionResult(focus, cacheKey, summary);
+    const widgets: AiWidget[] = [];
+    widgets.push({
+      name: 'TIMELINE_RANGE_SUMMARY',
+      data: {
+        parsedTrace: focus.parsedTrace,
+        bounds,
+        track: 'main',
+      },
+    });
+
+    widgets.push({
+      name: 'BOTTOM_UP_TREE',
+      data: {
+        bounds,
+        parsedTrace: focus.parsedTrace,
+      },
+    });
+
+    return {
+      result: {summary},
+      widgets,
+    };
+  }
+
+  #declareFunctions(context: PerformanceTraceContext): void {
+    const focus = context.getItem();
+    const {parsedTrace} = focus;
+
+    this.declareFunction<{insightSetId: string, insightName: string}, {details: string}>('getInsightDetails', {
+      description:
+          'Returns detailed information about a specific insight of an insight set. Use this before commenting on any specific issue to get more information.',
+      parameters: {
+        type: Host.AidaClient.ParametersTypes.OBJECT,
+        description: '',
+        nullable: false,
+        properties: {
+          insightSetId: {
+            type: Host.AidaClient.ParametersTypes.STRING,
+            description:
+                'The id for the specific insight set. Only use the ids given in the "Available insight sets" list.',
+            nullable: false,
+          },
+          insightName: {
+            type: Host.AidaClient.ParametersTypes.STRING,
+            description: 'The name of the insight. Only use the insight names given in the "Available insights" list.',
+            nullable: false,
+          }
+        },
+        required: ['insightSetId', 'insightName']
+      },
+      displayInfoFromArgs: params => {
+        return {
+          title: lockedString(`Investigating insight ${params.insightName}`),
+          action: `getInsightDetails('${params.insightSetId}', '${params.insightName}')`
+        };
+      },
+      handler: async params => {
+        debugLog('Function call: getInsightDetails', params);
+        const insightSet = parsedTrace.insights?.get(params.insightSetId);
+        if (!insightSet) {
+          const valid = ([...parsedTrace.insights?.values() ?? []])
+                            .map(
+                                insightSet => `id: ${insightSet.id}, url: ${insightSet.url}, bounds: ${
+                                    this.#formatter?.serializeBounds(insightSet.bounds)}`)
+                            .join('; ');
+          return {error: `Invalid insight set id. Valid insight set ids are: ${valid}`};
+        }
+
+        const insight = insightSet.model[params.insightName as keyof Trace.Insights.Types.InsightModels];
+        if (!insight) {
+          const valid = Object.keys(insightSet.model).join(', ');
+          return {error: `No insight available. Valid insight names are: ${valid}`};
+        }
+
+        const details = new PerformanceInsightFormatter(focus, insight).formatInsight();
+
+        const widgets: AiWidget[] = [];
+        if (Trace.Insights.Models.LCPDiscovery.isLCPDiscoveryInsight(insight) ||
+            Trace.Insights.Models.LCPBreakdown.isLCPBreakdownInsight(insight)) {
+          const lcpMetric = Trace.Insights.Common.getLCP(insightSet);
+          const lcpEvent = lcpMetric?.event;
+          if (lcpEvent && Trace.Types.Events.isAnyLargestContentfulPaintCandidate(lcpEvent)) {
+            const nodeId = lcpEvent.args.data?.nodeId;
+            if (nodeId) {
+              const target = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
+              const domModel = target?.model(SDK.DOMModel.DOMModel);
+              if (domModel) {
+                const nodeMap = await domModel.pushNodesByBackendIdsToFrontend(new Set([nodeId]));
+                const node = nodeMap?.get(nodeId);
+                if (node) {
+                  const lcpSyntheticRequest = insight.lcpRequest;
+                  const [snapshot, imageContent] = await Promise.all([
+                    node.takeSnapshot(),
+                    lcpSyntheticRequest ? this.#getNetworkRequestImageData(lcpSyntheticRequest) :
+                                          Promise.resolve(undefined),
+                  ]);
+
+                  let networkRequest;
+                  if (lcpSyntheticRequest) {
+                    networkRequest = {
+                      url: lcpSyntheticRequest.args.data.url,
+                      size: lcpSyntheticRequest.args.data.decodedBodyLength ??
+                          lcpSyntheticRequest.args.data.encodedDataLength ?? 0,
+                      resourceType: lcpSyntheticRequest.args.data.resourceType,
+                      mimeType: lcpSyntheticRequest.args.data.mimeType ?? '',
+                      imageContent,
+                    };
+                  }
+                  widgets.push({
+                    name: 'DOM_TREE',
+                    data: {
+                      root: snapshot,
+                      networkRequest,
+                    },
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        const insightKey = params.insightName;
+        if (Trace.Insights.Common.isInsightKey(insightKey)) {
+          widgets.push({
+            name: 'PERF_INSIGHT',
+            data: {
+              insight: insightKey,
+              insightData: insight as Trace.Insights.Types.InsightModel,
+            },
+          });
+        }
+
+        const key = `getInsightDetails('${params.insightSetId}', '${params.insightName}')`;
+        this.#cacheFunctionResult(focus, key, details);
+        return {result: {details}, widgets};
+      },
+    });
+
+    this.declareFunction<{eventKey: string}, {details: string}>('getEventByKey', {
+      description:
+          'Returns detailed information about a specific event. Use the detail returned to validate performance issues, but do not tell the user about irrelevant raw data from a trace event.',
+      parameters: {
+        type: Host.AidaClient.ParametersTypes.OBJECT,
+        description: '',
+        nullable: false,
+        properties: {
+          eventKey: {
+            type: Host.AidaClient.ParametersTypes.STRING,
+            description: 'The key for the event.',
+            nullable: false,
+          }
+        },
+        required: ['eventKey']
+      },
+      displayInfoFromArgs: params => {
+        return {title: lockedString('Looking at trace event'), action: `getEventByKey('${params.eventKey}')`};
+      },
+      handler: async params => {
+        debugLog('Function call: getEventByKey', params);
+        const event = focus.lookupEvent(params.eventKey as Trace.Types.File.SerializableKey);
+        if (!event) {
+          return {error: 'Invalid eventKey'};
+        }
+
+        // TODO(b/425270067): Format in the same way that "Summary" detail tab does.
+        const details = JSON.stringify(event);
+
+        const key = `getEventByKey('${params.eventKey}')`;
+        this.#cacheFunctionResult(focus, key, details);
+        return {result: {details}};
+      },
+    });
+
+    const createBounds =
+        (min?: Trace.Types.Timing.Micro, max?: Trace.Types.Timing.Micro): Trace.Types.Timing.TraceWindowMicro|null => {
+          const {min: bMin, max: bMax} = parsedTrace.data.Meta.traceBounds;
+          const clampedMin = Math.max(min ?? bMin, bMin);
+          const clampedMax = Math.min(max ?? bMax, bMax);
+
+          if (clampedMin > clampedMax) {
+            return null;
+          }
+
+          return Trace.Helpers.Timing.traceWindowFromMicroSeconds(
+              clampedMin as Trace.Types.Timing.Micro, clampedMax as Trace.Types.Timing.Micro);
+        };
+
+    this.declareFunction<{label: MainThreadSectionLabel}, {summary: string}>('getMainThreadTrackSummaryByLabel', {
+      description:
+          'Returns a focused, detailed summary of the main thread for a predefined labeled period. Use this to get more relevant detail than the initial trace summary before diagnosing issues.',
+      parameters: {
+        type: Host.AidaClient.ParametersTypes.OBJECT,
+        description: '',
+        nullable: false,
+        properties: {
+          label: {
+            type: Host.AidaClient.ParametersTypes.STRING,
+            description:
+                'The label of the period to investigate (e.g., \'LCPBreakdown\', \'CLSCulprits\', \'nav-to-lcp\').',
+            nullable: false,
+          },
+        },
+        required: ['label']
+      },
+      displayInfoFromArgs: args => {
+        const labelName = getLabelName(args.label, focus);
+        return {
+          title: lockedString(`${UIStringsNotTranslated.mainThreadActivity}: ${labelName}`),
+          action: `getMainThreadTrackSummaryByLabel('${args.label}')`
+        };
+      },
+      handler: async args => {
+        debugLog('Function call: getMainThreadTrackSummaryByLabel');
+
+        const bounds = this.#getBoundsForLabel(args.label, focus);
+        if (!bounds) {
+          return {error: `Invalid label: ${args.label}`};
+        }
+
+        const key = `getMainThreadTrackSummaryByLabel('${args.label}')`;
+        return await this.#handleMainThreadTrackSummary(bounds, focus, 'getMainThreadTrackSummaryByLabel', key);
+      },
+    });
+
+    this.declareFunction<
+        {min?: Trace.Types.Timing.Micro, max?: Trace.Types.Timing.Micro}, {summary: string}>('getNetworkTrackSummary', {
+      description: 'Returns a summary of the network for the given bounds.',
+      parameters: {
+        type: Host.AidaClient.ParametersTypes.OBJECT,
+        description: '',
+        nullable: false,
+        properties: {
+          min: {
+            type: Host.AidaClient.ParametersTypes.INTEGER,
+            description: `The minimum time of the bounds, in microseconds (the current trace starts at ${
+                parsedTrace.data.Meta.traceBounds.min})`,
+            nullable: true,
+          },
+          max: {
+            type: Host.AidaClient.ParametersTypes.INTEGER,
+            description: `The maximum time of the bounds, in microseconds (the current trace ends at ${
+                parsedTrace.data.Meta.traceBounds.max})`,
+            nullable: true,
+          },
+        },
+        required: []
+      },
+      displayInfoFromArgs: args => {
+        const min = args.min ?? parsedTrace.data.Meta.traceBounds.min;
+        const max = args.max ?? parsedTrace.data.Meta.traceBounds.max;
+        return {
+          title: lockedString(UIStringsNotTranslated.networkActivitySummary),
+          action: `getNetworkTrackSummary({min: ${min}, max: ${max}})`
+        };
+      },
+      handler: async args => {
+        debugLog('Function call: getNetworkTrackSummary');
+
+        if (!this.#formatter) {
+          throw new Error('missing formatter');
+        }
+
+        const bounds = createBounds(args.min, args.max);
+        if (!bounds) {
+          return {error: 'invalid bounds'};
+        }
+
+        const summary = this.#formatter.formatNetworkTrackSummary(bounds);
+        if (this.#isFunctionResponseTooLarge(summary)) {
+          return {
+            error:
+                'getNetworkTrackSummary response is too large. Try investigating using other functions, or a more narrow bounds',
+          };
+        }
+
+        const byteCount = Platform.StringUtilities.countWtf8Bytes(summary);
+        Host.userMetrics.performanceAINetworkSummaryResponseSize(byteCount);
+
+        const key = `getNetworkTrackSummary({min: ${bounds.min}, max: ${bounds.max}})`;
+        this.#cacheFunctionResult(focus, key, summary);
+        return {
+          result: {summary},
+        };
+      },
+
+    });
+
+    this.declareFunction<{eventKey: string}, {callTree: string}>('getDetailedCallTree', {
+      description: 'Returns a detailed call tree for the given main thread event.',
+      parameters: {
+        type: Host.AidaClient.ParametersTypes.OBJECT,
+        description: '',
+        nullable: false,
+        properties: {
+          eventKey: {
+            type: Host.AidaClient.ParametersTypes.STRING,
+            description: 'The key for the event.',
+            nullable: false,
+          },
+        },
+        required: ['eventKey']
+      },
+      displayInfoFromArgs: args => {
+        return {title: lockedString('Looking at call tree'), action: `getDetailedCallTree('${args.eventKey}')`};
+      },
+      handler: async args => {
+        debugLog('Function call: getDetailedCallTree');
+
+        if (!this.#formatter) {
+          throw new Error('missing formatter');
+        }
+
+        const event = focus.lookupEvent(args.eventKey as Trace.Types.File.SerializableKey);
+        if (!event) {
+          return {error: 'Invalid eventKey'};
+        }
+
+        const tree = AICallTree.fromEvent(event, parsedTrace);
+        if (!tree) {
+          return {error: 'No call tree found'};
+        }
+
+        const formatter = this.#formatter;
+        const callTree = await formatter.formatCallTree(tree);
+
+        const key = `getDetailedCallTree(${args.eventKey})`;
+        this.#cacheFunctionResult(focus, key, callTree);
+
+        const {startTime, endTime} = Trace.Helpers.Timing.eventTimingsMicroSeconds(event);
+        const bounds = Trace.Helpers.Timing.traceWindowFromMicroSeconds(startTime, endTime);
+
+        const widgets: AiWidget[] = [
+          {
+            name: 'BOTTOM_UP_TREE',
+            data: {
+              bounds,
+              parsedTrace,
+            },
+          },
+          {
+            name: 'TIMELINE_RANGE_SUMMARY',
+            data: {
+              bounds,
+              parsedTrace,
+              track: 'main',
+            },
+          },
+        ];
+
+        return {result: {callTree}, widgets};
+      },
+
+    });
+
+    if (Annotations.AnnotationRepository.annotationsEnabled()) {
+      this.declareFunction<{
+        elementId: string,
+        annotationMessage: string,
+      }>('addElementAnnotation', {
+        description:
+            'Adds a visual annotation in the Elements panel, attached to a node with the specific UID provided. Use it to highlight nodes in the Elements panel and provide contextual suggestions to the user related to their queries.',
+        parameters: {
+          type: Host.AidaClient.ParametersTypes.OBJECT,
+          description: '',
+          nullable: false,
+          properties: {
+            elementId: {
+              type: Host.AidaClient.ParametersTypes.STRING,
+              description: 'The UID of the element to annotate.',
+              nullable: false,
+            },
+            annotationMessage: {
+              type: Host.AidaClient.ParametersTypes.STRING,
+              description: 'The message the annotation should show to the user.',
+              nullable: false,
+            },
+
+          },
+          required: ['elementId', 'annotationMessage']
+        },
+        handler: async params => {
+          return await this.addElementAnnotation(params.elementId, params.annotationMessage);
+        },
+      });
+
+      this.declareFunction<{
+        eventKey: string,
+        annotationMessage: string,
+      }>('addNetworkRequestAnnotation', {
+        description:
+            'Adds a visual annotation in the Network panel, attached to the request with the specific UID provided. ' +
+            'Use it to highlight requests in the Network panel and provide contextual suggestions to the user ' +
+            'related to their queries.',
+        parameters: {
+          type: Host.AidaClient.ParametersTypes.OBJECT,
+          description: '',
+          nullable: false,
+          properties: {
+            eventKey: {
+              type: Host.AidaClient.ParametersTypes.STRING,
+              description: 'The event key of the network request to annotate.',
+              nullable: false,
+            },
+            annotationMessage: {
+              type: Host.AidaClient.ParametersTypes.STRING,
+              description: 'The message the annotation should show to the user.',
+              nullable: false,
+            },
+          },
+          required: ['eventKey', 'annotationMessage']
+        },
+        handler: async params => {
+          return await this.addNetworkRequestAnnotation(params.eventKey, params.annotationMessage);
+        },
+      });
+    }
+
+    this.declareFunction<{scriptUrl: string, line: number, column: number}, {result: string}>('getFunctionCode', {
+      description:
+          'Returns the code for a function defined at the given location. The result is annotated with the runtime performance of each line of code.',
+      parameters: {
+        type: Host.AidaClient.ParametersTypes.OBJECT,
+        description: '',
+        nullable: false,
+        properties: {
+          scriptUrl: {
+            type: Host.AidaClient.ParametersTypes.STRING,
+            description: 'The url of the function.',
+            nullable: false,
+          },
+          line: {
+            type: Host.AidaClient.ParametersTypes.INTEGER,
+            description: 'The line number where the function is defined.',
+            nullable: false,
+          },
+          column: {
+            type: Host.AidaClient.ParametersTypes.INTEGER,
+            description: 'The column number where the function is defined.',
+            nullable: false,
+          },
+        },
+        required: ['scriptUrl', 'line', 'column']
+      },
+      displayInfoFromArgs: args => {
+        return {
+          title: lockedString('Looking up function code'),
+          action: `getFunctionCode('${args.scriptUrl}', ${args.line}, ${args.column})`
+        };
+      },
+      handler: async args => {
+        debugLog('Function call: getFunctionCode');
+
+        if (args.line === undefined) {
+          return {error: 'Missing arg: line'};
+        }
+
+        if (args.column === undefined) {
+          return {error: 'Missing arg: column'};
+        }
+
+        if (!this.#formatter) {
+          throw new Error('missing formatter');
+        }
+
+        const target = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
+        if (!target) {
+          throw new Error('missing target');
+        }
+
+        const url = args.scriptUrl as Platform.DevToolsPath.UrlString;
+        const code = await this.#formatter.resolveFunctionCodeAtLocation(url, args.line, args.column);
+        if (!code) {
+          return {error: 'Could not find code'};
+        }
+
+        const result = this.#formatter.formatFunctionCode(code);
+
+        const key = `getFunctionCode('${args.scriptUrl}', ${args.line}, ${args.column})`;
+        this.#cacheFunctionResult(focus, key, result);
+        return {result: {result}};
+      },
+    });
+
+    const isFresh = Tracing.FreshRecording.Tracker.instance().recordingIsFresh(parsedTrace);
+    const isTraceApp = Root.Runtime.Runtime.isTraceApp();
+
+    this.declareFunction<{url: string}, {content: string}>('getResourceContent', {
+      description:
+          'Returns the content of the resource with the given url. Only use this for text resource types. This function is helpful for getting script contents in order to further analyze main thread activity and suggest code improvements. When analyzing the main thread activity, always call this function to get more detail. Always call this function when asked to provide specifics about what is happening in the code. Never ask permission to call this function, just do it.',
+      parameters: {
+        type: Host.AidaClient.ParametersTypes.OBJECT,
+        description: '',
+        nullable: false,
+        properties: {
+          url: {
+            type: Host.AidaClient.ParametersTypes.STRING,
+            description: 'The url for the resource.',
+            nullable: false,
+          },
+        },
+        required: ['url']
+      },
+      displayInfoFromArgs: args => {
+        return {title: lockedString('Looking at resource content'), action: `getResourceContent('${args.url}')`};
+      },
+      handler: async args => {
+        debugLog('Function call: getResourceContent');
+
+        const url = args.url as Platform.DevToolsPath.UrlString;
+        let content: string|undefined;
+
+        // First check parsedTrace.data.Scripts.
+        // Then, check ResourceTreeModel, but only when it is valid. Don't want to
+        // use if viewing a loaded trace from DevTools attached to an unrelated
+        // page.
+        const script = parsedTrace.data.Scripts.scripts.find(script => script.url === url);
+        if (script?.content !== undefined) {
+          content = script.content;
+        } else if (isFresh || isTraceApp) {
+          const resource = SDK.ResourceTreeModel.ResourceTreeModel.resourceForURL(url);
+          if (!resource) {
+            return {error: 'Resource not found'};
+          }
+
+          const data = await resource.requestContentData();
+          if ('error' in data) {
+            return {error: `Could not get resource content: ${data.error}`};
+          }
+
+          content = data.text;
+        } else {
+          return {error: 'Resource not found'};
+        }
+
+        const key = `getResourceContent(${args.url})`;
+        this.#cacheFunctionResult(focus, key, content);
+        return {result: {content}};
+      },
+    });
+
+    if (!context.external) {
+      this.declareFunction<{eventKey: string}, {success: boolean}>('selectEventByKey', {
+        description:
+            'Selects the event in the flamechart for the user. If the user asks to show them something, it\'s likely a good idea to call this function.',
+        parameters: {
+          type: Host.AidaClient.ParametersTypes.OBJECT,
+          description: '',
+          nullable: false,
+          properties: {
+            eventKey: {
+              type: Host.AidaClient.ParametersTypes.STRING,
+              description: 'The key for the event.',
+              nullable: false,
+            }
+          },
+          required: ['eventKey']
+        },
+        displayInfoFromArgs: params => {
+          return {title: lockedString('Selecting event'), action: `selectEventByKey('${params.eventKey}')`};
+        },
+        handler: async params => {
+          debugLog('Function call: selectEventByKey', params);
+          const event = focus.lookupEvent(params.eventKey as Trace.Types.File.SerializableKey);
+          if (!event) {
+            return {error: 'Invalid eventKey'};
+          }
+
+          const revealable = new SDK.TraceObject.RevealableEvent(event);
+          await Common.Revealer.reveal(revealable);
+          return {result: {success: true}};
+        },
+      });
+    }
+  }
+
+  #getBoundsForLabel(label: MainThreadSectionLabel, focus: AgentFocus): Trace.Types.Timing.TraceWindowMicro|null {
+    const {parsedTrace} = focus;
+    const insightSet = focus.primaryInsightSet;
+
+    if (label === 'nav-to-lcp') {
+      if (insightSet) {
+        const lcp = Trace.Insights.Common.getLCP(insightSet);
+        if (lcp) {
+          return Trace.Helpers.Timing.traceWindowFromMicroSeconds(
+              insightSet.bounds.min, lcp.event.ts as Trace.Types.Timing.Micro);
+        }
+      }
+      return null;
+    }
+
+    if (label === 'lcp-ttfb') {
+      if (insightSet) {
+        const subparts = insightSet.model.LCPBreakdown?.subparts;
+        if (subparts?.ttfb) {
+          return subparts.ttfb;
+        }
+      }
+      return null;
+    }
+
+    if (label === 'lcp-render-delay') {
+      if (insightSet) {
+        const subparts = insightSet.model.LCPBreakdown?.subparts;
+        if (subparts?.renderDelay) {
+          return subparts.renderDelay;
+        }
+      }
+      return null;
+    }
+
+    if (label === 'trace-bounds') {
+      return parsedTrace.data.Meta.traceBounds;
+    }
+
+    const insightSetById = parsedTrace.insights?.get(label as Trace.Types.Events.NavigationId);
+    if (insightSetById) {
+      return insightSetById.bounds;
+    }
+
+    if (insightSet) {
+      const model = insightSet.model[label as keyof Trace.Insights.Types.InsightModels];
+      if (model) {
+        return Trace.Insights.Common.insightBounds(model, insightSet.bounds);
+      }
+    }
+
+    for (const is of parsedTrace.insights?.values() ?? []) {
+      const model = is.model[label as keyof Trace.Insights.Types.InsightModels];
+      if (model) {
+        return Trace.Insights.Common.insightBounds(model, is.bounds);
+      }
+    }
+
+    return null;
+  }
+
+  async addElementAnnotation(elementId: string, annotationMessage: string):
+      Promise<FunctionCallHandlerResult<unknown>> {
+    if (!Annotations.AnnotationRepository.annotationsEnabled()) {
+      console.warn('Received agent request to add element annotation with annotations disabled');
+      return {error: 'Annotations are not currently enabled'};
+    }
+
+    // eslint-disable-next-line no-console
+    console.log(`AI AGENT EVENT: Performance Agent adding annotation for element ${elementId}: '${annotationMessage}'`);
+    Annotations.AnnotationRepository.instance().addElementsAnnotation(annotationMessage, elementId);
+    return {result: {success: true}};
+  }
+
+  async addNetworkRequestAnnotation(eventKey: string, annotationMessage: string):
+      Promise<FunctionCallHandlerResult<unknown>> {
+    if (!Annotations.AnnotationRepository.annotationsEnabled()) {
+      console.warn('Received agent request to add network request annotation with annotations disabled');
+      return {error: 'Annotations are not currently enabled'};
+    }
+
+    // eslint-disable-next-line no-console
+    console.log(
+        `AI AGENT EVENT: Performance Agent adding annotation for network request ${eventKey}: '${annotationMessage}'`);
+
+    let requestId = undefined;
+    const focus = this.context?.getItem();
+    if (focus) {
+      const event = focus.lookupEvent(eventKey as Trace.Types.File.SerializableKey);
+      if (event && Trace.Types.Events.isSyntheticNetworkRequest(event)) {
+        requestId = event.args.data.requestId;
+      }
+    }
+
+    if (!requestId) {
+      console.warn('Unable to lookup requestId for request with event key', eventKey);
+    }
+
+    Annotations.AnnotationRepository.instance().addNetworkRequestAnnotation(annotationMessage, requestId);
+    return {result: {success: true}};
+  }
+
+  async #getNetworkRequestImageData(lcpRequest: Trace.Types.Events.SyntheticNetworkRequest):
+      Promise<TextUtils.ContentData.ContentData|undefined> {
+    const target = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
+    const networkManager = target?.model(SDK.NetworkManager.NetworkManager);
+    if (!target || !networkManager) {
+      return undefined;
+    }
+
+    const networkLog = Logs.NetworkLog.NetworkLog.instance();
+    const requestId = lcpRequest.args.data.requestId;
+    const sdkRequest = networkLog.requestByManagerAndId(networkManager, requestId);
+
+    if (sdkRequest?.contentType().isImage()) {
+      const contentData = await sdkRequest.requestContentData();
+      if (!TextUtils.ContentData.ContentData.isError(contentData)) {
+        return contentData;
+      }
+    }
+    return undefined;
   }
 }

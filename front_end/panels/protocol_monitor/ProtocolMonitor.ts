@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,20 +14,18 @@ import * as Bindings from '../../models/bindings/bindings.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
 import * as Buttons from '../../ui/components/buttons/buttons.js';
 import * as SourceFrame from '../../ui/legacy/components/source_frame/source_frame.js';
-// eslint-disable-next-line rulesdir/es-modules-import
-import inspectorCommonStyles from '../../ui/legacy/inspectorCommon.css.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import {Directives, html, render} from '../../ui/lit/lit.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
-import {Events as JSONEditorEvents, JSONEditor, type Parameter} from './JSONEditor.js';
+import {JSONEditor, type Parameter} from './JSONEditor.js';
 import protocolMonitorStyles from './protocolMonitor.css.js';
 
 const {styleMap} = Directives;
-const {widgetConfig, widgetRef} = UI.Widget;
+const {widget, widgetRef} = UI.Widget;
 const UIStrings = {
   /**
-   *@description Text for one or a group of functions
+   * @description Text for one or a group of functions
    */
   method: 'Method',
   /**
@@ -41,65 +39,65 @@ const UIStrings = {
    */
   request: 'Request',
   /**
-   *@description Title of a cell content in protocol monitor. A Network response refers to the act of acknowledging a
-  network request. Should not be confused with answer.
+   * @description Title of a cell content in protocol monitor. A Network response refers to the act of acknowledging a
+   * network request. Should not be confused with answer.
    */
   response: 'Response',
   /**
-   *@description Text for timestamps of items
+   * @description Text for timestamps of items
    */
   timestamp: 'Timestamp',
   /**
-   *@description Title of a cell content in protocol monitor. It describes the time between sending a request and receiving a response.
+   * @description Title of a cell content in protocol monitor. It describes the time between sending a request and receiving a response.
    */
   elapsedTime: 'Elapsed time',
   /**
-   *@description Text in Protocol Monitor of the Protocol Monitor tab
+   * @description Text in Protocol Monitor of the Protocol Monitor tab
    */
   target: 'Target',
   /**
-   *@description Text to record a series of actions for analysis
+   * @description Text to record a series of actions for analysis
    */
   record: 'Record',
   /**
-   *@description Text to clear everything
+   * @description Text to clear everything
    */
   clearAll: 'Clear all',
   /**
-   *@description Text to filter result items
+   * @description Text to filter result items
    */
   filter: 'Filter',
   /**
-   *@description Text for the documentation of something
+   * @description Text for the documentation of something
    */
   documentation: 'Documentation',
   /**
-   *@description Text to open the CDP editor with the selected command
+   * @description Text to open the CDP editor with the selected command
    */
   editAndResend: 'Edit and resend',
   /**
-   *@description Cell text content in Protocol Monitor of the Protocol Monitor tab
-   *@example {30} PH1
+   * @description Cell text content in Protocol Monitor of the Protocol Monitor tab
+   * @example {30} PH1
    */
   sMs: '{PH1} ms',
   /**
-   *@description Text in Protocol Monitor of the Protocol Monitor tab
+   * @description Text in Protocol Monitor of the Protocol Monitor tab
    */
   noMessageSelected: 'No message selected',
   /**
-   *@description Text in Protocol Monitor of the Protocol Monitor tab if no message is selected
+   * @description Text in Protocol Monitor of the Protocol Monitor tab if no message is selected
    */
   selectAMessageToView: 'Select a message to see its details',
   /**
-   *@description Text in Protocol Monitor for the save button
+   * @description Text in Protocol Monitor for the save button
    */
   save: 'Save',
   /**
-   *@description Text in Protocol Monitor to describe the sessions column
+   * @description Text in Protocol Monitor to describe the sessions column
    */
   session: 'Session',
   /**
-   *@description A placeholder for an input in Protocol Monitor. The input accepts commands that are sent to the backend on Enter. CDP stands for Chrome DevTools Protocol.
+   * @description A placeholder for an input in Protocol Monitor. The input accepts commands that are sent to the backend on Enter. CDP stands for Chrome DevTools Protocol.
    */
   sendRawCDPCommand: 'Send a raw `CDP` command',
   /**
@@ -144,9 +142,9 @@ const enumsByName = ProtocolClient.InspectorBackend.inspectorBackend.enumMap as 
 export interface Message {
   id?: number;
   method: string;
-  error?: Object;
-  result?: Object;
-  params?: Object;
+  error?: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  params?: Record<string, unknown>;
   requestTime: number;
   elapsedTime?: number;
   sessionId?: string;
@@ -162,9 +160,7 @@ export interface LogMessage {
 
 export interface ProtocolDomain {
   readonly domain: string;
-  readonly metadata: {
-    [commandName: string]: {parameters: Parameter[], description: string, replyArgs: string[]},
-  };
+  readonly metadata: Record<string, {parameters: Parameter[], description: string, replyArgs: string[]}>;
 }
 
 export interface ViewInput {
@@ -176,17 +172,18 @@ export interface ViewInput {
   filterKeys: string[];
   filter: string;
   parseFilter: (filter: string) => TextUtils.TextUtils.ParsedFilter[];
-  onRecord: (e: Event) => void;
+  onRecord: (record: boolean) => void;
   onClear: () => void;
   onSave: () => void;
-  onSplitChange: (e: CustomEvent<string>) => void;
-  onSelect: (e: CustomEvent<HTMLElement|null>) => void;
-  onContextMenu: (e: CustomEvent<{menu: UI.ContextMenu.ContextMenu, element: HTMLElement}>) => void;
-  onFilterChanged: (e: CustomEvent<string>) => void;
-  onCommandChange: (e: CustomEvent<string>) => void;
-  onCommandSubmitted: (e: CustomEvent<string>) => void;
-  onTargetChange: (e: Event) => void;
-  onToggleSidebar: (e: Event) => void;
+  onSplitChange: (onlyMain: boolean) => void;
+  onSelect: (e: Message|undefined) => void;
+  onContextMenu: (message: Message, menu: UI.ContextMenu.ContextMenu) => void;
+  onFilterChanged: (filter: string) => void;
+  onCommandChange: (command: string) => void;
+  onCommandSubmitted: (input: string) => void;
+  onTargetChange: (targetId: string) => void;
+  onToggleSidebar: () => void;
+  onEditorSubmit: (command: string, parameters: Record<string, unknown>, targetId?: string) => void;
   targets: SDK.Target.Target[];
   selectedTargetId: string;
 }
@@ -200,14 +197,14 @@ export type View = (input: ViewInput, output: ViewOutput, target: HTMLElement) =
 export const DEFAULT_VIEW: View = (input, output, target) => {
   // clang-format off
     render(html`
-        <style>${inspectorCommonStyles.cssText}</style>
-        <style>${protocolMonitorStyles.cssText}</style>
+        <style>${UI.inspectorCommonStyles}</style>
+        <style>${protocolMonitorStyles}</style>
         <devtools-split-view name="protocol-monitor-split-container"
                              direction="column"
                              sidebar-initial-size="400"
                              sidebar-visibility=${input.sidebarVisible ? 'visible' : 'hidden'}
-                             @change=${input.onSplitChange}>
-          <div slot="main" class="vbox">
+                             @change=${(e: CustomEvent<string>) => input.onSplitChange(e.detail === 'OnlyMain')}>
+          <div slot="main" class="vbox protocol-monitor-main">
             <devtools-toolbar class="protocol-monitor-toolbar"
                                jslog=${VisualLogging.toolbar('top')}>
                <devtools-button title=${i18nString(UIStrings.record)}
@@ -217,22 +214,23 @@ export const DEFAULT_VIEW: View = (input, output, target) => {
                                 .variant=${Buttons.Button.Variant.ICON_TOGGLE}
                                 .toggleType=${Buttons.Button.ToggleType.RED}
                                 .toggled=${true}
-                                @click=${input.onRecord}></devtools-button>
+                                @click=${(e: Event) => input.onRecord((e.target as Buttons.Button.Button).toggled)}>
+               </devtools-button>
               <devtools-button title=${i18nString(UIStrings.clearAll)}
                                .iconName=${'clear'}
                                .variant=${Buttons.Button.Variant.TOOLBAR}
                                .jslogContext=${'protocol-monitor.clear-all'}
-                               @click=${input.onClear}></devtools-button>
+                               @click=${() => input.onClear()}></devtools-button>
               <devtools-button title=${i18nString(UIStrings.save)}
                                .iconName=${'download'}
                                .variant=${Buttons.Button.Variant.TOOLBAR}
                                .jslogContext=${'protocol-monitor.save'}
-                               @click=${input.onSave}></devtools-button>
+                               @click=${() => input.onSave()}></devtools-button>
               <devtools-toolbar-input type="filter"
                                       list="filter-suggestions"
                                       style="flex-grow: 1"
                                       value=${input.filter}
-                                      @change=${input.onFilterChanged}>
+                                      @change=${(e: CustomEvent<string>) => input.onFilterChanged(e.detail)}>
                 <datalist id="filter-suggestions">
                   ${input.filterKeys.map(key => html`
                         <option value=${key + ':'}></option>
@@ -240,36 +238,52 @@ export const DEFAULT_VIEW: View = (input, output, target) => {
                 </datalist>
               </devtools-toolbar-input>
             </devtools-toolbar>
-            <devtools-split-view direction="column" sidebar-position="second" name="protocol-monitor-panel-split" sidebar-initial-size="250">
+            <devtools-split-view direction="column" sidebar-position="second"
+                                 name="protocol-monitor-panel-split" sidebar-initial-size="250">
               <devtools-data-grid
                   striped
                   slot="main"
-                  @select=${input.onSelect}
-                  @contextmenu=${input.onContextMenu}
                   .filters=${input.parseFilter(input.filter)}>
                 <table>
                     <tr>
-                      <th id="type" sortable style="text-align: center" hideable weight="1">${i18nString(UIStrings.type)}</th>
-                      <th id="method" weight="5">${i18nString(UIStrings.method)}</th>
-                      <th id="request" hideable weight="5">${i18nString(UIStrings.request)}</th>
-                      <th id="response" hideable weight="5">${i18nString(UIStrings.response)}</th>
-                      <th id="elapsed-time" sortable hideable weight="2">${i18nString(UIStrings.elapsedTime)}</th>
-                      <th id="timestamp" sortable hideable weight="5">${i18nString(UIStrings.timestamp)}</th>
-                      <th id="target" sortable hideable weight="5">${i18nString(UIStrings.target)}</th>
-                      <th id="session" sortable hideable weight="5">${i18nString(UIStrings.session)}</th>
+                      <th id="type" sortable style="text-align: center" hideable weight="1">
+                        ${i18nString(UIStrings.type)}
+                      </th>
+                      <th id="method" weight="5">
+                        ${i18nString(UIStrings.method)}
+                      </th>
+                      <th id="request" hideable weight="5">
+                        ${i18nString(UIStrings.request)}
+                      </th>
+                      <th id="response" hideable weight="5">
+                        ${i18nString(UIStrings.response)}
+                      </th>
+                      <th id="elapsed-time" sortable hideable weight="2">
+                        ${i18nString(UIStrings.elapsedTime)}
+                      </th>
+                      <th id="timestamp" sortable hideable weight="5">
+                        ${i18nString(UIStrings.timestamp)}
+                      </th>
+                      <th id="target" sortable hideable weight="5">
+                        ${i18nString(UIStrings.target)}
+                      </th>
+                      <th id="session" sortable hideable weight="5">
+                        ${i18nString(UIStrings.session)}
+                      </th>
                     </tr>
                     ${
             input.messages.map(
-                (message, index) => html`
-                      <tr data-index=${index}
+                message => html`
+                      <tr @select=${() => input.onSelect(message)}
+                          @contextmenu=${(e: CustomEvent<UI.ContextMenu.ContextMenu>) => input.onContextMenu(message, e.detail)}
                           style="--override-data-grid-row-background-color: var(--sys-color-surface3)">
                         ${'id' in message ? html`
                           <td title="sent">
-                            <devtools-icon name="arrow-up-down" style="color: var(--icon-request-response); width: 16px; height: 16px;">
+                            <devtools-icon name="arrow-up-down" class="medium" style="color: var(--icon-request-response);">
                             </devtools-icon>
                           </td>` : html`
                           <td title="received">
-                            <devtools-icon name="arrow-down" style="color: var(--icon-request); width: 16px; height: 16px;">
+                            <devtools-icon name="arrow-down" class="medium" style="color: var(--icon-request);">
                             </devtools-icon>
                           </td>`}
                         <td>${message.method}</td>
@@ -290,7 +304,7 @@ export const DEFAULT_VIEW: View = (input, output, target) => {
                       </tr>`)}
                   </table>
               </devtools-data-grid>
-              <devtools-widget .widgetConfig=${widgetConfig(InfoWidget, {
+              <devtools-widget ${widget(InfoWidget, {
                     request: input.selectedMessage?.params,
                     response: input.selectedMessage?.result || input.selectedMessage?.error,
                     type: !input.selectedMessage           ? undefined :
@@ -306,7 +320,7 @@ export const DEFAULT_VIEW: View = (input, output, target) => {
                                .iconName=${input.sidebarVisible ? 'left-panel-close' : 'left-panel-open'}
                                .variant=${Buttons.Button.Variant.TOOLBAR}
                                .jslogContext=${'protocol-monitor.toggle-command-editor'}
-                               @click=${input.onToggleSidebar}></devtools-button>
+                               @click=${() => input.onToggleSidebar()}></devtools-button>
               </devtools-button>
               <devtools-toolbar-input id="command-input"
                                       style=${styleMap({
@@ -316,8 +330,8 @@ export const DEFAULT_VIEW: View = (input, output, target) => {
                                       list="command-input-suggestions"
                                       placeholder=${i18nString(UIStrings.sendRawCDPCommand)}
                                       title=${i18nString(UIStrings.sendRawCDPCommandExplanation)}
-                                      @change=${input.onCommandChange}
-                                      @submit=${input.onCommandSubmitted}>
+                                      @change=${(e: CustomEvent<string>) => input.onCommandChange(e.detail)}
+                                      @submit=${(e: CustomEvent<string>) => input.onCommandSubmitted(e.detail)}>
                 <datalist id="command-input-suggestions">
                   ${input.commandSuggestions.map(c => html`<option value=${c}></option>`)}
                 </datalist>
@@ -326,7 +340,7 @@ export const DEFAULT_VIEW: View = (input, output, target) => {
                       title=${i18nString(UIStrings.selectTarget)}
                       style=${styleMap({display: input.sidebarVisible ? 'none' : 'flex'})}
                       jslog=${VisualLogging.dropDown('target-selector').track({change: true})}
-                      @change=${input.onTargetChange}>
+                      @change=${(e: Event) => input.onTargetChange((e.target as HTMLSelectElement).value)}>
                 ${input.targets.map(target => html`
                   <option jslog=${VisualLogging.item('target').track({click: true})}
                           value=${target.id()} ?selected=${target.id() === input.selectedTargetId}>
@@ -336,17 +350,17 @@ export const DEFAULT_VIEW: View = (input, output, target) => {
             </devtools-toolbar>
           </div>
           <devtools-widget slot="sidebar"
-              .widgetConfig=${widgetConfig(JSONEditor, { metadataByCommand, typesByName, enumsByName})}
+              ${widget(JSONEditor, { metadataByCommand, typesByName, enumsByName})}
+              @submiteditor=${(e: CustomEvent) => input.onEditorSubmit(e.detail.command, e.detail.parameters, e.detail.targetId)}
               ${widgetRef(JSONEditor, e => {output.editorWidget = e;})}>
           </devtools-widget>
         </devtools-split-view>`,
-        target,
-        {host: input}
+        target
     );
   // clang-format on
 };
 
-export class ProtocolMonitorImpl extends UI.Panel.Panel {
+export class ProtocolMonitorImpl extends UI.Panel.Panel implements SDK.TargetManager.Observer {
   private started: boolean;
   private startTime: number;
   private readonly messageForId = new Map<number, Message>();
@@ -361,25 +375,31 @@ export class ProtocolMonitorImpl extends UI.Panel.Panel {
   #selectedMessage: Message|undefined;
   #filter = '';
   #editorWidget!: JSONEditor;
+  #targetsBySessionId = new Map<string, SDK.Target.Target>();
   constructor(view: View = DEFAULT_VIEW) {
     super('protocol-monitor', true);
     this.#view = view;
     this.started = false;
     this.startTime = 0;
-    this.contentElement.classList.add('protocol-monitor');
 
     this.#filterKeys = ['method', 'request', 'response', 'type', 'target', 'session'];
     this.filterParser = new TextUtils.TextUtils.FilterParser(this.#filterKeys);
 
     this.#selectedTargetId = 'main';
     this.performUpdate();
-    this.#editorWidget.addEventListener(JSONEditorEvents.SUBMIT_EDITOR, event => {
-      this.onCommandSend(event.data.command, event.data.parameters, event.data.targetId);
-    });
     SDK.TargetManager.TargetManager.instance().addEventListener(
         SDK.TargetManager.Events.AVAILABLE_TARGETS_CHANGED, () => {
           this.requestUpdate();
         });
+    SDK.TargetManager.TargetManager.instance().observeTargets(this);
+  }
+
+  targetAdded(target: SDK.Target.Target): void {
+    this.#targetsBySessionId.set(target.sessionId, target);
+  }
+
+  targetRemoved(target: SDK.Target.Target): void {
+    this.#targetsBySessionId.delete(target.sessionId);
   }
 
   #populateToolbarInput(): void {
@@ -404,8 +424,8 @@ export class ProtocolMonitorImpl extends UI.Panel.Panel {
       filterKeys: this.#filterKeys,
       filter: this.#filter,
       parseFilter: this.filterParser.parse.bind(this.filterParser),
-      onSplitChange: (e: CustomEvent<string>) => {
-        if (e.detail === 'OnlyMain') {
+      onSplitChange: (onlyMain: boolean) => {
+        if (onlyMain) {
           this.#populateToolbarInput();
           this.#sidebarVisible = false;
         } else {
@@ -415,8 +435,8 @@ export class ProtocolMonitorImpl extends UI.Panel.Panel {
         }
         this.requestUpdate();
       },
-      onRecord: (e: Event) => {
-        this.setRecording((e.target as Buttons.Button.Button).toggled);
+      onRecord: (recording: boolean) => {
+        this.setRecording(recording);
       },
       onClear: () => {
         this.#messages = [];
@@ -426,37 +446,32 @@ export class ProtocolMonitorImpl extends UI.Panel.Panel {
       onSave: () => {
         void this.saveAsFile();
       },
-      onSelect: (e: CustomEvent<HTMLElement|null>) => {
-        const index = parseInt(e.detail?.dataset?.index ?? '', 10);
-        this.#selectedMessage = !isNaN(index) ? this.#messages[index] : undefined;
+      onSelect: (message: Message|undefined) => {
+        this.#selectedMessage = message;
         this.requestUpdate();
       },
-      onContextMenu: (e: CustomEvent<{menu: UI.ContextMenu.ContextMenu, element: HTMLElement}>) => {
-        const message = this.#messages[parseInt(e.detail?.element?.dataset?.index || '', 10)];
-        if (message) {
-          this.#populateContextMenu(e.detail.menu, message);
-        }
+      onContextMenu: this.#populateContextMenu.bind(this),
+      onCommandChange: (command: string) => {
+        this.#command = command;
       },
-      onCommandChange: (e: CustomEvent<string>) => {
-        this.#command = e.detail;
-      },
-      onCommandSubmitted: (e: CustomEvent<string>) => {
-        this.#commandAutocompleteSuggestionProvider.addEntry(e.detail);
-        const {command, parameters} = parseCommandInput(e.detail);
+      onCommandSubmitted: (input: string) => {
+        this.#commandAutocompleteSuggestionProvider.addEntry(input);
+        const {command, parameters} = parseCommandInput(input);
         this.onCommandSend(command, parameters, this.#selectedTargetId);
       },
-      onFilterChanged: (e: CustomEvent<string>) => {
-        this.#filter = e.detail;
+      onFilterChanged: (filter: string) => {
+        this.#filter = filter;
         this.requestUpdate();
       },
-      onTargetChange: (e: Event) => {
-        if (e.target instanceof HTMLSelectElement) {
-          this.#selectedTargetId = e.target.value;
-        }
+      onTargetChange: (targetId: string) => {
+        this.#selectedTargetId = targetId;
       },
-      onToggleSidebar: (_e: Event) => {
+      onToggleSidebar: () => {
         this.#sidebarVisible = !this.#sidebarVisible;
         this.requestUpdate();
+      },
+      onEditorSubmit: (command: string, parameters: Record<string, unknown>, targetId?: string) => {
+        this.onCommandSend(command, parameters, targetId);
       },
       targets: SDK.TargetManager.TargetManager.instance().targets(),
       selectedTargetId: this.#selectedTargetId,
@@ -470,7 +485,7 @@ export class ProtocolMonitorImpl extends UI.Panel.Panel {
     this.#view(viewInput, viewOutput, this.contentElement);
   }
 
-  #populateContextMenu(menu: UI.ContextMenu.ContextMenu, message: Message): void {
+  #populateContextMenu(message: Message, menu: UI.ContextMenu.ContextMenu): void {
     /**
      * You can click the "Edit and resend" item in the context menu to be
      * taken to the CDP editor with the filled with the selected command.
@@ -479,7 +494,7 @@ export class ProtocolMonitorImpl extends UI.Panel.Panel {
       if (!this.#selectedMessage) {
         return;
       }
-      const parameters = this.#selectedMessage.params as {[x: string]: unknown};
+      const parameters = this.#selectedMessage.params as Record<string, unknown>;
       const targetId = this.#selectedMessage.target?.id() || '';
       const command = message.method;
       this.#command = JSON.stringify({command, parameters});
@@ -526,6 +541,7 @@ export class ProtocolMonitorImpl extends UI.Panel.Panel {
   }
 
   override wasShown(): void {
+    super.wasShown();
     if (this.started) {
       return;
     }
@@ -537,6 +553,7 @@ export class ProtocolMonitorImpl extends UI.Panel.Panel {
   private setRecording(recording: boolean): void {
     const test = ProtocolClient.InspectorBackend.test;
     if (recording) {
+      // @ts-expect-error
       test.onMessageSent = this.messageSent.bind(this);
       // @ts-expect-error
       test.onMessageReceived = this.messageReceived.bind(this);
@@ -546,7 +563,7 @@ export class ProtocolMonitorImpl extends UI.Panel.Panel {
     }
   }
 
-  private messageReceived(message: Message, target: ProtocolClient.InspectorBackend.TargetBase|null): void {
+  private messageReceived(message: Message): void {
     if ('id' in message && message.id) {
       const existingMessage = this.messageForId.get(message.id);
       if (!existingMessage) {
@@ -562,26 +579,28 @@ export class ProtocolMonitorImpl extends UI.Panel.Panel {
       return;
     }
 
+    const target = message.sessionId !== undefined ? this.#targetsBySessionId.get(message.sessionId) : undefined;
     this.#messages.push({
       method: message.method,
       sessionId: message.sessionId,
-      target: (target ?? undefined) as SDK.Target.Target | undefined,
+      target,
       requestTime: Date.now() - this.startTime,
-      result: message.params as Object,
+      result: message.params,
     });
 
     this.requestUpdate();
   }
 
   private messageSent(
-      message: {domain: string, method: string, params: Object, id: number, sessionId?: string},
-      target: ProtocolClient.InspectorBackend.TargetBase|null): void {
+      message: {domain: string, method: string, params: Record<string, unknown>, id: number, sessionId?: string}):
+      void {
+    const target = message.sessionId !== undefined ? this.#targetsBySessionId.get(message.sessionId) : undefined;
     const messageRecord = {
       method: message.method,
       params: message.params,
       id: message.id,
       sessionId: message.sessionId,
-      target: (target ?? undefined) as SDK.Target.Target | undefined,
+      target,
       requestTime: Date.now() - this.startTime,
     };
     this.#messages.push(messageRecord);
@@ -647,50 +666,71 @@ export class CommandAutocompleteSuggestionProvider {
   }
 }
 
-export class InfoWidget extends UI.Widget.VBox {
-  private readonly tabbedPane: UI.TabbedPane.TabbedPane;
-  request: {[x: string]: unknown}|undefined;
-  response: {[x: string]: unknown}|undefined;
+interface InfoWidgetViewInput {
+  request: Record<string, unknown>|undefined;
+  response: Record<string, unknown>|undefined;
   type: 'sent'|'received'|undefined;
   selectedTab: 'request'|'response'|undefined;
-  constructor(element: HTMLElement) {
-    super(undefined, undefined, element);
-    this.tabbedPane = new UI.TabbedPane.TabbedPane();
-    this.tabbedPane.appendTab('request', i18nString(UIStrings.request), new UI.Widget.Widget());
-    this.tabbedPane.appendTab('response', i18nString(UIStrings.response), new UI.Widget.Widget());
-    this.tabbedPane.show(this.contentElement);
-    this.tabbedPane.selectTab('response');
-    this.request = {};
+}
+
+type InfoWidgetView = (input: InfoWidgetViewInput, output: undefined, target: HTMLElement) => void;
+
+const INFO_WIDGET_VIEW: InfoWidgetView = (input, _output, target) => {
+  // clang-format off
+  render(html`
+    <devtools-tabbed-pane>${input.type === undefined ? html`
+      <devtools-widget
+          id="request" title=${i18nString(UIStrings.request)}
+          ?selected=${input.selectedTab === 'request'} disabled
+          ${widget(UI.EmptyWidget.EmptyWidget, {
+              header: i18nString(UIStrings.noMessageSelected),
+              text: i18nString(UIStrings.selectAMessageToView)})}>
+      </devtools-widget>
+      <devtools-widget
+          id="response" title=${i18nString(UIStrings.response)}
+          ?selected=${input.selectedTab === 'response'}
+          ${widget(UI.EmptyWidget.EmptyWidget, {
+              header: i18nString(UIStrings.noMessageSelected),
+              text: i18nString(UIStrings.selectAMessageToView)})}>
+      </devtools-widget>`: html`
+      <devtools-widget
+          id="request" title=${i18nString(UIStrings.request)}
+          ?selected=${input.selectedTab === 'request'} ?disabled=${input.type !== 'sent'}
+          ${widget(SourceFrame.JSONView.SearchableJsonView, {jsonObject: input.request})}>
+      </devtools-widget>
+      <devtools-widget
+          id="response" title=${i18nString(UIStrings.response)}
+          ?selected=${input.selectedTab === 'response'}
+          ${widget(SourceFrame.JSONView.SearchableJsonView, {jsonObject: input.response})}>
+      </devtools-widget>`}
+    </devtools-tabbed-pane>`, target);
+  // clang-format on
+};
+
+export class InfoWidget extends UI.Widget.VBox {
+  #view: InfoWidgetView;
+  request: Record<string, unknown>|undefined;
+  response: Record<string, unknown>|undefined;
+  type: 'sent'|'received'|undefined;
+  constructor(element: HTMLElement, view = INFO_WIDGET_VIEW) {
+    super(element);
+    this.#view = view;
+    this.requestUpdate();
   }
 
   override performUpdate(): void {
-    if (!this.request && !this.response) {
-      this.tabbedPane.changeTabView(
-          'request',
-          new UI.EmptyWidget.EmptyWidget(
-              i18nString(UIStrings.noMessageSelected), i18nString(UIStrings.selectAMessageToView)));
-      this.tabbedPane.changeTabView(
-          'response',
-          new UI.EmptyWidget.EmptyWidget(
-              i18nString(UIStrings.noMessageSelected), i18nString(UIStrings.selectAMessageToView)));
-      return;
-    }
-
-    const requestEnabled = this.type && this.type === 'sent';
-    this.tabbedPane.setTabEnabled('request', Boolean(requestEnabled));
-    if (!requestEnabled) {
-      this.tabbedPane.selectTab('response');
-    }
-
-    this.tabbedPane.changeTabView('request', SourceFrame.JSONView.JSONView.createViewSync(this.request || null));
-    this.tabbedPane.changeTabView('response', SourceFrame.JSONView.JSONView.createViewSync(this.response || null));
-    if (this.selectedTab) {
-      this.tabbedPane.selectTab(this.selectedTab);
-    }
+    this.#view(
+        {
+          request: this.request,
+          response: this.response,
+          type: this.type,
+          selectedTab: this.type !== 'sent' ? 'response' : undefined,
+        },
+        undefined, this.contentElement);
   }
 }
 
-export function parseCommandInput(input: string): {command: string, parameters: {[paramName: string]: unknown}} {
+export function parseCommandInput(input: string): {command: string, parameters: Record<string, unknown>} {
   // If input cannot be parsed as json, we assume it's the command name
   // for a command without parameters. Otherwise, we expect an object
   // with "command"/"method"/"cmd" and "parameters"/"params"/"args"/"arguments" attributes.

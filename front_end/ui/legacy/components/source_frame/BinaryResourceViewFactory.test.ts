@@ -1,11 +1,11 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../../../core/common/common.js';
 import * as Platform from '../../../../core/platform/platform.js';
 import * as TextUtils from '../../../../models/text_utils/text_utils.js';
-import {raf} from '../../../../testing/DOMHelpers.js';
+import {raf, renderElementIntoDOM} from '../../../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
 
 import * as SourceFrame from './source_frame.js';
@@ -56,11 +56,9 @@ describeWithEnvironment('BinaryResourceViewFactory', () => {
         streamingContent, urlString`http://example.com`, Common.ResourceType.resourceTypes.WebSocket);
 
     const utf8View = factory.createUtf8View();
-    utf8View.markAsRoot();
-    utf8View.show(document.body);
+    renderElementIntoDOM(utf8View, {allowMultipleChildren: true});
     const base64View = factory.createBase64View();
-    base64View.markAsRoot();
-    base64View.show(document.body);
+    renderElementIntoDOM(base64View, {allowMultipleChildren: true});
 
     await raf();
     assert.strictEqual(utf8View.textEditor.state.doc.toString(), 'sending this utf-8 string as a binary message...');

@@ -1,42 +1,47 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("../../../scripts/build/typescript/typescript.gni")
 
-node_ts_library("elements") {
+ts_e2e_library("elements") {
   sources = [
-    "accessibility-pane_test.ts",
-    "accessibility-tree_test.ts",
-    "add-view-transition-pseudo-styles_test.ts",
-    "adornment_test.ts",
-    "at-property-sections_test.ts",
-    "classes-pane_test.ts",
-    "color-picker_test.ts",
-    "computed-pane-properties_test.ts",
-    "css-hints_test.ts",
-    "element-breadcrumbs_test.ts",
-    "elements-tree_test.ts",
-    "filter-matched-styles_test.ts",
-    "flexbox-editor_test.ts",
-    "grid-editor_test.ts",
-    "layout-pane_test.ts",
-    "oopif-elements_test.ts",
-    "pseudo-states_test.ts",
-    "reveal-correct-node_test.ts",
-    "search-elements_test.ts",
-    "selection-after-delete_test.ts",
-    "shadowroot-styles_test.ts",
-    "sidebar-event-listeners-remove_test.ts",
-    "sidebar-event-listeners_test.ts",
-    "style-pane-properties_test.ts",
-    "styles-disable-inherited_test.ts",
-    "switch-panels-while-editing-as-html_test.ts",
-    "violating-element-and-attributes_test.ts",
+    "accessibility-pane.test.ts",
+    "accessibility-tree.test.ts",
+    "add-view-transition-pseudo-styles.test.ts",
+    "adopted-stylesheets.test.ts",
+    "adornment.test.ts",
+    "at-function-sections.test.ts",
+    "at-property-sections.test.ts",
+    "classes-pane.test.ts",
+    "color-picker.test.ts",
+    "computed-pane-properties.test.ts",
+    "css-hints.test.ts",
+    "dom-breakpoints.test.ts",
+    "element-breadcrumbs.test.ts",
+    "elements-tree.test.ts",
+    "filter-matched-styles.test.ts",
+    "flexbox-editor.test.ts",
+    "grid-editor.test.ts",
+    "grid-lanes-editor.test.ts",
+    "inspect-element.test.ts",
+    "layout-pane.test.ts",
+    "oopif-elements.test.ts",
+    "oopif-navigation.test.ts",
+    "prerender.test.ts",
+    "pseudo-states.test.ts",
+    "reveal-correct-node.test.ts",
+    "search-elements.test.ts",
+    "selection-after-delete.test.ts",
+    "shadowroot-styles.test.ts",
+    "sidebar-event-listeners.test.ts",
+    "style-pane-properties.test.ts",
+    "styles-disable-inherited.test.ts",
+    "switch-panels-while-editing-as-html.test.ts",
+    "violating-element-and-attributes.test.ts",
   ]
-
   deps = [
-    "../../shared",
     "../helpers",
+    "../shared",
   ]
 }

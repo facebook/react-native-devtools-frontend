@@ -9,15 +9,22 @@ exports.CdpBrowser = void 0;
 const Browser_js_1 = require("../api/Browser.js");
 const CDPSession_js_1 = require("../api/CDPSession.js");
 const BrowserContext_js_1 = require("./BrowserContext.js");
+const Extension_js_1 = require("./Extension.js");
 const Target_js_1 = require("./Target.js");
 const TargetManager_js_1 = require("./TargetManager.js");
 /**
  * @internal
  */
+function isDevToolsPageTarget(url) {
+    return url.startsWith('devtools://devtools/bundled/devtools_app.html');
+}
+/**
+ * @internal
+ */
 class CdpBrowser extends Browser_js_1.Browser {
     protocol = 'cdp';
-    static async _create(connection, contextIds, acceptInsecureCerts, defaultViewport, downloadBehavior, process, closeCallback, targetFilterCallback, isPageTargetCallback, waitForInitiallyDiscoveredTargets = true) {
-        const browser = new CdpBrowser(connection, contextIds, defaultViewport, process, closeCallback, targetFilterCallback, isPageTargetCallback, waitForInitiallyDiscoveredTargets);
+    static async _create(connection, contextIds, acceptInsecureCerts, defaultViewport, downloadBehavior, process, closeCallback, targetFilterCallback, isPageTargetCallback, waitForInitiallyDiscoveredTargets = true, networkEnabled = true, issuesEnabled = true, handleDevToolsAsPage = false, blockList) {
+        const browser = new CdpBrowser(connection, contextIds, defaultViewport, process, closeCallback, targetFilterCallback, isPageTargetCallback, waitForInitiallyDiscoveredTargets, networkEnabled, issuesEnabled, handleDevToolsAsPage, blockList);
         if (acceptInsecureCerts) {
             await connection.send('Security.setIgnoreCertificateErrors', {
                 ignore: true,
@@ -34,9 +41,15 @@ class CdpBrowser extends Browser_js_1.Browser {
     #isPageTargetCallback;
     #defaultContext;
     #contexts = new Map();
+    #networkEnabled = true;
+    #issuesEnabled = true;
     #targetManager;
-    constructor(connection, contextIds, defaultViewport, process, closeCallback, targetFilterCallback, isPageTargetCallback, waitForInitiallyDiscoveredTargets = true) {
+    #handleDevToolsAsPage = false;
+    #extensions = new Map();
+    constructor(connection, contextIds, defaultViewport, process, closeCallback, targetFilterCallback, isPageTargetCallback, waitForInitiallyDiscoveredTargets = true, networkEnabled = true, issuesEnabled = true, handleDevToolsAsPage = false, networkConditions) {
         super();
+        this.#networkEnabled = networkEnabled;
+        this.#issuesEnabled = issuesEnabled;
         this.#defaultViewport = defaultViewport;
         this.#process = process;
         this.#connection = connection;
@@ -46,8 +59,9 @@ class CdpBrowser extends Browser_js_1.Browser {
                 (() => {
                     return true;
                 });
+        this.#handleDevToolsAsPage = handleDevToolsAsPage;
         this.#setIsPageTargetCallback(isPageTargetCallback);
-        this.#targetManager = new TargetManager_js_1.TargetManager(connection, this.#createTarget, this.#targetFilterCallback, waitForInitiallyDiscoveredTargets);
+        this.#targetManager = new TargetManager_js_1.TargetManager(connection, this.#createTarget, this.#targetFilterCallback, waitForInitiallyDiscoveredTargets, networkConditions);
         this.#defaultContext = new BrowserContext_js_1.CdpBrowserContext(this.#connection, this);
         for (const contextId of contextIds) {
             this.#contexts.set(contextId, new BrowserContext_js_1.CdpBrowserContext(this.#connection, this, contextId));
@@ -86,7 +100,10 @@ class CdpBrowser extends Browser_js_1.Browser {
                 ((target) => {
                     return (target.type() === 'page' ||
                         target.type() === 'background_page' ||
-                        target.type() === 'webview');
+                        target.type() === 'webview' ||
+                        (this.#handleDevToolsAsPage &&
+                            target.type() === 'other' &&
+                            isDevToolsPageTarget(target.url())));
                 });
     }
     _getIsPageTargetCallback() {
@@ -132,7 +149,7 @@ class CdpBrowser extends Browser_js_1.Browser {
             return this.#connection._createSession(targetInfo, isAutoAttachEmulated);
         };
         const otherTarget = new Target_js_1.OtherTarget(targetInfo, session, context, this.#targetManager, createSession);
-        if (targetInfo.url?.startsWith('devtools://')) {
+        if (targetInfo.url && isDevToolsPageTarget(targetInfo.url)) {
             return new Target_js_1.DevToolsTarget(targetInfo, session, context, this.#targetManager, createSession, this.#defaultViewport ?? null);
         }
         if (this.#isPageTargetCallback(otherTarget)) {
@@ -172,13 +189,25 @@ class CdpBrowser extends Browser_js_1.Browser {
     wsEndpoint() {
         return this.#connection.url();
     }
-    async newPage() {
-        return await this.#defaultContext.newPage();
+    async newPage(options) {
+        return await this.#defaultContext.newPage(options);
     }
-    async _createPageInContext(contextId) {
+    async _createPageInContext(contextId, options) {
+        const hasTargets = this.targets().filter(t => {
+            return t.browserContext().id === contextId;
+        }).length > 0;
+        const windowBounds = options?.type === 'window' ? options.windowBounds : undefined;
         const { targetId } = await this.#connection.send('Target.createTarget', {
             url: 'about:blank',
             browserContextId: contextId || undefined,
+            left: windowBounds?.left,
+            top: windowBounds?.top,
+            width: windowBounds?.width,
+            height: windowBounds?.height,
+            windowState: windowBounds?.windowState,
+            // Works around crbug.com/454825274.
+            newWindow: hasTargets && options?.type === 'window' ? true : undefined,
+            background: options?.background,
         });
         const target = (await this.waitForTarget(t => {
             return t._targetId === targetId;
@@ -196,6 +225,86 @@ class CdpBrowser extends Browser_js_1.Browser {
             throw new Error(`Failed to create a page for context (id = ${contextId})`);
         }
         return page;
+    }
+    async _createDevToolsPage(pageTargetId) {
+        const openDevToolsResponse = await this.#connection.send('Target.openDevTools', {
+            targetId: pageTargetId,
+        });
+        const target = (await this.waitForTarget(t => {
+            return t._targetId === openDevToolsResponse.targetId;
+        }));
+        if (!target) {
+            throw new Error(`Missing target for DevTools page (id = ${pageTargetId})`);
+        }
+        const initialized = (await target._initializedDeferred.valueOrThrow()) ===
+            Target_js_1.InitializationStatus.SUCCESS;
+        if (!initialized) {
+            throw new Error(`Failed to create target for DevTools page (id = ${pageTargetId})`);
+        }
+        const page = await target.page();
+        if (!page) {
+            throw new Error(`Failed to create a DevTools Page for target (id = ${pageTargetId})`);
+        }
+        return page;
+    }
+    async _hasDevToolsTarget(pageTargetId) {
+        const response = await this.#connection.send('Target.getDevToolsTarget', {
+            targetId: pageTargetId,
+        });
+        return response.targetId;
+    }
+    async installExtension(path) {
+        const { id } = await this.#connection.send('Extensions.loadUnpacked', { path });
+        this.#extensions.delete(id);
+        return id;
+    }
+    async uninstallExtension(id) {
+        await this.#connection.send('Extensions.uninstall', { id });
+        // Currently sending the Extensions.uninstall command does not trigger
+        // the Target.targetDestroyed event for service workers. This causes
+        // flakiness in the extension tests.
+        // TODO(nroscino): Remove this once the event is correctly emitted.
+        const targetDestroyedPromises = [];
+        for (const [targetId, targetInfo] of this._targetManager()
+            .getDiscoveredTargetInfos()
+            .entries()) {
+            if (targetInfo.url.includes(id) && targetInfo.type === 'service_worker') {
+                this._targetManager().addToIgnoreTarget(targetId);
+                targetDestroyedPromises.push(new Promise(resolve => {
+                    return setTimeout(() => {
+                        this.#connection.emit('Target.targetDestroyed', {
+                            targetId: targetId,
+                        });
+                        resolve(null);
+                    }, 0);
+                }));
+            }
+        }
+        await Promise.all(targetDestroyedPromises);
+        this.#extensions.delete(id);
+    }
+    async screens() {
+        const { screenInfos } = await this.#connection.send('Emulation.getScreenInfos');
+        return screenInfos;
+    }
+    async addScreen(params) {
+        const { screenInfo } = await this.#connection.send('Emulation.addScreen', params);
+        return screenInfo;
+    }
+    async removeScreen(screenId) {
+        return await this.#connection.send('Emulation.removeScreen', { screenId });
+    }
+    async getWindowBounds(windowId) {
+        const { bounds } = await this.#connection.send('Browser.getWindowBounds', {
+            windowId: Number(windowId),
+        });
+        return bounds;
+    }
+    async setWindowBounds(windowId, windowBounds) {
+        await this.#connection.send('Browser.setWindowBounds', {
+            windowId: Number(windowId),
+            bounds: windowBounds,
+        });
     }
     targets() {
         return Array.from(this.#targetManager.getAvailableTargets().values()).filter(target => {
@@ -230,6 +339,12 @@ class CdpBrowser extends Browser_js_1.Browser {
         this._detach();
         return Promise.resolve();
     }
+    /**
+     * @internal
+     */
+    get _connection() {
+        return this.#connection;
+    }
     get connected() {
         return !this.#connection._closed;
     }
@@ -240,6 +355,27 @@ class CdpBrowser extends Browser_js_1.Browser {
         return {
             pendingProtocolErrors: this.#connection.getPendingProtocolErrors(),
         };
+    }
+    isNetworkEnabled() {
+        return this.#networkEnabled;
+    }
+    async extensions() {
+        const response = await this.#connection.send('Extensions.getExtensions');
+        const extensionsMap = new Map();
+        for (const currExtension of response.extensions) {
+            if (this.#extensions.has(currExtension.id)) {
+                extensionsMap.set(currExtension.id, this.#extensions.get(currExtension.id));
+            }
+            else {
+                const newExtension = new Extension_js_1.CdpExtension(currExtension.id, currExtension.version, currExtension.name, currExtension.path, currExtension.enabled, this);
+                extensionsMap.set(currExtension.id, newExtension);
+            }
+        }
+        this.#extensions = extensionsMap;
+        return this.#extensions;
+    }
+    isIssuesEnabled() {
+        return this.#issuesEnabled;
     }
 }
 exports.CdpBrowser = CdpBrowser;

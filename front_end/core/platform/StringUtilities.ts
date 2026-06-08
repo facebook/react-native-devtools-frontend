@@ -1,6 +1,8 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+import type {Brand} from './Brand.js';
 
 export const escapeCharacters = (inputString: string, charsToEscape: string): string => {
   let foundChar = false;
@@ -249,7 +251,7 @@ export const stripLineBreaks = (inputStr: string): string => {
 const EXTENDED_KEBAB_CASE_REGEXP = /^([a-z0-9]+(?:-[a-z0-9]+)*\.)*[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
- * Tests if the `inputStr` is following the extended Kebab Case naming convetion,
+ * Tests if the `inputStr` is following the extended Kebab Case naming convention,
  * where words are separated with either a dash (`-`) or a dot (`.`), and all
  * characters must be lower-case alphanumeric.
  *
@@ -257,7 +259,7 @@ const EXTENDED_KEBAB_CASE_REGEXP = /^([a-z0-9]+(?:-[a-z0-9]+)*\.)*[a-z0-9]+(?:-[
  * for `'Another.AmazingLiteral'` or '`another_amazing_literal'`.
  *
  * @param inputStr the input string to test.
- * @return `true` if the `inputStr` follows the extended Kebab Case convention.
+ * @returns `true` if the `inputStr` follows the extended Kebab Case convention.
  */
 export const isExtendedKebabCase = (inputStr: string): boolean => {
   return EXTENDED_KEBAB_CASE_REGEXP.test(inputStr);
@@ -274,6 +276,7 @@ export const removeURLFragment = (inputStr: string): string => {
 };
 
 const SPECIAL_REGEX_CHARACTERS = '^[]{}()\\.^$*+?|-,';
+const SPECIAL_URL_PATTERN_CHARACTERS = '?+*(){}\\:';
 
 export const regexSpecialCharacters = function(): string {
   return SPECIAL_REGEX_CHARACTERS;
@@ -355,36 +358,106 @@ export const compare = (a: string, b: string): number => {
   return 0;
 };
 
+/** Returns a string that has no more than maxLength characters. Actual graphemes are used, not bytes. */
 export const trimMiddle = (str: string, maxLength: number): string => {
+  // Early return for the case where there are fewer bytes than the character limit.
   if (str.length <= maxLength) {
-    return String(str);
+    return str;
   }
-  let leftHalf = maxLength >> 1;
-  let rightHalf = maxLength - leftHalf - 1;
-  if ((str.codePointAt(str.length - rightHalf - 1) as number) >= 0x10000) {
-    --rightHalf;
-    ++leftHalf;
+
+  const segmenter = new Intl.Segmenter(undefined, {granularity: 'grapheme'});
+
+  // If the max length is so small it can't fit the ellipsis, just return the ellipsis.
+  const ellipsis = '…';
+  const ellipsisLength = 1;
+  if (maxLength <= ellipsisLength) {
+    return ellipsis;
   }
-  if (leftHalf > 0 && (str.codePointAt(leftHalf - 1) as number) >= 0x10000) {
-    --leftHalf;
+
+  // Calculate how many graphemes to keep on each side.
+  const freeSpace = maxLength - ellipsisLength;
+  const leftCount = Math.ceil(freeSpace / 2);
+  const rightCount = Math.floor(freeSpace / 2);
+
+  let currentGraphemeCount = 0;
+  let leftEndIndex = 0;
+
+  // Sliding Window Buffer
+  // We need to know where the "Right Half" starts. Since we can't iterate backwards,
+  // we keep track of the start index of the last N graphemes we've seen.
+  const rightIndexBuffer: number[] = [];
+
+  // This function would be significantly simpler if we created an array of all the
+  // segments upfront, but could result in poor performance for large input strings.
+  for (const {segment, index} of segmenter.segment(str)) {
+    currentGraphemeCount++;
+
+    // Mark the byte index where the "Left Half" ends
+    if (currentGraphemeCount === leftCount) {
+      leftEndIndex = index + segment.length;
+    }
+
+    // Maintain the buffer for the "Right Half"
+    if (rightCount > 0) {
+      rightIndexBuffer.push(index);
+      if (rightIndexBuffer.length > rightCount) {
+        rightIndexBuffer.shift();  // Remove the oldest index to keep buffer size constant.
+      }
+    }
   }
-  return str.substr(0, leftHalf) + '…' + str.substr(str.length - rightHalf, rightHalf);
+
+  // If the total grapheme count didn't exceed the limit, return the original string.
+  if (currentGraphemeCount <= maxLength) {
+    return str;
+  }
+
+  // The first item in our buffer is exactly 'rightCount' graphemes away from the end.
+  const rightStartIndex = rightCount > 0 ? rightIndexBuffer[0] : str.length;
+  return str.slice(0, leftEndIndex) + ellipsis + str.slice(rightStartIndex);
 };
 
+/** Returns a string that has no more than maxLength characters. Actual graphemes are used, not bytes. */
 export const trimEndWithMaxLength = (str: string, maxLength: number): string => {
+  // Early return for the case where there are fewer bytes than the character limit.
   if (str.length <= maxLength) {
-    return String(str);
+    return str;
   }
-  return str.substr(0, maxLength - 1) + '…';
+
+  const ellipsis = '…';
+  const ellipsisLength = 1;
+  const segmenter = new Intl.Segmenter(undefined, {granularity: 'grapheme'});
+  const iterator = segmenter.segment(str)[Symbol.iterator]();
+
+  let lastSegmentIndex = 0;
+  for (let i = 0; i <= maxLength - ellipsisLength; i++) {
+    const result = iterator.next();
+    if (result.done) {
+      return str;
+    }
+
+    lastSegmentIndex = result.value.index;
+  }
+
+  for (let i = 0; i < ellipsisLength; i++) {
+    if (iterator.next().done) {
+      return str;
+    }
+  }
+
+  return str.slice(0, lastSegmentIndex) + ellipsis;
 };
 
 export const escapeForRegExp = (str: string): string => {
   return escapeCharacters(str, SPECIAL_REGEX_CHARACTERS);
 };
 
+export const escapeForURLPattern = (text: string): string => {
+  return escapeCharacters(text, SPECIAL_URL_PATTERN_CHARACTERS);
+};
+
 export const naturalOrderComparator = (a: string, b: string): number => {
   const chunk = /^\d+|^\D+/;
-  let chunka, chunkb, anum, bnum;
+  let chunkA, chunkB, numA, numB;
   while (true) {
     if (a) {
       if (!b) {
@@ -396,32 +469,32 @@ export const naturalOrderComparator = (a: string, b: string): number => {
       }
       return 0;
     }
-    chunka = (a.match(chunk) as string[])[0];
-    chunkb = (b.match(chunk) as string[])[0];
-    anum = !Number.isNaN(Number(chunka));
-    bnum = !Number.isNaN(Number(chunkb));
-    if (anum && !bnum) {
+    chunkA = (a.match(chunk) as string[])[0];
+    chunkB = (b.match(chunk) as string[])[0];
+    numA = !Number.isNaN(Number(chunkA));
+    numB = !Number.isNaN(Number(chunkB));
+    if (numA && !numB) {
       return -1;
     }
-    if (bnum && !anum) {
+    if (numB && !numA) {
       return 1;
     }
-    if (anum && bnum) {
-      const diff = Number(chunka) - Number(chunkb);
+    if (numA && numB) {
+      const diff = Number(chunkA) - Number(chunkB);
       if (diff) {
         return diff;
       }
-      if (chunka.length !== chunkb.length) {
-        if (!Number(chunka) && !Number(chunkb)) {  // chunks are strings of all 0s (special case)
-          return chunka.length - chunkb.length;
+      if (chunkA.length !== chunkB.length) {
+        if (!Number(chunkA) && !Number(chunkB)) {  // chunks are strings of all 0s (special case)
+          return chunkA.length - chunkB.length;
         }
-        return chunkb.length - chunka.length;
+        return chunkB.length - chunkA.length;
       }
-    } else if (chunka !== chunkb) {
-      return (chunka < chunkb) ? -1 : 1;
+    } else if (chunkA !== chunkB) {
+      return (chunkA < chunkB) ? -1 : 1;
     }
-    a = a.substring(chunka.length);
-    b = b.substring(chunkb.length);
+    a = a.substring(chunkA.length);
+    b = b.substring(chunkB.length);
   }
 };
 
@@ -463,8 +536,12 @@ export const findUnclosedCssQuote = function(str: string): string {
 };
 
 export const countUnmatchedLeftParentheses = (str: string): number => {
+  const stringLiteralRegex = /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"/g;
+  // Remove all matched string literals from the original string.
+  const strWithoutStrings = str.replace(stringLiteralRegex, '');
+
   let unmatchedCount = 0;
-  for (const c of str) {
+  for (const c of strWithoutStrings) {
     if (c === '(') {
       unmatchedCount++;
     } else if (c === ')' && unmatchedCount > 0) {
@@ -487,49 +564,70 @@ export const createPlainTextSearchRegex = function(query: string, flags?: string
   return new RegExp(regex, flags || '');
 };
 
-class LowerCaseStringTag {
-  private lowerCaseStringTag: (string|undefined);
-}
-
-export type LowerCaseString = string&LowerCaseStringTag;
+export type LowerCaseString = Brand<string, 'lowerCaseStringTag'>;
 
 export const toLowerCaseString = function(input: string): LowerCaseString {
   return input.toLowerCase() as LowerCaseString;
 };
 
+/**
+ * 1: two or more consecutive uppercase letters. This is useful for identifying acronyms
+ * 2: lookahead assertion that matches a word boundary
+ * 3: numeronym: single letter followed by number and another letter
+ * 4: word starting with an optional uppercase letter
+ * 5: single digit followed by word to handle '3D' or '2px' (this might be controverial)
+ * 6: single uppercase letter or number
+ * 7: a dot character. We extract it into a separate word and remove dashes around it later.
+ * This is makes more sense conceptually and allows accounting for all possible word variants.
+ * Making dot a part of a word prevent us from handling acronyms or numeronyms after the word
+ * correctly without making the RegExp prohibitively complicated.
+ * https://regex101.com/r/FhMVKc/1
+ *            <---1---><------------2-----------> <---------3--------> <-----4----> <------5-----> <-----6----> <7>
+ */
 const WORD = /[A-Z]{2,}(?=[A-Z0-9][a-z0-9]+|\b|_)|[A-Za-z][0-9]+[a-z]?|[A-Z]?[a-z]+|[0-9][A-Za-z]+|[A-Z]|[0-9]+|[.]/g;
-//            <---1---><------------2-----------> <---------3--------> <-----4----> <------5-----> <-----6----> <7>
-// 1: two or more consecutive uppercase letters. This is useful for identifying acronyms
-// 2: lookahead assertion that matches a word boundary
-// 3: numeronym: single letter followed by number and another letter
-// 4: word starting with an optional uppercase letter
-// 5: single digit followed by word to handle '3D' or '2px' (this might be controverial)
-// 6: single uppercase letter or number
-// 7: a dot character. We extract it into a separate word and remove dashes around it later.
-//    This is makes more sense conceptually and allows accounting for all possible word variants.
-//    Making dot a part of a word prevent us from handling acronyms or numeronyms after the word
-//    correctly without making the RegExp prohibitively complicated.
-// https://regex101.com/r/FhMVKc/1
+
 export const toKebabCase = function(input: string): Lowercase<string> {
   return (input.match?.(WORD)?.map(w => w.toLowerCase()).join('-').replaceAll('-.-', '.') || input) as
       Lowercase<string>;
 };
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-export function toKebabCaseKeys(settingValue: {
-  [x: string]: any,
-}): {[x: string]: any} {
-  const result: {
-    [x: string]: any,
-  } = {};
-  for (const [key, value] of Object.entries(settingValue)) {
-    result[toKebabCase(key)] = value;
+export function toKebabCaseKeys<T>(settingValue: Record<string, T>): Record<string, T> {
+  return Object.fromEntries(Object.entries(settingValue).map(([key, value]) => [toKebabCase(key), value]));
+}
+
+/**
+ * Converts a given string to snake_case.
+ * This function handles camelCase, PascalCase, and acronyms, including transitions between letters and numbers.
+ * It uses Unicode-aware regular expressions (`\p{L}`, `\p{N}`, `\p{Lu}`, `\p{Ll}` with the `u` flag)
+ * to correctly process letters and numbers from various languages.
+ *
+ * @param text The input string to convert to snake_case.
+ * @returns The snake_case version of the input string.
+ */
+export function toSnakeCase(text: string): string {
+  if (!text) {
+    return '';
   }
+  // First, handle case-based transformations to insert underscores correctly.
+  // 1. Add underscore between a letter and a number.
+  //    e.g., "version2" -> "version_2"
+  // 2. Add underscore between an uppercase letter sequence and a following uppercase+lowercase sequence.
+  //    e.g., "APIFlags" -> "API_Flags"
+  // 3. Add underscore between a lowercase/number and an uppercase letter.
+  //    e.g., "lastName" -> "last_Name", "version_2Update" -> "version_2_Update"
+  // 4. Replace sequences of non-alphanumeric with a single underscore
+  // 5. Remove any leading or trailing underscores.
+  const result = text.replace(/(\p{L})(\p{N})/gu, '$1_$2')           // 1
+                     .replace(/(\p{Lu}+)(\p{Lu}\p{Ll})/gu, '$1_$2')  // 2
+                     .replace(/(\p{Ll}|\p{N})(\p{Lu})/gu, '$1_$2')   // 3
+                     .toLowerCase()
+                     .replace(/[^\p{L}\p{N}]+/gu, '_')  // 4
+                     .replace(/^_|_$/g, '');            // 5
+
   return result;
 }
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
-// Replaces the last ocurrence of parameter `search` with parameter `replacement` in `input`
+/** Replaces the last occurrence of parameter `search` with parameter `replacement` in `input` **/
 export const replaceLast = function(input: string, search: string, replacement: string): string {
   const replacementStartIndex = input.lastIndexOf(search);
   if (replacementStartIndex === -1) {
@@ -557,5 +655,5 @@ export const concatBase64 = function(lhs: string, rhs: string): string {
   }
   const lhsLeaveAsIs = lhs.substring(0, lhs.length - 4);
   const lhsToDecode = lhs.substring(lhs.length - 4);
-  return lhsLeaveAsIs + window.btoa(window.atob(lhsToDecode) + window.atob(rhs));
+  return lhsLeaveAsIs + globalThis.btoa(globalThis.atob(lhsToDecode) + globalThis.atob(rhs));
 };

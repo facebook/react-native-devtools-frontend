@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -64,10 +64,14 @@ function getLocaleFetchUrl(locale: Intl.UnicodeBCP47LocaleIdentifier, location: 
  * fetched locally or remotely.
  */
 export async function fetchAndRegisterLocaleData(
-    locale: Intl.UnicodeBCP47LocaleIdentifier, location = self.location.toString()): Promise<void> {
-  const localeDataTextPromise = fetch(getLocaleFetchUrl(locale, location)).then(result => result.json());
-  const timeoutPromise =
-      new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error('timed out fetching locale')), 5000));
+    locale: Intl.UnicodeBCP47LocaleIdentifier,
+    // Type issue with universal types.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    location = (globalThis as any).location?.toString() ?? ''): Promise<void> {
+  const localeDataTextPromise =
+      fetch(getLocaleFetchUrl(locale, location)).then(result => result.json()) as Promise<I18n.I18n.LocalizedMessages>;
+  const timeoutPromise = new Promise<never>(
+      (_, reject) => globalThis.setTimeout(() => reject(new Error('timed out fetching locale')), 5000));
   const localeData = await Promise.race([timeoutPromise, localeDataTextPromise]);
   i18nInstance.registerLocaleData(locale, localeData);
 }
@@ -78,6 +82,11 @@ export function hasLocaleDataForTest(locale: Intl.UnicodeBCP47LocaleIdentifier):
 
 export function resetLocaleDataForTest(): void {
   i18nInstance.resetLocaleDataForTest();
+}
+
+export function registerLocaleDataForTest(
+    locale: Intl.UnicodeBCP47LocaleIdentifier, messages: I18n.I18n.LocalizedMessages): void {
+  i18nInstance.registerLocaleData(locale, messages);
 }
 
 /**
@@ -107,31 +116,8 @@ export function getLocalizedString(
  * Register a file's UIStrings with i18n, return function to generate the string ids.
  */
 export function registerUIStrings(
-    path: string, stringStructure: {[key: string]: string}): I18n.LocalizedStringSet.RegisteredFileStrings {
+    path: string, stringStructure: Record<string, string>): I18n.LocalizedStringSet.RegisteredFileStrings {
   return i18nInstance.registerFileStrings(path, stringStructure);
-}
-
-/**
- * Returns a span element that may contains other DOM element as placeholders
- */
-export function getFormatLocalizedString(
-    registeredStrings: I18n.LocalizedStringSet.RegisteredFileStrings, stringId: string,
-    placeholders: Record<string, Object>): HTMLSpanElement {
-  const formatter =
-      registeredStrings.getLocalizedStringSetFor(DevToolsLocale.instance().locale).getMessageFormatterFor(stringId);
-
-  const element = document.createElement('span');
-  for (const icuElement of formatter.getAst()) {
-    if (icuElement.type === /* argumentElement */ 1) {
-      const placeholderValue = placeholders[icuElement.value];
-      if (placeholderValue) {
-        element.append(placeholderValue as Node | string);
-      }
-    } else if ('value' in icuElement) {
-      element.append(String(icuElement.value));
-    }
-  }
-  return element;
 }
 
 export function serializeUIString(string: string, values: Record<string, Object> = {}): string {

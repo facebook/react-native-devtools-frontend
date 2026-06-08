@@ -1,22 +1,24 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import type * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
-import {describeWithLocale} from '../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../testing/LocaleHelpers.js';
 import {MockIssuesModel} from '../../testing/MockIssuesModel.js';
 import * as IssuesManager from '../issues_manager/issues_manager.js';
 
-function createProtocolIssue(sriMessageSignatureIssueDetails: Protocol.Audits.SRIMessageSignatureIssueDetails):
-    Protocol.Audits.InspectorIssue {
-  return {
-    code: Protocol.Audits.InspectorIssueCode.SRIMessageSignatureIssue,
-    details: {sriMessageSignatureIssueDetails},
-  };
-}
+describe('SRIMessageSignatureIssue', () => {
+  setupLocaleHooks();
 
-describeWithLocale('SRIMessageSignatureIssue', () => {
+  function createProtocolIssue(sriMessageSignatureIssueDetails: Protocol.Audits.SRIMessageSignatureIssueDetails):
+      Protocol.Audits.InspectorIssue {
+    return {
+      code: Protocol.Audits.InspectorIssueCode.SRIMessageSignatureIssue,
+      details: {sriMessageSignatureIssueDetails},
+    };
+  }
+
   const mockModel = new MockIssuesModel([]) as unknown as SDK.IssuesModel.IssuesModel;
 
   it('can be created for various error reasons', () => {

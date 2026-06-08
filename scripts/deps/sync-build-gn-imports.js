@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,12 +10,14 @@
  *
  * The script is non recursive.
  *
- * You can also execute the tests: `./node_modules/.bin/mocha scripts/deps/tests
+ * You can also execute the tests: `./node_modules/.bin/mocha.js scripts/deps/tests
  **/
 
-const fs = require('fs');
-const path = require('path');
-const ts = require('typescript');
+import fs from 'node:fs';
+import path from 'node:path';
+import ts from 'typescript';
+import yargs from 'yargs';
+import {hideBin} from 'yargs/helpers';
 
 /**
  * Parses the inputs listed when they are all on one line, for example:
@@ -23,8 +25,8 @@ const ts = require('typescript');
  * This function gets given '["foo.js"]' and should return an array of all the
  * files found.
  *
- * @param {string} line
- * @returns {Array<string>}
+ * @param line
+ * @returns
  **/
 function parseSingleLineOfBuildGNFiles(line) {
   return line.split(',').map(item => item.replaceAll('"', '').trim()).filter(x => {
@@ -39,10 +41,9 @@ function parseSingleLineOfBuildGNFiles(line) {
  * We return an array of all the files we found, and the index of the end of
  * this set of files, so we can continue parsing the rest of the input.
  *
- * @param {Array<string>} lines
- * @param {number} startIndex
- *
- * @returns {{data: Array<string>, nextIndex: number}}
+ * @param lines
+ * @param startIndex
+ * @returns
  *
  **/
 function parseMultipleLineOfBuildGNFiles(lines, startIndex) {
@@ -75,11 +76,10 @@ function parseMultipleLineOfBuildGNFiles(lines, startIndex) {
  * {...} The section that is passed in is modified in place with the detected
  * `sources` and `deps`.
  *
- * @param {GNSection} section
- * @param {Array<string>} lines
- * @param {number} startIndex
- *
- * @returns {number} the index of the next line of input to parse future sections from
+ * @param section
+ * @param lines
+ * @param startIndex
+ * @returns the index of the next line of input to parse future sections from
  */
 function parseBuildGNSection(section, lines, startIndex) {
   let i = startIndex + 1;
@@ -126,10 +126,10 @@ function parseBuildGNSection(section, lines, startIndex) {
  * advantage of that fact that clang-format ensures our BUILD.gn files are
  * indented and structured consistently. Therefore a few regexes is all we need
  * to pull out the relevant information.
- * @param {string} input
- * @returns {Array<GNSection>} modules
+ * @param input
+ * @returns modules
  */
-function parseBuildGN(input) {
+export function parseBuildGN(input) {
   const lines = input.split('\n');
   const modules = [];
   let currentSection = null;
@@ -165,12 +165,11 @@ function parseBuildGN(input) {
  *  => import * from './bar.js';
  *  We will return `['./foo.js', './bar.js']`
  *
- * @param {string} code
- * @param {string} fileName
- *
- * @returns {SourceFile}
+ * @param code
+ * @param fileName
+ * @returns
  */
-function parseSourceFileForImports(code, fileName) {
+export function parseSourceFileForImports(code, fileName) {
   const file = ts.createSourceFile(fileName, code);
 
   const foundImportPaths = [];
@@ -198,10 +197,10 @@ function parseSourceFileForImports(code, fileName) {
 /**
  * Takes the result of parsing a BUILD.gn file along with the result of parsing
  * a source file and returns information about the dependencies.
- * @param {{buildGN: Array<GNSection>, sourceCode: SourceFile}} data
- * @returns {ComparisonResult}
+ * @param data
+ * @returns
  */
-function compareDeps({buildGN, sourceCode}) {
+export function compareDeps({buildGN, sourceCode}) {
   const sourceImportsWithFileNameRemoved = sourceCode.imports
                                                .map(importPath => {
                                                  // If a file imports `../core/sdk/sdk.js`, in the BUILD.gn that is
@@ -327,10 +326,10 @@ function compareDeps({buildGN, sourceCode}) {
 /**
  * Takes a path to a directory and validates that directory by checking each source code file that it finds against the BUILD.gn.
  * Note: this function does not recurse into sub-directories.
- * @param {string} dirPath
- * @returns {ValidateDirectoryResult}
+ * @param dirPath
+ * @returns
  */
-function validateDirectory(dirPath) {
+export function validateDirectory(dirPath) {
   const buildGNPath = path.join(dirPath, 'BUILD.gn');
   const buildGNContents = fs.readFileSync(buildGNPath, 'utf8');
   const parsedBuildGN = parseBuildGN(buildGNContents);
@@ -383,25 +382,18 @@ function validateDirectory(dirPath) {
   return result;
 }
 
-module.exports = {
-  compareDeps,
-  parseBuildGN,
-  parseSourceFileForImports,
-  validateDirectory,
-};
-
 // If invoked as CLI
-if (require.main === module) {
-  const yargs = require('yargs')
-                    .option('directory', {
-                      type: 'string',
-                      desc: 'The directory to validate',
-                      demandOption: true,
-                    })
-                    .strict()
-                    .parseSync();
+if (import.meta.main) {
+  const argv = yargs(hideBin(process.argv))
+                   .option('directory', {
+                     type: 'string',
+                     desc: 'The directory to validate',
+                     demandOption: true,
+                   })
+                   .strict()
+                   .parseSync();
 
-  const directory = path.join(process.cwd(), yargs.directory);
+  const directory = path.join(process.cwd(), argv.directory);
   const result = validateDirectory(directory);
   const success = result.missingBuildGNDeps.length === 0 && result.unusedBuildGNDeps.size === 0;
   if (success) {

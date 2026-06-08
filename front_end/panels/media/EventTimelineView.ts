@@ -1,6 +1,7 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as i18n from '../../core/i18n/i18n.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
@@ -19,20 +20,18 @@ const NO_NORMALIZED_TIMESTAMP = -1.5;
 
 const UIStrings = {
   /**
-   *@description Title of the 'Playback Status' button
+   * @description Title of the 'Playback Status' button
    */
   playbackStatus: 'Playback Status',
   /**
-   *@description Title of the 'Buffering Status' button
+   * @description Title of the 'Buffering Status' button
    */
   bufferingStatus: 'Buffering Status',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/media/EventTimelineView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-interface State {
-  [key: string]: string;
-}
+type State = Record<string, string>;
 
 export class PlayerEventsTimeline extends TickingFlameChart {
   private normalizedTimestamp: number;
@@ -64,7 +63,7 @@ export class PlayerEventsTimeline extends TickingFlameChart {
 
   /**
    * Playback events are {kPlay, kPause, kSuspended, kEnded, and kWebMediaPlayerDestroyed}
-   * once destroyed, a player cannot recieve more events of any kind.
+   * once destroyed, a player cannot receive more events of any kind.
    */
   private onPlaybackEvent(event: PlayerEvent, normalizedTime: number): void {
     switch (event.event) {
@@ -84,7 +83,7 @@ export class PlayerEventsTimeline extends TickingFlameChart {
 
       case 'kPause':
         // Don't change ticking state - the player is still active even during
-        // video pause. It may recieve buffering events, seeks, etc.
+        // video pause. It may receive buffering events, seeks, etc.
         this.ensureNoPreviousPlaybackEvent(normalizedTime);
 
         // Disabled until Closure is gone.

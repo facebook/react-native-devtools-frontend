@@ -6,6 +6,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TargetManager = void 0;
+const urlpattern_polyfill_js_1 = require("../../third_party/urlpattern-polyfill/urlpattern-polyfill.js");
 const CDPSession_js_1 = require("../api/CDPSession.js");
 const EventEmitter_js_1 = require("../common/EventEmitter.js");
 const util_js_1 = require("../common/util.js");
@@ -60,45 +61,38 @@ class TargetManager extends EventEmitter_js_1.EventEmitter {
     #attachedToTargetListenersBySession = new WeakMap();
     #detachedFromTargetListenersBySession = new WeakMap();
     #initializeDeferred = Deferred_js_1.Deferred.create();
-    #targetsIdsForInit = new Set();
     #waitForInitiallyDiscoveredTargets = true;
     #discoveryFilter = [{}];
-    constructor(connection, targetFactory, targetFilterCallback, waitForInitiallyDiscoveredTargets = true) {
+    // IDs of tab targets detected while running the initial Target.setAutoAttach
+    // request. These are the targets whose initialization we want to await for
+    // before resolving puppeteer.connect() or launch() to avoid flakiness.
+    // Whenever a sub-target whose parent is a tab target is attached, we remove
+    // the tab target from this list. Once the list is empty, we resolve the
+    // initializeDeferred.
+    #targetsIdsForInit = new Set();
+    // This is false until the connection-level Target.setAutoAttach request is
+    // done. It indicates whethere we are running the initial auto-attach step or
+    // if we are handling targets after that.
+    #initialAttachDone = false;
+    #blockList;
+    constructor(connection, targetFactory, targetFilterCallback, waitForInitiallyDiscoveredTargets = true, networkConditions) {
         super();
         this.#connection = connection;
         this.#targetFilterCallback = targetFilterCallback;
         this.#targetFactory = targetFactory;
         this.#waitForInitiallyDiscoveredTargets = waitForInitiallyDiscoveredTargets;
+        this.#blockList = networkConditions;
         this.#connection.on('Target.targetCreated', this.#onTargetCreated);
         this.#connection.on('Target.targetDestroyed', this.#onTargetDestroyed);
         this.#connection.on('Target.targetInfoChanged', this.#onTargetInfoChanged);
         this.#connection.on(CDPSession_js_1.CDPSessionEvent.SessionDetached, this.#onSessionDetached);
         this.#setupAttachmentListeners(this.#connection);
     }
-    #storeExistingTargetsForInit = () => {
-        if (!this.#waitForInitiallyDiscoveredTargets) {
-            return;
-        }
-        for (const [targetId, targetInfo,] of this.#discoveredTargetsByTargetId.entries()) {
-            const targetForFilter = new Target_js_1.CdpTarget(targetInfo, undefined, undefined, this, undefined);
-            // Only wait for pages and frames (except those from extensions)
-            // to auto-attach.
-            const isPageOrFrame = targetInfo.type === 'page' || targetInfo.type === 'iframe';
-            const isExtension = targetInfo.url.startsWith('chrome-extension://');
-            if ((!this.#targetFilterCallback ||
-                this.#targetFilterCallback(targetForFilter)) &&
-                isPageOrFrame &&
-                !isExtension) {
-                this.#targetsIdsForInit.add(targetId);
-            }
-        }
-    };
     async initialize() {
         await this.#connection.send('Target.setDiscoverTargets', {
             discover: true,
             filter: this.#discoveryFilter,
         });
-        this.#storeExistingTargetsForInit();
         await this.#connection.send('Target.setAutoAttach', {
             waitForDebuggerOnStart: true,
             flatten: true,
@@ -111,8 +105,12 @@ class TargetManager extends EventEmitter_js_1.EventEmitter {
                 ...this.#discoveryFilter,
             ],
         });
+        this.#initialAttachDone = true;
         this.#finishInitializationIfReady();
         await this.#initializeDeferred.valueOrThrow();
+    }
+    addToIgnoreTarget(targetId) {
+        this.#ignoredTargets.add(targetId);
     }
     getChildTargets(target) {
         return target._childTargets();
@@ -126,6 +124,9 @@ class TargetManager extends EventEmitter_js_1.EventEmitter {
     }
     getAvailableTargets() {
         return this.#attachedTargetsByTargetId;
+    }
+    getDiscoveredTargetInfos() {
+        return this.#discoveredTargetsByTargetId;
     }
     #setupAttachmentListeners(session) {
         const listener = (event) => {
@@ -147,11 +148,27 @@ class TargetManager extends EventEmitter_js_1.EventEmitter {
             session.off('Target.attachedToTarget', listener);
             this.#attachedToTargetListenersBySession.delete(session);
         }
-        if (this.#detachedFromTargetListenersBySession.has(session)) {
-            session.off('Target.detachedFromTarget', this.#detachedFromTargetListenersBySession.get(session));
+        const detachedListener = this.#detachedFromTargetListenersBySession.get(session);
+        if (detachedListener) {
+            session.off('Target.detachedFromTarget', detachedListener);
             this.#detachedFromTargetListenersBySession.delete(session);
         }
     }
+    #silentDetach = async (session, parentSession) => {
+        await session.send('Runtime.runIfWaitingForDebugger').catch(util_js_1.debugError);
+        // We don't use `session.detach()` because that dispatches all commands on
+        // the connection instead of the parent session.
+        await parentSession
+            .send('Target.detachFromTarget', {
+            sessionId: session.id(),
+        })
+            .catch(util_js_1.debugError);
+    };
+    #getParentTarget = (parentSession) => {
+        return parentSession instanceof CdpSession_js_1.CdpCDPSession
+            ? parentSession.target()
+            : null;
+    };
     #onSessionDetached = (session) => {
         this.#removeAttachmentListeners(session);
     };
@@ -174,8 +191,7 @@ class TargetManager extends EventEmitter_js_1.EventEmitter {
         const targetInfo = this.#discoveredTargetsByTargetId.get(event.targetId);
         this.#discoveredTargetsByTargetId.delete(event.targetId);
         this.#finishInitializationIfReady(event.targetId);
-        if (targetInfo?.type === 'service_worker' &&
-            this.#attachedTargetsByTargetId.has(event.targetId)) {
+        if (targetInfo?.type === 'service_worker') {
             // Special case for service workers: report TargetGone event when
             // the worker is destroyed.
             const target = this.#attachedTargetsByTargetId.get(event.targetId);
@@ -188,7 +204,6 @@ class TargetManager extends EventEmitter_js_1.EventEmitter {
     #onTargetInfoChanged = (event) => {
         this.#discoveredTargetsByTargetId.set(event.targetInfo.targetId, event.targetInfo);
         if (this.#ignoredTargets.has(event.targetInfo.targetId) ||
-            !this.#attachedTargetsByTargetId.has(event.targetInfo.targetId) ||
             !event.targetInfo.attached) {
             return;
         }
@@ -199,7 +214,7 @@ class TargetManager extends EventEmitter_js_1.EventEmitter {
         const previousURL = target.url();
         const wasInitialized = target._initializedDeferred.value() === Target_js_1.InitializationStatus.SUCCESS;
         if (isPageTargetBecomingPrimary(target, event.targetInfo)) {
-            const session = target?._session();
+            const session = target._session();
             (0, assert_js_1.assert)(session, 'Target that is being activated is missing a CDPSession.');
             session.parentSession()?.emit(CDPSession_js_1.CDPSessionEvent.Swapped, session);
         }
@@ -218,17 +233,13 @@ class TargetManager extends EventEmitter_js_1.EventEmitter {
         if (!session) {
             throw new Error(`Session ${event.sessionId} was not created.`);
         }
-        const silentDetach = async () => {
-            await session.send('Runtime.runIfWaitingForDebugger').catch(util_js_1.debugError);
-            // We don't use `session.detach()` because that dispatches all commands on
-            // the connection instead of the parent session.
-            await parentSession
-                .send('Target.detachFromTarget', {
-                sessionId: session.id(),
-            })
-                .catch(util_js_1.debugError);
-        };
         if (!this.#connection.isAutoAttached(targetInfo.targetId)) {
+            return;
+        }
+        // If we connect to a browser that is already open,
+        // immediately detach from any tab that is on the blocklist.
+        if (!this.#initialAttachDone && !this.#isUrlAllowed(targetInfo.url)) {
+            await this.#silentDetach(session, parentSession);
             return;
         }
         // Special case for service workers: being attached to service workers will
@@ -239,9 +250,10 @@ class TargetManager extends EventEmitter_js_1.EventEmitter {
         // should determine if a target is auto-attached or not with the help of
         // CDP.
         if (targetInfo.type === 'service_worker') {
-            this.#finishInitializationIfReady(targetInfo.targetId);
-            await silentDetach();
-            if (this.#attachedTargetsByTargetId.has(targetInfo.targetId)) {
+            await this.#silentDetach(session, parentSession);
+            if (this.#attachedTargetsByTargetId.has(targetInfo.targetId) ||
+                this.#ignoredTargets.has(targetInfo.targetId) ||
+                !this.#discoveredTargetsByTargetId.has(targetInfo.targetId)) {
                 return;
             }
             const target = this.#targetFactory(targetInfo);
@@ -250,36 +262,43 @@ class TargetManager extends EventEmitter_js_1.EventEmitter {
             this.emit("targetAvailable" /* TargetManagerEvent.TargetAvailable */, target);
             return;
         }
-        const isExistingTarget = this.#attachedTargetsByTargetId.has(targetInfo.targetId);
-        const target = isExistingTarget
-            ? this.#attachedTargetsByTargetId.get(targetInfo.targetId)
-            : this.#targetFactory(targetInfo, session, parentSession instanceof CdpSession_js_1.CdpCDPSession ? parentSession : undefined);
+        let target = this.#attachedTargetsByTargetId.get(targetInfo.targetId);
+        const isExistingTarget = target !== undefined;
+        if (!target) {
+            target = this.#targetFactory(targetInfo, session, parentSession instanceof CdpSession_js_1.CdpCDPSession ? parentSession : undefined);
+        }
+        const parentTarget = this.#getParentTarget(parentSession);
         if (this.#targetFilterCallback && !this.#targetFilterCallback(target)) {
             this.#ignoredTargets.add(targetInfo.targetId);
-            this.#finishInitializationIfReady(targetInfo.targetId);
-            await silentDetach();
+            if (parentTarget?.type() === 'tab') {
+                this.#finishInitializationIfReady(parentTarget._targetId);
+            }
+            await this.#silentDetach(session, parentSession);
             return;
+        }
+        if (this.#waitForInitiallyDiscoveredTargets &&
+            event.targetInfo.type === 'tab' &&
+            !this.#initialAttachDone) {
+            this.#targetsIdsForInit.add(event.targetInfo.targetId);
         }
         this.#setupAttachmentListeners(session);
         if (isExistingTarget) {
             session.setTarget(target);
-            this.#attachedTargetsBySessionId.set(session.id(), this.#attachedTargetsByTargetId.get(targetInfo.targetId));
+            this.#attachedTargetsBySessionId.set(session.id(), target);
         }
         else {
             target._initialize();
             this.#attachedTargetsByTargetId.set(targetInfo.targetId, target);
             this.#attachedTargetsBySessionId.set(session.id(), target);
         }
-        const parentTarget = parentSession instanceof CDPSession_js_1.CDPSession
-            ? parentSession.target()
-            : null;
         parentTarget?._addChildTarget(target);
         parentSession.emit(CDPSession_js_1.CDPSessionEvent.Ready, session);
-        this.#targetsIdsForInit.delete(target._targetId);
         if (!isExistingTarget) {
             this.emit("targetAvailable" /* TargetManagerEvent.TargetAvailable */, target);
         }
-        this.#finishInitializationIfReady();
+        if (parentTarget?.type() === 'tab') {
+            this.#finishInitializationIfReady(parentTarget._targetId);
+        }
         // TODO: the browser might be shutting down here. What do we do with the
         // error?
         await Promise.all([
@@ -289,12 +308,18 @@ class TargetManager extends EventEmitter_js_1.EventEmitter {
                 autoAttach: true,
                 filter: this.#discoveryFilter,
             }),
+            this.#maybeSetupNetworkConditions(session),
             session.send('Runtime.runIfWaitingForDebugger'),
         ]).catch(util_js_1.debugError);
     };
     #finishInitializationIfReady(targetId) {
         if (targetId !== undefined) {
             this.#targetsIdsForInit.delete(targetId);
+        }
+        // If we are still initializing it might be that we have not learned about
+        // some targets yet.
+        if (!this.#initialAttachDone) {
+            return;
         }
         if (this.#targetsIdsForInit.size === 0) {
             this.#initializeDeferred.resolve();
@@ -306,11 +331,52 @@ class TargetManager extends EventEmitter_js_1.EventEmitter {
         if (!target) {
             return;
         }
-        if (parentSession instanceof CDPSession_js_1.CDPSession) {
+        if (parentSession instanceof CdpSession_js_1.CdpCDPSession) {
             parentSession.target()._removeChildTarget(target);
         }
         this.#attachedTargetsByTargetId.delete(target._targetId);
         this.emit("targetGone" /* TargetManagerEvent.TargetGone */, target);
+    };
+    /**
+     * Helper to validate URL against blocklist patterns
+     */
+    #isUrlAllowed = (url) => {
+        if (!this.#blockList) {
+            return true;
+        }
+        // Always allow internal or setup pages
+        if (!url || url === 'about:blank') {
+            return true;
+        }
+        for (const rule of this.#blockList) {
+            try {
+                const pattern = new urlpattern_polyfill_js_1.URLPattern(rule);
+                if (pattern.test(url)) {
+                    return false; // return false as url matches pattern from blockList
+                }
+            }
+            catch {
+                (0, util_js_1.debugError)(`Invalid URL pattern: ${rule}`);
+            }
+        }
+        return true;
+    };
+    #maybeSetupNetworkConditions = async (session) => {
+        if (!this.#blockList?.length) {
+            return;
+        }
+        const matchedNetworkConditions = this.#blockList.map(pattern => {
+            return {
+                urlPattern: pattern,
+                latency: 0,
+                downloadThroughput: -1,
+                uploadThroughput: -1,
+            };
+        });
+        await session.send('Network.emulateNetworkConditionsByRule', {
+            matchedNetworkConditions,
+            offline: true,
+        });
     };
 }
 exports.TargetManager = TargetManager;

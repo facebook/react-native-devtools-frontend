@@ -1,11 +1,12 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // @ts-nocheck This file is not checked by TypeScript as it has a lot of legacy code.
+import * as Common from '../../core/common/common.js';
 import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
-import * as Trace from '../../models/trace/trace.js';
+import * as Tracing from '../../services/tracing/tracing.js';
 
 import * as TestRunner from './TestRunner.js';
 
@@ -42,7 +43,7 @@ function _setupTestHelpers(target) {
   self.TestRunner.cpuProfilerModel = target.model(SDK.CPUProfilerModel.CPUProfilerModel);
   self.TestRunner.overlayModel = target.model(SDK.OverlayModel.OverlayModel);
   self.TestRunner.serviceWorkerManager = target.model(SDK.ServiceWorkerManager.ServiceWorkerManager);
-  self.TestRunner.tracingManager = target.model(Trace.TracingManager.TracingManager);
+  self.TestRunner.tracingManager = target.model(Tracing.TracingManager.TracingManager);
   self.TestRunner.mainTarget = target;
 }
 
@@ -79,8 +80,8 @@ let _startedTest = false;
  */
 export class _TestObserver {
   /**
-   * @param {!SDK.Target.Target} target
    * @override
+   * @param {!SDK.Target.Target} target
    */
   targetAdded(target) {
     if (target.id() === 'main' && target.type() === 'frame' ||
@@ -102,14 +103,19 @@ export class _TestObserver {
   }
 
   /**
-   * @param {!SDK.Target.Target} target
    * @override
+   * @param {!SDK.Target.Target} target
    */
   targetRemoved(target) {
   }
 }
 
-SDK.TargetManager.TargetManager.instance().observeTargets(new _TestObserver());
+Common.Runnable.registerEarlyInitializationRunnable(() => ({
+                                                      run() {
+                                                        SDK.TargetManager.TargetManager.instance().observeTargets(
+                                                            new _TestObserver());
+                                                      }
+                                                    }));
 
 const globalTestRunner = self.TestRunner;
 export {globalTestRunner as TestRunner};

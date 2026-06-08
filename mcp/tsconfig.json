@@ -1,0 +1,21 @@
+{
+  "extends": "../config/typescript/tsconfig.base.json",
+  "compilerOptions": {
+    "allowUmdGlobalAccess": true,
+    "outDir": "ignored",
+    "target": "ES2023",
+    "lib": [
+      "ES2023",
+      "ES2024.Promise",
+      "ESNext.Iterator",
+      "ESNext.Collection",
+      "ESNext.Array"
+    ],
+    "typeRoots": [
+      "../node_modules/@types",
+      "../node_modules",
+    ],
+    "types": ["node", "undici-types"]
+  },
+  "references": [{ "path": "../front_end/tsconfig.json" }]
+}

@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,22 +19,18 @@ async function assertThrowsAsync(fn: () => Promise<void>, errorMessage: string) 
     assert.strictEqual(e.message, errorMessage);
   }
 
-  if (!caught) {
-    assert.fail('Expected error but got none.');
-  }
+  assert.isOk(caught, 'Expected error but got none.');
 }
 
 async function assertNotThrowsAsync(fn: () => Promise<void>) {
-  let errorMessage = '';
+  let errorMessage;
   try {
     await fn();
   } catch (e) {
     errorMessage = e.message;
   }
 
-  if (errorMessage) {
-    assert.fail(`Expected no error but got:\n${errorMessage}`);
-  }
+  assert.notExists(errorMessage);
 }
 
 describe('MutationHelpers', () => {

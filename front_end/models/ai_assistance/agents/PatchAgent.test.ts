@@ -1,14 +1,13 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Host from '../../../core/host/host.js';
 import * as Platform from '../../../core/platform/platform.js';
-import * as Workspace from '../../../models/workspace/workspace.js';
 import {mockAidaClient, type MockAidaResponse} from '../../../testing/AiAssistanceHelpers.js';
 import {describeWithEnvironment, updateHostConfig} from '../../../testing/EnvironmentHelpers.js';
-import {createContentProviderUISourceCode} from '../../../testing/UISourceCodeHelpers.js';
-import {type ActionResponse, FileUpdateAgent, PatchAgent, type ResponseData, ResponseType} from '../ai_assistance.js';
+import {createFileSystemUISourceCode} from '../../../testing/UISourceCodeHelpers.js';
+import {AiAgent, PatchAgent} from '../ai_assistance.js';
 
 /**
  * TODO: the following tests have to be added:
@@ -20,19 +19,20 @@ import {type ActionResponse, FileUpdateAgent, PatchAgent, type ResponseData, Res
 describeWithEnvironment('PatchAgent', () => {
   async function testAgent(
       mock: Array<[MockAidaResponse, ...MockAidaResponse[]]>,
-      fileAgentMock?: Array<[MockAidaResponse, ...MockAidaResponse[]]>): Promise<ResponseData[]> {
-    const {uiSourceCode} = createContentProviderUISourceCode({
-      url: Platform.DevToolsPath.urlString`https://example.com/example.html`,
-      projectType: Workspace.Workspace.projectTypes.Network,
+      fileAgentMock?: Array<[MockAidaResponse, ...MockAidaResponse[]]>): Promise<AiAgent.ResponseData[]> {
+    const {project, uiSourceCode} = createFileSystemUISourceCode({
+      url: Platform.DevToolsPath.urlString`file:///path/to/overrides/example.html`,
+      fileSystemPath: Platform.DevToolsPath.urlString`file:///path/to/overrides`,
       mimeType: 'text/html',
       content: 'content',
     });
 
     uiSourceCode.setWorkingCopy('content working copy');
 
-    const agent = new PatchAgent({
+    const agent = new PatchAgent.PatchAgent({
       aidaClient: mockAidaClient(mock),
-      fileUpdateAgent: new FileUpdateAgent({
+      project,
+      fileUpdateAgent: new PatchAgent.FileUpdateAgent({
         aidaClient: mockAidaClient(fileAgentMock),
       })
     });
@@ -49,13 +49,14 @@ describeWithEnvironment('PatchAgent', () => {
       }]
     ]);
 
-    const action = responses.find(response => response.type === ResponseType.ACTION);
+    const action = responses.find(response => response.type === AiAgent.ResponseType.ACTION);
     assert.exists(action);
     assert.deepEqual(action, {
-      type: 'action' as ActionResponse['type'],
-      output: '{"files":["/example.html"]}',
+      type: 'action' as AiAgent.ActionResponse['type'],
+      output: '{"files":["example.html"]}',
       canceled: false,
       code: undefined,
+      widgets: undefined,
     });
   });
 
@@ -75,20 +76,21 @@ describeWithEnvironment('PatchAgent', () => {
       }]
     ]);
 
-    const action = responses.find(response => response.type === ResponseType.ACTION);
+    const action = responses.find(response => response.type === AiAgent.ResponseType.ACTION);
     assert.exists(action);
     assert.deepEqual(action, {
-      type: 'action' as ActionResponse['type'],
-      output: '{"matches":[{"filepath":"/example.html","lineNumber":0,"columnNumber":0,"matchLength":7}]}',
+      type: 'action' as AiAgent.ActionResponse['type'],
+      output: '{"matches":[{"filepath":"example.html","lineNumber":0,"columnNumber":0,"matchLength":7}]}',
       canceled: false,
-      code: undefined
+      code: undefined,
+      widgets: undefined,
     });
   });
 
   it('calls updateFiles', async () => {
     const responses = await testAgent(
         [
-          [{explanation: '', functionCalls: [{name: 'updateFiles', args: {files: ['/example.html']}}]}], [{
+          [{explanation: '', functionCalls: [{name: 'updateFiles', args: {files: ['example.html']}}]}], [{
             explanation: 'done',
           }]
         ],
@@ -96,11 +98,15 @@ describeWithEnvironment('PatchAgent', () => {
           explanation: 'file updated',
         }]]);
 
-    const action = responses.find(response => response.type === ResponseType.ACTION);
+    const action = responses.find(response => response.type === AiAgent.ResponseType.ACTION);
     assert.exists(action);
-    assert.deepEqual(
-        action,
-        {type: 'action' as ActionResponse['type'], output: '{"success":true}', code: undefined, canceled: false});
+    assert.deepEqual(action, {
+      type: 'action' as AiAgent.ActionResponse['type'],
+      output: '{"success":true}',
+      code: undefined,
+      widgets: undefined,
+      canceled: false
+    });
   });
 
   it('builds a request with a user tier', async () => {
@@ -109,14 +115,16 @@ describeWithEnvironment('PatchAgent', () => {
         userTier: 'PUBLIC',
       },
     });
-    createContentProviderUISourceCode({
+    const {project} = createFileSystemUISourceCode({
       url: Platform.DevToolsPath.urlString`file:///path/to/overrides/example.html`,
+      fileSystemPath: Platform.DevToolsPath.urlString`file:///path/to/overrides`,
       mimeType: 'text/html',
       content: 'content',
     });
-    const agent = new PatchAgent({
+    const agent = new PatchAgent.PatchAgent({
       aidaClient: mockAidaClient(),
-      fileUpdateAgent: new FileUpdateAgent({
+      project,
+      fileUpdateAgent: new PatchAgent.FileUpdateAgent({
         aidaClient: mockAidaClient(),
       })
     });

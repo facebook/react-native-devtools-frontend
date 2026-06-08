@@ -1,4 +1,4 @@
-# Copyright 2023 The Chromium Authors. All rights reserved.
+# Copyright 2023 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -154,12 +154,6 @@ if(CXX_DEBUGGING_USE_SPLIT_DWARF)
     add_compile_options(-gsplit-dwarf)
   endif()
 endif()
-
-fix_sysroot(lldb-tblgen)
-fix_sysroot(clang-tblgen)
-fix_sysroot(llvm-tblgen)
-fix_sysroot(llvm-mc)
-fix_sysroot(llvm-dwp)
 
 if (CXX_DEBUGGING_BUILD_WASM)
   add_subdirectory(lib)

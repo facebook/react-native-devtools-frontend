@@ -1,13 +1,14 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
-import type * as Workspace from '../../models/workspace/workspace.js';
+import * as Workspace from '../../models/workspace/workspace.js';
 import * as CodeMirror from '../../third_party/codemirror.next/codemirror.next.js';
 import type * as TextEditor from '../../ui/components/text_editor/text_editor.js';
-import * as SourceFrame from '../../ui/legacy/components/source_frame/source_frame.js';
+import type * as SourceFrame from '../../ui/legacy/components/source_frame/source_frame.js';
 
 import {Plugin} from './Plugin.js';
 
@@ -16,15 +17,15 @@ import {Plugin} from './Plugin.js';
 
 const UIStrings = {
   /**
-   *@description The milisecond unit
+   * @description The milisecond unit
    */
   ms: 'ms',
   /**
-   *@description Unit for data size in DevTools
+   * @description Unit for data size in DevTools
    */
   mb: 'MB',
   /**
-   *@description A unit
+   * @description A unit
    */
   kb: 'kB',
 } as const;
@@ -89,27 +90,34 @@ class PerformanceMarker extends CodeMirror.GutterMarker {
 }
 
 function markersFromProfileData(
-    map: Map<number, number>, state: CodeMirror.EditorState,
-    type: SourceFrame.SourceFrame.DecoratorType): CodeMirror.RangeSet<CodeMirror.GutterMarker> {
-  const markerType = type === SourceFrame.SourceFrame.DecoratorType.PERFORMANCE ? PerformanceMarker : MemoryMarker;
+    map: Workspace.UISourceCode.LineColumnProfileMap, state: CodeMirror.EditorState,
+    type: Workspace.UISourceCode.DecoratorType): CodeMirror.RangeSet<CodeMirror.GutterMarker> {
+  const markerType = type === Workspace.UISourceCode.DecoratorType.PERFORMANCE ? PerformanceMarker : MemoryMarker;
   const markers: Array<CodeMirror.Range<CodeMirror.GutterMarker>> = [];
+  const aggregatedByLine = new Map<number, number>();
   for (const [line, value] of map) {
     if (line <= state.doc.lines) {
-      const {from} = state.doc.line(line);
-      markers.push(new markerType(value).range(from));
+      for (const [, data] of value) {
+        aggregatedByLine.set(line, (aggregatedByLine.get(line) || 0) + data);
+      }
     }
+  }
+  for (const [line, value] of aggregatedByLine) {
+    const {from} = state.doc.line(line);
+    markers.push(new markerType(value).range(from));
   }
   return CodeMirror.RangeSet.of(markers, true);
 }
 
-const makeLineLevelProfilePlugin = (type: SourceFrame.SourceFrame.DecoratorType): typeof Plugin =>
-    class extends Plugin {
-  updateEffect = CodeMirror.StateEffect.define<Map<number, number>>();
+const makeLineLevelProfilePlugin = (type: Workspace.UISourceCode.DecoratorType): typeof Plugin =>
+    class ProfilePlugin extends Plugin {
+  updateEffect = CodeMirror.StateEffect.define<Workspace.UISourceCode.LineColumnProfileMap>();
   field: CodeMirror.StateField<CodeMirror.RangeSet<CodeMirror.GutterMarker>>;
   gutter: CodeMirror.Extension;
   compartment: CodeMirror.Compartment = new CodeMirror.Compartment();
+  readonly #transformer: SourceFrame.SourceFrame.Transformer;
 
-  constructor(uiSourceCode: Workspace.UISourceCode.UISourceCode) {
+  constructor(uiSourceCode: Workspace.UISourceCode.UISourceCode, transformer: SourceFrame.SourceFrame.Transformer) {
     super(uiSourceCode);
 
     this.field = CodeMirror.StateField.define<CodeMirror.RangeSet<CodeMirror.GutterMarker>>({
@@ -127,14 +135,24 @@ const makeLineLevelProfilePlugin = (type: SourceFrame.SourceFrame.DecoratorType)
       markers: view => view.state.field(this.field),
       class: `cm-${type}Gutter`,
     });
+
+    this.#transformer = transformer;
   }
 
   static override accepts(uiSourceCode: Workspace.UISourceCode.UISourceCode): boolean {
     return uiSourceCode.contentType().hasScripts();
   }
 
-  private getLineMap(): Map<number, number>|undefined {
-    return this.uiSourceCode.getDecorationData(type);
+  private getLineMap(): Workspace.UISourceCode.LineColumnProfileMap|undefined {
+    const uiSourceCodeProfileMap = this.uiSourceCode.getDecorationData(type);
+    if (!uiSourceCodeProfileMap) {
+      return undefined;
+    }
+
+    return Workspace.UISourceCode.createMappedProfileData(uiSourceCodeProfileMap, (line, column) => {
+      const editorLocation = this.#transformer.uiLocationToEditorLocation(line, column);
+      return [editorLocation.lineNumber, editorLocation.columnNumber];
+    });
   }
 
   override editorExtension(): CodeMirror.Extension {
@@ -143,7 +161,8 @@ const makeLineLevelProfilePlugin = (type: SourceFrame.SourceFrame.DecoratorType)
         !map ? [] : [this.field.init(state => markersFromProfileData(map, state, type)), this.gutter, theme]);
   }
 
-  override decorationChanged(type: SourceFrame.SourceFrame.DecoratorType, editor: TextEditor.TextEditor.TextEditor): void {
+  override decorationChanged(type: Workspace.UISourceCode.DecoratorType, editor: TextEditor.TextEditor.TextEditor):
+      void {
     const installed = Boolean(editor.state.field(this.field, false));
     const map = this.getLineMap();
     if (!map) {
@@ -187,6 +206,6 @@ const theme = CodeMirror.EditorView.baseTheme({
   },
 });
 
-export const MemoryProfilePlugin = makeLineLevelProfilePlugin(SourceFrame.SourceFrame.DecoratorType.MEMORY);
+export const MemoryProfilePlugin = makeLineLevelProfilePlugin(Workspace.UISourceCode.DecoratorType.MEMORY);
 
-export const PerformanceProfilePlugin = makeLineLevelProfilePlugin(SourceFrame.SourceFrame.DecoratorType.PERFORMANCE);
+export const PerformanceProfilePlugin = makeLineLevelProfilePlugin(Workspace.UISourceCode.DecoratorType.PERFORMANCE);

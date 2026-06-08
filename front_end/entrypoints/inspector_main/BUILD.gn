@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -27,14 +27,17 @@ devtools_module("inspector_main") {
     "../../core/common:bundle",
     "../../core/host:bundle",
     "../../core/i18n:bundle",
+    "../../core/platform:bundle",
     "../../core/root:bundle",
     "../../core/sdk:bundle",
     "../../generated:protocol",
+    "../../models/bindings:bundle",
     "../../panels/mobile_throttling:bundle",
-    "../../panels/security:bundle",
-    "../../ui/components/icon_button:bundle",
     "../../ui/legacy:bundle",
+    "../../ui/legacy/components/settings_ui:bundle",
     "../../ui/legacy/components/utils:bundle",
+    "../../ui/lit:bundle",
+    "../../ui/visual_logging:bundle",
   ]
 }
 
@@ -67,10 +70,13 @@ devtools_entrypoint("meta") {
   ]
 
   visibility = [
+    "../../panels/greendev/*",
     "../../testing/*",
     "../devtools_app/*",
+    "../greendev_floaty/*",
     "../rehydrated_devtools_app/*",
     "../rn_fusebox:*",
+    "../trace_app/*",
   ]
 }
 

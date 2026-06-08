@@ -1,6 +1,7 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -10,116 +11,115 @@ import * as IssuesManager from '../../models/issues_manager/issues_manager.js';
 import * as NetworkForward from '../../panels/network/forward/forward.js';
 
 import {AffectedItem, AffectedResourcesView} from './AffectedResourcesView.js';
-import type {AggregatedIssue} from './IssueAggregator.js';
 import type {IssueView} from './IssueView.js';
 
 const UIStrings = {
   /**
-   *@description Label for number of affected resources indication in issue view
+   * @description Label for number of affected resources indication in issue view
    */
   nRequests: '{n, plural, =1 {# request} other {# requests}}',
   /**
-   *@description Value for the status column in SharedArrayBuffer issues
+   * @description Value for the status column in SharedArrayBuffer issues
    */
   warning: 'warning',
   /**
-   *@description The kind of resolution for a mixed content issue
+   * @description The kind of resolution for a mixed content issue
    */
   blocked: 'blocked',
   /**
-   *@description Text for the status column in the item list in the CORS issue details view
+   * @description Text for the status column in the item list in the CORS issue details view
    */
   status: 'Status',
   /**
-   *@description Text for the column showing the associated network request in the item list in the CORS issue details view
+   * @description Text for the column showing the associated network request in the item list in the CORS issue details view
    */
   request: 'Request',
   /**
-   *@description Text for the column showing the resource's address in the item list in the CORS issue details view
+   * @description Text for the column showing the resource's address in the item list in the CORS issue details view
    */
   resourceAddressSpace: 'Resource Address',
   /**
-   *@description Text for the column showing the address of the resource load initiator in the item list in the CORS issue details view
+   * @description Text for the column showing the address of the resource load initiator in the item list in the CORS issue details view
    */
   initiatorAddressSpace: 'Initiator Address',
   /**
-   *@description Text for the status of the initiator context
+   * @description Text for the status of the initiator context
    */
   secure: 'secure',
   /**
-   *@description Text for the status of the initiator context
+   * @description Text for the status of the initiator context
    */
   insecure: 'insecure',
   /**
-   *@description Title for a column showing the status of the initiator context. The initiator context is either secure or insecure depending on whether it was loaded via HTTP or HTTPS.
+   * @description Title for a column showing the status of the initiator context. The initiator context is either secure or insecure depending on whether it was loaded via HTTP or HTTPS.
    */
   initiatorContext: 'Initiator Context',
   /**
-   *@description Title for a column in the affected resources for a CORS issue showing a link to the associated preflight request in case the preflight request caused the issue.
+   * @description Title for a column in the affected resources for a CORS issue showing a link to the associated preflight request in case the preflight request caused the issue.
    */
   preflightRequestIfProblematic: 'Preflight Request (if problematic)',
   /**
-   *@description Title for a column in the affected resources for a CORS issue showing a link to the associated preflight request.
+   * @description Title for a column in the affected resources for a CORS issue showing a link to the associated preflight request.
    */
   preflightRequest: 'Preflight Request',
   /**
-   *@description Title for a column in the affected resources for a CORS issue showing the name of the problematic HTTP response header.
+   * @description Title for a column in the affected resources for a CORS issue showing the name of the problematic HTTP response header.
    */
   header: 'Header',
   /**
-   *@description Title for a column in the affected resources for a CORS issue showing the problem associated with the resource.
+   * @description Title for a column in the affected resources for a CORS issue showing the problem associated with the resource.
    */
   problem: 'Problem',
   /**
-   *@description Title for a column in the affected resources for a CORS issue showing the value that was invalid and caused the problem if it is available.
+   * @description Title for a column in the affected resources for a CORS issue showing the value that was invalid and caused the problem if it is available.
    */
   invalidValue: 'Invalid Value (if available)',
   /**
-   *@description Content for the problem column in the affected resources table for a CORS issue that indicates that a response header was missing.
+   * @description Content for the problem column in the affected resources table for a CORS issue that indicates that a response header was missing.
    */
   problemMissingHeader: 'Missing Header',
   /**
-   *@description Content for the problem column in the affected resources table for a CORS issue that indicates that a response header contained multiple values.
+   * @description Content for the problem column in the affected resources table for a CORS issue that indicates that a response header contained multiple values.
    */
   problemMultipleValues: 'Multiple Values',
   /**
-   *@description Content for the problem column in the affected resources table for a CORS issue that indicates that a response header contained an invalid value.
+   * @description Content for the problem column in the affected resources table for a CORS issue that indicates that a response header contained an invalid value.
    */
   problemInvalidValue: 'Invalid Value',
   /**
-   *@description Content for the problem column in the affected resources table for a CORS issue that indicates that the response to the preflight request was a redirect.
+   * @description Content for the problem column in the affected resources table for a CORS issue that indicates that the response to the preflight request was a redirect.
    */
   preflightDisallowedRedirect: 'Response to preflight was a redirect',
   /**
-   *@description Content for the problem column in the affected resources table for a CORS issue that indicates that the HTTP status the preflight request was not successful.
+   * @description Content for the problem column in the affected resources table for a CORS issue that indicates that the HTTP status the preflight request was not successful.
    */
   preflightInvalidStatus: 'HTTP status of preflight request didn\'t indicate success',
   /**
-   *@description Title for a column in the affected resources for a CORS issue showing the origin that was allowed according to CORS headers.
+   * @description Title for a column in the affected resources for a CORS issue showing the origin that was allowed according to CORS headers.
    */
   allowedOrigin: 'Allowed Origin (from header)',
   /**
-   *@description Title for a column in the affected resources for a CORS issue showing the value of the Access-Control-Allow-Credentials response header.
+   * @description Title for a column in the affected resources for a CORS issue showing the value of the Access-Control-Allow-Credentials response header.
    */
   allowCredentialsValueFromHeader: '`Access-Control-Allow-Credentials` Header Value',
   /**
-   *@description Title for a column in the affected resources for a CORS issue showing the request method that was disallowed.
+   * @description Title for a column in the affected resources for a CORS issue showing the request method that was disallowed.
    */
   disallowedRequestMethod: 'Disallowed Request Method',
   /**
-   *@description Title for a column in the affected resources for a CORS issue showing the request header that was disallowed.
+   * @description Title for a column in the affected resources for a CORS issue showing the request header that was disallowed.
    */
   disallowedRequestHeader: 'Disallowed Request Header',
   /**
-   *@description Header for the source location column
+   * @description Header for the source location column
    */
   sourceLocation: 'Source Location',
   /**
-   *@description Header for the column with the URL scheme that is not supported by fetch
+   * @description Header for the column with the URL scheme that is not supported by fetch
    */
   unsupportedScheme: 'Unsupported Scheme',
   /**
-   *@description A failed network request.
+   * @description A failed network request.
    */
   failedRequest: 'Failed Request',
 } as const;
@@ -127,7 +127,7 @@ const str_ = i18n.i18n.registerUIStrings('panels/issues/CorsIssueDetailsView.ts'
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class CorsIssueDetailsView extends AffectedResourcesView {
-  constructor(parent: IssueView, issue: AggregatedIssue, jslogContext: string) {
+  constructor(parent: IssueView, issue: IssuesManager.IssueAggregator.AggregatedIssue, jslogContext: string) {
     super(parent, issue, jslogContext);
     this.affectedResourcesCountElement.classList.add('cors-issue-affected-resource-label');
   }
@@ -176,21 +176,7 @@ export class CorsIssueDetailsView extends AffectedResourcesView {
         this.appendColumnTitle(header, i18nString(UIStrings.preflightRequestIfProblematic));
         this.appendColumnTitle(header, i18nString(UIStrings.allowCredentialsValueFromHeader));
         break;
-      case IssuesManager.CorsIssue.IssueCode.INSECURE_PRIVATE_NETWORK:
-        this.appendColumnTitle(header, i18nString(UIStrings.resourceAddressSpace));
-        this.appendColumnTitle(header, i18nString(UIStrings.initiatorAddressSpace));
-        this.appendColumnTitle(header, i18nString(UIStrings.initiatorContext));
-        break;
-      case IssuesManager.CorsIssue.IssueCode.PREFLIGHT_ALLOW_PRIVATE_NETWORK_ERROR:
-        this.appendColumnTitle(header, i18nString(UIStrings.preflightRequest));
-        this.appendColumnTitle(header, i18nString(UIStrings.invalidValue));
-        this.appendColumnTitle(header, i18nString(UIStrings.initiatorAddressSpace));
-        this.appendColumnTitle(header, i18nString(UIStrings.initiatorContext));
-        break;
-      case IssuesManager.CorsIssue.IssueCode.PREFLIGHT_MISSING_PRIVATE_NETWORK_ACCESS_ID:
-      case IssuesManager.CorsIssue.IssueCode.PREFLIGHT_MISSING_PRIVATE_NETWORK_ACCESS_NAME:
-        this.appendColumnTitle(header, i18nString(UIStrings.preflightRequest));
-        this.appendColumnTitle(header, i18nString(UIStrings.invalidValue));
+      case IssuesManager.CorsIssue.IssueCode.INSECURE_LOCAL_NETWORK:
         this.appendColumnTitle(header, i18nString(UIStrings.resourceAddressSpace));
         this.appendColumnTitle(header, i18nString(UIStrings.initiatorAddressSpace));
         this.appendColumnTitle(header, i18nString(UIStrings.initiatorContext));
@@ -221,10 +207,7 @@ export class CorsIssueDetailsView extends AffectedResourcesView {
       default:
         Platform.assertUnhandled<IssuesManager.CorsIssue.IssueCode.PREFLIGHT_MISSING_ALLOW_EXTERNAL|
                                  IssuesManager.CorsIssue.IssueCode.PREFLIGHT_INVALID_ALLOW_EXTERNAL|
-                                 IssuesManager.CorsIssue.IssueCode.INVALID_PRIVATE_NETWORK_ACCESS|
-                                 IssuesManager.CorsIssue.IssueCode.UNEXPECTED_PRIVATE_NETWORK_ACCESS|IssuesManager
-                                     .CorsIssue.IssueCode.PRIVATE_NETWORK_ACCESS_PERMISSION_UNAVAILABLE|IssuesManager
-                                     .CorsIssue.IssueCode.PRIVATE_NETWORK_ACCESS_PERMISSION_DENIED|
+                                 IssuesManager.CorsIssue.IssueCode.INVALID_LOCAL_NETWORK_ACCESS|
                                  IssuesManager.CorsIssue.IssueCode.LOCAL_NETWORK_ACCESS_PERMISSION_DENIED>(issueCode);
     }
 
@@ -267,18 +250,11 @@ export class CorsIssueDetailsView extends AffectedResourcesView {
       case Protocol.Network.CorsError.InvalidAllowCredentials:
       case Protocol.Network.CorsError.PreflightInvalidAllowCredentials:
         return 'Access-Control-Allow-Credentials';
-      case Protocol.Network.CorsError.PreflightMissingAllowPrivateNetwork:
-      case Protocol.Network.CorsError.PreflightInvalidAllowPrivateNetwork:
-        return 'Access-Control-Allow-Private-Network';
       case Protocol.Network.CorsError.RedirectContainsCredentials:
       case Protocol.Network.CorsError.PreflightDisallowedRedirect:
         return 'Location';
       case Protocol.Network.CorsError.PreflightInvalidStatus:
         return 'Status-Code';
-      case Protocol.Network.CorsError.PreflightMissingPrivateNetworkAccessId:
-        return 'Private-Network-Access-Id';
-      case Protocol.Network.CorsError.PreflightMissingPrivateNetworkAccessName:
-        return 'Private-Network-Access-Name';
     }
     return '';
   }
@@ -386,22 +362,13 @@ export class CorsIssueDetailsView extends AffectedResourcesView {
         }
         this.appendIssueDetailCell(element, details.corsErrorStatus.failedParameter, 'code-example');
         break;
-      case IssuesManager.CorsIssue.IssueCode.INSECURE_PRIVATE_NETWORK:
+      case IssuesManager.CorsIssue.IssueCode.INSECURE_LOCAL_NETWORK:
         element.appendChild(this.createRequestCell(details.request, opts));
         this.#appendStatus(element, details.isWarning);
         this.appendIssueDetailCell(element, details.resourceIPAddressSpace ?? '');
         this.appendIssueDetailCell(element, details.clientSecurityState?.initiatorIPAddressSpace ?? '');
         this.#appendSecureContextCell(element, details.clientSecurityState?.initiatorIsSecureContext);
         break;
-      case IssuesManager.CorsIssue.IssueCode.PREFLIGHT_ALLOW_PRIVATE_NETWORK_ERROR: {
-        element.appendChild(this.createRequestCell(details.request, opts));
-        this.#appendStatus(element, details.isWarning);
-        element.appendChild(this.createRequestCell(details.request, {...opts, linkToPreflight: true, highlightHeader}));
-        this.appendIssueDetailCell(element, details.corsErrorStatus.failedParameter, 'code-example');
-        this.appendIssueDetailCell(element, details.clientSecurityState?.initiatorIPAddressSpace ?? '');
-        this.#appendSecureContextCell(element, details.clientSecurityState?.initiatorIsSecureContext);
-        break;
-      }
       case IssuesManager.CorsIssue.IssueCode.METHOD_DISALLOWED_BY_PREFLIGHT_RESPONSE:
         element.appendChild(this.createRequestCell(details.request, opts));
         this.#appendStatus(element, details.isWarning);
@@ -461,25 +428,12 @@ export class CorsIssueDetailsView extends AffectedResourcesView {
         this.#appendStatus(element, details.isWarning);
         this.appendSourceLocation(element, details.location, issue.model()?.getTargetIfNotDisposed());
         break;
-      case IssuesManager.CorsIssue.IssueCode.PREFLIGHT_MISSING_PRIVATE_NETWORK_ACCESS_ID:
-      case IssuesManager.CorsIssue.IssueCode.PREFLIGHT_MISSING_PRIVATE_NETWORK_ACCESS_NAME:
-        element.appendChild(this.createRequestCell(details.request, opts));
-        this.#appendStatus(element, details.isWarning);
-        element.appendChild(this.createRequestCell(details.request, {...opts, linkToPreflight: true, highlightHeader}));
-        this.appendIssueDetailCell(element, CorsIssueDetailsView.getHeaderFromError(corsError));
-        this.appendIssueDetailCell(element, details.resourceIPAddressSpace ?? '');
-        this.appendIssueDetailCell(element, details.clientSecurityState?.initiatorIPAddressSpace ?? '');
-        this.#appendSecureContextCell(element, details.clientSecurityState?.initiatorIsSecureContext);
-        break;
       default:
         element.appendChild(this.createRequestCell(details.request, opts));
         this.#appendStatus(element, details.isWarning);
         Platform.assertUnhandled<IssuesManager.CorsIssue.IssueCode.PREFLIGHT_MISSING_ALLOW_EXTERNAL|
                                  IssuesManager.CorsIssue.IssueCode.PREFLIGHT_INVALID_ALLOW_EXTERNAL|
-                                 IssuesManager.CorsIssue.IssueCode.INVALID_PRIVATE_NETWORK_ACCESS|
-                                 IssuesManager.CorsIssue.IssueCode.UNEXPECTED_PRIVATE_NETWORK_ACCESS|IssuesManager
-                                     .CorsIssue.IssueCode.PRIVATE_NETWORK_ACCESS_PERMISSION_UNAVAILABLE|IssuesManager
-                                     .CorsIssue.IssueCode.PRIVATE_NETWORK_ACCESS_PERMISSION_DENIED|
+                                 IssuesManager.CorsIssue.IssueCode.INVALID_LOCAL_NETWORK_ACCESS|
                                  IssuesManager.CorsIssue.IssueCode.LOCAL_NETWORK_ACCESS_PERMISSION_DENIED>(issueCode);
         break;
     }

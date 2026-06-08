@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,25 +40,25 @@ describeWithMockConnection('ExecutionContextSelector', () => {
     };
 
     sentExecutionContextCreated(subframeTarget);
-    assert.isTrue(contextSetFlavor.called);
+    sinon.assert.called(contextSetFlavor);
 
     contextSetFlavor.resetHistory();
     sentExecutionContextCreated(subframeTarget);
-    assert.isTrue(contextSetFlavor.notCalled);
+    sinon.assert.notCalled(contextSetFlavor);
 
     sentExecutionContextCreated(mainFrameTarget);
-    assert.isTrue(contextSetFlavor.called);
+    sinon.assert.called(contextSetFlavor);
 
     contextSetFlavor.resetHistory();
     sentExecutionContextCreated(prerenderTarget);
-    assert.isFalse(contextSetFlavor.called);
+    sinon.assert.notCalled(contextSetFlavor);
 
     contextSetFlavor.resetHistory();
     sentExecutionContextCreated(serviceWorkerTarget, /* includeFrameId */ false);
-    assert.isFalse(contextSetFlavor.called);
+    sinon.assert.notCalled(contextSetFlavor);
 
     contextSetFlavor.resetHistory();
     sentExecutionContextCreated(workerTarget, /* includeFrameId */ false);
-    assert.isFalse(contextSetFlavor.called);
+    sinon.assert.notCalled(contextSetFlavor);
   });
 });

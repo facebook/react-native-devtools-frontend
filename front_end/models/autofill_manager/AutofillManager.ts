@@ -1,18 +1,15 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
-import * as Host from '../../core/host/host.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
-import * as UI from '../../ui/legacy/legacy.js';
 
 let autofillManagerInstance: AutofillManager;
 
 export class AutofillManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
-  #autoOpenViewSetting: Common.Settings.Setting<boolean>;
   #address = '';
   #filledFields: Protocol.Autofill.FilledField[] = [];
   #matches: Match[] = [];
@@ -23,8 +20,6 @@ export class AutofillManager extends Common.ObjectWrapper.ObjectWrapper<EventTyp
     SDK.TargetManager.TargetManager.instance().addModelListener(
         SDK.AutofillModel.AutofillModel, SDK.AutofillModel.Events.ADDRESS_FORM_FILLED, this.#addressFormFilled, this,
         {scoped: true});
-    this.#autoOpenViewSetting =
-        Common.Settings.Settings.instance().createSetting('auto-open-autofill-view-on-event', true);
   }
 
   static instance(opts: {forceNew: boolean|null} = {forceNew: null}): AutofillManager {
@@ -35,20 +30,8 @@ export class AutofillManager extends Common.ObjectWrapper.ObjectWrapper<EventTyp
     return autofillManagerInstance;
   }
 
-  onShowAutofillTestAddressesSettingsChanged(): void {
-    for (const autofillModel of SDK.TargetManager.TargetManager.instance().models(SDK.AutofillModel.AutofillModel)) {
-      autofillModel.setTestAddresses();
-    }
-  }
-
   async #addressFormFilled({data}: Common.EventTarget.EventTargetEvent<
                            SDK.AutofillModel.EventTypes[SDK.AutofillModel.Events.ADDRESS_FORM_FILLED]>): Promise<void> {
-    if (this.#autoOpenViewSetting.get()) {
-      await UI.ViewManager.ViewManager.instance().showView('autofill-view');
-      Host.userMetrics.actionTaken(Host.UserMetrics.Action.AutofillReceivedAndTabAutoOpened);
-    } else {
-      Host.userMetrics.actionTaken(Host.UserMetrics.Action.AutofillReceived);
-    }
     this.#autofillModel = data.autofillModel;
     this.#processAddressFormFilledData(data.event);
     if (this.#address) {
@@ -56,7 +39,6 @@ export class AutofillManager extends Common.ObjectWrapper.ObjectWrapper<EventTyp
         address: this.#address,
         filledFields: this.#filledFields,
         matches: this.#matches,
-        autofillModel: this.#autofillModel,
       });
     }
   }
@@ -69,8 +51,23 @@ export class AutofillManager extends Common.ObjectWrapper.ObjectWrapper<EventTyp
       address: this.#address,
       filledFields: this.#filledFields,
       matches: this.#matches,
-      autofillModel: this.#autofillModel,
     };
+  }
+
+  highlightFilledField(filledField: Protocol.Autofill.FilledField): void {
+    const backendNodeId = filledField.fieldId;
+    const target = SDK.FrameManager.FrameManager.instance().getFrame(filledField.frameId)?.resourceTreeModel().target();
+    if (target) {
+      const deferredNode = new SDK.DOMModel.DeferredDOMNode(target, backendNodeId);
+      const domModel = target.model(SDK.DOMModel.DOMModel);
+      if (deferredNode && domModel) {
+        domModel.overlayModel().highlightInOverlay({deferredNode}, 'all');
+      }
+    }
+  }
+
+  clearHighlightedFilledFields(): void {
+    SDK.OverlayModel.OverlayModel.hideDOMNodeHighlight();
   }
 
   #processAddressFormFilledData({addressUi, filledFields}: Protocol.Autofill.AddressFormFilledEvent): void {
@@ -105,8 +102,10 @@ export class AutofillManager extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 }
 
-// A Match describes how the value of a filled field corresponds to a substring
-// of address from startIndex to endIndex.
+/**
+ * A Match describes how the value of a filled field corresponds to a substring
+ * of address from startIndex to endIndex.
+ **/
 export interface Match {
   startIndex: number;
   endIndex: number;
@@ -121,7 +120,6 @@ export interface AddressFormFilledEvent {
   address: string;
   filledFields: Protocol.Autofill.FilledField[];
   matches: Match[];
-  autofillModel: SDK.AutofillModel.AutofillModel;
 }
 
 export interface EventTypes {

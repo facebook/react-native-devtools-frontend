@@ -1,6 +1,7 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 /*
  * Copyright (C) 2008 Nokia Inc.  All rights reserved.
@@ -41,16 +42,16 @@ import {KeyValueStorageItemsView} from './KeyValueStorageItemsView.js';
 
 const UIStrings = {
   /**
-   *@description Name for the "DOM Storage Items" table that shows the content of the DOM Storage.
+   * @description Name for the "DOM Storage Items" table that shows the content of the DOM Storage.
    */
   domStorageItems: 'DOM Storage Items',
   /**
-   *@description Text for announcing that the "DOM Storage Items" table was cleared, that is, all
+   * @description Text for announcing that the "DOM Storage Items" table was cleared, that is, all
    * entries were deleted.
    */
   domStorageItemsCleared: 'DOM Storage Items cleared',
   /**
-   *@description Text for announcing a DOM Storage key/value item has been deleted
+   * @description Text for announcing a DOM Storage key/value item has been deleted
    */
   domStorageItemDeleted: 'The storage item was deleted.',
 } as const;
@@ -61,14 +62,14 @@ export class DOMStorageItemsView extends KeyValueStorageItemsView {
   private eventListeners: Common.EventTarget.EventDescriptor[];
 
   constructor(domStorage: DOMStorage) {
-    super(i18nString(UIStrings.domStorageItems), 'dom-storage', true);
+    super(
+        i18nString(UIStrings.domStorageItems), 'dom-storage', true, /* view=*/ undefined, /* metadataView=*/ undefined,
+        /* jslog=*/ undefined, ['storage-view', 'table']);
 
     this.domStorage = domStorage;
     if (domStorage.storageKey) {
-      this.setStorageKey(domStorage.storageKey);
+      this.toolbar?.setStorageKey(domStorage.storageKey);
     }
-
-    this.element.classList.add('storage-view', 'table');
 
     this.showPreview(null, null);
 
@@ -96,7 +97,7 @@ export class DOMStorageItemsView extends KeyValueStorageItemsView {
     const storageKind = domStorage.isLocalStorage ? 'local-storage-data' : 'session-storage-data';
     this.element.setAttribute('jslog', `${VisualLogging.pane().context(storageKind)}`);
     if (domStorage.storageKey) {
-      this.setStorageKey(domStorage.storageKey);
+      this.toolbar?.setStorageKey(domStorage.storageKey);
     }
     this.eventListeners = [
       this.domStorage.addEventListener(DOMStorage.Events.DOM_STORAGE_ITEMS_CLEARED, this.domStorageItemsCleared, this),
@@ -117,7 +118,7 @@ export class DOMStorageItemsView extends KeyValueStorageItemsView {
 
   override itemsCleared(): void {
     super.itemsCleared();
-    UI.ARIAUtils.alert(i18nString(UIStrings.domStorageItemsCleared));
+    UI.ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.domStorageItemsCleared));
   }
 
   private domStorageItemRemoved(event: Common.EventTarget.EventTargetEvent<DOMStorage.DOMStorageItemRemovedEvent>):
@@ -131,7 +132,7 @@ export class DOMStorageItemsView extends KeyValueStorageItemsView {
 
   override itemRemoved(key: string): void {
     super.itemRemoved(key);
-    UI.ARIAUtils.alert(i18nString(UIStrings.domStorageItemDeleted));
+    UI.ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.domStorageItemDeleted));
   }
 
   private domStorageItemAdded(event: Common.EventTarget.EventTargetEvent<DOMStorage.DOMStorageItemAddedEvent>): void {
@@ -157,11 +158,12 @@ export class DOMStorageItemsView extends KeyValueStorageItemsView {
 
   async #refreshItems(): Promise<void> {
     const items = await this.domStorage.getItems();
-    if (!items) {
+    if (!items || !this.toolbar) {
       return;
     }
-    const filteredItems =
-        this.filter(items.map(item => ({key: item[0], value: item[1]})), item => `${item.key} ${item.value}`);
+    const {filterRegex} = this.toolbar;
+    const filteredItems = items.map(item => ({key: item[0], value: item[1]}))
+                              .filter(item => filterRegex?.test(`${item.key} ${item.value}`) ?? true);
     this.showItems(filteredItems);
   }
 

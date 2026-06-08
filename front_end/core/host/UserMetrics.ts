@@ -1,32 +1,6 @@
-/*
- * Copyright (C) 2011 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2011 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 import {InspectorFrontendHostInstance} from './InspectorFrontendHost.js';
 import {EnumeratedHistogram} from './InspectorFrontendHostAPI.js';
@@ -51,17 +25,6 @@ export class UserMetrics {
       this.#panelChangedSinceLaunch = true;
     }
     RNPerfMetrics.getInstance().panelShown(panelName, isLaunching);
-  }
-
-  panelShownInLocation(panelName: string, location: 'main'|'drawer'): void {
-    const panelWithLocationName = `${panelName}-${location}`;
-    const panelWithLocation = PanelWithLocation[panelWithLocationName as keyof typeof PanelWithLocation] || 0;
-    InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.PanelShownInLocation,
-        panelWithLocation,
-        PanelWithLocation.MAX_VALUE,
-    );
-    RNPerfMetrics.getInstance().panelShownInLocation(panelName, location);
   }
 
   settingsPanelShown(settingsViewId: string): void {
@@ -140,7 +103,7 @@ export class UserMetrics {
         EnumeratedHistogram.IssuesPanelOpenedFrom, issueOpener, IssueOpener.MAX_VALUE);
   }
 
-  issuesPanelIssueExpanded(issueExpandedCategory: string|undefined): void {
+  issuesPanelIssueExpanded(issueExpandedCategory?: string): void {
     if (issueExpandedCategory === undefined) {
       return;
     }
@@ -248,11 +211,6 @@ export class UserMetrics {
     });
   }
 
-  recordingAssertion(value: RecordingAssertion): void {
-    InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.RecordingAssertion, value, RecordingAssertion.MAX_VALUE);
-  }
-
   recordingToggled(value: RecordingToggled): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
         EnumeratedHistogram.RecordingToggled, value, RecordingToggled.MAX_VALUE);
@@ -263,39 +221,9 @@ export class UserMetrics {
         EnumeratedHistogram.RecordingReplayFinished, value, RecordingReplayFinished.MAX_VALUE);
   }
 
-  recordingReplaySpeed(value: RecordingReplaySpeed): void {
-    InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.RecordingReplaySpeed, value, RecordingReplaySpeed.MAX_VALUE);
-  }
-
   recordingReplayStarted(value: RecordingReplayStarted): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
         EnumeratedHistogram.RecordingReplayStarted, value, RecordingReplayStarted.MAX_VALUE);
-  }
-
-  recordingEdited(value: RecordingEdited): void {
-    InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.RecordingEdited, value, RecordingEdited.MAX_VALUE);
-  }
-
-  recordingExported(value: RecordingExported): void {
-    InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.RecordingExported, value, RecordingExported.MAX_VALUE);
-  }
-
-  recordingCodeToggled(value: RecordingCodeToggled): void {
-    InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.RecordingCodeToggled, value, RecordingCodeToggled.MAX_VALUE);
-  }
-
-  recordingCopiedToClipboard(value: RecordingCopiedToClipboard): void {
-    InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.RecordingCopiedToClipboard, value, RecordingCopiedToClipboard.MAX_VALUE);
-  }
-
-  cssHintShown(type: CSSHintType): void {
-    InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.CSSHintShown, type, CSSHintType.MAX_VALUE);
   }
 
   lighthouseModeRun(type: LighthouseModeRun): void {
@@ -311,16 +239,6 @@ export class UserMetrics {
   swatchActivated(swatch: SwatchType): void {
     InspectorFrontendHostInstance.recordEnumeratedHistogram(
         EnumeratedHistogram.SwatchActivated, swatch, SwatchType.MAX_VALUE);
-  }
-
-  animationPlaybackRateChanged(playbackRate: AnimationsPlaybackRate): void {
-    InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.AnimationPlaybackRateChanged, playbackRate, AnimationsPlaybackRate.MAX_VALUE);
-  }
-
-  animationPointDragged(dragType: AnimationPointDragType): void {
-    InspectorFrontendHostInstance.recordEnumeratedHistogram(
-        EnumeratedHistogram.AnimationPointDragged, dragType, AnimationPointDragType.MAX_VALUE);
   }
 
   workspacesPopulated(wallClockTimeInMilliseconds: number): void {
@@ -341,6 +259,76 @@ export class UserMetrics {
   freestylerEvalResponseSize(bytes: number): void {
     InspectorFrontendHostInstance.recordCountHistogram('DevTools.Freestyler.EvalResponseSize', bytes, 0, 100_000, 100);
   }
+
+  performanceAINetworkSummaryResponseSize(bytes: number): void {
+    InspectorFrontendHostInstance.recordCountHistogram(
+        'DevTools.PerformanceAI.NetworkSummaryResponseSize', bytes, 0, 100_000, 100);
+  }
+
+  performanceAINetworkRequestDetailResponseSize(bytes: number): void {
+    InspectorFrontendHostInstance.recordCountHistogram(
+        'DevTools.PerformanceAI.NetworkRequestDetailResponseSize', bytes, 0, 100_000, 100);
+  }
+
+  performanceAIMainThreadActivityResponseSize(bytes: number): void {
+    InspectorFrontendHostInstance.recordCountHistogram(
+        'DevTools.PerformanceAI.MainThreadActivityResponseSize', bytes, 0, 100_000, 100);
+  }
+
+  builtInAiAvailability(availability: BuiltInAiAvailability): void {
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(
+        EnumeratedHistogram.BuiltInAiAvailability, availability, BuiltInAiAvailability.MAX_VALUE);
+  }
+
+  consoleInsightTeaserGenerated(timeInMilliseconds: number): void {
+    InspectorFrontendHostInstance.recordPerformanceHistogram(
+        'DevTools.Insights.TeaserGenerationTime', timeInMilliseconds);
+  }
+
+  consoleInsightTeaserGeneratedMedium(timeInMilliseconds: number): void {
+    InspectorFrontendHostInstance.recordPerformanceHistogramMedium(
+        'DevTools.Insights.TeaserGenerationTimeMedium', timeInMilliseconds);
+  }
+
+  consoleInsightTeaserFirstChunkGenerated(timeInMilliseconds: number): void {
+    InspectorFrontendHostInstance.recordPerformanceHistogram(
+        'DevTools.Insights.TeaserFirstChunkGenerationTime', timeInMilliseconds);
+  }
+
+  consoleInsightTeaserFirstChunkGeneratedMedium(timeInMilliseconds: number): void {
+    InspectorFrontendHostInstance.recordPerformanceHistogramMedium(
+        'DevTools.Insights.TeaserFirstChunkGenerationTimeMedium', timeInMilliseconds);
+  }
+
+  consoleInsightTeaserChunkToEndMedium(timeInMilliseconds: number): void {
+    InspectorFrontendHostInstance.recordPerformanceHistogramMedium(
+        'DevTools.Insights.TeaserChunkToEndMedium', timeInMilliseconds);
+  }
+
+  consoleInsightTeaserAbortedAfterFirstCharacter(timeInMilliseconds: number): void {
+    InspectorFrontendHostInstance.recordPerformanceHistogram(
+        'DevTools.Insights.TeaserAfterFirstCharacterAbortionTime', timeInMilliseconds);
+  }
+
+  consoleInsightTeaserAbortedBeforeFirstCharacter(timeInMilliseconds: number): void {
+    InspectorFrontendHostInstance.recordPerformanceHistogram(
+        'DevTools.Insights.TeaserBeforeFirstCharacterAbortionTime', timeInMilliseconds);
+  }
+
+  consoleInsightLongTeaserGenerated(timeInMilliseconds: number): void {
+    InspectorFrontendHostInstance.recordPerformanceHistogram(
+        'DevTools.Insights.LongTeaserGenerationTime', timeInMilliseconds);
+  }
+
+  consoleInsightShortTeaserGenerated(timeInMilliseconds: number): void {
+    InspectorFrontendHostInstance.recordPerformanceHistogram(
+        'DevTools.Insights.ShortTeaserGenerationTime', timeInMilliseconds);
+  }
+
+  extensionEvalTarget(target: ExtensionEvalTarget): void {
+    InspectorFrontendHostInstance.recordEnumeratedHistogram(
+        EnumeratedHistogram.ExtensionEvalTarget, target, ExtensionEvalTarget.MAX_VALUE);
+  }
 }
 
 /**
@@ -355,9 +343,11 @@ export class UserMetrics {
  * 2. Do not update any 'MAX_VALUE' or any other value.
  */
 
-// Codes below are used to collect UMA histograms in the Chromium port.
-// Do not change the values below, additional actions are needed on the Chromium side
-// in order to add more codes.
+/**
+ * Codes below are used to collect UMA histograms in the Chromium port.
+ * Do not change the values below, additional actions are needed on the Chromium side
+ * in order to add more codes.
+ **/
 export enum Action {
   /* eslint-disable @typescript-eslint/naming-convention */
   WindowDocked = 1,
@@ -529,7 +519,7 @@ export enum Action {
   AiAssistanceOpenedFromNetworkPanel = 170,
   AiAssistanceOpenedFromSourcesPanel = 171,
   AiAssistanceOpenedFromSourcesPanelFloatingButton = 172,
-  AiAssistanceOpenedFromPerformancePanel = 173,
+  AiAssistanceOpenedFromPerformancePanelCallTree = 173,
   AiAssistanceOpenedFromNetworkPanelFloatingButton = 174,
   AiAssistancePanelOpened = 175,
   AiAssistanceQuerySubmitted = 176,
@@ -538,8 +528,24 @@ export enum Action {
   AiAssistanceSideEffectConfirmed = 179,
   AiAssistanceSideEffectRejected = 180,
   AiAssistanceError = 181,
-  AiAssistanceOpenedFromPerformanceInsight = 182,
-  MAX_VALUE = 183,
+  AiCodeCompletionResponseServedFromCache = 184,
+  AiCodeCompletionRequestTriggered = 185,
+  AiCodeCompletionSuggestionDisplayed = 186,
+  AiCodeCompletionSuggestionAccepted = 187,
+  AiCodeCompletionError = 188,
+  AttributeLinkClicked = 189,
+  InsightRequestedViaTeaser = 190,
+  InsightTeaserGenerationStarted = 191,
+  InsightTeaserGenerationCompleted = 192,
+  InsightTeaserGenerationAborted = 193,
+  InsightTeaserGenerationErrored = 194,
+  AiCodeGenerationSuggestionDisplayed = 195,
+  AiCodeGenerationSuggestionAccepted = 196,
+  InsightTeaserModelDownloadStarted = 197,
+  InsightTeaserModelDownloadCompleted = 198,
+  AiCodeGenerationError = 199,
+  AiCodeGenerationRequestTriggered = 200,
+  MAX_VALUE = 201,
   /* eslint-enable @typescript-eslint/naming-convention */
 }
 
@@ -611,158 +617,9 @@ export enum PanelCodes {
   'bounce-tracking-mitigations' = 65,
   'developer-resources' = 66,
   'autofill-view' = 67,
+  freestyler = 68,
   /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 68,
-}
-
-export enum PanelWithLocation {
-  /* eslint-disable @typescript-eslint/naming-convention */
-  'elements-main' = 1,
-  'elements-drawer' = 2,
-  'resources-main' = 3,
-  'resources-drawer' = 4,
-  'network-main' = 5,
-  'network-drawer' = 6,
-  'sources-main' = 7,
-  'sources-drawer' = 8,
-  'timeline-main' = 9,
-  'timeline-drawer' = 10,
-  'heap_profiler-main' = 11,
-  'heap_profiler-drawer' = 12,
-  'console-main' = 13,
-  'console-drawer' = 14,
-  'layers-main' = 15,
-  'layers-drawer' = 16,
-  'console-view-main' = 17,
-  'console-view-drawer' = 18,
-  'animations-main' = 19,
-  'animations-drawer' = 20,
-  'network.config-main' = 21,
-  'network.config-drawer' = 22,
-  'rendering-main' = 23,
-  'rendering-drawer' = 24,
-  'sensors-main' = 25,
-  'sensors-drawer' = 26,
-  'sources.search-main' = 27,
-  'sources.search-drawer' = 28,
-  'security-main' = 29,
-  'security-drawer' = 30,
-  'lighthouse-main' = 33,
-  'lighthouse-drawer' = 34,
-  'coverage-main' = 35,
-  'coverage-drawer' = 36,
-  'protocol-monitor-main' = 37,
-  'protocol-monitor-drawer' = 38,
-  'remote-devices-main' = 39,
-  'remote-devices-drawer' = 40,
-  'web-audio-main' = 41,
-  'web-audio-drawer' = 42,
-  'changes.changes-main' = 43,
-  'changes.changes-drawer' = 44,
-  'performance.monitor-main' = 45,
-  'performance.monitor-drawer' = 46,
-  'release-note-main' = 47,
-  'release-note-drawer' = 48,
-  'live_heap_profile-main' = 49,
-  'live_heap_profile-drawer' = 50,
-  'sources.quick-main' = 51,
-  'sources.quick-drawer' = 52,
-  'network.blocked-urls-main' = 53,
-  'network.blocked-urls-drawer' = 54,
-  'settings-preferences-main' = 55,
-  'settings-preferences-drawer' = 56,
-  'settings-workspace-main' = 57,
-  'settings-workspace-drawer' = 58,
-  'settings-experiments-main' = 59,
-  'settings-experiments-drawer' = 60,
-  'settings-blackbox-main' = 61,
-  'settings-blackbox-drawer' = 62,
-  'settings-devices-main' = 63,
-  'settings-devices-drawer' = 64,
-  'settings-throttling-conditions-main' = 65,
-  'settings-throttling-conditions-drawer' = 66,
-  'settings-emulation-locations-main' = 67,
-  'settings-emulation-locations-drawer' = 68,
-  'settings-shortcuts-main' = 69,
-  'settings-shortcuts-drawer' = 70,
-  'issues-pane-main' = 71,
-  'issues-pane-drawer' = 72,
-  'settings-keybinds-main' = 73,
-  'settings-keybinds-drawer' = 74,
-  'cssoverview-main' = 75,
-  'cssoverview-drawer' = 76,
-  'chrome_recorder-main' = 77,
-  'chrome_recorder-drawer' = 78,
-  'trust_tokens-main' = 79,
-  'trust_tokens-drawer' = 80,
-  'reporting_api-main' = 81,
-  'reporting_api-drawer' = 82,
-  'interest_groups-main' = 83,
-  'interest_groups-drawer' = 84,
-  'back_forward_cache-main' = 85,
-  'back_forward_cache-drawer' = 86,
-  'service_worker_cache-main' = 87,
-  'service_worker_cache-drawer' = 88,
-  'background_service_backgroundFetch-main' = 89,
-  'background_service_backgroundFetch-drawer' = 90,
-  'background_service_backgroundSync-main' = 91,
-  'background_service_backgroundSync-drawer' = 92,
-  'background_service_pushMessaging-main' = 93,
-  'background_service_pushMessaging-drawer' = 94,
-  'background_service_notifications-main' = 95,
-  'background_service_notifications-drawer' = 96,
-  'background_service_paymentHandler-main' = 97,
-  'background_service_paymentHandler-drawer' = 98,
-  'background_service_periodicBackgroundSync-main' = 99,
-  'background_service_periodicBackgroundSync-drawer' = 100,
-  'service_workers-main' = 101,
-  'service_workers-drawer' = 102,
-  'app_manifest-main' = 103,
-  'app_manifest-drawer' = 104,
-  'storage-main' = 105,
-  'storage-drawer' = 106,
-  'cookies-main' = 107,
-  'cookies-drawer' = 108,
-  'frame_details-main' = 109,
-  'frame_details-drawer' = 110,
-  'frame_resource-main' = 111,
-  'frame_resource-drawer' = 112,
-  'frame_window-main' = 113,
-  'frame_window-drawer' = 114,
-  'frame_worker-main' = 115,
-  'frame_worker-drawer' = 116,
-  'dom_storage-main' = 117,
-  'dom_storage-drawer' = 118,
-  'indexed_db-main' = 119,
-  'indexed_db-drawer' = 120,
-  'web_sql-main' = 121,
-  'web_sql-drawer' = 122,
-  'performance_insights-main' = 123,
-  'performance_insights-drawer' = 124,
-  'preloading-main' = 125,
-  'preloading-drawer' = 126,
-  'bounce_tracking_mitigations-main' = 127,
-  'bounce_tracking_mitigations-drawer' = 128,
-  'developer-resources-main' = 129,
-  'developer-resources-drawer' = 130,
-  'autofill-view-main' = 131,
-  'autofill-view-drawer' = 132,
-  /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 133,
-}
-
-export enum ElementsSidebarTabCodes {
-  /* eslint-disable @typescript-eslint/naming-convention */
-  OtherSidebarPane = 0,
-  styles = 1,
-  computed = 2,
-  'elements.layout' = 3,
-  'elements.event-listeners' = 4,
-  'elements.dom-breakpoints' = 5,
-  'elements.dom-properties' = 6,
-  'accessibility.view' = 7,
-  /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 8,
+  MAX_VALUE = 69,
 }
 
 export enum MediaTypes {
@@ -930,15 +787,14 @@ export enum KeyboardShortcutAction {
   'chrome-recorder.replay-recording' = 109,
   'chrome-recorder.toggle-code-view' = 110,
   'chrome-recorder.copy-recording-or-step' = 111,
-  'changes.revert' = 112,
-  'changes.copy' = 113,
   'elements.new-style-rule' = 114,
   'elements.refresh-event-listeners' = 115,
   'coverage.clear' = 116,
   'coverage.export' = 117,
   'timeline.dim-third-parties' = 118,
+  'main.toggle-drawer-orientation' = 119,
   /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 119,
+  MAX_VALUE = 120,
 }
 
 export const enum IssueOpener {
@@ -960,38 +816,20 @@ export enum DevtoolsExperiments {
   'capture-node-creation-stacks' = 1,
   'live-heap-profile' = 11,
   'protocol-monitor' = 13,
-  'sampling-heap-profiler-timeline' = 17,
-  'show-option-tp-expose-internals-in-heap-snapshot' = 18,
   'timeline-invalidation-tracking' = 26,
-  'timeline-show-all-events' = 27,
-  'timeline-v8-runtime-call-stats' = 28,
-  apca = 39,
   'font-editor' = 41,
-  'full-accessibility-tree' = 42,
-  'contrast-issues' = 44,
-  'experimental-cookie-features' = 45,
   'instrumentation-breakpoints' = 61,
-  'authored-deployed-grouping' = 63,
-  'just-my-code' = 65,
-  'highlight-errors-elements-panel' = 73,
   'use-source-map-scopes' = 76,
-  'network-panel-filter-bar-redesign' = 79,
-  'timeline-show-postmessage-events' = 86,
-  'timeline-enhanced-traces' = 90,
-  'timeline-compiled-sources' = 91,
   'timeline-debug-mode' = 93,
-  'timeline-experimental-insights' = 102,
-  'timeline-dim-unrelated-events' = 103,
-  'timeline-alternative-navigation' = 104,
-  // 106 was historically used [https://chromium-review.googlesource.com/c/devtools/devtools-frontend/+/6230097]
-  // next experiment should be 107
+  'durable-messages' = 110,
+  'jpeg-xl' = 111,
   /* eslint-enable @typescript-eslint/naming-convention */
 
   // Increment this when new experiments are added.
-  MAX_VALUE = 106,
+  MAX_VALUE = 112,
 }
 
-// Update DevToolsIssuesPanelIssueExpanded from tools/metrics/histograms/enums.xml if new enum is added.
+/** Update DevToolsIssuesPanelIssueExpanded from tools/metrics/histograms/enums.xml if new enum is added. **/
 export enum IssueExpanded {
   /* eslint-disable @typescript-eslint/naming-convention */
   CrossOriginEmbedderPolicy = 0,
@@ -1065,8 +903,8 @@ export enum IssueCreated {
   'CookieIssue::WarnSameSiteUnspecifiedCrossSiteContext::SetCookie' = 35,
   'SharedArrayBufferIssue::TransferIssue' = 36,
   'SharedArrayBufferIssue::CreationIssue' = 37,
-  LowTextContrastIssue = 41,
-  'CorsIssue::InsecurePrivateNetwork' = 42,
+
+  'CorsIssue::InsecureLocalNetwork' = 42,
   'CorsIssue::InvalidHeaders' = 44,
   'CorsIssue::WildcardOriginWithCredentials' = 45,
   'CorsIssue::PreflightResponseInvalid' = 46,
@@ -1085,34 +923,29 @@ export enum IssueCreated {
   DeprecationIssue = 60,
   'ClientHintIssue::MetaTagAllowListInvalidOrigin' = 61,
   'ClientHintIssue::MetaTagModifiedHTML' = 62,
-  'CorsIssue::PreflightAllowPrivateNetworkError' = 63,
   'GenericIssue::CrossOriginPortalPostMessageError' = 64,
   'GenericIssue::FormLabelForNameError' = 65,
   'GenericIssue::FormDuplicateIdForInputError' = 66,
   'GenericIssue::FormInputWithNoLabelError' = 67,
   'GenericIssue::FormAutocompleteAttributeEmptyError' = 68,
   'GenericIssue::FormEmptyIdAndNameAttributesForInputError' = 69,
-  'GenericIssue::FormAriaLabelledByToNonExistingId' = 70,
+  'GenericIssue::FormAriaLabelledByToNonExistingIdError' = 70,
   'GenericIssue::FormInputAssignedAutocompleteValueToIdOrNameAttributeError' = 71,
-  'GenericIssue::FormLabelHasNeitherForNorNestedInput' = 72,
+  'GenericIssue::FormLabelHasNeitherForNorNestedInputError' = 72,
   'GenericIssue::FormLabelForMatchesNonExistingIdError' = 73,
   'GenericIssue::FormHasPasswordFieldWithoutUsernameFieldError' = 74,
   'GenericIssue::FormInputHasWrongButWellIntendedAutocompleteValueError' = 75,
   'StylesheetLoadingIssue::LateImportRule' = 76,
   'StylesheetLoadingIssue::RequestFailed' = 77,
-  'CorsIssue::PreflightMissingPrivateNetworkAccessId' = 78,
-  'CorsIssue::PreflightMissingPrivateNetworkAccessName' = 79,
-  'CorsIssue::PrivateNetworkAccessPermissionUnavailable' = 80,
-  'CorsIssue::PrivateNetworkAccessPermissionDenied' = 81,
   'CookieIssue::WarnThirdPartyPhaseout::ReadCookie' = 82,
   'CookieIssue::WarnThirdPartyPhaseout::SetCookie' = 83,
   'CookieIssue::ExcludeThirdPartyPhaseout::ReadCookie' = 84,
   'CookieIssue::ExcludeThirdPartyPhaseout::SetCookie' = 85,
-  'SelectElementAccessibilityIssue::DisallowedSelectChild' = 86,
-  'SelectElementAccessibilityIssue::DisallowedOptGroupChild' = 87,
-  'SelectElementAccessibilityIssue::NonPhrasingContentOptionChild' = 88,
-  'SelectElementAccessibilityIssue::InteractiveContentOptionChild' = 89,
-  'SelectElementAccessibilityIssue::InteractiveContentLegendChild' = 90,
+  'ElementAccessibilityIssue::DisallowedSelectChild' = 86,
+  'ElementAccessibilityIssue::DisallowedOptGroupChild' = 87,
+  'ElementAccessibilityIssue::NonPhrasingContentOptionChild' = 88,
+  'ElementAccessibilityIssue::InteractiveContentOptionChild' = 89,
+  'ElementAccessibilityIssue::InteractiveContentLegendChild' = 90,
   'SRIMessageSignatureIssue::MissingSignatureHeader' = 91,
   'SRIMessageSignatureIssue::MissingSignatureInputHeader' = 92,
   'SRIMessageSignatureIssue::InvalidSignatureHeader' = 93,
@@ -1135,13 +968,15 @@ export enum IssueCreated {
   'SRIMessageSignatureIssue::ValidationFailedSignatureMismatch' = 110,
   'CorsIssue::LocalNetworkAccessPermissionDenied' = 111,
   'SRIMessageSignatureIssue::ValidationFailedIntegrityMismatch' = 112,
+  'ElementAccessibilityIssue::InteractiveContentSummaryDescendant' = 113,
+  'CorsIssue::InvalidLocalNetworkAccess' = 114,
   /* eslint-enable @typescript-eslint/naming-convention */
-  MAX_VALUE = 113,
+  MAX_VALUE = 115,
 }
 
 export const enum DeveloperResourceLoaded {
   LOAD_THROUGH_PAGE_VIA_TARGET = 0,
-  LOAD_THROUGH_PAGE_VIA_FRAME = 1,
+  /* LOAD_THROUGH_PAGE_VIA_FRAME = 1 was barely used */
   LOAD_THROUGH_PAGE_FAILURE = 2,
   LOAD_THROUGH_PAGE_FALLBACK = 3,
   FALLBACK_AFTER_FAILURE = 4,
@@ -1349,25 +1184,6 @@ export enum ManifestSectionCodes {
   MAX_VALUE = 6,
 }
 
-// The names here match the CSSRuleValidator names in CSSRuleValidator.ts.
-export const enum CSSHintType {
-  OTHER = 0,
-  ALIGN_CONTENT = 1,
-  FLEX_ITEM = 2,
-  FLEX_CONTAINER = 3,
-  GRID_CONTAINER = 4,
-  GRID_ITEM = 5,
-  FLEX_GRID = 6,
-  MULTICOL_FLEX_GRID = 7,
-  PADDING = 8,
-  POSITION = 9,
-  Z_INDEX = 10,
-  SIZING = 11,
-  FLEX_OR_GRID_ITEM = 12,
-  FONT_VARIATION_SETTINGS = 13,
-  MAX_VALUE = 14,
-}
-
 export const enum LighthouseModeRun {
   NAVIGATION = 0,
   TIMESPAN = 1,
@@ -1397,7 +1213,9 @@ export const enum SwatchType {
   ANGLE = 7,
   LENGTH = 8,
   POSITION_TRY_LINK = 10,
-  MAX_VALUE = 11,
+  ATTR_LINK = 11,
+  GRID_LANES = 12,
+  MAX_VALUE = 13,
 }
 
 export const enum BadgeType {
@@ -1421,19 +1239,6 @@ export const enum AnimationsPlaybackRate {
   MAX_VALUE = 4,
 }
 
-export const enum AnimationPointDragType {
-  // Animation is dragged as a whole in the Animations panel.
-  ANIMATION_DRAG = 0,
-  // A keyframe point inside animation timeline is dragged.
-  KEYFRAME_MOVE = 1,
-  // Start point of the animation inside animation timeline is dragged.
-  START_ENDPOINT_MOVE = 2,
-  // Finish point of the animation inside animation timeline is dragged.
-  FINISH_ENDPOINT_MOVE = 3,
-  OTHER = 4,
-  MAX_VALUE = 5,
-}
-
 export const enum TimelineNavigationSetting {
   // Setting is set to classic when the first trace of the session is recorded or loaded.
   CLASSIC_AT_SESSION_FIRST_TRACE = 0,
@@ -1442,4 +1247,25 @@ export const enum TimelineNavigationSetting {
   SWITCHED_TO_CLASSIC = 2,
   SWITCHED_TO_MODERN = 3,
   MAX_VALUE = 4,
+}
+
+export const enum BuiltInAiAvailability {
+  UNAVAILABLE_HAS_GPU = 0,
+  DOWNLOADABLE_HAS_GPU = 1,
+  DOWNLOADING_HAS_GPU = 2,
+  AVAILABLE_HAS_GPU = 3,
+  DISABLED_HAS_GPU = 4,
+  UNAVAILABLE_NO_GPU = 5,
+  DOWNLOADABLE_NO_GPU = 6,
+  DOWNLOADING_NO_GPU = 7,
+  AVAILABLE_NO_GPU = 8,
+  DISABLED_NO_GPU = 9,
+  MAX_VALUE = 10,
+}
+
+export const enum ExtensionEvalTarget {
+  WEB_PAGE = 0,
+  SAME_EXTENSION = 1,
+  OTHER_EXTENSION = 2,
+  MAX_VALUE = 3,
 }

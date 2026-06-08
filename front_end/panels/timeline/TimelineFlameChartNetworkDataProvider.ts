@@ -1,7 +1,9 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view */
 
+import type * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
@@ -9,10 +11,10 @@ import * as Trace from '../../models/trace/trace.js';
 import * as PerfUI from '../../ui/legacy/components/perf_ui/perf_ui.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as ThemeSupport from '../../ui/legacy/theme_support/theme_support.js';
+import {html, render} from '../../ui/lit/lit.js';
 
 import * as TimelineComponents from './components/components.js';
 import {initiatorsDataToDrawForNetwork} from './Initiators.js';
-import {ModificationsManager} from './ModificationsManager.js';
 import {NetworkTrackAppender, type NetworkTrackEvent} from './NetworkTrackAppender.js';
 import timelineFlamechartPopoverStyles from './timelineFlamechartPopover.css.js';
 import {FlameChartStyle, Selection} from './TimelineFlameChartView.js';
@@ -22,7 +24,7 @@ import {
   selectionsEqual,
   type TimelineSelection,
 } from './TimelineSelection.js';
-import * as TimelineUtils from './utils/utils.js';
+import {buildPersistedConfig} from './TrackConfiguration.js';
 
 export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.FlameChartDataProvider {
   #minimumBoundary = 0;
@@ -31,14 +33,15 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
   #maxLevel = 0;
   #networkTrackAppender: NetworkTrackAppender|null = null;
 
-  #timelineDataInternal: PerfUI.FlameChart.FlameChartTimelineData|null = null;
+  #timelineData: PerfUI.FlameChart.FlameChartTimelineData|null = null;
   #lastSelection: Selection|null = null;
-  #parsedTrace: Trace.Handlers.Types.ParsedTrace|null = null;
+  #parsedTrace: Trace.TraceModel.ParsedTrace|null = null;
   #eventIndexByEvent = new Map<NetworkTrackEvent, number|null>();
   // -1 means no entry is selected.
   #lastInitiatorEntry = -1;
   #lastInitiatorsData: PerfUI.FlameChart.FlameChartInitiatorData[] = [];
-  #entityMapper: TimelineUtils.EntityMapper.EntityMapper|null = null;
+  #entityMapper: Trace.EntityMapper.EntityMapper|null = null;
+  #persistedGroupConfigSetting: Common.Settings.Setting<PerfUI.FlameChart.PersistedGroupConfig[]|null>|null = null;
 
   constructor() {
     this.reset();
@@ -55,13 +58,13 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
     this.#timeSpan = 0;
     this.#eventIndexByEvent.clear();
     this.#events = [];
-    this.#timelineDataInternal = null;
+    this.#timelineData = null;
     this.#parsedTrace = null;
 
     this.#networkTrackAppender = null;
   }
 
-  setModel(parsedTrace: Trace.Handlers.Types.ParsedTrace, entityMapper: TimelineUtils.EntityMapper.EntityMapper): void {
+  setModel(parsedTrace: Trace.TraceModel.ParsedTrace, entityMapper: Trace.EntityMapper.EntityMapper): void {
     this.reset();
     this.#parsedTrace = parsedTrace;
     this.#entityMapper = entityMapper;
@@ -70,17 +73,17 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
     this.#setTimingBoundsData(this.#parsedTrace);
   }
 
-  setEvents(parsedTrace: Trace.Handlers.Types.ParsedTrace): void {
-    if (parsedTrace.NetworkRequests.webSocket) {
-      parsedTrace.NetworkRequests.webSocket.forEach(webSocketData => {
+  setEvents(parsedTrace: Trace.TraceModel.ParsedTrace): void {
+    if (parsedTrace.data.NetworkRequests.webSocket) {
+      parsedTrace.data.NetworkRequests.webSocket.forEach(webSocketData => {
         if (webSocketData.syntheticConnection) {
           this.#events.push(webSocketData.syntheticConnection);
         }
         this.#events.push(...webSocketData.events);
       });
     }
-    if (parsedTrace.NetworkRequests.byTime) {
-      this.#events.push(...parsedTrace.NetworkRequests.byTime);
+    if (parsedTrace.data.NetworkRequests.byTime) {
+      this.#events.push(...parsedTrace.data.NetworkRequests.byTime);
     }
   }
 
@@ -98,23 +101,23 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
   }
 
   timelineData(): PerfUI.FlameChart.FlameChartTimelineData {
-    if (this.#timelineDataInternal && this.#timelineDataInternal.entryLevels.length !== 0) {
+    if (this.#timelineData && this.#timelineData.entryLevels.length !== 0) {
       // The flame chart data is built already, so return the cached data.
-      return this.#timelineDataInternal;
+      return this.#timelineData;
     }
 
-    this.#timelineDataInternal = PerfUI.FlameChart.FlameChartTimelineData.createEmpty();
+    this.#timelineData = PerfUI.FlameChart.FlameChartTimelineData.createEmpty();
     if (!this.#parsedTrace) {
-      return this.#timelineDataInternal;
+      return this.#timelineData;
     }
 
     if (!this.#events.length) {
       this.setEvents(this.#parsedTrace);
     }
-    this.#networkTrackAppender = new NetworkTrackAppender(this.#timelineDataInternal, this.#events);
+    this.#networkTrackAppender = new NetworkTrackAppender(this.#timelineData, this.#events);
     this.#maxLevel = this.#networkTrackAppender.appendTrackAtLevel(0);
 
-    return this.#timelineDataInternal;
+    return this.#timelineData;
   }
 
   minimumBoundary(): number {
@@ -169,23 +172,6 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
     return this.#events.at(entryIndex) ?? null;
   }
 
-  entryHasAnnotations(entryIndex: number): boolean {
-    const event = this.eventByIndex(entryIndex);
-    if (!event) {
-      return false;
-    }
-    const entryAnnotations = ModificationsManager.activeManager()?.annotationsForEntry(event);
-    return entryAnnotations !== undefined && entryAnnotations.length > 0;
-  }
-
-  deleteAnnotationsForEntry(entryIndex: number): void {
-    const event = this.eventByIndex(entryIndex);
-    if (!event) {
-      return;
-    }
-    ModificationsManager.activeManager()?.deleteEntryAnnotations(event);
-  }
-
   entryIndexForSelection(selection: TimelineSelection|null): number {
     if (!selection || selectionIsRange(selection)) {
       return -1;
@@ -226,7 +212,7 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
 
   entryTitle(index: number): string|null {
     const event = this.#events[index];
-    return TimelineUtils.EntryName.nameForEntry(event);
+    return Trace.Name.forEntry(event);
   }
 
   entryFont(_index: number): string|null {
@@ -323,9 +309,9 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
     context.fillRect(barX, barY - 0.5, sendStart - barX, barHeight);
     context.fillRect(finish, barY - 0.5, barX + barWidth - finish, barHeight);
 
-    // Draws left and right whiskers
+    /** Draws left and right whiskers **/
     function drawTick(begin: number, end: number, y: number): void {
-      const /** @const */ tickHeightPx = 6;
+      const /** @constant */ tickHeightPx = 6;
       context.moveTo(begin, y - tickHeightPx / 2);
       context.lineTo(begin, y + tickHeightPx / 2);
       context.moveTo(begin, y);
@@ -345,15 +331,15 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
     // Draw request URL as text
     const textStart = Math.max(sendStart, 0);
     const textWidth = finish - textStart;
-    const /** @const */ minTextWidthPx = 20;
+    const /** @constant */ minTextWidthPx = 20;
     if (textWidth >= minTextWidthPx) {
       let title = this.entryTitle(index) || '';
       if (event.args.data.fromServiceWorker) {
         title = '⚙ ' + title;
       }
       if (title) {
-        const /** @const */ textPadding = 4;
-        const /** @const */ textBaseline = 5;
+        const /** @constant */ textPadding = 4;
+        const /** @constant */ textBaseline = 5;
         const textBaseHeight = barHeight - textBaseline;
         const trimmedText = UI.UIUtils.trimTextEnd(context, title, textWidth - 2 * textPadding);
         context.fillStyle = '#333';
@@ -411,16 +397,20 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
 
   preparePopoverElement(index: number): Element|null {
     const event = this.#events[index];
+
     if (Trace.Types.Events.isSyntheticNetworkRequest(event)) {
       const element = document.createElement('div');
       const root = UI.UIUtils.createShadowRootWithCoreStyles(element, {cssFile: timelineFlamechartPopoverStyles});
-
-      const contents = root.createChild('div', 'timeline-flamechart-popover');
-      const infoElement = new TimelineComponents.NetworkRequestTooltip.NetworkRequestTooltip();
-      infoElement.data = {networkRequest: event, entityMapper: this.#entityMapper};
-      contents.appendChild(infoElement);
+      // clang-format off
+      render(html`
+        <div class="timeline-flamechart-popover">
+          ${TimelineComponents.NetworkRequestTooltip.NetworkRequestTooltip.createWidgetElement(
+                    event, this.#entityMapper || undefined)}
+        </div>`, root);
+      // clang-format on
       return element;
     }
+
     return null;
   }
 
@@ -428,8 +418,8 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
    * Sets the minimum time and total time span of a trace using the
    * new engine data.
    */
-  #setTimingBoundsData(newParsedTrace: Trace.Handlers.Types.ParsedTrace): void {
-    const {traceBounds} = newParsedTrace.Meta;
+  #setTimingBoundsData(newParsedTrace: Trace.TraceModel.ParsedTrace): void {
+    const {traceBounds} = newParsedTrace.data.Meta;
     const minTime = Trace.Helpers.Timing.microToMilli(traceBounds.min);
     const maxTime = Trace.Helpers.Timing.microToMilli(traceBounds.max);
     this.#minimumBoundary = minTime;
@@ -438,28 +428,37 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
 
   /**
    * When users zoom in the flamechart, we only want to show them the network
-   * requests between startTime and endTime. This function will call the
-   * trackAppender to update the timeline data, and then force to create a new
-   * PerfUI.FlameChart.FlameChartTimelineData instance to force the flamechart
-   * to re-render.
+   * requests between startTime and endTime.
    */
   #updateTimelineData(startTime: Trace.Types.Timing.Milli, endTime: Trace.Types.Timing.Milli): void {
-    if (!this.#networkTrackAppender || !this.#timelineDataInternal) {
+    if (!this.#networkTrackAppender || !this.#timelineData) {
       return;
     }
+    // This also has the side-effect of updating this.#timelineData with new
+    // information.
     this.#maxLevel = this.#networkTrackAppender.relayoutEntriesWithinBounds(this.#events, startTime, endTime);
+  }
 
-    // TODO(crbug.com/1459225): Remove this recreating code.
-    // Force to create a new PerfUI.FlameChart.FlameChartTimelineData instance
-    // to force the flamechart to re-render. This also causes crbug.com/1459225.
-    this.#timelineDataInternal = PerfUI.FlameChart.FlameChartTimelineData.create({
-      entryLevels: this.#timelineDataInternal?.entryLevels,
-      entryTotalTimes: this.#timelineDataInternal?.entryTotalTimes,
-      entryStartTimes: this.#timelineDataInternal?.entryStartTimes,
-      groups: this.#timelineDataInternal?.groups,
-      initiatorsData: this.#timelineDataInternal.initiatorsData,
-      entryDecorations: this.#timelineDataInternal.entryDecorations,
-    });
+  /**
+   * Note that although we use the same mechanism to track configuration
+   * changes in the Network part of the timeline, we only really use it to track
+   * the expanded state because the user cannot re-order or hide/show tracks in
+   * here.
+   */
+  handleTrackConfigurationChange(groups: readonly PerfUI.FlameChart.Group[], indexesInVisualOrder: number[]): void {
+    if (!this.#persistedGroupConfigSetting) {
+      return;
+    }
+    if (!this.#parsedTrace) {
+      return;
+    }
+    const persistedDataForTrace = buildPersistedConfig(groups, indexesInVisualOrder);
+    this.#persistedGroupConfigSetting.set(persistedDataForTrace);
+  }
+
+  setPersistedGroupConfigSetting(setting: Common.Settings.Setting<PerfUI.FlameChart.PersistedGroupConfig[]|null>):
+      void {
+    this.#persistedGroupConfigSetting = setting;
   }
 
   preferredHeight(): number {
@@ -505,7 +504,7 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
         continue;
       }
 
-      if (!filter || filter.accept(entry, this.#parsedTrace ?? undefined)) {
+      if (!filter || filter.accept(entry, this.#parsedTrace?.data ?? undefined)) {
         const startTimeMilli = Trace.Helpers.Timing.microToMilli(entry.ts);
         results.push({startTimeMilli, index: i, provider: 'network'});
       }
@@ -522,19 +521,19 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
     if (!this.#parsedTrace) {
       return [];
     }
-    return this.#parsedTrace.Meta.mainFrameNavigations;
+    return this.#parsedTrace.data.Meta.mainFrameNavigations;
   }
 
   buildFlowForInitiator(entryIndex: number): boolean {
     if (!this.#parsedTrace) {
       return false;
     }
-    if (!this.#timelineDataInternal) {
+    if (!this.#timelineData) {
       return false;
     }
-    if (this.#lastInitiatorEntry === entryIndex) {
+    if (entryIndex > -1 && this.#lastInitiatorEntry === entryIndex) {
       if (this.#lastInitiatorsData) {
-        this.#timelineDataInternal.initiatorsData = this.#lastInitiatorsData;
+        this.#timelineData.initiatorsData = this.#lastInitiatorsData;
       }
       return true;
     }
@@ -543,7 +542,7 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
     }
 
     // Remove all previously assigned decorations indicating that the flow event entries are hidden
-    const previousInitiatorsDataLength = this.#timelineDataInternal.initiatorsData.length;
+    const previousInitiatorsDataLength = this.#timelineData.initiatorsData.length;
     // |entryIndex| equals -1 means there is no entry selected, just clear the
     // initiator cache if there is any previous arrow and return true to
     // re-render.
@@ -554,13 +553,13 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
         return false;
       }
       // Reset to clear any previous arrows from the last event.
-      this.#timelineDataInternal.resetFlowData();
+      this.#timelineData.emptyInitiators();
       return true;
     }
 
     const event = this.#events[entryIndex];
     // Reset to clear any previous arrows from the last event.
-    this.#timelineDataInternal.resetFlowData();
+    this.#timelineData.emptyInitiators();
     this.#lastInitiatorEntry = entryIndex;
 
     const initiatorsData = initiatorsDataToDrawForNetwork(this.#parsedTrace, event);
@@ -574,12 +573,12 @@ export class TimelineFlameChartNetworkDataProvider implements PerfUI.FlameChart.
       if (eventIndex === null || initiatorIndex === null) {
         continue;
       }
-      this.#timelineDataInternal.initiatorsData.push({
+      this.#timelineData.initiatorsData.push({
         initiatorIndex,
         eventIndex,
       });
     }
-    this.#lastInitiatorsData = this.#timelineDataInternal.initiatorsData;
+    this.#lastInitiatorsData = this.#timelineData.initiatorsData;
     return true;
   }
 }

@@ -1,0 +1,344 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import {assert} from 'chai';
+
+import {expectError} from '../../conductor/events.js';
+import {
+  getFrameTreeTitles,
+  getTrimmedTextContent,
+  navigateToApplicationTab,
+  navigateToFrame,
+  navigateToFrameServiceWorkers,
+  navigateToOpenedWindows,
+  navigateToWebWorkers,
+  unregisterServiceWorker,
+} from '../helpers/application-helpers.js';
+import {setIgnoreListPattern} from '../helpers/settings-helpers.js';
+import type {DevToolsPage} from '../shared/frontend-helper.js';
+
+const OPENED_WINDOWS_SELECTOR = '[aria-label="Opened Windows"]';
+const EXPAND_STACKTRACE_BUTTON_SELECTOR = '.arrow-icon-button';
+const STACKTRACE_ROW_SELECTOR = '.stack-preview-container tbody tr';
+const APPLICATION_PANEL_SELECTED_SELECTOR = '.tabbed-pane-header-tab.selected[aria-label="Application"]';
+
+const getTrailingURL = (text: string) => {
+  const match = text.match(/http.*$/);
+  return match ? match[0] : '';
+};
+
+const ensureApplicationPanel = async (devToolsPage: DevToolsPage) => {
+  if ((await devToolsPage.$$(APPLICATION_PANEL_SELECTED_SELECTOR)).length === 0) {
+    await devToolsPage.waitForFunction(async () => {
+      await devToolsPage.click('#tab-resources');
+      return (await devToolsPage.$$(APPLICATION_PANEL_SELECTED_SELECTOR)).length === 1;
+    });
+  }
+};
+
+declare global {
+  interface Window {
+    iFrameWindow: Window|null|undefined;
+  }
+}
+
+const getFieldValuesTextContent = async (devToolsPage: DevToolsPage) => {
+  const fieldValues = await Promise.all(
+      (await devToolsPage.$$('devtools-report-value')).map(element => element.evaluate(e => e.deepInnerText())));
+  if (fieldValues[0]) {
+    // This contains some CSS from the svg icon link being rendered. It's
+    // system-specific, so we get rid of it and only look at the (URL) text.
+    fieldValues[0] = getTrailingURL(fieldValues[0]);
+  }
+  if (fieldValues[10]?.includes('accelerometer')) {
+    fieldValues[10] = 'accelerometer';
+  }
+  if (fieldValues[11]) {
+    // This is the frame's id, which is not deterministic.
+    fieldValues[11] = 'frameId';
+  }
+  // Make sure the length is equivalent to the expected value below
+  if (fieldValues.length === 12) {
+    return fieldValues;
+  }
+  return undefined;
+};
+
+describe('The Application Tab', () => {
+  setup({dockingMode: 'undocked', disabledDevToolsExperiments: ['protocol-monitor']});
+
+  it('shows details for a frame when clicked on in the frame tree', async ({devToolsPage, inspectedPage}) => {
+    expectError('Request Network.enableDeviceBoundSessions failed. {"code":-32603,"message":"Internal error"}');
+    await navigateToApplicationTab('frame-tree', devToolsPage, inspectedPage);
+    await devToolsPage.click('#tab-resources');
+    await navigateToFrame('top', devToolsPage);
+
+    const fieldValuesTextContent = await devToolsPage.waitForFunction(() => getFieldValuesTextContent(devToolsPage));
+    const expected = [
+      `${inspectedPage.getResourcesPath()}/application/frame-tree.html`,
+      `https://localhost:${inspectedPage.serverPort}`,
+      '#document',
+      'Yes\nLocalhost is always a secure context',
+      'No',
+      'none',
+      'unsafe-none',
+      'None',
+      'unavailable\nrequires cross-origin isolated context',
+      'unavailable\nLearn more',
+      'accelerometer',
+      'frameId',
+    ];
+
+    assert.deepEqual(fieldValuesTextContent, expected);
+  });
+
+  it('shows stack traces for OOPIF', async ({devToolsPage, inspectedPage}) => {
+    expectError('Request CacheStorage.requestCacheNames failed. {"code":-32602,"message":"Invalid security origin"}');
+    await navigateToApplicationTab('js-oopif', devToolsPage, inspectedPage);
+    await devToolsPage.waitForFunction(async () => {
+      await navigateToFrame('top', devToolsPage);
+      await navigateToFrame('iframe.html', devToolsPage);
+      return (await devToolsPage.$$(EXPAND_STACKTRACE_BUTTON_SELECTOR)).length === 1;
+    });
+    const stackTraceRowsTextContent = await devToolsPage.waitForFunction(async () => {
+      await ensureApplicationPanel(devToolsPage);
+      await devToolsPage.click(EXPAND_STACKTRACE_BUTTON_SELECTOR);
+      const stackTraceRows = await getTrimmedTextContent(STACKTRACE_ROW_SELECTOR, devToolsPage);
+      // Make sure the length is equivalent to the expected value below
+      if (stackTraceRows.length === 3) {
+        return stackTraceRows;
+      }
+      return undefined;
+    });
+    const expected = [
+      'second @ js-oopif.html:13',
+      'first @ js-oopif.js:3',
+      '(anonymous) @ js-oopif.js:6',
+    ];
+    assert.deepEqual(stackTraceRowsTextContent, expected);
+  });
+
+  it('stack traces for OOPIF with ignore listed frames can be expanded and collapsed',
+     async ({devToolsPage, inspectedPage}) => {
+       expectError(
+           'Request CacheStorage.requestCacheNames failed. {"code":-32602,"message":"Invalid security origin"}');
+       await setIgnoreListPattern('js-oopif.js', devToolsPage);
+       await navigateToApplicationTab('js-oopif', devToolsPage, inspectedPage);
+       await devToolsPage.waitForFunction(async () => {
+         await navigateToFrame('top', devToolsPage);
+         await navigateToFrame('iframe.html', devToolsPage);
+         return (await devToolsPage.$$(EXPAND_STACKTRACE_BUTTON_SELECTOR)).length === 1;
+       });
+       let stackTraceRowsTextContent = await devToolsPage.waitForFunction(async () => {
+         await ensureApplicationPanel(devToolsPage);
+         await devToolsPage.click(EXPAND_STACKTRACE_BUTTON_SELECTOR);
+         const stackTraceRows =
+             (await Promise.all((await devToolsPage.$$(STACKTRACE_ROW_SELECTOR))
+                                    .map(row => row.evaluate(row => row.checkVisibility() && row.textContent.trim()))))
+                 .filter(Boolean);
+         // Make sure the length is equivalent to the expected value below
+         if (stackTraceRows.length === 1) {
+           return stackTraceRows;
+         }
+         return undefined;
+       });
+       const expectedCollapsed = [
+         'second @ js-oopif.html:13',
+       ];
+       assert.deepEqual(stackTraceRowsTextContent, expectedCollapsed);
+
+       // Expand all frames
+       await devToolsPage.click('.show-all-link .link');
+       stackTraceRowsTextContent = await devToolsPage.waitForFunction(async () => {
+         const stackTraceRows =
+             (await Promise.all((await devToolsPage.$$(STACKTRACE_ROW_SELECTOR))
+                                    .map(row => row.evaluate(row => row.checkVisibility() && row.textContent.trim()))))
+                 .filter(Boolean);
+         // Make sure the length is equivalent to the expected value below
+         if (stackTraceRows.length === 3) {
+           return stackTraceRows;
+         }
+         return undefined;
+       });
+
+       const expectedFull = [
+         'second @ js-oopif.html:13',
+         'first @ js-oopif.js:3',
+         '(anonymous) @ js-oopif.js:6',
+       ];
+       assert.deepEqual(stackTraceRowsTextContent, expectedFull);
+
+       await devToolsPage.click('.show-less-link .link');
+       stackTraceRowsTextContent = await devToolsPage.waitForFunction(async () => {
+         const stackTraceRows =
+             (await Promise.all((await devToolsPage.$$(STACKTRACE_ROW_SELECTOR))
+                                    .map(row => row.evaluate(row => row.checkVisibility() && row.textContent.trim()))))
+                 .filter(Boolean);
+
+         // Make sure the length is equivalent to the expected value below
+         if (stackTraceRows.length === 1) {
+           return stackTraceRows;
+         }
+         return undefined;
+       });
+       assert.deepEqual(stackTraceRowsTextContent, expectedCollapsed);
+     });
+
+  it('shows details for opened windows in the frame tree', async ({devToolsPage, inspectedPage}) => {
+    expectError('Request Network.enableDeviceBoundSessions failed. {"code":-32603,"message":"Internal error"}');
+    await navigateToApplicationTab('frame-tree', devToolsPage, inspectedPage);
+    await devToolsPage.click('#tab-resources');
+    await navigateToFrame('top', devToolsPage);
+
+    await inspectedPage.evaluate(() => {
+      window.iFrameWindow = window.open('iframe.html');
+    });
+
+    // window.open above would put DevTools in the background stopping updates
+    // to the application panel.
+    await devToolsPage.bringToFront();
+
+    await navigateToOpenedWindows(devToolsPage);
+    await devToolsPage.waitFor(`${OPENED_WINDOWS_SELECTOR} + ol li:first-child`);
+    void devToolsPage.pressKey('ArrowDown');
+
+    const fieldValuesTextContent = await devToolsPage.waitForFunction(async () => {
+      const fieldValues = await getTrimmedTextContent('.report-field-value', devToolsPage);
+      // Make sure the length is equivalent to the expected value below
+      if (fieldValues.length === 3 && !fieldValues.includes('')) {
+        return fieldValues;
+      }
+      return undefined;
+    });
+    const expected = [
+      `${inspectedPage.getResourcesPath()}/application/iframe.html`,
+      '<#document>',
+      'Yes',
+    ];
+    assert.deepEqual(fieldValuesTextContent, expected);
+    await inspectedPage.evaluate(() => {
+      window.iFrameWindow?.close();
+    });
+  });
+
+  it('shows dedicated workers in the frame tree', async ({devToolsPage, inspectedPage}) => {
+    expectError('Request CacheStorage.requestCacheNames failed. {"code":-32602,"message":"Invalid security origin"}');
+    expectError('Request Network.enableDeviceBoundSessions failed. {"code":-32603,"message":"Internal error"}');
+    expectError('Request Network.enableDeviceBoundSessions failed. {"code":-32603,"message":"Internal error"}');
+    await navigateToApplicationTab('frame-tree', devToolsPage, inspectedPage);
+    await navigateToFrame('top', devToolsPage);
+    // DevTools is not ready yet when the worker is being initially attached.
+    // We therefore need to reload the page to see the worker in DevTools.
+    await inspectedPage.reload();
+    await navigateToWebWorkers(devToolsPage);
+    void devToolsPage.pressKey('ArrowDown');
+
+    const fieldValuesTextContent = await devToolsPage.waitForFunction(async () => {
+      const fieldValues = await getTrimmedTextContent('.report-field-value', devToolsPage);
+      // Make sure the length is equivalent to the expected value below
+      if (fieldValues.length === 3 && fieldValues.every(field => field.trim() !== '')) {
+        return fieldValues;
+      }
+      return undefined;
+    });
+    const expected = [
+      `${inspectedPage.getResourcesPath()}/application/dedicated-worker.js`,
+      'Web Worker',
+      'None',
+    ];
+    assert.deepEqual(fieldValuesTextContent, expected);
+  });
+
+  it('shows service workers in the frame tree', async ({devToolsPage, inspectedPage}) => {
+    expectError('Request CacheStorage.requestCacheNames failed. {"code":-32602,"message":"Invalid security origin"}');
+    expectError('Request Network.enableDeviceBoundSessions failed. {"code":-32603,"message":"Internal error"}');
+    await navigateToApplicationTab('service-worker-network', devToolsPage, inspectedPage);
+    await navigateToFrameServiceWorkers('top', devToolsPage);
+    void devToolsPage.pressKey('ArrowDown');
+
+    const fieldValuesTextContent = await devToolsPage.waitForFunction(async () => {
+      const fieldValues = await getTrimmedTextContent('.report-field-value', devToolsPage);
+      // Make sure the length is equivalent to the expected value below
+      if (fieldValues.length === 3 && fieldValues.every(field => field.trim() !== '')) {
+        return fieldValues;
+      }
+      return undefined;
+    });
+    const expected = [
+      `${inspectedPage.getResourcesPath()}/application/service-worker.js`,
+      'Service Worker',
+      'None',
+    ];
+    assert.deepEqual(fieldValuesTextContent, expected);
+
+    // Unregister service worker to prevent leftovers from causing test errors.
+    void devToolsPage.pressKey('ArrowUp');
+    void devToolsPage.pressKey('ArrowLeft');
+    await unregisterServiceWorker(devToolsPage);
+  });
+
+  it('can handle when JS writes to frame', async ({devToolsPage, inspectedPage}) => {
+    expectError('Request CacheStorage.requestCacheNames failed. {"code":-32602,"message":"Invalid security origin"}');
+    await inspectedPage.goToResource('application/main-frame.html');
+    await devToolsPage.click('#tab-resources');
+    await navigateToFrame('top', devToolsPage);
+    await navigateToFrame('frameId (iframe.html)', devToolsPage);
+
+    // check iframe's URL after pageload
+    const fieldValuesTextContent = await devToolsPage.waitForFunction(() => getFieldValuesTextContent(devToolsPage));
+    const expected = [
+      `${inspectedPage.getResourcesPath()}/application/iframe.html`,
+      `https://localhost:${inspectedPage.serverPort}`,
+      'iframe#frameId',
+      'Yes\nLocalhost is always a secure context',
+      'No',
+      'none',
+      'unsafe-none',
+      'None',
+      'unavailable\nrequires cross-origin isolated context',
+      'unavailable\nLearn more',
+      'accelerometer',
+      'frameId',
+    ];
+    assert.deepEqual(fieldValuesTextContent, expected);
+
+    assert.includeMembers(
+        ['top', 'frameId (iframe.html)', 'iframe.html', 'Other', 'favicon.ico', 'main-frame.html'],
+        await getFrameTreeTitles(devToolsPage));
+
+    // write to the iframe using 'document.write()'
+    await inspectedPage.evaluate(() => {
+      const frame = document.getElementById('frameId') as HTMLIFrameElement;
+      const doc = frame.contentDocument;
+      if (doc) {
+        doc.open();
+        doc.write('<h1>Hello world !</h1>');
+        doc.close();
+      }
+    });
+
+    // check that iframe's URL has changed
+    await navigateToFrame('frameId (main-frame.html)', devToolsPage);
+    const fieldValuesTextContent2 = await devToolsPage.waitForFunction(() => getFieldValuesTextContent(devToolsPage));
+    const expected2 = [
+      `${inspectedPage.getResourcesPath()}/application/main-frame.html`,
+      `https://localhost:${inspectedPage.serverPort}`,
+      'iframe#frameId',
+      'Yes\nLocalhost is always a secure context',
+      'No',
+      'none',
+      'unsafe-none',
+      'None',
+      'unavailable\nrequires cross-origin isolated context',
+      'unavailable\nLearn more',
+      'accelerometer',
+      'frameId',
+    ];
+    assert.deepEqual(fieldValuesTextContent2, expected2);
+
+    assert.includeMembers(
+        ['top', 'frameId (main-frame.html)', 'No document detected', 'Other', 'favicon.ico', 'main-frame.html'],
+        await getFrameTreeTitles(devToolsPage));
+  });
+});

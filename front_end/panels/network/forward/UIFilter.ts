@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,6 +6,7 @@ export enum FilterType {
   /* eslint-disable @typescript-eslint/naming-convention -- Used by web_tests. */
   Domain = 'domain',
   HasResponseHeader = 'has-response-header',
+  HasRequestHeader = 'has-request-header',
   HasOverrides = 'has-overrides',
   ResponseHeaderValueSetCookie = 'response-header-set-cookie',
   Is = 'is',

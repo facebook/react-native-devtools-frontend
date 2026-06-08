@@ -1,4 +1,4 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,11 +15,11 @@ import {
 
 const UIStrings = {
   /**
-   *@description Title for HTTP Message Signatures specification url
+   * @description Title for HTTP Message Signatures specification url
    */
   httpMessageSignatures: 'HTTP Message Signatures (RFC9421)',
   /**
-   *@description Title for Signature-based Integrity specification url
+   * @description Title for Signature-based Integrity specification url
    */
   signatureBasedIntegrity: 'Signature-based Integrity',
 } as const;
@@ -41,21 +41,15 @@ function generateGroupingIssueCode(details: Protocol.Audits.SRIMessageSignatureI
   return issueCode;
 }
 
-export class SRIMessageSignatureIssue extends Issue<string> {
-  readonly #issueDetails: Protocol.Audits.SRIMessageSignatureIssueDetails;
-
-  constructor(issueDetails: Protocol.Audits.SRIMessageSignatureIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel) {
+export class SRIMessageSignatureIssue extends Issue<Protocol.Audits.SRIMessageSignatureIssueDetails, string> {
+  constructor(
+      issueDetails: Protocol.Audits.SRIMessageSignatureIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel|null) {
     super(
         {
           code: generateGroupingIssueCode(issueDetails),
           umaCode: `${Protocol.Audits.InspectorIssueCode.SRIMessageSignatureIssue}::${issueDetails.error}`,
         },
-        issuesModel);
-    this.#issueDetails = issueDetails;
-  }
-
-  details(): Protocol.Audits.SRIMessageSignatureIssueDetails {
-    return this.#issueDetails;
+        issueDetails, issuesModel);
   }
 
   // Overriding `Issue<String>`:
@@ -64,8 +58,9 @@ export class SRIMessageSignatureIssue extends Issue<string> {
   }
 
   override getDescription(): MarkdownIssueDescription|null {
+    const details = this.details();
     const description: LazyMarkdownIssueDescription = {
-      file: `sri${this.details().error}.md`,
+      file: `sri${details.error}.md`,
       links: [
         {
           link: 'https://www.rfc-editor.org/rfc/rfc9421.html',
@@ -78,12 +73,12 @@ export class SRIMessageSignatureIssue extends Issue<string> {
       ],
       substitutions: new Map()
     };
-    if (this.#issueDetails.error === Protocol.Audits.SRIMessageSignatureError.ValidationFailedSignatureMismatch) {
-      description.substitutions?.set('PLACEHOLDER_signatureBase', () => this.#issueDetails.signatureBase);
+    if (details.error === Protocol.Audits.SRIMessageSignatureError.ValidationFailedSignatureMismatch) {
+      description.substitutions?.set('PLACEHOLDER_signatureBase', () => details.signatureBase);
     }
-    if (this.#issueDetails.error === Protocol.Audits.SRIMessageSignatureError.ValidationFailedIntegrityMismatch) {
+    if (details.error === Protocol.Audits.SRIMessageSignatureError.ValidationFailedIntegrityMismatch) {
       description.substitutions?.set('PLACEHOLDER_integrityAssertions', () => {
-        const prefix = '\n<li>';
+        const prefix = '\n* ';
         return prefix + this.details().integrityAssertions.join(prefix);
       });
     }
@@ -102,8 +97,9 @@ export class SRIMessageSignatureIssue extends Issue<string> {
     return this.details().request ? [this.details().request] : [];
   }
 
-  static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):
-      SRIMessageSignatureIssue[] {
+  static fromInspectorIssue(
+      issuesModel: SDK.IssuesModel.IssuesModel|null,
+      inspectorIssue: Protocol.Audits.InspectorIssue): SRIMessageSignatureIssue[] {
     const details = inspectorIssue.details.sriMessageSignatureIssueDetails;
     if (!details) {
       console.warn('SRI Message Signature issue without details received.');

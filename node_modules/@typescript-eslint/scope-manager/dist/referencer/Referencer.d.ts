@@ -14,6 +14,11 @@ export declare class Referencer extends Visitor {
     readonly scopeManager: ScopeManager;
     constructor(options: ReferencerOptions, scopeManager: ScopeManager);
     private populateGlobalsFromLib;
+    /**
+     * Resolves lib names into a deduplicated set of LibDefinitions,
+     * including all transitive dependencies.
+     */
+    private resolveLibDefinitions;
     close(node: TSESTree.Node): void;
     currentScope(): Scope;
     currentScope(throwOnNull: true): Scope | null;
@@ -84,4 +89,3 @@ export declare class Referencer extends Visitor {
     protected WithStatement(node: TSESTree.WithStatement): void;
     private visitExpressionTarget;
 }
-//# sourceMappingURL=Referencer.d.ts.map

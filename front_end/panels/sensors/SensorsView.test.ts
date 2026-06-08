@@ -1,0 +1,192 @@
+// Copyright 2026 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import * as Common from '../../core/common/common.js';
+import {renderElementIntoDOM} from '../../testing/DOMHelpers.js';
+import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
+
+import * as Sensors from './sensors.js';
+
+describeWithEnvironment('SensorsView', () => {
+  let view: Sensors.SensorsView.SensorsView;
+
+  beforeEach(() => {
+    view = new Sensors.SensorsView.SensorsView();
+    renderElementIntoDOM(view);
+  });
+
+  it('updates the custom location select when the setting changes', () => {
+    const customLocationsSetting =
+        Common.Settings.Settings.instance().moduleSetting<Sensors.LocationsSettingsTab.LocationDescription[]>(
+            'emulation.locations');
+
+    customLocationsSetting.set([{
+      title: 'Test Location',
+      lat: 10,
+      long: 20,
+      timezoneId: 'Europe/Berlin',
+      locale: 'en-US',
+      accuracy: 0,
+    }]);
+
+    const select = view.contentElement.querySelector('.geo-fields select') as HTMLSelectElement;
+    assert.exists(select);
+
+    const options = Array.from(select.options).map(option => option.textContent);
+    assert.include(options, 'Test Location');
+  });
+
+  describe('Location input events', () => {
+    beforeEach(() => {
+      const select = view.contentElement.querySelector('.geo-fields select') as HTMLSelectElement;
+      assert.exists(select);
+      select.value = 'custom';
+      select.dispatchEvent(new Event('change'));
+    });
+
+    it('validates latitude input and adds error class if invalid', () => {
+      const latitudeInput = view.contentElement.querySelector('#latitude-input') as HTMLInputElement;
+      assert.exists(latitudeInput);
+
+      latitudeInput.value = '100';  // Latitude must be <= 90
+      latitudeInput.dispatchEvent(new Event('input'));
+      assert.isFalse(latitudeInput.checkValidity());
+      assert.isTrue(latitudeInput.matches(':invalid'));
+
+      latitudeInput.value = '90';  // Inclusive bound
+      latitudeInput.dispatchEvent(new Event('input'));
+      assert.isTrue(latitudeInput.checkValidity());
+      assert.isFalse(latitudeInput.matches(':invalid'));
+
+      latitudeInput.value = '45';
+      latitudeInput.dispatchEvent(new Event('input'));
+      assert.isTrue(latitudeInput.checkValidity());
+      assert.isFalse(latitudeInput.matches(':invalid'));
+    });
+
+    it('validates timezone input and adds error class if invalid', () => {
+      const timezoneInput = view.contentElement.querySelector('#timezone-input') as HTMLInputElement;
+      assert.exists(timezoneInput);
+
+      timezoneInput.value = '12345';  // Pattern requires a-zA-Z
+      timezoneInput.dispatchEvent(new Event('input'));
+      assert.isFalse(timezoneInput.checkValidity());
+      assert.isTrue(timezoneInput.matches(':invalid'));
+
+      timezoneInput.value = 'Europe/Berlin';
+      timezoneInput.dispatchEvent(new Event('input'));
+      assert.isTrue(timezoneInput.checkValidity());
+      assert.isFalse(timezoneInput.matches(':invalid'));
+    });
+
+    it('updates emulation.location-override setting on valid input', () => {
+      const latitudeInput = view.contentElement.querySelector('#latitude-input') as HTMLInputElement;
+      assert.exists(latitudeInput);
+
+      latitudeInput.value = '45';
+      latitudeInput.dispatchEvent(new Event('input'));
+      latitudeInput.dispatchEvent(new Event('change'));
+
+      const locationSetting = Common.Settings.Settings.instance().createSetting('emulation.location-override', '');
+      assert.isTrue(locationSetting.get().includes('45'));
+    });
+
+    it('modifies latitude input on ArrowUp key', () => {
+      const latitudeInput = view.contentElement.querySelector('#latitude-input') as HTMLInputElement;
+      assert.exists(latitudeInput);
+      latitudeInput.value = '45';
+
+      const event = new KeyboardEvent('keydown', {key: 'ArrowUp'});
+      latitudeInput.dispatchEvent(event);
+
+      // modifierMultiplier = 0.1, ArrowUp = 1. Result: 45 + 0.1*1 = 45.1
+      assert.strictEqual(latitudeInput.value, '45.1');
+    });
+
+    it('modifies latitude input on ArrowDown key with Shift', () => {
+      const latitudeInput = view.contentElement.querySelector('#latitude-input') as HTMLInputElement;
+      assert.exists(latitudeInput);
+      latitudeInput.value = '45';
+
+      const event = new KeyboardEvent('keydown', {key: 'ArrowDown', shiftKey: true});
+      latitudeInput.dispatchEvent(event);
+
+      // modifierMultiplier = 0.1, Shift = 10. Result: 45 - 0.1*10 = 44
+      assert.strictEqual(latitudeInput.value, '44');
+    });
+
+    it('modifies latitude input on ArrowUp key with Alt', () => {
+      const latitudeInput = view.contentElement.querySelector('#latitude-input') as HTMLInputElement;
+      assert.exists(latitudeInput);
+      latitudeInput.value = '45';
+
+      const event = new KeyboardEvent('keydown', {key: 'ArrowUp', altKey: true});
+      latitudeInput.dispatchEvent(event);
+
+      // modifierMultiplier = 0.1, Alt = 0.1. Result: 45 + 0.1*0.1 = 45.01
+      assert.strictEqual(latitudeInput.value, '45.01');
+    });
+  });
+
+  describe('Device Orientation input events', () => {
+    let alphaInput: HTMLInputElement;
+
+    beforeEach(() => {
+      const select = view.contentElement.querySelector('.orientation-content select') as HTMLSelectElement;
+      assert.exists(select);
+      select.value = 'custom';
+      select.dispatchEvent(new Event('change'));
+
+      alphaInput = view.contentElement.querySelector('#alpha-input') as HTMLInputElement;
+      assert.exists(alphaInput);
+    });
+
+    it('validates alpha input and adds error class if invalid', () => {
+      alphaInput.value = '1000';  // alpha must be <= 359.9999
+      alphaInput.dispatchEvent(new Event('input'));
+      assert.isFalse(alphaInput.checkValidity());
+      assert.isTrue(alphaInput.matches(':invalid'));
+
+      alphaInput.value = '360';  // exclusive bound
+      alphaInput.dispatchEvent(new Event('input'));
+      assert.isFalse(alphaInput.checkValidity());
+      assert.isTrue(alphaInput.matches(':invalid'));
+
+      alphaInput.value = '45';
+      alphaInput.dispatchEvent(new Event('input'));
+      assert.isTrue(alphaInput.checkValidity());
+      assert.isFalse(alphaInput.matches(':invalid'));
+    });
+
+    it('updates emulation.device-orientation-override setting on valid input', () => {
+      alphaInput.value = '45';
+      alphaInput.dispatchEvent(new Event('input'));
+      alphaInput.dispatchEvent(new Event('change'));
+
+      const orientationSetting =
+          Common.Settings.Settings.instance().createSetting('emulation.device-orientation-override', '');
+      assert.isTrue(orientationSetting.get().includes('45'));
+    });
+
+    it('modifies alpha input on ArrowUp key', () => {
+      alphaInput.value = '45';
+
+      const event = new KeyboardEvent('keydown', {key: 'ArrowUp'});
+      alphaInput.dispatchEvent(event);
+
+      // Default step for orientation (without modifier) is 1
+      assert.strictEqual(alphaInput.value, '46');
+    });
+
+    it('modifies alpha input on ArrowDown key with Shift', () => {
+      alphaInput.value = '45';
+
+      const event = new KeyboardEvent('keydown', {key: 'ArrowDown', shiftKey: true});
+      alphaInput.dispatchEvent(event);
+
+      // Shift increases/decreases by 10
+      assert.strictEqual(alphaInput.value, '35');
+    });
+  });
+});

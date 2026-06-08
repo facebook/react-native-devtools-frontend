@@ -1,6 +1,7 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import '../../ui/legacy/legacy.js';
 
@@ -12,7 +13,7 @@ import * as Protocol from '../../generated/protocol.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import * as Buttons from '../../ui/components/buttons/buttons.js';
 import * as DataGrid from '../../ui/legacy/components/data_grid/data_grid.js';
-// eslint-disable-next-line rulesdir/es-modules-import
+// eslint-disable-next-line @devtools/es-modules-import
 import emptyWidgetStyles from '../../ui/legacy/emptyWidget.css.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
@@ -22,118 +23,117 @@ import backgroundServiceViewStyles from './backgroundServiceView.css.js';
 
 const UIStrings = {
   /**
-   *@description Text in Background Service View of the Application panel
+   * @description Text in Background Service View of the Application panel
    */
   backgroundFetch: 'Background fetch',
   /**
-   *@description Text in Background Service View of the Application panel
+   * @description Text in Background Service View of the Application panel
    */
   backgroundSync: 'Background sync',
   /**
-   *@description Text in Background Service View of the Application panel
+   * @description Text in Background Service View of the Application panel
    */
   pushMessaging: 'Push messaging',
   /**
-   *@description Text in Background Service View of the Application panel
+   * @description Text in Background Service View of the Application panel
    */
   notifications: 'Notifications',
   /**
-   *@description Text in Background Service View of the Application panel
+   * @description Text in Background Service View of the Application panel
    */
   paymentHandler: 'Payment handler',
   /**
-   *@description Text in the Periodic Background Service View of the Application panel
+   * @description Text in the Periodic Background Service View of the Application panel
    */
   periodicBackgroundSync: 'Periodic background sync',
   /**
-   *@description Text to clear content
+   * @description Text to clear content
    */
   clear: 'Clear',
   /**
-   *@description Tooltip text that appears when hovering over the largeicon download button in the Background Service View of the Application panel
+   * @description Tooltip text that appears when hovering over the largeicon download button in the Background Service View of the Application panel
    */
   saveEvents: 'Save events',
   /**
-   *@description Text in Background Service View of the Application panel
+   * @description Text in Background Service View of the Application panel
    */
   showEventsFromOtherDomains: 'Show events from other domains',
   /**
-   *@description Text of a checkbox to show events for other dtorage keys
+   * @description Text of a checkbox to show events for other storage keys
    */
   showEventsForOtherStorageKeys: 'Show events from other storage partitions',
   /**
-   *@description Title of an action under the Background Services category that can be invoked through the Command Menu
+   * @description Title of an action under the Background Services category that can be invoked through the Command Menu
    */
   stopRecordingEvents: 'Stop recording events',
   /**
-   *@description Title of an action under the Background Services category that can be invoked through the Command Menu
+   * @description Title of an action under the Background Services category that can be invoked through the Command Menu
    */
   startRecordingEvents: 'Start recording events',
   /**
-   *@description Text for timestamps of items
+   * @description Text for timestamps of items
    */
   timestamp: 'Timestamp',
   /**
-   *@description Text that refers to some events
+   * @description Text that refers to some events
    */
   event: 'Event',
   /**
-   *@description Text for the origin of something
+   * @description Text for the origin of something
    */
   origin: 'Origin',
   /**
-   *@description Text for the storage key of something
+   * @description Text for the storage key of something
    */
   storageKey: 'Storage Key',
   /**
-   *@description Text in Background Service View of the Application panel. The Scope is a URL associated with the Service Worker, which limits which pages/sites the Service Worker operates on.
+   * @description Text in Background Service View of the Application panel. The Scope is a URL associated with the Service Worker, which limits which pages/sites the Service Worker operates on.
    */
   swScope: 'Service Worker Scope',
   /**
-   *@description Text in Background Service View of the Application panel
+   * @description Text in Background Service View of the Application panel
    */
   instanceId: 'Instance ID',
   /**
-   *@description Text in Application Panel Sidebar of the Application panel
+   * @description Text in Application Panel Sidebar of the Application panel
    */
   backgroundServices: 'Background services',
   /**
-   *@description Text in Background Service View of the Application panel.
+   * @description Text in Background Service View of the Application panel.
    *             An event here refers to a background service event that is an entry in a table.
    */
   noEventSelected: 'No event selected',
   /**
-   *@description Text in Background Service View of the Application panel
+   * @description Text in Background Service View of the Application panel
    */
   selectAnEventToViewMetadata: 'Select an event to view its metadata',
   /**
-   *@description Text in Background Service View of the Application panel
-   *@example {Background Fetch} PH1
+   * @description Text in Background Service View of the Application panel
+   * @example {Background Fetch} PH1
    */
-  recordingSActivity: 'Recording {PH1} activity...',
+  recordingSActivity: 'Recording {PH1} activity…',
   /**
-   *@description Text in Background Service View of the Application panel
+   * @description Text in Background Service View of the Application panel
    */
   noRecording: 'No recording yet',
   /**
-   *@description Inform users that DevTools are recording/waiting for events in the Periodic Background Sync tool of the Application panel
-   *@example {Background Fetch} PH1
+   * @description Inform users that DevTools are recording/waiting for events in the Periodic Background Sync tool of the Application panel
+   * @example {Background Fetch} PH1
    */
   devtoolsWillRecordAllSActivity: 'DevTools will record all {PH1} activity for up to 3 days, even when closed.',
   /**
-   *@description Text in Background Service View of the Application panel to instruct the user on how to start a recording for
+   * @description Text in Background Service View of the Application panel to instruct the user on how to start a recording for
    * background services.
-   *
-   *@example {Start recording events} PH1
-   *@example {Ctrl + E} PH2
+   * @example {Start recording events} PH1
+   * @example {Ctrl + E} PH2
    */
-  startRecordingToDebug: 'Start to debug background services by using the "{PH1}" button or by hitting {PH2}.',
+  startRecordingToDebug: 'Start to debug background services by using the "{PH1}" button or by pressing {PH2}.',
   /**
-   *@description Text to show an item is empty
+   * @description Text to show an item is empty
    */
   empty: 'empty',
   /**
-   *@description Text in Background Service View of the Application panel
+   * @description Text in Background Service View of the Application panel
    */
   noMetadataForThisEvent: 'No metadata for this event',
 } as const;
@@ -177,12 +177,13 @@ export class BackgroundServiceView extends UI.Widget.VBox {
   }
 
   constructor(serviceName: Protocol.BackgroundService.ServiceName, model: BackgroundServiceModel) {
-    super(true);
+    super({
+      jslog: `${VisualLogging.pane().context(Platform.StringUtilities.toKebabCase(serviceName))}`,
+      useShadowDom: true,
+    });
     this.registerRequiredCSS(emptyWidgetStyles, backgroundServiceViewStyles);
 
     this.serviceName = serviceName;
-    const kebabName = Platform.StringUtilities.toKebabCase(serviceName);
-    this.element.setAttribute('jslog', `${VisualLogging.pane().context(kebabName)}`);
 
     this.model = model;
     this.model.addEventListener(Events.RecordingStateChanged, this.onRecordingStateChanged, this);
@@ -303,7 +304,16 @@ export class BackgroundServiceView extends UI.Widget.VBox {
    * Called when the `Toggle Record` button is clicked.
    */
   toggleRecording(): void {
-    this.model.setRecording(!this.recordButton.isToggled(), this.serviceName);
+    const isRecording = !this.recordButton.isToggled();
+    this.model.setRecording(isRecording, this.serviceName);
+    const featureName = BackgroundServiceView.getUIString(this.serviceName).toLowerCase();
+
+    if (isRecording) {
+      UI.ARIAUtils.LiveAnnouncer.alert(
+          i18nString(UIStrings.recordingSActivity, {PH1: featureName}) + ' ' +
+          i18nString(UIStrings.devtoolsWillRecordAllSActivity, {PH1: featureName}));
+      this.preview?.focus();
+    }
   }
 
   /**
@@ -374,20 +384,18 @@ export class BackgroundServiceView extends UI.Widget.VBox {
   }
 
   private createDataGrid(): DataGrid.DataGrid.DataGridImpl<EventData> {
-    const columns = ([
-      {id: 'id', title: '#', weight: 1},
-      {id: 'timestamp', title: i18nString(UIStrings.timestamp), weight: 7},
-      {id: 'event-name', title: i18nString(UIStrings.event), weight: 8},
-      {id: 'origin', title: i18nString(UIStrings.origin), weight: 8},
-      {id: 'storage-key', title: i18nString(UIStrings.storageKey), weight: 8},
-      {id: 'sw-scope', title: i18nString(UIStrings.swScope), weight: 4},
-      {id: 'instance-id', title: i18nString(UIStrings.instanceId), weight: 8},
-    ] as DataGrid.DataGrid.ColumnDescriptor[]);
+    const columns: DataGrid.DataGrid.ColumnDescriptor[] = [
+      {id: 'id', title: '#' as Common.UIString.LocalizedString, weight: 1, sortable: false},
+      {id: 'timestamp', title: i18nString(UIStrings.timestamp), weight: 7, sortable: false},
+      {id: 'event-name', title: i18nString(UIStrings.event), weight: 8, sortable: false},
+      {id: 'origin', title: i18nString(UIStrings.origin), weight: 8, sortable: false},
+      {id: 'storage-key', title: i18nString(UIStrings.storageKey), weight: 8, sortable: false},
+      {id: 'sw-scope', title: i18nString(UIStrings.swScope), weight: 4, sortable: false},
+      {id: 'instance-id', title: i18nString(UIStrings.instanceId), weight: 8, sortable: false},
+    ];
     const dataGrid = new DataGrid.DataGrid.DataGridImpl({
       displayName: i18nString(UIStrings.backgroundServices),
       columns,
-      refreshCallback: undefined,
-      deleteCallback: undefined,
     });
     dataGrid.setStriped(true);
 
@@ -443,7 +451,7 @@ export class BackgroundServiceView extends UI.Widget.VBox {
   }
 
   private createLearnMoreLink(): Platform.DevToolsPath.UrlString {
-    let url = 'https://developer.chrome.com/docs/devtools/javascript/background-services/?utm_source=devtools';
+    let url = 'https://developer.chrome.com/docs/devtools/javascript/background-services/';
 
     switch (this.serviceName) {
       case Protocol.BackgroundService.ServiceName.BackgroundFetch:
@@ -482,30 +490,32 @@ export class BackgroundServiceView extends UI.Widget.VBox {
       return;
     }
 
-    const emptyWidget = new UI.EmptyWidget.EmptyWidget('', '');
+    let emptyWidget: UI.EmptyWidget.EmptyWidget;
     if (this.dataGrid.rootNode().children.length) {
-      emptyWidget.header = i18nString(UIStrings.noEventSelected);
-      emptyWidget.text = i18nString(UIStrings.selectAnEventToViewMetadata);
+      emptyWidget = new UI.EmptyWidget.EmptyWidget(
+          i18nString(UIStrings.noEventSelected), i18nString(UIStrings.selectAnEventToViewMetadata));
     } else if (this.recordButton.isToggled()) {
       // Inform users that we are recording/waiting for events.
       const featureName = BackgroundServiceView.getUIString(this.serviceName).toLowerCase();
-      emptyWidget.header = i18nString(UIStrings.recordingSActivity, {PH1: featureName});
-      emptyWidget.text = i18nString(UIStrings.devtoolsWillRecordAllSActivity, {PH1: featureName});
+      emptyWidget = new UI.EmptyWidget.EmptyWidget(
+          i18nString(UIStrings.recordingSActivity, {PH1: featureName}),
+          i18nString(UIStrings.devtoolsWillRecordAllSActivity, {PH1: featureName}));
     } else {
       const recordShortcuts =
           UI.ShortcutRegistry.ShortcutRegistry.instance().shortcutsForAction('background-service.toggle-recording')[0];
-      emptyWidget.header = i18nString(UIStrings.noRecording);
-      emptyWidget.text = i18nString(
-          UIStrings.startRecordingToDebug,
-          {PH1: i18nString(UIStrings.startRecordingEvents), PH2: recordShortcuts.title()});
-      emptyWidget.appendLink(this.createLearnMoreLink());
+      emptyWidget = new UI.EmptyWidget.EmptyWidget(
+          i18nString(UIStrings.noRecording), i18nString(UIStrings.startRecordingToDebug, {
+            PH1: i18nString(UIStrings.startRecordingEvents),
+            PH2: recordShortcuts.title(),
+          }));
+      emptyWidget.link = this.createLearnMoreLink();
 
       const button = UI.UIUtils.createTextButton(
           i18nString(UIStrings.startRecordingEvents), () => this.toggleRecording(),
           {jslogContext: 'start-recording', variant: Buttons.Button.Variant.TONAL});
       emptyWidget.contentElement.appendChild(button);
     }
-
+    emptyWidget.setDefaultFocusedElement(emptyWidget.contentElement);
     this.preview = emptyWidget;
     this.preview.show(this.previewPanel.contentElement);
   }

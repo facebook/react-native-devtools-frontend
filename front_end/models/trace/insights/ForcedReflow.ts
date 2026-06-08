@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -20,20 +20,20 @@ import {
 
 export const UIStrings = {
   /**
-   *@description Title of an insight that provides details about Forced reflow.
+   * @description Title of an insight that provides details about Forced reflow.
    */
   title: 'Forced reflow',
   /**
    * @description Text to describe the forced reflow.
    */
   description:
-      'Many APIs, typically reading layout geometry, force the rendering engine to pause script execution in order to calculate the style and layout. Learn more about [forced reflow](https://developers.google.com/web/fundamentals/performance/rendering/avoid-large-complex-layouts-and-layout-thrashing#avoid-forced-synchronous-layouts) and its mitigations.',
+      'A forced reflow occurs when JavaScript queries geometric properties (such as `offsetWidth`) after styles have been invalidated by a change to the DOM state. This can result in poor performance. Learn more about [forced reflows](https://developer.chrome.com/docs/performance/insights/forced-reflow) and possible mitigations.',
   /**
-   *@description Title of a list to provide related stack trace data
+   * @description Title of a list to provide related stack trace data
    */
-  relatedStackTrace: 'Stack trace',
+  reflowCallFrames: 'Call frames that trigger reflow',
   /**
-   *@description Text to describe the top time-consuming function call
+   * @description Text to describe the top time-consuming function call
    */
   topTimeConsumingFunctionCall: 'Top function call',
   /**
@@ -43,7 +43,11 @@ export const UIStrings = {
   /**
    * @description Text to describe CPU processor tasks that could not be attributed to any specific source code.
    */
-  unattributed: 'Unattributed',
+  unattributed: '[unattributed]',
+  /**
+   * @description Text for the name of anonymous functions
+   */
+  anonymous: '(anonymous)',
 } as const;
 
 const str_ = i18n.i18n.registerUIStrings('models/trace/insights/ForcedReflow.ts', UIStrings);
@@ -74,7 +78,7 @@ function getCallFrameId(callFrame: Types.Events.CallFrame|Protocol.Runtime.CallF
 }
 
 function getLargestTopLevelFunctionData(
-    forcedReflowEvents: Types.Events.Event[], traceParsedData: Handlers.Types.ParsedTrace): ForcedReflowAggregatedData|
+    forcedReflowEvents: Types.Events.Event[], traceParsedData: Handlers.Types.HandlerData): ForcedReflowAggregatedData|
     undefined {
   const entryToNodeMap = traceParsedData.Renderer.entryToNode;
   const dataByTopLevelFunction = new Map<string, ForcedReflowAggregatedData>();
@@ -140,22 +144,27 @@ function finalize(partialModel: PartialInsightModel<ForcedReflowInsightModel>): 
     strings: UIStrings,
     title: i18nString(UIStrings.title),
     description: i18nString(UIStrings.description),
+    docs: 'https://developer.chrome.com/docs/performance/insights/forced-reflow',
     category: InsightCategory.ALL,
     state: partialModel.aggregatedBottomUpData.length !== 0 ? 'fail' : 'pass',
     ...partialModel,
   };
 }
 
-function getBottomCallFrameForEvent(event: Types.Events.Event, traceParsedData: Handlers.Types.ParsedTrace):
+function getBottomCallFrameForEvent(event: Types.Events.Event, traceParsedData: Handlers.Types.HandlerData):
     Types.Events.CallFrame|Protocol.Runtime.CallFrame|null {
   const profileStackTrace = Extras.StackTraceForEvent.get(event, traceParsedData);
-  const eventStackTrace = Helpers.Trace.getZeroIndexedStackTraceForEvent(event);
+  const eventTopCallFrame = Helpers.Trace.getStackTraceTopCallFrameInEventPayload(event);
 
-  return profileStackTrace?.callFrames[0] ?? eventStackTrace?.[0] ?? null;
+  return profileStackTrace?.callFrames[0] ?? eventTopCallFrame ?? null;
+}
+
+export function isForcedReflowInsight(model: InsightModel): model is ForcedReflowInsightModel {
+  return model.insightKey === InsightKeys.FORCED_REFLOW;
 }
 
 export function generateInsight(
-    traceParsedData: Handlers.Types.ParsedTrace, context: InsightSetContext): ForcedReflowInsightModel {
+    traceParsedData: Handlers.Types.HandlerData, context: InsightSetContext): ForcedReflowInsightModel {
   const isWithinContext = (event: Types.Events.Event): boolean => {
     const frameId = Helpers.Trace.frameIDForEvent(event);
     if (frameId !== context.frameId) {
@@ -187,4 +196,25 @@ export function generateInsight(
     topLevelFunctionCallData,
     aggregatedBottomUpData: [...bottomUpDataMap.values()],
   });
+}
+
+export function createOverlays(model: ForcedReflowInsightModel): Types.Overlays.Overlay[] {
+  if (!model.topLevelFunctionCallData) {
+    return [];
+  }
+
+  const allBottomUpEvents = [...model.aggregatedBottomUpData.values().flatMap(data => data.relatedEvents)];
+  return [
+    ...createOverlayForEvents(model.topLevelFunctionCallData.topLevelFunctionCallEvents, 'INFO'),
+    ...createOverlayForEvents(allBottomUpEvents),
+  ];
+}
+
+export function createOverlayForEvents(
+    events: Types.Events.Event[], outlineReason: 'ERROR'|'INFO' = 'ERROR'): Types.Overlays.Overlay[] {
+  return events.map(e => ({
+                      type: 'ENTRY_OUTLINE',
+                      entry: e,
+                      outlineReason,
+                    }));
 }

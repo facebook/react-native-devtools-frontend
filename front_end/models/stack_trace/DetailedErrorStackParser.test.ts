@@ -1,0 +1,382 @@
+// Copyright 2026 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import type * as Protocol from '../../generated/protocol.js';
+
+// eslint-disable-next-line @devtools/es-modules-import
+import * as StackTraceImpl from './stack_trace_impl.js';
+
+describe('DetailedErrorStackParser', () => {
+  describe('parseRawFramesFromErrorStack', () => {
+    it('parses standard V8 stack frames', () => {
+      const stack = `Error: foo
+          at functionName (http://www.example.org/script.js:10:5)
+          at Class.methodName (http://www.example.org/script.js:20:1)
+          at new Constructor (http://www.example.org/script.js:30:1)
+          at async asyncFunction (http://www.example.org/script.js:40:1)
+          at http://www.example.org/script.js:50:1`;
+      const frames = StackTraceImpl.DetailedErrorStackParser.parseRawFramesFromErrorStack(stack);
+
+      assert.exists(frames);
+      assert.lengthOf(frames, 5);
+      assert.deepEqual(frames[0], {
+        url: 'http://www.example.org/script.js',
+        functionName: 'functionName',
+        lineNumber: 9,
+        columnNumber: 4,
+        parsedFrameInfo: {
+          isAsync: false,
+          isConstructor: false,
+          isEval: false,
+          isWasm: false,
+          wasmModuleName: undefined,
+          wasmFunctionIndex: undefined,
+          typeName: undefined,
+          methodName: undefined,
+          promiseIndex: undefined,
+          evalOrigin: undefined,
+        },
+      });
+      assert.deepEqual(frames[1], {
+        url: 'http://www.example.org/script.js',
+        functionName: 'Class.methodName',
+        lineNumber: 19,
+        columnNumber: 0,
+        parsedFrameInfo: {
+          isAsync: false,
+          isConstructor: false,
+          isEval: false,
+          isWasm: false,
+          wasmModuleName: undefined,
+          wasmFunctionIndex: undefined,
+          typeName: 'Class',
+          methodName: 'methodName',
+          promiseIndex: undefined,
+          evalOrigin: undefined,
+        },
+      });
+      assert.deepEqual(frames[2], {
+        url: 'http://www.example.org/script.js',
+        functionName: 'Constructor',
+        lineNumber: 29,
+        columnNumber: 0,
+        parsedFrameInfo: {
+          isAsync: false,
+          isConstructor: true,
+          isEval: false,
+          isWasm: false,
+          wasmModuleName: undefined,
+          wasmFunctionIndex: undefined,
+          typeName: undefined,
+          methodName: undefined,
+          promiseIndex: undefined,
+          evalOrigin: undefined,
+        },
+      });
+      assert.deepEqual(frames[3], {
+        url: 'http://www.example.org/script.js',
+        functionName: 'asyncFunction',
+        lineNumber: 39,
+        columnNumber: 0,
+        parsedFrameInfo: {
+          isAsync: true,
+          isConstructor: false,
+          isEval: false,
+          isWasm: false,
+          wasmModuleName: undefined,
+          wasmFunctionIndex: undefined,
+          typeName: undefined,
+          methodName: undefined,
+          promiseIndex: undefined,
+          evalOrigin: undefined,
+        },
+      });
+      assert.deepEqual(frames[4], {
+        url: 'http://www.example.org/script.js',
+        functionName: '',
+        lineNumber: 49,
+        columnNumber: 0,
+        parsedFrameInfo: {
+          isAsync: false,
+          isConstructor: false,
+          isEval: false,
+          isWasm: false,
+          wasmModuleName: undefined,
+          wasmFunctionIndex: undefined,
+          typeName: undefined,
+          methodName: undefined,
+          promiseIndex: undefined,
+          evalOrigin: undefined,
+        },
+      });
+    });
+
+    it('parses eval frames', () => {
+      const stack = `Error: foo
+          at eval (eval at <anonymous> (http://www.example.org/script.js:10:5), <anonymous>:1:1)`;
+      const frames = StackTraceImpl.DetailedErrorStackParser.parseRawFramesFromErrorStack(stack);
+
+      assert.exists(frames);
+      assert.lengthOf(frames, 1);
+      assert.isTrue(frames[0].parsedFrameInfo?.isEval);
+      assert.strictEqual(frames[0].url, '<anonymous>');
+      assert.strictEqual(frames[0].lineNumber, 0);
+      assert.strictEqual(frames[0].columnNumber, 0);
+
+      assert.exists(frames[0].parsedFrameInfo?.evalOrigin);
+      assert.strictEqual(frames[0].parsedFrameInfo?.evalOrigin?.url, 'http://www.example.org/script.js');
+      assert.strictEqual(frames[0].parsedFrameInfo?.evalOrigin?.lineNumber, 9);
+      assert.strictEqual(frames[0].parsedFrameInfo?.evalOrigin?.columnNumber, 4);
+      assert.strictEqual(frames[0].parsedFrameInfo?.evalOrigin?.functionName, '<anonymous>');
+    });
+
+    it('parses deeply nested eval frames with actual function names', () => {
+      const stack = `Error: foo
+          at innerEval (eval at outerEval (eval at topEval (http://www.example.org/script.js:10:5)), <anonymous>:1:1)`;
+      const frames = StackTraceImpl.DetailedErrorStackParser.parseRawFramesFromErrorStack(stack);
+
+      assert.exists(frames);
+      assert.lengthOf(frames, 1);
+      assert.isTrue(frames[0].parsedFrameInfo?.isEval);
+      assert.strictEqual(frames[0].url, '<anonymous>');
+      assert.strictEqual(frames[0].lineNumber, 0);
+      assert.strictEqual(frames[0].columnNumber, 0);
+
+      // Level 1: outerEval
+      const outerEvalOrigin = frames[0].parsedFrameInfo?.evalOrigin;
+      assert.exists(outerEvalOrigin);
+      assert.isTrue(outerEvalOrigin?.parsedFrameInfo?.isEval);
+      assert.strictEqual(outerEvalOrigin?.functionName, 'outerEval');
+      assert.strictEqual(outerEvalOrigin?.url, '');  // no <anonymous> suffix
+      assert.strictEqual(outerEvalOrigin?.lineNumber, -1);
+      assert.strictEqual(outerEvalOrigin?.columnNumber, -1);
+
+      // Level 2: topEval
+      const topEvalOrigin = outerEvalOrigin?.parsedFrameInfo?.evalOrigin;
+      assert.exists(topEvalOrigin);
+      assert.isFalse(topEvalOrigin?.parsedFrameInfo?.isEval);
+      assert.strictEqual(topEvalOrigin?.functionName, 'topEval');
+      assert.strictEqual(topEvalOrigin?.url, 'http://www.example.org/script.js');
+      assert.strictEqual(topEvalOrigin?.lineNumber, 9);
+      assert.strictEqual(topEvalOrigin?.columnNumber, 4);
+    });
+
+    it('parses aliased method calls', () => {
+      const stack = `Error: foo
+          at Type.method [as alias] (http://www.example.org/script.js:10:5)`;
+      const frames = StackTraceImpl.DetailedErrorStackParser.parseRawFramesFromErrorStack(stack);
+
+      assert.exists(frames);
+      assert.lengthOf(frames, 1);
+      assert.strictEqual(frames[0].parsedFrameInfo?.typeName, 'Type');
+      assert.strictEqual(frames[0].parsedFrameInfo?.methodName, 'alias');
+    });
+
+    it('parses wasm frames', () => {
+      const stack = `Error: foo
+          at wasmModule.wasmFunc (http://www.example.org/script.js:wasm-function[123]:0xabc)`;
+      const frames = StackTraceImpl.DetailedErrorStackParser.parseRawFramesFromErrorStack(stack);
+
+      assert.exists(frames);
+      assert.lengthOf(frames, 1);
+      assert.isTrue(frames[0].parsedFrameInfo?.isWasm);
+      assert.strictEqual(frames[0].url, 'http://www.example.org/script.js');
+      assert.strictEqual(frames[0].parsedFrameInfo?.wasmModuleName, 'wasmModule');
+      assert.strictEqual(frames[0].parsedFrameInfo?.wasmFunctionIndex, 123);
+      assert.strictEqual(frames[0].columnNumber, 0xabc);
+    });
+
+    it('matches wasm protocol frames accurately with multiple frames', () => {
+      const stack = `Error: foo
+          at $inner (http://example.com/unreachable.wasm:wasm-function[2]:0x21)
+          at $outer (http://example.com/unreachable.wasm:wasm-function[1]:0x95)
+          at go (http://example.com/unreachable.html:27:29)`;
+      const rawFrames = StackTraceImpl.DetailedErrorStackParser.parseRawFramesFromErrorStack(stack);
+      assert.exists(rawFrames);
+
+      const protocolStackTrace: Protocol.Runtime.StackTrace = {
+        callFrames: [
+          {
+            url: 'http://example.com/unreachable.wasm',
+            functionName: 'inner',
+            scriptId: '17' as Protocol.Runtime.ScriptId,
+            lineNumber: 0,
+            columnNumber: 33,  // 0x21
+          },
+          {
+            url: 'http://example.com/unreachable.wasm',
+            functionName: 'outer',
+            scriptId: '17' as Protocol.Runtime.ScriptId,
+            lineNumber: 0,
+            columnNumber: 149,  // 0x95
+          },
+          {
+            url: 'http://example.com/unreachable.html',
+            functionName: 'go',
+            scriptId: '16' as Protocol.Runtime.ScriptId,
+            lineNumber: 26,
+            columnNumber: 28,
+          }
+        ]
+      };
+
+      StackTraceImpl.DetailedErrorStackParser.augmentRawFramesWithScriptIds(rawFrames, protocolStackTrace);
+
+      assert.strictEqual(rawFrames[0].scriptId, '17');
+      assert.strictEqual(rawFrames[0].columnNumber, 33);
+      assert.strictEqual(rawFrames[1].scriptId, '17');
+      assert.strictEqual(rawFrames[1].columnNumber, 149);
+      assert.strictEqual(rawFrames[2].scriptId, '16');
+    });
+
+    it('matches mixed JS and Wasm frames accurately', () => {
+      const stack = `Error: mixed
+          at jsFunc (http://example.com/script.js:10:5)
+          at $wasmFunc (http://example.com/module.wasm:wasm-function[0]:0x21)`;
+      const rawFrames = StackTraceImpl.DetailedErrorStackParser.parseRawFramesFromErrorStack(stack);
+      assert.exists(rawFrames);
+
+      const protocolStackTrace: Protocol.Runtime.StackTrace = {
+        callFrames: [
+          {
+            url: 'http://example.com/script.js',
+            functionName: 'jsFunc',
+            scriptId: '10' as Protocol.Runtime.ScriptId,
+            lineNumber: 9,
+            columnNumber: 4,
+          },
+          {
+            url: 'http://example.com/module.wasm',
+            functionName: 'wasmFunc',
+            scriptId: '20' as Protocol.Runtime.ScriptId,
+            lineNumber: 0,
+            columnNumber: 33,  // 0x21
+          }
+        ]
+      };
+
+      StackTraceImpl.DetailedErrorStackParser.augmentRawFramesWithScriptIds(rawFrames, protocolStackTrace);
+
+      assert.strictEqual(rawFrames[0].scriptId, '10');
+      assert.strictEqual(rawFrames[1].scriptId, '20');
+    });
+
+    it('parses promise.all index', () => {
+      const stack = `Error: foo
+          at Promise.all (index 2)`;
+      const frames = StackTraceImpl.DetailedErrorStackParser.parseRawFramesFromErrorStack(stack);
+
+      assert.exists(frames);
+      assert.lengthOf(frames, 1);
+      assert.strictEqual(frames[0].parsedFrameInfo?.promiseIndex, 2);
+      assert.strictEqual(frames[0].url, '');
+      assert.strictEqual(frames[0].functionName, 'Promise.all');
+    });
+
+    it('parses builtin frames', () => {
+      const stack = `Error: foo
+          at Array.map (<anonymous>)`;
+      const frames = StackTraceImpl.DetailedErrorStackParser.parseRawFramesFromErrorStack(stack);
+
+      assert.exists(frames);
+      assert.lengthOf(frames, 1);
+      assert.strictEqual(frames[0].url, '');
+      assert.strictEqual(frames[0].functionName, 'Array.map');
+      assert.strictEqual(frames[0].lineNumber, -1);
+      assert.strictEqual(frames[0].columnNumber, -1);
+      assert.isTrue(StackTraceImpl.Trie.isBuiltinFrame(frames[0]));
+    });
+
+    it('returns null if arbitrary text is interleaved between frames', () => {
+      const stack = `Error: foo
+          at functionName (http://www.example.org/script.js:10:5)
+          injected arbitrary text
+          at http://www.example.org/script.js:50:1`;
+      const frames = StackTraceImpl.DetailedErrorStackParser.parseRawFramesFromErrorStack(stack);
+
+      assert.isNull(frames);
+    });
+
+    it('allows and skips empty or whitespace-only lines interleaved between frames', () => {
+      const stack = `Error: foo
+          at functionName (http://www.example.org/script.js:10:5)
+
+          at http://www.example.org/script.js:50:1
+          `;
+      const frames = StackTraceImpl.DetailedErrorStackParser.parseRawFramesFromErrorStack(stack);
+
+      assert.exists(frames);
+      assert.lengthOf(frames, 2);
+      assert.strictEqual(frames[0].url, 'http://www.example.org/script.js');
+      assert.strictEqual(frames[0].functionName, 'functionName');
+      assert.strictEqual(frames[0].lineNumber, 9);
+      assert.strictEqual(frames[0].columnNumber, 4);
+
+      assert.strictEqual(frames[1].url, 'http://www.example.org/script.js');
+      assert.strictEqual(frames[1].functionName, '');
+      assert.strictEqual(frames[1].lineNumber, 49);
+      assert.strictEqual(frames[1].columnNumber, 0);
+    });
+  });
+
+  describe('parseMessage', () => {
+    it('extracts the message when stack frames are present', () => {
+      const stack = `Error: foo
+          at functionName (http://www.example.org/script.js:10:5)`;
+      const message = StackTraceImpl.DetailedErrorStackParser.parseMessage(stack);
+      assert.strictEqual(message, 'Error: foo');
+    });
+
+    it('returns the full string if no stack frames are present', () => {
+      const stack = `Error: foo
+          some other text`;
+      const message = StackTraceImpl.DetailedErrorStackParser.parseMessage(stack);
+      assert.strictEqual(message, stack);
+    });
+
+    it('extracts multi-line messages', () => {
+      const stack = `Error: foo
+more details
+          at functionName (http://www.example.org/script.js:10:5)`;
+      const message = StackTraceImpl.DetailedErrorStackParser.parseMessage(stack);
+      assert.strictEqual(message, 'Error: foo\nmore details');
+    });
+  });
+
+  describe('augmentRawFramesWithScriptIds', () => {
+    it('augments raw frames with script IDs from Protocol.Runtime.StackTrace', () => {
+      const frames: StackTraceImpl.Trie.RawFrame[] = [
+        {
+          url: 'http://www.example.org/script.js',
+          functionName: 'foo',
+          lineNumber: 9,
+          columnNumber: 4,
+        },
+        {
+          url: 'http://www.example.org/other.js',
+          functionName: 'bar',
+          lineNumber: 19,
+          columnNumber: 0,
+        },
+      ];
+
+      const protocolStackTrace: Protocol.Runtime.StackTrace = {
+        callFrames: [
+          {
+            functionName: 'foo',
+            scriptId: '123' as Protocol.Runtime.ScriptId,
+            url: 'http://www.example.org/script.js',
+            lineNumber: 9,
+            columnNumber: 4,
+          },
+        ],
+      };
+
+      StackTraceImpl.DetailedErrorStackParser.augmentRawFramesWithScriptIds(frames, protocolStackTrace);
+
+      assert.strictEqual(frames[0].scriptId, '123');
+      assert.isUndefined(frames[1].scriptId);
+    });
+  });
+});

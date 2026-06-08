@@ -1,6 +1,7 @@
-// Copyright (c) 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as i18n from '../../core/i18n/i18n.js';
 import * as SDK from '../../core/sdk/sdk.js';
@@ -10,25 +11,25 @@ import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 const UIStrings = {
   /**
-   *@description Text in Indexed DBViews of the Application panel
+   * @description Text in Indexed DBViews of the Application panel
    */
   version: 'Version',
   /**
-   *@description Table heading for Service Workers update information. Update is a noun.
+   * @description Table heading for Service Workers update information. Update is a noun.
    */
   updateActivity: 'Update Activity',
   /**
-   *@description Title for the timeline tab.
+   * @description Title for the timeline tab.
    */
   timeline: 'Timeline',
   /**
-   *@description Text in Service Workers Update Life Cycle
-   *@example {2} PH1
+   * @description Text in Service Workers Update Life Cycle
+   * @example {2} PH1
    */
   startTimeS: 'Start time: {PH1}',
   /**
-   *@description Text for end time of an event
-   *@example {2} PH1
+   * @description Text for end time of an event
+   * @example {2} PH1
    */
   endTimeS: 'End time: {PH1}',
 } as const;
@@ -179,6 +180,7 @@ export class ServiceWorkerUpdateCycleView {
       const tr = this.tableElement.createChild('tr', 'service-worker-update-timeline');
       tr.setAttribute('jslog', `${VisualLogging.treeItem('update-timeline').track({
                         click: true,
+                        resize: true,
                         keydown: 'ArrowLeft|ArrowRight|ArrowUp|ArrowDown|Enter|Space',
                       })}`);
       this.rows.push(tr);

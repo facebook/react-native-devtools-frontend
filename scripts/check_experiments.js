@@ -1,20 +1,11 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-'use strict';
 
-const fs = require('fs');
-const path = require('path');
+import espree from '@typescript-eslint/parser';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const SRC_PATH = path.resolve(__dirname, '..');
-const NODE_MODULES_PATH = path.resolve(SRC_PATH, 'node_modules');
-const espree = require(path.resolve(
-    NODE_MODULES_PATH,
-    '@typescript-eslint',
-    'parser',
-    'dist',
-    'index.js',
-    ));
 const parseOptions = {
   ecmaVersion: 'latest',
   sourceType: 'module',
@@ -60,14 +51,21 @@ function findFunctionInClass(classNode, functionName) {
 /**
  * Determines if AST Node is a call to register a DevtoolsExperiment
  */
-function isExperimentRegistrationCall(node) {
-  return (
-      node.expression && node.expression.type === 'CallExpression' &&
-      node.expression.callee.property.name === 'register');
+function isExperimentRegistrationCall(expression) {
+  return (expression && expression.type === 'CallExpression' && expression.callee.property.name === 'register');
 }
 
 /**
- * Extract the enum Root.Runtime.ExperimentName to a map
+ * Determines if AST Node is a call to register a DevtoolsHostExperiment
+ */
+function isHostExperimentRegistrationCall(expression) {
+  return (
+      expression && expression.type === 'CallExpression' &&
+      expression.callee.property.name === 'registerHostExperiment');
+}
+
+/**
+ * Extract the enum Root.ExperimentNames.ExperimentName to a map
  */
 function getExperimentNameEnum(mainImplFile) {
   const mainAST = espree.parse(mainImplFile, parseOptions);
@@ -91,7 +89,7 @@ function getExperimentNameEnum(mainImplFile) {
 }
 
 /**
- * Determine if node is of the form Root.Runtime.ExperimentName.NAME, and if so
+ * Determine if node is of the form Root.ExperimentNames.ExperimentName.NAME, and if so
  * return NAME as string.
  */
 function isExperimentNameReference(node) {
@@ -101,7 +99,7 @@ function isExperimentNameReference(node) {
   if (node.object.type !== 'MemberExpression' || node.object.property?.name !== 'ExperimentName') {
     return false;
   }
-  if (node.object.object.type !== 'MemberExpression' || node.object.object.property?.name !== 'Runtime') {
+  if (node.object.object.type !== 'MemberExpression' || node.object.object.property?.name !== 'ExperimentNames') {
     return false;
   }
   if (node.object.object.object.type !== 'Identifier' || node.object.object.object.name !== 'Root') {
@@ -140,31 +138,40 @@ function getMainImplExperimentList(mainImplFile, experimentNames) {
   // Get list of experiments
   const experiments = [];
   for (const statement of initializeExperimentNode.value.body.body) {
-    if (isExperimentRegistrationCall(statement)) {
+    let expression = null;
+    if (statement.expression && statement.expression.type === 'CallExpression') {
+      expression = statement.expression;
+    } else if (statement.type === 'VariableDeclaration') {
+      expression = statement.declarations[0].init;
+    }
+
+    let experimentNameArg = '';
+    if (isExperimentRegistrationCall(expression)) {
       // Experiment name is first argument of registration call
-      const experimentNameArg = statement.expression.arguments[0];
-      // The experiment name can either be a literal, e.g. 'fooExperiment'..
-      if (experimentNameArg.type === 'Literal') {
-        experiments.push(experimentNameArg.value);
-      } else {
-        // .. or a member of Root.Runtime.ExperimentName.
-        const experimentName = isExperimentNameReference(experimentNameArg);
-        if (experimentName) {
-          const translatedName = experimentNames.get(experimentName);
-          if (!translatedName) {
-            console.log(
-                'Failed to resolve Root.Runtime.ExperimentName.${experimentName} to a string',
-            );
-            process.exit(1);
-          }
-          experiments.push(translatedName);
-        } else {
+      experimentNameArg = expression.arguments[0];
+    } else if (isHostExperimentRegistrationCall(expression)) {
+      // Experiment name is the value of the `name` property of the first
+      // argument of registration call
+      experimentNameArg = expression.arguments[0].properties.find(property => property.key.name === 'name').value;
+    }
+    // Translate the Root.ExperimentNames.ExperimentName to a string
+    if (experimentNameArg) {
+      const experimentName = isExperimentNameReference(experimentNameArg);
+      if (experimentName) {
+        const translatedName = experimentNames.get(experimentName);
+        if (!translatedName) {
           console.log(
-              'Unexpected argument to Root.Runtime.experiments.register: ',
-              experimentNameArg,
+              'Failed to resolve Root.ExperimentNames.${experimentName} to a string',
           );
           process.exit(1);
         }
+        experiments.push(translatedName);
+      } else {
+        console.log(
+            'Unexpected argument to Root.Runtime.experiments.register: ',
+            experimentNameArg,
+        );
+        process.exit(1);
       }
     }
   }
@@ -185,10 +192,7 @@ function getUserMetricExperimentList(userMetricsFile) {
   const userMetricsAST = espree.parse(userMetricsFile, parseOptions);
   for (const node of userMetricsAST.body) {
     if (isExperimentEnumDeclaration(node)) {
-      return node.declaration.members
-          .filter(
-              member => member.id.name !== 'MAX_VALUE',
-              )
+      return node.declaration.members.filter(member => member.id.name !== 'MAX_VALUE')
           .filter(
               member => member.id.type === 'Literal' || member.id.type === 'Identifier',
               )
@@ -264,7 +268,7 @@ function compareExperimentLists(mainImplList, userMetricsList) {
 
 function main() {
   const mainImplPath = path.resolve(
-      __dirname,
+      import.meta.dirname,
       '..',
       'front_end',
       'entrypoints',
@@ -274,7 +278,7 @@ function main() {
   const mainImplFile = fs.readFileSync(mainImplPath, 'utf-8');
 
   const userMetricsPath = path.resolve(
-      __dirname,
+      import.meta.dirname,
       '..',
       'front_end',
       'core',
@@ -283,16 +287,16 @@ function main() {
   );
   const userMetricsFile = fs.readFileSync(userMetricsPath, 'utf-8');
 
-  const runtimePath = path.resolve(
-      __dirname,
+  const experimentNamesPath = path.resolve(
+      import.meta.dirname,
       '..',
       'front_end',
       'core',
       'root',
-      'Runtime.ts',
+      'ExperimentNames.ts',
   );
-  const runtimeFile = fs.readFileSync(runtimePath, 'utf-8');
-  const experimentNames = getExperimentNameEnum(runtimeFile);
+  const experimentNamesFile = fs.readFileSync(experimentNamesPath, 'utf-8');
+  const experimentNames = getExperimentNameEnum(experimentNamesFile);
 
   compareExperimentLists(
       getMainImplExperimentList(mainImplFile, experimentNames),

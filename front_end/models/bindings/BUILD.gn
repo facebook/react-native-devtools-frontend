@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -16,7 +16,6 @@ devtools_module("bindings") {
     "DebuggerWorkspaceBinding.ts",
     "DefaultScriptMapping.ts",
     "FileUtils.ts",
-    "IgnoreListManager.ts",
     "LiveLocation.ts",
     "NetworkProject.ts",
     "PresentationConsoleMessageHelper.ts",
@@ -25,6 +24,7 @@ devtools_module("bindings") {
     "ResourceUtils.ts",
     "SASSSourceMapping.ts",
     "StylesSourceMapping.ts",
+    "SymbolizedError.ts",
     "TempFile.ts",
   ]
 
@@ -37,8 +37,11 @@ devtools_module("bindings") {
     "../../core/root:bundle",
     "../../core/sdk:bundle",
     "../../generated:protocol",
+    "../../models/stack_trace:bundle",
+    "../../models/stack_trace:impl",
     "../../models/text_utils:bundle",
     "../../models/workspace:bundle",
+    "../formatter:bundle",
   ]
 }
 
@@ -49,23 +52,33 @@ devtools_entrypoint("bundle") {
 
   visibility = [
     ":*",
+    "../../../mcp/*",
+    "../../core/sdk:foundation_unittests",
+    "../../core/sdk:foundation_unittests_node_typecheck",
     "../../core/sdk:unittests",
+    "../../entrypoints/inspector_main",
     "../../entrypoints/main/*",
+    "../../foundation/*",
     "../../legacy_test_runner/*",
     "../../panels/application/*",
+    "../../panels/common/*",
     "../../panels/console/*",
     "../../panels/coverage/*",
     "../../panels/elements/*",
     "../../panels/emulation/*",
+    "../../panels/issues/*",
+    "../../panels/linear_memory_inspector/*",
     "../../panels/network/*",
     "../../panels/profiler/*",
     "../../panels/protocol_monitor/*",
     "../../panels/recorder/*",
+    "../../panels/settings/*",
     "../../panels/sources/*",
     "../../panels/timeline/*",
     "../../testing/*",
     "../../ui/components/docs/performance_panel/*",
     "../../ui/components/linkifier/*",
+    "../../ui/components/text_editor/*",
     "../../ui/legacy/components/inline_editor/*",
     "../../ui/legacy/components/perf_ui/*",
     "../../ui/legacy/components/utils/*",
@@ -76,6 +89,9 @@ devtools_entrypoint("bundle") {
     "../issues_manager/*",
     "../persistence/*",
     "../source_map_scopes/*",
+    "../trace_source_maps_resolver/*",
+    "../web_mcp/*",
+    "../workspace/*",
   ]
 
   visibility += devtools_models_visibility
@@ -91,19 +107,23 @@ ts_library("unittests") {
     "DebuggerWorkspaceBinding.test.ts",
     "DefaultScriptMapping.test.ts",
     "FileUtils.test.ts",
-    "IgnoreListManager.test.ts",
     "LiveLocation.test.ts",
     "PresentationConsoleMessageHelper.test.ts",
     "ResourceMapping.test.ts",
     "ResourceScriptMapping.test.ts",
     "ResourceUtils.test.ts",
+    "SymbolizedError.test.ts",
   ]
 
   deps = [
     ":bundle",
     "../../core/common:bundle",
+    "../../core/root:bundle",
+    "../../core/sdk:bundle",
     "../../testing",
+    "../../third_party/source-map-scopes-codec:bundle",
     "../persistence:bundle",
+    "../stack_trace:impl",
     "../text_utils:bundle",
     "../workspace:bundle",
   ]

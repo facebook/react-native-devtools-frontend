@@ -1,38 +1,52 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import {assert} from 'chai';
 import type {ElementHandle} from 'puppeteer-core';
 
-import {$$, waitFor, waitForFunction} from '../../shared/helper.js';
+import type {DevToolsPage} from '../shared/frontend-helper.js';
 
 export async function getDataGridRows(
-    expectedNumberOfRows: number, root?: ElementHandle<Node>,
-    matchExactNumberOfRows = true): Promise<Array<Array<ElementHandle<HTMLTableCellElement>>>> {
-  const dataGrid = !root ? await waitFor('devtools-data-grid') : root;
+    expectedNumberOfRows: number, root: ElementHandle<Node>|undefined, matchExactNumberOfRows = true,
+    devToolsPage: DevToolsPage): Promise<Array<Array<ElementHandle<HTMLTableCellElement>>>> {
+  const dataGrid = !root ? await devToolsPage.waitFor('devtools-data-grid') : root;
   const handlers = await (async () => {
     if (matchExactNumberOfRows) {
-      return await waitForFunction(async () => {
-        const rows = await $$('tbody > tr[jslog]:not(.hidden)', dataGrid);
+      return await devToolsPage.waitForFunction(async () => {
+        const rows = await devToolsPage.$$('tbody > tr[jslog]:not(.hidden)', dataGrid);
         return rows.length === expectedNumberOfRows ? rows : undefined;
       });
     }
-    return await waitForFunction(async () => {
-      const rows = await $$('tbody > tr[jslog]:not(.hidden)', dataGrid);
+    return await devToolsPage.waitForFunction(async () => {
+      const rows = await devToolsPage.$$('tbody > tr[jslog]:not(.hidden)', dataGrid);
       return rows.length >= expectedNumberOfRows ? rows : undefined;
     });
   })();
 
-  return await Promise.all(handlers.map(handler => $$('td[jslog]:not(.hidden)', handler)));
+  return await Promise.all(handlers.map(handler => devToolsPage.$$('td[jslog]:not(.hidden)', handler)));
 }
 
-export async function getDataGrid(root?: ElementHandle) {
-  const dataGrid = await waitFor('devtools-data-grid', root);
-  if (!dataGrid) {
-    assert.fail('Could not find data-grid');
+export async function getDataGridColumnNames(
+    root: ElementHandle<Node>|undefined, devToolsPage: DevToolsPage): Promise<String[]> {
+  const columnNames: String[] = [];
+  const dataGrid = !root ? await devToolsPage.waitFor('devtools-data-grid') : root;
+
+  const columnNodes = await dataGrid.$$('pierce/[role="columnheader"]');
+  for (const column of columnNodes) {
+    const text = await column.evaluate(x => {
+      return (x as HTMLElement).innerText || '';
+    });
+    columnNames.push(text);
   }
-  await waitForFunction(async () => {
+
+  return columnNames;
+}
+
+export async function getDataGrid(root: ElementHandle|undefined, devToolsPage: DevToolsPage) {
+  const dataGrid = await devToolsPage.waitFor('devtools-data-grid', root);
+  assert.isOk(dataGrid, 'Could not find data-grid');
+  await devToolsPage.waitForFunction(async () => {
     const height = await dataGrid.evaluate(elem => elem.clientHeight);
     // Give it a chance to fully render into the page.
     return height > 20;
@@ -41,9 +55,9 @@ export async function getDataGrid(root?: ElementHandle) {
 }
 
 export async function getInnerTextOfDataGridCells(
-    dataGridElement: ElementHandle<Element>, expectedNumberOfRows: number,
-    matchExactNumberOfRows = true): Promise<string[][]> {
-  const gridRows = await getDataGridRows(expectedNumberOfRows, dataGridElement, matchExactNumberOfRows);
+    dataGridElement: ElementHandle<Element>, expectedNumberOfRows: number, matchExactNumberOfRows = true,
+    devToolsPage: DevToolsPage): Promise<string[][]> {
+  const gridRows = await getDataGridRows(expectedNumberOfRows, dataGridElement, matchExactNumberOfRows, devToolsPage);
   const table: string[][] = [];
   for (const row of gridRows) {
     const textRow = [];

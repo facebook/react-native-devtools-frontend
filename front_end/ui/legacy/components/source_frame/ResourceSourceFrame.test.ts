@@ -1,10 +1,11 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../../../core/common/common.js';
 import * as Platform from '../../../../core/platform/platform.js';
 import * as TextUtils from '../../../../models/text_utils/text_utils.js';
+import {renderElementIntoDOM} from '../../../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
 import type * as CodeMirror from '../../../../third_party/codemirror.next/codemirror.next.js';
 
@@ -41,10 +42,6 @@ class MockStreamingContentProvider implements TextUtils.ContentProvider.Streamin
     return this.#contentType;
   }
 
-  async requestContent(): Promise<TextUtils.ContentProvider.DeferredContent> {
-    return this.#content.content().asDeferedContent();
-  }
-
   addChunk(chunk: string): void {
     this.#content.addChunk(chunk);
   }
@@ -63,8 +60,7 @@ describeWithEnvironment('ResourceSourceFrame', () => {
 
     const resourceSourceFrame =
         new SourceFrame.ResourceSourceFrame.ResourceSourceFrame(contentProvider, 'text/event-stream');
-    resourceSourceFrame.markAsRoot();
-    resourceSourceFrame.show(document.body);
+    renderElementIntoDOM(resourceSourceFrame);
 
     const initialState = await new Promise<CodeMirror.EditorState>(
         resolve => sinon.stub(resourceSourceFrame.textEditor, 'state').set(resolve));

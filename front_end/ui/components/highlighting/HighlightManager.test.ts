@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -85,5 +85,15 @@ describe('HighlightManager', () => {
     const highlight = CSS.highlights.get(Highlighting.HighlightManager.HIGHLIGHT_REGISTRY);
     assert.strictEqual(highlight?.size, 3);
     assert.deepEqual(Array.from(highlight!.keys()), ranges);
+  });
+
+  it('correctly skips script and style tags', () => {
+    // "abc"
+    //  ^^^
+    assert.deepEqual(toText(walk('<script>console.log("hello")</script>abc').nextRange(0, 3)), 'abc');
+
+    // "abc"
+    //  ^^^
+    assert.deepEqual(toText(walk('<style>body { color: red; }</style>abc').nextRange(0, 3)), 'abc');
   });
 });

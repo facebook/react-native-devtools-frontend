@@ -17,9 +17,9 @@ import {
 } from '../../third_party/rxjs/rxjs.js';
 import type {CDPSession} from '../api/CDPSession.js';
 import {environment} from '../environment.js';
-import {packageVersion} from '../generated/version.js';
 import {assert} from '../util/assert.js';
-import {mergeUint8Arrays} from '../util/encoding.js';
+import {mergeUint8Arrays, stringToTypedArray} from '../util/encoding.js';
+import {packageVersion} from '../util/version.js';
 
 import {debug} from './Debug.js';
 import {TimeoutError} from './Errors.js';
@@ -238,31 +238,17 @@ export async function getReadableAsTypedArray(
 /**
  * @internal
  */
-
-/**
- * @internal
- */
 export async function getReadableFromProtocolStream(
   client: CDPSession,
   handle: string,
 ): Promise<ReadableStream<Uint8Array>> {
   return new ReadableStream({
     async pull(controller) {
-      function getUnit8Array(data: string, isBase64: boolean): Uint8Array {
-        if (isBase64) {
-          return Uint8Array.from(atob(data), m => {
-            return m.codePointAt(0)!;
-          });
-        }
-        const encoder = new TextEncoder();
-        return encoder.encode(data);
-      }
-
       const {data, base64Encoded, eof} = await client.send('IO.read', {
         handle,
       });
 
-      controller.enqueue(getUnit8Array(data, base64Encoded ?? false));
+      controller.enqueue(stringToTypedArray(data, base64Encoded ?? false));
       if (eof) {
         await client.send('IO.close', {handle});
         controller.close();
@@ -271,6 +257,13 @@ export async function getReadableFromProtocolStream(
   });
 }
 
+const VALID_DIALOG_TYPES = new Set([
+  'alert',
+  'confirm',
+  'prompt',
+  'beforeunload',
+]);
+
 /**
  * @internal
  */
@@ -278,14 +271,8 @@ export function validateDialogType(
   type: string,
 ): 'alert' | 'confirm' | 'prompt' | 'beforeunload' {
   let dialogType = null;
-  const validDialogTypes = new Set([
-    'alert',
-    'confirm',
-    'prompt',
-    'beforeunload',
-  ]);
 
-  if (validDialogTypes.has(type)) {
+  if (VALID_DIALOG_TYPES.has(type)) {
     dialogType = type;
   }
   assert(dialogType, `Unknown javascript dialog type: ${type}`);

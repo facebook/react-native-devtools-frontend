@@ -1,21 +1,20 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view */
 
+import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as UI from '../../../ui/legacy/legacy.js';
+import type * as Lit from '../../../ui/lit/lit.js';
 import {html, render} from '../../../ui/lit/lit.js';
 
-import computedStyleTraceStylesRaw from './computedStyleTrace.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const computedStyleTraceStyles = new CSSStyleSheet();
-computedStyleTraceStyles.replaceSync(computedStyleTraceStylesRaw.cssText);
+import computedStyleTraceStyles from './computedStyleTrace.css.js';
 
 export interface ComputedStyleTraceData {
   selector: string;
   active: boolean;
   onNavigateToSource: (event?: Event) => void;
-  ruleOriginNode?: Node;
+  ruleOriginNode?: Lit.LitTemplate;
 }
 
 export class ComputedStyleTrace extends HTMLElement {
@@ -24,11 +23,10 @@ export class ComputedStyleTrace extends HTMLElement {
   #selector = '';
   #active = false;
   #onNavigateToSource: ((event?: Event) => void) = () => {};
-  #ruleOriginNode?: Node;
+  #ruleOriginNode?: Lit.LitTemplate;
 
   connectedCallback(): void {
-    UI.UIUtils.injectCoreStyles(this.#shadow);
-    this.#shadow.adoptedStyleSheets.push(computedStyleTraceStyles);
+    this.#render();
   }
 
   set data(data: ComputedStyleTraceData) {
@@ -43,6 +41,9 @@ export class ComputedStyleTrace extends HTMLElement {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
     render(html`
+      <style>${Buttons.textButtonStyles}</style>
+      <style>${UI.inspectorCommonStyles}</style>
+      <style>${computedStyleTraceStyles}</style>
       <div class="computed-style-trace ${this.#active ? 'active' : 'inactive'}">
         <span class="goto" @click=${this.#onNavigateToSource}></span>
         <slot name="trace-value" @click=${this.#onNavigateToSource}></slot>

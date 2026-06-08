@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -86,12 +86,14 @@ describeWithEnvironment('NetworkThrottlingSelector', () => {
     await RenderCoordinator.done();
     customNetworkSetting.set([
       {
+        key: 'USER_CUSTOM_SETTING_1',
         title: 'Custom item one',
         download: 0,
         upload: 0,
         latency: 0,
       },
       {
+        key: 'USER_CUSTOM_SETTING_2',
         title: 'Custom item two',
         download: 0,
         upload: 0,
@@ -121,7 +123,7 @@ describeWithEnvironment('NetworkThrottlingSelector', () => {
 
     renderElementIntoDOM(view);
     await RenderCoordinator.done();
-    // Ensure that the component picks up the new changes and has selected the right thorttling setting
+    // Ensure that the component picks up the new changes and has selected the right throttling setting
     const items = view.shadowRoot!.querySelectorAll('devtools-menu-item');
     assert.isTrue(items[2].innerText.includes('Slow 4G'));
     assert.isTrue(items[2].selected);
@@ -153,6 +155,7 @@ describeWithEnvironment('NetworkThrottlingSelector', () => {
     assert.lengthOf(items, 6);
 
     customNetworkSetting.set([{
+      key: 'USER_CUSTOM_SETTING_1',
       title: 'Custom item',
       download: 0,
       upload: 0,
@@ -179,7 +182,7 @@ describeWithEnvironment('NetworkThrottlingSelector', () => {
 
     await RenderCoordinator.done();
 
-    assert(mockReveal.calledOnce);
+    sinon.assert.calledOnce(mockReveal);
     assert.isFalse(addItem.selected);
   });
 });

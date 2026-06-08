@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -61,7 +61,7 @@ export enum VisualElements {
   Gutter = 22,
   MetricsBox = 23,
   MetricsBoxPart = 24,
-  /* 25 used to be DOMBreakpointsPane, but free to grab now */
+  Badge = 25,
   DOMBreakpoint = 26,
   /* 27 used to be ElementPropertiesPane, but free to grab now */
   /* 28 used to be EventListenersPane, but free to grab now */
@@ -131,7 +131,8 @@ function checkContextValue(context: string|number|undefined): void {
   if (Root.Runtime.Runtime.queryParam('debugFrontend') || Host.InspectorFrontendHost.isUnderTest() ||
       localStorage.getItem('veDebugLoggingEnabled') === DebugLoggingFormat.TEST) {
     const stack = (new Error().stack || '').split('\n').slice(3).join('\n');
-    console.error(`Unknown VE context: ${context}${stack}`);
+    console.error(`Unknown VE context: '${context}'\n${
+        stack}\nPlease add it to front_end/ui/visual_logging/KnownContextValues.ts if you think that's a valid context value.`);
   }
   reportedUnknownVeContext.add(context);
 }

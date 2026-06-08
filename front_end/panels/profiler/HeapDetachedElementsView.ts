@@ -1,6 +1,7 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -20,20 +21,20 @@ import {WritableProfileHeader} from './ProfileView.js';
 
 const UIStrings = {
   /**
-   *@description Button text to obtain the detached elements retained by JS
+   * @description Button text to obtain the detached elements retained by JS
    */
   startDetachedElements: 'Obtain detached elements',
   /**
-   *@description The title for the collection of profiles that are gathered from various snapshots of the heap, using a sampling (e.g. every 1/100) technique.
+   * @description The title for the collection of profiles that are gathered from various snapshots of the heap, using a sampling (e.g. every 1/100) technique.
    */
   detachedElementsTitle: 'Detached elements',
   /**
-   *@description Description in Heap Profile View of a profiler tool
+   * @description Description in Heap Profile View of a profiler tool
    */
   detachedElementsDescription: 'Detached elements shows objects that are retained by a JS reference.',
   /**
-   *@description Name of a profile
-   *@example {2} PH1
+   * @description Name of a profile
+   * @example {2} PH1
    */
   detachedElementProfile: 'Detached elements {PH1}',
 } as const;
@@ -47,7 +48,10 @@ export class DetachedElementsProfileView extends UI.View.SimpleView implements D
   readonly parentDataDisplayDelegate: DataDisplayDelegate;
 
   constructor(dataDisplayDelegate: DataDisplayDelegate, profile: DetachedElementsProfileHeader) {
-    super(i18nString(UIStrings.detachedElementsTitle));
+    super({
+      title: i18nString(UIStrings.detachedElementsTitle),
+      viewId: 'detached-elements',
+    });
     this.element.classList.add('detached-elements-view');
     this.profile = profile;
     this.parentDataDisplayDelegate = dataDisplayDelegate;
@@ -122,11 +126,6 @@ export class DetachedElementsProfileType extends
       return;
     }
 
-    const animationModel = target?.model(SDK.AnimationModel.AnimationModel);
-    if (animationModel) {
-      // TODO(b/406904348): Remove this once we correctly release animations on the backend.
-      await animationModel.releaseAllAnimations();
-    }
     const data = await domModel.getDetachedDOMNodes();
 
     const profile: DetachedElementsProfileHeader = new DetachedElementsProfileHeader(heapProfilerModel, this, data);
@@ -166,24 +165,25 @@ export namespace DetachedElementsProfileType {
 }
 
 export class DetachedElementsProfileHeader extends WritableProfileHeader {
-  readonly heapProfilerModelInternal: SDK.HeapProfilerModel.HeapProfilerModel|null;
+  readonly #heapProfilerModel: SDK.HeapProfilerModel.HeapProfilerModel|null;
   readonly detachedElements: Protocol.DOM.DetachedElementInfo[]|null;
   constructor(
-      heapProfilerModel: SDK.HeapProfilerModel.HeapProfilerModel|null, type: DetachedElementsProfileType,
-      detachedElements: Protocol.DOM.DetachedElementInfo[]|null, title?: string) {
+      heapProfilerModel: SDK.HeapProfilerModel.HeapProfilerModel|null,
+      type: DetachedElementsProfileType,
+      detachedElements: Protocol.DOM.DetachedElementInfo[]|null,
+      title?: string,
+  ) {
     super(
-        heapProfilerModel?.debuggerModel() ?? null, type,
-        title || i18nString(UIStrings.detachedElementProfile, {PH1: type.nextProfileUid()}));
+        heapProfilerModel?.debuggerModel() ?? null,
+        type,
+        title || i18nString(UIStrings.detachedElementProfile, {PH1: type.nextProfileUid()}),
+    );
     this.detachedElements = detachedElements;
-    this.heapProfilerModelInternal = heapProfilerModel;
-  }
-
-  override createView(dataDisplayDelegate: DataDisplayDelegate): DetachedElementsProfileView {
-    return new DetachedElementsProfileView(dataDisplayDelegate, this);
+    this.#heapProfilerModel = heapProfilerModel;
   }
 
   heapProfilerModel(): SDK.HeapProfilerModel.HeapProfilerModel|null {
-    return this.heapProfilerModelInternal;
+    return this.#heapProfilerModel;
   }
 
   override profileType(): DetachedElementsProfileType {

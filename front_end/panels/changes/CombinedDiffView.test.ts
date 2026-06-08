@@ -1,7 +1,8 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as Common from '../../core/common/common.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Bindings from '../../models/bindings/bindings.js';
@@ -14,7 +15,9 @@ import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
 import {createContentProviderUISourceCode, createFileSystemUISourceCode} from '../../testing/UISourceCodeHelpers.js';
 import {createViewFunctionStub} from '../../testing/ViewFunctionHelpers.js';
 
-import * as CombinedDiffView from './CombinedDiffView.js';
+import * as Changes from './changes.js';
+
+const {CombinedDiffView} = Changes;
 
 const {urlString} = Platform.DevToolsPath;
 
@@ -27,17 +30,21 @@ function createWorkspace(): Workspace.Workspace.WorkspaceImpl {
 
 function createWorkspaceDiff({workspace}: {workspace: Workspace.Workspace.WorkspaceImpl}):
     WorkspaceDiff.WorkspaceDiff.WorkspaceDiffImpl {
+  const ignoreListManager = Workspace.IgnoreListManager.IgnoreListManager.instance({forceNew: true});
   const debuggerWorkspaceBinding = Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance({
     forceNew: true,
     targetManager: SDK.TargetManager.TargetManager.instance(),
     resourceMapping:
         new Bindings.ResourceMapping.ResourceMapping(SDK.TargetManager.TargetManager.instance(), workspace),
+    ignoreListManager,
+    workspace,
   });
   const breakpointManager = Breakpoints.BreakpointManager.BreakpointManager.instance({
     forceNew: true,
     targetManager: SDK.TargetManager.TargetManager.instance(),
     workspace,
     debuggerWorkspaceBinding,
+    settings: Common.Settings.Settings.instance(),
   });
   Persistence.Persistence.PersistenceImpl.instance({forceNew: true, workspace, breakpointManager});
   Persistence.NetworkPersistenceManager.NetworkPersistenceManager.instance({forceNew: true, workspace});
@@ -64,8 +71,12 @@ describeWithEnvironment('CombinedDiffView', () => {
   beforeEach(() => {
     const workspace = createWorkspace();
     workspaceDiff = createWorkspaceDiff({workspace});
-    ({uiSourceCode} = createFileSystemUISourceCode(
-         {url: URL, content: ORIGINAL_CONTENT, mimeType: 'text/javascript', fileSystemPath: 'file:///workspace'}));
+    ({uiSourceCode} = createFileSystemUISourceCode({
+       url: URL,
+       content: ORIGINAL_CONTENT,
+       mimeType: 'text/javascript',
+       fileSystemPath: 'file:///workspace',
+     }));
   });
 
   it('should render modified UISourceCode from a workspaceDiff on initial render', async () => {
@@ -128,6 +139,25 @@ describeWithEnvironment('CombinedDiffView', () => {
       uiSourceCode.setWorkingCopy('const data={original:false}');
 
       assert.strictEqual((await view.nextInput).singleDiffViewInputs[0].fileName, '*/tmp/non-mapped.html');
+    });
+  });
+
+  describe('ignoredUrl', () => {
+    it('should ignore files in ignoredFileNames', async () => {
+      const {uiSourceCode} = createFileSystemUISourceCode({
+        url: urlString`inspector:///inspector-stylesheet`,
+        content: ORIGINAL_CONTENT,
+        autoMapping: true,
+        mimeType: 'text/css',
+        fileSystemPath: ''
+      });
+      const {widget, view} = await createCombinedDiffView({workspaceDiff});
+      widget.ignoredUrls = ['inspector://'];
+      uiSourceCode.setWorkingCopy('const data={original:false}');
+
+      const input = await view.nextInput;
+
+      assert.deepEqual(input.singleDiffViewInputs, []);
     });
   });
 });

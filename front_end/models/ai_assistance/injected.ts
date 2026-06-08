@@ -1,10 +1,10 @@
 
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
- * @fileoverview This files include scripts that are executed not in
+ * @file This files include scripts that are executed not in
  * the DevTools target but the page one.
  * They need remain isolated for importing other function so
  * bundling them for production does not create issues.
@@ -20,18 +20,21 @@ export interface FreestyleCallbackArgs {
   className: `${typeof AI_ASSISTANCE_CSS_CLASS_NAME}-${number}`;
   styles: Record<string, string>;
   element: Node;
+  error: Error;
 }
 
 interface FreestyleCallbackData {
   args: string;
   element: Node;
   resolve(value: string): void;
+  reject(err?: Error): void;
+  error: Error;
 }
 interface FreestylerBinding {
   (args: FreestyleCallbackArgs): Promise<string>;
   id: number;
   callbacks: Map<number, FreestyleCallbackData>;
-  respond(id: number, styleChanges: string): void;
+  respond(id: number, styleChangesOrError: string|Error): void;
   getElement(id: number): Node|undefined;
   getArgs(id: number): string|undefined;
 }
@@ -47,11 +50,13 @@ function freestylerBindingFunc(bindingName: string): void {
 
   if (!global.freestyler) {
     const freestyler = (args: FreestyleCallbackArgs): Promise<string> => {
-      const {resolve, promise} = Promise.withResolvers<string>();
+      const {resolve, reject, promise} = Promise.withResolvers<string>();
       freestyler.callbacks.set(freestyler.id, {
         args: JSON.stringify(args),
         element: args.element,
         resolve,
+        reject,
+        error: args.error,
       });
       // @ts-expect-error this is binding added though CDP
       globalThis[bindingName](String(freestyler.id));
@@ -66,8 +71,18 @@ function freestylerBindingFunc(bindingName: string): void {
     freestyler.getArgs = (callbackId: number) => {
       return freestyler.callbacks.get(callbackId)?.args;
     };
-    freestyler.respond = (callbackId: number, styleChanges: string) => {
-      freestyler.callbacks.get(callbackId)?.resolve(styleChanges);
+    freestyler.respond = (callbackId: number, styleChangesOrError: string|Error) => {
+      if (typeof styleChangesOrError === 'string') {
+        freestyler.callbacks.get(callbackId)?.resolve(styleChangesOrError);
+      } else {
+        const callback = freestyler.callbacks.get(callbackId);
+
+        if (callback) {
+          callback.error.message = styleChangesOrError.message;
+          callback.reject(callback?.error);
+        }
+      }
+
       freestyler.callbacks.delete(callbackId);
     };
     global.freestyler = freestyler;
@@ -76,22 +91,14 @@ function freestylerBindingFunc(bindingName: string): void {
 
 export const freestylerBinding = `(${String(freestylerBindingFunc)})('${FREESTYLER_BINDING_NAME}')`;
 
+export const PAGE_EXPOSED_FUNCTIONS = ['setElementStyles'];
+
 /**
  * Please see fileoverview
  */
-function setupSetElementStyles(prefix: typeof AI_ASSISTANCE_CSS_CLASS_NAME): void {
-  // Executed in another world
-  const global = globalThis as unknown as {
-    freestyler: FreestylerBinding,
-    setElementStyles: unknown,
-  };
-  async function setElementStyles(
-      el: HTMLElement&{
-        // eslint-disable-next-line
-        __freestylerClassName?: `${typeof AI_ASSISTANCE_CSS_CLASS_NAME}-${number}`,
-      },
-      styles: Record<string, string>,
-      ): Promise<void> {
+const setupSetElementStyles = `function setupSetElementStyles(prefix) {
+  const global = globalThis;
+  async function setElementStyles(el, styles) {
     let selector = el.tagName.toLowerCase();
     if (el.id) {
       selector = '#' + el.id;
@@ -110,7 +117,7 @@ function setupSetElementStyles(prefix: typeof AI_ASSISTANCE_CSS_CLASS_NAME): voi
 
     // __freestylerClassName is not exposed to the page due to this being
     // run in the isolated world.
-    const className = el.__freestylerClassName ?? `${prefix}-${global.freestyler.id}`;
+    const className = el.__freestylerClassName ?? \`\${prefix}-\${global.freestyler.id}\`;
     el.__freestylerClassName = className;
     el.classList.add(className);
 
@@ -119,9 +126,10 @@ function setupSetElementStyles(prefix: typeof AI_ASSISTANCE_CSS_CLASS_NAME): voi
       // if it's kebab case.
       el.style.removeProperty(key);
       // If it's camel case.
-      // @ts-expect-error this won't throw if wrong
       el.style[key] = '';
     }
+
+    const bindingError = new Error();
 
     const result = await global.freestyler({
       method: 'setElementStyles',
@@ -129,6 +137,7 @@ function setupSetElementStyles(prefix: typeof AI_ASSISTANCE_CSS_CLASS_NAME): voi
       className,
       styles,
       element: el,
+      error: bindingError,
     });
 
     const rootNode = el.getRootNode();
@@ -144,7 +153,7 @@ function setupSetElementStyles(prefix: typeof AI_ASSISTANCE_CSS_CLASS_NAME): voi
             continue;
           }
 
-          hasAiStyleChange = rule.selectorText.startsWith(`.${prefix}`);
+          hasAiStyleChange = rule.selectorText.startsWith(\`.\${prefix}\`);
           if (hasAiStyleChange) {
             stylesheet = sheet;
             break;
@@ -159,6 +168,6 @@ function setupSetElementStyles(prefix: typeof AI_ASSISTANCE_CSS_CLASS_NAME): voi
   }
 
   global.setElementStyles = setElementStyles;
-}
+}`;
 
-export const injectedFunctions = `(${String(setupSetElementStyles)})('${AI_ASSISTANCE_CSS_CLASS_NAME}')`;
+export const injectedFunctions = `(${setupSetElementStyles})('${AI_ASSISTANCE_CSS_CLASS_NAME}')`;

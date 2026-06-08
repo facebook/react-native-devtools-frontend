@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -41,7 +41,7 @@ export class Plugin {
       void {
   }
 
-  decorationChanged(_type: SourceFrame.SourceFrame.DecoratorType, _editor: TextEditor.TextEditor.TextEditor): void {
+  decorationChanged(_type: Workspace.UISourceCode.DecoratorType, _editor: TextEditor.TextEditor.TextEditor): void {
   }
 
   editorExtension(): CodeMirror.Extension {

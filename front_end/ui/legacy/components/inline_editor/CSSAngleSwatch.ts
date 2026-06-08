@@ -1,15 +1,12 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view */
 
 import * as Lit from '../../../lit/lit.js';
 
-import cssAngleSwatchStylesRaw from './cssAngleSwatch.css.js';
+import cssAngleSwatchStyles from './cssAngleSwatch.css.js';
 import {type Angle, AngleUnit, get2DTranslationsForAngle} from './CSSAngleUtils.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const cssAngleSwatchStyles = new CSSStyleSheet();
-cssAngleSwatchStyles.replaceSync(cssAngleSwatchStylesRaw.cssText);
 
 const {render, html} = Lit;
 const styleMap = Lit.Directives.styleMap;
@@ -21,16 +18,11 @@ export interface CSSAngleSwatchData {
 }
 
 export class CSSAngleSwatch extends HTMLElement {
-
   private readonly shadow = this.attachShadow({mode: 'open'});
   private angle: Angle = {
     value: 0,
     unit: AngleUnit.RAD,
   };
-
-  connectedCallback(): void {
-    this.shadow.adoptedStyleSheets = [cssAngleSwatchStyles];
-  }
 
   set data(data: CSSAngleSwatchData) {
     this.angle = data.angle;
@@ -46,6 +38,7 @@ export class CSSAngleSwatch extends HTMLElement {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
     render(html`
+      <style>${cssAngleSwatchStyles}</style>
       <div class="swatch">
         <span class="mini-hand" style=${styleMap(miniHandStyle)}></span>
       </div>

@@ -1,8 +1,9 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Trace from '../../models/trace/trace.js';
+import * as PerfUI from '../../ui/legacy/components/perf_ui/perf_ui.js';
 import * as ThemeSupport from '../../ui/legacy/theme_support/theme_support.js';
 
 import {buildGroupStyle, buildTrackHeader, getDurationString} from './AppenderUtils.js';
@@ -17,14 +18,9 @@ import * as Extensions from './extensions/extensions.js';
 
 const UIStrings = {
   /**
-   *@description Text in Timeline Flame Chart Data Provider of the Performance panel
+   * @description The subtitle to show (by the side of the track name).
    */
-  customTrackDescription: 'This is a custom track added by a third party.',
-  /**
-   * @description The name of a track, which is a horizontal division of the timeline, synonym with "swimlane".
-   * @example {A track name} PH1
-   */
-  customTrackName: '{PH1} — Custom track',
+  customTrackSubtitle: '— Custom',
 } as const;
 
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/ExtensionTrackAppender.ts', UIStrings);
@@ -47,7 +43,8 @@ export class ExtensionTrackAppender implements TrackAppender {
     if (totalEntryCount === 0) {
       return trackStartLevel;
     }
-    this.#appendTopLevelHeaderAtLevel(trackStartLevel, expanded);
+    const compact = !this.#extensionTopLevelTrack.isTrackGroup && totalEntryCount < 2;
+    this.#appendTopLevelHeaderAtLevel(trackStartLevel, compact, expanded);
     return this.#appendExtensionTrackData(trackStartLevel);
   }
 
@@ -57,13 +54,17 @@ export class ExtensionTrackAppender implements TrackAppender {
    * header corresponds to the track name, in the latter it corresponds
    * to the track group name.
    */
-  #appendTopLevelHeaderAtLevel(currentLevel: number, expanded?: boolean): void {
-    const style = buildGroupStyle({shareHeaderLine: false, collapsible: true});
-    const headerTitle = i18nString(UIStrings.customTrackName, {PH1: this.#extensionTopLevelTrack.name});
+  #appendTopLevelHeaderAtLevel(currentLevel: number, compact: boolean, expanded?: boolean): void {
+    const style = compact ?
+        buildGroupStyle({shareHeaderLine: true, collapsible: PerfUI.FlameChart.GroupCollapsibleState.NEVER}) :
+        buildGroupStyle({shareHeaderLine: false, collapsible: PerfUI.FlameChart.GroupCollapsibleState.ALWAYS});
+    const headerTitle = this.#extensionTopLevelTrack.name;
+    const jsLogContext = this.#extensionTopLevelTrack.name === '🅰️ Angular' ? VisualLoggingTrackName.ANGULAR_TRACK :
+                                                                             VisualLoggingTrackName.EXTENSION;
     const group = buildTrackHeader(
-        VisualLoggingTrackName.EXTENSION, currentLevel, headerTitle, style,
+        jsLogContext, currentLevel, headerTitle, style,
         /* selectable= */ true, expanded);
-    group.description = i18nString(UIStrings.customTrackDescription);
+    group.subtitle = i18nString(UIStrings.customTrackSubtitle);
     this.#compatibilityBuilder.registerTrackForGroup(group, this);
   }
 
@@ -72,7 +73,12 @@ export class ExtensionTrackAppender implements TrackAppender {
    * corresponds to the track name itself, instead of the track name.
    */
   #appendSecondLevelHeader(trackStartLevel: number, headerTitle: string): void {
-    const style = buildGroupStyle({shareHeaderLine: false, padding: 2, nestingLevel: 1, collapsible: true});
+    const style = buildGroupStyle({
+      shareHeaderLine: false,
+      padding: 2,
+      nestingLevel: 1,
+      collapsible: PerfUI.FlameChart.GroupCollapsibleState.ALWAYS
+    });
     const group = buildTrackHeader(
         VisualLoggingTrackName.EXTENSION, trackStartLevel, headerTitle, style,
         /* selectable= */ true);
@@ -104,8 +110,8 @@ export class ExtensionTrackAppender implements TrackAppender {
   }
 
   setPopoverInfo(event: Trace.Types.Events.Event, info: PopoverInfo): void {
-    info.title = Trace.Types.Extensions.isSyntheticExtensionEntry(event) && event.args.tooltipText ?
-        event.args.tooltipText :
+    info.title = Trace.Types.Extensions.isSyntheticExtensionEntry(event) && event.devtoolsObj.tooltipText ?
+        event.devtoolsObj.tooltipText :
         this.titleForEvent(event);
     info.formattedTime = getDurationString(event.dur);
   }

@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -19,7 +19,7 @@ generate_css("css_files") {
   ]
 }
 
-devtools_module("source_frame") {
+devtools_ui_module("source_frame") {
   sources = [
     "BinaryResourceViewFactory.ts",
     "FontView.ts",
@@ -37,16 +37,22 @@ devtools_module("source_frame") {
     "../../../../core/host:bundle",
     "../../../../core/i18n:bundle",
     "../../../../core/platform:bundle",
+    "../../../../core/root:bundle",
     "../../../../core/sdk:bundle",
+    "../../../../entrypoints/formatter_worker:bundle",
     "../../../../models/formatter:bundle",
     "../../../../models/text_utils:bundle",
     "../../../../models/workspace:bundle",
     "../../../../panels/common:bundle",
     "../../../../panels/linear_memory_inspector/components:bundle",
     "../../../../third_party/diff:bundle",
+    "../../../../ui/components/highlighting:bundle",
     "../../../../ui/components/text_editor:bundle",
     "../../../../ui/legacy:bundle",
     "../../../../ui/legacy/components/object_ui:bundle",
+    "../../../components/code_highlighter:bundle",
+    "../../../lit:bundle",
+    "../../../visual_logging:bundle",
   ]
 }
 
@@ -59,10 +65,14 @@ devtools_entrypoint("bundle") {
   ]
 
   visibility = [
+    # IMPORTANT: Be careful when extending visibility of front_end/ui/legacy/*,
+    # as the UI modules should only be used to actually build user interfaces,
+    # and the business logic should never depend on the UI modules.
     ":*",
     "../../../../panels/application/*",
     "../../../../panels/coverage/*",
     "../../../../panels/explain/*",
+    "../../../../panels/media/*",
     "../../../../panels/network/*",
     "../../../../panels/protocol_monitor/*",
     "../../../../panels/sources/*",
@@ -85,11 +95,12 @@ devtools_entrypoint("meta") {
   visibility = [ "../../../../entrypoints/*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [
     "BinaryResourceViewFactory.test.ts",
+    "JSONView.test.ts",
     "ResourceSourceFrame.test.ts",
     "SourceFrame.test.ts",
     "StreamingContentHexView.test.ts",
@@ -104,5 +115,6 @@ ts_library("unittests") {
     "../../../../testing",
     "../../../../third_party/codemirror.next:bundle",
     "../../../../ui/legacy:bundle",
+    "../object_ui:bundle",
   ]
 }

@@ -1,9 +1,9 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
- * @fileoverview using private properties isn't a Closure violation in tests.
+ * @file using private properties isn't a Closure violation in tests.
  */
 
 import * as Common from '../../core/common/common.js';
@@ -89,7 +89,8 @@ export const runAsyncCallStacksTest = function(totalDebuggerStatements, maxAsync
   startDebuggerTest(step1);
 
   async function step1() {
-    await TestRunner.DebuggerAgent.setAsyncCallStackDepth(maxAsyncCallStackDepth || defaultMaxAsyncCallStackDepth);
+    await TestRunner.DebuggerAgent.invoke_setAsyncCallStackDepth(
+        {maxDepth: maxAsyncCallStackDepth || defaultMaxAsyncCallStackDepth});
     runTestFunctionAndWaitUntilPaused(didPause);
   }
 
@@ -285,9 +286,9 @@ export const captureStackTraceIntoString = async function(callFrames, asyncStack
       const script = location.script();
       const uiLocation =
           await Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance().rawLocationToUILocation(location);
-      const isFramework = uiLocation ?
-          Bindings.IgnoreListManager.IgnoreListManager.instance().isUserIgnoreListedURL(uiLocation.uiSourceCode.url()) :
-          false;
+      const isFramework = uiLocation ? Workspace.IgnoreListManager.IgnoreListManager.instance().isUserIgnoreListedURL(
+                                           uiLocation.uiSourceCode.url()) :
+                                       false;
 
       if (options.dropFrameworkCallFrames && isFramework) {
         continue;
@@ -401,7 +402,14 @@ export const showUISourceCode = function(uiSourceCode, callback) {
   if (sourceFrame.loaded) {
     callback(sourceFrame);
   } else {
-    TestRunner.addSniffer(sourceFrame, 'setContent', callback && callback.bind(null, sourceFrame));
+    const originalSetContent = sourceFrame.setContent;
+    sourceFrame.setContent = async (...args) => {
+      sourceFrame.setContent = originalSetContent;
+      await originalSetContent.apply(sourceFrame, args);
+      if (callback) {
+        callback(sourceFrame);
+      }
+    };
   }
 };
 
@@ -643,8 +651,8 @@ export const setEventListenerBreakpoint = function(id, enabled, targetName) {
   }
 
   if (breakpoint.enabled() !== enabled) {
-    pane.breakpoints.get(breakpoint).checkbox.checked = enabled;
-    pane.breakpointCheckboxClicked(breakpoint);
+    breakpoint.setEnabled(enabled);
+    pane.update();
   }
 };
 

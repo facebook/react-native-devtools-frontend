@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Chromium Authors. All rights reserved.
+ * Copyright 2021 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -43,6 +43,11 @@ li {
   width: 14px;
   overflow: hidden;
   flex: none;
+}
+
+/* If the entire list has no children, we don't need to reserve space for the expandable icon */
+ul.hasNoChildren .arrow-icon {
+  display: none;
 }
 
 ul {

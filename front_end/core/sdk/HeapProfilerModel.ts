@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,26 +13,24 @@ import {SDKModel} from './SDKModel.js';
 import {Capability, type Target} from './Target.js';
 
 export class HeapProfilerModel extends SDKModel<EventTypes> {
-  #enabled: boolean;
+  #enabled = false;
   readonly #heapProfilerAgent: ProtocolProxyApi.HeapProfilerApi;
-  readonly #runtimeModelInternal: RuntimeModel;
-  #samplingProfilerDepth: number;
+  readonly #runtimeModel: RuntimeModel;
+  #samplingProfilerDepth = 0;
 
   constructor(target: Target) {
     super(target);
     target.registerHeapProfilerDispatcher(new HeapProfilerDispatcher(this));
-    this.#enabled = false;
     this.#heapProfilerAgent = target.heapProfilerAgent();
-    this.#runtimeModelInternal = (target.model(RuntimeModel) as RuntimeModel);
-    this.#samplingProfilerDepth = 0;
+    this.#runtimeModel = (target.model(RuntimeModel) as RuntimeModel);
   }
 
   debuggerModel(): DebuggerModel {
-    return this.#runtimeModelInternal.debuggerModel();
+    return this.#runtimeModel.debuggerModel();
   }
 
   runtimeModel(): RuntimeModel {
-    return this.#runtimeModelInternal;
+    return this.#runtimeModel;
   }
 
   async enable(): Promise<void> {
@@ -97,7 +95,7 @@ export class HeapProfilerModel extends SDKModel<EventTypes> {
     if (result.getError()) {
       return null;
     }
-    return this.#runtimeModelInternal.createRemoteObject(result.result);
+    return this.#runtimeModel.createRemoteObject(result.result);
   }
 
   async addInspectedHeapObject(snapshotObjectId: Protocol.HeapProfiler.HeapSnapshotObjectId): Promise<boolean> {
@@ -106,8 +104,13 @@ export class HeapProfilerModel extends SDKModel<EventTypes> {
   }
 
   async takeHeapSnapshot(heapSnapshotOptions: Protocol.HeapProfiler.TakeHeapSnapshotRequest): Promise<boolean> {
-    const response = await this.#heapProfilerAgent.invoke_takeHeapSnapshot(heapSnapshotOptions);
-    return Boolean(response.getError());
+    await this.target().targetManager().suspendAllTargets('heap-snapshot');
+    try {
+      const response = await this.#heapProfilerAgent.invoke_takeHeapSnapshot(heapSnapshotOptions);
+      return Boolean(response.getError());
+    } finally {
+      await this.target().targetManager().resumeAllTargets();
+    }
   }
 
   async startTrackingHeapObjects(recordAllocationStacks: boolean): Promise<boolean> {

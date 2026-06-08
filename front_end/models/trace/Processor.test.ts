@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,9 +12,9 @@ describeWithEnvironment('TraceProcessor', function() {
     const file = await TraceLoader.rawEvents(this, 'basic.json.gz');
 
     // Check parsing after instantiation.
-    assert.isNull(processor.parsedTrace);
+    assert.isNull(processor.data);
     await processor.parse(file, {isFreshRecording: true, isCPUProfile: false});
-    assert.isNotNull(processor.parsedTrace);
+    assert.isNotNull(processor.data);
 
     // Check parsing without a reset.
     let thrown;
@@ -28,10 +28,10 @@ describeWithEnvironment('TraceProcessor', function() {
 
     // Check parsing after reset.
     processor.reset();
-    assert.isNull(processor.parsedTrace);
+    assert.isNull(processor.data);
     assert.isNull(processor.insights);
     await processor.parse(file, {isFreshRecording: true, isCPUProfile: false});
-    assert.isNotNull(processor.parsedTrace);
+    assert.isNotNull(processor.data);
     assert.isNotNull(processor.insights);
     // Cleanup.
     processor.reset();
@@ -52,13 +52,13 @@ describeWithEnvironment('TraceProcessor', function() {
     assert.strictEqual(thrown?.message, 'Trace processor can\'t start parsing when not idle. Current state: PARSING');
 
     // Check if data is null immediately after resetting.
-    assert.isNull(processor.parsedTrace);
+    assert.isNull(processor.data);
     assert.isNull(processor.insights);
     await processor.parse(file, {isFreshRecording: true, isCPUProfile: false});
-    assert.isNotNull(processor.parsedTrace);
+    assert.isNotNull(processor.data);
     assert.isNotNull(processor.insights);
     processor.reset();
-    assert.isNull(processor.parsedTrace);
+    assert.isNull(processor.data);
     assert.isNull(processor.insights);
 
     // Check resetting while parsing.
@@ -75,10 +75,10 @@ describeWithEnvironment('TraceProcessor', function() {
     assert.strictEqual(thrown?.message, 'Trace processor can\'t reset while parsing.');
 
     // Check parsing after resetting while parsing.
-    assert.isNull(processor.parsedTrace);
+    assert.isNull(processor.data);
     assert.isNull(processor.insights);
     await processor.parse(file, {isFreshRecording: true, isCPUProfile: false});
-    assert.isNotNull(processor.parsedTrace);
+    assert.isNotNull(processor.data);
     assert.isNotNull(processor.insights);
   });
 
@@ -88,8 +88,8 @@ describeWithEnvironment('TraceProcessor', function() {
     });
     const events = await TraceLoader.rawEvents(this, 'animation.json.gz');
     await processor.parse(events, {isFreshRecording: true, isCPUProfile: false});
-    assert.isNotNull(processor.parsedTrace);
-    assert.deepEqual(Object.keys(processor.parsedTrace || {}), ['Meta', 'Animations']);
+    assert.isNotNull(processor.data);
+    assert.deepEqual(Object.keys(processor.data || {}), ['Meta', 'Animations']);
   });
 
   it('does not error if the user does not enable the Meta handler when it is a dependency', async function() {
@@ -144,9 +144,9 @@ describeWithEnvironment('TraceProcessor', function() {
       reset() {},
     };
 
-    function fillHandlers(handlersDeps: {[key: string]: {deps ? () : Trace.Handlers.Types.HandlerName[]}}):
-        {[key: string]: Trace.Handlers.Types.Handler} {
-      const handlers: {[key: string]: Trace.Handlers.Types.Handler} = {};
+    function fillHandlers(handlersDeps: Record<string, {deps ? () : Trace.Handlers.Types.HandlerName[]}>):
+        Record<string, Trace.Handlers.Types.Handler> {
+      const handlers: Record<string, Trace.Handlers.Types.Handler> = {};
       for (const handler in handlersDeps) {
         handlers[handler] = {...baseHandler, ...handlersDeps[handler]};
       }
@@ -154,7 +154,7 @@ describeWithEnvironment('TraceProcessor', function() {
     }
 
     it('sorts handlers satisfying their dependencies 1', function() {
-      const handlersDeps: {[key: string]: {deps ? () : Trace.Handlers.Types.HandlerName[]}} = {
+      const handlersDeps: Record<string, {deps ? () : Trace.Handlers.Types.HandlerName[]}> = {
         Meta: {},
         GPU: {
           deps() {
@@ -194,7 +194,7 @@ describeWithEnvironment('TraceProcessor', function() {
       assert.deepEqual([...Trace.Processor.sortHandlers(handlers).keys()], expectedOrder);
     });
     it('sorts handlers satisfying their dependencies 2', function() {
-      const handlersDeps: {[key: string]: {deps ? () : Trace.Handlers.Types.HandlerName[]}} = {
+      const handlersDeps: Record<string, {deps ? () : Trace.Handlers.Types.HandlerName[]}> = {
         GPU: {
           deps() {
             return ['LayoutShifts', 'NetworkRequests'];
@@ -213,7 +213,7 @@ describeWithEnvironment('TraceProcessor', function() {
       assert.deepEqual([...Trace.Processor.sortHandlers(handlers).keys()], expectedOrder);
     });
     it('throws an error when a dependency cycle is present among handlers', function() {
-      const handlersDeps: {[key: string]: {deps ? () : Trace.Handlers.Types.HandlerName[]}} = {
+      const handlersDeps: Record<string, {deps ? () : Trace.Handlers.Types.HandlerName[]}> = {
         Meta: {},
         GPU: {
           deps() {
@@ -246,7 +246,7 @@ describeWithEnvironment('TraceProcessor', function() {
   describe('insights', () => {
     it('returns a single group of insights even if no navigations', async function() {
       const processor = Trace.Processor.TraceProcessor.createWithAllHandlers();
-      const file = await TraceLoader.rawEvents(this, 'basic.json.gz');
+      const file = await TraceLoader.rawEvents(this, 'nested-interactions.json.gz');
 
       await processor.parse(file, {isFreshRecording: true, isCPUProfile: false});
       if (!processor.insights) {
@@ -266,11 +266,15 @@ describeWithEnvironment('TraceProcessor', function() {
             UIStrings: {} as any,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             i18nString: (() => {}) as any,
-            isRenderBlocking: (x: unknown): x is Trace.Insights.Models.RenderBlocking.RenderBlockingInsightModel =>
-                false,
+            isRenderBlockingInsight: (_x: unknown):
+                                         _x is Trace.Insights.Models.RenderBlocking.RenderBlockingInsightModel => false,
             generateInsight: () => {
               throw new Error('forced error');
             },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            createOverlays: (() => {}) as any,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            createOverlayForRequest: (() => {}) as any,
           },
         };
       });
@@ -284,9 +288,9 @@ describeWithEnvironment('TraceProcessor', function() {
       }
 
       const insights = Array.from(processor.insights.values());
-      assert.lengthOf(insights, 2);
-      assert.instanceOf(insights[1].model.RenderBlocking, Error, 'RenderBlocking did not throw an error');
-      assert.strictEqual(insights[1].model.RenderBlocking.message, 'forced error');
+      assert.lengthOf(insights, 1);
+      assert.instanceOf(insights[0].modelErrors.RenderBlocking, Error, 'RenderBlocking did not throw an error');
+      assert.strictEqual(insights[0].modelErrors.RenderBlocking.message, 'forced error');
     });
 
     it('returns insights for a navigation', async function() {
@@ -299,20 +303,17 @@ describeWithEnvironment('TraceProcessor', function() {
       }
 
       assert.deepEqual([...processor.insights.keys()], [
-        Trace.Types.Events.NO_NAVIGATION,
-        '0BCFC23BC7D7BEDC9F93E912DCCEC1DA',
+        // excluded NO_NAVIGATION set, as it was trivial
+        'NAVIGATION_0',
       ]);
 
       const insights = Array.from(processor.insights.values());
       if (insights[0].model.RenderBlocking instanceof Error) {
         throw new Error('RenderBlocking threw an error');
       }
-      if (insights[1].model.RenderBlocking instanceof Error) {
-        throw new Error('RenderBlocking threw an error');
-      }
 
-      assert.lengthOf(insights[0].model.RenderBlocking.renderBlockingRequests, 0);
-      assert.lengthOf(insights[1].model.RenderBlocking.renderBlockingRequests, 2);
+      assert.isOk(insights[0].model.RenderBlocking);
+      assert.lengthOf(insights[0].model.RenderBlocking.renderBlockingRequests, 2);
     });
 
     it('returns insights for multiple navigations', async function() {
@@ -326,29 +327,20 @@ describeWithEnvironment('TraceProcessor', function() {
 
       assert.deepEqual([...processor.insights.keys()], [
         Trace.Types.Events.NO_NAVIGATION,
-        '83ACBFD389F1F66EF79CEDB4076EB44A',
-        '70BCD304FD2C098BA2513488AB0FF3F2',
-        '71CF0F2B9FE50F2CB31B261D129D06E8',
+        'NAVIGATION_1',
+        'NAVIGATION_2',
+        'NAVIGATION_3',
       ]);
 
-      const insights = Array.from(processor.insights.values());
-      if (insights[0].model.RenderBlocking instanceof Error) {
-        throw new Error('RenderBlocking threw an error');
-      }
-      if (insights[1].model.RenderBlocking instanceof Error) {
-        throw new Error('RenderBlocking threw an error');
-      }
-      if (insights[2].model.RenderBlocking instanceof Error) {
-        throw new Error('RenderBlocking threw an error');
-      }
-      if (insights[3].model.RenderBlocking instanceof Error) {
-        throw new Error('RenderBlocking threw an error');
-      }
-
-      assert.lengthOf(insights[0].model.RenderBlocking.renderBlockingRequests, 0);
-      assert.lengthOf(insights[1].model.RenderBlocking.renderBlockingRequests, 0);
-      assert.lengthOf(insights[2].model.RenderBlocking.renderBlockingRequests, 0);
-      assert.lengthOf(insights[3].model.RenderBlocking.renderBlockingRequests, 1);
+      const insightSets = Array.from(processor.insights.values());
+      assert.isOk(insightSets[0].model.RenderBlocking);
+      assert.isOk(insightSets[1].model.RenderBlocking);
+      assert.isOk(insightSets[2].model.RenderBlocking);
+      assert.isOk(insightSets[3].model.RenderBlocking);
+      assert.lengthOf(insightSets[0].model.RenderBlocking.renderBlockingRequests, 0);
+      assert.lengthOf(insightSets[1].model.RenderBlocking.renderBlockingRequests, 0);
+      assert.lengthOf(insightSets[2].model.RenderBlocking.renderBlockingRequests, 0);
+      assert.lengthOf(insightSets[3].model.RenderBlocking.renderBlockingRequests, 1);
     });
 
     it('sorts insights by estimated savings and field data', async function() {
@@ -373,55 +365,30 @@ describeWithEnvironment('TraceProcessor', function() {
 
         // It's been sorted already ... but let's add some fake estimated savings and re-sort to
         // better test the sorting.
+        assert.isOk(insightSet.model.CLSCulprits);
+        assert.isOk(insightSet.model.Viewport);
         insightSet.model.CLSCulprits.metricSavings = {CLS: 0.07};
-        processor.sortInsightSet(processor.insights, insightSet, metadata ?? null);
+        insightSet.model.Viewport.metricSavings = {INP: Trace.Types.Timing.Milli(300)};
+        processor.sortInsightSet(insightSet, metadata ?? null);
 
         return Object.keys(insightSet.model);
       };
 
       const orderWithoutMetadata = await getInsightOrder(false);
       assert.deepEqual(orderWithoutMetadata, [
-        'CLSCulprits',
-        'Viewport',
-        'Cache',
-        'ImageDelivery',
-        'InteractionToNextPaint',
-        'LCPPhases',
-        'LCPDiscovery',
-        'RenderBlocking',
-        'NetworkDependencyTree',
-        'DocumentLatency',
-        'FontDisplay',
-        'DOMSize',
-        'ThirdParties',
-        'DuplicatedJavaScript',
-        'SlowCSSSelector',
-        'ForcedReflow',
-        'ModernHTTP',
-        'LegacyJavaScript',
+        'CLSCulprits',  'Viewport',     'Cache',          'ImageDelivery',         'INPBreakdown',
+        'LCPBreakdown', 'LCPDiscovery', 'RenderBlocking', 'NetworkDependencyTree', 'DocumentLatency',
+        'FontDisplay',  'DOMSize',      'ThirdParties',   'DuplicatedJavaScript',  'SlowCSSSelector',
+        'ForcedReflow', 'CharacterSet', 'ModernHTTP',     'LegacyJavaScript',
       ]);
 
       const orderWithMetadata = await getInsightOrder(true);
       // Viewport is first, before CLSCulprits, since the field data produces a higher weight for INP than for CLS.
       assert.deepEqual(orderWithMetadata, [
-        'Viewport',
-        'CLSCulprits',
-        'Cache',
-        'ImageDelivery',
-        'InteractionToNextPaint',
-        'LCPPhases',
-        'LCPDiscovery',
-        'RenderBlocking',
-        'NetworkDependencyTree',
-        'DocumentLatency',
-        'FontDisplay',
-        'DOMSize',
-        'ThirdParties',
-        'DuplicatedJavaScript',
-        'SlowCSSSelector',
-        'ForcedReflow',
-        'ModernHTTP',
-        'LegacyJavaScript',
+        'Viewport',     'CLSCulprits',  'Cache',          'ImageDelivery',         'INPBreakdown',
+        'LCPBreakdown', 'LCPDiscovery', 'RenderBlocking', 'NetworkDependencyTree', 'DocumentLatency',
+        'FontDisplay',  'DOMSize',      'ThirdParties',   'DuplicatedJavaScript',  'SlowCSSSelector',
+        'ForcedReflow', 'CharacterSet', 'ModernHTTP',     'LegacyJavaScript',
       ]);
     });
   });

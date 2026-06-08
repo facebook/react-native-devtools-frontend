@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -178,7 +178,7 @@ describeWithMockConnection('AnimationModel', () => {
                type: 'number',
                value: 1,
              },
-           };
+           } as Protocol.Runtime.EvaluateResponse;
          });
          const target = createTarget();
          const model = new SDK.AnimationModel.AnimationModel(target);
@@ -253,29 +253,5 @@ describeWithMockConnection('AnimationModel', () => {
          assert.strictEqual(animationImpl.iterationDuration(), 20);  // in pixels
          assert.strictEqual(animationImpl.delayOrStartTime(), 0);    // in pixels
        });
-  });
-
-  describe('ScreenshotCapture', () => {
-    let mockAnimationModel: SDK.AnimationModel.AnimationModel;
-    let mockScreenCaptureModel: SDK.ScreenCaptureModel.ScreenCaptureModel;
-    let startScreencastStub:
-        sinon.SinonStub<Parameters<typeof SDK.ScreenCaptureModel.ScreenCaptureModel.prototype.startScreencast>>;
-
-    beforeEach(() => {
-      startScreencastStub = sinon.stub();
-      mockAnimationModel = sinon.createStubInstance(SDK.AnimationModel.AnimationModel);
-      mockScreenCaptureModel = sinon.createStubInstance(SDK.ScreenCaptureModel.ScreenCaptureModel, {
-        startScreencast: startScreencastStub,
-      });
-    });
-
-    it('should call `screenCaptureModel.startScreencast` on `captureScreenshots` call', async () => {
-      const screenshotCapture = new SDK.AnimationModel.ScreenshotCapture(mockAnimationModel, mockScreenCaptureModel);
-
-      await screenshotCapture.captureScreenshots(100, []);
-      await screenshotCapture.captureScreenshots(100, []);
-
-      sinon.assert.calledOnce(startScreencastStub);
-    });
   });
 });

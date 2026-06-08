@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,41 +15,38 @@ import {
 
 const UIStrings = {
   /**
-   *@description Title for CSP url link
+   * @description Title for CSP url link
    */
   contentSecurityPolicySource: 'Content Security Policy - Source Allowlists',
   /**
-   *@description Title for CSP inline issue link
+   * @description Title for CSP inline issue link
    */
   contentSecurityPolicyInlineCode: 'Content Security Policy - Inline Code',
   /**
-   *@description Title for the CSP eval link
+   * @description Title for the CSP eval link
    */
   contentSecurityPolicyEval: 'Content Security Policy - Eval',
   /**
-   *@description Title for Trusted Types policy violation issue link. https://developer.mozilla.org/en-US/docs/Web/API/Trusted_Types_API
+   * @description Title for Trusted Types policy violation issue link. https://developer.mozilla.org/en-US/docs/Web/API/Trusted_Types_API
    */
   trustedTypesFixViolations: 'Trusted Types - Fix violations',
   /**
-   *@description Title for Trusted Types policy violation issue link. https://developer.mozilla.org/en-US/docs/Web/API/Trusted_Types_API
+   * @description Title for Trusted Types policy violation issue link. https://developer.mozilla.org/en-US/docs/Web/API/Trusted_Types_API
    */
   trustedTypesPolicyViolation: 'Trusted Types - Policy violation',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/ContentSecurityPolicyIssue.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
-export class ContentSecurityPolicyIssue extends Issue {
-  #issueDetails: Protocol.Audits.ContentSecurityPolicyIssueDetails;
-
+export class ContentSecurityPolicyIssue extends Issue<Protocol.Audits.ContentSecurityPolicyIssueDetails> {
   constructor(
-      issueDetails: Protocol.Audits.ContentSecurityPolicyIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel,
+      issueDetails: Protocol.Audits.ContentSecurityPolicyIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel|null,
       issueId?: Protocol.Audits.IssueId) {
     const issueCode = [
       Protocol.Audits.InspectorIssueCode.ContentSecurityPolicyIssue,
       issueDetails.contentSecurityPolicyViolationType,
     ].join('::');
-    super(issueCode, issuesModel, issueId);
-    this.#issueDetails = issueDetails;
+    super(issueCode, issueDetails, issuesModel, issueId);
   }
 
   getCategory(): IssueCategory {
@@ -57,7 +54,7 @@ export class ContentSecurityPolicyIssue extends Issue {
   }
 
   primaryKey(): string {
-    return JSON.stringify(this.#issueDetails, [
+    return JSON.stringify(this.details(), [
       'blockedURL',
       'contentSecurityPolicyViolationType',
       'violatedDirective',
@@ -71,26 +68,23 @@ export class ContentSecurityPolicyIssue extends Issue {
   }
 
   getDescription(): MarkdownIssueDescription|null {
-    const description = issueDescriptions.get(this.#issueDetails.contentSecurityPolicyViolationType);
+    const description = issueDescriptions.get(this.details().contentSecurityPolicyViolationType);
     if (!description) {
       return null;
     }
     return resolveLazyDescription(description);
   }
 
-  details(): Protocol.Audits.ContentSecurityPolicyIssueDetails {
-    return this.#issueDetails;
-  }
-
   getKind(): IssueKind {
-    if (this.#issueDetails.isReportOnly) {
+    if (this.details().isReportOnly) {
       return IssueKind.IMPROVEMENT;
     }
     return IssueKind.PAGE_ERROR;
   }
 
-  static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):
-      ContentSecurityPolicyIssue[] {
+  static fromInspectorIssue(
+      issuesModel: SDK.IssuesModel.IssuesModel|null,
+      inspectorIssue: Protocol.Audits.InspectorIssue): ContentSecurityPolicyIssue[] {
     const cspDetails = inspectorIssue.details.contentSecurityPolicyIssueDetails;
     if (!cspDetails) {
       console.warn('Content security policy issue without details received.');

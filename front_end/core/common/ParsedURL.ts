@@ -1,32 +1,6 @@
-/*
- * Copyright (C) 2012 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2012 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 import * as Platform from '../platform/platform.js';
 
@@ -64,7 +38,7 @@ export function normalizePath(path: string): string {
   return normalizedPath;
 }
 
-export function schemeIs(url: Platform.DevToolsPath.UrlString, scheme: string): boolean {
+export function schemeIs(url: Platform.DevToolsPath.UrlString|URL, scheme: string): boolean {
   try {
     return (new URL(url)).protocol === scheme;
   } catch {
@@ -83,33 +57,23 @@ type BrandedPathString =
     Platform.DevToolsPath.UrlString|Platform.DevToolsPath.RawPathString|Platform.DevToolsPath.EncodedPathString;
 
 export class ParsedURL {
-  isValid: boolean;
+  isValid = false;
   url: string;
-  scheme: string;
-  user: string;
-  host: string;
-  port: string;
-  path: string;
-  queryParams: string;
-  fragment: string;
-  folderPathComponents: string;
-  lastPathComponent: string;
+  scheme = '';
+  user = '';
+  host = '';
+  port = '';
+  path = '';
+  queryParams = '';
+  fragment = '';
+  folderPathComponents = '';
+  lastPathComponent = '';
   readonly blobInnerScheme: string|undefined;
-  #displayNameInternal?: string;
-  #dataURLDisplayNameInternal?: string;
+  #displayName?: string;
+  #dataURLDisplayName?: string;
 
   constructor(url: string) {
-    this.isValid = false;
     this.url = url;
-    this.scheme = '';
-    this.user = '';
-    this.host = '';
-    this.port = '';
-    this.path = '';
-    this.queryParams = '';
-    this.fragment = '';
-    this.folderPathComponents = '';
-    this.lastPathComponent = '';
 
     const isBlobUrl = this.url.startsWith('blob:');
     const urlToMatch = isBlobUrl ? url.substring(5) : url;
@@ -356,6 +320,9 @@ export class ParsedURL {
   }
 
   static extractName(url: string): string {
+    if (url.endsWith('/')) {
+      url = url.slice(0, -1);
+    }
     let index = url.lastIndexOf('/');
     const pathAndQuery = index !== -1 ? url.substr(index + 1) : url;
     index = pathAndQuery.indexOf('?');
@@ -425,8 +392,8 @@ export class ParsedURL {
 
   static splitLineAndColumn(string: string): {
     url: Platform.DevToolsPath.UrlString,
-    lineNumber: (number|undefined),
-    columnNumber: (number|undefined),
+    lineNumber?: number,
+    columnNumber?: number,
   } {
     // Only look for line and column numbers in the path to avoid matching port numbers.
     const beforePathMatch = string.match(ParsedURL.urlRegex());
@@ -494,8 +461,8 @@ export class ParsedURL {
   }
 
   get displayName(): string {
-    if (this.#displayNameInternal) {
-      return this.#displayNameInternal;
+    if (this.#displayName) {
+      return this.#displayName;
     }
 
     if (this.isDataURL()) {
@@ -508,25 +475,25 @@ export class ParsedURL {
       return this.url;
     }
 
-    this.#displayNameInternal = this.lastPathComponent;
-    if (!this.#displayNameInternal) {
-      this.#displayNameInternal = (this.host || '') + '/';
+    this.#displayName = this.lastPathComponent;
+    if (!this.#displayName) {
+      this.#displayName = (this.host || '') + '/';
     }
-    if (this.#displayNameInternal === '/') {
-      this.#displayNameInternal = this.url;
+    if (this.#displayName === '/') {
+      this.#displayName = this.url;
     }
-    return this.#displayNameInternal;
+    return this.#displayName;
   }
 
   dataURLDisplayName(): string {
-    if (this.#dataURLDisplayNameInternal) {
-      return this.#dataURLDisplayNameInternal;
+    if (this.#dataURLDisplayName) {
+      return this.#dataURLDisplayName;
     }
     if (!this.isDataURL()) {
       return '';
     }
-    this.#dataURLDisplayNameInternal = Platform.StringUtilities.trimEndWithMaxLength(this.url, 20);
-    return this.#dataURLDisplayNameInternal;
+    this.#dataURLDisplayName = Platform.StringUtilities.trimEndWithMaxLength(this.url, 20);
+    return this.#dataURLDisplayName;
   }
 
   isAboutBlank(): boolean {
@@ -537,7 +504,7 @@ export class ParsedURL {
     return this.scheme === 'data';
   }
 
-  extractDataUrlMimeType(): {type: string|undefined, subtype: string|undefined} {
+  extractDataUrlMimeType(): {type?: string, subtype?: string|undefined} {
     const regexp = /^data:((?<type>\w+)\/(?<subtype>\w+))?(;base64)?,/;
     const match = this.url.match(regexp);
     return {

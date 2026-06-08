@@ -1,9 +1,10 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../scripts/build/ninja/devtools_module.gni")
+import("../../../scripts/build/ninja/devtools_worker.gni")
 import("../../../scripts/build/typescript/typescript.gni")
 import("../visibility.gni")
 
@@ -29,7 +30,7 @@ devtools_entrypoint("bundle") {
 devtools_entrypoint("worker_entrypoint") {
   entrypoint = "wasmparser_worker-entrypoint.ts"
 
-  is_web_worker = true
+  forward_variables_from(devtools_worker_config, "*")
 
   deps = [ ":bundle" ]
 

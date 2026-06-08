@@ -1,48 +1,67 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Common from '../../core/common/common.js';
-import * as FormatterActions from '../../entrypoints/formatter_worker/FormatterActions.js';  // eslint-disable-line rulesdir/es-modules-import
+import type * as PlatformApi from '../../core/platform/api/api.js';
+import * as Platform from '../../core/platform/platform.js';
+import * as FormatterActions from '../../entrypoints/formatter_worker/FormatterActions.js';  // eslint-disable-line @devtools/es-modules-import
 
-export {DefinitionKind, type ScopeTreeNode} from '../../entrypoints/formatter_worker/FormatterActions.js';
+export {DefinitionKind, ScopeKind, type ScopeTreeNode} from '../../entrypoints/formatter_worker/FormatterActions.js';
 
-const MAX_WORKERS = Math.max(2, navigator.hardwareConcurrency - 1);
-
-let formatterWorkerPoolInstance: FormatterWorkerPool;
+let formatterWorkerPoolInstance: FormatterWorkerPool|undefined;
 
 export class FormatterWorkerPool {
   private taskQueue: Task[];
-  private workerTasks: Map<Common.Worker.WorkerWrapper, Task|null>;
+  private workerTasks: Map<PlatformApi.HostRuntime.Worker, Task|null>;
+  private entrypointURL: string;
 
-  constructor() {
+  constructor(entrypointURL?: string) {
     this.taskQueue = [];
     this.workerTasks = new Map();
+    this.entrypointURL =
+        entrypointURL ?? import.meta.resolve('../../entrypoints/formatter_worker/formatter_worker-entrypoint.js');
   }
 
-  static instance(): FormatterWorkerPool {
-    if (!formatterWorkerPoolInstance) {
-      formatterWorkerPoolInstance = new FormatterWorkerPool();
+  static instance(opts?: {forceNew: true, entrypointURL: string}): FormatterWorkerPool {
+    if (!formatterWorkerPoolInstance || opts?.forceNew) {
+      formatterWorkerPoolInstance = new FormatterWorkerPool(opts?.entrypointURL);
     }
 
     return formatterWorkerPoolInstance;
   }
 
-  private createWorker(): Common.Worker.WorkerWrapper {
-    const worker = Common.Worker.WorkerWrapper.fromURL(
-        new URL('../../entrypoints/formatter_worker/formatter_worker-entrypoint.js', import.meta.url));
+  dispose(): void {
+    for (const task of this.taskQueue) {
+      console.error('rejecting task');
+      task.errorCallback(new Event('Worker terminated'));
+    }
+    for (const [worker, task] of this.workerTasks.entries()) {
+      task?.errorCallback(new Event('Worker terminated'));
+      worker.terminate(/* immediately=*/ true);
+    }
+  }
+
+  static removeInstance(): void {
+    formatterWorkerPoolInstance?.dispose();
+    formatterWorkerPoolInstance = undefined;
+  }
+
+  private createWorker(): PlatformApi.HostRuntime.Worker {
+    const worker = Platform.HostRuntime.HOST_RUNTIME.createWorker(this.entrypointURL);
     worker.onmessage = this.onWorkerMessage.bind(this, worker);
     worker.onerror = this.onWorkerError.bind(this, worker);
     return worker;
   }
 
   private processNextTask(): void {
+    const maxWorkers = Math.max(2, navigator.hardwareConcurrency - 1);
+
     if (!this.taskQueue.length) {
       return;
     }
 
     let freeWorker = [...this.workerTasks.keys()].find(worker => !this.workerTasks.get(worker));
-    if (!freeWorker && this.workerTasks.size < MAX_WORKERS) {
+    if (!freeWorker && this.workerTasks.size < maxWorkers) {
       freeWorker = this.createWorker();
     }
     if (!freeWorker) {
@@ -56,7 +75,8 @@ export class FormatterWorkerPool {
     }
   }
 
-  private onWorkerMessage(worker: Common.Worker.WorkerWrapper, event: MessageEvent): void {
+  private onWorkerMessage(worker: PlatformApi.HostRuntime.Worker, event: PlatformApi.HostRuntime.WorkerMessageEvent):
+      void {
     const task = this.workerTasks.get(worker);
     if (!task) {
       return;
@@ -71,7 +91,7 @@ export class FormatterWorkerPool {
     task.callback(event.data ? event.data : null);
   }
 
-  private onWorkerError(worker: Common.Worker.WorkerWrapper, event: Event): void {
+  private onWorkerError(worker: PlatformApi.HostRuntime.Worker, event: Event): void {
     console.error(event);
     const task = this.workerTasks.get(worker);
     worker.terminate();
@@ -81,16 +101,13 @@ export class FormatterWorkerPool {
     this.workerTasks.set(newWorker, null);
     this.processNextTask();
     if (task) {
-      task.callback(null);
+      task.errorCallback(event);
     }
   }
 
   private runChunkedTask(
-      methodName: string, params: {
-        [x: string]: string,
-      },
-      callback: (arg0: boolean, arg1: unknown) => void): void {
-    const task = new Task(methodName, params, onData, true);
+      methodName: string, params: Record<string, string>, callback: (arg0: boolean, arg1: unknown) => void): void {
+    const task = new Task(methodName, params, onData, () => onData(null), true);
     this.taskQueue.push(task);
     this.processNextTask();
 
@@ -105,13 +122,10 @@ export class FormatterWorkerPool {
     }
   }
 
-  private runTask(methodName: FormatterActions.FormatterActions, params: {
-    [x: string]: unknown,
-    // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  }): Promise<any> {
-    return new Promise(resolve => {
-      const task = new Task(methodName, params, resolve, false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private runTask(methodName: FormatterActions.FormatterActions, params: Record<string, unknown>): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const task = new Task(methodName, params, resolve, reject, false);
       this.taskQueue.push(task);
       this.processNextTask();
     });
@@ -123,6 +137,9 @@ export class FormatterWorkerPool {
   }
 
   javaScriptSubstitute(expression: string, mapping: Map<string, string|null>): Promise<string> {
+    if (mapping.size === 0) {
+      return Promise.resolve(expression);
+    }
     return this.runTask(FormatterActions.FormatterActions.JAVASCRIPT_SUBSTITUTE, {content: expression, mapping})
         .then(result => result || '');
   }
@@ -131,11 +148,6 @@ export class FormatterWorkerPool {
       Promise<FormatterActions.ScopeTreeNode|null> {
     return this.runTask(FormatterActions.FormatterActions.JAVASCRIPT_SCOPE_TREE, {content: expression, sourceType})
         .then(result => result || null);
-  }
-
-  evaluatableJavaScriptSubstring(content: string): Promise<string> {
-    return this.runTask(FormatterActions.FormatterActions.EVALUATE_JAVASCRIPT_SUBSTRING, {content})
-        .then(text => text || '');
   }
 
   parseCSS(content: string, callback: (arg0: boolean, arg1: CSSRule[]) => void): void {
@@ -154,11 +166,15 @@ class Task {
   method: string;
   params: unknown;
   callback: (arg0: MessageEvent|null) => void;
+  errorCallback: (arg0: Event) => void;
   isChunked: boolean|undefined;
-  constructor(method: string, params: unknown, callback: (arg0: MessageEvent|null) => void, isChunked?: boolean) {
+  constructor(
+      method: string, params: unknown, callback: (arg0: MessageEvent|null) => void,
+      errorCallback: (arg0: Event) => void, isChunked?: boolean) {
     this.method = method;
     this.params = params;
     this.callback = callback;
+    this.errorCallback = errorCallback;
     this.isChunked = isChunked;
   }
 }

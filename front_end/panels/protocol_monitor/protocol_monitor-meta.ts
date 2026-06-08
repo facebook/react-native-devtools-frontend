@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,7 +17,7 @@ const UIStrings = {
    */
   protocolMonitor: 'Protocol monitor',
   /**
-   *@description Command for showing the 'Protocol monitor' tool in the bottom drawer
+   * @description Command for showing the 'Protocol monitor' tool in the bottom drawer
    */
   showProtocolMonitor: 'Show Protocol monitor',
 } as const;
@@ -44,5 +44,5 @@ UI.ViewManager.registerViewExtension({
     const ProtocolMonitor = await loadProtocolMonitorModule();
     return new ProtocolMonitor.ProtocolMonitor.ProtocolMonitorImpl();
   },
-  experiment: Root.Runtime.ExperimentName.PROTOCOL_MONITOR,
+  experiment: Root.ExperimentNames.ExperimentName.PROTOCOL_MONITOR,
 });

@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Chromium Authors. All rights reserved.
+ * Copyright 2021 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -25,4 +25,21 @@
   border-bottom: 1px solid var(--sys-color-divider);
   color: var(--sys-color-on-surface);
   background-color: var(--sys-color-cdt-base-container);
+  margin: 0;
+}
+
+.report-url {
+  background: none;
+  border-radius: 2px;
+  border: none;
+  color: var(--text-link);
+  cursor: pointer;
+  display: block;
+  font: var(--sys-typescale-body4-regular);
+  height: unset;
+  margin: 0;
+  outline-offset: 2px;
+  outline: none;
+  padding: 0 !important; /* stylelint-disable-line declaration-no-important */
+  text-decoration: underline;
 }

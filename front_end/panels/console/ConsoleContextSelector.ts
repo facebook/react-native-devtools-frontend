@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,22 +6,25 @@ import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
+import * as StackTrace from '../../models/stack_trace/stack_trace.js';
 import * as UI from '../../ui/legacy/legacy.js';
+import * as Lit from '../../ui/lit/lit.js';
 
 import consoleContextSelectorStyles from './consoleContextSelector.css.js';
 
+const {render, nothing, html} = Lit;
 const UIStrings = {
   /**
-   *@description Title of toolbar item in console context selector of the console panel
+   * @description Title of toolbar item in console context selector of the console panel
    */
   javascriptContextNotSelected: 'JavaScript context: Not selected',
   /**
-   *@description Text in Console Context Selector of the Console panel
+   * @description Text in Console Context Selector of the Console panel
    */
   extension: 'Extension',
   /**
-   *@description Text in Console Context Selector of the Console panel
-   *@example {top} PH1
+   * @description Text in Console Context Selector of the Console panel
+   * @example {top} PH1
    */
   javascriptContextS: 'JavaScript context: {PH1}',
 } as const;
@@ -31,19 +34,19 @@ export class ConsoleContextSelector implements SDK.TargetManager.SDKModelObserve
                                                UI.SoftDropDown.Delegate<SDK.RuntimeModel.ExecutionContext> {
   readonly items: UI.ListModel.ListModel<SDK.RuntimeModel.ExecutionContext>;
   private readonly dropDown: UI.SoftDropDown.SoftDropDown<SDK.RuntimeModel.ExecutionContext>;
-  private readonly toolbarItemInternal: UI.Toolbar.ToolbarItem;
+  readonly #toolbarItem: UI.Toolbar.ToolbarItem;
 
   constructor() {
     this.items = new UI.ListModel.ListModel();
     this.dropDown = new UI.SoftDropDown.SoftDropDown(this.items, this, 'javascript-context');
     this.dropDown.setRowHeight(36);
-    this.toolbarItemInternal = new UI.Toolbar.ToolbarItem(this.dropDown.element);
-    this.toolbarItemInternal.setEnabled(false);
-    this.toolbarItemInternal.setTitle(i18nString(UIStrings.javascriptContextNotSelected));
+    this.#toolbarItem = new UI.Toolbar.ToolbarItem(this.dropDown.element);
+    this.#toolbarItem.setEnabled(false);
+    this.#toolbarItem.setTitle(i18nString(UIStrings.javascriptContextNotSelected));
     this.items.addEventListener(
-        UI.ListModel.Events.ITEMS_REPLACED, () => this.toolbarItemInternal.setEnabled(Boolean(this.items.length)));
+        UI.ListModel.Events.ITEMS_REPLACED, () => this.#toolbarItem.setEnabled(Boolean(this.items.length)));
 
-    this.toolbarItemInternal.element.classList.add('toolbar-has-dropdown');
+    this.#toolbarItem.element.classList.add('toolbar-has-dropdown');
 
     SDK.TargetManager.TargetManager.instance().addModelListener(
         SDK.RuntimeModel.RuntimeModel, SDK.RuntimeModel.Events.ExecutionContextCreated, this.onExecutionContextCreated,
@@ -61,7 +64,7 @@ export class ConsoleContextSelector implements SDK.TargetManager.SDKModelObserve
     UI.Context.Context.instance().addFlavorChangeListener(
         SDK.RuntimeModel.ExecutionContext, this.executionContextChangedExternally, this);
     UI.Context.Context.instance().addFlavorChangeListener(
-        SDK.DebuggerModel.CallFrame, this.callFrameSelectedInUI, this);
+        StackTrace.StackTrace.DebuggableFrameFlavor, this.callFrameSelectedInUI, this);
     SDK.TargetManager.TargetManager.instance().observeModels(SDK.RuntimeModel.RuntimeModel, this, {scoped: true});
     SDK.TargetManager.TargetManager.instance().addModelListener(
         SDK.DebuggerModel.DebuggerModel, SDK.DebuggerModel.Events.CallFrameSelected, this.callFrameSelectedInModel,
@@ -69,14 +72,14 @@ export class ConsoleContextSelector implements SDK.TargetManager.SDKModelObserve
   }
 
   toolbarItem(): UI.Toolbar.ToolbarItem {
-    return this.toolbarItemInternal;
+    return this.#toolbarItem;
   }
 
   highlightedItemChanged(
-      from: SDK.RuntimeModel.ExecutionContext|null, to: SDK.RuntimeModel.ExecutionContext|null,
+      _from: SDK.RuntimeModel.ExecutionContext|null, to: SDK.RuntimeModel.ExecutionContext|null,
       fromElement: Element|null, toElement: Element|null): void {
     SDK.OverlayModel.OverlayModel.hideDOMNodeHighlight();
-    if (to && to.frameId) {
+    if (to?.frameId) {
       const frame = SDK.FrameManager.FrameManager.instance().getFrame(to.frameId);
       if (frame && !frame.isOutermostFrame()) {
         void frame.highlight();
@@ -210,14 +213,12 @@ export class ConsoleContextSelector implements SDK.TargetManager.SDKModelObserve
   }
 
   createElementForItem(item: SDK.RuntimeModel.ExecutionContext): Element {
-    const element = document.createElement('div');
-    const shadowRoot = UI.UIUtils.createShadowRootWithCoreStyles(element, {cssFile: consoleContextSelectorStyles});
-    const title = shadowRoot.createChild('div', 'title');
-    UI.UIUtils.createTextChild(title, Platform.StringUtilities.trimEndWithMaxLength(this.titleFor(item), 100));
-    const subTitle = shadowRoot.createChild('div', 'subtitle');
-    UI.UIUtils.createTextChild(subTitle, this.subtitleFor(item));
-    element.style.paddingLeft = (8 + this.depthFor(item) * 15) + 'px';
-    return element;
+    const consoleContextSelectorElement = new ConsoleContextSelectorElement();
+    consoleContextSelectorElement.title = this.titleFor(item);
+    consoleContextSelectorElement.subtitle = this.subtitleFor(item);
+    consoleContextSelectorElement.itemDepth = this.depthFor(item);
+    consoleContextSelectorElement.markAsRoot();
+    return consoleContextSelectorElement.contentElement;
   }
 
   private subtitleFor(executionContext: SDK.RuntimeModel.ExecutionContext): string {
@@ -255,16 +256,16 @@ export class ConsoleContextSelector implements SDK.TargetManager.SDKModelObserve
   }
 
   itemSelected(item: SDK.RuntimeModel.ExecutionContext|null): void {
-    this.toolbarItemInternal.element.classList.toggle('highlight', !this.isTopContext(item) && this.hasTopContext());
+    this.#toolbarItem.element.classList.toggle('highlight', !this.isTopContext(item) && this.hasTopContext());
     const title = item ? i18nString(UIStrings.javascriptContextS, {PH1: this.titleFor(item)}) :
                          i18nString(UIStrings.javascriptContextNotSelected);
-    this.toolbarItemInternal.setTitle(title);
+    this.#toolbarItem.setTitle(title);
     UI.Context.Context.instance().setFlavor(SDK.RuntimeModel.ExecutionContext, item);
   }
 
   private callFrameSelectedInUI(): void {
-    const callFrame = UI.Context.Context.instance().flavor(SDK.DebuggerModel.CallFrame);
-    const callFrameContext = callFrame?.script.executionContext();
+    const callFrame = UI.Context.Context.instance().flavor(StackTrace.StackTrace.DebuggableFrameFlavor);
+    const callFrameContext = callFrame?.sdkFrame.script.executionContext();
     if (callFrameContext) {
       UI.Context.Context.instance().setFlavor(SDK.RuntimeModel.ExecutionContext, callFrameContext);
     }
@@ -290,5 +291,71 @@ export class ConsoleContextSelector implements SDK.TargetManager.SDKModelObserve
         this.dropDown.refreshItem(executionContext);
       }
     }
+  }
+}
+
+interface ViewInput {
+  title?: string;
+  subtitle?: string;
+  itemDepth?: number;
+}
+
+type View = (input: ViewInput, output: undefined, target: HTMLElement) => void;
+
+const DEFAULT_VIEW: View = (input, _output, target): void => {
+  if (!input.title) {
+    render(nothing, target);
+    return;
+  }
+
+  const paddingLeft = input.itemDepth ? (8 + input.itemDepth * 15) + 'px' : undefined;
+
+  // clang-format off
+  render(
+    html`
+      <style>${consoleContextSelectorStyles}</style>
+      <div class="console-context-selector-element" style="padding-left: ${paddingLeft};">
+        <div class="title">${Platform.StringUtilities.trimEndWithMaxLength(input.title, 100)}</div>
+        <div class="subtitle">${input.subtitle}</div>
+      </div>
+    `,
+    target);
+  // clang-format on
+};
+
+export class ConsoleContextSelectorElement extends UI.Widget.Widget {
+  #view: View;
+  #title?: string;
+  #subtitle?: string;
+  #itemDepth?: number;
+
+  constructor(element?: HTMLElement, view?: View) {
+    super(element, {useShadowDom: true});
+    this.#view = view ?? DEFAULT_VIEW;
+    this.requestUpdate();
+  }
+
+  set title(title: string) {
+    this.#title = title;
+    this.requestUpdate();
+  }
+
+  set subtitle(subtitle: string) {
+    this.#subtitle = subtitle;
+    this.requestUpdate();
+  }
+
+  set itemDepth(itemDepth: number) {
+    this.#itemDepth = itemDepth;
+    this.requestUpdate();
+  }
+
+  override async performUpdate(): Promise<void> {
+    const viewInput: ViewInput = {
+      title: this.#title,
+      subtitle: this.#subtitle,
+      itemDepth: this.#itemDepth,
+    };
+    this.#view(viewInput, undefined, this.contentElement);
   }
 }

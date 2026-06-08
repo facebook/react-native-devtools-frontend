@@ -1,4 +1,4 @@
-# Copyright 2022 The Chromium Authors. All rights reserved.
+# Copyright 2022 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -9,27 +9,24 @@ import("../../../../scripts/build/typescript/typescript.gni")
 import("../../visibility.gni")
 
 generate_css("css_files") {
-  sources = [
-    "HeadersView.css",
-    "breakpointsView.css",
-  ]
+  sources = [ "HeadersView.css" ]
 }
 
-devtools_module("components") {
-  sources = [
-    "BreakpointsView.ts",
-    "BreakpointsViewUtils.ts",
-    "HeadersView.ts",
-  ]
+devtools_ui_module("components") {
+  sources = [ "HeadersView.ts" ]
 
   deps = [
+    "../../../core/host:bundle",
     "../../../core/i18n:bundle",
     "../../../core/sdk:bundle",
+    "../../../generated:protocol",
     "../../../models/persistence:bundle",
+    "../../../models/text_utils:bundle",
     "../../../models/workspace:bundle",
     "../../../ui/components/buttons:bundle",
     "../../../ui/components/helpers:bundle",
     "../../../ui/components/legacy_wrapper:bundle",
+    "../../../ui/legacy:bundle",
     "../../../ui/legacy/components/utils:bundle",
     "../../../ui/lit:bundle",
     "../../../ui/visual_logging:bundle",
@@ -52,14 +49,10 @@ devtools_entrypoint("bundle") {
   visibility += devtools_panels_visibility
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
-  sources = [
-    "BreakpointsView.test.ts",
-    "BreakpointsViewUtils.test.ts",
-    "HeadersView.test.ts",
-  ]
+  sources = [ "HeadersView.test.ts" ]
 
   deps = [
     ":bundle",

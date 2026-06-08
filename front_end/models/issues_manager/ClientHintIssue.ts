@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,36 +15,29 @@ import {
 
 const UIStrings = {
   /**
-   *@description Title for Client Hint specification url link
+   * @description Title for Client Hint specification url link
    */
   clientHintsInfrastructure: 'Client Hints Infrastructure',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/ClientHintIssue.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
-export class ClientHintIssue extends Issue {
-  private issueDetails: Protocol.Audits.ClientHintIssueDetails;
-
-  constructor(issueDetails: Protocol.Audits.ClientHintIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel) {
+export class ClientHintIssue extends Issue<Protocol.Audits.ClientHintIssueDetails> {
+  constructor(issueDetails: Protocol.Audits.ClientHintIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel|null) {
     super(
         {
           code: Protocol.Audits.InspectorIssueCode.ClientHintIssue,
           umaCode: [Protocol.Audits.InspectorIssueCode.ClientHintIssue, issueDetails.clientHintIssueReason].join('::'),
         },
-        issuesModel);
-    this.issueDetails = issueDetails;
+        issueDetails, issuesModel);
   }
 
   getCategory(): IssueCategory {
     return IssueCategory.OTHER;
   }
 
-  details(): Protocol.Audits.ClientHintIssueDetails {
-    return this.issueDetails;
-  }
-
   getDescription(): MarkdownIssueDescription|null {
-    const description = issueDescriptions.get(this.issueDetails.clientHintIssueReason);
+    const description = issueDescriptions.get(this.details().clientHintIssueReason);
     if (!description) {
       return null;
     }
@@ -52,19 +45,20 @@ export class ClientHintIssue extends Issue {
   }
 
   override sources(): Iterable<Protocol.Audits.SourceCodeLocation> {
-    return [this.issueDetails.sourceCodeLocation];
+    return [this.details().sourceCodeLocation];
   }
 
   primaryKey(): string {
-    return JSON.stringify(this.issueDetails);
+    return JSON.stringify(this.details());
   }
 
   getKind(): IssueKind {
     return IssueKind.BREAKING_CHANGE;
   }
 
-  static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):
-      ClientHintIssue[] {
+  static fromInspectorIssue(
+      issuesModel: SDK.IssuesModel.IssuesModel|null,
+      inspectorIssue: Protocol.Audits.InspectorIssue): ClientHintIssue[] {
     const details = inspectorIssue.details.clientHintIssueDetails;
     if (!details) {
       console.warn('Client Hint issue without details received.');

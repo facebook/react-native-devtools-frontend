@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -38,7 +38,7 @@ interface TargetInfoChangedEvent {
   target: SDK.Target.Target;
 }
 
-interface TargerCreatedRecorderEvent {
+interface TargetCreatedRecorderEvent {
   type: 'targetCreated';
   event: Common.EventTarget.EventTargetEvent<Protocol.Target.TargetInfo>;
   target: SDK.Target.Target;
@@ -58,7 +58,7 @@ interface BindingCalledRecorderEvent {
 }
 
 type RecorderEvent =
-    |TargetInfoChangedEvent|TargerCreatedRecorderEvent|TargetClosedRecorderEvent|BindingCalledRecorderEvent;
+    |TargetInfoChangedEvent|TargetCreatedRecorderEvent|TargetClosedRecorderEvent|BindingCalledRecorderEvent;
 
 const unrelatedNavigationTypes = new Set([
   'typed',
@@ -611,7 +611,7 @@ export class RecordingSession extends Common.ObjectWrapper.ObjectWrapper<EventTy
   }
 
   #receiveTargetClosed(
-      eventTarget: SDK.Target.Target, event: Common.EventTarget.EventTargetEvent<Protocol.Target.TargetID>): void {
+      _eventTarget: SDK.Target.Target, event: Common.EventTarget.EventTargetEvent<Protocol.Target.TargetID>): void {
     // TODO(alexrudenko): target here appears to be the parent target of the target that is closed.
     // Therefore, we need to find the real target via the targets map.
     const childTarget = this.#targets.get(event.data);
@@ -652,7 +652,7 @@ export class RecordingSession extends Common.ObjectWrapper.ObjectWrapper<EventTy
     });
   }
 
-  async #handleTargetCreated(event: TargerCreatedRecorderEvent): Promise<void> {
+  async #handleTargetCreated(event: TargetCreatedRecorderEvent): Promise<void> {
     if (event.event.data.type !== 'page' && event.event.data.type !== 'iframe') {
       return;
     }

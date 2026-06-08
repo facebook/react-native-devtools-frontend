@@ -1,6 +1,7 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api, @devtools/enforce-custom-element-definitions-location*/
 
 import type * as Platform from '../../../core/platform/platform.js';
 import type * as UI from '../../legacy/legacy.js';
@@ -20,16 +21,16 @@ export type LegacyWrapper<T extends UI.Widget.Widget, Component extends Wrappabl
   getComponent(): Component,
 }&T;
 
-export function legacyWrapper<T extends Platform.Constructor.Constructor<UI.Widget.Widget>,
-                                        Component extends WrappableComponent<InstanceType<T>>>(
-    base: T, component: Component, jsLogContext?: string): LegacyWrapper<InstanceType<T>, Component> {
-  return new class extends base {
+export function legacyWrapper<T extends UI.Widget.Widget, Component extends WrappableComponent<T>>(
+    base: Platform.Constructor.Constructor<T>, component: Component,
+    jsLogContext?: string): LegacyWrapper<T, Component> {
+  return new class extends(base as Platform.Constructor.Constructor<UI.Widget.Widget>) {
     #component: Component;
 
     constructor(..._args: any[]) {
       super(/* useShadowDom=*/ true);
       this.#component = component;
-      this.#component.wrapper = this as InstanceType<T>;
+      this.#component.wrapper = this as unknown as T;
       void this.#component.render();
       this.contentElement.appendChild(this.#component);
       if (jsLogContext) {
@@ -38,11 +39,13 @@ export function legacyWrapper<T extends Platform.Constructor.Constructor<UI.Widg
     }
 
     override wasShown(): void {
+      super.wasShown();
       this.#component.wasShown();
       void this.#component.render();
     }
 
     override willHide(): void {
+      super.willHide();
       this.#component.willHide();
     }
 
@@ -54,6 +57,6 @@ export function legacyWrapper<T extends Platform.Constructor.Constructor<UI.Widg
       return this.#component;
     }
     // clang-format off
-  }() as unknown as LegacyWrapper<InstanceType<T>, Component>;
+  }() as unknown as LegacyWrapper<T, Component>;
   // clang-format on
 }

@@ -1,10 +1,11 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import type * as Platform from '../../../core/platform/platform.js';
+
 import type {
-  Args, ConsoleTimeStamp, Event, PerformanceMark, PerformanceMeasureBegin, Phase, SyntheticBased} from
-  './TraceEvents.js';
+  ConsoleTimeStamp, Event, PerformanceMark, PerformanceMeasureBegin, Phase, SyntheticBased} from './TraceEvents.js';
 
 export type ExtensionEntryType = 'track-entry'|'marker';
 
@@ -24,15 +25,34 @@ export const extensionPalette = [
 
 export type ExtensionColorFromPalette = typeof extensionPalette[number];
 
-export interface ExtensionDataPayloadBase {
+/**
+ * Represents any valid value that can be produced by JSON.parse()
+ * without a reviver.
+ */
+export type JsonValue = string|number|boolean|null|JsonValue[]|{[key: string]: JsonValue};
+
+export interface DevToolsObjBase {
   color?: ExtensionColorFromPalette;
-  properties?: Array<[string, string]>;
+  /**
+   * We document to users that we support only string values here, but because
+   * this is coming from user code the values could be anything, so we ensure we
+   * deal with bad data by typing this as unknown.
+   */
+  properties?: Array<[string, JsonValue]>;
   tooltipText?: string;
 }
 
-export type ExtensionDataPayload = ExtensionTrackEntryPayload|ExtensionMarkerPayload;
+export type DevToolsObj = DevToolsObjEntry|DevToolsObjMarker;
 
-export interface ExtensionTrackEntryPayload extends ExtensionDataPayloadBase {
+export interface ExtensionTrackEntryPayloadDeeplink {
+  // The URL (deep-link) to show in the summary for the track.
+  url: Platform.DevToolsPath.UrlString;
+  // The label to show in front of the URL when the deep-link is shown in the
+  // graph.
+  description: string;
+}
+
+export interface DevToolsObjEntry extends DevToolsObjBase {
   // Typed as possibly undefined since when no data type is provided
   // the entry is defaulted to a track entry
   dataType?: 'track-entry';
@@ -46,9 +66,13 @@ export interface ExtensionTrackEntryPayload extends ExtensionDataPayloadBase {
   // same value in this property as well as the same value in the track
   // property.
   trackGroup?: string;
+  // Additional data (e.g. deep-link URL) that can be shown in the summary
+  // In perf.mark/measure, it's anything in the `detail` object that's not the `devtools` object
+  // In console.timestamp, it's the 7th argument to console.timeStamp().
+  userDetail?: JsonValue;
 }
 
-export interface ExtensionMarkerPayload extends ExtensionDataPayloadBase {
+export interface DevToolsObjMarker extends DevToolsObjBase {
   dataType: 'marker';
 }
 
@@ -57,31 +81,43 @@ export interface ExtensionMarkerPayload extends ExtensionDataPayloadBase {
  */
 export interface SyntheticExtensionTrackEntry extends
     SyntheticBased<Phase.COMPLETE, PerformanceMeasureBegin|PerformanceMark|ConsoleTimeStamp> {
-  args: Args&ExtensionTrackEntryPayload;
+  devtoolsObj: DevToolsObjEntry;
+  userDetail: JsonValue|null;
 }
 
 /**
  * Synthetic events created for extension marks.
  */
-export interface SyntheticExtensionMarker extends SyntheticBased<Phase.COMPLETE, PerformanceMark> {
-  args: Args&ExtensionMarkerPayload;
+export interface SyntheticExtensionMarker extends SyntheticBased<Phase.INSTANT, PerformanceMark> {
+  devtoolsObj: DevToolsObjMarker;
+  userDetail: JsonValue|null;
 }
 
 export type SyntheticExtensionEntry = SyntheticExtensionTrackEntry|SyntheticExtensionMarker;
 
-export function isExtensionPayloadMarker(payload: {dataType?: string}): payload is ExtensionMarkerPayload {
+/** Returns true if this is a devtoolsObj for a marker */
+export function isExtensionPayloadMarker(payload: {dataType?: string}): payload is DevToolsObjMarker {
   return payload.dataType === 'marker';
 }
 
-export function isExtensionPayloadTrackEntry(payload: {track?: string, dataType?: string}):
-    payload is ExtensionTrackEntryPayload {
+/** Returns true if this is a devtoolsObj for an entry (non-instant) */
+export function isExtensionEntryObj(payload: {track?: string, dataType?: string}): payload is DevToolsObjEntry {
   const hasTrack = 'track' in payload && Boolean(payload.track);
   const validEntryType = payload.dataType === 'track-entry' || payload.dataType === undefined;
   return validEntryType && hasTrack;
 }
 
-export function isValidExtensionPayload(payload: {track?: string, dataType?: string}): payload is ExtensionDataPayload {
-  return isExtensionPayloadMarker(payload) || isExtensionPayloadTrackEntry(payload);
+/** Returns true if this is a devtoolsObj for a console.timeStamp */
+export function isConsoleTimestampPayloadTrackEntry(payload: {description?: string, url?: string}):
+    payload is ExtensionTrackEntryPayloadDeeplink {
+  return payload.url !== undefined && payload.description !== undefined;
+}
+
+export function isValidExtensionPayload(
+    payload: {track?: string, dataType?: string, description?: string, url?: string}): payload is DevToolsObj|
+    ExtensionTrackEntryPayloadDeeplink {
+  return isExtensionPayloadMarker(payload) || isExtensionEntryObj(payload) ||
+      isConsoleTimestampPayloadTrackEntry(payload);
 }
 
 export function isSyntheticExtensionEntry(entry: Event): entry is SyntheticExtensionEntry {
@@ -96,7 +132,5 @@ export interface ExtensionTrackData {
   // If this contains the data of a track group, this property contains
   // the entries of each of the tracks in the the group. If this is a
   // standalone track, then this contains that track's entries only.
-  entriesByTrack: {
-    [x: string]: SyntheticExtensionTrackEntry[],
-  };
+  entriesByTrack: Record<string, SyntheticExtensionTrackEntry[]>;
 }

@@ -1,10 +1,13 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as SDK from '../../core/sdk/sdk.js';
-import {dispatchClickEvent} from '../../testing/DOMHelpers.js';
-import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
+import {renderElementIntoDOM} from '../../testing/DOMHelpers.js';
+import {createTarget, describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
+import {spyCall} from '../../testing/ExpectStubCall.js';
+import {describeWithMockConnection, setMockConnectionResponseHandler} from '../../testing/MockConnection.js';
+import * as UI from '../../ui/legacy/legacy.js';
 
 import * as MobileThrottling from './mobile_throttling.js';
 
@@ -47,18 +50,18 @@ describeWithEnvironment('ThrottlingManager', () => {
       const checkbox = throttlingManager.createOfflineToolbarCheckbox();
       assert.isTrue(checkbox.checked());
 
-      dispatchClickEvent(checkbox.inputElement);
+      checkbox.element.click();
       assert.isFalse(checkbox.checked());
       assert.strictEqual(SDK.NetworkManager.NoThrottlingConditions, multiTargetNetworkManager.networkConditions());
 
       multiTargetNetworkManager.setNetworkConditions(SDK.NetworkManager.Slow3GConditions);
       assert.isFalse(checkbox.checked());
 
-      dispatchClickEvent(checkbox.inputElement);
+      checkbox.element.click();
       assert.isTrue(checkbox.checked());
       assert.strictEqual(SDK.NetworkManager.OfflineConditions, multiTargetNetworkManager.networkConditions());
 
-      dispatchClickEvent(checkbox.inputElement);
+      checkbox.element.click();
       assert.isFalse(checkbox.checked());
       assert.strictEqual(SDK.NetworkManager.Slow3GConditions, multiTargetNetworkManager.networkConditions());
     });
@@ -79,6 +82,42 @@ describeWithEnvironment('ThrottlingManager', () => {
       SDK.CPUThrottlingManager.CPUThrottlingManager.instance().setCPUThrottlingOption(
           SDK.CPUThrottlingManager.NoThrottlingOption);
       assert.strictEqual(cpuThrottlingPresets[selector.selectedIndex()], SDK.CPUThrottlingManager.NoThrottlingOption);
+    });
+  });
+});
+
+describeWithMockConnection('ThrottlingManager', () => {
+  describe('DataSaverEmulation', () => {
+    it('creates a select element which sets the data saver emulation mode', async () => {
+      setMockConnectionResponseHandler('Emulation.setDataSaverOverride', () => ({}));
+      const emulationModel = createTarget().model(SDK.EmulationModel.EmulationModel);
+      assert.exists(emulationModel);
+      assert.lengthOf(SDK.TargetManager.TargetManager.instance().models(SDK.EmulationModel.EmulationModel), 1);
+      assert.strictEqual(
+          SDK.TargetManager.TargetManager.instance().models(SDK.EmulationModel.EmulationModel)[0], emulationModel);
+      const select = MobileThrottling.ThrottlingManager.ThrottlingManager.instance({forceNew: true})
+                         .createSaveDataOverrideSelector();
+      renderElementIntoDOM(select);
+      await UI.Widget.Widget.allUpdatesComplete;
+      const options = Array.from(select.options);
+      assert.deepEqual(
+          options.map(option => option.textContent),
+          ['\'Save-Data\': default', '\'Save-Data\': on', '\'Save-Data\': off']);
+
+      let emulationModelSpy = spyCall(emulationModel, 'setDataSaverOverride');
+      select.selectedIndex = 0;
+      select.dispatchEvent(new Event('change'));
+      assert.strictEqual((await emulationModelSpy).args[0], SDK.EmulationModel.DataSaverOverride.UNSET);
+
+      emulationModelSpy = spyCall(emulationModel, 'setDataSaverOverride');
+      select.selectedIndex = 1;
+      select.dispatchEvent(new Event('change'));
+      assert.strictEqual((await emulationModelSpy).args[0], SDK.EmulationModel.DataSaverOverride.ENABLED);
+
+      emulationModelSpy = spyCall(emulationModel, 'setDataSaverOverride');
+      select.selectedIndex = 2;
+      select.dispatchEvent(new Event('change'));
+      assert.strictEqual((await emulationModelSpy).args[0], SDK.EmulationModel.DataSaverOverride.DISABLED);
     });
   });
 });

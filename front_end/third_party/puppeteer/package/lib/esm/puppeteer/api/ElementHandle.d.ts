@@ -10,6 +10,7 @@ import type { KeyInput } from '../common/USKeyboardLayout.js';
 import { _isElementHandle } from './ElementHandleSymbol.js';
 import type { KeyboardTypeOptions, KeyPressOptions, MouseClickOptions, TouchHandle } from './Input.js';
 import { JSHandle } from './JSHandle.js';
+import type { Locator } from './locators/locators.js';
 import type { QueryOptions, ScreenshotOptions, WaitForSelectorOptions } from './Page.js';
 /**
  * @public
@@ -60,6 +61,14 @@ export interface ClickOptions extends MouseClickOptions {
      * Offset for the clickable point relative to the top-left corner of the border box.
      */
     offset?: Offset;
+    /**
+     * An experimental debugging feature. If true, inserts an element into the
+     * page to highlight the click location for 10 seconds. Might not work on all
+     * pages and does not persist across navigations.
+     *
+     * @experimental
+     */
+    debugHighlight?: boolean;
 }
 /**
  * @public
@@ -95,19 +104,18 @@ export declare function bindIsolatedHandle<This extends ElementHandle<Node>>(tar
  * ```ts
  * import puppeteer from 'puppeteer';
  *
- * (async () => {
- *   const browser = await puppeteer.launch();
- *   const page = await browser.newPage();
- *   await page.goto('https://example.com');
- *   const hrefElement = await page.$('a');
- *   await hrefElement.click();
- *   // ...
- * })();
+ * const browser = await puppeteer.launch();
+ * const page = await browser.newPage();
+ * await page.goto('https://example.com');
+ * const hrefElement = await page.$('a');
+ * await hrefElement.click();
+ * // ...
  * ```
  *
  * ElementHandle prevents the DOM element from being garbage-collected unless the
  * handle is {@link JSHandle.dispose | disposed}. ElementHandles are auto-disposed
- * when their origin frame gets navigated.
+ * when their associated frame is navigated away or the parent
+ * context gets destroyed.
  *
  * ElementHandle instances can be used as arguments in {@link Page.$eval} and
  * {@link Page.evaluate} methods.
@@ -293,9 +301,10 @@ export declare abstract class ElementHandle<ElementType extends Node = Element> 
      *
      * ```ts
      * const feedHandle = await page.$('.feed');
-     * expect(
-     *   await feedHandle.$$eval('.tweet', nodes => nodes.map(n => n.innerText)),
-     * ).toEqual(['Hello!', 'Hi!']);
+     *
+     * const listOfTweets = await feedHandle.$$eval('.tweet', nodes =>
+     *   nodes.map(n => n.innerText),
+     * );
      * ```
      *
      * @param selector -
@@ -332,24 +341,22 @@ export declare abstract class ElementHandle<ElementType extends Node = Element> 
      * ```ts
      * import puppeteer from 'puppeteer';
      *
-     * (async () => {
-     *   const browser = await puppeteer.launch();
-     *   const page = await browser.newPage();
-     *   let currentURL;
-     *   page
-     *     .mainFrame()
-     *     .waitForSelector('img')
-     *     .then(() => console.log('First URL with image: ' + currentURL));
+     * const browser = await puppeteer.launch();
+     * const page = await browser.newPage();
+     * let currentURL;
+     * page
+     *   .mainFrame()
+     *   .waitForSelector('img')
+     *   .then(() => console.log('First URL with image: ' + currentURL));
      *
-     *   for (currentURL of [
-     *     'https://example.com',
-     *     'https://google.com',
-     *     'https://bbc.com',
-     *   ]) {
-     *     await page.goto(currentURL);
-     *   }
-     *   await browser.close();
-     * })();
+     * for (currentURL of [
+     *   'https://example.com',
+     *   'https://google.com',
+     *   'https://bbc.com',
+     * ]) {
+     *   await page.goto(currentURL);
+     * }
+     * await browser.close();
      * ```
      *
      * @param selector - The selector to query and wait for.
@@ -604,6 +611,12 @@ export declare abstract class ElementHandle<ElementType extends Node = Element> 
      */
     scrollIntoView(this: ElementHandle<Element>): Promise<void>;
     /**
+     * Creates a locator based on an ElementHandle. This would not allow
+     * refreshing the element handle if it is stale but it allows re-using other
+     * locator pre-conditions.
+     */
+    asLocator(this: ElementHandle<Element>): Locator<Element>;
+    /**
      * If the element is a form input, you can use {@link ElementHandle.autofill}
      * to test if the form is compatible with the browser's autofill
      * implementation. Throws an error if the form cannot be autofilled.
@@ -636,9 +649,31 @@ export declare abstract class ElementHandle<ElementType extends Node = Element> 
     abstract backendNodeId(): Promise<number>;
 }
 /**
+ * Supported autofill address field names.
+ *
  * @public
  */
-export interface AutofillData {
+export declare const enum AutofillAddressField {
+    NameFirst = "NAME_FIRST",
+    NameMiddle = "NAME_MIDDLE",
+    NameLast = "NAME_LAST",
+    NameFull = "NAME_FULL",
+    EmailAddress = "EMAIL_ADDRESS",
+    PhoneHomeNumber = "PHONE_HOME_NUMBER",
+    PhoneHomeCityAndNumber = "PHONE_HOME_CITY_AND_NUMBER",
+    PhoneHomeWholeNumber = "PHONE_HOME_WHOLE_NUMBER",
+    AddressHomeLine1 = "ADDRESS_HOME_LINE1",
+    AddressHomeLine2 = "ADDRESS_HOME_LINE2",
+    AddressHomeStreetAddress = "ADDRESS_HOME_STREET_ADDRESS",
+    AddressHomeCity = "ADDRESS_HOME_CITY",
+    AddressHomeState = "ADDRESS_HOME_STATE",
+    AddressHomeZip = "ADDRESS_HOME_ZIP",
+    AddressHomeCountry = "ADDRESS_HOME_COUNTRY"
+}
+/**
+ * @public
+ */
+export type AutofillData = {
     /**
      * See {@link https://chromedevtools.github.io/devtools-protocol/tot/Autofill/#type-CreditCard | Autofill.CreditCard}.
      */
@@ -649,5 +684,22 @@ export interface AutofillData {
         expiryYear: string;
         cvc: string;
     };
-}
+    address?: never;
+} | {
+    /**
+     * See {@link https://chromedevtools.github.io/devtools-protocol/tot/Autofill/#type-Address | Autofill.Address}.
+     */
+    address: {
+        fields: Array<{
+            /**
+             * The field type.
+             * See {@link https://source.chromium.org/chromium/chromium/src/+/main:components/autofill/core/browser/field_types.cc}
+             * for the full list of supported fields.
+             */
+            name: AutofillAddressField | (string & Record<never, never>);
+            value: string;
+        }>;
+    };
+    creditCard?: never;
+};
 //# sourceMappingURL=ElementHandle.d.ts.map

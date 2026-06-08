@@ -1,9 +1,9 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import '../../../ui/components/icon_button/icon_button.js';
-import './CPUThrottlingSelector.js';
+import '../../../ui/components/settings/settings.js';
+import '../../../ui/kit/kit.js';
 import './FieldSettingsDialog.js';
 import './NetworkThrottlingSelector.js';
 import '../../../ui/components/menus/menus.js';
@@ -13,36 +13,29 @@ import * as Common from '../../../core/common/common.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import type * as Platform from '../../../core/platform/platform.js';
 import * as Root from '../../../core/root/root.js';
+import * as SDK from '../../../core/sdk/sdk.js';
 import * as CrUXManager from '../../../models/crux-manager/crux-manager.js';
 import * as EmulationModel from '../../../models/emulation/emulation.js';
 import * as LiveMetrics from '../../../models/live-metrics/live-metrics.js';
 import * as Trace from '../../../models/trace/trace.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
-import * as ComponentHelpers from '../../../ui/components/helpers/helpers.js';
-import * as LegacyWrapper from '../../../ui/components/legacy_wrapper/legacy_wrapper.js';
 import type * as Menus from '../../../ui/components/menus/menus.js';
-import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 import type * as Settings from '../../../ui/components/settings/settings.js';
+import * as uiI18n from '../../../ui/i18n/i18n.js';
 import * as UI from '../../../ui/legacy/legacy.js';
 import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
-import * as MobileThrottling from '../../mobile_throttling/mobile_throttling.js';
-import {getThrottlingRecommendations, md} from '../utils/Helpers.js';
+import * as PanelsCommon from '../../common/common.js';
 
-import liveMetricsViewStylesRaw from './liveMetricsView.css.js';
+import {CPUThrottlingSelector} from './CPUThrottlingSelector.js';
+import {md} from './insights/Helpers.js';
+import liveMetricsViewStyles from './liveMetricsView.css.js';
 import type {MetricCardData} from './MetricCard.js';
-import metricValueStylesRaw from './metricValueStyles.css.js';
+import metricValueStyles from './metricValueStyles.css.js';
 import {CLS_THRESHOLDS, INP_THRESHOLDS, renderMetricValue} from './Utils.js';
 
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const liveMetricsViewStyles = new CSSStyleSheet();
-liveMetricsViewStyles.replaceSync(liveMetricsViewStylesRaw.cssText);
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const metricValueStyles = new CSSStyleSheet();
-metricValueStyles.replaceSync(metricValueStylesRaw.cssText);
-
-const {html, nothing} = Lit;
+const {html, nothing, Directives: {live}} = Lit;
+const {widget} = UI.Widget;
 
 type DeviceOption = CrUXManager.DeviceScope|'AUTO';
 
@@ -59,6 +52,14 @@ const UIStrings = {
    * @description Title of a view that shows performance metrics from the local environment.
    */
   localMetrics: 'Local metrics',
+  /**
+   *@description Text for the link to the historical field data for the specific URL or origin that is shown. This link text appears in parenthesis after the collection period information in the field data dialog. The link opens the CrUX Vis viewer (https://cruxvis.withgoogle.com).
+   */
+  fieldDataHistoryLink: 'View history',
+  /**
+   *@description Tooltip for the CrUX Vis viewer link which shows the history of the field data for the specific URL or origin.
+   */
+  fieldDataHistoryTooltip: 'View field data history in CrUX Vis',
   /**
    * @description Accessible label for a section that logs user interactions and layout shifts. A layout shift is an event that shifts content in the layout of the page causing a jarring experience for the user.
    */
@@ -78,16 +79,16 @@ const UIStrings = {
   /**
    * @description Title of a section that shows options for how real user data in the field should be fetched. This should be interpreted as "Real user data".
    */
-  fieldData: 'Field data',
+  fieldMetricsTitle: 'Field metrics',
   /**
    * @description Title of a section that shows settings to control the developers local testing environment.
    */
   environmentSettings: 'Environment settings',
   /**
-   * @description Label for an select box that selects which device type field data be shown for (e.g. desktop/mobile/all devices/etc). "field data" should be interpreted as "real user data".
+   * @description Label for an select box that selects which device type field metrics be shown for (e.g. desktop/mobile/all devices/etc). "field metrics" should be interpreted as "real user data".
    * @example {Mobile} PH1
    */
-  showFieldDataForDevice: 'Show field data for device type: {PH1}',
+  showFieldDataForDevice: 'Show field metrics for device type: {PH1}',
   /**
    * @description Text indicating that there is not enough data to report real user statistics.
    */
@@ -152,10 +153,10 @@ const UIStrings = {
    */
   originOptionWithKey: 'Origin: {PH1}',
   /**
-   * @description Label for an combo-box that indicates if field data should be taken from the page's URL or it's origin/domain. "field data" should be interpreted as "real user data".
+   * @description Label for an combo-box that indicates if field metrics should be taken from the page's URL or it's origin/domain. "field metrics" should be interpreted as "real user data".
    * @example {Origin: https://example.com} PH1
    */
-  showFieldDataForPage: 'Show field data for {PH1}',
+  showFieldDataForPage: 'Show field metrics for {PH1}',
   /**
    * @description Tooltip text explaining that real user connections are similar to a test environment with no throttling. "throttling" is when the network is intentionally slowed down to simulate a slower connection.
    */
@@ -201,7 +202,7 @@ const UIStrings = {
     other {{shiftCount} shifts}
   }`,
   /**
-   * @description Label for a a range of dates that represents the period of time a set of field data is collected from.
+   * @description Label for a a range of dates that represents the period of time a set of field metrics is collected from.
    * @example {Oct 1, 2024 - Nov 1, 2024} PH1
    */
   collectionPeriod: 'Collection period: {PH1}',
@@ -217,14 +218,14 @@ const UIStrings = {
    */
   seeHowYourLocalMetricsCompare: 'See how your local metrics compare to real user data in the {PH1}.',
   /**
-   * @description Text for a link that goes to more documentation about local and field data. "Local" refers to performance metrics measured in the developers local environment. "field data" should be interpreted as "real user data".
+   * @description Text for a link that goes to more documentation about local and field metrics. "Local" refers to performance metrics measured in the developers local environment. "field metrics" should be interpreted as "real user data".
    */
-  localFieldLearnMoreLink: 'Learn more about local and field data',
+  localFieldLearnMoreLink: 'Learn more about local and field metrics',
   /**
-   * @description Tooltip text for a link that goes to documentation explaining the difference between local and field metrics. "Local metrics" are performance metrics measured in the developers local environment. "field data" should be interpreted as "real user data".
+   * @description Tooltip text for a link that goes to documentation explaining the difference between local and field metrics. "Local metrics" are performance metrics measured in the developers local environment. "field metrics" should be interpreted as "real user data".
    */
   localFieldLearnMoreTooltip:
-      'Local metrics are captured from the current page using your network connection and device. Field data is measured by real users using many different network connections and devices.',
+      'Local metrics are captured from the current page using your network connection and device. field metrics is measured by real users using many different network connections and devices.',
   /**
    * @description Tooltip text explaining that this user interaction was ignored when calculating the Interaction to Next Paint (INP) metric because the interaction delay fell beyond the 98th percentile of interaction delays on this page. "INP" is an acronym and should not be translated.
    */
@@ -299,16 +300,813 @@ const UIStrings = {
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/components/LiveMetricsView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableComponent {
-  readonly #shadow = this.attachShadow({mode: 'open'});
+export interface ViewInput {
+  isNode: boolean;
+  lcpValue?: LiveMetrics.LcpValue;
+  clsValue?: LiveMetrics.ClsValue;
+  inpValue?: LiveMetrics.InpValue;
+  interactions: LiveMetrics.InteractionMap;
+  layoutShifts: LiveMetrics.LayoutShift[];
+  toggleRecordAction: UI.ActionRegistration.Action;
+  recordReloadAction: UI.ActionRegistration.Action|null;
+  cruxManager: CrUXManager.CrUXManager;
+  handlePageScopeSelected: (event: Menus.SelectMenu.SelectMenuItemSelectedEvent) => void;
+  handleDeviceOptionSelected: (event: Menus.SelectMenu.SelectMenuItemSelectedEvent) => void;
+  revealLayoutShiftCluster: (clusterIds: Set<LiveMetrics.LayoutShift['uniqueLayoutShiftId']>) => void;
+  revealInteraction: (interaction: LiveMetrics.Interaction) => void;
+  logExtraInteractionDetails: (interaction: LiveMetrics.Interaction) => void;
+  highlightedInteractionId?: string;
+  highlightedLayoutShiftClusterIds?: Set<string>;
+}
 
-  #isNode = false;
+export interface ViewOutput {
+  shouldKeepInteractionsScrolledToBottom?: () => boolean;
+  keepInteractionsScrolledToBottom?: () => void;
+  shouldKeepLayoutShiftsScrolledToBottom?: () => boolean;
+  keepLayoutShiftsScrolledToBottom?: () => void;
+}
+
+export type View = (input: ViewInput, output: ViewOutput, target: HTMLElement|DocumentFragment) => void;
+
+function getLcpFieldPhases(cruxManager: CrUXManager.CrUXManager): LiveMetrics.LcpValue['phases']|null {
+  const ttfb =
+      cruxManager.getSelectedFieldMetricData('largest_contentful_paint_image_time_to_first_byte')?.percentiles?.p75;
+  const loadDelay =
+      cruxManager.getSelectedFieldMetricData('largest_contentful_paint_image_resource_load_delay')?.percentiles?.p75;
+  const loadDuration =
+      cruxManager.getSelectedFieldMetricData('largest_contentful_paint_image_resource_load_duration')?.percentiles?.p75;
+  const renderDelay =
+      cruxManager.getSelectedFieldMetricData('largest_contentful_paint_image_element_render_delay')?.percentiles?.p75;
+
+  if (typeof ttfb !== 'number' || typeof loadDelay !== 'number' || typeof loadDuration !== 'number' ||
+      typeof renderDelay !== 'number') {
+    return null;
+  }
+
+  return {
+    timeToFirstByte: Trace.Types.Timing.Milli(ttfb),
+    resourceLoadDelay: Trace.Types.Timing.Milli(loadDelay),
+    resourceLoadTime: Trace.Types.Timing.Milli(loadDuration),
+    elementRenderDelay: Trace.Types.Timing.Milli(renderDelay),
+  };
+}
+
+function getNetworkRecTitle(cruxManager: CrUXManager.CrUXManager): string|null {
+  const response = cruxManager.getSelectedFieldMetricData('round_trip_time');
+  if (!response?.percentiles) {
+    return null;
+  }
+
+  const rtt = Number(response.percentiles.p75);
+  if (!Number.isFinite(rtt)) {
+    return null;
+  }
+
+  if (rtt < RTT_MINIMUM) {
+    return i18nString(UIStrings.tryDisablingThrottling);
+  }
+
+  const conditions = SDK.NetworkManager.getRecommendedNetworkPreset(rtt);
+  if (!conditions) {
+    return null;
+  }
+
+  const title = typeof conditions.title === 'function' ? conditions.title() : conditions.title;
+  return i18nString(UIStrings.tryUsingThrottling, {PH1: title});
+}
+
+function getDeviceRec(cruxManager: CrUXManager.CrUXManager): string|null {
+  // `form_factors` metric is only populated if CrUX data is fetched for all devices.
+  const fractions =
+      cruxManager.getFieldResponse(cruxManager.fieldPageScope, 'ALL')?.record.metrics.form_factors?.fractions;
+  if (!fractions) {
+    return null;
+  }
+
+  return i18nString(UIStrings.percentDevices, {
+    PH1: Math.round(fractions.phone * 100),
+    PH2: Math.round(fractions.desktop * 100),
+  });
+}
+
+function getPageScopeLabel(cruxManager: CrUXManager.CrUXManager, pageScope: CrUXManager.PageScope): string {
+  const key = cruxManager.pageResult?.[`${pageScope}-ALL` as const]?.record.key[pageScope];
+  if (key) {
+    return pageScope === 'url' ? i18nString(UIStrings.urlOptionWithKey, {PH1: key}) :
+                                 i18nString(UIStrings.originOptionWithKey, {PH1: key});
+  }
+
+  const baseLabel = pageScope === 'url' ? i18nString(UIStrings.urlOption) : i18nString(UIStrings.originOption);
+  return i18nString(UIStrings.needsDataOption, {PH1: baseLabel});
+}
+
+function getDeviceScopeDisplayName(deviceScope: CrUXManager.DeviceScope): string {
+  switch (deviceScope) {
+    case 'ALL':
+      return i18nString(UIStrings.allDevices);
+    case 'DESKTOP':
+      return i18nString(UIStrings.desktop);
+    case 'PHONE':
+      return i18nString(UIStrings.mobile);
+    case 'TABLET':
+      return i18nString(UIStrings.tablet);
+  }
+}
+
+function getLabelForDeviceOption(cruxManager: CrUXManager.CrUXManager, deviceOption: DeviceOption): string {
+  let baseLabel;
+  if (deviceOption === 'AUTO') {
+    const deviceScope = cruxManager.resolveDeviceOptionToScope(deviceOption);
+    const deviceScopeLabel = getDeviceScopeDisplayName(deviceScope);
+    baseLabel = i18nString(UIStrings.auto, {PH1: deviceScopeLabel});
+  } else {
+    baseLabel = getDeviceScopeDisplayName(deviceOption);
+  }
+
+  if (!cruxManager.pageResult) {
+    return i18nString(UIStrings.loadingOption, {PH1: baseLabel});
+  }
+
+  const result = cruxManager.getSelectedFieldResponse();
+  if (!result) {
+    return i18nString(UIStrings.needsDataOption, {PH1: baseLabel});
+  }
+
+  return baseLabel;
+}
+
+function getCollectionPeriodRange(cruxManager: CrUXManager.CrUXManager): string|null {
+  const selectedResponse = cruxManager.getSelectedFieldResponse();
+  if (!selectedResponse) {
+    return null;
+  }
+
+  const {firstDate, lastDate} = selectedResponse.record.collectionPeriod;
+
+  const formattedFirstDate = new Date(
+      firstDate.year,
+      // CrUX month is 1-indexed but `Date` month is 0-indexed
+      firstDate.month - 1,
+      firstDate.day,
+  );
+  const formattedLastDate = new Date(
+      lastDate.year,
+      // CrUX month is 1-indexed but `Date` month is 0-indexed
+      lastDate.month - 1,
+      lastDate.day,
+  );
+
+  const options: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  };
+
+  return i18nString(UIStrings.dateRange, {
+    PH1: formattedFirstDate.toLocaleDateString(undefined, options),
+    PH2: formattedLastDate.toLocaleDateString(undefined, options),
+  });
+}
+
+function createMetricCardRef(cardData: Omit<MetricCardData, 'tooltipContainer'>):
+    ReturnType<typeof Lit.Directives.ref> {
+  return Lit.Directives.ref(el => {
+    if (el instanceof HTMLElement) {
+      (el as HTMLElement & {data: MetricCardData}).data = {
+        ...cardData,
+        tooltipContainer: (el.closest('.metric-cards') as HTMLElement) || undefined,
+      };
+    }
+  });
+}
+
+function renderLcpCard(input: ViewInput): Lit.LitTemplate {
+  const fieldData = input.cruxManager.getSelectedFieldMetricData('largest_contentful_paint');
+  const nodeLink =
+      input.lcpValue?.nodeRef && PanelsCommon.DOMLinkifier.Linkifier.instance().linkify(input.lcpValue?.nodeRef);
+  const phases = input.lcpValue?.phases;
+
+  const fieldPhases = getLcpFieldPhases(input.cruxManager);
+
+  // clang-format off
+  return html`
+    <devtools-metric-card ${createMetricCardRef({
+      metric: 'LCP',
+      localValue: input.lcpValue?.value,
+      fieldValue: fieldData?.percentiles?.p75,
+      histogram: fieldData?.histogram,
+      warnings: input.lcpValue?.warnings,
+      phases: phases && [
+        [i18nString(UIStrings.timeToFirstByte), phases.timeToFirstByte, fieldPhases?.timeToFirstByte],
+        [i18nString(UIStrings.resourceLoadDelay), phases.resourceLoadDelay, fieldPhases?.resourceLoadDelay],
+        [i18nString(UIStrings.resourceLoadDuration), phases.resourceLoadTime, fieldPhases?.resourceLoadTime],
+        [i18nString(UIStrings.elementRenderDelay), phases.elementRenderDelay, fieldPhases?.elementRenderDelay],
+      ],
+    })}>
+      ${nodeLink ? html`
+          <div class="related-info" slot="extra-info">
+            <span class="related-info-label">${i18nString(UIStrings.lcpElement)}</span>
+            <span class="related-info-link">
+             ${widget(PanelsCommon.DOMLinkifier.DOMNodeLink, {node: input.lcpValue?.nodeRef})}
+            </span>
+          </div>
+        `
+        : nothing}
+    </devtools-metric-card>
+  `;
+  // clang-format on
+}
+
+function renderClsCard(input: ViewInput): Lit.LitTemplate {
+  const fieldData = input.cruxManager.getSelectedFieldMetricData('cumulative_layout_shift');
+
+  const clusterIds = new Set(input.clsValue?.clusterShiftIds || []);
+  const clusterIsVisible =
+      clusterIds.size > 0 && input.layoutShifts.some(layoutShift => clusterIds.has(layoutShift.uniqueLayoutShiftId));
+
+  // clang-format off
+  return html`
+    <devtools-metric-card ${createMetricCardRef({
+      metric: 'CLS',
+      localValue: input.clsValue?.value,
+      fieldValue: fieldData?.percentiles?.p75,
+      histogram: fieldData?.histogram,
+      warnings: input.clsValue?.warnings,
+    })}>
+      ${clusterIsVisible ? html`
+        <div class="related-info" slot="extra-info">
+          <span class="related-info-label">${i18nString(UIStrings.worstCluster)}</span>
+          <button
+            class="link-to-log"
+            title=${i18nString(UIStrings.showClsCluster)}
+            @click=${() => input.revealLayoutShiftCluster(clusterIds)}
+            jslog=${VisualLogging.action('timeline.landing.show-cls-cluster').track({click: true})}
+          >${i18nString(UIStrings.numShifts, {shiftCount: clusterIds.size})}</button>
+        </div>
+      ` : nothing}
+    </devtools-metric-card>
+  `;
+  // clang-format on
+}
+
+function renderInpCard(input: ViewInput): Lit.LitTemplate {
+  const fieldData = input.cruxManager.getSelectedFieldMetricData('interaction_to_next_paint');
+  const phases = input.inpValue?.phases;
+  const interaction = input.inpValue && input.interactions.get(input.inpValue.interactionId);
+
+  // clang-format off
+  return html`
+    <devtools-metric-card ${createMetricCardRef({
+      metric: 'INP',
+      localValue: input.inpValue?.value,
+      fieldValue: fieldData?.percentiles?.p75,
+      histogram: fieldData?.histogram,
+      warnings: input.inpValue?.warnings,
+      phases: phases && [
+        [i18nString(UIStrings.inputDelay), phases.inputDelay],
+        [i18nString(UIStrings.processingDuration), phases.processingDuration],
+        [i18nString(UIStrings.presentationDelay), phases.presentationDelay],
+      ],
+    })}>
+      ${interaction ? html`
+        <div class="related-info" slot="extra-info">
+          <span class="related-info-label">${i18nString(UIStrings.inpInteractionLink)}</span>
+          <button
+            class="link-to-log"
+            title=${i18nString(UIStrings.showInpInteraction)}
+            @click=${() => input.revealInteraction(interaction)}
+            jslog=${VisualLogging.action('timeline.landing.show-inp-interaction').track({click: true})}
+          >${interaction.interactionType}</button>
+        </div>
+      ` : nothing}
+    </devtools-metric-card>
+  `;
+  // clang-format on
+}
+
+function renderRecordAction(action: UI.ActionRegistration.Action|null): Lit.LitTemplate {
+  if (!action) {
+    return Lit.nothing;
+  }
+  const definedAction = action;
+  function onClick(): void {
+    void definedAction.execute();
+  }
+
+  // clang-format off
+  return html`
+    <div class="record-action">
+      <devtools-button @click=${onClick} .data=${{
+          variant: Buttons.Button.Variant.TEXT,
+          size: Buttons.Button.Size.REGULAR,
+          iconName: action.icon(),
+          title: action.title(),
+          jslogContext: action.id(),
+      } as Buttons.Button.ButtonData}>
+        ${action.title()}
+      </devtools-button>
+      <span class="shortcut-label">${UI.ShortcutRegistry.ShortcutRegistry.instance().shortcutTitleForAction(action.id())}</span>
+    </div>
+  `;
+  // clang-format on
+}
+
+function renderRecordingSettings(input: ViewInput): Lit.LitTemplate {
+  const fieldEnabled = input.cruxManager.getConfigSetting().get().enabled;
+
+  const deviceRec = getDeviceRec(input.cruxManager) || i18nString(UIStrings.notEnoughData);
+  const networkRec = getNetworkRecTitle(input.cruxManager) || i18nString(UIStrings.notEnoughData);
+
+  const recs = PanelsCommon.ThrottlingUtils.getThrottlingRecommendations();
+
+  // clang-format off
+  return html`
+    <h3 class="card-title">${i18nString(UIStrings.environmentSettings)}</h3>
+    <div class="device-toolbar-description">${md(i18nString(UIStrings.useDeviceToolbar))}</div>
+    ${fieldEnabled ? html`
+      <ul class="environment-recs-list">
+        <li>${uiI18n.getFormatLocalizedStringTemplate(str_, UIStrings.device, {PH1: html`<span class="environment-rec">${deviceRec}</span>`})}</li>
+        <li>${uiI18n.getFormatLocalizedStringTemplate(str_, UIStrings.network, {PH1: html`<span class="environment-rec">${networkRec}</span>`})}</li>
+      </ul>
+    ` : nothing}
+    <div class="environment-option">
+      ${widget(CPUThrottlingSelector, {recommendedOption: recs.cpuOption})}
+    </div>
+    <div class="environment-option">
+      <devtools-network-throttling-selector .recommendedConditions=${recs.networkConditions}></devtools-network-throttling-selector>
+    </div>
+    <div class="environment-option">
+      <setting-checkbox
+        class="network-cache-setting"
+        .data=${{
+          setting: Common.Settings.Settings.instance().moduleSetting('cache-disabled'),
+          textOverride: i18nString(UIStrings.disableNetworkCache),
+        } as Settings.SettingCheckbox.SettingCheckboxData}
+      ></setting-checkbox>
+    </div>
+  `;
+  // clang-format on
+}
+
+function renderPageScopeSetting(input: ViewInput): Lit.LitTemplate {
+  if (!input.cruxManager.getConfigSetting().get().enabled) {
+    return Lit.nothing;
+  }
+
+  const urlLabel = getPageScopeLabel(input.cruxManager, 'url');
+  const originLabel = getPageScopeLabel(input.cruxManager, 'origin');
+
+  const buttonTitle = input.cruxManager.fieldPageScope === 'url' ? urlLabel : originLabel;
+  const accessibleTitle = i18nString(UIStrings.showFieldDataForPage, {PH1: buttonTitle});
+
+  // If there is no data at all we should force users to switch pages or reconfigure CrUX.
+  const shouldDisable = !input.cruxManager.pageResult?.['url-ALL'] && !input.cruxManager.pageResult?.['origin-ALL'];
+
+  /* eslint-disable @devtools/no-deprecated-component-usages */
+  return html`
+    <devtools-select-menu
+      id="page-scope-select"
+      class="field-data-option"
+      @selectmenuselected=${input.handlePageScopeSelected}
+      .showDivider=${true}
+      .showArrow=${true}
+      .sideButton=${false}
+      .showSelectedItem=${true}
+      .buttonTitle=${buttonTitle}
+      .disabled=${shouldDisable}
+      title=${accessibleTitle}
+    >
+      <devtools-menu-item
+        .value=${'url'}
+        .selected=${input.cruxManager.fieldPageScope === 'url'}
+      >
+        ${urlLabel}
+      </devtools-menu-item>
+      <devtools-menu-item
+        .value=${'origin'}
+        .selected=${input.cruxManager.fieldPageScope === 'origin'}
+      >
+        ${originLabel}
+      </devtools-menu-item>
+    </devtools-select-menu>
+  `;
+  /* eslint-enable @devtools/no-deprecated-component-usages */
+}
+
+function renderDeviceScopeSetting(input: ViewInput): Lit.LitTemplate {
+  if (!input.cruxManager.getConfigSetting().get().enabled) {
+    return Lit.nothing;
+  }
+
+  // If there is no data at all we should force users to try adjusting the page scope
+  // before coming back to this option.
+  const shouldDisable = !input.cruxManager.getFieldResponse(input.cruxManager.fieldPageScope, 'ALL');
+
+  const currentDeviceLabel = getLabelForDeviceOption(input.cruxManager, input.cruxManager.fieldDeviceOption);
+
+  // clang-format off
+  /* eslint-disable @devtools/no-deprecated-component-usages */
+  return html`
+    <devtools-select-menu
+      id="device-scope-select"
+      class="field-data-option"
+      @selectmenuselected=${input.handleDeviceOptionSelected}
+      .showDivider=${true}
+      .showArrow=${true}
+      .sideButton=${false}
+      .showSelectedItem=${true}
+      .buttonTitle=${i18nString(UIStrings.device, {PH1: currentDeviceLabel})}
+      .disabled=${shouldDisable}
+      title=${i18nString(UIStrings.showFieldDataForDevice, {PH1: currentDeviceLabel})}
+    >
+      ${DEVICE_OPTION_LIST.map(deviceOption => {
+        return html`
+          <devtools-menu-item
+            .value=${deviceOption}
+            .selected=${input.cruxManager.fieldDeviceOption === deviceOption}
+          >
+            ${getLabelForDeviceOption(input.cruxManager, deviceOption)}
+          </devtools-menu-item>
+        `;
+      })}
+    </devtools-select-menu>
+  `;
+  /* eslint-enable @devtools/no-deprecated-component-usages */
+  // clang-format on
+}
+
+function renderFieldDataHistoryLink(cruxManager: CrUXManager.CrUXManager): Lit.LitTemplate {
+  if (!cruxManager.getConfigSetting().get().enabled) {
+    return Lit.nothing;
+  }
+  const normalizedUrl = cruxManager.pageResult?.normalizedUrl;
+  if (!normalizedUrl) {
+    return Lit.nothing;
+  }
+  const tmp = new URL('https://cruxvis.withgoogle.com/');
+  tmp.searchParams.set('view', 'cwvsummary');
+  tmp.searchParams.set('url', normalizedUrl);
+  // identifier must be 'origin' or 'url'.
+  const identifier = cruxManager.fieldPageScope;
+  tmp.searchParams.set('identifier', identifier);
+  // device must be one 'PHONE', 'DESKTOP', 'TABLET', or 'ALL'.
+  const device = cruxManager.getSelectedDeviceScope();
+  tmp.searchParams.set('device', device);
+  const cruxVis = `${tmp.origin}/#/${tmp.search}`;
+  return html`
+      (<devtools-link href=${cruxVis}
+               class="local-field-link"
+               title=${i18nString(UIStrings.fieldDataHistoryTooltip)}
+      >${i18nString(UIStrings.fieldDataHistoryLink)}</devtools-link>)
+    `;
+}
+
+function renderCollectionPeriod(cruxManager: CrUXManager.CrUXManager): Lit.LitTemplate {
+  const range = getCollectionPeriodRange(cruxManager);
+
+  const dateText = range || i18nString(UIStrings.notEnoughData);
+
+  const fieldDataHistoryLink = range ? renderFieldDataHistoryLink(cruxManager) : Lit.nothing;
+
+  const warnings = cruxManager.pageResult?.warnings || [];
+
+  return html`
+    <div class="field-data-message">
+      <div>${uiI18n.getFormatLocalizedStringTemplate(str_, UIStrings.collectionPeriod, {
+    PH1: html`<span class="collection-period-range">${dateText}</span>`,
+  })} ${fieldDataHistoryLink}</div>
+      ${warnings.map(warning => html`
+        <div class="field-data-warning">${warning}</div>
+      `)}
+    </div>
+  `;
+}
+
+function renderFieldDataMessage(cruxManager: CrUXManager.CrUXManager): Lit.LitTemplate {
+  if (cruxManager.getConfigSetting().get().enabled) {
+    return renderCollectionPeriod(cruxManager);
+  }
+
+  // clang-format off
+  return html`
+    <div class="field-data-message">
+      ${uiI18n.getFormatLocalizedStringTemplate(
+        str_,
+        UIStrings.seeHowYourLocalMetricsCompare,
+        { PH1: html`<devtools-link href="https://developer.chrome.com/docs/crux">${i18n.i18n.lockedString('Chrome UX Report')}</devtools-link>` },
+      )}
+    </div>
+  `;
+  // clang-format on
+}
+
+const listIsScrolling = new WeakMap<HTMLElement, boolean>();
+
+function shouldKeepScrolledToBottom(listEl: HTMLElement): boolean {
+  if (!listEl.checkVisibility()) {
+    return false;
+  }
+
+  const isAtBottom = Math.abs(listEl.scrollHeight - listEl.clientHeight - listEl.scrollTop) <= 1;
+
+  // We shouldn't scroll to the bottom if the list wasn't already at the bottom.
+  // However, if a new item appears while the animation for a previous item is still going,
+  // then we should "finish" the scroll by sending another scroll command even if the scroll position
+  // the element hasn't scrolled all the way to the bottom yet.
+  return isAtBottom || Boolean(listIsScrolling.get(listEl));
+}
+
+function keepScrolledToBottom(listEl: HTMLElement): void {
+  requestAnimationFrame(() => {
+    listIsScrolling.set(listEl, true);
+    listEl.addEventListener('scrollend', () => {
+      listIsScrolling.set(listEl, false);
+    }, {once: true});
+    listEl.scrollTo({top: listEl.scrollHeight, behavior: 'smooth'});
+  });
+}
+
+function renderInteractionsLog(input: ViewInput, output: ViewOutput): Lit.LitTemplate {
+  if (!input.interactions.size) {
+    return Lit.nothing;
+  }
+
+  // clang-format off
+  return html`
+    <ol class="log"
+      slot="interactions-log-content"
+      ${Lit.Directives.ref(el => {
+        if (el instanceof HTMLElement) {
+          output.shouldKeepInteractionsScrolledToBottom = () => {
+            return shouldKeepScrolledToBottom(el);
+          };
+          output.keepInteractionsScrolledToBottom = () => {
+            keepScrolledToBottom(el);
+          };
+        }
+      })}
+    >
+      ${input.interactions.values().map(interaction => {
+        const metricValue = renderMetricValue(
+          'timeline.landing.interaction-event-timing',
+          interaction.duration,
+          INP_THRESHOLDS,
+          v => i18n.TimeUtilities.preciseMillisToString(v),
+          {dim: true},
+        );
+
+        const isP98Excluded = input.inpValue && input.inpValue.value < interaction.duration;
+        const isInp = input.inpValue?.interactionId === interaction.interactionId;
+
+        return html`
+          <li id=${interaction.interactionId} class="log-item interaction" tabindex="-1">
+            <details>
+              <summary>
+                <span class="interaction-type">
+                  ${interaction.interactionType} ${isInp ?
+                    html`<span class="interaction-inp-chip" title=${i18nString(UIStrings.inpInteraction)}>INP</span>`
+                  : nothing}
+                </span>
+                <span class="interaction-node">
+                  ${widget(PanelsCommon.DOMLinkifier.DOMNodeLink, {node: interaction.nodeRef})}
+                </span>
+                ${isP98Excluded ? html`<devtools-icon
+                  class="interaction-info"
+                  name="info"
+                  title=${i18nString(UIStrings.interactionExcluded)}
+                ></devtools-icon>` : nothing}
+                <span class="interaction-duration">${metricValue}</span>
+              </summary>
+              <div class="phase-table" role="table">
+                <div class="phase-table-row phase-table-header-row" role="row">
+                  <div role="columnheader">${i18nString(UIStrings.phase)}</div>
+                  <div role="columnheader">
+                    ${interaction.longAnimationFrameTimings.length ? html`
+                      <button
+                        class="log-extra-details-button"
+                        title=${i18nString(UIStrings.logToConsole)}
+                        @click=${() => input.logExtraInteractionDetails(interaction)}
+                      >${i18nString(UIStrings.duration)}</button>
+                    ` : i18nString(UIStrings.duration)}
+                  </div>
+                </div>
+                <div class="phase-table-row" role="row">
+                  <div role="cell">${i18nString(UIStrings.inputDelay)}</div>
+                  <div role="cell">${Math.round(interaction.phases.inputDelay)}</div>
+                </div>
+                <div class="phase-table-row" role="row">
+                  <div role="cell">${i18nString(UIStrings.processingDuration)}</div>
+                  <div role="cell">${Math.round(interaction.phases.processingDuration)}</div>
+                </div>
+                <div class="phase-table-row" role="row">
+                  <div role="cell">${i18nString(UIStrings.presentationDelay)}</div>
+                  <div role="cell">${Math.round(interaction.phases.presentationDelay)}</div>
+                </div>
+              </div>
+            </details>
+          </li>
+        `;
+      })}
+    </ol>
+  `;
+  // clang-format on
+}
+
+function renderLayoutShiftsLog(input: ViewInput, output: ViewOutput): Lit.LitTemplate {
+  if (!input.layoutShifts.length) {
+    return Lit.nothing;
+  }
+
+  // clang-format off
+  return html`
+    <ol class="log"
+      slot="layout-shifts-log-content"
+      ${Lit.Directives.ref(el => {
+        if (el instanceof HTMLElement) {
+          output.shouldKeepLayoutShiftsScrolledToBottom = () => {
+            return shouldKeepScrolledToBottom(el);
+          };
+          output.keepLayoutShiftsScrolledToBottom = () => {
+            keepScrolledToBottom(el);
+          };
+        }
+      })}
+    >
+      ${input.layoutShifts.map(layoutShift => {
+        const metricValue = renderMetricValue(
+          'timeline.landing.layout-shift-event-score',
+          layoutShift.score,
+          CLS_THRESHOLDS,
+          // CLS value is 2 decimal places, but individual shift scores tend to be much smaller
+          // so we expand the precision here.
+          v => v.toFixed(4),
+          {dim: true},
+        );
+
+        return html`
+          <li id=${layoutShift.uniqueLayoutShiftId} class="log-item layout-shift" tabindex="-1">
+            <div class="layout-shift-score">Layout shift score: ${metricValue}</div>
+            <div class="layout-shift-nodes">
+              ${layoutShift.affectedNodeRefs.map(node => html`
+                <div class="layout-shift-node">
+                  ${widget(PanelsCommon.DOMLinkifier.DOMNodeLink, {node})}
+                </div>
+              `)}
+            </div>
+          </li>
+        `;
+      })}
+    </ol>
+  `;
+  // clang-format on
+}
+
+function renderLogSection(input: ViewInput, output: ViewOutput): Lit.LitTemplate {
+  // clang-format off
+  return html`
+    <section
+      class="logs-section"
+      aria-label=${i18nString(UIStrings.eventLogs)}
+    >
+      <devtools-widget ${widget(LiveMetricsLogs, {
+        selectedTab: input.highlightedInteractionId               ? 'interactions'
+                   : input.highlightedLayoutShiftClusterIds?.size ? 'layout-shifts'
+                   : undefined})}>
+        ${renderInteractionsLog(input, output)}
+        ${renderLayoutShiftsLog(input, output)}
+      </devtools-widget>
+    </section>
+  `;
+  // clang-format on
+}
+
+function renderNodeView(input: ViewInput): Lit.LitTemplate {
+  return html`
+    <style>${liveMetricsViewStyles}</style>
+    <style>${metricValueStyles}</style>
+    <div class="node-view">
+      <main>
+        <h2 class="section-title">${i18nString(UIStrings.nodePerformanceTimeline)}</h2>
+        <div class="node-description">${i18nString(UIStrings.nodeClickToRecord)}</div>
+        <div class="record-action-card">${renderRecordAction(input.toggleRecordAction)}</div>
+      </main>
+    </div>
+  `;
+}
+
+export const DEFAULT_VIEW: View = (input, output, target) => {
+  if (input.isNode) {
+    Lit.render(renderNodeView(input), target);
+    return;
+  }
+
+  const fieldEnabled = input.cruxManager.getConfigSetting().get().enabled;
+  const liveMetricsTitle =
+      fieldEnabled ? i18nString(UIStrings.localAndFieldMetrics) : i18nString(UIStrings.localMetrics);
+
+  const helpLink = 'https://web.dev/articles/lab-and-field-data-differences#lab_data_versus_field_data' as
+      Platform.DevToolsPath.UrlString;
+
+  // clang-format off
+  const outputTemplate = html`
+    <style>${liveMetricsViewStyles}</style>
+    <style>${metricValueStyles}</style>
+    <div class="container">
+      <div class="live-metrics-view">
+        <main class="live-metrics">
+          <h2 class="section-title">${liveMetricsTitle}</h2>
+          <div class="metric-cards">
+            <div id="lcp">
+              ${renderLcpCard(input)}
+            </div>
+            <div id="cls">
+              ${renderClsCard(input)}
+            </div>
+            <div id="inp">
+              ${renderInpCard(input)}
+            </div>
+          </div>
+          <devtools-link
+            href=${helpLink}
+            class="local-field-link"
+            title=${i18nString(UIStrings.localFieldLearnMoreTooltip)}
+          >${i18nString(UIStrings.localFieldLearnMoreLink)}</devtools-link>
+          ${renderLogSection(input, output)}
+        </main>
+        <aside class="next-steps" aria-labelledby="next-steps-section-title">
+          <h2 id="next-steps-section-title" class="section-title">${i18nString(UIStrings.nextSteps)}</h2>
+          <div id="field-setup" class="settings-card">
+            <h3 class="card-title">${i18nString(UIStrings.fieldMetricsTitle)}</h3>
+            ${renderFieldDataMessage(input.cruxManager)}
+            ${renderPageScopeSetting(input)}
+            ${renderDeviceScopeSetting(input)}
+            <div class="field-setup-buttons">
+              <devtools-field-settings-dialog></devtools-field-settings-dialog>
+            </div>
+          </div>
+          <div id="recording-settings" class="settings-card">
+            ${renderRecordingSettings(input)}
+          </div>
+          <div id="record" class="record-action-card">
+            ${renderRecordAction(input.toggleRecordAction)}
+          </div>
+          <div id="record-page-load" class="record-action-card">
+            ${renderRecordAction(input.recordReloadAction)}
+          </div>
+        </aside>
+      </div>
+    </div>
+  `;
+  // clang-format on
+  Lit.render(outputTemplate, target);
+
+  if (input.highlightedInteractionId) {
+    const interactionEl = target.querySelector<HTMLElement>('#' + CSS.escape(input.highlightedInteractionId));
+    if (interactionEl) {
+      requestAnimationFrame(() => {
+        interactionEl.scrollIntoView({
+          block: 'center',
+        });
+        interactionEl.focus();
+        UI.UIUtils.runCSSAnimationOnce(interactionEl, 'highlight');
+      });
+    }
+  }
+
+  if (input.highlightedLayoutShiftClusterIds?.size) {
+    const layoutShiftEls: HTMLElement[] = [];
+    for (const shiftId of input.highlightedLayoutShiftClusterIds) {
+      const layoutShiftEl = target.querySelector<HTMLElement>('#' + CSS.escape(shiftId));
+      if (layoutShiftEl) {
+        layoutShiftEls.push(layoutShiftEl);
+      }
+    }
+
+    if (layoutShiftEls.length) {
+      requestAnimationFrame(() => {
+        layoutShiftEls[0].scrollIntoView({
+          block: 'start',
+        });
+        layoutShiftEls[0].focus();
+        for (const layoutShiftEl of layoutShiftEls) {
+          UI.UIUtils.runCSSAnimationOnce(layoutShiftEl, 'highlight');
+        }
+      });
+    }
+  }
+};
+
+export class LiveMetricsView extends UI.Widget.Widget {
+  isNode = Root.Runtime.Runtime.isNode();
 
   #lcpValue?: LiveMetrics.LcpValue;
   #clsValue?: LiveMetrics.ClsValue;
   #inpValue?: LiveMetrics.InpValue;
   #interactions: LiveMetrics.InteractionMap = new Map();
   #layoutShifts: LiveMetrics.LayoutShift[] = [];
+
+  #highlightedInteractionId = '';
+  #highlightedLayoutShiftClusterIds = new Set<string>();
 
   #cruxManager = CrUXManager.CrUXManager.instance();
 
@@ -319,15 +1117,13 @@ export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableCompon
 
   #isReactNative: boolean;
 
-  #logsEl?: LiveMetricsLogs;
-  #tooltipContainerEl?: Element;
-  #interactionsListEl?: HTMLElement;
-  #layoutShiftsListEl?: HTMLElement;
-  #listIsScrolling = false;
+  #view: View;
+  #viewOutput: ViewOutput = {};
   #deviceModeModel = EmulationModel.DeviceModeModel.DeviceModeModel.tryInstance();
 
-  constructor() {
-    super();
+  constructor(element?: HTMLElement, view: View = DEFAULT_VIEW) {
+    super(element, {useShadowDom: true});
+    this.#view = view;
 
     this.#isReactNative = Root.Runtime.experiments.isEnabled(
         Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
@@ -341,12 +1137,7 @@ export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableCompon
     }
   }
 
-  set isNode(isNode: boolean) {
-    this.#isNode = isNode;
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
-  }
-
-  #onMetricStatus(event: {data: LiveMetrics.StatusEvent}): void {
+  async #onMetricStatus(event: {data: LiveMetrics.StatusEvent}): Promise<void> {
     this.#lcpValue = event.data.lcp;
     this.#clsValue = event.data.cls;
     this.#inpValue = event.data.inp;
@@ -357,59 +1148,38 @@ export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableCompon
     const hasNewInteraction = this.#interactions.size < event.data.interactions.size;
     this.#interactions = new Map(event.data.interactions);
 
-    const renderPromise = ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
+    const shouldScrollInteractions = hasNewInteraction && this.#viewOutput.shouldKeepInteractionsScrolledToBottom?.();
+    const shouldScrollLS = hasNewLS && this.#viewOutput.shouldKeepLayoutShiftsScrolledToBottom?.();
 
-    if (hasNewInteraction && this.#interactionsListEl) {
-      this.#keepScrolledToBottom(renderPromise, this.#interactionsListEl);
+    this.requestUpdate();
+    await this.updateComplete;
+
+    if (shouldScrollInteractions) {
+      this.#viewOutput.keepInteractionsScrolledToBottom?.();
     }
 
-    if (hasNewLS && this.#layoutShiftsListEl) {
-      this.#keepScrolledToBottom(renderPromise, this.#layoutShiftsListEl);
+    if (shouldScrollLS) {
+      this.#viewOutput.keepLayoutShiftsScrolledToBottom?.();
     }
-  }
-
-  #keepScrolledToBottom(renderPromise: Promise<void>, listEl: HTMLElement): void {
-    if (!listEl.checkVisibility()) {
-      return;
-    }
-
-    const isAtBottom = Math.abs(listEl.scrollHeight - listEl.clientHeight - listEl.scrollTop) <= 1;
-
-    // We shouldn't scroll to the bottom if the list wasn't already at the bottom.
-    // However, if a new item appears while the animation for a previous item is still going,
-    // then we should "finish" the scroll by sending another scroll command even if the scroll position
-    // the element hasn't scrolled all the way to the bottom yet.
-    if (!isAtBottom && !this.#listIsScrolling) {
-      return;
-    }
-
-    void renderPromise.then(() => {
-      requestAnimationFrame(() => {
-        this.#listIsScrolling = true;
-        listEl.addEventListener('scrollend', () => {
-          this.#listIsScrolling = false;
-        }, {once: true});
-        listEl.scrollTo({top: listEl.scrollHeight, behavior: 'smooth'});
-      });
-    });
   }
 
   #onFieldDataChanged(): void {
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
+    this.requestUpdate();
   }
 
   #onEmulationChanged(): void {
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
+    this.requestUpdate();
   }
 
   async #refreshFieldDataForCurrentPage(): Promise<void> {
-    await this.#cruxManager.refresh();
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
+    if (!this.isNode) {
+      await this.#cruxManager.refresh();
+    }
+    this.requestUpdate();
   }
 
-  connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [liveMetricsViewStyles, metricValueStyles];
-
+  override wasShown(): void {
+    super.wasShown();
     const liveMetrics = LiveMetrics.LiveMetrics.instance();
     liveMetrics.addEventListener(LiveMetrics.Events.STATUS, this.#onMetricStatus, this);
 
@@ -428,10 +1198,11 @@ export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableCompon
     this.#inpValue = liveMetrics.inpValue;
     this.#interactions = liveMetrics.interactions;
     this.#layoutShifts = liveMetrics.layoutShifts;
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
+    this.requestUpdate();
   }
 
-  disconnectedCallback(): void {
+  override willHide(): void {
+    super.willHide();
     LiveMetrics.LiveMetrics.instance().removeEventListener(LiveMetrics.Events.STATUS, this.#onMetricStatus, this);
 
     const cruxManager = CrUXManager.CrUXManager.instance();
@@ -441,487 +1212,25 @@ export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableCompon
         EmulationModel.DeviceModeModel.Events.UPDATED, this.#onEmulationChanged, this);
   }
 
-  #getLcpFieldPhases(): LiveMetrics.LcpValue['phases']|null {
-    const ttfb = this.#cruxManager.getSelectedFieldMetricData('largest_contentful_paint_image_time_to_first_byte')
-                     ?.percentiles?.p75;
-    const loadDelay =
-        this.#cruxManager.getSelectedFieldMetricData('largest_contentful_paint_image_resource_load_delay')
-            ?.percentiles?.p75;
-    const loadDuration =
-        this.#cruxManager.getSelectedFieldMetricData('largest_contentful_paint_image_resource_load_duration')
-            ?.percentiles?.p75;
-    const renderDelay =
-        this.#cruxManager.getSelectedFieldMetricData('largest_contentful_paint_image_element_render_delay')
-            ?.percentiles?.p75;
-
-    if (typeof ttfb !== 'number' || typeof loadDelay !== 'number' || typeof loadDuration !== 'number' ||
-        typeof renderDelay !== 'number') {
-      return null;
-    }
-
-    return {
-      timeToFirstByte: Trace.Types.Timing.Milli(ttfb),
-      resourceLoadDelay: Trace.Types.Timing.Milli(loadDelay),
-      resourceLoadTime: Trace.Types.Timing.Milli(loadDuration),
-      elementRenderDelay: Trace.Types.Timing.Milli(renderDelay),
-    };
-  }
-
-  #renderLcpCard(): Lit.LitTemplate {
-    const fieldData = this.#cruxManager.getSelectedFieldMetricData('largest_contentful_paint');
-    const nodeLink = this.#lcpValue?.nodeRef?.link;
-    const phases = this.#lcpValue?.phases;
-
-    const fieldPhases = this.#getLcpFieldPhases();
-
-    // clang-format off
-    return html`
-      <devtools-metric-card .data=${{
-        metric: 'LCP',
-        localValue: this.#lcpValue?.value,
-        fieldValue: fieldData?.percentiles?.p75,
-        histogram: fieldData?.histogram,
-        tooltipContainer: this.#tooltipContainerEl,
-        warnings: this.#lcpValue?.warnings,
-        phases: phases && [
-          [i18nString(UIStrings.timeToFirstByte), phases.timeToFirstByte, fieldPhases?.timeToFirstByte],
-          [i18nString(UIStrings.resourceLoadDelay), phases.resourceLoadDelay, fieldPhases?.resourceLoadDelay],
-          [i18nString(UIStrings.resourceLoadDuration), phases.resourceLoadTime, fieldPhases?.resourceLoadTime],
-          [i18nString(UIStrings.elementRenderDelay), phases.elementRenderDelay, fieldPhases?.elementRenderDelay],
-        ],
-      } as MetricCardData}>
-        ${nodeLink ? html`
-            <div class="related-info" slot="extra-info">
-              <span class="related-info-label">${i18nString(UIStrings.lcpElement)}</span>
-              <span class="related-info-link">${nodeLink}</span>
-            </div>
-          `
-          : nothing}
-      </devtools-metric-card>
-    `;
-    // clang-format on
-  }
-
-  #renderClsCard(): Lit.LitTemplate {
-    const fieldData = this.#cruxManager.getSelectedFieldMetricData('cumulative_layout_shift');
-
-    const clusterIds = new Set(this.#clsValue?.clusterShiftIds || []);
-    const clusterIsVisible =
-        clusterIds.size > 0 && this.#layoutShifts.some(layoutShift => clusterIds.has(layoutShift.uniqueLayoutShiftId));
-
-    // clang-format off
-    return html`
-      <devtools-metric-card .data=${{
-        metric: 'CLS',
-        localValue: this.#clsValue?.value,
-        fieldValue: fieldData?.percentiles?.p75,
-        histogram: fieldData?.histogram,
-        tooltipContainer: this.#tooltipContainerEl,
-        warnings: this.#clsValue?.warnings,
-      } as MetricCardData}>
-        ${clusterIsVisible ? html`
-          <div class="related-info" slot="extra-info">
-            <span class="related-info-label">${i18nString(UIStrings.worstCluster)}</span>
-            <button
-              class="link-to-log"
-              title=${i18nString(UIStrings.showClsCluster)}
-              @click=${() => this.#revealLayoutShiftCluster(clusterIds)}
-              jslog=${VisualLogging.action('timeline.landing.show-cls-cluster').track({click: true})}
-            >${i18nString(UIStrings.numShifts, {shiftCount: clusterIds.size})}</button>
-          </div>
-        ` : nothing}
-      </devtools-metric-card>
-    `;
-    // clang-format on
-  }
-
-  #renderInpCard(): Lit.LitTemplate {
-    const fieldData = this.#cruxManager.getSelectedFieldMetricData('interaction_to_next_paint');
-    const phases = this.#inpValue?.phases;
-    const interaction = this.#inpValue && this.#interactions.get(this.#inpValue.interactionId);
-
-    // clang-format off
-    return html`
-      <devtools-metric-card .data=${{
-        metric: 'INP',
-        localValue: this.#inpValue?.value,
-        fieldValue: fieldData?.percentiles?.p75,
-        histogram: fieldData?.histogram,
-        tooltipContainer: this.#tooltipContainerEl,
-        warnings: this.#inpValue?.warnings,
-        phases: phases && [
-          [i18nString(UIStrings.inputDelay), phases.inputDelay],
-          [i18nString(UIStrings.processingDuration), phases.processingDuration],
-          [i18nString(UIStrings.presentationDelay), phases.presentationDelay],
-        ],
-      } as MetricCardData}>
-        ${interaction ? html`
-          <div class="related-info" slot="extra-info">
-            <span class="related-info-label">${i18nString(UIStrings.inpInteractionLink)}</span>
-            <button
-              class="link-to-log"
-              title=${i18nString(UIStrings.showInpInteraction)}
-              @click=${() => this.#revealInteraction(interaction)}
-              jslog=${VisualLogging.action('timeline.landing.show-inp-interaction').track({click: true})}
-            >${interaction.interactionType}</button>
-          </div>
-        ` : nothing}
-      </devtools-metric-card>
-    `;
-    // clang-format on
-  }
-
-  #renderRecordAction(action: UI.ActionRegistration.Action): Lit.LitTemplate {
-    function onClick(): void {
-      void action.execute();
-    }
-
-    // clang-format off
-    return html`
-      <div class="record-action">
-        <devtools-button @click=${onClick} .data=${{
-            variant: Buttons.Button.Variant.TEXT,
-            size: Buttons.Button.Size.REGULAR,
-            iconName: action.icon(),
-            title: action.title(),
-            jslogContext: action.id(),
-        } as Buttons.Button.ButtonData}>
-          ${action.title()}
-        </devtools-button>
-        <span class="shortcut-label">${UI.ShortcutRegistry.ShortcutRegistry.instance().shortcutTitleForAction(action.id())}</span>
-      </div>
-    `;
-    // clang-format on
-  }
-
-  #getNetworkRecTitle(): string|null {
-    const response = this.#cruxManager.getSelectedFieldMetricData('round_trip_time');
-    if (!response?.percentiles) {
-      return null;
-    }
-
-    const rtt = Number(response.percentiles.p75);
-    if (!Number.isFinite(rtt)) {
-      return null;
-    }
-
-    if (rtt < RTT_MINIMUM) {
-      return i18nString(UIStrings.tryDisablingThrottling);
-    }
-
-    const conditions = MobileThrottling.ThrottlingPresets.ThrottlingPresets.getRecommendedNetworkPreset(rtt);
-    if (!conditions) {
-      return null;
-    }
-
-    const title = typeof conditions.title === 'function' ? conditions.title() : conditions.title;
-    return i18nString(UIStrings.tryUsingThrottling, {PH1: title});
-  }
-
-  #getDeviceRec(): string|null {
-    // `form_factors` metric is only populated if CrUX data is fetched for all devices.
-    const fractions = this.#cruxManager.getFieldResponse(this.#cruxManager.fieldPageScope, 'ALL')
-                          ?.record.metrics.form_factors?.fractions;
-    if (!fractions) {
-      return null;
-    }
-
-    return i18nString(UIStrings.percentDevices, {
-      PH1: Math.round(fractions.phone * 100),
-      PH2: Math.round(fractions.desktop * 100),
-    });
-  }
-
-  #renderRecordingSettings(): Lit.LitTemplate {
-    const fieldEnabled = this.#cruxManager.getConfigSetting().get().enabled;
-
-    const deviceRecEl = document.createElement('span');
-    deviceRecEl.classList.add('environment-rec');
-    deviceRecEl.textContent = this.#getDeviceRec() || i18nString(UIStrings.notEnoughData);
-
-    const networkRecEl = document.createElement('span');
-    networkRecEl.classList.add('environment-rec');
-    networkRecEl.textContent = this.#getNetworkRecTitle() || i18nString(UIStrings.notEnoughData);
-
-    const recs = getThrottlingRecommendations();
-
-    // clang-format off
-    return html`
-      <h3 class="card-title">${i18nString(UIStrings.environmentSettings)}</h3>
-      <div class="device-toolbar-description">${md(i18nString(UIStrings.useDeviceToolbar))}</div>
-      ${fieldEnabled ? html`
-        <ul class="environment-recs-list">
-          <li>${i18n.i18n.getFormatLocalizedString(str_, UIStrings.device, {PH1: deviceRecEl})}</li>
-          <li>${i18n.i18n.getFormatLocalizedString(str_, UIStrings.network, {PH1: networkRecEl})}</li>
-        </ul>
-      ` : nothing}
-      <div class="environment-option">
-        <devtools-cpu-throttling-selector .recommendedOption=${recs.cpuOption}></devtools-cpu-throttling-selector>
-      </div>
-      <div class="environment-option">
-        <devtools-network-throttling-selector .recommendedConditions=${recs.networkConditions}></devtools-network-throttling-selector>
-      </div>
-      <div class="environment-option">
-        <setting-checkbox
-          class="network-cache-setting"
-          .data=${{
-            setting: Common.Settings.Settings.instance().moduleSetting('cache-disabled'),
-            textOverride: i18nString(UIStrings.disableNetworkCache),
-          } as Settings.SettingCheckbox.SettingCheckboxData}
-        ></setting-checkbox>
-      </div>
-    `;
-    // clang-format on
-  }
-
-  #getPageScopeLabel(pageScope: CrUXManager.PageScope): string {
-    const key = this.#cruxManager.pageResult?.[`${pageScope}-ALL`]?.record.key[pageScope];
-    if (key) {
-      return pageScope === 'url' ? i18nString(UIStrings.urlOptionWithKey, {PH1: key}) :
-                                   i18nString(UIStrings.originOptionWithKey, {PH1: key});
-    }
-
-    const baseLabel = pageScope === 'url' ? i18nString(UIStrings.urlOption) : i18nString(UIStrings.originOption);
-    return i18nString(UIStrings.needsDataOption, {PH1: baseLabel});
-  }
-
   #onPageScopeMenuItemSelected(event: Menus.SelectMenu.SelectMenuItemSelectedEvent): void {
     if (event.itemValue === 'url') {
       this.#cruxManager.fieldPageScope = 'url';
     } else {
       this.#cruxManager.fieldPageScope = 'origin';
     }
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
-  }
-
-  #renderPageScopeSetting(): Lit.LitTemplate {
-    if (!this.#cruxManager.getConfigSetting().get().enabled) {
-      return Lit.nothing;
-    }
-
-    const urlLabel = this.#getPageScopeLabel('url');
-    const originLabel = this.#getPageScopeLabel('origin');
-
-    const buttonTitle = this.#cruxManager.fieldPageScope === 'url' ? urlLabel : originLabel;
-    const accessibleTitle = i18nString(UIStrings.showFieldDataForPage, {PH1: buttonTitle});
-
-    // If there is no data at all we should force users to switch pages or reconfigure CrUX.
-    const shouldDisable = !this.#cruxManager.pageResult?.['url-ALL'] && !this.#cruxManager.pageResult?.['origin-ALL'];
-
-    return html`
-      <devtools-select-menu
-        id="page-scope-select"
-        class="field-data-option"
-        @selectmenuselected=${this.#onPageScopeMenuItemSelected}
-        .showDivider=${true}
-        .showArrow=${true}
-        .sideButton=${false}
-        .showSelectedItem=${true}
-        .buttonTitle=${buttonTitle}
-        .disabled=${shouldDisable}
-        title=${accessibleTitle}
-      >
-        <devtools-menu-item
-          .value=${'url'}
-          .selected=${this.#cruxManager.fieldPageScope === 'url'}
-        >
-          ${urlLabel}
-        </devtools-menu-item>
-        <devtools-menu-item
-          .value=${'origin'}
-          .selected=${this.#cruxManager.fieldPageScope === 'origin'}
-        >
-          ${originLabel}
-        </devtools-menu-item>
-      </devtools-select-menu>
-    `;
-  }
-
-  #getDeviceScopeDisplayName(deviceScope: CrUXManager.DeviceScope): string {
-    switch (deviceScope) {
-      case 'ALL':
-        return i18nString(UIStrings.allDevices);
-      case 'DESKTOP':
-        return i18nString(UIStrings.desktop);
-      case 'PHONE':
-        return i18nString(UIStrings.mobile);
-      case 'TABLET':
-        return i18nString(UIStrings.tablet);
-    }
-  }
-
-  #getLabelForDeviceOption(deviceOption: DeviceOption): string {
-    let baseLabel;
-    if (deviceOption === 'AUTO') {
-      const deviceScope = this.#cruxManager.resolveDeviceOptionToScope(deviceOption);
-      const deviceScopeLabel = this.#getDeviceScopeDisplayName(deviceScope);
-      baseLabel = i18nString(UIStrings.auto, {PH1: deviceScopeLabel});
-    } else {
-      baseLabel = this.#getDeviceScopeDisplayName(deviceOption);
-    }
-
-    if (!this.#cruxManager.pageResult) {
-      return i18nString(UIStrings.loadingOption, {PH1: baseLabel});
-    }
-
-    const result = this.#cruxManager.getSelectedFieldResponse();
-    if (!result) {
-      return i18nString(UIStrings.needsDataOption, {PH1: baseLabel});
-    }
-
-    return baseLabel;
+    this.requestUpdate();
   }
 
   #onDeviceOptionMenuItemSelected(event: Menus.SelectMenu.SelectMenuItemSelectedEvent): void {
     this.#cruxManager.fieldDeviceOption = event.itemValue as DeviceOption;
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#render);
-  }
-
-  #renderDeviceScopeSetting(): Lit.LitTemplate {
-    if (!this.#cruxManager.getConfigSetting().get().enabled) {
-      return Lit.nothing;
-    }
-
-    // If there is no data at all we should force users to try adjusting the page scope
-    // before coming back to this option.
-    const shouldDisable = !this.#cruxManager.getFieldResponse(this.#cruxManager.fieldPageScope, 'ALL');
-
-    const currentDeviceLabel = this.#getLabelForDeviceOption(this.#cruxManager.fieldDeviceOption);
-
-    // clang-format off
-    return html`
-      <devtools-select-menu
-        id="device-scope-select"
-        class="field-data-option"
-        @selectmenuselected=${this.#onDeviceOptionMenuItemSelected}
-        .showDivider=${true}
-        .showArrow=${true}
-        .sideButton=${false}
-        .showSelectedItem=${true}
-        .buttonTitle=${i18nString(UIStrings.device, {PH1: currentDeviceLabel})}
-        .disabled=${shouldDisable}
-        title=${i18nString(UIStrings.showFieldDataForDevice, {PH1: currentDeviceLabel})}
-      >
-        ${DEVICE_OPTION_LIST.map(deviceOption => {
-          return html`
-            <devtools-menu-item
-              .value=${deviceOption}
-              .selected=${this.#cruxManager.fieldDeviceOption === deviceOption}
-            >
-              ${this.#getLabelForDeviceOption(deviceOption)}
-            </devtools-menu-item>
-          `;
-        })}
-      </devtools-select-menu>
-    `;
-    // clang-format on
-  }
-
-  #getCollectionPeriodRange(): string|null {
-    const selectedResponse = this.#cruxManager.getSelectedFieldResponse();
-    if (!selectedResponse) {
-      return null;
-    }
-
-    const {firstDate, lastDate} = selectedResponse.record.collectionPeriod;
-
-    const formattedFirstDate = new Date(
-        firstDate.year,
-        // CrUX month is 1-indexed but `Date` month is 0-indexed
-        firstDate.month - 1,
-        firstDate.day,
-    );
-    const formattedLastDate = new Date(
-        lastDate.year,
-        // CrUX month is 1-indexed but `Date` month is 0-indexed
-        lastDate.month - 1,
-        lastDate.day,
-    );
-
-    const options: Intl.DateTimeFormatOptions = {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    };
-
-    return i18nString(UIStrings.dateRange, {
-      PH1: formattedFirstDate.toLocaleDateString(undefined, options),
-      PH2: formattedLastDate.toLocaleDateString(undefined, options),
-    });
-  }
-
-  #renderCollectionPeriod(): Lit.LitTemplate {
-    const range = this.#getCollectionPeriodRange();
-
-    const dateEl = document.createElement('span');
-    dateEl.classList.add('collection-period-range');
-    dateEl.textContent = range || i18nString(UIStrings.notEnoughData);
-
-    const message = i18n.i18n.getFormatLocalizedString(str_, UIStrings.collectionPeriod, {
-      PH1: dateEl,
-    });
-
-    const warnings = this.#cruxManager.pageResult?.warnings || [];
-
-    return html`
-      <div class="field-data-message">
-        <div>${message}</div>
-        ${warnings.map(warning => html`
-          <div class="field-data-warning">${warning}</div>
-        `)}
-      </div>
-    `;
-  }
-
-  #renderFieldDataMessage(): Lit.LitTemplate {
-    if (this.#cruxManager.getConfigSetting().get().enabled) {
-      return this.#renderCollectionPeriod();
-    }
-
-    const linkEl =
-        UI.XLink.XLink.create('https://developer.chrome.com/docs/crux', i18n.i18n.lockedString('Chrome UX Report'));
-    const messageEl = i18n.i18n.getFormatLocalizedString(str_, UIStrings.seeHowYourLocalMetricsCompare, {PH1: linkEl});
-
-    return html`
-      <div class="field-data-message">${messageEl}</div>
-    `;
-  }
-
-  #renderLogSection(): Lit.LitTemplate {
-    // clang-format off
-    return html`
-      <section class="logs-section" aria-label=${i18nString(UIStrings.eventLogs)}>
-        <devtools-live-metrics-logs
-          on-render=${ComponentHelpers.Directives.nodeRenderedCallback(node => {
-            this.#logsEl = node as LiveMetricsLogs;
-          })}
-        >
-          ${this.#renderInteractionsLog()}
-          ${this.#renderLayoutShiftsLog()}
-        </devtools-live-metrics-logs>
-      </section>
-    `;
-    // clang-format on
+    this.requestUpdate();
   }
 
   async #revealInteraction(interaction: LiveMetrics.Interaction): Promise<void> {
-    const interactionEl = this.#shadow.getElementById(interaction.interactionId);
-    if (!interactionEl || !this.#logsEl) {
-      return;
-    }
-
-    const success = this.#logsEl.selectTab('interactions');
-    if (!success) {
-      return;
-    }
-
-    await RenderCoordinator.write(() => {
-      interactionEl.scrollIntoView({
-        block: 'center',
-      });
-      interactionEl.focus();
-      UI.UIUtils.runCSSAnimationOnce(interactionEl, 'highlight');
-    });
+    this.#highlightedInteractionId = interaction.interactionId;
+    this.requestUpdate();
+    await this.updateComplete;
+    this.#highlightedInteractionId = '';
   }
 
   async #logExtraInteractionDetails(interaction: LiveMetrics.Interaction): Promise<void> {
@@ -931,261 +1240,92 @@ export class LiveMetricsView extends LegacyWrapper.LegacyWrapper.WrappableCompon
     }
   }
 
-  #renderInteractionsLog(): Lit.LitTemplate {
-    if (!this.#interactions.size) {
-      return Lit.nothing;
-    }
-
-    // clang-format off
-    return html`
-      <ol class="log"
-        slot="interactions-log-content"
-        on-render=${ComponentHelpers.Directives.nodeRenderedCallback(node => {
-          this.#interactionsListEl = node as HTMLElement;
-        })}
-      >
-        ${this.#interactions.values().map(interaction => {
-          const metricValue = renderMetricValue(
-            'timeline.landing.interaction-event-timing',
-            interaction.duration,
-            INP_THRESHOLDS,
-            v => i18n.TimeUtilities.preciseMillisToString(v),
-            {dim: true},
-          );
-
-          const isP98Excluded = this.#inpValue && this.#inpValue.value < interaction.duration;
-          const isInp = this.#inpValue?.interactionId === interaction.interactionId;
-
-          return html`
-            <li id=${interaction.interactionId} class="log-item interaction" tabindex="-1">
-              <details>
-                <summary>
-                  <span class="interaction-type">
-                    ${interaction.interactionType}
-                    ${isInp ?
-                      html`<span class="interaction-inp-chip" title=${i18nString(UIStrings.inpInteraction)}>INP</span>`
-                    : nothing}
-                  </span>
-                  <span class="interaction-node">${interaction.nodeRef?.link}</span>
-                  ${isP98Excluded ? html`<devtools-icon
-                    class="interaction-info"
-                    name="info"
-                    title=${i18nString(UIStrings.interactionExcluded)}
-                  ></devtools-icon>` : nothing}
-                  <span class="interaction-duration">${metricValue}</span>
-                </summary>
-                <div class="phase-table" role="table">
-                  <div class="phase-table-row phase-table-header-row" role="row">
-                    <div role="columnheader">${i18nString(UIStrings.phase)}</div>
-                    <div role="columnheader">
-                      ${interaction.longAnimationFrameTimings.length ? html`
-                        <button
-                          class="log-extra-details-button"
-                          title=${i18nString(UIStrings.logToConsole)}
-                          @click=${() => this.#logExtraInteractionDetails(interaction)}
-                        >${i18nString(UIStrings.duration)}</button>
-                      ` : i18nString(UIStrings.duration)}
-                    </div>
-                  </div>
-                  <div class="phase-table-row" role="row">
-                    <div role="cell">${i18nString(UIStrings.inputDelay)}</div>
-                    <div role="cell">${Math.round(interaction.phases.inputDelay)}</div>
-                  </div>
-                  <div class="phase-table-row" role="row">
-                    <div role="cell">${i18nString(UIStrings.processingDuration)}</div>
-                    <div role="cell">${Math.round(interaction.phases.processingDuration)}</div>
-                  </div>
-                  <div class="phase-table-row" role="row">
-                    <div role="cell">${i18nString(UIStrings.presentationDelay)}</div>
-                    <div role="cell">${Math.round(interaction.phases.presentationDelay)}</div>
-                  </div>
-                </div>
-              </details>
-            </li>
-          `;
-        })}
-      </ol>
-    `;
-    // clang-format on
-  }
-
   async #revealLayoutShiftCluster(clusterIds: Set<LiveMetrics.LayoutShift['uniqueLayoutShiftId']>): Promise<void> {
-    if (!this.#logsEl) {
-      return;
-    }
-
-    const layoutShiftEls: HTMLElement[] = [];
-    for (const shiftId of clusterIds) {
-      const layoutShiftEl = this.#shadow.getElementById(shiftId);
-      if (layoutShiftEl) {
-        layoutShiftEls.push(layoutShiftEl);
-      }
-    }
-
-    if (!layoutShiftEls.length) {
-      return;
-    }
-
-    const success = this.#logsEl.selectTab('layout-shifts');
-    if (!success) {
-      return;
-    }
-
-    await RenderCoordinator.write(() => {
-      layoutShiftEls[0].scrollIntoView({
-        block: 'start',
-      });
-      layoutShiftEls[0].focus();
-      for (const layoutShiftEl of layoutShiftEls) {
-        UI.UIUtils.runCSSAnimationOnce(layoutShiftEl, 'highlight');
-      }
-    });
+    this.#highlightedLayoutShiftClusterIds = clusterIds;
+    this.requestUpdate();
+    await this.updateComplete;
+    this.#highlightedLayoutShiftClusterIds = new Set();
   }
 
-  #renderLayoutShiftsLog(): Lit.LitTemplate {
-    if (!this.#layoutShifts.length) {
-      return Lit.nothing;
-    }
+  override performUpdate(): void {
+    const viewInput: ViewInput = {
+      isNode: this.isNode,
+      lcpValue: this.#lcpValue,
+      clsValue: this.#clsValue,
+      inpValue: this.#inpValue,
+      interactions: this.#interactions,
+      layoutShifts: this.#layoutShifts,
+      toggleRecordAction: this.#toggleRecordAction,
+      recordReloadAction: this.#recordReloadAction,
+      cruxManager: this.#cruxManager,
+      handlePageScopeSelected: this.#onPageScopeMenuItemSelected.bind(this),
+      handleDeviceOptionSelected: this.#onDeviceOptionMenuItemSelected.bind(this),
+      revealLayoutShiftCluster: this.#revealLayoutShiftCluster.bind(this),
+      revealInteraction: this.#revealInteraction.bind(this),
+      logExtraInteractionDetails: this.#logExtraInteractionDetails.bind(this),
+      highlightedInteractionId: this.#highlightedInteractionId,
+      highlightedLayoutShiftClusterIds: this.#highlightedLayoutShiftClusterIds,
+    };
 
-    // clang-format off
-    return html`
-      <ol class="log"
-        slot="layout-shifts-log-content"
-        on-render=${ComponentHelpers.Directives.nodeRenderedCallback(node => {
-          this.#layoutShiftsListEl = node as HTMLElement;
-        })}
-      >
-        ${this.#layoutShifts.map(layoutShift => {
-          const metricValue = renderMetricValue(
-            'timeline.landing.layout-shift-event-score',
-            layoutShift.score,
-            CLS_THRESHOLDS,
-            // CLS value is 2 decimal places, but individual shift scores tend to be much smaller
-            // so we expand the precision here.
-            v => v.toFixed(4),
-            {dim: true},
-          );
-
-          return html`
-            <li id=${layoutShift.uniqueLayoutShiftId} class="log-item layout-shift" tabindex="-1">
-              <div class="layout-shift-score">Layout shift score: ${metricValue}</div>
-              <div class="layout-shift-nodes">
-                ${layoutShift.affectedNodeRefs.map(({link}) => html`
-                  <div class="layout-shift-node">${link}</div>
-                `)}
-              </div>
-            </li>
-          `;
-        })}
-      </ol>
-    `;
-    // clang-format on
+    this.#view(viewInput, this.#viewOutput, this.contentElement);
   }
-
-  #renderNodeView(): Lit.LitTemplate {
-    return html`
-      <div class="node-view">
-        <main>
-          <h2 class="section-title">${i18nString(UIStrings.nodePerformanceTimeline)}</h2>
-          <div class="node-description">${i18nString(UIStrings.nodeClickToRecord)}</div>
-          <div class="record-action-card">${this.#renderRecordAction(this.#toggleRecordAction)}</div>
-        </main>
-      </div>
-    `;
-  }
-
-  #render = (): void => {
-    if (this.#isNode) {
-      Lit.render(this.#renderNodeView(), this.#shadow, {host: this});
-      return;
-    }
-
-    const fieldEnabled = this.#cruxManager.getConfigSetting().get().enabled;
-    const liveMetricsTitle =
-        fieldEnabled ? i18nString(UIStrings.localAndFieldMetrics) : i18nString(UIStrings.localMetrics);
-
-    const helpLink = 'https://web.dev/articles/lab-and-field-data-differences#lab_data_versus_field_data' as
-        Platform.DevToolsPath.UrlString;
-
-    // clang-format off
-    const output = html`
-      <div class="container">
-        <div class="live-metrics-view">
-          <main class="live-metrics">
-            <h2 class="section-title">${liveMetricsTitle}</h2>
-            <div class="metric-cards"
-              on-render=${ComponentHelpers.Directives.nodeRenderedCallback(node => {
-                this.#tooltipContainerEl = node;
-              })}
-            >
-              <div id="lcp">
-                ${this.#renderLcpCard()}
-              </div>
-              <div id="cls">
-                ${this.#renderClsCard()}
-              </div>
-              <div id="inp">
-                ${this.#renderInpCard()}
-              </div>
-            </div>
-            <x-link
-              href=${helpLink}
-              class="local-field-link"
-              title=${i18nString(UIStrings.localFieldLearnMoreTooltip)}
-            >${i18nString(UIStrings.localFieldLearnMoreLink)}</x-link>
-            ${this.#renderLogSection()}
-          </main>
-          <aside class="next-steps" aria-labelledby="next-steps-section-title">
-            <h2 id="next-steps-section-title" class="section-title">${i18nString(UIStrings.nextSteps)}</h2>
-            <div id="field-setup" class="settings-card">
-              <h3 class="card-title">${i18nString(UIStrings.fieldData)}</h3>
-              ${this.#renderFieldDataMessage()}
-              ${this.#renderPageScopeSetting()}
-              ${this.#renderDeviceScopeSetting()}
-              <div class="field-setup-buttons">
-                <devtools-field-settings-dialog></devtools-field-settings-dialog>
-              </div>
-            </div>
-            <div id="recording-settings" class="settings-card">
-              ${this.#renderRecordingSettings()}
-            </div>
-            <div id="record" class="record-action-card">
-              ${this.#renderRecordAction(this.#toggleRecordAction)}
-            </div>
-            ${this.#recordReloadAction !== null ? html`<div id="record-page-load" class="record-action-card">
-              ${this.#renderRecordAction(this.#recordReloadAction)}
-            </div>` : nothing}
-          </aside>
-        </div>
-      </div>
-    `;
-    Lit.render(output, this.#shadow, {host: this});
-  };
-  // clang-format on
 }
 
-class LiveMetricsLogs extends UI.Widget.WidgetElement<UI.Widget.Widget> {
-  #tabbedPane?: UI.TabbedPane.TabbedPane;
+interface LiveMetricsLogsViewInput {
+  onClear: () => void;
+  selectedTab?: string;
+  onTabSelected: (tabId: string) => void;
+}
 
-  constructor() {
-    super();
-    this.style.display = 'contents';
-  }
+type LiveMetricsLogsView = (input: LiveMetricsLogsViewInput, output: undefined, target: HTMLElement) => void;
 
-  /**
-   * Returns `true` if selecting the tab was successful.
-   */
-  selectTab(tabId: string): boolean {
-    if (!this.#tabbedPane) {
-      return false;
+const LIVE_METRICS_LOGS_VIEW: LiveMetricsLogsView = (input, output, target) => {
+  // clang-format off
+  Lit.render(html`
+    <style>
+      /* Any children of the root element will be matched to the slots defined within the container
+         widget's shadow DOM. */
+      :host,
+      .widget {
+        display: contents;
+      }
+    </style>
+    <devtools-tabbed-pane @select=${(event: Event) => input.onTabSelected((event as CustomEvent).detail.tabId)}>
+      <devtools-toolbar slot="right">
+        <devtools-button .iconName=${'clear'} .variant=${Buttons.Button.Variant.TOOLBAR}
+                         title=${i18nString(UIStrings.clearCurrentLog)} @click=${input.onClear}
+                         .jslogContext=${'timeline.landing.clear-log'}>
+        </devtools-button>
+      </devtools-toolbar>
+      <!-- Taking advantage of web component slots allows us to render updates in the lit templates defined in the
+      main component. This should be more performant and doesn't require us to inject live metrics styles twice. -->
+      <slot name="interactions-log-content" id="interactions" ?selected=${live(input.selectedTab === 'interactions')}
+            title=${i18nString(UIStrings.interactions)} jslogcontext="timeline.landing.interactions-log">
+      </slot>
+      <slot name="layout-shifts-log-content" id="layout-shifts" ?selected=${live(input.selectedTab === 'layout-shifts')}
+            title=${i18nString(UIStrings.layoutShifts)} jslogcontext="timeline.landing.layout-shifts-log">
+      </slot>
+    </devtools-tabbed-pane>
+  `, target);
+  // clang-format on
+};
+
+class LiveMetricsLogs extends UI.Widget.Widget {
+  #view: LiveMetricsLogsView;
+  #selectedTab = 'interactions';
+
+  set selectedTab(tabId: string|undefined) {
+    if (!tabId || this.#selectedTab === tabId) {
+      return;
     }
-    return this.#tabbedPane.selectTab(tabId);
+    this.#selectedTab = tabId;
+    this.requestUpdate();
   }
 
   #clearCurrentLog(): void {
     const liveMetrics = LiveMetrics.LiveMetrics.instance();
 
-    switch (this.#tabbedPane?.selectedTabId) {
+    switch (this.#selectedTab) {
       case 'interactions':
         liveMetrics.clearInteractions();
         break;
@@ -1194,51 +1334,22 @@ class LiveMetricsLogs extends UI.Widget.WidgetElement<UI.Widget.Widget> {
         break;
     }
   }
+  constructor(element: HTMLElement, view: LiveMetricsLogsView = LIVE_METRICS_LOGS_VIEW) {
+    super(element, {useShadowDom: true});
+    this.#view = view;
 
-  override createWidget(): UI.Widget.Widget {
-    // We need a generic widget with a shadow DOM as the container widget so that we can take advantage
-    // of web component slots. Passing `this` into the container widget will make `this` the root element
-    // of that widget.
-    //
-    // Any children of the root element `this` will be matched to the slots defined within the container
-    // widget's shadow DOM.
-    const containerWidget = new UI.Widget.Widget(true, undefined, this);
-    containerWidget.contentElement.style.display = 'contents';
-
-    this.#tabbedPane = new UI.TabbedPane.TabbedPane();
-
-    // Taking advantage of web component slots allows us to render updates in the lit templates defined in the
-    // main component. This should be more performant and doesn't require us to inject live metrics styles twice.
-    const interactionsSlot = document.createElement('slot');
-    interactionsSlot.name = 'interactions-log-content';
-    const interactionsTab = UI.Widget.Widget.getOrCreateWidget(interactionsSlot);
-    this.#tabbedPane.appendTab(
-        'interactions', i18nString(UIStrings.interactions), interactionsTab, undefined, undefined, undefined, undefined,
-        undefined, 'timeline.landing.interactions-log');
-
-    const layoutShiftsSlot = document.createElement('slot');
-    layoutShiftsSlot.name = 'layout-shifts-log-content';
-    const layoutShiftsTab = UI.Widget.Widget.getOrCreateWidget(layoutShiftsSlot);
-    this.#tabbedPane.appendTab(
-        'layout-shifts', i18nString(UIStrings.layoutShifts), layoutShiftsTab, undefined, undefined, undefined,
-        undefined, undefined, 'timeline.landing.layout-shifts-log');
-
-    const clearButton = new UI.Toolbar.ToolbarButton(
-        i18nString(UIStrings.clearCurrentLog), 'clear', undefined, 'timeline.landing.clear-log');
-    clearButton.addEventListener(UI.Toolbar.ToolbarButton.Events.CLICK, this.#clearCurrentLog, this);
-    this.#tabbedPane.rightToolbar().appendToolbarItem(clearButton);
-    this.#tabbedPane.show(containerWidget.contentElement);
-
-    return containerWidget;
+    this.requestUpdate();
   }
-}
 
-customElements.define('devtools-live-metrics-view', LiveMetricsView);
-customElements.define('devtools-live-metrics-logs', LiveMetricsLogs);
+  override performUpdate(): void {
+    const viewInput: LiveMetricsLogsViewInput = {
+      onClear: this.#clearCurrentLog.bind(this),
+      selectedTab: this.#selectedTab,
+      onTabSelected: (tabId: string) => {
+        this.selectedTab = tabId;
+      },
+    };
 
-declare global {
-  interface HTMLElementTagNameMap {
-    'devtools-live-metrics-view': LiveMetricsView;
-    'devtools-live-metrics-logs': LiveMetricsLogs;
+    this.#view(viewInput, undefined, this.contentElement);
   }
 }

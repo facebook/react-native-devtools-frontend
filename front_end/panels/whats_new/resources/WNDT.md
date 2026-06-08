@@ -1,6 +1,14 @@
-### [New performance insights](perf-insights)
-The Performance > Insights tab gets new insights: duplicated JavaScript, modern HTTP, and use efficient cache lifetimes.
-### [Click events to keep them highlighted in Performance](click-to-highlight)
-Click items in Summary, Bottom-up, Call tree, and Event log tables to keep the corresponding events highlighted in the trace and dim the rest.
-### [Filter cookies in Privacy and security](cookies-filter)
-The cookies table in the 'Privacy and security' panel gets a filter, so you can quickly find the cookie you want to inspect.
+### [DevTools for agents](devtools-for-agents)
+
+DevTools for agents is now stable at version 1.0, bringing support for third-party developer tools
+provided by the inspected page, WebMCP debugging, and an improved CLI experience.
+
+### [AI assistance](ai-assistance)
+
+The AI assistance panel now integrates with Lighthouse data and offers interactive, widget-based agent walkthroughs.
+Supported by an upgrade to Gemini 3 and other optimizations, responses are now more concise and actionable.
+
+### [CSS code completion](css-code-completion)
+
+The Styles tab in the Elements panel now features enhanced, Gemini-powered code completion.
+Experience smarter, real-time CSS suggestions that adapt dynamically as you type.

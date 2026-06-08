@@ -1,8 +1,9 @@
-// Copyright (c) 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view, @devtools/enforce-custom-element-definitions-location */
 
-import '../../../ui/components/icon_button/icon_button.js';
+import '../../../ui/kit/kit.js';
 
 import * as Common from '../../../core/common/common.js';
 import * as i18n from '../../../core/i18n/i18n.js';
@@ -15,11 +16,7 @@ import * as RenderCoordinator from '../../../ui/components/render_coordinator/re
 import * as Lit from '../../../ui/lit/lit.js';
 import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 
-import requestLinkIconStylesRaw from './requestLinkIcon.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const requestLinkIconStyles = new CSSStyleSheet();
-requestLinkIconStyles.replaceSync(requestLinkIconStylesRaw.cssText);
+import requestLinkIconStyles from './requestLinkIcon.css.js';
 
 const {html} = Lit;
 
@@ -108,10 +105,6 @@ export class RequestLinkIcon extends HTMLElement {
     void this.#render();
   }
 
-  connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [requestLinkIconStyles];
-  }
-
   get data(): RequestLinkIconData {
     return {
       linkToPreflight: this.#linkToPreflight,
@@ -197,7 +190,7 @@ export class RequestLinkIcon extends HTMLElement {
           </button>`;
         // clang-format on
       }
-      Lit.render(template, this.#shadow, {host: this});
+      Lit.render(html`<style>${requestLinkIconStyles}</style>${template}`, this.#shadow, {host: this});
     });
   }
 }

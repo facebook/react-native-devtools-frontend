@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,27 +12,21 @@ import {
   dispatchClickEvent,
   renderElementIntoDOM,
 } from '../../../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../../../testing/LocaleHelpers.js';
 import type * as UI from '../../legacy.js';
 
 import * as InlineEditor from './inline_editor.js';
 
 function assertSwatch(
-    swatch: InlineEditor.ColorSwatch.ColorSwatch,
-    expected: {backgroundColor?: string, colorTextInSlot?: string, tooltip?: string}) {
+    swatch: InlineEditor.ColorSwatch.ColorSwatch, expected: {backgroundColor?: string, tooltip?: string}) {
   const swatchEl = swatch.shadowRoot!.querySelector('.color-swatch');
   assert.instanceOf(swatchEl, HTMLElement);
   const swatchInnerEl = swatch.shadowRoot!.querySelector('.color-swatch-inner');
   assert.instanceOf(swatchInnerEl, HTMLElement);
-  const slotEl = swatch.shadowRoot!.querySelector('slot');
-  assert.instanceOf(slotEl, HTMLElement);
 
   if (expected.backgroundColor) {
     assert.strictEqual(
         swatchInnerEl.style.backgroundColor, expected.backgroundColor, 'The swatch has the correct color');
-  }
-  if (expected.colorTextInSlot) {
-    assert.strictEqual(slotEl.textContent, expected.colorTextInSlot, 'The slot shows the correct default color');
   }
   if (expected.tooltip) {
     assert.strictEqual(swatchEl.getAttribute('title'), expected.tooltip, 'The tooltip is correct');
@@ -52,20 +46,19 @@ function getClickTarget(swatch: InlineEditor.ColorSwatch.ColorSwatch) {
   return swatch.shadowRoot!.querySelector('.color-swatch-inner')!;
 }
 
-describeWithLocale('ColorSwatch', () => {
+describe('ColorSwatch', () => {
+  setupLocaleHooks();
   it('accepts colors as color objects', () => {
     const swatch = createSwatch(Common.Color.parse('red') as Common.Color.Color);
 
     assertSwatch(swatch, {
       backgroundColor: 'red',
-      colorTextInSlot: 'red',
     });
 
     swatch.renderColor(new Common.Color.Legacy([1, .5, .2, .5], Common.Color.Format.RGBA));
 
     assertSwatch(swatch, {
       backgroundColor: 'rgba(255, 128, 51, 0.5)',
-      colorTextInSlot: 'rgb(255 128 51 / 50%)',
     });
   });
 

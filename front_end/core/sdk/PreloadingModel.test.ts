@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -27,7 +27,7 @@ describeWithMockConnection('PreloadingModel', () => {
 
     dispatchEvent(target, 'Preload.ruleSetUpdated', {
       ruleSet: {
-        id: 'ruleSetId:1',
+        id: 'ruleSetId:1' as Protocol.Preload.RuleSetId,
         loaderId,
         sourceText: `
 {
@@ -50,8 +50,8 @@ describeWithMockConnection('PreloadingModel', () => {
             action: Protocol.Preload.SpeculationAction.Prefetch,
             url: 'https://example.com/subresource.js',
           },
-          ruleSetIds: ['ruleSetId:1'],
-          nodeIds: [1],
+          ruleSetIds: ['ruleSetId:1'] as Protocol.Preload.RuleSetId[],
+          nodeIds: [1] as Protocol.DOM.BackendNodeId[],
         },
       ],
     });
@@ -61,10 +61,10 @@ describeWithMockConnection('PreloadingModel', () => {
         action: Protocol.Preload.SpeculationAction.Prefetch,
         url: 'https://example.com/subresource.js',
       },
-      pipelineId: 'pipelineId:1',
-      status: SDK.PreloadingModel.PreloadingStatus.RUNNING,
-      requestId: 'requestId:1',
-    });
+      pipelineId: 'pipelineId:1' as Protocol.Preload.PreloadPipelineId,
+      status: Protocol.Preload.PreloadingStatus.Running,
+      requestId: 'requestId:1' as Protocol.Network.RequestId,
+    } as Protocol.Preload.PrefetchStatusUpdatedEvent);
 
     assert.deepEqual(model.getAllRuleSets(), [
       {
@@ -87,7 +87,7 @@ describeWithMockConnection('PreloadingModel', () => {
     ]);
     assert.deepEqual(model.getRepresentativePreloadingAttempts(null), [
       {
-        id: `${loaderId}:Prefetch:https://example.com/subresource.js:undefined`,
+        id: `${loaderId}:Prefetch:https://example.com/subresource.js:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prefetch,
           key: {
@@ -107,7 +107,7 @@ describeWithMockConnection('PreloadingModel', () => {
 
     dispatchEvent(target, 'Preload.ruleSetUpdated', {
       ruleSet: {
-        id: 'ruleSetId:2',
+        id: 'ruleSetId:2' as Protocol.Preload.RuleSetId,
         loaderId,
         sourceText: `
 {
@@ -130,8 +130,8 @@ describeWithMockConnection('PreloadingModel', () => {
             action: Protocol.Preload.SpeculationAction.Prefetch,
             url: 'https://example.com/subresource.js',
           },
-          ruleSetIds: ['ruleSetId:1'],
-          nodeIds: [1],
+          ruleSetIds: ['ruleSetId:1'] as Protocol.Preload.RuleSetId[],
+          nodeIds: [1] as Protocol.DOM.BackendNodeId[],
         },
         {
           key: {
@@ -139,8 +139,8 @@ describeWithMockConnection('PreloadingModel', () => {
             action: Protocol.Preload.SpeculationAction.Prerender,
             url: 'https://example.com/page.html',
           },
-          ruleSetIds: ['ruleSetId:2'],
-          nodeIds: [2],
+          ruleSetIds: ['ruleSetId:2'] as Protocol.Preload.RuleSetId[],
+          nodeIds: [2] as Protocol.DOM.BackendNodeId[],
         },
       ],
     });
@@ -150,8 +150,8 @@ describeWithMockConnection('PreloadingModel', () => {
         action: Protocol.Preload.SpeculationAction.Prerender,
         url: 'https://example.com/page.html',
       },
-      pipelineId: 'pipelineId:2',
-      status: SDK.PreloadingModel.PreloadingStatus.RUNNING,
+      pipelineId: 'pipelineId:2' as Protocol.Preload.PreloadPipelineId,
+      status: Protocol.Preload.PreloadingStatus.Running,
     });
 
     assert.deepEqual(model.getAllRuleSets(), [
@@ -193,7 +193,7 @@ describeWithMockConnection('PreloadingModel', () => {
     ]);
     assert.deepEqual(model.getRepresentativePreloadingAttempts(null), [
       {
-        id: `${loaderId}:Prefetch:https://example.com/subresource.js:undefined`,
+        id: `${loaderId}:Prefetch:https://example.com/subresource.js:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prefetch,
           key: {
@@ -210,7 +210,7 @@ describeWithMockConnection('PreloadingModel', () => {
         },
       },
       {
-        id: `${loaderId}:Prerender:https://example.com/page.html:undefined`,
+        id: `${loaderId}:Prerender:https://example.com/page.html:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prerender,
           key: {
@@ -230,7 +230,7 @@ describeWithMockConnection('PreloadingModel', () => {
     ]);
 
     dispatchEvent(target, 'Preload.ruleSetRemoved', {
-      id: 'ruleSetId:1',
+      id: 'ruleSetId:1' as Protocol.Preload.RuleSetId,
     });
     dispatchEvent(target, 'Preload.preloadingAttemptSourcesUpdated', {
       loaderId,
@@ -241,8 +241,8 @@ describeWithMockConnection('PreloadingModel', () => {
             action: Protocol.Preload.SpeculationAction.Prerender,
             url: 'https://example.com/page.html',
           },
-          ruleSetIds: ['ruleSetId:2'],
-          nodeIds: [2],
+          ruleSetIds: ['ruleSetId:2'] as Protocol.Preload.RuleSetId[],
+          nodeIds: [2] as Protocol.DOM.BackendNodeId[],
         },
       ],
     });
@@ -252,11 +252,11 @@ describeWithMockConnection('PreloadingModel', () => {
         action: Protocol.Preload.SpeculationAction.Prefetch,
         url: 'https://example.com/subresource.js',
       },
-      pipelineId: 'pipelineId:1',
-      status: SDK.PreloadingModel.PreloadingStatus.FAILURE,
+      pipelineId: 'pipelineId:1' as Protocol.Preload.PreloadPipelineId,
+      status: Protocol.Preload.PreloadingStatus.Failure,
       prefetchStatus: Protocol.Preload.PrefetchStatus.PrefetchEvictedAfterCandidateRemoved,
-      requestId: 'requestId:1',
-    });
+      requestId: 'requestId:1' as Protocol.Network.RequestId,
+    } as Protocol.Preload.PrefetchStatusUpdatedEvent);
 
     assert.deepEqual(model.getAllRuleSets(), [
       {
@@ -279,7 +279,7 @@ describeWithMockConnection('PreloadingModel', () => {
     ]);
     assert.deepEqual(model.getRepresentativePreloadingAttempts(null), [
       {
-        id: `${loaderId}:Prerender:https://example.com/page.html:undefined`,
+        id: `${loaderId}:Prerender:https://example.com/page.html:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prerender,
           key: {
@@ -309,7 +309,7 @@ describeWithMockConnection('PreloadingModel', () => {
     const loaderId = getMainFrame(target).loaderId;
     dispatchEvent(target, 'Preload.ruleSetUpdated', {
       ruleSet: {
-        id: 'ruleSetId:1',
+        id: 'ruleSetId:1' as Protocol.Preload.RuleSetId,
         loaderId,
         sourceText: `
 {
@@ -332,15 +332,15 @@ describeWithMockConnection('PreloadingModel', () => {
             action: Protocol.Preload.SpeculationAction.Prefetch,
             url: 'https://example.com/subresource.js',
           },
-          ruleSetIds: ['ruleSetId:1'],
-          nodeIds: [1],
+          ruleSetIds: ['ruleSetId:1'] as Protocol.Preload.RuleSetId[],
+          nodeIds: [1] as Protocol.DOM.BackendNodeId[],
         },
       ],
     });
 
     assert.deepEqual(model.getRepresentativePreloadingAttempts(null), [
       {
-        id: `${loaderId}:Prefetch:https://example.com/subresource.js:undefined`,
+        id: `${loaderId}:Prefetch:https://example.com/subresource.js:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prefetch,
           key: {
@@ -372,7 +372,7 @@ describeWithMockConnection('PreloadingModel', () => {
 
     dispatchEvent(target, 'Preload.ruleSetUpdated', {
       ruleSet: {
-        id: 'ruleSetId:1',
+        id: 'ruleSetId:1' as Protocol.Preload.RuleSetId,
         loaderId,
         sourceText: `
 {
@@ -395,8 +395,8 @@ describeWithMockConnection('PreloadingModel', () => {
             action: Protocol.Preload.SpeculationAction.Prefetch,
             url: 'https://example.com/subresource1.js',
           },
-          ruleSetIds: ['ruleSetId:1'],
-          nodeIds: [1],
+          ruleSetIds: ['ruleSetId:1'] as Protocol.Preload.RuleSetId[],
+          nodeIds: [1] as Protocol.DOM.BackendNodeId[],
         },
       ],
     });
@@ -406,16 +406,16 @@ describeWithMockConnection('PreloadingModel', () => {
         action: Protocol.Preload.SpeculationAction.Prefetch,
         url: 'https://example.com/subresource1.js',
       },
-      pipelineId: 'pipelineId:1',
-      status: SDK.PreloadingModel.PreloadingStatus.RUNNING,
-    });
+      pipelineId: 'pipelineId:1' as Protocol.Preload.PreloadPipelineId,
+      status: Protocol.Preload.PreloadingStatus.Running,
+    } as Protocol.Preload.PrefetchStatusUpdatedEvent);
 
     loaderId = 'loaderId:2' as Protocol.Network.LoaderId;
     navigate(getMainFrame(target), {loaderId});
 
     dispatchEvent(target, 'Preload.ruleSetUpdated', {
       ruleSet: {
-        id: 'ruleSetId:2',
+        id: 'ruleSetId:2' as Protocol.Preload.RuleSetId,
         loaderId,
         sourceText: `
 {
@@ -438,8 +438,8 @@ describeWithMockConnection('PreloadingModel', () => {
             action: Protocol.Preload.SpeculationAction.Prefetch,
             url: 'https://example.com/subresource2.js',
           },
-          ruleSetIds: ['ruleSetId:2'],
-          nodeIds: [2],
+          ruleSetIds: ['ruleSetId:2'] as Protocol.Preload.RuleSetId[],
+          nodeIds: [2] as Protocol.DOM.BackendNodeId[],
         },
       ],
     });
@@ -449,10 +449,10 @@ describeWithMockConnection('PreloadingModel', () => {
         action: Protocol.Preload.SpeculationAction.Prefetch,
         url: 'https://example.com/subresource2.js',
       },
-      pipelineId: 'pipelineId:1',
-      status: SDK.PreloadingModel.PreloadingStatus.RUNNING,
-      requestId: 'requestId:1',
-    });
+      pipelineId: 'pipelineId:1' as Protocol.Preload.PreloadPipelineId,
+      status: Protocol.Preload.PreloadingStatus.Running,
+      requestId: 'requestId:1' as Protocol.Network.RequestId,
+    } as Protocol.Preload.PrefetchStatusUpdatedEvent);
 
     assert.deepEqual(model.getAllRuleSets(), [
       {
@@ -475,7 +475,7 @@ describeWithMockConnection('PreloadingModel', () => {
     ]);
     assert.deepEqual(model.getRepresentativePreloadingAttempts(null), [
       {
-        id: `${loaderId}:Prefetch:https://example.com/subresource2.js:undefined`,
+        id: `${loaderId}:Prefetch:https://example.com/subresource2.js:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prefetch,
           key: {
@@ -506,7 +506,7 @@ describeWithMockConnection('PreloadingModel', () => {
 
     dispatchEvent(target, 'Preload.ruleSetUpdated', {
       ruleSet: {
-        id: 'ruleSetId:1',
+        id: 'ruleSetId:1' as Protocol.Preload.RuleSetId,
         loaderId,
         sourceText: `
 {
@@ -522,7 +522,7 @@ describeWithMockConnection('PreloadingModel', () => {
     });
     dispatchEvent(target, 'Preload.ruleSetUpdated', {
       ruleSet: {
-        id: 'ruleSetId:2',
+        id: 'ruleSetId:2' as Protocol.Preload.RuleSetId,
         loaderId,
         sourceText: `
 {
@@ -540,24 +540,22 @@ describeWithMockConnection('PreloadingModel', () => {
       loaderId,
       preloadingAttemptSources: [
         {
-          action: Protocol.Preload.SpeculationAction.Prefetch,
           key: {
             loaderId,
             action: Protocol.Preload.SpeculationAction.Prefetch,
             url: 'https://example.com/subresource12.js',
           },
-          ruleSetIds: ['ruleSetId:1', 'ruleSetId:2'],
-          nodeIds: [1, 2],
+          ruleSetIds: ['ruleSetId:1', 'ruleSetId:2'] as Protocol.Preload.RuleSetId[],
+          nodeIds: [1, 2] as Protocol.DOM.BackendNodeId[],
         },
         {
-          action: Protocol.Preload.SpeculationAction.Prefetch,
           key: {
             loaderId,
             action: Protocol.Preload.SpeculationAction.Prefetch,
             url: 'https://example.com/subresource2.js',
           },
-          ruleSetIds: ['ruleSetId:2'],
-          nodeIds: [2],
+          ruleSetIds: ['ruleSetId:2'] as Protocol.Preload.RuleSetId[],
+          nodeIds: [2] as Protocol.DOM.BackendNodeId[],
         },
       ],
     });
@@ -567,24 +565,24 @@ describeWithMockConnection('PreloadingModel', () => {
         action: Protocol.Preload.SpeculationAction.Prefetch,
         url: 'https://example.com/subresource12.js',
       },
-      pipelineId: 'pipelineId:1',
-      status: SDK.PreloadingModel.PreloadingStatus.RUNNING,
-      requestId: 'requestId:1',
-    });
+      pipelineId: 'pipelineId:1' as Protocol.Preload.PreloadPipelineId,
+      status: Protocol.Preload.PreloadingStatus.Running,
+      requestId: 'requestId:1' as Protocol.Network.RequestId,
+    } as Protocol.Preload.PrefetchStatusUpdatedEvent);
     dispatchEvent(target, 'Preload.prefetchStatusUpdated', {
       key: {
         loaderId,
         action: Protocol.Preload.SpeculationAction.Prefetch,
         url: 'https://example.com/subresource2.js',
       },
-      pipelineId: 'pipelineId:2',
-      status: SDK.PreloadingModel.PreloadingStatus.RUNNING,
-      requestId: 'requestId:2',
-    });
+      pipelineId: 'pipelineId:2' as Protocol.Preload.PreloadPipelineId,
+      status: Protocol.Preload.PreloadingStatus.Running,
+      requestId: 'requestId:2' as Protocol.Network.RequestId,
+    } as Protocol.Preload.PrefetchStatusUpdatedEvent);
 
     assert.deepEqual(model.getRepresentativePreloadingAttempts(null), [
       {
-        id: `${loaderId}:Prefetch:https://example.com/subresource12.js:undefined`,
+        id: `${loaderId}:Prefetch:https://example.com/subresource12.js:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prefetch,
           key: {
@@ -601,7 +599,7 @@ describeWithMockConnection('PreloadingModel', () => {
         },
       },
       {
-        id: `${loaderId}:Prefetch:https://example.com/subresource2.js:undefined`,
+        id: `${loaderId}:Prefetch:https://example.com/subresource2.js:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prefetch,
           key: {
@@ -621,7 +619,7 @@ describeWithMockConnection('PreloadingModel', () => {
 
     assert.deepEqual(model.getRepresentativePreloadingAttempts('ruleSetId:1' as Protocol.Preload.RuleSetId), [
       {
-        id: `${loaderId}:Prefetch:https://example.com/subresource12.js:undefined`,
+        id: `${loaderId}:Prefetch:https://example.com/subresource12.js:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prefetch,
           key: {
@@ -641,7 +639,7 @@ describeWithMockConnection('PreloadingModel', () => {
 
     assert.deepEqual(model.getRepresentativePreloadingAttempts('ruleSetId:2' as Protocol.Preload.RuleSetId), [
       {
-        id: `${loaderId}:Prefetch:https://example.com/subresource12.js:undefined`,
+        id: `${loaderId}:Prefetch:https://example.com/subresource12.js:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prefetch,
           key: {
@@ -658,7 +656,7 @@ describeWithMockConnection('PreloadingModel', () => {
         },
       },
       {
-        id: `${loaderId}:Prefetch:https://example.com/subresource2.js:undefined`,
+        id: `${loaderId}:Prefetch:https://example.com/subresource2.js:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prefetch,
           key: {
@@ -689,7 +687,7 @@ describeWithMockConnection('PreloadingModel', () => {
 
     dispatchEvent(target, 'Preload.ruleSetUpdated', {
       ruleSet: {
-        id: 'ruleSetId:1',
+        id: 'ruleSetId:1' as Protocol.Preload.RuleSetId,
         loaderId,
         sourceText: `
 {
@@ -707,21 +705,20 @@ describeWithMockConnection('PreloadingModel', () => {
       loaderId,
       preloadingAttemptSources: [
         {
-          action: Protocol.Preload.SpeculationAction.Prerender,
           key: {
             loaderId,
             action: Protocol.Preload.SpeculationAction.Prerender,
             url: 'https://example.com/prerendered.html',
           },
-          ruleSetIds: ['ruleSetId:1'],
-          nodeIds: [1],
+          ruleSetIds: ['ruleSetId:1'] as Protocol.Preload.RuleSetId[],
+          nodeIds: [1] as Protocol.DOM.BackendNodeId[],
         },
       ],
     });
 
     assert.deepEqual(model.getRepresentativePreloadingAttempts(null), [
       {
-        id: `${loaderId}:Prerender:https://example.com/prerendered.html:undefined`,
+        id: `${loaderId}:Prerender:https://example.com/prerendered.html:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prerender,
           key: {
@@ -746,10 +743,10 @@ describeWithMockConnection('PreloadingModel', () => {
         action: Protocol.Preload.SpeculationAction.Prefetch,
         url: 'https://example.com/prerendered.html',
       },
-      pipelineId: 'pipelineId:1',
-      status: SDK.PreloadingModel.PreloadingStatus.RUNNING,
-      requestId: 'requestId:1',
-    });
+      pipelineId: 'pipelineId:1' as Protocol.Preload.PreloadPipelineId,
+      status: Protocol.Preload.PreloadingStatus.Running,
+      requestId: 'requestId:1' as Protocol.Network.RequestId,
+    } as Protocol.Preload.PrefetchStatusUpdatedEvent);
 
     // Here, we get two different attemtps, which should sit in the same pipeline actually.
     // It is because
@@ -762,7 +759,7 @@ describeWithMockConnection('PreloadingModel', () => {
     // expect the duration is very short that these entries are shown.
     assert.deepEqual(model.getRepresentativePreloadingAttempts(null), [
       {
-        id: `${loaderId}:Prerender:https://example.com/prerendered.html:undefined`,
+        id: `${loaderId}:Prerender:https://example.com/prerendered.html:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prerender,
           key: {
@@ -780,7 +777,7 @@ describeWithMockConnection('PreloadingModel', () => {
         },
       },
       {
-        id: `${loaderId}:Prefetch:https://example.com/prerendered.html:undefined`,
+        id: `${loaderId}:Prefetch:https://example.com/prerendered.html:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prefetch,
           key: {
@@ -804,14 +801,14 @@ describeWithMockConnection('PreloadingModel', () => {
         action: Protocol.Preload.SpeculationAction.Prerender,
         url: 'https://example.com/prerendered.html',
       },
-      pipelineId: 'pipelineId:1',
-      status: SDK.PreloadingModel.PreloadingStatus.RUNNING,
+      pipelineId: 'pipelineId:1' as Protocol.Preload.PreloadPipelineId,
+      status: Protocol.Preload.PreloadingStatus.Running,
     });
 
     // Converges to an entry.
     assert.deepEqual(model.getRepresentativePreloadingAttempts(null), [
       {
-        id: `${loaderId}:Prerender:https://example.com/prerendered.html:undefined`,
+        id: `${loaderId}:Prerender:https://example.com/prerendered.html:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prerender,
           key: {
@@ -836,18 +833,18 @@ describeWithMockConnection('PreloadingModel', () => {
         action: Protocol.Preload.SpeculationAction.Prefetch,
         url: 'https://example.com/prerendered.html',
       },
-      pipelineId: 'pipelineId:1',
-      status: SDK.PreloadingModel.PreloadingStatus.SUCCESS,
-      requestId: 'requestId:1',
-    });
+      pipelineId: 'pipelineId:1' as Protocol.Preload.PreloadPipelineId,
+      status: Protocol.Preload.PreloadingStatus.Success,
+      requestId: 'requestId:1' as Protocol.Network.RequestId,
+    } as Protocol.Preload.PrefetchStatusUpdatedEvent);
     dispatchEvent(target, 'Preload.prerenderStatusUpdated', {
       key: {
         loaderId,
         action: Protocol.Preload.SpeculationAction.Prerender,
         url: 'https://example.com/prerendered.html',
       },
-      pipelineId: 'pipelineId:1',
-      status: SDK.PreloadingModel.PreloadingStatus.FAILURE,
+      pipelineId: 'pipelineId:1' as Protocol.Preload.PreloadPipelineId,
+      status: Protocol.Preload.PreloadingStatus.Failure,
       prerenderStatus: Protocol.Preload.PrerenderFinalStatus.MojoBinderPolicy,
       disallowedMojoInterface: 'device.mojom.GamepadMonitor',
     });
@@ -855,7 +852,7 @@ describeWithMockConnection('PreloadingModel', () => {
     // The prerender is the representative of the pipeline even if it failed.
     assert.deepEqual(model.getRepresentativePreloadingAttempts(null), [
       {
-        id: `${loaderId}:Prerender:https://example.com/prerendered.html:undefined`,
+        id: `${loaderId}:Prerender:https://example.com/prerendered.html:undefined:undefined`,
         value: {
           action: Protocol.Preload.SpeculationAction.Prerender,
           key: {
@@ -873,5 +870,158 @@ describeWithMockConnection('PreloadingModel', () => {
         },
       },
     ]);
+  });
+
+  it('adds and deletes a preloading attempt for prerender-until-script', async () => {
+    const target = createTarget();
+    const model = target.model(SDK.PreloadingModel.PreloadingModel);
+    assert.exists(model);
+
+    assert.deepEqual(model.getAllRuleSets(), []);
+
+    const loaderId = getMainFrame(target).loaderId;
+
+    dispatchEvent(target, 'Preload.ruleSetUpdated', {
+      ruleSet: {
+        id: 'ruleSetId:1' as Protocol.Preload.RuleSetId,
+        loaderId,
+        sourceText: `
+{
+  "prerender_until_script":[
+    {
+      "source": "list",
+      "urls": ["/page.html"]
+    }
+  ]
+}
+`,
+      },
+    });
+    dispatchEvent(target, 'Preload.preloadingAttemptSourcesUpdated', {
+      loaderId,
+      preloadingAttemptSources: [
+        {
+          key: {
+            loaderId,
+            action: Protocol.Preload.SpeculationAction.PrerenderUntilScript,
+            url: 'https://example.com/page.html',
+          },
+          ruleSetIds: ['ruleSetId:1'] as Protocol.Preload.RuleSetId[],
+          nodeIds: [1] as Protocol.DOM.BackendNodeId[],
+        },
+      ],
+    });
+    dispatchEvent(target, 'Preload.prerenderStatusUpdated', {
+      key: {
+        loaderId,
+        action: Protocol.Preload.SpeculationAction.PrerenderUntilScript,
+        url: 'https://example.com/page.html',
+      },
+      pipelineId: 'pipelineId:1' as Protocol.Preload.PreloadPipelineId,
+      status: Protocol.Preload.PreloadingStatus.Running,
+    });
+
+    assert.deepEqual(model.getRepresentativePreloadingAttempts(null), [
+      {
+        id: `${loaderId}:PrerenderUntilScript:https://example.com/page.html:undefined:undefined`,
+        value: {
+          action: Protocol.Preload.SpeculationAction.PrerenderUntilScript,
+          key: {
+            loaderId,
+            action: Protocol.Preload.SpeculationAction.PrerenderUntilScript,
+            url: urlString`https://example.com/page.html`,
+          },
+          pipelineId: 'pipelineId:1' as Protocol.Preload.PreloadPipelineId,
+          status: SDK.PreloadingModel.PreloadingStatus.RUNNING,
+          prerenderStatus: null,
+          disallowedMojoInterface: null,
+          mismatchedHeaders: null,
+          ruleSetIds: ['ruleSetId:1'] as Protocol.Preload.RuleSetId[],
+          nodeIds: [1] as Protocol.DOM.BackendNodeId[],
+        },
+      },
+    ]);
+  });
+
+  it('reset() clears all rule sets and preloading attempts', async () => {
+    const target = createTarget();
+    const model = target.model(SDK.PreloadingModel.PreloadingModel);
+    assert.exists(model);
+
+    const loaderId = getMainFrame(target).loaderId;
+
+    // Add a rule set
+    dispatchEvent(target, 'Preload.ruleSetUpdated', {
+      ruleSet: {
+        id: 'ruleSetId:1' as Protocol.Preload.RuleSetId,
+        loaderId,
+        sourceText: `
+{
+  "prefetch":[
+    {
+      "source": "list",
+      "urls": ["/subresource.js"]
+    }
+  ]
+}
+`,
+      },
+    });
+
+    // Add preloading attempt sources
+    dispatchEvent(target, 'Preload.preloadingAttemptSourcesUpdated', {
+      loaderId,
+      preloadingAttemptSources: [
+        {
+          key: {
+            loaderId,
+            action: Protocol.Preload.SpeculationAction.Prefetch,
+            url: 'https://example.com/subresource.js',
+          },
+          ruleSetIds: ['ruleSetId:1'] as Protocol.Preload.RuleSetId[],
+          nodeIds: [1] as Protocol.DOM.BackendNodeId[],
+        },
+      ],
+    });
+
+    // Verify data exists
+    assert.lengthOf(model.getAllRuleSets(), 1);
+    assert.lengthOf(model.getRepresentativePreloadingAttempts(null), 1);
+
+    // Call reset
+    model.reset();
+
+    // Verify data is cleared
+    assert.deepEqual(model.getAllRuleSets(), []);
+    assert.deepEqual(model.getRepresentativePreloadingAttempts(null), []);
+
+    // Verify new events after reset are picked up (loaderId re-inferred via ruleSetUpdated)
+    dispatchEvent(target, 'Preload.ruleSetUpdated', {
+      ruleSet: {
+        id: 'ruleSetId:1' as Protocol.Preload.RuleSetId,
+        loaderId,
+        sourceText: '{"prefetch":[{"source":"list","urls":["/new-page.js"]}]}',
+      },
+    });
+
+    dispatchEvent(target, 'Preload.preloadingAttemptSourcesUpdated', {
+      loaderId,
+      preloadingAttemptSources: [
+        {
+          key: {
+            loaderId,
+            action: Protocol.Preload.SpeculationAction.Prefetch,
+            url: 'https://example.com/new-page.js',
+          },
+          ruleSetIds: ['ruleSetId:1'] as Protocol.Preload.RuleSetId[],
+          nodeIds: [1] as Protocol.DOM.BackendNodeId[],
+        },
+      ],
+    });
+
+    assert.lengthOf(model.getAllRuleSets(), 1);
+    assert.lengthOf(model.getRepresentativePreloadingAttempts(null), 1);
+    assert.strictEqual(
+        model.getRepresentativePreloadingAttempts(null)[0].value.key.url, 'https://example.com/new-page.js');
   });
 });

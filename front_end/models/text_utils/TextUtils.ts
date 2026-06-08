@@ -1,32 +1,6 @@
-/*
- * Copyright (C) 2013 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2013 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 import * as Platform from '../../core/platform/platform.js';
 
@@ -133,14 +107,11 @@ export class FilterParser {
         if (this.keys.indexOf((parsedKey as string)) !== -1) {
           parsedFilters.push({
             key: parsedKey,
-            regex: undefined,
             text: parsedValue,
             negative: Boolean(startsWithMinus),
           });
         } else {
           parsedFilters.push({
-            key: undefined,
-            regex: undefined,
             text: `${parsedKey}:${parsedValue}`,
             negative: Boolean(startsWithMinus),
           });
@@ -150,15 +121,11 @@ export class FilterParser {
         const parsedRegex = captureGroups[1];
         try {
           parsedFilters.push({
-            key: undefined,
             regex: new RegExp((parsedRegex as string), 'im'),
-            text: undefined,
             negative: Boolean(startsWithMinus),
           });
         } catch {
           parsedFilters.push({
-            key: undefined,
-            regex: undefined,
             text: `/${parsedRegex}/`,
             negative: Boolean(startsWithMinus),
           });
@@ -167,8 +134,6 @@ export class FilterParser {
         const startsWithMinus = captureGroups[0];
         const parsedText = captureGroups[1];
         parsedFilters.push({
-          key: undefined,
-          regex: undefined,
           text: parsedText,
           negative: Boolean(startsWithMinus),
         });
@@ -259,8 +224,7 @@ export class BalancedJSONTokenizer {
  * of code.
  *
  * @param lines The input document lines.
- * @return The indentation detected for the lines as string or `null` if it's inconclusive.
- *
+ * @returns The indentation detected for the lines as string or `null` if it's inconclusive.
  * @see https://heathermoor.medium.com/detecting-code-indentation-eff3ed0fb56b
  */
 export const detectIndentation = function(lines: Iterable<string>): string|null {
@@ -326,7 +290,7 @@ export const detectIndentation = function(lines: Iterable<string>): string|null 
  * line length for the whole text is 80 characters or more.
  *
  * @param text The input text to check.
- * @returns
+ * @returns `true` if the heuristic considers `text` to be minified.
  */
 export const isMinified = function(text: string): boolean {
   let lineCount = 0;
@@ -392,6 +356,32 @@ export const performSearchInSearchMatches = function(
     }
   }
   return result;
+};
+
+/**
+ * Finds the longest overlapping string segment between the end of the first
+ * string and the beginning of the second string.
+ *
+ * @param s1 The first string (whose suffix will be checked).
+ * @param s2 The second string (whose prefix will be checked).
+ * @returns The overlapping string segment, or an empty string ("")
+ * if no overlap is found.
+ */
+export const getOverlap = function(s1: string, s2: string): string|null {
+  const minLen = Math.min(s1.length, s2.length);
+  // Check from longest possible overlap down to 1
+  for (let n = minLen; n > 0; n--) {
+    // slice(-n) gets the last 'n' chars
+    const suffix = s1.slice(-n);
+    // substring(0, n) gets the first 'n' chars
+    const prefix = s2.substring(0, n);
+
+    if (suffix === prefix) {
+      return suffix;
+    }
+  }
+
+  return null;
 };
 
 export interface ParsedFilter {

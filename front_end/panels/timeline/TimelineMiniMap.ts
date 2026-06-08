@@ -1,6 +1,7 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../core/common/common.js';
 import * as Trace from '../../models/trace/trace.js';
@@ -22,7 +23,7 @@ import miniMapStyles from './timelineMiniMap.css.js';
 import {TimelineUIUtils} from './TimelineUIUtils.js';
 
 export interface OverviewData {
-  parsedTrace: Trace.Handlers.Types.ParsedTrace;
+  parsedTrace: Trace.TraceModel.ParsedTrace;
   isCpuProfile?: boolean;
   settings: {
     showScreenshots: boolean,
@@ -33,7 +34,7 @@ export interface OverviewData {
 /**
  * This component wraps the generic PerfUI Overview component and configures it
  * specifically for the Performance Panel, including injecting the CSS we use
- * to customise how the components render within the Performance Panel.
+ * to customize how the components render within the Performance Panel.
  *
  * It is also responsible for listening to events from the OverviewPane to
  * update the visible trace window, and when this happens it will update the
@@ -52,7 +53,7 @@ export class TimelineMiniMap extends
   constructor() {
     super();
     this.registerRequiredCSS(miniMapStyles);
-    this.element.classList.add('timeline-minimap');
+    this.element.classList.add('timeline-minimap', 'no-trace-active');
     this.#breadcrumbsUI = new TimelineComponents.BreadcrumbsUI.BreadcrumbsUI();
     this.element.prepend(this.#breadcrumbsUI);
 
@@ -85,6 +86,14 @@ export class TimelineMiniMap extends
     this.#overviewComponent.enableCreateBreadcrumbsButton();
 
     TraceBounds.TraceBounds.onChange(this.#onTraceBoundsChangeBound);
+    // Set the initial bounds for the overview. Otherwise if we mount & there
+    // is not an immediate RESET event, then we don't render correctly.
+    const state = TraceBounds.TraceBounds.BoundsManager.instance().state();
+    if (state) {
+      const {timelineTraceWindow, minimapTraceBounds} = state.milli;
+      this.#overviewComponent.setWindowTimes(timelineTraceWindow.min, timelineTraceWindow.max);
+      this.#overviewComponent.setBounds(minimapTraceBounds.min, minimapTraceBounds.max);
+    }
   }
 
   #onOverviewPanelWindowChanged(
@@ -212,8 +221,8 @@ export class TimelineMiniMap extends
 
   /**
    * Activates a given breadcrumb.
-   * @param options.removeChildBreadcrumbs - if true, any child breadcrumbs will be removed.
-   * @param options.updateVisibleWindow - if true, the visible window will be updated to match the bounds of the breadcrumb
+   * @param options.removeChildBreadcrumbs if true, any child breadcrumbs will be removed.
+   * @param options.updateVisibleWindow if true, the visible window will be updated to match the bounds of the breadcrumb
    */
   #activateBreadcrumb(
       breadcrumb: Trace.Types.File.Breadcrumb,
@@ -235,10 +244,10 @@ export class TimelineMiniMap extends
     this.#overviewComponent.reset();
   }
 
-  #setMarkers(parsedTrace: Trace.Handlers.Types.ParsedTrace): void {
+  #setMarkers(parsedTrace: Trace.TraceModel.ParsedTrace): void {
     const markers = new Map<number, HTMLDivElement>();
 
-    const {Meta} = parsedTrace;
+    const {Meta} = parsedTrace.data;
 
     // Only add markers for navigation start times.
     const navStartEvents = Meta.mainFrameNavigations;
@@ -252,15 +261,23 @@ export class TimelineMiniMap extends
     this.#overviewComponent.setMarkers(markers);
   }
 
-  #setNavigationStartEvents(parsedTrace: Trace.Handlers.Types.ParsedTrace): void {
-    this.#overviewComponent.setNavStartTimes(parsedTrace.Meta.mainFrameNavigations);
+  #setNavigationStartEvents(parsedTrace: Trace.TraceModel.ParsedTrace): void {
+    this.#overviewComponent.setNavStartTimes(parsedTrace.data.Meta.mainFrameNavigations);
   }
 
   getControls(): TimelineEventOverview[] {
     return this.#controls;
   }
 
-  setData(data: OverviewData): void {
+  setData(data: OverviewData|null): void {
+    this.element.classList.toggle('no-trace-active', data === null);
+
+    if (data === null) {
+      this.#data = null;
+      this.#controls = [];
+      return;
+    }
+
     if (this.#data?.parsedTrace === data.parsedTrace) {
       return;
     }
@@ -274,7 +291,7 @@ export class TimelineMiniMap extends
 
     this.#controls.push(new TimelineEventOverviewNetwork(data.parsedTrace));
     if (data.settings.showScreenshots) {
-      const filmStrip = Trace.Extras.FilmStrip.fromParsedTrace(data.parsedTrace);
+      const filmStrip = Trace.Extras.FilmStrip.fromHandlerData(data.parsedTrace.data);
       if (filmStrip.frames.length) {
         this.#controls.push(new TimelineFilmStripOverview(filmStrip));
       }

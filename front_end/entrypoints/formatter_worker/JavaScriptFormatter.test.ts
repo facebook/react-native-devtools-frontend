@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -778,5 +778,12 @@ function formatted2() {
             '  let a\n' +
             '}\n' +
             '}`\n');
+  });
+
+  it('formats methods on literals correctly', () => {
+    const formattedCode = formatJavaScript('num=1 .toString();str="abc" . toUpperCase();');
+    assert.strictEqual(formattedCode, `num = 1 .toString();
+str = "abc".toUpperCase();
+`);
   });
 });

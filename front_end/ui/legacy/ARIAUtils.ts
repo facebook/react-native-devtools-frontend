@@ -1,10 +1,11 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Platform from '../../core/platform/platform.js';
 
 import {Dialog} from './Dialog.js';
+import {getEnclosingShadowRootForNode} from './DOMUtilities.js';
 
 let id = 0;
 
@@ -348,8 +349,7 @@ export function setActiveDescendant(element: Element, activedescendant: Element|
 
   if (activedescendant.isConnected && element.isConnected) {
     console.assert(
-        Platform.DOMUtilities.getEnclosingShadowRootForNode(activedescendant) ===
-            Platform.DOMUtilities.getEnclosingShadowRootForNode(element),
+        getEnclosingShadowRootForNode(activedescendant) === getEnclosingShadowRootForNode(element),
         'elements are not in the same shadow dom');
   }
 
@@ -365,63 +365,89 @@ export function setPositionInSet(element: Element, position: number): void {
   element.setAttribute('aria-posinset', position.toString());
 }
 
-function hideFromLayout(element: HTMLElement): void {
-  element.style.position = 'absolute';
-  element.style.left = '-999em';
-  element.style.width = '100em';
-  element.style.overflow = 'hidden';
+export const enum AnnouncerRole {
+  ALERT = 'alert',
+  STATUS = 'status',
 }
+export class LiveAnnouncer {
+  static #announcerElementsByRole: Record<AnnouncerRole, WeakMap<HTMLElement, HTMLElement>> = {
+    [AnnouncerRole.ALERT]: new WeakMap<HTMLElement, HTMLElement>(),
+    [AnnouncerRole.STATUS]: new WeakMap<HTMLElement, HTMLElement>(),
+  };
 
-interface AlertState {
-  one: HTMLDivElement;
-  two: HTMLDivElement;
-  alertToggle: boolean;
-}
-const alertElements = new WeakMap<HTMLElement, AlertState>();
-
-function createAlertElement(container: HTMLElement): HTMLDivElement {
-  const element = container.createChild('div');
-  hideFromLayout(element);
-  element.setAttribute('role', 'alert');
-  element.setAttribute('aria-atomic', 'true');
-  return element;
-}
-
-export function getOrCreateAlertElements(container: HTMLElement = document.body): AlertState {
-  let state = alertElements.get(container);
-  if (!state) {
-    state = {
-      one: createAlertElement(container),
-      two: createAlertElement(container),
-      alertToggle: false,
-    };
-    alertElements.set(container, state);
+  static #hideFromLayout(element: HTMLElement): void {
+    element.style.position = 'absolute';
+    element.style.left = '-999em';
+    element.style.width = '100em';
+    element.style.overflow = 'hidden';
   }
-  return state;
-}
 
-/**
- * This function instantiates and switches off returning one of two offscreen alert elements.
- * We utilize two alert elements to ensure that alerts with the same string are still registered
- * as changes and trigger screen reader announcement.
- */
-export function alertElementInstance(container = document.body): HTMLElement {
-  const state = getOrCreateAlertElements(container);
-  state.alertToggle = !state.alertToggle;
-  if (state.alertToggle) {
-    state.two.textContent = '';
-    return state.one;
+  static #createAnnouncerElement(container: HTMLElement, role: AnnouncerRole): HTMLDivElement {
+    const element = container.createChild('div');
+    LiveAnnouncer.#hideFromLayout(element);
+    element.setAttribute('role', role);
+    element.setAttribute('aria-atomic', 'true');
+    return element;
   }
-  state.one.textContent = '';
-  return state.two;
-}
 
-/**
- * This function is used to announce a message with the screen reader.
- * Setting the textContent would allow the SR to access the offscreen element via browse mode
- */
-export function alert(message: string): void {
-  const dialog = Dialog.getInstance();
-  const element = alertElementInstance(dialog?.isShowing() ? dialog.contentElement : undefined);
-  element.textContent = Platform.StringUtilities.trimEndWithMaxLength(message, 10000);
+  static #removeAnnouncerElement(container: HTMLElement, role: AnnouncerRole): void {
+    const element = LiveAnnouncer.#announcerElementsByRole[role].get(container);
+    if (element) {
+      element.remove();
+      LiveAnnouncer.#announcerElementsByRole[role].delete(container);
+    }
+  }
+
+  /**
+   * Announces the provided message using a dedicated ARIA alert element (`role="alert"`).
+   * Ensures messages are announced even if identical to the previous message by appending
+   * a non-breaking space ('\u00A0') when necessary. This works around screen reader
+   * optimizations that might otherwise silence repeated identical alerts. The element's
+   * `aria-atomic="true"` attribute ensures the entire message is announced upon change.
+   *
+   * The alert element is associated with the currently active dialog's content element
+   * if a dialog is showing, otherwise defaults to an element associated with the document body.
+   * Messages longer than 10000 characters will be trimmed.
+   *
+   * @param message The message to be announced.
+   */
+  static #announce(message: string, role: AnnouncerRole): void {
+    const dialog = Dialog.getInstance();
+    const element =
+        LiveAnnouncer.getOrCreateAnnouncerElement(dialog?.isShowing() ? dialog.contentElement : undefined, role);
+
+    const announcedMessage = element.textContent === message ? `${message}\u00A0` : message;
+    element.textContent = Platform.StringUtilities.trimEndWithMaxLength(announcedMessage, 10000);
+  }
+
+  static getOrCreateAnnouncerElement(container: HTMLElement = document.body, role: AnnouncerRole, opts?: {
+    force: boolean,
+  }): HTMLElement {
+    const existingAnnouncerElement = LiveAnnouncer.#announcerElementsByRole[role].get(container);
+    if (existingAnnouncerElement && existingAnnouncerElement.isConnected && !opts?.force) {
+      return existingAnnouncerElement;
+    }
+
+    const newAnnouncerElement = LiveAnnouncer.#createAnnouncerElement(container, role);
+    LiveAnnouncer.#announcerElementsByRole[role].set(container, newAnnouncerElement);
+    return newAnnouncerElement;
+  }
+
+  static initializeAnnouncerElements(container: HTMLElement = document.body): void {
+    LiveAnnouncer.getOrCreateAnnouncerElement(container, AnnouncerRole.ALERT);
+    LiveAnnouncer.getOrCreateAnnouncerElement(container, AnnouncerRole.STATUS);
+  }
+
+  static removeAnnouncerElements(container: HTMLElement = document.body): void {
+    LiveAnnouncer.#removeAnnouncerElement(container, AnnouncerRole.ALERT);
+    LiveAnnouncer.#removeAnnouncerElement(container, AnnouncerRole.STATUS);
+  }
+
+  static alert(message: string): void {
+    LiveAnnouncer.#announce(message, AnnouncerRole.ALERT);
+  }
+
+  static status(message: string): void {
+    LiveAnnouncer.#announce(message, AnnouncerRole.STATUS);
+  }
 }

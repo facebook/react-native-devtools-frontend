@@ -1,0 +1,140 @@
+// Copyright 2014 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+/* eslint-disable @devtools/no-imperative-dom-api */
+
+import '../../../components/settings/settings.js';
+
+import * as Common from '../../../../core/common/common.js';
+import * as i18n from '../../../../core/i18n/i18n.js';
+import * as Platform from '../../../../core/platform/platform.js';
+import {Directives, html, nothing, render, type TemplateResult} from '../../../../ui/lit/lit.js';
+import type * as Settings from '../../../components/settings/settings.js';
+import * as VisualLogging from '../../../visual_logging/visual_logging.js';
+import * as UI from '../../legacy.js';
+
+const {createRef, ref} = Directives;
+
+const UIStrings = {
+  /**
+   * @description Note when a setting change will require the user to reload DevTools
+   */
+  srequiresReload: '*Requires reload',
+  /**
+   * @description Message to display if a setting change requires a reload of DevTools
+   */
+  settingsChangedReloadDevTools: 'Settings changed. To apply, reload DevTools.',
+} as const;
+const str_ = i18n.i18n.registerUIStrings('ui/legacy/components/settings_ui/SettingsUI.ts', UIStrings);
+const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
+
+export function createSettingCheckbox(
+    name: Common.UIString.LocalizedString, setting: Common.Settings.Setting<boolean>,
+    tooltip?: string): UI.UIUtils.CheckboxLabel {
+  const label = UI.UIUtils.CheckboxLabel.create(name, undefined, undefined, setting.name);
+  label.name = name;
+  UI.UIUtils.bindCheckbox(label, setting);
+  if (tooltip) {
+    UI.Tooltip.Tooltip.install(label, tooltip);
+  }
+  return label;
+}
+
+export function renderSettingSelect(setting: Common.Settings.Setting<unknown>, subtitle?: string): TemplateResult {
+  const name = setting.title();
+  const options = setting.options();
+  const requiresReload = setting.reloadRequired();
+  const {deprecation} = setting;
+  const controlId = UI.ARIAUtils.nextId('labelledControl');
+  const reloadWarningRef = createRef<HTMLParagraphElement>();
+
+  const onSelectChange = (e: Event): void => {
+    const select = e.target as HTMLSelectElement;
+    setting.set(options[select.selectedIndex].value);
+    if (requiresReload) {
+      UI.InspectorView.InspectorView.instance().displayReloadRequiredWarning(
+          i18nString(UIStrings.settingsChangedReloadDevTools));
+      if (reloadWarningRef.value) {
+        reloadWarningRef.value.classList.remove('hidden');
+      }
+    }
+  };
+
+  // clang-format off
+  return html`
+    <div class=${Directives.classMap({'chrome-select-label': Boolean(subtitle)})}>
+      <p class="settings-select">
+        <label for=${controlId}>
+          ${name}
+          ${subtitle ? html`<p>${subtitle}</p>` : nothing}
+          ${deprecation ? html`<devtools-setting-deprecation-warning .data=${
+              deprecation as Common.Settings.Deprecation}></devtools-setting-deprecation-warning>` :
+                          nothing}
+        </label>
+        <select
+          id=${controlId}
+          aria-label=${name}
+          .disabled=${setting.disabled()}
+          @change=${onSelectChange}
+          jslog=${VisualLogging.dropDown().track({change: true}).context(setting.name)}
+        >
+          ${options.map(option => {
+            if (option.text && typeof option.value === 'string') {
+              return html`
+                <option
+                  value=${option.value}
+                  ?selected=${setting.get() === option.value}
+                  jslog=${VisualLogging.item(Platform.StringUtilities.toKebabCase(option.value)).track({click: true})}
+                >
+                  ${option.text}
+                </option>
+              `;
+            }
+            return nothing;
+          })}
+        </select>
+      </p>
+      ${requiresReload ? html`
+        <p ${ref(reloadWarningRef)} class="reload-warning hidden" role="alert" aria-live="polite">
+          ${i18nString(UIStrings.srequiresReload)}
+        </p>` : nothing}
+    </div>
+  `;
+  // clang-format on
+}
+
+export const renderControlForSetting = function(
+    setting: Common.Settings.Setting<unknown>, subtitle?: string): TemplateResult|typeof nothing {
+  switch (setting.type()) {
+    case Common.Settings.SettingType.BOOLEAN: {
+      const onchange = (): void => {
+        if (setting.reloadRequired()) {
+          UI.InspectorView.InspectorView.instance().displayReloadRequiredWarning(
+              i18nString(UIStrings.settingsChangedReloadDevTools));
+        }
+      };
+      return html`<setting-checkbox .data=${{
+        setting: setting as Common.Settings.Setting<boolean>
+      } as Settings.SettingCheckbox.SettingCheckboxData} @change=${onchange}></setting-checkbox>`;
+    }
+    case Common.Settings.SettingType.ENUM: {
+      return renderSettingSelect(setting, subtitle);
+    }
+    default:
+      console.error('Invalid setting type: ' + setting.type());
+      return nothing;
+  }
+};
+
+export const createControlForSetting = function(
+    setting: Common.Settings.Setting<unknown>, subtitle?: string): HTMLElement|null {
+  const template = renderControlForSetting(setting, subtitle);
+  if (template === nothing) {
+    return null;
+  }
+  const fragment = document.createDocumentFragment();
+  // eslint-disable-next-line @devtools/no-lit-render-outside-of-view
+  render(template, fragment);
+  return fragment.firstElementChild as HTMLElement;
+};

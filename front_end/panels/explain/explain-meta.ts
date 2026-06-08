@@ -1,24 +1,25 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import type * as Platform from '../../core/platform/platform.js';
 import type * as Root from '../../core/root/root.js';
 import * as Console from '../../panels/console/console.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 const UIStrings = {
   /**
-   *@description Message to offer insights for a console error message
+   * @description Message to offer insights for a console error message
    */
   explainThisError: 'Understand this error',
   /**
-   *@description Message to offer insights for a console warning message
+   * @description Message to offer insights for a console warning message
    */
   explainThisWarning: 'Understand this warning',
   /**
-   *@description Message to offer insights for a console message
+   * @description Message to offer insights for a console message
    */
   explainThisMessage: 'Understand this message',
   /**
@@ -52,13 +53,23 @@ const actions = [
   {
     actionId: 'explain.console-message.hover',
     title: i18nLazyString(UIStrings.explainThisMessage),
+    configurableBindings: false,
     contextTypes(): [typeof Console.ConsoleViewMessage.ConsoleViewMessage] {
       return [Console.ConsoleViewMessage.ConsoleViewMessage];
     },
   },
   {
+    actionId: 'explain.console-message.teaser',
+    title: i18nLazyString(UIStrings.explainThisMessage),
+    configurableBindings: false,
+    contextTypes(): [] {
+      return [];
+    },
+  },
+  {
     actionId: 'explain.console-message.context.error',
     title: i18nLazyString(UIStrings.explainThisError),
+    configurableBindings: false,
     contextTypes(): [] {
       return [];
     },
@@ -66,6 +77,7 @@ const actions = [
   {
     actionId: 'explain.console-message.context.warning',
     title: i18nLazyString(UIStrings.explainThisWarning),
+    configurableBindings: false,
     contextTypes(): [] {
       return [];
     },
@@ -73,6 +85,7 @@ const actions = [
   {
     actionId: 'explain.console-message.context.other',
     title: i18nLazyString(UIStrings.explainThisMessage),
+    configurableBindings: false,
     contextTypes(): [] {
       return [];
     },
@@ -105,7 +118,7 @@ Common.Settings.registerSettingExtension({
   reloadRequired: false,
   condition: config => isFeatureEnabled(config),
   disabledCondition: config => {
-    const reasons = [];
+    const reasons: Platform.UIString.LocalizedString[] = [];
     if (isGeoRestricted(config)) {
       reasons.push(i18nString(UIStrings.geoRestricted));
     }
@@ -131,7 +144,7 @@ for (const action of actions) {
       return new Explain.ActionDelegate();
     },
     condition: config => {
-      return isFeatureEnabled(config) && !isPolicyRestricted(config);
+      return isFeatureEnabled(config) && !isPolicyRestricted(config) && !isGeoRestricted(config);
     },
   });
 }

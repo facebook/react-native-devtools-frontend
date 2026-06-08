@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@ describe('ServerSentEventsParser', () => {
   function enqueue(str: string, options?: {prefixBOM?: true}): Promise<void> {
     const maybeBom = options?.prefixBOM ? [0xef, 0xbb, 0xbf] : [];
     const bytes = new TextEncoder().encode(str);
-    return parser.addBase64Chunk(window.btoa(String.fromCodePoint(...maybeBom, ...bytes)));
+    return parser.addBase64Chunk(globalThis.btoa(String.fromCodePoint(...maybeBom, ...bytes)));
   }
 
   /**
@@ -23,14 +23,14 @@ describe('ServerSentEventsParser', () => {
    */
   async function enqueueOneByOne(str: string, options?: {prefixBOM?: true}): Promise<void> {
     if (options?.prefixBOM) {
-      await parser.addBase64Chunk(window.btoa('\xef'));
-      await parser.addBase64Chunk(window.btoa('\xbb'));
-      await parser.addBase64Chunk(window.btoa('\xbf'));
+      await parser.addBase64Chunk(globalThis.btoa('\xef'));
+      await parser.addBase64Chunk(globalThis.btoa('\xbb'));
+      await parser.addBase64Chunk(globalThis.btoa('\xbf'));
     }
 
     const bytes = new TextEncoder().encode(str);
     for (let i = 0; i < bytes.length; ++i) {
-      await parser.addBase64Chunk(window.btoa(String.fromCodePoint(bytes[i])));
+      await parser.addBase64Chunk(globalThis.btoa(String.fromCodePoint(bytes[i])));
     }
   }
 

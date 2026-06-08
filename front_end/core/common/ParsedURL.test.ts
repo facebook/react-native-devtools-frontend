@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -299,6 +299,12 @@ describe('Parsed URL', () => {
     const urlTest = 'path.html?testParam=t';
     const extractedName = ParsedURL.extractName(urlTest);
     assert.strictEqual(extractedName, 'path.html', 'name extracted incorrectly');
+  });
+
+  it('is able to extract name from a string with a trailing slash', () => {
+    const urlTest = 'http://www.example.com/path/';
+    const extractedName = ParsedURL.extractName(urlTest);
+    assert.strictEqual(extractedName, 'path', 'name extracted incorrectly');
   });
 
   it('uses the completeURL function to return a data URL as it is', () => {

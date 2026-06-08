@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,13 +7,13 @@ import type * as ProtocolProxyApi from '../../generated/protocol-proxy-api.js';
 import type * as Protocol from '../../generated/protocol.js';
 import * as Common from '../common/common.js';
 import * as Host from '../host/host.js';
-import type * as ProtocolClient from '../protocol_client/protocol_client.js';
 
-import {ParallelConnection} from './Connections.js';
 import {PrimaryPageChangeType, ResourceTreeModel} from './ResourceTreeModel.js';
 import {SDKModel} from './SDKModel.js';
+import {SecurityOriginManager} from './SecurityOriginManager.js';
+import {StorageKeyManager} from './StorageKeyManager.js';
 import {Capability, type Target, Type} from './Target.js';
-import {Events as TargetManagerEvents, TargetManager} from './TargetManager.js';
+import {Events as TargetManagerEvents, type TargetManager} from './TargetManager.js';
 
 const UIStrings = {
   /**
@@ -31,10 +31,9 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
   readonly #targetManager: TargetManager;
   #parentTarget: Target;
   readonly #targetAgent: ProtocolProxyApi.TargetApi;
-  readonly #targetInfosInternal = new Map<Protocol.Target.TargetID, Protocol.Target.TargetInfo>();
+  readonly #targetInfos = new Map<Protocol.Target.TargetID, Protocol.Target.TargetInfo>();
   readonly #childTargetsBySessionId = new Map<Protocol.Target.SessionID, Target>();
   readonly #childTargetsById = new Map<Protocol.Target.TargetID|'main', Target>();
-  readonly #parallelConnections = new Map<string, ProtocolClient.InspectorBackend.Connection>();
   #parentTargetId: Protocol.Target.TargetID|null = null;
 
   constructor(parentTarget: Target) {
@@ -49,6 +48,8 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
         void browserTarget.targetAgent().invoke_autoAttachRelated(
             {targetId: parentTarget.id() as Protocol.Target.TargetID, waitForDebuggerOnStart: true});
       }
+    } else if (parentTarget.type() === Type.NODE) {
+      void this.#targetAgent.invoke_setAutoAttach({autoAttach: true, waitForDebuggerOnStart: true, flatten: false});
     } else {
       void this.#targetAgent.invoke_setAutoAttach({autoAttach: true, waitForDebuggerOnStart: true, flatten: true});
     }
@@ -81,18 +82,18 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
 
   override dispose(): void {
     for (const sessionId of this.#childTargetsBySessionId.keys()) {
-      this.detachedFromTarget({sessionId, targetId: undefined});
+      this.detachedFromTarget({sessionId});
     }
   }
 
   targetCreated({targetInfo}: Protocol.Target.TargetCreatedEvent): void {
-    this.#targetInfosInternal.set(targetInfo.targetId, targetInfo);
+    this.#targetInfos.set(targetInfo.targetId, targetInfo);
     this.fireAvailableTargetsChanged();
     this.dispatchEventToListeners(Events.TARGET_CREATED, targetInfo);
   }
 
   targetInfoChanged({targetInfo}: Protocol.Target.TargetInfoChangedEvent): void {
-    this.#targetInfosInternal.set(targetInfo.targetId, targetInfo);
+    this.#targetInfos.set(targetInfo.targetId, targetInfo);
     const target = this.#childTargetsById.get(targetInfo.targetId);
     if (target) {
       void target.setHasCrashed(false);
@@ -112,7 +113,7 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
   }
 
   targetDestroyed({targetId}: Protocol.Target.TargetDestroyedEvent): void {
-    this.#targetInfosInternal.delete(targetId);
+    this.#targetInfos.delete(targetId);
     this.fireAvailableTargetsChanged();
     this.dispatchEventToListeners(Events.TARGET_DESTROYED, targetId);
   }
@@ -125,8 +126,8 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
   }
 
   private fireAvailableTargetsChanged(): void {
-    TargetManager.instance().dispatchEventToListeners(
-        TargetManagerEvents.AVAILABLE_TARGETS_CHANGED, [...this.#targetInfosInternal.values()]);
+    this.#targetManager.dispatchEventToListeners(
+        TargetManagerEvents.AVAILABLE_TARGETS_CHANGED, [...this.#targetInfos.values()]);
   }
 
   async getParentTargetId(): Promise<Protocol.Target.TargetID> {
@@ -173,6 +174,8 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
       type = Type.FRAME;
     } else if (targetInfo.type === 'page') {
       type = Type.FRAME;
+    } else if (targetInfo.type === 'browser_ui') {
+      type = Type.FRAME;
     } else if (targetInfo.type === 'worker') {
       type = Type.Worker;
     } else if (targetInfo.type === 'worklet') {
@@ -185,6 +188,8 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
       type = Type.ServiceWorker;
     } else if (targetInfo.type === 'auction_worklet') {
       type = Type.AUCTION_WORKLET;
+    } else if (targetInfo.type === 'node_worker') {
+      type = Type.NODE_WORKER;
     }
     const target = this.#targetManager.createTarget(
         targetInfo.targetId, targetName, type, this.#parentTarget, sessionId, undefined, undefined, targetInfo);
@@ -200,18 +205,47 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
     if (waitingForDebugger) {
       void target.runtimeAgent().invoke_runIfWaitingForDebugger();
     }
+
+    // For top-level workers (those not attached to a frame), we need to
+    // initialize their storage context manually. The `Capability.STORAGE` is
+    // only granted in `Target.ts` to workers that are not parented by a frame,
+    // which makes this check safe. Frame-associated workers have their storage
+    // managed by ResourceTreeModel.
+    if (type !== Type.FRAME && target.hasAllCapabilities(Capability.STORAGE)) {
+      await this.initializeStorage(target);
+    }
+  }
+
+  private async initializeStorage(target: Target): Promise<void> {
+    const storageAgent = target.storageAgent();
+    const response = await storageAgent.invoke_getStorageKey({});
+
+    const storageKey = response.storageKey;
+    if (response.getError() || !storageKey) {
+      console.error(`Failed to get storage key for target ${target.id()}: ${response.getError()}`);
+      return;
+    }
+
+    const storageKeyManager = target.model(StorageKeyManager);
+    if (storageKeyManager) {
+      storageKeyManager.setMainStorageKey(storageKey);
+      storageKeyManager.updateStorageKeys(new Set([storageKey]));
+    }
+
+    const securityOriginManager = target.model(SecurityOriginManager);
+    if (securityOriginManager) {
+      const origin = new URL(storageKey).origin;
+      securityOriginManager.setMainSecurityOrigin(origin, '');
+      securityOriginManager.updateSecurityOrigins(new Set([origin]));
+    }
   }
 
   detachedFromTarget({sessionId}: Protocol.Target.DetachedFromTargetEvent): void {
-    if (this.#parallelConnections.has(sessionId)) {
-      this.#parallelConnections.delete(sessionId);
-    } else {
-      const target = this.#childTargetsBySessionId.get(sessionId);
-      if (target) {
-        target.dispose('target terminated');
-        this.#childTargetsBySessionId.delete(sessionId);
-        this.#childTargetsById.delete(target.id());
-      }
+    const target = this.#childTargetsBySessionId.get(sessionId);
+    if (target) {
+      target.dispose('target terminated');
+      this.#childTargetsBySessionId.delete(sessionId);
+      this.#childTargetsById.delete(target.id());
     }
   }
 
@@ -219,37 +253,8 @@ export class ChildTargetManager extends SDKModel<EventTypes> implements Protocol
     // We use flatten protocol.
   }
 
-  async createParallelConnection(onMessage: (arg0: (Object|string)) => void):
-      Promise<{connection: ProtocolClient.InspectorBackend.Connection, sessionId: string}> {
-    // The main Target id is actually just `main`, instead of the real targetId.
-    // Get the real id (requires an async operation) so that it can be used synchronously later.
-    const targetId = await this.getParentTargetId();
-    const {connection, sessionId} =
-        await this.createParallelConnectionAndSessionForTarget(this.#parentTarget, targetId);
-    connection.setOnMessage(onMessage);
-    this.#parallelConnections.set(sessionId, connection);
-    return {connection, sessionId};
-  }
-
-  private async createParallelConnectionAndSessionForTarget(target: Target, targetId: Protocol.Target.TargetID):
-      Promise<{
-        connection: ProtocolClient.InspectorBackend.Connection,
-        sessionId: string,
-      }> {
-    const targetAgent = target.targetAgent();
-    const targetRouter = (target.router() as ProtocolClient.InspectorBackend.SessionRouter);
-    const sessionId = (await targetAgent.invoke_attachToTarget({targetId, flatten: true})).sessionId;
-    const connection = new ParallelConnection(targetRouter.connection(), sessionId);
-    targetRouter.registerSession(target, sessionId, connection);
-    connection.setOnDisconnect(() => {
-      targetRouter.unregisterSession(sessionId);
-      void targetAgent.invoke_detachFromTarget({sessionId});
-    });
-    return {connection, sessionId};
-  }
-
   targetInfos(): Protocol.Target.TargetInfo[] {
-    return Array.from(this.#targetInfosInternal.values());
+    return Array.from(this.#targetInfos.values());
   }
 
   private static lastAnonymousTargetId = 0;

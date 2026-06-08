@@ -1,27 +1,30 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../ui/kit/kit.js';
+import '../../ui/components/highlighting/highlighting.js';
+
 import * as i18n from '../../core/i18n/i18n.js';
 import * as CodeMirror from '../../third_party/codemirror.next/codemirror.next.js';
-import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as QuickOpen from '../../ui/legacy/components/quick_open/quick_open.js';
 import * as UI from '../../ui/legacy/legacy.js';
+import {html, nothing, type TemplateResult} from '../../ui/lit/lit.js';
 
 import {SourcesView} from './SourcesView.js';
 import type {UISourceCodeFrame} from './UISourceCodeFrame.js';
 
 const UIStrings = {
   /**
-   *@description Text in Go To Line Quick Open of the Sources panel
+   * @description Text in Go To Line Quick Open of the Sources panel
    */
   noFileSelected: 'No file selected.',
   /**
-   *@description Text in Outline Quick Open of the Sources panel
+   * @description Text in Outline Quick Open of the Sources panel
    */
   openAJavascriptOrCssFileToSee: 'Open a JavaScript or CSS file to see symbols',
   /**
-   *@description Text to show no results have been found
+   * @description Text to show no results have been found
    */
   noResultsFound: 'No results found',
 } as const;
@@ -44,7 +47,9 @@ export function outline(state: CodeMirror.EditorState): OutlineItem[] {
 
   function subtitleFromParamList(): string {
     while (cursor.name !== 'ParamList') {
-      cursor.nextSibling();
+      if (!cursor.nextSibling()) {
+        break;
+      }
     }
     let parameters = '';
     if (cursor.name === 'ParamList' && cursor.firstChild()) {
@@ -174,6 +179,25 @@ export function outline(state: CodeMirror.EditorState): OutlineItem[] {
             ])) {
           let title = state.sliceDoc(cursor.from, cursor.to);
           const {lineNumber, columnNumber} = toLineColumn(cursor.from);
+          let hasEquals = false;
+          let node: CodeMirror.SyntaxNode|null = cursor.node;
+          while (node && node.name !== 'AssignmentExpression' && node.name !== 'VariableDeclaration') {
+            let sibling = node.nextSibling;
+            while (sibling) {
+              if (sibling.name === 'Equals') {
+                hasEquals = true;
+                break;
+              }
+              sibling = sibling.nextSibling;
+            }
+            if (hasEquals) {
+              break;
+            }
+            node = node.parent;
+          }
+          if (!hasEquals) {
+            break;
+          }
           while (cursor.name as string !== 'Equals') {
             if (!cursor.next()) {
               return items;
@@ -274,10 +298,6 @@ export class OutlineQuickOpen extends QuickOpen.FilteredListWidget.Provider {
   private items: OutlineItem[] = [];
   private active = false;
 
-  constructor() {
-    super('source-symbol');
-  }
-
   override attach(): void {
     const sourceFrame = this.currentSourceFrame();
     if (sourceFrame) {
@@ -315,31 +335,28 @@ export class OutlineQuickOpen extends QuickOpen.FilteredListWidget.Provider {
     return -item.lineNumber - 1;
   }
 
-  override renderItem(itemIndex: number, query: string, titleElement: Element, _subtitleElement: Element): void {
+  override renderItem(itemIndex: number, query: string): TemplateResult {
     const item = this.items[itemIndex];
-    const icon = IconButton.Icon.create('deployed');
-    titleElement.parentElement?.parentElement?.insertBefore(icon, titleElement.parentElement);
-    titleElement.textContent = item.title + (item.subtitle ? item.subtitle : '');
-    QuickOpen.FilteredListWidget.FilteredListWidget.highlightRanges(titleElement, query);
-
+    let location: string|undefined;
     const sourceFrame = this.currentSourceFrame();
-    if (!sourceFrame) {
-      return;
+    if (sourceFrame) {
+      const disassembly = sourceFrame.wasmDisassembly;
+      if (disassembly) {
+        const lastBytecodeOffset = disassembly.lineNumberToBytecodeOffset(disassembly.lineNumbers - 1);
+        const bytecodeOffsetDigits = lastBytecodeOffset.toString(16).length;
+        location = `:0x${item.columnNumber.toString(16).padStart(bytecodeOffsetDigits, '0')}`;
+      } else {
+        location = `:${item.lineNumber + 1}`;
+      }
     }
-
-    const tagElement = titleElement.parentElement?.parentElement?.createChild('span', 'tag');
-    if (!tagElement) {
-      return;
-    }
-
-    const disassembly = sourceFrame.wasmDisassembly;
-    if (disassembly) {
-      const lastBytecodeOffset = disassembly.lineNumberToBytecodeOffset(disassembly.lineNumbers - 1);
-      const bytecodeOffsetDigits = lastBytecodeOffset.toString(16).length;
-      tagElement.textContent = `:0x${item.columnNumber.toString(16).padStart(bytecodeOffsetDigits, '0')}`;
-    } else {
-      tagElement.textContent = `:${item.lineNumber + 1}`;
-    }
+    const title = item.title + (item.subtitle ? item.subtitle : '');
+    const highlightRanges = QuickOpen.FilteredListWidget.FilteredListWidget.getHighlightRanges(title, query, true);
+    // clang-format off
+    return html`
+      <devtools-icon name="deployed"></devtools-icon>
+      <div><devtools-highlight type="markup" ranges=${highlightRanges}>${title}</devtools-highlight></div>
+      ${location ? html`<span class="tag">${location}</span>` : nothing}`;
+    // clang-format on
   }
 
   override selectItem(itemIndex: number|null, _promptValue: string): void {

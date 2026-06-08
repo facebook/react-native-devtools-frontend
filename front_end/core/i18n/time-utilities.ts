@@ -1,9 +1,9 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
- * @fileoverview Uses Intl.NumberFormat.
+ * @file Uses Intl.NumberFormat.
  * @see go/cpq:i18n-units-design
  */
 
@@ -85,20 +85,9 @@ export function formatMicroSecondsAsSeconds(time: Platform.Timing.MicroSeconds):
   return narrowSecondsDecimal.format(seconds);
 }
 
-export function formatPartsMicroSecondsAsSeconds(time: Platform.Timing.MicroSeconds): Intl.NumberFormatPart[] {
-  const milliseconds = Platform.Timing.microSecondsToMilliSeconds(time);
-  const seconds = Platform.Timing.milliSecondsToSeconds(milliseconds);
-  return narrowSecondsDecimal.formatToParts(seconds);
-}
-
 export function formatMicroSecondsAsMillisFixed(time: Platform.Timing.MicroSeconds): string {
   const milliseconds = Platform.Timing.microSecondsToMilliSeconds(time);
   return narrowMillisecondsInteger.format(milliseconds);
-}
-
-export function formatPartsMicroSecondsAsMillisFixed(time: Platform.Timing.MicroSeconds): Intl.NumberFormatPart[] {
-  const milliseconds = Platform.Timing.microSecondsToMilliSeconds(time);
-  return narrowMillisecondsInteger.formatToParts(milliseconds);
 }
 
 export function formatMicroSecondsAsMillisFixedExpanded(time: Platform.Timing.MicroSeconds): string {
@@ -145,7 +134,7 @@ export function millisToString(ms: number, higherResolution?: boolean): string {
 
 const preciseMillisToStringFormattersCache = new Map<number, NumberFormatter>();
 
-export function preciseMillisToString(ms: number, precision = 0): string {
+export function preciseMillisToString(ms: number, precision = 0, separator?: string): string {
   let formatter = preciseMillisToStringFormattersCache.get(precision);
   if (!formatter) {
     formatter = defineFormatter({
@@ -157,7 +146,7 @@ export function preciseMillisToString(ms: number, precision = 0): string {
     });
     preciseMillisToStringFormattersCache.set(precision, formatter);
   }
-  return formatter.format(ms);
+  return formatter.format(ms, separator);
 }
 
 const preciseSecondsToStringFormattersCache = new Map<number, NumberFormatter>();

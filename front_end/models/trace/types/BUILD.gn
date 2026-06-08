@@ -1,4 +1,4 @@
-# Copyright 2022 The Chromium Authors. All rights reserved.
+# Copyright 2022 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -12,13 +12,16 @@ devtools_module("types") {
     "Configuration.ts",
     "Extensions.ts",
     "File.ts",
+    "Overlays.ts",
     "Timing.ts",
     "TraceEvents.ts",
   ]
 
   deps = [
+    "../../../core/platform:bundle",
     "../../../core/sdk:bundle",
     "../../../generated",
+    "../../../generated:protocol",
     "../../crux-manager:bundle",
     "../lantern:bundle",
   ]

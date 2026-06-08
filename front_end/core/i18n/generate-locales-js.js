@@ -1,13 +1,14 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-const path = require('path');
-const yargs = require('yargs');
+import * as path from 'node:path';
+import yargs from 'yargs';
+import {hideBin} from 'yargs/helpers';
 
-const {writeIfChanged} = require('../../../scripts/build/ninja/write-if-changed.js');
+import {writeIfChanged} from '../../../scripts/build/ninja/write-if-changed.js';
 
-const yargsObject = yargs
+const yargsObject = yargs(hideBin(process.argv))
                         .option('target-gen-dir', {
                           type: 'string',
                           demandOption: true,

@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -79,6 +79,7 @@ describeWithMockConnection('FieldSettingsDialog', () => {
       'url-PHONE': null,
       'url-TABLET': null,
       warnings: [],
+      normalizedUrl: '',
     };
 
     cruxManager.getConfigSetting().set({enabled: false, override: ''});
@@ -114,7 +115,7 @@ describeWithMockConnection('FieldSettingsDialog', () => {
     const view = createFieldSettingsDialog();
     await RenderCoordinator.done();
 
-    const openButton = view.shadowRoot!.querySelector(OPEN_BUTTON_SELECTOR) as HTMLElement;
+    const openButton = view.shadowRoot!.querySelector(OPEN_BUTTON_SELECTOR)!;
     assert.strictEqual(openButton.innerText, 'Configure');
     openButton.click();
 

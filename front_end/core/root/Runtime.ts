@@ -1,17 +1,42 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Platform from '../platform/platform.js';
 
-const queryParamsObject = new URLSearchParams(location.search);
+import {ExperimentName} from './ExperimentNames.js';
+
+// [RN] Re-exported so existing `Root.Runtime.ExperimentName.*` references keep
+// resolving after upstream moved the enum to ./ExperimentNames.ts.
+export {ExperimentName};
 
 let runtimePlatform = '';
 
 let runtimeInstance: Runtime|undefined;
 let isNode: boolean|undefined;
+let isTraceAppEntry: boolean|undefined;
 
-export function getRemoteBase(location: string = self.location.toString()): {
+interface Global {
+  location?: {
+    toString(): string,
+    pathname: string,
+    search: string,
+  };
+  navigator?: {
+    userAgent: string,
+  };
+  localStorage?: Storage;
+  self?: Global;
+}
+
+const globalObject = (globalThis as unknown as Global);
+
+/**
+ * Returns the base URL (similar to `<base>`).
+ * Used to resolve the relative URLs of any additional DevTools files (locale strings, etc) needed.
+ * See: https://cs.chromium.org/remoteBase+f:devtools_window
+ */
+export function getRemoteBase(location: string = globalObject.self?.location?.toString() ?? ''): {
   base: string,
   version: string,
 }|null {
@@ -30,7 +55,7 @@ export function getRemoteBase(location: string = self.location.toString()): {
 }
 
 export function getPathName(): string {
-  return window.location.pathname;
+  return globalObject.location?.pathname ?? '';
 }
 
 export function isNodeEntry(pathname: string): boolean {
@@ -40,7 +65,8 @@ export function isNodeEntry(pathname: string): boolean {
 
 export const getChromeVersion = (): string => {
   const chromeRegex = /(?:^|\W)(?:Chrome|HeadlessChrome)\/(\S+)/;
-  const chromeMatch = navigator.userAgent.match(chromeRegex);
+  const userAgent = Platform.HostRuntime.HOST_RUNTIME.getUserAgent();
+  const chromeMatch = userAgent.match(chromeRegex);
   if (chromeMatch && chromeMatch.length > 1) {
     return chromeMatch[1];
   }
@@ -66,12 +92,21 @@ export class Runtime {
     runtimeInstance = undefined;
   }
 
+  static #queryParamsObject: URLSearchParams;
+
+  static #getSearchParams(): URLSearchParams|null {
+    if (!Runtime.#queryParamsObject && globalObject.location) {
+      Runtime.#queryParamsObject = new URLSearchParams(globalObject.location.search);
+    }
+    return Runtime.#queryParamsObject;
+  }
+
   static queryParam(name: string): string|null {
-    return queryParamsObject.get(name);
+    return Runtime.#getSearchParams()?.get(name) ?? null;
   }
 
   static setQueryParamForTesting(name: string, value: string): void {
-    queryParamsObject.set(name, value);
+    Runtime.#getSearchParams()?.set(name, value);
   }
 
   static isNode(): boolean {
@@ -79,6 +114,17 @@ export class Runtime {
       isNode = isNodeEntry(getPathName());
     }
     return isNode;
+  }
+
+  /**
+   * Returns true if viewing the slimmed-down devtools meant for just viewing a
+   * performance trace, e.g. devtools://devtools/bundled/trace_app.html?traceURL=http://...
+   */
+  static isTraceApp(): boolean {
+    if (isTraceAppEntry === undefined) {
+      isTraceAppEntry = getPathName().includes('trace_app');
+    }
+    return isTraceAppEntry;
   }
 
   static setPlatform(platform: string): void {
@@ -94,11 +140,17 @@ export class Runtime {
     if (experiment === '*') {
       return true;
     }
-    if (experiment && experiment.startsWith('!') && experiments.isEnabled(experiment.substring(1))) {
-      return false;
+    if (experiment?.startsWith('!')) {
+      const experimentName = experiment.substring(1) as ExperimentName;
+      if (experiments.isEnabled(experimentName)) {
+        return false;
+      }
     }
-    if (experiment && !experiment.startsWith('!') && !experiments.isEnabled(experiment)) {
-      return false;
+    if (experiment && !experiment.startsWith('!')) {
+      const experimentName = experiment as ExperimentName;
+      if (!experiments.isEnabled(experimentName)) {
+        return false;
+      }
     }
     const {condition} = descriptor;
     return condition ? condition(hostConfig) : true;
@@ -126,92 +178,127 @@ export interface Option {
 
 export class ExperimentsSupport {
   #experiments: Experiment[] = [];
-  readonly #experimentNames = new Set<string>();
-  readonly #enabledTransiently = new Set<string>();
-  readonly #enabledByDefault = new Set<string>();
-  readonly #serverEnabled = new Set<string>();
+  #hostExperiments = new Map<ExperimentName, HostExperiment>();
+  readonly #experimentNames = new Set<ExperimentName>();
+  readonly #enabledForTests = new Set<ExperimentName>();
+  readonly #enabledByDefault = new Set<ExperimentName>();
+  readonly #serverEnabled = new Set<ExperimentName>();
   readonly #storage = new ExperimentStorage();
 
-  allConfigurableExperiments(): Experiment[] {
-    const result = [];
-    for (const experiment of this.#experiments) {
-      if (!this.#enabledTransiently.has(experiment.name)) {
-        result.push(experiment);
-      }
-    }
-    return result;
+  allConfigurableExperiments(): Array<Experiment|HostExperiment> {
+    return [...this.#experiments, ...this.#hostExperiments.values()];
   }
 
-  register(
-      experimentName: string, experimentTitle: string, unstable?: boolean, docLink?: string,
-      feedbackLink?: string): void {
-    if (this.#experimentNames.has(experimentName)) {
+  registerHostExperiment(params: {
+    name: ExperimentName,
+    title: string,
+    aboutFlag: string,
+    isEnabled: boolean,
+    requiresChromeRestart: boolean,
+    docLink?: Platform.DevToolsPath.UrlString,
+    readonly feedbackLink?: Platform.DevToolsPath.UrlString,
+  }): HostExperiment {
+    if (this.#isHostExperiment(params.name) || this.#isExperiment(params.name)) {
+      throw new Error(`Duplicate registration of experiment '${params.name}'`);
+    }
+    const hostExperiment = new HostExperiment({...params, experiments: this});
+    this.#hostExperiments.set(params.name, hostExperiment);
+    return hostExperiment;
+  }
+
+  register(experimentName: ExperimentName, experimentTitle: string, docLink?: string, feedbackLink?: string): void {
+    if (this.#isHostExperiment(experimentName) || this.#isExperiment(experimentName)) {
       throw new Error(`Duplicate registration of experiment '${experimentName}'`);
     }
     this.#experimentNames.add(experimentName);
     this.#experiments.push(new Experiment(
-        this, experimentName, experimentTitle, Boolean(unstable),
+        this, experimentName, experimentTitle,
         docLink as Platform.DevToolsPath.UrlString ?? Platform.DevToolsPath.EmptyUrlString,
         feedbackLink as Platform.DevToolsPath.UrlString ?? Platform.DevToolsPath.EmptyUrlString));
   }
 
-  isEnabled(experimentName: string): boolean {
-    this.checkExperiment(experimentName);
-    // Check for explicitly disabled #experiments first - the code could call setEnable(false) on the experiment enabled
-    // by default and we should respect that.
-    if (this.#storage.get(experimentName) === false) {
-      return false;
+  isEnabled(experimentName: ExperimentName): boolean {
+    if (this.#isHostExperiment(experimentName)) {
+      return this.#enabledForTests.has(experimentName) ||
+          (this.#hostExperiments.get(experimentName)?.isEnabled() ?? false);
     }
-    if (this.#enabledTransiently.has(experimentName) || this.#enabledByDefault.has(experimentName)) {
-      return true;
+    if (this.#isExperiment(experimentName)) {
+      // Check for explicitly disabled #experiments first - the code could call setEnable(false)
+      // on the experiment enabled by default and we should respect that.
+      if (this.#storage.get(experimentName) === false) {
+        return false;
+      }
+      if (this.#enabledForTests.has(experimentName) || this.#enabledByDefault.has(experimentName)) {
+        return true;
+      }
+      if (this.#serverEnabled.has(experimentName)) {
+        return true;
+      }
+      return Boolean(this.#storage.get(experimentName));
     }
-    if (this.#serverEnabled.has(experimentName)) {
-      return true;
-    }
-
-    return Boolean(this.#storage.get(experimentName));
+    throw new Error(`Unknown experiment '${experimentName}'`);
   }
 
-  setEnabled(experimentName: string, enabled: boolean): void {
-    this.checkExperiment(experimentName);
-    this.#storage.set(experimentName, enabled);
+  getValueFromStorage(experimentName: ExperimentName): boolean|undefined {
+    return this.#storage.get(experimentName);
   }
 
-  enableExperimentsTransiently(experimentNames: string[]): void {
+  setEnabled(experimentName: ExperimentName, enabled: boolean): void {
+    if (this.#isHostExperiment(experimentName)) {
+      this.#hostExperiments.get(experimentName)?.setEnabled(enabled);
+      return;
+    }
+    if (this.#isExperiment(experimentName)) {
+      this.#storage.set(experimentName, enabled);
+      return;
+    }
+    throw new Error(`Unknown experiment '${experimentName}'`);
+  }
+
+  // Only applicable to legacy experiments.
+  enableExperimentsByDefault(experimentNames: ExperimentName[]): void {
     for (const experimentName of experimentNames) {
-      this.checkExperiment(experimentName);
-      this.#enabledTransiently.add(experimentName);
-    }
-  }
-
-  enableExperimentsByDefault(experimentNames: string[]): void {
-    for (const experimentName of experimentNames) {
-      this.checkExperiment(experimentName);
+      if (!this.#isExperiment(experimentName)) {
+        throw new Error(`Unknown (legacy) experiment '${experimentName}'`);
+      }
       this.#enabledByDefault.add(experimentName);
     }
   }
 
-  setServerEnabledExperiments(experimentNames: string[]): void {
-    for (const experiment of experimentNames) {
-      this.checkExperiment(experiment);
-      this.#serverEnabled.add(experiment);
+  // Only applicable to legacy experiments.
+  setServerEnabledExperiments(experiments: string[]): void {
+    for (const experiment of experiments) {
+      const experimentName = experiment as ExperimentName;
+      if (!this.#isExperiment(experimentName)) {
+        throw new Error(`Unknown (legacy) experiment '${experimentName}'`);
+      }
+      this.#serverEnabled.add(experimentName);
     }
   }
 
-  enableForTest(experimentName: string): void {
-    this.checkExperiment(experimentName);
-    this.#enabledTransiently.add(experimentName);
+  enableForTest(experimentName: ExperimentName): void {
+    if (!this.#isHostExperiment(experimentName) && !this.#isExperiment(experimentName)) {
+      throw new Error(`Unknown experiment '${experimentName}'`);
+    }
+    this.#enabledForTests.add(experimentName);
   }
 
-  disableForTest(experimentName: string): void {
-    this.checkExperiment(experimentName);
-    this.#enabledTransiently.delete(experimentName);
+  disableForTest(experimentName: ExperimentName): void {
+    if (!this.#isHostExperiment(experimentName) && !this.#isExperiment(experimentName)) {
+      throw new Error(`Unknown experiment '${experimentName}'`);
+    }
+    this.#enabledForTests.delete(experimentName);
+  }
+
+  isEnabledForTest(experimentName: ExperimentName): boolean {
+    return this.#enabledForTests.has(experimentName);
   }
 
   clearForTest(): void {
     this.#experiments = [];
+    this.#hostExperiments.clear();
     this.#experimentNames.clear();
-    this.#enabledTransiently.clear();
+    this.#enabledForTests.clear();
     this.#enabledByDefault.clear();
     this.#serverEnabled.clear();
   }
@@ -220,25 +307,27 @@ export class ExperimentsSupport {
     this.#storage.cleanUpStaleExperiments(this.#experimentNames);
   }
 
-  private checkExperiment(experimentName: string): void {
-    if (!this.#experimentNames.has(experimentName)) {
-      throw new Error(`Unknown experiment '${experimentName}'`);
-    }
+  #isHostExperiment(experimentName: ExperimentName): boolean {
+    return this.#hostExperiments.has(experimentName);
+  }
+
+  #isExperiment(experimentName: ExperimentName): boolean {
+    return this.#experimentNames.has(experimentName);
   }
 }
 
-/** Manages the 'experiments' dictionary in self.localStorage */
+/** Manages the 'experiments' dictionary in globalThis.localStorage */
 class ExperimentStorage {
   readonly #experiments: Record<string, boolean|undefined> = {};
 
   constructor() {
     try {
-      const storedExperiments = self.localStorage?.getItem('experiments');
+      const storedExperiments = Platform.HostRuntime.HOST_RUNTIME.getLocalStorage()?.getItem('experiments');
       if (storedExperiments) {
         this.#experiments = JSON.parse(storedExperiments);
       }
-    } catch {
-      console.error('Failed to parse localStorage[\'experiments\']');
+    } catch (err) {
+      console.error('Failed to parse localStorage[\'experiments\']: ' + err.message);
     }
   }
 
@@ -248,11 +337,11 @@ class ExperimentStorage {
    *   - false: Explicitly disabled.
    *   - undefined: Disabled.
    */
-  get(experimentName: string): boolean|undefined {
+  get(experimentName: ExperimentName): boolean|undefined {
     return this.#experiments[experimentName];
   }
 
-  set(experimentName: string, enabled: boolean): void {
+  set(experimentName: ExperimentName, enabled: boolean): void {
     this.#experiments[experimentName] = enabled;
     this.#syncToLocalStorage();
   }
@@ -267,23 +356,25 @@ class ExperimentStorage {
   }
 
   #syncToLocalStorage(): void {
-    self.localStorage?.setItem('experiments', JSON.stringify(this.#experiments));
+    Platform.HostRuntime.HOST_RUNTIME.getLocalStorage()?.setItem('experiments', JSON.stringify(this.#experiments));
   }
 }
 
+/**
+ * @deprecated Experiments should not be used anymore, instead use base::Feature.
+ * See docs/contributing/settings-experiments-features.md
+ */
 export class Experiment {
-  name: string;
+  name: ExperimentName;
   title: string;
-  unstable: boolean;
   docLink?: Platform.DevToolsPath.UrlString;
   readonly feedbackLink?: Platform.DevToolsPath.UrlString;
   readonly #experiments: ExperimentsSupport;
   constructor(
-      experiments: ExperimentsSupport, name: string, title: string, unstable: boolean,
-      docLink: Platform.DevToolsPath.UrlString, feedbackLink: Platform.DevToolsPath.UrlString) {
+      experiments: ExperimentsSupport, name: ExperimentName, title: string, docLink: Platform.DevToolsPath.UrlString,
+      feedbackLink: Platform.DevToolsPath.UrlString) {
     this.name = name;
     this.title = title;
-    this.unstable = unstable;
     this.docLink = docLink;
     this.feedbackLink = feedbackLink;
     this.#experiments = experiments;
@@ -298,50 +389,63 @@ export class Experiment {
   }
 }
 
-// This must be constructed after the query parameters have been parsed.
-export const experiments = new ExperimentsSupport();
+export class HostExperiment {
+  name: ExperimentName;
+  title: string;
+  readonly #experiments: ExperimentsSupport;
+  // This is the name of the corresponding Chromium flag (in chrome/browser/about_flags.cc).
+  // It is NOT the the name of the corresponding Chromium `base::Feature`.
+  aboutFlag: string;
+  #isEnabled: boolean;
+  readonly requiresChromeRestart: boolean;
+  docLink?: Platform.DevToolsPath.UrlString;
+  readonly feedbackLink?: Platform.DevToolsPath.UrlString;
 
-// React Native-specific experiments, see rn_experiments.ts
+  constructor(params: {
+    name: ExperimentName,
+    title: string,
+    experiments: ExperimentsSupport,
+    aboutFlag: string,
+    isEnabled: boolean,
+    requiresChromeRestart: boolean,
+    docLink?: Platform.DevToolsPath.UrlString,
+    feedbackLink?: Platform.DevToolsPath.UrlString,
+  }) {
+    this.name = params.name;
+    this.title = params.title;
+    this.#experiments = params.experiments;
+    this.aboutFlag = params.aboutFlag;
+    this.#isEnabled = params.isEnabled;
+    this.requiresChromeRestart = params.requiresChromeRestart;
+    this.docLink = params.docLink;
+    this.feedbackLink = params.feedbackLink;
+  }
+
+  isEnabled(): boolean {
+    return this.#experiments.isEnabledForTest(this.name) || this.#isEnabled;
+  }
+
+  setEnabled(enabled: boolean): void {
+    this.#isEnabled = enabled;
+  }
+}
+
+// [RN] React Native-specific experiments, see rn_experiments.ts. The values must
+// mirror the React Native entries in ExperimentName (./ExperimentNames.ts).
 export enum RNExperimentName {
   REACT_NATIVE_SPECIFIC_UI = 'react-native-specific-ui',
   JS_HEAP_PROFILER_ENABLE = 'js-heap-profiler-enable',
   ENABLE_TIMELINE_FRAMES = 'enable-timeline-frames',
 }
 
+// [RN] React Native-specific runtime conditions.
 export enum ConditionName {
   NOT_SOURCES_HIDE_ADD_FOLDER = '!sources.hide_add_folder',
   REACT_NATIVE_UNSTABLE_NETWORK_PANEL = 'unstable_enableNetworkPanel',
 }
 
-export const enum ExperimentName {
-  CAPTURE_NODE_CREATION_STACKS = 'capture-node-creation-stacks',
-  CSS_OVERVIEW = 'css-overview',
-  LIVE_HEAP_PROFILE = 'live-heap-profile',
-  ALL = '*',
-  PROTOCOL_MONITOR = 'protocol-monitor',
-  FULL_ACCESSIBILITY_TREE = 'full-accessibility-tree',
-  HEADER_OVERRIDES = 'header-overrides',
-  INSTRUMENTATION_BREAKPOINTS = 'instrumentation-breakpoints',
-  AUTHORED_DEPLOYED_GROUPING = 'authored-deployed-grouping',
-  JUST_MY_CODE = 'just-my-code',
-  HIGHLIGHT_ERRORS_ELEMENTS_PANEL = 'highlight-errors-elements-panel',
-  USE_SOURCE_MAP_SCOPES = 'use-source-map-scopes',
-  NETWORK_PANEL_FILTER_BAR_REDESIGN = 'network-panel-filter-bar-redesign',
-  TIMELINE_SHOW_POST_MESSAGE_EVENTS = 'timeline-show-postmessage-events',
-  TIMELINE_DEBUG_MODE = 'timeline-debug-mode',
-  TIMELINE_ENHANCED_TRACES = 'timeline-enhanced-traces',
-  TIMELINE_COMPILED_SOURCES = 'timeline-compiled-sources',
-  TIMELINE_EXPERIMENTAL_INSIGHTS = 'timeline-experimental-insights',
-  TIMELINE_DIM_UNRELATED_EVENTS = 'timeline-dim-unrelated-events',
-  TIMELINE_ALTERNATIVE_NAVIGATION = 'timeline-alternative-navigation',
-  // when adding to this enum, you'll need to also add to REGISTERED_EXPERIMENTS in EnvironmentHelpers.ts
-
-  // React Native-specific experiments - must mirror RNExperimentName above
-  JS_HEAP_PROFILER_ENABLE = RNExperimentName.JS_HEAP_PROFILER_ENABLE,
-  REACT_NATIVE_SPECIFIC_UI = RNExperimentName.REACT_NATIVE_SPECIFIC_UI,
-  NOT_REACT_NATIVE_SPECIFIC_UI = '!' + RNExperimentName.REACT_NATIVE_SPECIFIC_UI,
-  ENABLE_TIMELINE_FRAMES = RNExperimentName.ENABLE_TIMELINE_FRAMES,
-}
+/** This must be constructed after the query parameters have been parsed. **/
+export const experiments = new ExperimentsSupport();
 
 export enum GenAiEnterprisePolicyValue {
   ALLOW = 0,
@@ -380,6 +484,7 @@ export interface HostConfigFreestyler {
   executionMode?: HostConfigFreestylerExecutionMode;
   patching?: boolean;
   multimodal?: boolean;
+  multimodalUploadInput?: boolean;
   functionCalling?: boolean;
 }
 
@@ -395,8 +500,6 @@ export interface HostConfigAiAssistancePerformanceAgent {
   temperature: number;
   enabled: boolean;
   userTier: string;
-  // Introduced in crrev.com/c/6243415
-  insightsEnabled?: boolean;
 }
 
 export interface HostConfigAiAssistanceFileAgent {
@@ -406,10 +509,44 @@ export interface HostConfigAiAssistanceFileAgent {
   userTier: string;
 }
 
-/**
- * @see http://go/chrome-devtools:automatic-workspace-folders-design
- */
-export interface HostConfigAutomaticFileSystems {
+export interface HostConfigAiAssistanceAccessibilityAgent {
+  enabled: boolean;
+}
+
+export interface HostConfigAiAssistanceStorageAgent {
+  enabled: boolean;
+}
+
+export interface HostConfigAiCodeCompletion {
+  modelId: string;
+  temperature: number;
+  enabled: boolean;
+  userTier: string;
+}
+
+export interface HostConfigAiCodeGeneration {
+  modelId: string;
+  temperature: number;
+  enabled: boolean;
+  userTier: string;
+}
+
+export interface HostConfigAiCodeCompletionStyles {
+  modelId: string;
+  temperature: number;
+  enabled: boolean;
+  userTier: string;
+}
+
+export interface HostConfigDeepLinksViaExtensibilityApi {
+  enabled: boolean;
+}
+
+export interface HostConfigGreenDevUi {
+  enabled: boolean;
+}
+
+export interface HostConfigGeminiRebranding {
   enabled: boolean;
 }
 
@@ -438,18 +575,79 @@ export interface HostConfigAnimationStylesInStylesTab {
   enabled: boolean;
 }
 
-export interface HostConfigThirdPartyCookieControls {
-  thirdPartyCookieRestrictionEnabled: boolean;
-  thirdPartyCookieMetadataEnabled: boolean;
-  thirdPartyCookieHeuristicsEnabled: boolean;
-  managedBlockThirdPartyCookies: string|boolean;
+export interface HostConfigJpegXlImageFormat {
+  enabled: boolean;
 }
 
-interface CSSValueTracing {
+export interface HostConfigAiAssistanceV2 {
   enabled: boolean;
 }
 
 interface AiGeneratedTimelineLabels {
+  enabled: boolean;
+}
+
+interface AllowPopoverForcing {
+  enabled: boolean;
+}
+
+interface GlobalAiButton {
+  enabled: boolean;
+  promotionEnabled: boolean;
+}
+
+interface GdpProfiles {
+  enabled: boolean;
+  badgesEnabled: boolean;
+  starterBadgeEnabled: boolean;
+}
+
+export enum GdpProfilesEnterprisePolicyValue {
+  ENABLED = 0,
+  ENABLED_WITHOUT_BADGES = 1,
+  DISABLED = 2,
+}
+
+interface GdpProfilesAvailability {
+  // Whether GDP profiles can be enabled on this host (only possible on branded builds).
+  enabled: boolean;
+  enterprisePolicyValue: GdpProfilesEnterprisePolicyValue;
+}
+
+interface LiveEdit {
+  enabled: boolean;
+}
+
+interface DevToolsFlexibleLayout {
+  verticalDrawerEnabled: boolean;
+}
+
+interface DeviceBoundSessionsDebugging {
+  enabled: boolean;
+}
+
+export interface DevToolsEnableDurableMessages {
+  enabled: boolean;
+}
+
+interface HostConfigAiAssistanceContextSelectionAgent {
+  enabled: boolean;
+}
+
+interface ConsoleInsightsTeasers {
+  enabled: boolean;
+  allowWithoutGpu: boolean;
+}
+
+interface UseGcaApi {
+  enabled: boolean;
+}
+
+interface DevToolsProtocolMonitor {
+  enabled: boolean;
+}
+
+interface DevToolsWebMCPSupport {
   enabled: boolean;
 }
 
@@ -470,14 +668,20 @@ export type HostConfig = Platform.TypeScriptUtilities.RecursivePartial<{
   aidaAvailability: AidaAvailability,
   channel: Channel,
   devToolsConsoleInsights: HostConfigConsoleInsights,
+  devToolsDeepLinksViaExtensibilityApi: HostConfigDeepLinksViaExtensibilityApi,
   devToolsFreestyler: HostConfigFreestyler,
+  devToolsGreenDevUi: HostConfigGreenDevUi,
   devToolsAiAssistanceNetworkAgent: HostConfigAiAssistanceNetworkAgent,
   devToolsAiAssistanceFileAgent: HostConfigAiAssistanceFileAgent,
   devToolsAiAssistancePerformanceAgent: HostConfigAiAssistancePerformanceAgent,
-  devToolsAutomaticFileSystems: HostConfigAutomaticFileSystems,
+  devToolsAiAssistanceAccessibilityAgent: HostConfigAiAssistanceAccessibilityAgent,
+  devToolsAiAssistanceStorageAgent: HostConfigAiAssistanceStorageAgent,
+  devToolsAiAssistanceV2: HostConfigAiAssistanceV2,
+  devToolsAiCodeCompletion: HostConfigAiCodeCompletion,
+  devToolsAiCodeGeneration: HostConfigAiCodeGeneration,
+  devToolsAiCodeCompletionStyles: HostConfigAiCodeCompletionStyles,
   devToolsVeLogging: HostConfigVeLogging,
   devToolsWellKnown: HostConfigWellKnown,
-  devToolsPrivacyUI: HostConfigPrivacyUI,
   /**
    * OffTheRecord here indicates that the user's profile is either incognito,
    * or guest mode, rather than a "normal" profile.
@@ -485,9 +689,22 @@ export type HostConfig = Platform.TypeScriptUtilities.RecursivePartial<{
   isOffTheRecord: boolean,
   devToolsEnableOriginBoundCookies: HostConfigEnableOriginBoundCookies,
   devToolsAnimationStylesInStylesTab: HostConfigAnimationStylesInStylesTab,
-  thirdPartyCookieControls: HostConfigThirdPartyCookieControls,
-  devToolsCssValueTracing: CSSValueTracing,
+  devToolsJpegXlImageFormat: HostConfigJpegXlImageFormat,
   devToolsAiGeneratedTimelineLabels: AiGeneratedTimelineLabels,
+  devToolsAllowPopoverForcing: AllowPopoverForcing,
+  devToolsGlobalAiButton: GlobalAiButton,
+  devToolsGdpProfiles: GdpProfiles,
+  devToolsGdpProfilesAvailability: GdpProfilesAvailability,
+  devToolsLiveEdit: LiveEdit,
+  devToolsFlexibleLayout: DevToolsFlexibleLayout,
+  deviceBoundSessionsDebugging: DeviceBoundSessionsDebugging,
+  devToolsEnableDurableMessages: DevToolsEnableDurableMessages,
+  devToolsAiAssistanceContextSelectionAgent: HostConfigAiAssistanceContextSelectionAgent,
+  devToolsConsoleInsightsTeasers: ConsoleInsightsTeasers,
+  devToolsGeminiRebranding: HostConfigGeminiRebranding,
+  devToolsProtocolMonitor: DevToolsProtocolMonitor,
+  devToolsWebMCPSupport: DevToolsWebMCPSupport,
+  devToolsUseGcaApi: UseGcaApi,
 }>;
 
 /**

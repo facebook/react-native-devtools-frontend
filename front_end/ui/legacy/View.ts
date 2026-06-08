@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@ import * as Platform from '../../core/platform/platform.js';
 import type {TabbedPane} from './TabbedPane.js';
 import type {ToolbarItem, ToolbarMenuButton} from './Toolbar.js';
 import {ViewManager} from './ViewManager.js';
-import {VBox, type Widget} from './Widget.js';
+import {type AnyWidget, VBox, type WidgetOptions} from './Widget.js';
 
 export interface View {
   viewId(): string;
@@ -24,24 +24,49 @@ export interface View {
 
   toolbarItems(): Promise<ToolbarItem[]>;
 
-  widget(): Promise<Widget>;
+  widget(): Promise<AnyWidget>;
 
   disposeView(): void|Promise<void>;
 }
 
-export class SimpleView extends VBox implements View {
+/**
+ * Settings to control the behavior of `SimpleView` subclasses.
+ */
+export type SimpleViewOptions<ContentTypeT extends HTMLElement|DocumentFragment = HTMLElement> =
+    WidgetOptions<ContentTypeT>&{
+      /**
+       * User visible title for the view.
+       */
+      title: Platform.UIString.LocalizedString,
+
+      /**
+       * Internal ID used to refer to the view.
+       *
+       * Note that this is also used to construct VE contexts in some places.
+       *
+       * Must be in extended kebab case.
+       */
+      viewId: Lowercase<string>,
+    };
+
+export class SimpleView<ContentTypeT extends HTMLElement|DocumentFragment = HTMLElement> extends VBox<ContentTypeT>
+    implements View {
   readonly #title: Platform.UIString.LocalizedString;
   readonly #viewId: Lowercase<string>;
 
-  constructor(title: Platform.UIString.LocalizedString, useShadowDom?: boolean, viewId?: Lowercase<string>) {
-    super(useShadowDom);
-    this.#title = title;
-    if (viewId) {
-      if (!Platform.StringUtilities.isExtendedKebabCase(viewId)) {
-        throw new Error(`Invalid view ID '${viewId}'`);
-      }
+  /**
+   * Constructs a new `SimpleView` with the given `options`.
+   *
+   * @param options the settings for the resulting view.
+   * @throws TypeError - if `options.viewId` is not in extended kebab case.
+   */
+  constructor(options: SimpleViewOptions<ContentTypeT>) {
+    super(options);
+    this.#title = options.title;
+    this.#viewId = options.viewId;
+    if (!Platform.StringUtilities.isExtendedKebabCase(this.#viewId)) {
+      throw new TypeError(`Invalid view ID '${this.#viewId}'`);
     }
-    this.#viewId = viewId ?? Platform.StringUtilities.toKebabCase(title);
   }
 
   viewId(): string {
@@ -64,7 +89,7 @@ export class SimpleView extends VBox implements View {
     return Promise.resolve([]);
   }
 
-  widget(): Promise<Widget> {
+  widget(): Promise<AnyWidget> {
     return Promise.resolve(this);
   }
 
@@ -89,7 +114,8 @@ export interface ViewLocation {
   appendView(view: View, insertBefore?: View|null): void;
   showView(view: View, insertBefore?: View|null, userGesture?: boolean): Promise<void>;
   removeView(view: View): void;
-  widget(): Widget;
+  isViewVisible(view: View): boolean;
+  widget(): AnyWidget;
 }
 
 export interface TabbedViewLocation extends ViewLocation {

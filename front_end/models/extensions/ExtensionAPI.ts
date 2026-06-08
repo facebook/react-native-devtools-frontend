@@ -1,34 +1,8 @@
-/*
- * Copyright (C) 2012 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2012 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
-import type * as PublicAPI from '../../../extension-api/ExtensionAPI'; // eslint-disable-line rulesdir/es-modules-import
+import type * as PublicAPI from '../../../extension-api/ExtensionAPI.js';
 import type * as Platform from '../../core/platform/platform.js';
 import type * as HAR from '../har/har.js';
 
@@ -170,7 +144,7 @@ export namespace PrivateAPI {
   interface AddRequestHeadersRequest {
     command: Commands.AddRequestHeaders;
     extensionId: string;
-    headers: {[key: string]: string};
+    headers: Record<string, string>;
   }
   interface CreatePanelRequest {
     command: Commands.CreatePanel;
@@ -230,6 +204,7 @@ export namespace PrivateAPI {
   interface SetOpenResourceHandlerRequest {
     command: Commands.SetOpenResourceHandler;
     handlerPresent: boolean;
+    urlScheme?: string;
   }
   interface SetThemeChangeHandlerRequest {
     command: Commands.SetThemeChangeHandler;
@@ -410,7 +385,7 @@ declare global {
          injectedScriptId: number, targetWindow?: Window) => void;
     buildExtensionAPIInjectedScript(
         extensionInfo: ExtensionDescriptor, inspectedTabId: string, themeName: string, keysToForward: number[],
-        testHook: undefined|((extensionServer: unknown, extensionAPI: unknown) => unknown)): string;
+        testHook?: (extensionServer: unknown, extensionAPI: unknown) => unknown): string;
     chrome: PublicAPI.Chrome.DevTools.Chrome;
     webInspector?: APIImpl.InspectorExtensionAPI;
   }
@@ -435,8 +410,8 @@ namespace APIImpl {
   }
 
   export interface ExtensionServerClient {
-    _callbacks: {[key: string]: (response: unknown) => unknown};
-    _handlers: {[key: string]: (request: {arguments: unknown[]}) => unknown};
+    _callbacks: Record<string, (response: unknown) => unknown>;
+    _handlers: Record<string, (request: {arguments: unknown[]}) => unknown>;
     _lastRequestId: number;
     _lastObjectId: number;
     _port: MessagePort;
@@ -457,14 +432,14 @@ namespace APIImpl {
   export interface EventSink<ListenerT extends Callable> extends PublicAPI.Chrome.DevTools.EventSink<ListenerT> {
     _type: string;
     _listeners: ListenerT[];
-    _customDispatch: undefined|((this: EventSink<ListenerT>, request: {arguments: unknown[]}) => unknown);
+    _customDispatch?: (this: EventSink<ListenerT>, request: {arguments: unknown[]}) => unknown;
 
     _fire(..._vararg: Parameters<ListenerT>): void;
     _dispatch(request: {arguments: unknown[]}): void;
   }
 
   export interface Network extends PublicAPI.Chrome.DevTools.Network {
-    addRequestHeaders(headers: {[key: string]: string}): void;
+    addRequestHeaders(headers: Record<string, string>): void;
   }
 
   export interface Request extends PublicAPI.Chrome.DevTools.Request, HAR.Log.EntryDTO {
@@ -472,8 +447,9 @@ namespace APIImpl {
   }
 
   export interface Panels extends PublicAPI.Chrome.DevTools.Panels {
-    get SearchAction(): {[key: string]: string};
-    setOpenResourceHandler(callback?: (resource: PublicAPI.Chrome.DevTools.Resource, lineNumber: number) => unknown):
+    get SearchAction(): Record<string, string>;
+    setOpenResourceHandler(
+        callback?: (resource: PublicAPI.Chrome.DevTools.Resource, lineNumber: number, columnNumber: number) => unknown):
         void;
     setThemeChangeHandler(callback?: (themeName: string) => unknown): void;
   }
@@ -513,10 +489,12 @@ namespace APIImpl {
   export interface ResourceData {
     url: string;
     type: string;
+    buildId?: string;
   }
   export interface Resource extends PublicAPI.Chrome.DevTools.Resource {
     _type: string;
     _url: string;
+    _buildId?: string;
 
     get type(): string;
   }
@@ -638,12 +616,12 @@ self.injectedExtensionAPI = function(
           entries[i].__proto__ = new (Constructor(Request))(entries[i]._requestId as number);
           delete entries[i]._requestId;
         }
-        callback?.(result as Object);
+        callback?.(result);
       }
       extensionServer.sendRequest({command: PrivateAPI.Commands.GetHAR}, callback && callbackWrapper);
     },
 
-    addRequestHeaders: function(headers: {[key: string]: string}): void {
+    addRequestHeaders: function(headers: Record<string, string>): void {
       extensionServer.sendRequest(
           {command: PrivateAPI.Commands.AddRequestHeaders, headers, extensionId: window.location.hostname});
     },
@@ -665,7 +643,7 @@ self.injectedExtensionAPI = function(
   };
 
   function Panels(this: APIImpl.Panels): void {
-    const panels: {[key: string]: ElementsPanel|SourcesPanel|PublicAPI.Chrome.DevTools.NetworkPanel} = {
+    const panels: Record<string, ElementsPanel|SourcesPanel|PublicAPI.Chrome.DevTools.NetworkPanel> = {
       elements: new ElementsPanel(),
       sources: new SourcesPanel(),
       network: new (Constructor(NetworkPanel))(),
@@ -682,7 +660,7 @@ self.injectedExtensionAPI = function(
   (Panels.prototype as
    Pick<APIImpl.Panels, 'create'|'setOpenResourceHandler'|'openResource'|'SearchAction'|'setThemeChangeHandler'>) = {
     create: function(
-        title: string, icon: string, page: string,
+        title: string, _icon: string, page: string,
         callback: (panel: PublicAPI.Chrome.DevTools.ExtensionPanel) => unknown): void {
       const id = 'extension-panel-' + extensionServer.nextObjectId();
       extensionServer.sendRequest(
@@ -691,15 +669,17 @@ self.injectedExtensionAPI = function(
     },
 
     setOpenResourceHandler: function(
-        callback: (resource: PublicAPI.Chrome.DevTools.Resource, lineNumber: number) => unknown): void {
+        callback: (resource: PublicAPI.Chrome.DevTools.Resource, lineNumber: number, columnNumber: number) => unknown,
+        urlScheme?: string): void {
       const hadHandler = extensionServer.hasHandler(PrivateAPI.Events.OpenResource);
 
       function callbackWrapper(message: unknown): void {
         // Allow the panel to show itself when handling the event.
         userAction = true;
         try {
-          const {resource, lineNumber} = message as {resource: APIImpl.ResourceData, lineNumber: number};
-          callback.call(null, new (Constructor(Resource))(resource), lineNumber);
+          const {resource, lineNumber, columnNumber} =
+              message as {resource: APIImpl.ResourceData, lineNumber: number, columnNumber: number};
+          callback.call(null, new (Constructor(Resource))(resource), lineNumber, columnNumber);
         } finally {
           userAction = false;
         }
@@ -714,7 +694,7 @@ self.injectedExtensionAPI = function(
       // Only send command if we either removed an existing handler or added handler and had none before.
       if (hadHandler === !callback) {
         extensionServer.sendRequest(
-            {command: PrivateAPI.Commands.SetOpenResourceHandler, handlerPresent: Boolean(callback)});
+            {command: PrivateAPI.Commands.SetOpenResourceHandler, handlerPresent: Boolean(callback), urlScheme});
       }
     },
 
@@ -750,7 +730,7 @@ self.injectedExtensionAPI = function(
           {command: PrivateAPI.Commands.OpenResource, url, lineNumber, columnNumber: columnNumberArg}, callbackArg);
     },
 
-    get SearchAction(): {[key: string]: string} {
+    get SearchAction(): Record<string, string> {
       return {
         CancelSearch: PrivateAPI.Panels.SearchAction.CancelSearch,
         PerformSearch: PrivateAPI.Panels.SearchAction.PerformSearch,
@@ -1065,7 +1045,7 @@ self.injectedExtensionAPI = function(
     return function(this: ThisParameterType<ImplT>, ...args: Parameters<ImplT>): void {
       const impl = {__proto__: implConstructor.prototype};
       implConstructor.apply(impl, args);
-      populateInterfaceClass(this as {[key: string]: unknown}, impl);
+      populateInterfaceClass(this as Record<string, unknown>, impl);
     };
   }
 
@@ -1275,8 +1255,9 @@ self.injectedExtensionAPI = function(
           const callback = extractCallbackArgument(arguments);
           function callbackWrapper(result: unknown): void {
             const {isError, isException, value} = result as {
+              value: unknown,
               isError?: boolean,
-              isException?: boolean, value: unknown,
+              isException?: boolean,
             };
             if (isError || isException) {
               callback?.(undefined, result);
@@ -1308,16 +1289,22 @@ self.injectedExtensionAPI = function(
   function ResourceImpl(this: APIImpl.Resource, resourceData: APIImpl.ResourceData): void {
     this._url = resourceData.url;
     this._type = resourceData.type;
+    this._buildId = resourceData.buildId;
   }
 
-  (ResourceImpl.prototype as
-   Pick<APIImpl.Resource, 'url'|'type'|'getContent'|'setContent'|'setFunctionRangesForScript'|'attachSourceMapURL'>) = {
+  (ResourceImpl.prototype as Pick<
+       APIImpl.Resource,
+       'url'|'type'|'buildId'|'getContent'|'setContent'|'setFunctionRangesForScript'|'attachSourceMapURL'>) = {
     get url(): string {
       return (this as APIImpl.Resource)._url;
     },
 
     get type(): string {
       return (this as APIImpl.Resource)._type;
+    },
+
+    get buildId(): (string | undefined) {
+      return (this as APIImpl.Resource)._buildId;
     },
 
     getContent: function(this: APIImpl.Resource, callback?: (content: string, encoding: string) => unknown): void {
@@ -1520,14 +1507,14 @@ self.injectedExtensionAPI = function(
     },
   };
 
-  function populateInterfaceClass(interfaze: {[key: string]: unknown}, implementation: {[key: string]: unknown}): void {
+  function populateInterfaceClass(interfaze: Record<string, unknown>, implementation: Record<string, unknown>): void {
     for (const member in implementation) {
       if (member.charAt(0) === '_') {
         continue;
       }
       let descriptor: (PropertyDescriptor|undefined)|null = null;
       // Traverse prototype chain until we find the owner.
-      for (let owner = implementation; owner && !descriptor; owner = owner.__proto__ as {[key: string]: unknown}) {
+      for (let owner = implementation; owner && !descriptor; owner = owner.__proto__ as Record<string, unknown>) {
         descriptor = Object.getOwnPropertyDescriptor(owner, member);
       }
       if (!descriptor) {

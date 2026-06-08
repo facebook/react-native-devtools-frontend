@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 import * as Protocol from '../../../generated/protocol.js';
@@ -12,7 +12,7 @@ import type {RenderBlocking, SyntheticNetworkRequest} from '../types/TraceEvents
 //    browser.
 // 3. Therefore, from a developer's point of view, there is nothing more they
 //    can do if they've put `async` on, and within the context of Insights, we
-//    shouldn't report an async script as render blocking.
+//    shouldn't report an async script as render-blocking.
 // In the future we may want to consider suggesting the use of `defer` over
 // `async`, as it doesn't have this concern, but for now we'll allow `async`
 // and not report it as an issue.

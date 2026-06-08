@@ -1,7 +1,8 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import type * as Platform from '../../../core/platform/platform.js';
 import * as Types from '../types/types.js';
 
 import {eventIsInBounds} from './Timing.js';
@@ -37,11 +38,7 @@ export interface TraceEntryNode {
   children: TraceEntryNode[];
 }
 
-class TraceEntryNodeIdTag {
-  /* eslint-disable-next-line no-unused-private-class-members */
-  readonly #tag: (symbol|undefined);
-}
-export type TraceEntryNodeId = number&TraceEntryNodeIdTag;
+export type TraceEntryNodeId = Platform.Brand.Brand<number, 'traceEntryNodeIdTag'>;
 
 /**
  * Builds a hierarchy of the entries (trace events and profile calls) in
@@ -59,7 +56,7 @@ export type TraceEntryNodeId = number&TraceEntryNodeIdTag;
  *
  * Complexity: O(n), where n = number of events
  */
-export function treify(entries: Types.Events.Event[], options?: {
+export function treify(entries: readonly Types.Events.Event[], options?: {
   filter: {has: (name: Types.Events.Name) => boolean},
 }): {tree: TraceEntryTree, entryToNode: Map<Types.Events.Event, TraceEntryNode>} {
   // As we construct the tree, store a map of each entry to its node. This

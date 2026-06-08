@@ -1,0 +1,216 @@
+/*
+ * Copyright 2026 The Chromium Authors
+ * Use of this source code is governed by a BSD-style license that can be
+ * found in the LICENSE file.
+ */
+
+@scope (devtools-widget) {
+  .walkthrough-view {
+    height: 100%;
+    background-color: var(--sys-color-cdt-base-container);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+@scope (devtools-widget > *) {
+  .walkthrough-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 8px;
+    height: 35px;
+    border-bottom: 1px solid var(--sys-color-divider);
+    flex-shrink: 0;
+  }
+
+  .walkthrough-title {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--sys-color-on-surface);
+  }
+
+  .steps-container {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .steps-scroll-content {
+    padding: var(--sys-size-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sys-size-6);
+  }
+
+  .walkthrough-step {
+    display: flex;
+    gap: var(--sys-size-6);
+    align-items: flex-start;
+    justify-content: flex-start;
+    flex-shrink: 0;
+
+    .step-number {
+      font: var(--sys-typescale-body4-regular);
+      color: var(--sys-color-on-surface-subtle);
+      padding-top:var(--sys-size-4);
+      flex-grow: 0;
+      flex-shrink: 0;
+    }
+  }
+
+  .step-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sys-size-5);
+    min-width: 0;
+    width: 100%;
+  }
+
+  .step-container {
+    display: flex;
+    gap: var(--sys-size-5);
+    align-items: flex-start;
+  }
+
+  .step-icon {
+    color: var(--sys-color-on-surface-subtle);
+    width: var(--sys-size-8);
+    height: var(--sys-size-8);
+    flex-shrink: 0;
+    margin-top: var(--sys-size-2);
+  }
+
+  .step-content {
+    flex: 1;
+    font-size: 11px;
+    color: var(--sys-color-on-surface);
+    line-height: 1.4;
+  }
+
+  .empty-state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: var(--sys-color-on-surface-subtle);
+    font-size: 11px;
+  }
+
+  .inline-wrapper {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sys-size-2);
+    justify-content: flex-start;
+
+    .inline-icon {
+      display: block;
+    margin-top: var(--sys-size-2);
+    }
+  }
+
+  .walkthrough-inline {
+    border-radius: var(--sys-shape-corner-full);
+    overflow: hidden;
+    width: fit-content;
+    max-width: 100%;
+
+    &[open] {
+      border-radius: var(--sys-size-5);
+      width: auto;
+      background-color: var(--sys-color-surface2);
+      margin-left: calc(var(--sys-size-6) / 2);
+      flex-grow: 1;
+    }
+  }
+
+  .walkthrough-inline > summary {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    background-color: transparent;
+    /* The same height as a DevTools Button */
+    height: var(--sys-size-11);
+    font: var(--sys-typescale-body4-regular);
+    font-weight:var(--ref-typeface-weight-medium);
+    user-select: none;
+    list-style: none; /* Hide default triangle */
+    justify-content: flex-start;
+    gap: var(--sys-size-4);
+    color: var(--sys-color-primary);
+    padding: 0 var(--sys-size-6);
+    overflow: hidden;
+
+    devtools-icon {
+      color: var(--sys-color-primary);
+    }
+
+    /* Align the summary to look like the tonal button */
+    &[data-has-widgets] {
+      background: var(--sys-color-tonal-container);
+      color: var(--sys-color-on-tonal-container);
+      border-radius: var(--sys-shape-corner-full);
+      margin-left: var(--sys-size-6);
+
+      devtools-icon {
+        color: var(--sys-color-on-tonal-container);
+      }
+    }
+
+    > .walkthrough-inline-title {
+      font: var(--sys-typescale-body4-regular);
+      font-weight: var(--ref-typeface-weight-medium);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    &:focus-visible {
+      outline: var(--sys-size-2) solid var(--sys-color-state-focus-ring);
+      outline-offset: calc(-1 * var(--sys-size-2));
+    }
+  }
+
+  .walkthrough-inline[open] > summary {
+    border-radius: var(--sys-shape-corner-medium-small);
+    border-bottom-right-radius: 0;
+    border-bottom-left-radius: 0;
+    background: var(--sys-color-surface5);
+    color: var(--sys-color-on-surface);
+
+    &[data-has-widgets] {
+      margin-left: 0;
+    }
+
+    > devtools-icon[name='chevron-right'] {
+      transform: rotate(270deg);
+    }
+
+  }
+
+  .walkthrough-inline > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .walkthrough-inline > summary:hover {
+    background-color: var(--sys-color-state-hover-on-subtle);
+  }
+
+  .walkthrough-inline .steps-container {
+    padding: var(--sys-size-6);
+    border-top: 1px solid var(--sys-color-divider);
+    background-color: transparent;
+  }
+
+  .walkthrough-inline > summary > devtools-icon[name='chevron-right'] {
+    width: var(--sys-size-8);
+    height: var(--sys-size-8);
+    transition: transform 0.2s;
+    margin-left: auto;
+  }
+
+  .walkthrough-inline .step {
+    background-color: var(--sys-color-surface5);
+  }
+}

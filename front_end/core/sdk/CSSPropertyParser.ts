@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -74,8 +74,6 @@ export function stripComments(value: string): string {
   return value.replaceAll(/(\/\*(?:.|\s)*?\*\/)/g, '');
 }
 
-const cssParser = CodeMirror.css.cssLanguage.parser;
-
 function nodeText(node: CodeMirror.SyntaxNode, text: string): string {
   return nodeTextRange(node, node, text);
 }
@@ -106,7 +104,10 @@ export class SyntaxTree {
     return nodeText(node ?? this.tree, this.rule);
   }
 
-  textRange(from: CodeMirror.SyntaxNode, to: CodeMirror.SyntaxNode): string {
+  textRange(from: CodeMirror.SyntaxNode|undefined, to: CodeMirror.SyntaxNode|undefined): string {
+    if (!from || !to) {
+      return '';
+    }
     return nodeTextRange(from, to, this.rule);
   }
 
@@ -205,8 +206,8 @@ export function matcherBase<MatchT extends Match>(matchT: Platform.Constructor.C
 
 type MatchKey = Platform.Brand.Brand<string, 'MatchKey'>;
 export class BottomUpTreeMatching extends TreeWalker {
-  #matchers: Array<Matcher<Match>> = [];
-  #matchedNodes = new Map<MatchKey, Match>();
+  readonly #matchers: Array<Matcher<Match>> = [];
+  readonly #matchedNodes = new Map<MatchKey, Match>();
   readonly computedText: ComputedText;
 
   #key(node: CodeMirror.SyntaxNode): MatchKey {
@@ -246,32 +247,50 @@ export class BottomUpTreeMatching extends TreeWalker {
     return this.#matchedNodes.get(this.#key(node));
   }
 
-  hasUnresolvedVars(node: CodeMirror.SyntaxNode): boolean {
-    return this.hasUnresolvedVarsRange(node, node);
+  hasUnresolvedSubstitutions(node: CodeMirror.SyntaxNode): boolean {
+    return this.hasUnresolvedSubstitutionsRange(node, node);
   }
 
-  hasUnresolvedVarsRange(from: CodeMirror.SyntaxNode, to: CodeMirror.SyntaxNode): boolean {
-    return this.computedText.hasUnresolvedVars(from.from - this.ast.tree.from, to.to - this.ast.tree.from);
+  hasUnresolvedSubstitutionsRange(from: CodeMirror.SyntaxNode, to: CodeMirror.SyntaxNode): boolean {
+    return this.computedText.hasUnresolvedSubstitutions(from.from - this.ast.tree.from, to.to - this.ast.tree.from);
   }
 
-  getComputedText(node: CodeMirror.SyntaxNode, substitutions?: Map<Match, string>): string {
-    return this.getComputedTextRange(node, node, substitutions);
+  getComputedText(node: CodeMirror.SyntaxNode, substitutionHook?: (match: Match) => string | null): string {
+    return this.getComputedTextRange(node, node, substitutionHook);
   }
 
-  getComputedPropertyValueText(): string {
+  getLonghandValuesCount(): number {
     const [from, to] = ASTUtils.range(ASTUtils.siblings(ASTUtils.declValue(this.ast.tree)));
-    return this.getComputedTextRange(from ?? this.ast.tree, to ?? this.ast.tree);
+    if (!from || !to) {
+      return 0;
+    }
+    return this.computedText.countTopLevelValues(from.from - this.ast.tree.from, to.to - this.ast.tree.from);
   }
 
-  getComputedTextRange(from: CodeMirror.SyntaxNode, to: CodeMirror.SyntaxNode, substitutions?: Map<Match, string>):
-      string {
-    return this.computedText.get(from.from - this.ast.tree.from, to.to - this.ast.tree.from, substitutions);
+  getComputedLonghandName(to: CodeMirror.SyntaxNode): number {
+    const from = ASTUtils.declValue(this.ast.tree) ?? this.ast.tree;
+    return this.computedText.countTopLevelValues(from.from - this.ast.tree.from, to.from - this.ast.tree.from);
+  }
+
+  getComputedPropertyValueText(substitutionHook?: (match: Match) => string | null): string {
+    const [from, to] = ASTUtils.range(ASTUtils.siblings(ASTUtils.declValue(this.ast.tree)));
+    return this.getComputedTextRange(from ?? this.ast.tree, to ?? this.ast.tree, substitutionHook);
+  }
+
+  getComputedTextRange(
+      from: CodeMirror.SyntaxNode|undefined, to: CodeMirror.SyntaxNode|undefined,
+      substitutionHook?: (match: Match) => string | null): string {
+    if (!from || !to) {
+      return '';
+    }
+    return this.computedText.get(from.from - this.ast.tree.from, to.to - this.ast.tree.from, substitutionHook);
   }
 }
 
 type MatchWithComputedText = Match&{computedText: NonNullable<Match['computedText']>};
 class ComputedTextChunk {
   #cachedComputedText: string|null = null;
+  #topLevelValueCount: number|null = null;
   constructor(readonly match: MatchWithComputedText, readonly offset: number) {
   }
 
@@ -289,17 +308,43 @@ class ComputedTextChunk {
     }
     return this.#cachedComputedText;
   }
+
+  // If the match is top-level, i.e. is an outermost sub-expression in the property value, count the number of outermost
+  // sub-expressions after applying any potential substitutions.
+  get topLevelValueCount(): number {
+    if (this.match.node.parent?.name !== 'Declaration') {
+      // Not a top-level match.
+      return 0;
+    }
+    const computedText = this.computedText;
+    if (computedText === '') {
+      // Substitutions elided the match altogether.
+      return 0;
+    }
+    if (this.#topLevelValueCount === null) {
+      // computedText may be null, in which case the match text was not replaced.
+      this.#topLevelValueCount =
+          ASTUtils
+              .siblings(ASTUtils.declValue(tokenizeDeclaration('--p', computedText ?? this.match.text)?.tree ?? null))
+              .length;
+    }
+    return this.#topLevelValueCount;
+  }
 }
 
-// This class constructs the "computed" text from the input property text, i.e., it will strip comments and substitute
-// var() functions if possible. It's intended for use during the bottom-up tree matching process. The original text is
-// not modified. Instead, computed text slices are produced on the fly. During bottom-up matching, the sequence of
-// top-level comments and var() matches will be recorded. This produces an ordered sequence of text pieces that need to
-// be substituted into the original text. When a computed text slice is requested, it is generated by piecing together
-// original and computed slices as required.
+/**
+ * This class constructs the "computed" text from the input property text, i.e., it will strip comments and substitute
+ * var() functions if possible. It's intended for use during the bottom-up tree matching process. The original text is
+ * not modified. Instead, computed text slices are produced on the fly. During bottom-up matching, the sequence of
+ * top-level comments and var() matches will be recorded. This produces an ordered sequence of text pieces that need to
+ * be substituted into the original text. When a computed text slice is requested, it is generated by piecing together
+ * original and computed slices as required.
+ **/
 export class ComputedText {
   readonly #chunks: ComputedTextChunk[] = [];
   readonly text: string;
+  readonly #topLevelValueCounts = new Map<string, number>();
+
   #sorted = true;
   constructor(text: string) {
     this.text = text;
@@ -307,6 +352,7 @@ export class ComputedText {
 
   clear(): void {
     this.#chunks.splice(0);
+    this.#topLevelValueCounts.clear();
   }
 
   get chunkCount(): number {
@@ -369,7 +415,7 @@ export class ComputedText {
     }
   }
 
-  hasUnresolvedVars(begin: number, end: number): boolean {
+  hasUnresolvedSubstitutions(begin: number, end: number): boolean {
     for (const chunk of this.#range(begin, end)) {
       if (chunk.computedText === null) {
         return true;
@@ -396,14 +442,14 @@ export class ComputedText {
   // Get a slice of the computed text corresponding to the property text in the range [begin, end). The slice may not
   // start within a substitution chunk, e.g., it's invalid to request the computed text for the property value text
   // slice "1px var(--".
-  get(begin: number, end: number, substitutions?: Map<Match, string>): string {
+  get(begin: number, end: number, substitutionHook?: (match: Match) => string | null): string {
     const pieces: string[] = [];
     const getText = (piece: string|ComputedTextChunk): string => {
       if (typeof piece === 'string') {
         return piece;
       }
-      const substitution = substitutions?.get(piece.match);
-      if (substitution) {
+      const substitution = substitutionHook?.(piece.match) ?? null;
+      if (substitution !== null) {
         return getText(substitution);
       }
       return piece.computedText ?? piece.match.text;
@@ -421,12 +467,33 @@ export class ComputedText {
     }
     return pieces.join('');
   }
+
+  #countTopLevelValuesInStringPiece(piece: string): number {
+    let count = this.#topLevelValueCounts.get(piece);
+    if (count === undefined) {
+      count = ASTUtils.siblings(ASTUtils.declValue(tokenizeDeclaration('--p', piece)?.tree ?? null)).length;
+      this.#topLevelValueCounts.set(piece, count);
+    }
+    return count;
+  }
+
+  countTopLevelValues(begin: number, end: number): number {
+    const pieces = Array.from(this.#getPieces(begin, end));
+    const counts = pieces.map(
+        chunk =>
+            (chunk instanceof ComputedTextChunk ? chunk.topLevelValueCount :
+                                                  this.#countTopLevelValuesInStringPiece(chunk)));
+    const count = counts.reduce((sum, v) => sum + v, 0);
+    return count;
+  }
 }
 
-// This function determines whether concatenating two pieces of text requires any spacing inbetween. For example, there
-// shouldn't be any space between 'var' and '(', but there should be a space between '1px' and 'solid'. The node
-// sequences that make up the pieces of text may contain non-text nodes/trees. Any such element inbetween the texts is
-// ignored for the spacing requirement.
+/**
+ * This function determines whether concatenating two pieces of text requires any spacing in between. For example, there
+ * shouldn't be any space between 'var' and '(', but there should be a space between '1px' and 'solid'. The node
+ * sequences that make up the pieces of text may contain non-text nodes/trees. Any such element in between the texts is
+ * ignored for the spacing requirement.
+ **/
 export function requiresSpace(a: string, b: string): boolean;
 export function requiresSpace(a: Node[], b: Node[]): boolean;
 export function requiresSpace(a: Node[]|string|undefined, b: Node[]|string|undefined): boolean {
@@ -458,12 +525,12 @@ export namespace ASTUtils {
   }
 
   export function range(node: CodeMirror.SyntaxNode[]):
-      [CodeMirror.SyntaxNode, CodeMirror.SyntaxNode]|[undefined, undefined] {
+      [CodeMirror.SyntaxNode|undefined, CodeMirror.SyntaxNode|undefined] {
     return [node[0], node[node.length - 1]];
   }
 
-  export function declValue(node: CodeMirror.SyntaxNode): CodeMirror.SyntaxNode|null {
-    if (node.name !== 'Declaration') {
+  export function declValue(node: CodeMirror.SyntaxNode|null): CodeMirror.SyntaxNode|null {
+    if (node?.name !== 'Declaration') {
       return null;
     }
     return children(node).find(node => node.name === ':')?.nextSibling ?? null;
@@ -488,12 +555,14 @@ export namespace ASTUtils {
         current.push(node);
       }
     }
-    result.push(current);
+    if (nodes.length > 0) {
+      result.push(current);
+    }
     return result;
   }
 
-  export function callArgs(node: CodeMirror.SyntaxNode): CodeMirror.SyntaxNode[][] {
-    const args = children(node.getChild('ArgList'));
+  export function callArgs(node: CodeMirror.SyntaxNode|null): CodeMirror.SyntaxNode[][] {
+    const args = children(node?.getChild('ArgList') ?? null);
     const openParen = args.splice(0, 1)[0];
     const closingParen = args.pop();
 
@@ -510,6 +579,7 @@ export namespace ASTUtils {
 }
 
 function declaration(rule: string): CodeMirror.SyntaxNode|null {
+  const cssParser = CodeMirror.css.cssLanguage.parser;
   return cssParser.parse(rule).topNode.getChild('RuleSet')?.getChild('Block')?.getChild('Declaration') ?? null;
 }
 

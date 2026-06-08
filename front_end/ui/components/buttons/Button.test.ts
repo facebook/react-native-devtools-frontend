@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -124,8 +124,8 @@ describe('Button', () => {
   it('gets the no additional classes set for the inner button if only text is provided', () => {
     const button = renderButton();
     const innerButton = button.shadowRoot?.querySelector('button') as HTMLButtonElement;
-    assert.isTrue(!innerButton.classList.contains('text-with-icon'));
-    assert.isTrue(!innerButton.classList.contains('only-icon'));
+    assert.isNotOk(innerButton.classList.contains('text-with-icon'));
+    assert.isNotOk(innerButton.classList.contains('only-icon'));
   });
 
   it('gets title set', () => {
@@ -149,7 +149,7 @@ describe('Button', () => {
         'text');
     const innerButton = button.shadowRoot?.querySelector('button') as HTMLButtonElement;
     assert.isTrue(innerButton.classList.contains('text-with-icon'));
-    assert.isTrue(!innerButton.classList.contains('only-icon'));
+    assert.isNotOk(innerButton.classList.contains('only-icon'));
   });
 
   it('gets the only-icon class set for the inner button if only icon is provided', () => {
@@ -160,7 +160,7 @@ describe('Button', () => {
         },
         '');
     const innerButton = button.shadowRoot?.querySelector('button') as HTMLButtonElement;
-    assert.isTrue(!innerButton.classList.contains('text-with-icon'));
+    assert.isNotOk(innerButton.classList.contains('text-with-icon'));
     assert.isTrue(innerButton.classList.contains('only-icon'));
   });
 
@@ -186,18 +186,35 @@ describe('Button', () => {
     assert.isFalse(innerButton.classList.contains('small'));
   });
 
-  it('prevents only "keydown" events for Enter and Space to bubble up', () => {
-    const button = renderButton({variant: Buttons.Button.Variant.PRIMARY});
-    const onKeydown = sinon.spy();
-    button.addEventListener('keydown', onKeydown);
+  it('devtools-button width should not expand its content\'s width', () => {
+    const button = new Buttons.Button.Button();
+    button.data = {variant: Buttons.Button.Variant.PRIMARY};
+    button.textContent = 'test';
 
-    const innerButton = button.shadowRoot!.querySelector('button') as HTMLButtonElement;
-    dispatchKeyDownEvent(innerButton, {bubbles: true, composed: true, key: 'Enter'});
-    dispatchKeyDownEvent(innerButton, {bubbles: true, composed: true, key: ' '});
-    dispatchKeyDownEvent(innerButton, {bubbles: true, composed: true, key: 'x'});
+    const fullWidthContainer = document.createElement('div');
+    fullWidthContainer.style.width = '400px';
+    fullWidthContainer.style.height = '400px';
+    fullWidthContainer.style.display = 'flex';
+    fullWidthContainer.style.flexDirection = 'column';
+    fullWidthContainer.appendChild(button);
 
-    assert.isTrue(onKeydown.calledOnce);
-    assert.strictEqual(onKeydown.getCall(0).args[0].key, 'x');
+    renderElementIntoDOM(fullWidthContainer);
+    const buttonWidth = button.getBoundingClientRect().width;
+    const fullWidthContainerWidth = fullWidthContainer.getBoundingClientRect().width;
+    assert.isBelow(buttonWidth, fullWidthContainerWidth);
+    assert.isAbove(buttonWidth, 0);
+
+    const buttonHeight = button.getBoundingClientRect().height;
+    const bigContainerHeight = fullWidthContainer.getBoundingClientRect().height;
+    assert.isBelow(buttonHeight, bigContainerHeight);
+    assert.isAbove(buttonHeight, 0);
+  });
+
+  it('sets the accessible label on the internal button', async () => {
+    const button = renderButton({variant: Buttons.Button.Variant.PRIMARY, iconName, accessibleLabel: 'test-label'}, '');
+    const innerButton = button.shadowRoot?.querySelector('button');
+    assert.isOk(innerButton);
+    assert.strictEqual(innerButton.getAttribute('aria-label'), 'test-label');
   });
 
   describe('in forms', () => {

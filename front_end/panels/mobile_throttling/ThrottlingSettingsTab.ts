@@ -1,15 +1,15 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
-import '../../ui/components/cards/cards.js';
+import '../../ui/kit/kit.js';
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Buttons from '../../ui/components/buttons/buttons.js';
-import type * as Cards from '../../ui/components/cards/cards.js';
-import * as IconButton from '../../ui/components/icon_button/icon_button.js';
+import {type Card, createIcon} from '../../ui/kit/kit.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
@@ -18,20 +18,20 @@ import throttlingSettingsTabStyles from './throttlingSettingsTab.css.js';
 
 const UIStrings = {
   /**
-   *@description Text in Throttling Settings Tab of the Network panel
+   * @description Text in Throttling Settings Tab of the Network panel
    */
   networkThrottlingProfiles: 'Network throttling profiles',
   /**
-   *@description Text of add conditions button in Throttling Settings Tab of the Network panel
+   * @description Text of add conditions button in Throttling Settings Tab of the Network panel
    */
   addCustomProfile: 'Add profile',
   /**
-   *@description A value in milliseconds
-   *@example {3} PH1
+   * @description A value in milliseconds
+   * @example {3} PH1
    */
   dms: '{PH1} `ms`',
   /**
-   *@description Text in Throttling Settings Tab of the Network panel
+   * @description Text in Throttling Settings Tab of the Network panel
    */
   profileName: 'Profile Name',
   /**
@@ -53,10 +53,6 @@ const UIStrings = {
    */
   packetLoss: 'Packet Loss',
   /**
-   * @description Label for a textbox serving as a unit in the Throttling Settings Tab for the field Packet Loss column.
-   */
-  percent: 'percent',
-  /**
    * @description Label for a textbox that sets the maximum packet queue length for real-time networks in the Throttling Settings Tab.
    */
   packetQueueLength: 'Packet Queue Length',
@@ -69,35 +65,35 @@ const UIStrings = {
    */
   packet: 'packet',
   /**
-   *@description Text in Throttling Settings Tab of the Network panel
+   * @description Text in Throttling Settings Tab of the Network panel
    */
   optional: 'optional',
   /**
-   *@description Error message for Profile Name input in Throtting pane of the Settings
-   *@example {49} PH1
+   * @description Error message for Profile Name input in Throtting pane of the Settings
+   * @example {49} PH1
    */
   profileNameCharactersLengthMust: 'Profile Name characters length must be between 1 to {PH1} inclusive',
   /**
-   *@description Error message for Download and Upload inputs in Throttling pane of the Settings
-   *@example {Download} PH1
-   *@example {0} PH2
-   *@example {10000000} PH3
+   * @description Error message for Download and Upload inputs in Throttling pane of the Settings
+   * @example {Download} PH1
+   * @example {0} PH2
+   * @example {10000000} PH3
    */
   sMustBeANumberBetweenSkbsToSkbs: '{PH1} must be a number between {PH2} `kbit/s` to {PH3} `kbit/s` inclusive',
   /**
-   *@description Error message for Latency input in Throttling pane of the Settings
-   *@example {0} PH1
-   *@example {1000000} PH2
+   * @description Error message for Latency input in Throttling pane of the Settings
+   * @example {0} PH1
+   * @example {1000000} PH2
    */
   latencyMustBeAnIntegerBetweenSms: 'Latency must be an integer between {PH1} `ms` to {PH2} `ms` inclusive',
   /**
-   *@description Error message for Packet Loss input in Throttling pane of the Settings
-   *@example {0} PH1
-   *@example {100} PH2
+   * @description Error message for Packet Loss input in Throttling pane of the Settings
+   * @example {0} PH1
+   * @example {100} PH2
    */
   packetLossMustBeAnIntegerBetweenSpct: 'Packet Loss must be a number between {PH1} `%` to {PH2} `%` inclusive',
   /**
-   *@description Error message for Packet Queue Length input in Throttling pane of the Settings
+   * @description Error message for Packet Queue Length input in Throttling pane of the Settings
    */
   packetQueueLengthMustBeAnIntegerGreaterOrEqualToZero: 'Packet Queue Length must be greater or equal to 0',
   /**
@@ -122,7 +118,7 @@ const UIStrings = {
   off: 'Off',
 
   /**
-   *@description Text in Throttling Settings Tab of the Settings panel
+   * @description Text in Throttling Settings Tab of the Settings panel
    */
   cpuThrottlingPresets: 'CPU throttling presets',
   /**
@@ -146,30 +142,30 @@ const UIStrings = {
    */
   needsCalibration: 'Needs calibration',
   /**
-   *@description Text to explain why the user should run the CPU calibration process.
+   * @description Text to explain why the user should run the CPU calibration process.
    */
   calibrationCTA:
       'To use the CPU throttling presets, run the calibration process to determine the ideal throttling rate for your device.',
   /**
-   *@description Text to explain what CPU throttling presets are.
+   * @description Text to explain what CPU throttling presets are.
    */
   cpuCalibrationDescription:
       'These presets throttle your CPU to approximate the performance of typical low or mid-tier mobile devices.',
   /**
-   *@description Text to explain how the CPU calibration process will work.
+   * @description Text to explain how the CPU calibration process will work.
    */
   calibrationConfirmationPrompt:
       'Calibration will take ~5 seconds, and temporarily navigate away from your current page. Do you wish to continue?',
   /**
-   *@description Text to explain an issue that may impact the CPU calibration process.
+   * @description Text to explain an issue that may impact the CPU calibration process.
    */
   calibrationWarningHighCPU: 'CPU utilization is too high',
   /**
-   *@description Text to explain an issue that may impact the CPU calibration process.
+   * @description Text to explain an issue that may impact the CPU calibration process.
    */
   calibrationWarningRunningOnBattery: 'Device is running on battery, please plug in charger for best results',
   /**
-   *@description Text to explain an issue that may impact the CPU calibration process.
+   * @description Text to explain an issue that may impact the CPU calibration process.
    */
   calibrationWarningLowBattery: 'Device battery is low (<20%), results may be impacted by CPU throttling',
   /**
@@ -201,7 +197,7 @@ function createComputePressurePromise(): Promise<{state: string}> {
 }
 
 export class CPUThrottlingCard {
-  element: Cards.Card.Card;
+  element: Card;
 
   private readonly setting: Common.Settings.Setting<SDK.CPUThrottlingManager.CalibratedCPUThrottling>;
   private computePressurePromise?: ReturnType<typeof createComputePressurePromise>;
@@ -261,8 +257,8 @@ export class CPUThrottlingCard {
 
     this.textEl = this.calibrateEl.createChild('div', 'text-container');
 
-    this.progress = new UI.ProgressIndicator.ProgressIndicator({showStopButton: false});
-    this.calibrateEl.append(this.progress.element);
+    this.progress = this.calibrateEl.createChild('devtools-progress');
+    this.progress.setAttribute('no-stop-button', '');
 
     this.updateState();
   }
@@ -291,7 +287,7 @@ export class CPUThrottlingCard {
     this.calibrateButton.style.display = 'none';
     this.textEl.style.display = 'none';
     this.cancelButton.style.display = 'none';
-    this.progress.element.style.display = 'none';
+    this.progress.style.display = 'none';
 
     if (this.state === 'cta') {
       this.calibrateButton.style.display = '';
@@ -317,7 +313,7 @@ export class CPUThrottlingCard {
       this.textEl.append(this.createTextWithIcon(i18nString(UIStrings.calibrationConfirmationPrompt), 'info'));
     } else if (this.state === 'calibrating') {
       this.cancelButton.style.display = '';
-      this.progress.element.style.display = '';
+      this.progress.style.display = '';
     }
 
     const resultToString = (result: number|SDK.CPUThrottlingManager.CalibrationError|undefined): string => {
@@ -355,7 +351,7 @@ export class CPUThrottlingCard {
   private createTextWithIcon(text: string, icon: string): HTMLElement {
     const el = document.createElement('div');
     el.classList.add('text-with-icon');
-    el.append(IconButton.Icon.create(icon));
+    el.append(createIcon(icon));
     el.append(text);
     return el;
   }
@@ -403,8 +399,8 @@ export class CPUThrottlingCard {
   }
 
   private async runCalibration(): Promise<void> {
-    this.progress.setWorked(0);
-    this.progress.setTotalWork(1);
+    this.progress.worked = 0;
+    this.progress.totalWork = 1;
 
     this.controller = new CalibrationController();
 
@@ -415,7 +411,7 @@ export class CPUThrottlingCard {
       }
 
       for await (const result of this.controller.iterator()) {
-        this.progress.setWorked(result.progress);
+        this.progress.worked = result.progress;
       }
     } catch (e) {
       console.error(e);
@@ -427,7 +423,7 @@ export class CPUThrottlingCard {
     if (result && (result.low || result.mid)) {
       this.setting.set(result);
       // Let the user bask in the glory of a 100% progress bar, for a bit.
-      this.progress.setWorked(1);
+      this.progress.worked = 1;
       await new Promise(resolve => setTimeout(resolve, 200));
     }
 
@@ -436,18 +432,35 @@ export class CPUThrottlingCard {
   }
 }
 
+function extractCustomSettingIndex(key: SDK.NetworkManager.UserDefinedThrottlingConditionKey): number {
+  const match = key.match(/USER_CUSTOM_SETTING_(\d+)/);
+  if (match?.[1]) {
+    return parseInt(match[1], 10);
+  }
+  return 0;
+}
+
 export class ThrottlingSettingsTab extends UI.Widget.VBox implements
     UI.ListWidget.Delegate<SDK.NetworkManager.Conditions> {
   private readonly list: UI.ListWidget.ListWidget<SDK.NetworkManager.Conditions>;
-  private readonly customSetting: Common.Settings.Setting<SDK.NetworkManager.Conditions[]>;
+  private readonly customUserConditions: Common.Settings.Setting<SDK.NetworkManager.Conditions[]>;
   private editor?: UI.ListWidget.Editor<SDK.NetworkManager.Conditions>;
   private cpuThrottlingCard: CPUThrottlingCard;
+  /**
+   * We store how many custom conditions the user has defined when we load up
+   * DevTools. This is because when the user creates a new one, we need to
+   * generate a unique key. We take this value, increment it, and use that as part of the unique key.
+   * This means that we are resilient to the user adding & then deleting a
+   * profile; we always use this counter which is only ever incremented.
+   */
+  #customUserConditionsCount: number;
 
   constructor() {
-    super(true);
+    super({
+      jslog: `${VisualLogging.pane('throttling-conditions')}`,
+      useShadowDom: true,
+    });
     this.registerRequiredCSS(throttlingSettingsTabStyles);
-
-    this.element.setAttribute('jslog', `${VisualLogging.pane('throttling-conditions')}`);
 
     const settingsContent =
         this.contentElement.createChild('div', 'settings-card-container-wrapper').createChild('div');
@@ -476,8 +489,26 @@ export class ThrottlingSettingsTab extends UI.Widget.VBox implements
     this.list.show(container);
     container.appendChild(addButton);
 
-    this.customSetting = Common.Settings.Settings.instance().moduleSetting('custom-network-conditions');
-    this.customSetting.addChangeListener(this.conditionsUpdated, this);
+    this.customUserConditions = SDK.NetworkManager.customUserNetworkConditionsSetting();
+    this.customUserConditions.addChangeListener(this.conditionsUpdated, this);
+
+    const customConditions = this.customUserConditions.get();
+    // We need to parse out the current max condition key index. If the last
+    // one added is USER_CUSTOM_SETTING_9, then we need to set the
+    // customUserConditionsCount property to 9, so that the next item added
+    // gets index 10.
+    // Because we always increment the index and append it to the list, we
+    // know that the last item in the list will have the largest custom key
+    // index, hence why we can just pluck the last item rather than search for
+    // the one with the largest index.
+    const lastCondition = customConditions.at(-1);
+    const key = lastCondition?.key;
+    if (key && SDK.NetworkManager.keyIsCustomUser(key)) {
+      const maxIndex = extractCustomSettingIndex(key);
+      this.#customUserConditionsCount = maxIndex;
+    } else {
+      this.#customUserConditionsCount = 0;
+    }
   }
 
   override wasShown(): void {
@@ -494,7 +525,7 @@ export class ThrottlingSettingsTab extends UI.Widget.VBox implements
   private conditionsUpdated(): void {
     this.list.clear();
 
-    const conditions = this.customSetting.get();
+    const conditions = this.customUserConditions.get();
     for (let i = 0; i < conditions.length; ++i) {
       this.list.appendItem(conditions[i], true);
     }
@@ -503,9 +534,16 @@ export class ThrottlingSettingsTab extends UI.Widget.VBox implements
   }
 
   private addButtonClicked(): void {
-    this.list.addNewItem(
-        this.customSetting.get().length,
-        {title: () => '', download: -1, upload: -1, latency: 0, packetLoss: 0, packetReordering: false});
+    this.#customUserConditionsCount++;
+    this.list.addNewItem(this.customUserConditions.get().length, {
+      key: `USER_CUSTOM_SETTING_${this.#customUserConditionsCount}`,
+      title: () => '',
+      download: -1,
+      upload: -1,
+      latency: 0,
+      packetLoss: 0,
+      packetReordering: false
+    });
   }
 
   renderItem(conditions: SDK.NetworkManager.Conditions, _editable: boolean): Element {
@@ -535,9 +573,9 @@ export class ThrottlingSettingsTab extends UI.Widget.VBox implements
   }
 
   removeItemRequested(_item: SDK.NetworkManager.Conditions, index: number): void {
-    const list = this.customSetting.get();
+    const list = this.customUserConditions.get();
     list.splice(index, 1);
-    this.customSetting.set(list);
+    this.customUserConditions.set(list);
   }
 
   retrieveOptionsTitle(conditions: SDK.NetworkManager.Conditions): string {
@@ -563,12 +601,12 @@ export class ThrottlingSettingsTab extends UI.Widget.VBox implements
     const packetReordering = (editor.control('packetReordering') as HTMLInputElement).checked;
     conditions.packetReordering = packetReordering;
 
-    const list = this.customSetting.get();
+    const list = this.customUserConditions.get();
     if (isNew) {
       list.push(conditions);
     }
 
-    this.customSetting.set(list);
+    this.customUserConditions.set(list);
   }
 
   beginEdit(conditions: SDK.NetworkManager.Conditions): UI.ListWidget.Editor<SDK.NetworkManager.Conditions> {
@@ -589,105 +627,102 @@ export class ThrottlingSettingsTab extends UI.Widget.VBox implements
       return this.editor;
     }
 
+    // Define the settings configuration
+    const settings = [
+      {
+        name: 'title',
+        labelText: i18nString(UIStrings.profileName),
+        inputType: 'text',
+        placeholder: '',
+        validator: titleValidator,
+        isOptional: false,
+      },
+      {
+        name: 'download',
+        labelText: i18nString(UIStrings.download),
+        inputType: 'text',
+        placeholder: i18n.i18n.lockedString('kbit/s'),
+        validator: throughputValidator,
+      },
+      {
+        name: 'upload',
+        labelText: i18nString(UIStrings.upload),
+        inputType: 'text',
+        placeholder: i18n.i18n.lockedString('kbit/s'),
+        validator: throughputValidator,
+      },
+      {
+        name: 'latency',
+        labelText: i18nString(UIStrings.latency),
+        inputType: 'text',
+        placeholder: i18n.i18n.lockedString('ms'),
+        validator: latencyValidator,
+      },
+      {
+        name: 'packetLoss',
+        labelText: i18nString(UIStrings.packetLoss),
+        inputType: 'text',
+        placeholder: i18n.i18n.lockedString('percent'),
+        validator: packetLossValidator,
+      },
+      {
+        name: 'packetQueueLength',
+        labelText: i18nString(UIStrings.packetQueueLength),
+        inputType: 'text',
+        placeholder: i18nString(UIStrings.packet),
+        validator: packetQueueLengthValidator,
+      },
+      {
+        name: 'packetReordering',
+        labelText: i18nString(UIStrings.packetReordering),
+        inputType: 'checkbox',
+        placeholder: '',
+        validator: packetReorderingValidator,
+        isOptional: false,
+      },
+    ];
+
     const editor = new UI.ListWidget.Editor<SDK.NetworkManager.Conditions>();
     this.editor = editor;
     const content = editor.contentElement();
 
-    const titles = content.createChild('div', 'conditions-edit-row');
-    const nameLabel = titles.createChild('div', 'conditions-list-text conditions-list-title');
-    const nameStr = i18nString(UIStrings.profileName);
-    const nameLabelText = nameLabel.createChild('div', 'conditions-list-title-text');
-    nameLabelText.textContent = nameStr;
-    titles.createChild('div', 'conditions-list-separator conditions-list-separator-invisible');
-    const downloadLabel = titles.createChild('div', 'conditions-list-text');
-    const downloadStr = i18nString(UIStrings.download);
-    const downloadLabelText = downloadLabel.createChild('div', 'conditions-list-title-text');
-    downloadLabelText.textContent = downloadStr;
-    titles.createChild('div', 'conditions-list-separator conditions-list-separator-invisible');
-    const uploadLabel = titles.createChild('div', 'conditions-list-text');
-    const uploadLabelText = uploadLabel.createChild('div', 'conditions-list-title-text');
-    const uploadStr = i18nString(UIStrings.upload);
-    uploadLabelText.textContent = uploadStr;
-    titles.createChild('div', 'conditions-list-separator conditions-list-separator-invisible');
-    const latencyLabel = titles.createChild('div', 'conditions-list-text');
-    const latencyStr = i18nString(UIStrings.latency);
-    const latencyLabelText = latencyLabel.createChild('div', 'conditions-list-title-text');
-    latencyLabelText.textContent = latencyStr;
-    titles.createChild('div', 'conditions-list-separator conditions-list-separator-invisible');
-    const packetLossLabel = titles.createChild('div', 'conditions-list-text');
-    const packetLossStr = i18nString(UIStrings.packetLoss);
-    const packetLossLabelText = packetLossLabel.createChild('div', 'conditions-list-title-text');
-    packetLossLabelText.textContent = packetLossStr;
-    titles.createChild('div', 'conditions-list-separator conditions-list-separator-invisible');
-    const packetQueueLengthLabel = titles.createChild('div', 'conditions-list-text');
-    const packetQueueLengthStr = i18nString(UIStrings.packetQueueLength);
-    const packetQueueLengthLabelText = packetQueueLengthLabel.createChild('div', 'conditions-list-title-text');
-    packetQueueLengthLabelText.textContent = packetQueueLengthStr;
-    titles.createChild('div', 'conditions-list-separator conditions-list-separator-invisible');
-    const packetReorderingLabel = titles.createChild('div', 'conditions-list-text');
-    const packetReorderingStr = i18nString(UIStrings.packetReordering);
-    const packetReorderingText = packetReorderingLabel.createChild('div', 'conditions-list-title-text');
-    packetReorderingText.textContent = packetReorderingStr;
+    const settingsContainer = content.createChild('div', 'settings-container');
 
-    const fields = content.createChild('div', 'conditions-edit-row');
-    const nameInput = editor.createInput('title', 'text', '', titleValidator);
-    UI.ARIAUtils.setLabel(nameInput, nameStr);
-    fields.createChild('div', 'conditions-list-text conditions-list-title').appendChild(nameInput);
-    fields.createChild('div', 'conditions-list-separator conditions-list-separator-invisible');
+    const createSettingField = (
+        name: string,
+        labelText: Common.UIString.LocalizedString,
+        inputType: string,
+        placeholder: Common.UIString.LocalizedString|string,
+        validator: (item: SDK.NetworkManager.Conditions, index: number, input: UI.ListWidget.EditorControl) =>
+            UI.ListWidget.ValidatorResult,
+        isOptional = true,
+        ): void => {
+      const settingElement = settingsContainer.createChild('div', 'setting');
+      // Create title element
+      const titleContainer = settingElement.createChild('div');
+      titleContainer.textContent = labelText;
+      // Create input element
+      const inputElement = settingElement.createChild('div');
+      const input = editor.createInput(name, inputType, placeholder, validator);
+      input.classList.add('input');
+      UI.ARIAUtils.setLabel(input, labelText);
+      inputElement.appendChild(input);
 
-    let cell = fields.createChild('div', 'conditions-list-text');
-    const downloadInput = editor.createInput('download', 'text', i18n.i18n.lockedString('kbit/s'), throughputValidator);
-    cell.appendChild(downloadInput);
-    UI.ARIAUtils.setLabel(downloadInput, downloadStr);
-    const downloadOptional = cell.createChild('div', 'conditions-edit-optional');
-    const optionalStr = i18nString(UIStrings.optional);
-    downloadOptional.textContent = optionalStr;
-    UI.ARIAUtils.setDescription(downloadInput, optionalStr);
-    fields.createChild('div', 'conditions-list-separator conditions-list-separator-invisible');
+      const optionalTextElement = inputElement.createChild('div');
+      const optionalStr = i18nString(UIStrings.optional);
+      optionalTextElement.textContent = optionalStr;
+      UI.ARIAUtils.setDescription(input, optionalStr);
+      if (!isOptional) {
+        optionalTextElement.style.visibility = 'hidden';
+      }
+    };
 
-    cell = fields.createChild('div', 'conditions-list-text');
-    const uploadInput = editor.createInput('upload', 'text', i18n.i18n.lockedString('kbit/s'), throughputValidator);
-    UI.ARIAUtils.setLabel(uploadInput, uploadStr);
-    cell.appendChild(uploadInput);
-    const uploadOptional = cell.createChild('div', 'conditions-edit-optional');
-    uploadOptional.textContent = optionalStr;
-    UI.ARIAUtils.setDescription(uploadInput, optionalStr);
-    fields.createChild('div', 'conditions-list-separator conditions-list-separator-invisible');
-
-    cell = fields.createChild('div', 'conditions-list-text');
-    const latencyInput = editor.createInput('latency', 'text', i18n.i18n.lockedString('ms'), latencyValidator);
-    UI.ARIAUtils.setLabel(latencyInput, latencyStr);
-    cell.appendChild(latencyInput);
-    const latencyOptional = cell.createChild('div', 'conditions-edit-optional');
-    latencyOptional.textContent = optionalStr;
-    UI.ARIAUtils.setDescription(latencyInput, optionalStr);
-    fields.createChild('div', 'conditions-list-separator conditions-list-separator-invisible');
-
-    cell = fields.createChild('div', 'conditions-list-text');
-    const packetLossInput =
-        editor.createInput('packetLoss', 'text', i18n.i18n.lockedString('percent'), packetLossValidator);
-    UI.ARIAUtils.setLabel(packetLossInput, packetLossStr);
-    cell.appendChild(packetLossInput);
-    const packetLossOptional = cell.createChild('div', 'conditions-edit-optional');
-    packetLossOptional.textContent = optionalStr;
-    UI.ARIAUtils.setDescription(packetLossInput, optionalStr);
-    fields.createChild('div', 'conditions-list-separator conditions-list-separator-invisible');
-
-    cell = fields.createChild('div', 'conditions-list-text');
-    const packetQueueLengthInput =
-        editor.createInput('packetQueueLength', 'text', i18nString(UIStrings.packet), packetQueueLengthValidator);
-    UI.ARIAUtils.setLabel(packetQueueLengthInput, packetQueueLengthStr);
-    cell.appendChild(packetQueueLengthInput);
-    const packetQueueLengthOptional = cell.createChild('div', 'conditions-edit-optional');
-    packetQueueLengthOptional.textContent = optionalStr;
-    UI.ARIAUtils.setDescription(packetQueueLengthInput, optionalStr);
-    fields.createChild('div', 'conditions-list-separator conditions-list-separator-invisible');
-
-    cell = fields.createChild('div', 'conditions-list-text');
-    const packetReorderingInput =
-        editor.createInput('packetReordering', 'checkbox', i18nString(UIStrings.percent), packetReorderingValidator);
-    UI.ARIAUtils.setLabel(packetReorderingInput, packetLossStr);
-    cell.appendChild(packetReorderingInput);
+    // Iterate over settings and create components
+    settings.forEach(setting => {
+      createSettingField(
+          setting.name, setting.labelText, setting.inputType, setting.placeholder, setting.validator,
+          setting.isOptional);
+    });
 
     return editor;
 
@@ -700,7 +735,9 @@ export class ThrottlingSettingsTab extends UI.Widget.VBox implements
         const errorMessage = i18nString(UIStrings.profileNameCharactersLengthMust, {PH1: maxLength});
         return {valid, errorMessage};
       }
-      return {valid, errorMessage: undefined};
+      return {
+        valid,
+      };
     }
 
     function throughputValidator(
@@ -718,7 +755,9 @@ export class ThrottlingSettingsTab extends UI.Widget.VBox implements
             {PH1: String(throughput), PH2: minThroughput, PH3: maxThroughput});
         return {valid, errorMessage};
       }
-      return {valid, errorMessage: undefined};
+      return {
+        valid,
+      };
     }
 
     function latencyValidator(_item: SDK.NetworkManager.Conditions, _index: number, input: UI.ListWidget.EditorControl):
@@ -732,7 +771,9 @@ export class ThrottlingSettingsTab extends UI.Widget.VBox implements
         const errorMessage = i18nString(UIStrings.latencyMustBeAnIntegerBetweenSms, {PH1: minLatency, PH2: maxLatency});
         return {valid, errorMessage};
       }
-      return {valid, errorMessage: undefined};
+      return {
+        valid,
+      };
     }
 
     function packetLossValidator(
@@ -748,7 +789,9 @@ export class ThrottlingSettingsTab extends UI.Widget.VBox implements
             i18nString(UIStrings.packetLossMustBeAnIntegerBetweenSpct, {PH1: minPacketLoss, PH2: maxPacketLoss});
         return {valid, errorMessage};
       }
-      return {valid, errorMessage: undefined};
+      return {
+        valid,
+      };
     }
 
     function packetQueueLengthValidator(
@@ -762,13 +805,17 @@ export class ThrottlingSettingsTab extends UI.Widget.VBox implements
         const errorMessage = i18nString(UIStrings.packetQueueLengthMustBeAnIntegerGreaterOrEqualToZero);
         return {valid, errorMessage};
       }
-      return {valid, errorMessage: undefined};
+      return {
+        valid,
+      };
     }
 
     function packetReorderingValidator(
         _item: SDK.NetworkManager.Conditions, _index: number,
         _input: UI.ListWidget.EditorControl): UI.ListWidget.ValidatorResult {
-      return {valid: true, errorMessage: undefined};
+      return {
+        valid: true,
+      };
     }
   }
 }

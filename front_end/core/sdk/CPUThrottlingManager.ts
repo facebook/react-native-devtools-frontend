@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -35,79 +35,86 @@ const str_ = i18n.i18n.registerUIStrings('core/sdk/CPUThrottlingManager.ts', UIS
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
-let throttlingManagerInstance: CPUThrottlingManager;
+let throttlingManagerInstance: CPUThrottlingManager|undefined;
 
 export class CPUThrottlingManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes> implements
     SDKModelObserver<EmulationModel> {
-  #cpuThrottlingOptionInternal: CPUThrottlingOption;
+  readonly #targetManager: TargetManager;
+  #cpuThrottlingOption: CPUThrottlingOption;
   #calibratedThrottlingSetting: Common.Settings.Setting<CalibratedCPUThrottling>;
-  #hardwareConcurrencyInternal?: number;
+  #hardwareConcurrency?: number;
   #pendingMainTargetPromise?: (r: number) => void;
 
-  private constructor() {
+  private constructor(settings: Common.Settings.Settings, targetManager: TargetManager) {
     super();
-    this.#cpuThrottlingOptionInternal = NoThrottlingOption;
-    this.#calibratedThrottlingSetting = Common.Settings.Settings.instance().createSetting<CalibratedCPUThrottling>(
+    this.#targetManager = targetManager;
+    this.#cpuThrottlingOption = NoThrottlingOption;
+    this.#calibratedThrottlingSetting = settings.createSetting<CalibratedCPUThrottling>(
         'calibrated-cpu-throttling', {}, Common.Settings.SettingStorageType.GLOBAL);
     this.#calibratedThrottlingSetting.addChangeListener(this.#onCalibratedSettingChanged, this);
-    TargetManager.instance().observeModels(EmulationModel, this);
+    targetManager.observeModels(EmulationModel, this);
   }
 
   static instance(opts: {forceNew: boolean|null} = {forceNew: null}): CPUThrottlingManager {
     const {forceNew} = opts;
     if (!throttlingManagerInstance || forceNew) {
-      throttlingManagerInstance = new CPUThrottlingManager();
+      throttlingManagerInstance =
+          new CPUThrottlingManager(Common.Settings.Settings.instance(), TargetManager.instance());
     }
 
     return throttlingManagerInstance;
   }
 
+  static removeInstance(): void {
+    throttlingManagerInstance = undefined;
+  }
+
   cpuThrottlingRate(): number {
-    return this.#cpuThrottlingOptionInternal.rate();
+    return this.#cpuThrottlingOption.rate();
   }
 
   cpuThrottlingOption(): CPUThrottlingOption {
-    return this.#cpuThrottlingOptionInternal;
+    return this.#cpuThrottlingOption;
   }
 
   #onCalibratedSettingChanged(): void {
     // If a calibrated option is selected, need to propagate new rate.
-    const currentOption = this.#cpuThrottlingOptionInternal;
+    const currentOption = this.#cpuThrottlingOption;
     if (!currentOption.calibratedDeviceType) {
       return;
     }
 
-    const rate = this.#cpuThrottlingOptionInternal.rate();
+    const rate = this.#cpuThrottlingOption.rate();
     if (rate === 0) {
       // This calibrated option is no longer valid.
       this.setCPUThrottlingOption(NoThrottlingOption);
       return;
     }
 
-    for (const emulationModel of TargetManager.instance().models(EmulationModel)) {
+    for (const emulationModel of this.#targetManager.models(EmulationModel)) {
       void emulationModel.setCPUThrottlingRate(rate);
     }
     this.dispatchEventToListeners(Events.RATE_CHANGED, rate);
   }
 
   setCPUThrottlingOption(option: CPUThrottlingOption): void {
-    if (option === this.#cpuThrottlingOptionInternal) {
+    if (option === this.#cpuThrottlingOption) {
       return;
     }
 
-    this.#cpuThrottlingOptionInternal = option;
-    for (const emulationModel of TargetManager.instance().models(EmulationModel)) {
-      void emulationModel.setCPUThrottlingRate(this.#cpuThrottlingOptionInternal.rate());
+    this.#cpuThrottlingOption = option;
+    for (const emulationModel of this.#targetManager.models(EmulationModel)) {
+      void emulationModel.setCPUThrottlingRate(this.#cpuThrottlingOption.rate());
     }
-    this.dispatchEventToListeners(Events.RATE_CHANGED, this.#cpuThrottlingOptionInternal.rate());
+    this.dispatchEventToListeners(Events.RATE_CHANGED, this.#cpuThrottlingOption.rate());
   }
 
   setHardwareConcurrency(concurrency: number): void {
-    this.#hardwareConcurrencyInternal = concurrency;
-    for (const emulationModel of TargetManager.instance().models(EmulationModel)) {
+    this.#hardwareConcurrency = concurrency;
+    for (const emulationModel of this.#targetManager.models(EmulationModel)) {
       void emulationModel.setHardwareConcurrency(concurrency);
     }
-    this.dispatchEventToListeners(Events.HARDWARE_CONCURRENCY_CHANGED, this.#hardwareConcurrencyInternal);
+    this.dispatchEventToListeners(Events.HARDWARE_CONCURRENCY_CHANGED, this.#hardwareConcurrency);
   }
 
   hasPrimaryPageTargetSet(): boolean {
@@ -115,14 +122,14 @@ export class CPUThrottlingManager extends Common.ObjectWrapper.ObjectWrapper<Eve
     // target may error. So if we get any errors here at all, assume that we do
     // not have a target.
     try {
-      return TargetManager.instance().primaryPageTarget() !== null;
+      return this.#targetManager.primaryPageTarget() !== null;
     } catch {
       return false;
     }
   }
 
   async getHardwareConcurrency(): Promise<number> {
-    const target = TargetManager.instance().primaryPageTarget();
+    const target = this.#targetManager.primaryPageTarget();
     const existingCallback = this.#pendingMainTargetPromise;
 
     // If the main target hasn't attached yet, block callers until it appears.
@@ -154,11 +161,11 @@ export class CPUThrottlingManager extends Common.ObjectWrapper.ObjectWrapper<Eve
   }
 
   modelAdded(emulationModel: EmulationModel): void {
-    if (this.#cpuThrottlingOptionInternal !== NoThrottlingOption) {
-      void emulationModel.setCPUThrottlingRate(this.#cpuThrottlingOptionInternal.rate());
+    if (this.#cpuThrottlingOption !== NoThrottlingOption) {
+      void emulationModel.setCPUThrottlingRate(this.#cpuThrottlingOption.rate());
     }
-    if (this.#hardwareConcurrencyInternal !== undefined) {
-      void emulationModel.setHardwareConcurrency(this.#hardwareConcurrencyInternal);
+    if (this.#hardwareConcurrency !== undefined) {
+      void emulationModel.setHardwareConcurrency(this.#hardwareConcurrency);
     }
 
     // If there are any callers blocked on a getHardwareConcurrency call, let's wake them now.
@@ -182,10 +189,6 @@ export const enum Events {
 export interface EventTypes {
   [Events.RATE_CHANGED]: number;
   [Events.HARDWARE_CONCURRENCY_CHANGED]: number;
-}
-
-export function throttlingManager(): CPUThrottlingManager {
-  return CPUThrottlingManager.instance();
 }
 
 export enum CPUThrottlingRates {

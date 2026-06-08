@@ -1,29 +1,30 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../../core/common/common.js';
 import {renderElementIntoDOM} from '../../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../../testing/LocaleHelpers.js';
 
 import * as SurveyLink from './survey_link.js';
 
-function canShowSuccessfulCallback(trigger: string, callback: SurveyLink.SurveyLink.CanShowSurveyCallback) {
+function canShowSuccessfulCallback(_trigger: string, callback: SurveyLink.SurveyLink.CanShowSurveyCallback) {
   callback({canShowSurvey: true});
 }
-function showSuccessfulCallback(trigger: string, callback: SurveyLink.SurveyLink.ShowSurveyCallback) {
+function showSuccessfulCallback(_trigger: string, callback: SurveyLink.SurveyLink.ShowSurveyCallback) {
   callback({surveyShown: true});
 }
-function canShowFailureCallback(trigger: string, callback: SurveyLink.SurveyLink.CanShowSurveyCallback) {
+function canShowFailureCallback(_trigger: string, callback: SurveyLink.SurveyLink.CanShowSurveyCallback) {
   callback({canShowSurvey: false});
 }
-function showFailureCallback(trigger: string, callback: SurveyLink.SurveyLink.ShowSurveyCallback) {
+function showFailureCallback(_trigger: string, callback: SurveyLink.SurveyLink.ShowSurveyCallback) {
   callback({surveyShown: false});
 }
 
 const empty = Common.UIString.LocalizedEmptyString;
 
-describeWithLocale('SurveyLink', () => {
+describe('SurveyLink', () => {
+  setupLocaleHooks();
   it('shows no link when canShowSurvey is still pending', () => {
     const link = new SurveyLink.SurveyLink.SurveyLink();
     link.data = {trigger: 'test trigger', promptText: empty, canShowSurvey: () => {}, showSurvey: () => {}};

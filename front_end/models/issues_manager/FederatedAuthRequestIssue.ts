@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,18 +15,16 @@ import {
 
 const UIStrings = {
   /**
-   *@description Title for Client Hint specification url link
+   * @description Title for Client Hint specification url link
    */
   fedCm: 'Federated Credential Management API',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/FederatedAuthRequestIssue.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
-export class FederatedAuthRequestIssue extends Issue {
-  readonly #issueDetails: Protocol.Audits.FederatedAuthRequestIssueDetails;
-
+export class FederatedAuthRequestIssue extends Issue<Protocol.Audits.FederatedAuthRequestIssueDetails> {
   constructor(
-      issueDetails: Protocol.Audits.FederatedAuthRequestIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel) {
+      issueDetails: Protocol.Audits.FederatedAuthRequestIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel|null) {
     super(
         {
           code: Protocol.Audits.InspectorIssueCode.FederatedAuthRequestIssue,
@@ -35,20 +33,15 @@ export class FederatedAuthRequestIssue extends Issue {
             issueDetails.federatedAuthRequestIssueReason,
           ].join('::'),
         },
-        issuesModel);
-    this.#issueDetails = issueDetails;
+        issueDetails, issuesModel);
   }
 
   getCategory(): IssueCategory {
     return IssueCategory.OTHER;
   }
 
-  details(): Protocol.Audits.FederatedAuthRequestIssueDetails {
-    return this.#issueDetails;
-  }
-
   getDescription(): MarkdownIssueDescription|null {
-    const description = issueDescriptions.get(this.#issueDetails.federatedAuthRequestIssueReason);
+    const description = issueDescriptions.get(this.details().federatedAuthRequestIssueReason);
     if (!description) {
       return null;
     }
@@ -56,15 +49,16 @@ export class FederatedAuthRequestIssue extends Issue {
   }
 
   primaryKey(): string {
-    return JSON.stringify(this.#issueDetails);
+    return JSON.stringify(this.details());
   }
 
   getKind(): IssueKind {
     return IssueKind.PAGE_ERROR;
   }
 
-  static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):
-      FederatedAuthRequestIssue[] {
+  static fromInspectorIssue(
+      issuesModel: SDK.IssuesModel.IssuesModel|null,
+      inspectorIssue: Protocol.Audits.InspectorIssue): FederatedAuthRequestIssue[] {
     const details = inspectorIssue.details.federatedAuthRequestIssueDetails;
     if (!details) {
       console.warn('Federated auth request issue without details received.');
@@ -109,36 +103,6 @@ const issueDescriptions = new Map<Protocol.Audits.FederatedAuthRequestIssueReaso
     Protocol.Audits.FederatedAuthRequestIssueReason.ConfigInvalidResponse,
     {
       file: 'federatedAuthRequestManifestInvalidResponse.md',
-      links: [{
-        link: 'https://fedidcg.github.io/FedCM/',
-        linkTitle: i18nLazyString(UIStrings.fedCm),
-      }],
-    },
-  ],
-  [
-    Protocol.Audits.FederatedAuthRequestIssueReason.ClientMetadataHttpNotFound,
-    {
-      file: 'federatedAuthRequestClientMetadataHttpNotFound.md',
-      links: [{
-        link: 'https://fedidcg.github.io/FedCM/',
-        linkTitle: i18nLazyString(UIStrings.fedCm),
-      }],
-    },
-  ],
-  [
-    Protocol.Audits.FederatedAuthRequestIssueReason.ClientMetadataNoResponse,
-    {
-      file: 'federatedAuthRequestClientMetadataNoResponse.md',
-      links: [{
-        link: 'https://fedidcg.github.io/FedCM/',
-        linkTitle: i18nLazyString(UIStrings.fedCm),
-      }],
-    },
-  ],
-  [
-    Protocol.Audits.FederatedAuthRequestIssueReason.ClientMetadataInvalidResponse,
-    {
-      file: 'federatedAuthRequestClientMetadataInvalidResponse.md',
       links: [{
         link: 'https://fedidcg.github.io/FedCM/',
         linkTitle: i18nLazyString(UIStrings.fedCm),

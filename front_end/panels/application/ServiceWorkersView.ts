@@ -1,15 +1,16 @@
-// Copyright (c) 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
-import * as Logs from '../../models/logs/logs.js';
 import * as NetworkForward from '../../panels/network/forward/forward.js';
 import * as Buttons from '../../ui/components/buttons/buttons.js';
+import {Link} from '../../ui/kit/kit.js';
 import * as Components from '../../ui/legacy/components/utils/utils.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
@@ -22,36 +23,36 @@ import {ServiceWorkerUpdateCycleView} from './ServiceWorkerUpdateCycleView.js';
 
 const UIStrings = {
   /**
-   *@description Text for linking to other Service Worker registrations
+   * @description Text for linking to other Service Worker registrations
    */
   serviceWorkersFromOtherOrigins: 'Service workers from other origins',
   /**
-   *@description Title of update on reload setting in service workers view of the application panel
+   * @description Title of update on reload setting in service workers view of the application panel
    */
   updateOnReload: 'Update on reload',
   /**
-   *@description Tooltip text that appears on the setting when hovering over it in Service Workers View of the Application panel
+   * @description Tooltip text that appears on the setting when hovering over it in Service Workers View of the Application panel
    */
   onPageReloadForceTheService: 'On page reload, force the `service worker` to update, and activate it',
   /**
-   *@description Title of bypass service worker setting in service workers view of the application panel
+   * @description Title of bypass service worker setting in service workers view of the application panel
    */
   bypassForNetwork: 'Bypass for network',
   /**
-   *@description Tooltip text that appears on the setting when hovering over it in Service Workers View of the Application panel
+   * @description Tooltip text that appears on the setting when hovering over it in Service Workers View of the Application panel
    */
   bypassTheServiceWorkerAndLoad: 'Bypass the `service worker` and load resources from the network',
   /**
-   *@description Screen reader title for a section of the Service Workers view of the Application panel
-   *@example {https://example.com} PH1
+   * @description Screen reader title for a section of the Service Workers view of the Application panel
+   * @example {https://example.com} PH1
    */
   serviceWorkerForS: '`Service worker` for {PH1}',
   /**
-   *@description Text in Service Workers View of the Application panel
+   * @description Text in Service Workers View of the Application panel
    */
   testPushMessageFromDevtools: 'Test push message from DevTools.',
   /**
-   *@description Button label for service worker network requests
+   * @description Button label for service worker network requests
    */
   networkRequests: 'Network requests',
   /**
@@ -60,23 +61,23 @@ const UIStrings = {
    */
   update: 'Update',
   /**
-   *@description Text in Service Workers View of the Application panel
+   * @description Text in Service Workers View of the Application panel
    */
   unregisterServiceWorker: 'Unregister service worker',
   /**
-   *@description Text in Service Workers View of the Application panel
+   * @description Text in Service Workers View of the Application panel
    */
   unregister: 'Unregister',
   /**
-   *@description Text for the source of something
+   * @description Text for the source of something
    */
   source: 'Source',
   /**
-   *@description Text for the status of something
+   * @description Text for the status of something
    */
   status: 'Status',
   /**
-   *@description Text in Service Workers View of the Application panel
+   * @description Text in Service Workers View of the Application panel
    */
   clients: 'Clients',
   /**
@@ -91,24 +92,24 @@ const UIStrings = {
    */
   pushData: 'Push data',
   /**
-   *@description Text in Service Workers View of the Application panel
+   * @description Text in Service Workers View of the Application panel
    */
   syncString: 'Sync',
   /**
-   *@description Placeholder text for the input box where a user is asked for a test tag to sync. This is used as a compound noun, not as a verb.
+   * @description Placeholder text for the input box where a user is asked for a test tag to sync. This is used as a compound noun, not as a verb.
    */
   syncTag: 'Sync tag',
   /**
-   *@description Text for button in Service Workers View of the Application panel that dispatches a periodicsync event
+   * @description Text for button in Service Workers View of the Application panel that dispatches a periodicsync event
    */
   periodicSync: 'Periodic sync',
   /**
-   *@description Default tag for a periodicsync event in Service Workers View of the Application panel
+   * @description Default tag for a periodicsync event in Service Workers View of the Application panel
    */
   periodicSyncTag: 'Periodic sync tag',
   /**
-   *@description Aria accessible name in Service Workers View of the Application panel
-   *@example {3} PH1
+   * @description Aria accessible name in Service Workers View of the Application panel
+   * @example {3} PH1
    */
   sRegistrationErrors: '{PH1} registration errors',
   /**
@@ -122,26 +123,22 @@ const UIStrings = {
    */
   routers: 'Routers',
   /**
-   *@description Text in Service Workers View of the Application panel
-   *@example {example.com} PH1
+   * @description Text in Service Workers View of the Application panel
+   * @example {example.com} PH1
    */
   sDeleted: '{PH1} - deleted',
   /**
-   *@description Text in Service Workers View of the Application panel
-   *@example {1} PH1
-   *@example {stopped} PH2
+   * @description Text in Service Workers View of the Application panel
+   * @example {1} PH1
+   * @example {stopped} PH2
    */
   sActivatedAndIsS: '#{PH1} activated and is {PH2}',
   /**
-   *@description Text in Service Workers View of the Application panel
+   * @description Text in Service Workers View of the Application panel
    */
   stopString: 'Stop',
   /**
-   *@description Text in Service Workers View of the Application panel
-   */
-  inspect: 'Inspect',
-  /**
-   *@description Text in Service Workers View of the Application panel
+   * @description Text in Service Workers View of the Application panel
    */
   startString: 'Start',
   /**
@@ -152,31 +149,31 @@ const UIStrings = {
    */
   sIsRedundant: '#{PH1} is redundant',
   /**
-   *@description Text in Service Workers View of the Application panel
-   *@example {2} PH1
+   * @description Text in Service Workers View of the Application panel
+   * @example {2} PH1
    */
   sWaitingToActivate: '#{PH1} waiting to activate',
   /**
-   *@description Text in Service Workers View of the Application panel
-   *@example {2} PH1
+   * @description Text in Service Workers View of the Application panel
+   * @example {2} PH1
    */
   sTryingToInstall: '#{PH1} trying to install',
   /**
-   *@description Text in Service Workers Update Timeline. Update is a noun.
+   * @description Text in Service Workers Update Timeline. Update is a noun.
    */
   updateCycle: 'Update Cycle',
   /**
-   *@description Text of a DOM element in Service Workers View of the Application panel
-   *@example {example.com} PH1
+   * @description Text of a DOM element in Service Workers View of the Application panel
+   * @example {example.com} PH1
    */
   workerS: 'Worker: {PH1}',
   /**
-   *@description Link text in Service Workers View of the Application panel. When the link is clicked,
+   * @description Link text in Service Workers View of the Application panel. When the link is clicked,
    * the focus is moved to the service worker's client page.
    */
   focus: 'focus',
   /**
-   *@description Link to view all the Service Workers that have been registered.
+   * @description Link to view all the Service Workers that have been registered.
    */
   seeAllRegistrations: 'See all registrations',
 } as const;
@@ -200,14 +197,16 @@ export class ServiceWorkersView extends UI.Widget.VBox implements
       Map<SDK.ServiceWorkerManager.ServiceWorkerManager, Common.EventTarget.EventDescriptor[]>;
 
   constructor() {
-    super(true);
+    super({
+      jslog: `${VisualLogging.pane('service-workers')}`,
+      useShadowDom: true,
+    });
     this.registerRequiredCSS(serviceWorkersViewStyles);
 
     // TODO(crbug.com/1156978): Replace UI.ReportView.ReportView with ReportView.ts web component.
     this.currentWorkersView = new UI.ReportView.ReportView(i18n.i18n.lockedString('Service workers'));
     this.currentWorkersView.setBodyScrollable(false);
     this.contentElement.classList.add('service-worker-list');
-    this.contentElement.setAttribute('jslog', `${VisualLogging.pane('service-workers')}`);
     this.currentWorkersView.show(this.contentElement);
     this.currentWorkersView.element.classList.add('service-workers-this-origin');
     this.currentWorkersView.element.setAttribute('jslog', `${VisualLogging.section('this-origin')}`);
@@ -229,17 +228,8 @@ export class ServiceWorkersView extends UI.Widget.VBox implements
     othersView.show(othersDiv);
     const othersSection = othersView.appendSection(i18nString(UIStrings.serviceWorkersFromOtherOrigins));
     const othersSectionRow = othersSection.appendRow();
-    const seeOthers =
-        UI.Fragment
-            .html`<a class="devtools-link" role="link" tabindex="0" href="chrome://serviceworker-internals" target="_blank" style="display: inline; cursor: pointer;">${
-                i18nString(UIStrings.seeAllRegistrations)}</a>`;
-    seeOthers.setAttribute('jslog', `${VisualLogging.link('view-all').track({click: true})}`);
-    self.onInvokeElement(seeOthers, event => {
-      const rootTarget = SDK.TargetManager.TargetManager.instance().rootTarget();
-      rootTarget &&
-          void rootTarget.targetAgent().invoke_createTarget({url: 'chrome://serviceworker-internals?devtools'});
-      event.consume(true);
-    });
+    const seeOthers = Link.create(
+        'chrome://serviceworker-internals', i18nString(UIStrings.seeAllRegistrations), undefined, 'view-all');
     othersSectionRow.appendChild(seeOthers);
 
     this.toolbar.appendToolbarItem(
@@ -260,31 +250,6 @@ export class ServiceWorkersView extends UI.Widget.VBox implements
     this.eventListeners = new Map();
     SDK.TargetManager.TargetManager.instance().observeModels(SDK.ServiceWorkerManager.ServiceWorkerManager, this);
     this.updateListVisibility();
-
-    const drawerChangeHandler = (event: Event): void => {
-      // @ts-expect-error: No support for custom event listener
-      const isDrawerOpen = event.detail?.isDrawerOpen;
-      if (this.manager && !isDrawerOpen) {
-        const {serviceWorkerNetworkRequestsPanelStatus: {isOpen, openedAt}} = this.manager;
-        if (isOpen) {
-          const networkLocation = UI.ViewManager.ViewManager.instance().locationNameForViewId('network');
-          UI.ViewManager.ViewManager.instance().showViewInLocation('network', networkLocation, false);
-          void Common.Revealer.reveal(NetworkForward.UIFilter.UIRequestFilter.filters([]));
-
-          const currentTime = Date.now();
-          const timeDifference = currentTime - openedAt;
-          if (timeDifference < 2000) {
-            Host.userMetrics.actionTaken(Host.UserMetrics.Action.ServiceWorkerNetworkRequestClosedQuickly);
-          }
-
-          this.manager.serviceWorkerNetworkRequestsPanelStatus = {
-            isOpen: false,
-            openedAt: 0,
-          };
-        }
-      }
-    };
-    document.body.addEventListener(UI.InspectorView.Events.DRAWER_CHANGE, drawerChangeHandler);
   }
 
   modelAdded(serviceWorkerManager: SDK.ServiceWorkerManager.ServiceWorkerManager): void {
@@ -491,7 +456,6 @@ export class Section {
   private sourceField: Element;
   private readonly statusField: Element;
   private readonly clientsField: Element;
-  private readonly linkifier: Components.Linkifier.Linkifier;
   private readonly clientInfoCache: Map<string, Protocol.Target.TargetInfo>;
   private readonly throttler: Common.Throttler.Throttler;
   private updateCycleField?: Element;
@@ -515,7 +479,6 @@ export class Section {
     this.routerView = new ApplicationComponents.ServiceWorkerRouterView.ServiceWorkerRouterView();
     this.networkRequests = new Buttons.Button.Button();
     this.networkRequests.data = {
-      iconName: 'bottom-panel-open',
       variant: Buttons.Button.Variant.TEXT,
       title: i18nString(UIStrings.networkRequests),
       jslogContext: 'show-network-requests',
@@ -551,7 +514,6 @@ export class Section {
     this.createUpdateCycleField();
     this.maybeCreateRouterField();
 
-    this.linkifier = new Components.Linkifier.Linkifier();
     this.clientInfoCache = new Map();
     this.throttler = new Common.Throttler.Throttler(500);
   }
@@ -584,14 +546,6 @@ export class Section {
       return;
     }
     void this.throttler.schedule(this.update.bind(this));
-  }
-
-  private targetForVersionId(versionId: string): SDK.Target.Target|null {
-    const version = this.manager.findVersion(versionId);
-    if (!version?.targetId) {
-      return null;
-    }
-    return SDK.TargetManager.TargetManager.instance().targetById(version.targetId);
   }
 
   private addVersion(versionsStack: Element, icon: string, label: string): Element {
@@ -683,12 +637,6 @@ export class Section {
         const stopButton = UI.UIUtils.createTextButton(
             i18nString(UIStrings.stopString), this.stopButtonClicked.bind(this, active.id), {jslogContext: 'stop'});
         activeEntry.appendChild(stopButton);
-        if (!this.targetForVersionId(active.id)) {
-          const inspectButton = UI.UIUtils.createTextButton(
-              i18nString(UIStrings.inspect), this.inspectButtonClicked.bind(this, active.id),
-              {jslogContext: 'inspect'});
-          activeEntry.appendChild(inspectButton);
-        }
       } else if (active.isStartable()) {
         const startButton = UI.UIUtils.createTextButton(
             i18nString(UIStrings.startString), this.startButtonClicked.bind(this), {jslogContext: 'start'});
@@ -716,14 +664,6 @@ export class Section {
         waitingEntry.createChild('div', 'service-worker-subtitle').textContent =
             i18nString(UIStrings.receivedS, {PH1: new Date(waiting.scriptResponseTime * 1000).toLocaleString()});
       }
-      if (!this.targetForVersionId(waiting.id) && (waiting.isRunning() || waiting.isStarting())) {
-        const inspectButton = UI.UIUtils.createTextButton(
-            i18nString(UIStrings.inspect), this.inspectButtonClicked.bind(this, waiting.id), {
-              title: i18nString(UIStrings.inspect),
-              jslogContext: 'waiting-entry-inspect',
-            });
-        waitingEntry.appendChild(inspectButton);
-      }
     }
     if (installing) {
       const installingEntry = this.addVersion(
@@ -733,14 +673,6 @@ export class Section {
         installingEntry.createChild('div', 'service-worker-subtitle').textContent = i18nString(UIStrings.receivedS, {
           PH1: new Date(installing.scriptResponseTime * 1000).toLocaleString(),
         });
-      }
-      if (!this.targetForVersionId(installing.id) && (installing.isRunning() || installing.isStarting())) {
-        const inspectButton = UI.UIUtils.createTextButton(
-            i18nString(UIStrings.inspect), this.inspectButtonClicked.bind(this, installing.id), {
-              title: i18nString(UIStrings.inspect),
-              jslogContext: 'installing-entry-inspect',
-            });
-        installingEntry.appendChild(inspectButton);
       }
     }
 
@@ -768,9 +700,9 @@ export class Section {
         this.routerField = this.wrapWidget(this.section.appendField(title));
       }
       if (!this.routerField.lastElementChild) {
-        this.routerField.appendChild(this.routerView);
+        this.routerView.show(this.routerField);
       }
-      this.routerView.update(active.routerRules);
+      this.routerView.rules = active.routerRules;
     } else {
       // If no active worker or no registered rules, remove the field.
       this.section.removeField(title);
@@ -783,10 +715,6 @@ export class Section {
   }
 
   private networkRequestsClicked(): void {
-    const applicationTabLocation = UI.ViewManager.ViewManager.instance().locationNameForViewId('resources');
-    const networkTabLocation = applicationTabLocation === 'drawer-view' ? 'panel' : 'drawer-view';
-    UI.ViewManager.ViewManager.instance().showViewInLocation('network', networkTabLocation);
-
     void Common.Revealer.reveal(NetworkForward.UIFilter.UIRequestFilter.filters([
       {
         filterType: NetworkForward.UIFilter.FilterType.Is,
@@ -794,29 +722,6 @@ export class Section {
       },
     ]));
 
-    const requests = Logs.NetworkLog.NetworkLog.instance().requests();
-    let lastRequest: SDK.NetworkRequest.NetworkRequest|null = null;
-    if (Array.isArray(requests)) {
-      for (const request of requests) {
-        if (!lastRequest && request.fetchedViaServiceWorker) {
-          lastRequest = request;
-        }
-        if (request.fetchedViaServiceWorker && lastRequest &&
-            lastRequest.responseReceivedTime < request.responseReceivedTime) {
-          lastRequest = request;
-        }
-      }
-    }
-    if (lastRequest) {
-      const requestLocation = NetworkForward.UIRequestLocation.UIRequestLocation.tab(
-          lastRequest, NetworkForward.UIRequestLocation.UIRequestTabs.TIMING, {clearFilter: false});
-      void Common.Revealer.reveal(requestLocation);
-    }
-
-    this.manager.serviceWorkerNetworkRequestsPanelStatus = {
-      isOpen: true,
-      openedAt: Date.now(),
-    };
     Host.userMetrics.actionTaken(Host.UserMetrics.Action.ServiceWorkerNetworkRequestClicked);
   }
 
@@ -881,10 +786,6 @@ export class Section {
 
   private stopButtonClicked(versionId: string): void {
     void this.manager.stopWorker(versionId);
-  }
-
-  private inspectButtonClicked(versionId: string): void {
-    void this.manager.inspectWorker(versionId);
   }
 
   private wrapWidget(container: Element): Element {

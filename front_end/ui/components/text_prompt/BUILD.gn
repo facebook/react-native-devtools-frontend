@@ -1,4 +1,4 @@
-# Copyright 2021 The Chromium Authors. All rights reserved.
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -12,7 +12,7 @@ generate_css("css_files") {
   sources = [ "textPrompt.css" ]
 }
 
-devtools_module("text_prompt") {
+devtools_ui_module("text_prompt") {
   sources = [ "TextPrompt.ts" ]
   deps = [
     "../../../core/platform:bundle",
@@ -34,7 +34,7 @@ devtools_entrypoint("bundle") {
   visibility += default_components_visibility
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [ "TextPrompt.test.ts" ]

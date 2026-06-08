@@ -1,6 +1,7 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 /*
  * Copyright (C) 2009 280 North Inc. All Rights Reserved.
@@ -30,7 +31,7 @@
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
 import type * as CPUProfile from '../../models/cpu_profile/cpu_profile.js';
-import * as IconButton from '../../ui/components/icon_button/icon_button.js';
+import {Icon} from '../../ui/kit/kit.js';
 import * as DataGrid from '../../ui/legacy/components/data_grid/data_grid.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
@@ -44,9 +45,9 @@ const UIStrings = {
    */
   notOptimizedS: 'Not optimized: {PH1}',
   /**
-   *@description Generic text with two placeholders separated by a comma
-   *@example {1 613 680} PH1
-   *@example {44 %} PH2
+   * @description Generic text with two placeholders separated by a comma
+   * @example {1 613 680} PH1
+   * @example {44 %} PH2
    */
   genericTextTwoPlaceholders: '{PH1}, {PH2}',
 } as const;
@@ -202,9 +203,9 @@ export class ProfileDataGridNode extends DataGrid.DataGrid.DataGridNode<unknown>
         cell.classList.toggle('highlight', this.searchMatchedFunctionColumn);
         if (this.deoptReason) {
           cell.classList.add('not-optimized');
-          const warningIcon = new IconButton.Icon.Icon();
-          warningIcon.data = {iconName: 'warning-filled', color: 'var(--icon-warning)', width: '14px', height: '14px'};
-          warningIcon.classList.add('profile-warn-marker');
+          const warningIcon = new Icon();
+          warningIcon.name = 'warning-filled';
+          warningIcon.classList.add('profile-warn-marker', 'small');
           UI.Tooltip.Tooltip.install(warningIcon, i18nString(UIStrings.notOptimizedS, {PH1: this.deoptReason}));
           cell.appendChild(warningIcon);
         }
@@ -365,27 +366,13 @@ export class ProfileDataGridTree implements UI.SearchableView.Searchable {
   }
 
   static propertyComparator(property: string, isAscending: boolean):
-      (arg0: {
-        [x: string]: unknown,
-      },
-       arg1: {
-         [x: string]: unknown,
-       }) => number {
+      (arg0: Record<string, unknown>, arg1: Record<string, unknown>) => number {
     let comparator = propertyComparators[(isAscending ? 1 : 0)][property];
 
     if (!comparator) {
       if (isAscending) {
-        comparator = function(
-            lhs: {
-              // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              [x: string]: any,
-            },
-            rhs: {
-              // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              [x: string]: any,
-            }): number {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        comparator = function(lhs: Record<string, any>, rhs: Record<string, any>): number {
           if (lhs[property] < rhs[property]) {
             return -1;
           }
@@ -398,16 +385,9 @@ export class ProfileDataGridTree implements UI.SearchableView.Searchable {
         };
       } else {
         comparator = function(
-            lhs: {
-              // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              [x: string]: any,
-            },
-            rhs: {
-              // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              [x: string]: any,
-            }): number {
+            // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            lhs: Record<string, any>, rhs: Record<string, any>): number {
           if (lhs[property] > rhs[property]) {
             return -1;
           }
@@ -423,13 +403,7 @@ export class ProfileDataGridTree implements UI.SearchableView.Searchable {
       propertyComparators[(isAscending ? 1 : 0)][property] = comparator;
     }
 
-    return comparator as (
-               arg0: {
-                 [x: string]: unknown,
-               },
-               arg1: {
-                 [x: string]: unknown,
-               }) => number;
+    return comparator as (arg0: Record<string, unknown>, arg1: Record<string, unknown>) => number;
   }
 
   get expanded(): boolean {
@@ -607,7 +581,7 @@ export class ProfileDataGridTree implements UI.SearchableView.Searchable {
     return matchesQuery;
   }
 
-  performSearch(searchConfig: UI.SearchableView.SearchConfig, shouldJump: boolean, jumpBackwards?: boolean): void {
+  performSearch(searchConfig: UI.SearchableView.SearchConfig, _shouldJump: boolean, jumpBackwards?: boolean): void {
     this.onSearchCanceled();
     const matchesQuery = this.matchFunction(searchConfig);
     if (!matchesQuery) {
@@ -667,6 +641,10 @@ export class ProfileDataGridTree implements UI.SearchableView.Searchable {
     return true;
   }
 
+  supportsWholeWordSearch(): boolean {
+    return false;
+  }
+
   supportsRegexSearch(): boolean {
     return false;
   }
@@ -682,7 +660,7 @@ export class ProfileDataGridTree implements UI.SearchableView.Searchable {
   }
 }
 
-const propertyComparators: Array<{[key: string]: unknown}> = [{}, {}];
+const propertyComparators: Array<Record<string, unknown>> = [{}, {}];
 
 export interface Formatter {
   formatValue(value: number, node: ProfileDataGridNode): string;

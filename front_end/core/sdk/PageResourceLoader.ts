@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,8 @@ import * as Common from '../common/common.js';
 import * as Host from '../host/host.js';
 import * as i18n from '../i18n/i18n.js';
 import type * as Platform from '../platform/platform.js';
+import * as Root from '../root/root.js';
 
-import {FrameManager} from './FrameManager.js';
 import {IOModel} from './IOModel.js';
 import {MultitargetNetworkManager, NetworkManager} from './NetworkManager.js';
 import {
@@ -24,7 +24,7 @@ const RNDT_STARTUP_RESOURCES_LOADED_COOLDOWN = 3000;
 
 const UIStrings = {
   /**
-   *@description Error message for canceled source map loads
+   * @description Error message for canceled source map loads
    */
   loadCanceledDueToReloadOf: 'Load canceled due to reload of inspected page',
 } as const;
@@ -61,7 +61,7 @@ export interface PageResource {
   duration: number|null;
 }
 
-// Used for revealing a resource.
+/** Used for revealing a resource. **/
 export class ResourceKey {
   readonly key: string;
 
@@ -70,7 +70,14 @@ export class ResourceKey {
   }
 }
 
-let pageResourceLoader: PageResourceLoader|null = null;
+export type UserAgentProvider = Pick<MultitargetNetworkManager, 'currentUserAgent'>;
+
+/**
+ * The PageResourceLoader has two responsibilities: loading resources and tracking statistics scoped to targets
+ * for the DeveloperResourcesPanel. Many places only require the former, so we expose that functionality via small
+ * sub-interface. This makes it easier to test classes that require resource loading.
+ */
+export type ResourceLoader = Pick<PageResourceLoader, 'loadResource'>;
 
 interface LoadQueueEntry {
   resolve: () => void;
@@ -82,7 +89,10 @@ interface LoadQueueEntry {
  * `PageResource` object around that holds meta information. This can be as the basis for reporting to the user which
  * resources were loaded, and whether there was a load error.
  */
-export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
+export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<EventTypes> implements ResourceLoader {
+  readonly #targetManager: TargetManager;
+  readonly #settings: Common.Settings.Settings;
+  readonly #userAgentProvider: UserAgentProvider;
   #currentlyLoading = 0;
   #rndtStartupResourcesLoadedReported = false;
   #rndtStartupResourcesLoadedTimeout: number|undefined = undefined;
@@ -92,45 +102,55 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
   #queuedLoads: LoadQueueEntry[] = [];
   readonly #loadOverride: ((arg0: string) => Promise<{
                              success: boolean,
-                             content: string,
+                             content: string|Uint8Array<ArrayBuffer>,
                              errorDescription: Host.ResourceLoader.LoadErrorDescription,
                            }>)|null;
   constructor(
+      targetManager: TargetManager, settings: Common.Settings.Settings, userAgentProvider: UserAgentProvider,
       loadOverride: ((arg0: string) => Promise<{
                        success: boolean,
-                       content: string,
+                       content: string|Uint8Array<ArrayBuffer>,
                        errorDescription: Host.ResourceLoader.LoadErrorDescription,
                      }>)|null,
-      maxConcurrentLoads: number) {
+      maxConcurrentLoads = 500) {
     super();
+    this.#targetManager = targetManager;
+    this.#settings = settings;
+    this.#userAgentProvider = userAgentProvider;
     this.#maxConcurrentLoads = maxConcurrentLoads;
-    TargetManager.instance().addModelListener(
+    this.#targetManager.addModelListener(
         ResourceTreeModel, ResourceTreeModelEvents.PrimaryPageChanged, this.onPrimaryPageChanged, this);
     this.#loadOverride = loadOverride;
   }
 
-  static instance({forceNew, loadOverride, maxConcurrentLoads}: {
+  static instance({forceNew, targetManager, settings, userAgentProvider, loadOverride, maxConcurrentLoads}: {
     forceNew: boolean,
     loadOverride: (null|((arg0: string) => Promise<{
                            success: boolean,
-                           content: string,
+                           content: string|Uint8Array<ArrayBuffer>,
                            errorDescription: Host.ResourceLoader.LoadErrorDescription,
                          }>)),
-    maxConcurrentLoads: number,
+    targetManager?: TargetManager,
+    settings?: Common.Settings.Settings,
+    userAgentProvider?: UserAgentProvider,
+    maxConcurrentLoads?: number,
   } = {
     forceNew: false,
     loadOverride: null,
-    maxConcurrentLoads: 500,
   }): PageResourceLoader {
-    if (!pageResourceLoader || forceNew) {
-      pageResourceLoader = new PageResourceLoader(loadOverride, maxConcurrentLoads);
+    if (forceNew) {
+      Root.DevToolsContext.globalInstance().set(
+          PageResourceLoader,
+          new PageResourceLoader(
+              targetManager ?? TargetManager.instance(), settings ?? Common.Settings.Settings.instance(),
+              userAgentProvider ?? MultitargetNetworkManager.instance(), loadOverride, maxConcurrentLoads));
     }
 
-    return pageResourceLoader;
+    return Root.DevToolsContext.globalInstance().get(PageResourceLoader);
   }
 
   static removeInstance(): void {
-    pageResourceLoader = null;
+    Root.DevToolsContext.globalInstance().delete(PageResourceLoader);
   }
 
   onPrimaryPageChanged(
@@ -163,7 +183,7 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
 
   getScopedResourcesLoaded(): Map<string, PageResource> {
     return new Map([...this.#pageResources].filter(
-        ([_, pageResource]) => TargetManager.instance().isInScope(pageResource.initiator.target) ||
+        ([_, pageResource]) => this.#targetManager.isInScope(pageResource.initiator.target) ||
             isExtensionInitiator(pageResource.initiator)));
   }
 
@@ -184,11 +204,10 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
     loading: number,
     resources: number,
   } {
-    const targetManager = TargetManager.instance();
     let loadingCount = 0;
     for (const [targetId, count] of this.#currentlyLoadingPerTarget) {
-      const target = targetManager.targetById(targetId);
-      if (targetManager.isInScope(target)) {
+      const target = this.#targetManager.targetById(targetId);
+      if (this.#targetManager.isInScope(target)) {
         loadingCount += count;
       }
     }
@@ -249,21 +268,33 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
     this.dispatchEventToListeners(Events.UPDATE);
   }
 
-  async loadResource(url: Platform.DevToolsPath.UrlString, initiator: PageResourceLoadInitiator): Promise<{
+  loadResource(url: Platform.DevToolsPath.UrlString, initiator: PageResourceLoadInitiator, isBinary: true): Promise<{
+    content: Uint8Array<ArrayBuffer>,
+  }>;
+  loadResource(url: Platform.DevToolsPath.UrlString, initiator: PageResourceLoadInitiator, isBinary?: false): Promise<{
     content: string,
-  }> {
+  }>;
+  async loadResource(url: Platform.DevToolsPath.UrlString, initiator: PageResourceLoadInitiator, isBinary = false):
+      Promise<{
+        content: string | Uint8Array<ArrayBuffer>,
+      }> {
     if (isExtensionInitiator(initiator)) {
       throw new Error('Invalid initiator');
     }
     const key = PageResourceLoader.makeKey(url, initiator);
-    const pageResource:
-        PageResource = {success: null, size: null, duration: null, errorMessage: undefined, url, initiator};
+    const pageResource: PageResource = {
+      success: null,
+      size: null,
+      duration: null,
+      url,
+      initiator,
+    };
     this.#pageResources.set(key, pageResource);
     this.dispatchEventToListeners(Events.UPDATE);
     const startTime = performance.now();
     try {
       await this.acquireLoadSlot(initiator.target);
-      const resultPromise = this.dispatchLoad(url, initiator);
+      const resultPromise = this.dispatchLoad(url, initiator, isBinary);
       const result = await resultPromise;
 
       if (!this.#rndtStartupResourcesLoadedReported) {
@@ -304,50 +335,68 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
     }
   }
 
-  private async dispatchLoad(url: Platform.DevToolsPath.UrlString, initiator: PageResourceLoadInitiator): Promise<{
+  private async dispatchLoad(
+      url: Platform.DevToolsPath.UrlString, initiator: PageResourceLoadInitiator, isBinary: boolean): Promise<{
     success: boolean,
-    content: string,
+    content: string|Uint8Array<ArrayBuffer>,
     errorDescription: Host.ResourceLoader.LoadErrorDescription,
   }> {
     if (isExtensionInitiator(initiator)) {
       throw new Error('Invalid initiator');
     }
 
-    let failureReason: string|null = null;
+    const failureReason: string|null = null;
     if (this.#loadOverride) {
       return await this.#loadOverride(url);
     }
     const parsedURL = new Common.ParsedURL.ParsedURL(url);
-    const eligibleForLoadFromTarget = getLoadThroughTargetSetting().get() && parsedURL && parsedURL.scheme !== 'file' &&
-        parsedURL.scheme !== 'data' && parsedURL.scheme !== 'devtools';
+    const eligibleForLoadFromTarget = this.getLoadThroughTargetSetting().get() && parsedURL &&
+        parsedURL.scheme !== 'file' && parsedURL.scheme !== 'data' && parsedURL.scheme !== 'devtools' &&
+        initiator.target;
     Host.userMetrics.developerResourceScheme(this.getDeveloperResourceScheme(parsedURL));
     if (eligibleForLoadFromTarget) {
+      let mustEnforceCSP = false;
+      const isHttp = parsedURL.scheme === 'http' || parsedURL.scheme === 'https';
+      if (isHttp && initiator.target) {
+        const networkManager = initiator.target.model(NetworkManager);
+        if (networkManager) {
+          let status = await networkManager.getSecurityIsolationStatus(initiator.frameId);
+          if (!status && initiator.frameId) {
+            status = await networkManager.getSecurityIsolationStatus(null);
+          }
+          if (status?.csp) {
+            for (const csp of status.csp) {
+              const directives = csp.effectiveDirectives;
+              if (directives.includes('connect-src') || directives.includes('default-src')) {
+                mustEnforceCSP = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+
       try {
-        if (initiator.target) {
-          Host.userMetrics.developerResourceLoaded(
-              Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_VIA_TARGET);
-          Host.rnPerfMetrics.developerResourceLoadingStarted(
-              parsedURL, Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_VIA_TARGET);
-          const result = await this.loadFromTarget(initiator.target, initiator.frameId, url);
-          Host.rnPerfMetrics.developerResourceLoadingFinished(
-              parsedURL, Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_VIA_TARGET, result);
-          return result;
-        }
-        const frame = FrameManager.instance().getFrame(initiator.frameId);
-        if (frame) {
-          Host.userMetrics.developerResourceLoaded(
-              Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_VIA_FRAME);
-          Host.rnPerfMetrics.developerResourceLoadingStarted(
-              parsedURL, Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_VIA_FRAME);
-          const result = await this.loadFromTarget(frame.resourceTreeModel().target(), initiator.frameId, url);
-          Host.rnPerfMetrics.developerResourceLoadingFinished(
-              parsedURL, Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_VIA_TARGET, result);
-          return result;
-        }
+        Host.userMetrics.developerResourceLoaded(Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_VIA_TARGET);
+        Host.rnPerfMetrics.developerResourceLoadingStarted(
+            parsedURL, Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_VIA_TARGET);
+        const result = await this.loadFromTarget(initiator.target, initiator.frameId, url, isBinary);
+        Host.rnPerfMetrics.developerResourceLoadingFinished(
+            parsedURL, Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_VIA_TARGET, result);
+        return result;
       } catch (e) {
         if (e instanceof Error) {
           Host.userMetrics.developerResourceLoaded(Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_FAILURE);
-          failureReason = e.message;
+          if (mustEnforceCSP || e.message.includes('CSP violation')) {
+            return {
+              success: false,
+              content: '',
+              errorDescription: {
+                statusCode: 0,
+                message: e.message,
+              }
+            };
+          }
         }
         Host.rnPerfMetrics.developerResourceLoadingFinished(
             parsedURL, Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_FAILURE,
@@ -357,14 +406,14 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
       Host.rnPerfMetrics.developerResourceLoadingStarted(
           parsedURL, Host.UserMetrics.DeveloperResourceLoaded.LOAD_THROUGH_PAGE_FALLBACK);
     } else {
-      const code = getLoadThroughTargetSetting().get() ?
+      const code = this.getLoadThroughTargetSetting().get() ?
           Host.UserMetrics.DeveloperResourceLoaded.FALLBACK_PER_PROTOCOL :
           Host.UserMetrics.DeveloperResourceLoaded.FALLBACK_PER_OVERRIDE;
       Host.userMetrics.developerResourceLoaded(code);
       Host.rnPerfMetrics.developerResourceLoadingStarted(parsedURL, code);
     }
 
-    const result = await MultitargetNetworkManager.instance().loadResource(url);
+    const result = await this.loadFromHostBindings(url);
     if (eligibleForLoadFromTarget && !result.success) {
       Host.userMetrics.developerResourceLoaded(Host.UserMetrics.DeveloperResourceLoaded.FALLBACK_FAILURE);
     }
@@ -403,23 +452,25 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
   }
 
   private async loadFromTarget(
-      target: Target, frameId: Protocol.Page.FrameId|null, url: Platform.DevToolsPath.UrlString): Promise<{
+      target: Target, frameId: Protocol.Page.FrameId|null, url: Platform.DevToolsPath.UrlString,
+      isBinary: boolean): Promise<{
     success: boolean,
-    content: string,
+    content: string|Uint8Array<ArrayBuffer>,
     errorDescription: {
       statusCode: number,
       netError: number|undefined,
       netErrorName: string|undefined,
       message: string,
-      urlValid: undefined,
     },
   }> {
     const networkManager = (target.model(NetworkManager) as NetworkManager);
     const ioModel = (target.model(IOModel) as IOModel);
-    const disableCache = Common.Settings.Settings.instance().moduleSetting('cache-disabled').get();
+    const disableCache = this.#settings.moduleSetting('cache-disabled').get();
     const resource = await networkManager.loadNetworkResource(frameId, url, {disableCache, includeCredentials: true});
     try {
-      const content = resource.stream ? await ioModel.readToString(resource.stream) : '';
+      const content = resource.stream ?
+          (isBinary ? await ioModel.readToBuffer(resource.stream) : await ioModel.readToString(resource.stream)) :
+          '';
       return {
         success: resource.success,
         content,
@@ -430,7 +481,6 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
           message: Host.ResourceLoader.netErrorToMessage(
                        resource.netError, resource.httpStatusCode, resource.netErrorName) ||
               '',
-          urlValid: undefined,
         },
       };
     } finally {
@@ -439,10 +489,34 @@ export class PageResourceLoader extends Common.ObjectWrapper.ObjectWrapper<Event
       }
     }
   }
-}
 
-export function getLoadThroughTargetSetting(): Common.Settings.Setting<boolean> {
-  return Common.Settings.Settings.instance().createSetting('load-through-target', true);
+  private async loadFromHostBindings(url: Platform.DevToolsPath.UrlString): Promise<{
+    success: boolean,
+    content: string,
+    errorDescription: Host.ResourceLoader.LoadErrorDescription,
+  }> {
+    const headers: Record<string, string> = {};
+
+    const currentUserAgent = this.#userAgentProvider.currentUserAgent();
+    if (currentUserAgent) {
+      headers['User-Agent'] = currentUserAgent;
+    }
+
+    if (this.#settings.moduleSetting('cache-disabled').get()) {
+      headers['Cache-Control'] = 'no-cache';
+    }
+
+    const allowRemoteFilePaths = this.#settings.moduleSetting('network.enable-remote-file-loading').get();
+
+    return await new Promise(
+        resolve => Host.ResourceLoader.load(url, headers, (success, _responseHeaders, content, errorDescription) => {
+          resolve({success, content, errorDescription});
+        }, allowRemoteFilePaths));
+  }
+
+  getLoadThroughTargetSetting(): Common.Settings.Setting<boolean> {
+    return this.#settings.createSetting('load-through-target', true);
+  }
 }
 
 export const enum Events {

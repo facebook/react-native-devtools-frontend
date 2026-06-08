@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -356,5 +356,16 @@ describeWithMockConnection('IssuesManager', () => {
     } as unknown as Protocol.Network.RequestWillBeSentEvent);
     navigate(frame, {loaderId: 'loaderId2' as Protocol.Network.LoaderId});
     assert.strictEqual(issuesManager.numberOfIssues(), 0);
+  });
+
+  describe('isIssueCodeSupported', () => {
+    it('returns true for supported issue codes', () => {
+      assert.isTrue(IssuesManager.IssuesManager.isIssueCodeSupported(Protocol.Audits.InspectorIssueCode.CookieIssue));
+    });
+
+    it('returns false for unsupported issue codes', () => {
+      assert.isFalse(IssuesManager.IssuesManager.isIssueCodeSupported(
+          'NonExistentIssueCode' as Protocol.Audits.InspectorIssueCode));
+    });
   });
 });

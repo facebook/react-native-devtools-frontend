@@ -1,12 +1,15 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+import '../../ui/components/markdown_view/markdown_view.js';
+import '../../ui/kit/kit.js';
 
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
 import * as Marked from '../../third_party/marked/marked.js';
 import * as Buttons from '../../ui/components/buttons/buttons.js';
-import type * as MarkdownView from '../../ui/components/markdown_view/markdown_view.js';
+import * as UIHelpers from '../../ui/helpers/helpers.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import {html, render} from '../../ui/lit/lit.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
@@ -16,7 +19,7 @@ import releaseNoteViewStyles from './releaseNoteView.css.js';
 
 const UIStrings = {
   /**
-   *@description Text that is usually a hyperlink to more documentation
+   * @description Text that is usually a hyperlink to more documentation
    */
   seeFeatures: 'See all new features',
 } as const;
@@ -59,15 +62,15 @@ export async function getMarkdownContent(): Promise<Marked.Marked.Token[][]> {
   return splitMarkdownAst;
 }
 
-export class ReleaseNoteView extends UI.Widget.VBox {
+export class ReleaseNoteView extends UI.Panel.Panel {
   #view: View;
 
-  constructor(element?: HTMLElement, view: View = (input, _output, target) => {
-    this.registerRequiredCSS(releaseNoteViewStyles);
+  constructor(view: View = (input, _output, target) => {
     const releaseNote = input.getReleaseNote();
     const markdownContent = input.markdownContent;
     // clang-format off
     render(html`
+      <style>${releaseNoteViewStyles}</style>
       <div class="whatsnew" jslog=${VisualLogging.section().context('release-notes')}>
         <div class="whatsnew-content">
           <div class="header">
@@ -85,28 +88,31 @@ export class ReleaseNoteView extends UI.Widget.VBox {
             <div class="video-container">
               ${releaseNote.videoLinks.map((value: {description: string, link: Platform.DevToolsPath.UrlString, type?: VideoType}) => {
                 return html`
-                  <x-link
+                  <devtools-link
                   href=${value.link}
-                  jslog=${VisualLogging.link().track({click: true}).context('learn-more')}>
+                  jslogcontext="learn-more">
                     <div class="video">
                       <img class="thumbnail" src=${input.getThumbnailPath(value.type ?? VideoType.WHATS_NEW)}>
                       <div class="thumbnail-description"><span>${value.description}</span></div>
                     </div>
-                </x-link>
+                </devtools-link>
                 `;
               })}
             </div>
             ${markdownContent.map((markdown: Marked.Marked.Token[]) => {
-              return html`<div class="feature"><devtools-markdown-view slot="content" .data=${{tokens: markdown} as MarkdownView.MarkdownView.MarkdownViewData}></devtools-markdown-view></div>`;
+              return html`
+                  <div class="feature">
+                    <devtools-markdown-view slot="content" .data=${{tokens: markdown}}>
+                    </devtools-markdown-view>
+                  </div>`;
             })}
           </div>
         </div>
       </div>
-    `, target, {host: this});
+    `, target);
     // clang-format on
   }) {
-    super(true, undefined, element);
-    this.element.setAttribute('jslog', `${VisualLogging.panel().context('whats-new')}`);
+    super('whats-new', true);
     this.#view = view;
     this.requestUpdate();
   }
@@ -127,7 +133,7 @@ export class ReleaseNoteView extends UI.Widget.VBox {
     this.#view(
         {
           getReleaseNote,
-          openNewTab: UI.UIUtils.openInNewTab,
+          openNewTab: UIHelpers.openInNewTab,
           markdownContent,
           getThumbnailPath: this.#getThumbnailPath,
         },

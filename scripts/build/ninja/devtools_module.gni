@@ -1,24 +1,12 @@
-# Copyright 2021 The Chromium Authors. All rights reserved.
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("../../../scripts/build/typescript/typescript.gni")
 
-template("devtools_module") {
+template("devtools_base_module") {
   ts_library(target_name) {
-    forward_variables_from(invoker,
-                           [
-                             "deps",
-                             "public_deps",
-                             "sources",
-                             "data",
-                           ])
-
-    # To make sure that this target can be depended upon by other TypeScript targets,
-    # we have to name it the `target_name`. However, we can't name this `ts_library` the
-    # `target_name`, as the buildgraph requires the `copy_gen__to_resources` to happen *after*
-    # `ts_library` is finished.
-    typescript_config_name = invoker.target_name
+    forward_variables_from(invoker, "*", [ "visibility" ])
 
     reset_timestamps = true
 
@@ -26,8 +14,71 @@ template("devtools_module") {
   }
 }
 
-set_defaults("devtools_module") {
-  visibility = []
-  data = []
-  public_deps = []
+template("devtools_module") {
+  devtools_base_module(target_name) {
+    forward_variables_from(invoker, "*")
+  }
+}
+
+# A module that can run in any runtime we support. As such, it must only use
+# features and APIs shared across all supported runtimes.
+#
+# To check for this we type-check both against browser and node runtime APIs.
+template("devtools_foundation_module") {
+  if (!devtools_skip_typecheck) {
+    _node_type_check_target = target_name + "_node_typecheck"
+
+    ts_library(_node_type_check_target) {
+      forward_variables_from(invoker, "*", [ "visibility" ])
+
+      es_target = "es2023"
+      es_libs = []
+
+      no_emit = true
+      runs_in = "node_esm"
+    }
+  }
+
+  ts_library(target_name) {
+    forward_variables_from(invoker, "*", [ "visibility" ])
+
+    reset_timestamps = true
+
+    es_target = "es2023"
+    es_libs = [
+      "dom",
+      "dom.iterable",
+    ]
+
+    visibility += [ ":*" ]
+
+    if (!devtools_skip_typecheck) {
+      public_deps += [ ":$_node_type_check_target" ]
+    }
+  }
+}
+
+template("devtools_ui_module") {
+  devtools_base_module(target_name) {
+    forward_variables_from(invoker, "*")
+
+    es_target = "esnext"
+    es_libs = [
+      "dom",
+      "dom.iterable",
+    ]
+  }
+}
+
+foreach(module,
+        [
+          "devtools_foundation_module",
+          "devtools_module",
+          "devtools_ui_module",
+        ]) {
+  set_defaults(module) {
+    visibility = []
+    data = []
+    public_deps = []
+  }
 }

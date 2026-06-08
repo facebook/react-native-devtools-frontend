@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -71,6 +71,15 @@ describe('UISourceCode', () => {
     assert.strictEqual(result, 'test'.repeat(30) + '?isTest=true');
   });
 
+  it('can return display name if URI is not decodable', async () => {
+    const url = 'https://cdn.example.com/%CE%B1%AA%E1%BC%E1%B2%E1%AB%CE%B1%E1%A7%E1_600x600.png';
+    const sutObject = setupMockedUISourceCode(url);
+
+    const result = sutObject.sut.displayName(true);
+
+    assert.strictEqual(result, '%CE%B1%AA%E1%BC%E1%B2%E1%AB%CE%B1%E1%A7%E1_600x600.png');
+  });
+
   it('can request project metadata', async () => {
     const sutObject = setupMockedUISourceCode();
     sutObject.projectStub.requestMetadata.resolves(null);
@@ -119,7 +128,7 @@ describe('UISourceCode', () => {
     const sutObject = setupMockedUISourceCode();
     sutObject.projectStub.workspace.returns(sinon.createStubInstance(Workspace.Workspace.WorkspaceImpl));
     const rawPathstringExample = 'newName.html' as Platform.DevToolsPath.RawPathString;
-    sutObject.projectStub.rename.callsFake((uiSourceCode, rawPathstringExample, innerCallback) => {
+    sutObject.projectStub.rename.callsFake((_uiSourceCode, rawPathstringExample, innerCallback) => {
       innerCallback(true, rawPathstringExample);
     });
 
@@ -157,19 +166,9 @@ describe('UISourceCode', () => {
     const contentData = new TextUtils.ContentData.ContentData('Example', false, 'text/plain');
     sutObject.projectStub.requestFileContent.resolves(contentData);
 
-    const result = await sutObject.sut.requestContent();
+    const result = await sutObject.sut.requestContentData();
 
-    assert.deepEqual(result, contentData.asDeferedContent());
-  });
-
-  it('check if the content is encoded', async () => {
-    const sutObject = setupMockedUISourceCode();
-    const deferredContentStub = new TextUtils.ContentData.ContentData('AQIDBA==', true, 'application/wasm');
-    sutObject.projectStub.requestFileContent.resolves(deferredContentStub);
-
-    const {isEncoded} = await sutObject.sut.requestContent();
-
-    assert.isTrue(isEncoded);
+    assert.strictEqual(result, contentData);
   });
 
   it('can commit content', async () => {
@@ -177,9 +176,10 @@ describe('UISourceCode', () => {
     sutObject.projectStub.workspace.returns(sinon.createStubInstance(Workspace.Workspace.WorkspaceImpl));
 
     sutObject.sut.addRevision('New Content');
-    const result = await sutObject.sut.requestContent();
+    const result = await sutObject.sut.requestContentData();
 
-    assert.deepEqual(result, {content: 'New Content', isEncoded: false});
+    assert.isFalse(TextUtils.ContentData.ContentData.isError(result));
+    assert.propertyVal(result, 'text', 'New Content');
   });
 
   it('can check if there are commits', async () => {
@@ -220,9 +220,10 @@ describe('UISourceCode', () => {
     sutObject.projectStub.workspace.returns(sinon.createStubInstance(Workspace.Workspace.WorkspaceImpl));
 
     sutObject.sut.setContent('New Content', false);
-    const result = await sutObject.sut.requestContent();
+    const result = await sutObject.sut.requestContentData();
 
-    assert.deepEqual(result, {content: 'New Content', isEncoded: false});
+    assert.isFalse(TextUtils.ContentData.ContentData.isError(result));
+    assert.propertyVal(result, 'text', 'New Content');
   });
 
   it('can set working copy getter function', async () => {
@@ -285,7 +286,7 @@ describe('UISourceCode', () => {
     const deferredContentStub = {error: 'Example Error'};
     sutObject.projectStub.requestFileContent.resolves(deferredContentStub);
     sutObject.projectStub.workspace.returns(sinon.createStubInstance(Workspace.Workspace.WorkspaceImpl));
-    await sutObject.sut.requestContent();
+    await sutObject.sut.requestContentData();
 
     const result = sutObject.sut.loadError();
 

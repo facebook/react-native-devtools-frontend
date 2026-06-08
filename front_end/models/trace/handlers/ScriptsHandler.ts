@@ -1,17 +1,16 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../../core/common/common.js';
 import * as Platform from '../../../core/platform/platform.js';
-// eslint-disable-next-line rulesdir/no-imports-in-directory
 import type * as SDK from '../../../core/sdk/sdk.js';
 import type * as Protocol from '../../../generated/protocol.js';
 import * as Types from '../types/types.js';
 
 import {data as metaHandlerData, type MetaHandlerData} from './MetaHandler.js';
 import {data as networkRequestsHandlerData} from './NetworkRequestsHandler.js';
-import type {HandlerName} from './types.js';
+import type {FinalizeOptions, HandlerName} from './types.js';
 
 export interface ScriptsData {
   /** Note: this is only populated when the "Enhanced Traces" feature is enabled. */
@@ -27,8 +26,13 @@ export interface Script {
   url?: string;
   sourceUrl?: string;
   content?: string;
-  /** Note: this is the literal text given as the sourceMappingURL value. It has not been resolved relative to the script url. */
+  /**
+   * Note: this is the literal text given as the sourceMappingURL value. It has not been resolved relative to the script url.
+   * Since M138, data urls are never set here.
+   */
   sourceMapUrl?: string;
+  /** If true, the source map url was a data URL, so it got removed from the trace event. */
+  sourceMapUrlElided?: boolean;
   sourceMap?: SDK.SourceMap.SourceMap;
   request?: Types.Events.SyntheticNetworkRequest;
   /** Lazily generated - use getScriptGeneratedSizes to access. */
@@ -39,25 +43,27 @@ type GeneratedFileSizes = {
   errorMessage: string,
 }|{files: Record<string, number>, unmappedBytes: number, totalBytes: number};
 
-const scriptById = new Map<string, Script>();
+let scriptById = new Map<string, Script>();
+let frameIdByIsolate = new Map<string, string>();
 
 export function deps(): HandlerName[] {
   return ['Meta', 'NetworkRequests'];
 }
 
 export function reset(): void {
-  scriptById.clear();
+  scriptById = new Map();
+  frameIdByIsolate = new Map();
 }
 
 export function handleEvent(event: Types.Events.Event): void {
-  const getOrMakeScript = (isolate: string, scriptIdAsNumber: number): Script => {
+  const getOrMakeScript = (isolate: string|number, scriptIdAsNumber: number): Script => {
     const scriptId = String(scriptIdAsNumber) as Protocol.Runtime.ScriptId;
     const key = `${isolate}.${scriptId}`;
     return Platform.MapUtilities.getWithDefault(
-        scriptById, key, () => ({isolate, scriptId, frame: '', ts: 0} as Script));
+        scriptById, key, () => ({isolate, scriptId, frame: '', ts: event.ts} as Script));
   };
 
-  if (Types.Events.isTargetRundownEvent(event) && event.args.data) {
+  if (Types.Events.isRundownScriptCompiled(event) && event.args.data) {
     const {isolate, scriptId, frame} = event.args.data;
     const script = getOrMakeScript(isolate, scriptId);
     script.frame = frame;
@@ -66,32 +72,64 @@ export function handleEvent(event: Types.Events.Event): void {
     return;
   }
 
-  if (Types.Events.isV8SourceRundownEvent(event)) {
-    const {isolate, scriptId, url, sourceUrl, sourceMapUrl, startLine, startColumn} = event.args.data;
+  if (Types.Events.isRundownScript(event)) {
+    const {isolate, scriptId, url, sourceUrl, sourceMapUrl, sourceMapUrlElided} = event.args.data;
     const script = getOrMakeScript(isolate, scriptId);
+    if (!script.frame) {
+      script.frame = frameIdByIsolate.get(String(isolate)) ?? '';
+    }
     script.url = url;
+    script.ts = event.ts;
     if (sourceUrl) {
       script.sourceUrl = sourceUrl;
     }
-    if (sourceMapUrl) {
+
+    // Older traces may have data source map urls. Those can be very large, so a change
+    // was made to elide them from the trace.
+    // If elided, a fresh trace will fetch the source map from the Script model
+    // (see TimelinePanel getExistingSourceMap). If not fresh, the source map is resolved
+    // instead in this handler via `findCachedRawSourceMap`.
+    if (sourceMapUrlElided) {
+      script.sourceMapUrlElided = true;
+    } else if (sourceMapUrl) {
       script.sourceMapUrl = sourceMapUrl;
     }
-    script.inline = Boolean(startLine || startColumn);
     return;
   }
 
-  if (Types.Events.isV8SourceRundownSourcesScriptCatchupEvent(event)) {
+  if (Types.Events.isRundownScriptSource(event)) {
     const {isolate, scriptId, sourceText} = event.args.data;
     const script = getOrMakeScript(isolate, scriptId);
     script.content = sourceText;
     return;
   }
 
-  if (Types.Events.isV8SourceRundownSourcesLargeScriptCatchupEvent(event)) {
+  if (Types.Events.isRundownScriptSourceLarge(event)) {
     const {isolate, scriptId, sourceText} = event.args.data;
     const script = getOrMakeScript(isolate, scriptId);
     script.content = (script.content ?? '') + sourceText;
     return;
+  }
+
+  // Setup frameIdByIsolate, which is used only in the case that we are missing
+  // rundown events for a script. We won't get a frame association from the rundown
+  // events if the recording started only after the script was first compiled. In
+  // that scenario, derive the frame via the isolate / FunctionCall events.
+  // TODO: ideally, we put the frame on ScriptCatchup event. So much easier. This approach has some
+  // issues.
+  if (Types.Events.isFunctionCall(event) && event.args.data?.isolate && event.args.data.frame) {
+    const {isolate, frame} = event.args.data;
+    const existingValue = frameIdByIsolate.get(isolate);
+    if (existingValue !== frame) {
+      frameIdByIsolate.set(isolate, frame);
+
+      // Update the scripts we discovered but without knowing their frame.
+      for (const script of scriptById.values()) {
+        if (!script.frame && script.isolate === isolate) {
+          script.frame = frame;
+        }
+      }
+    }
   }
 }
 
@@ -108,6 +146,10 @@ function findFrame(meta: MetaHandlerData, frameId: string): Types.Events.TraceFr
 
 function findNetworkRequest(networkRequests: Types.Events.SyntheticNetworkRequest[], script: Script):
     Types.Events.SyntheticNetworkRequest|null {
+  if (!script.url) {
+    return null;
+  }
+
   return networkRequests.find(request => request.args.data.url === script.url) ?? null;
 }
 
@@ -200,17 +242,37 @@ export function getScriptGeneratedSizes(script: Script): GeneratedFileSizes|null
   return script.sizes ?? null;
 }
 
-function findCachedRawSourceMap(
-    sourceMapUrl: string, options: Types.Configuration.ParseOptions): SDK.SourceMap.SourceMapV3|undefined {
-  if (!sourceMapUrl) {
+function findCachedRawSourceMap(script: Script, options: Types.Configuration.ParseOptions): SDK.SourceMap.SourceMapV3|
+    undefined {
+  if (options.isFreshRecording || !options.metadata?.sourceMaps) {
+    // Exit if this is not a loaded trace w/ source maps in the metadata.
     return;
   }
 
-  // If loading from disk, check the metadata for source maps.
-  // The metadata doesn't store data url source maps.
-  const isDataUrl = sourceMapUrl.startsWith('data:');
-  if (!options.isFreshRecording && options.metadata?.sourceMaps && !isDataUrl) {
-    const cachedSourceMap = options.metadata.sourceMaps.find(m => m.sourceMapUrl === sourceMapUrl);
+  // For elided data url source maps, search the metadata source maps by script url.
+  if (script.sourceMapUrlElided) {
+    if (!script.url) {
+      return;
+    }
+
+    const cachedSourceMap = options.metadata.sourceMaps.find(m => m.url === script.url);
+    if (cachedSourceMap) {
+      return cachedSourceMap.sourceMap;
+    }
+
+    return;
+  }
+
+  if (!script.sourceMapUrl) {
+    return;
+  }
+
+  // Otherwise, search by source map url.
+  // Note: early enhanced traces may have this field set for data urls. Ignore those,
+  // as they were never stored in metadata sourcemap.
+  const isDataUrl = script.sourceMapUrl.startsWith('data:');
+  if (!isDataUrl) {
+    const cachedSourceMap = options.metadata.sourceMaps.find(m => m.sourceMapUrl === script.sourceMapUrl);
     if (cachedSourceMap) {
       return cachedSourceMap.sourceMap;
     }
@@ -219,24 +281,32 @@ function findCachedRawSourceMap(
   return;
 }
 
-export async function finalize(options: Types.Configuration.ParseOptions): Promise<void> {
+export async function finalize(options: FinalizeOptions): Promise<void> {
+  const meta = metaHandlerData();
   const networkRequests = [...networkRequestsHandlerData().byId.values()];
+
+  const documentUrls = new Set<string>();
+  for (const frames of meta.frameByProcessId.values()) {
+    for (const frame of frames.values()) {
+      documentUrls.add(frame.url);
+    }
+  }
+
   for (const script of scriptById.values()) {
     script.request = findNetworkRequest(networkRequests, script) ?? undefined;
+    script.inline = !!script.url && documentUrls.has(script.url);
   }
 
   if (!options.resolveSourceMap) {
     return;
   }
 
-  const meta = metaHandlerData();
-
   const promises = [];
   for (const script of scriptById.values()) {
     // No frame or url means the script came from somewhere we don't care about.
     // Note: scripts from inline <SCRIPT> elements use the url of the HTML document,
     // so aren't ignored.
-    if (!script.frame || !script.url || !script.sourceMapUrl) {
+    if (!script.frame || !script.url || (!script.sourceMapUrl && !script.sourceMapUrlElided)) {
       continue;
     }
 
@@ -252,29 +322,35 @@ export async function finalize(options: Types.Configuration.ParseOptions): Promi
       sourceUrl = Common.ParsedURL.ParsedURL.completeURL(frameUrl, script.sourceUrl) ?? script.sourceUrl;
     }
 
-    // Resolve the source map url. The value given by v8 may be relative, so resolve it here.
-    // This process should match the one in `SourceMapManager.attachSourceMap`.
-    const sourceMapUrl =
-        Common.ParsedURL.ParsedURL.completeURL(sourceUrl as Platform.DevToolsPath.UrlString, script.sourceMapUrl);
-    if (!sourceMapUrl) {
-      continue;
-    }
+    let sourceMapUrl;
+    if (script.sourceMapUrl) {
+      // Resolve the source map url. The value given by v8 may be relative, so resolve it here.
+      // This process should match the one in `SourceMapManager.attachSourceMap`.
+      sourceMapUrl =
+          Common.ParsedURL.ParsedURL.completeURL(sourceUrl as Platform.DevToolsPath.UrlString, script.sourceMapUrl);
+      if (!sourceMapUrl) {
+        continue;
+      }
 
-    script.sourceMapUrl = sourceMapUrl;
+      script.sourceMapUrl = sourceMapUrl;
+    }
 
     const params: Types.Configuration.ResolveSourceMapParams = {
       scriptId: script.scriptId,
-      scriptUrl: sourceUrl as Platform.DevToolsPath.UrlString,
-      sourceMapUrl: sourceMapUrl as Platform.DevToolsPath.UrlString,
+      scriptUrl: script.url as Platform.DevToolsPath.UrlString,
+      sourceUrl: sourceUrl as Platform.DevToolsPath.UrlString,
+      sourceMapUrl: sourceMapUrl ?? '' as Platform.DevToolsPath.UrlString,
       frame: script.frame as Protocol.Page.FrameId,
-      cachedRawSourceMap: findCachedRawSourceMap(sourceMapUrl, options),
+      cachedRawSourceMap: findCachedRawSourceMap(script, options),
     };
     const promise = options.resolveSourceMap(params).then(sourceMap => {
       if (sourceMap) {
         script.sourceMap = sourceMap;
       }
     });
-    promises.push(promise);
+    promises.push(promise.catch(e => {
+      console.error('Uncaught error when resolving source map', params, e);
+    }));
   }
   await Promise.all(promises);
 }

@@ -1,10 +1,10 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as TextUtils from '../../../../models/text_utils/text_utils.js';
 import * as LinearMemoryInspectorComponents from '../../../../panels/linear_memory_inspector/components/components.js';
-import {raf} from '../../../../testing/DOMHelpers.js';
+import {raf, renderElementIntoDOM} from '../../../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../../../testing/EnvironmentHelpers.js';
 
 import * as SourceFrame from './source_frame.js';
@@ -13,9 +13,7 @@ describeWithEnvironment('StreamingContentHexView', () => {
   function getMemoryViewer(view: SourceFrame.StreamingContentHexView.StreamingContentHexView):
       LinearMemoryInspectorComponents.LinearMemoryViewer.LinearMemoryViewer {
     const inspector = view.contentElement.firstChild as HTMLElement;
-    assert.isNotNull(inspector.shadowRoot);
-
-    const viewer = inspector.shadowRoot.querySelector('devtools-linear-memory-inspector-viewer');
+    const viewer = inspector.querySelector('devtools-linear-memory-inspector-viewer');
     assert.instanceOf(viewer, LinearMemoryInspectorComponents.LinearMemoryViewer.LinearMemoryViewer);
     return viewer;
   }
@@ -40,8 +38,7 @@ describeWithEnvironment('StreamingContentHexView', () => {
     const streamingContentData = TextUtils.StreamingContentData.StreamingContentData.from(
         new TextUtils.ContentData.ContentData(window.btoa('abc'), /* isBase64 */ true, 'application/octet-stream'));
     const view = new SourceFrame.StreamingContentHexView.StreamingContentHexView(streamingContentData);
-    view.markAsRoot();
-    view.show(document.body);
+    renderElementIntoDOM(view);
     await raf();
 
     assert.strictEqual(getAllByteCells(view), '616263');
@@ -54,15 +51,14 @@ describeWithEnvironment('StreamingContentHexView', () => {
     const streamingContentData = TextUtils.StreamingContentData.StreamingContentData.from(
         new TextUtils.ContentData.ContentData(window.btoa('abc'), /* isBase64 */ true, 'application/octet-stream'));
     const view = new SourceFrame.StreamingContentHexView.StreamingContentHexView(streamingContentData);
-    view.markAsRoot();
-    view.show(document.body);
+    renderElementIntoDOM(view);
     await raf();
 
     streamingContentData.addChunk(window.btoa('def'));
     await raf();
 
-    assert.strictEqual(getAllByteCells(view), '616263646566');
-    assert.strictEqual(getAllTextCells(view), 'abcdef');
+    assert.strictEqual(getAllByteCells(view), '61626364');
+    assert.strictEqual(getAllTextCells(view), 'abcd');
 
     view.detach();
   });

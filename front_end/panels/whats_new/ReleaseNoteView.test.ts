@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,7 @@ import * as Platform from '../../core/platform/platform.js';
 import {
   describeWithEnvironment,
 } from '../../testing/EnvironmentHelpers.js';
-import type * as Buttons from '../../ui/components/buttons/buttons.js';
-import type * as UI from '../../ui/legacy/legacy.js';
+import type {Link} from '../../ui/kit/kit.js';
 
 import * as WhatsNew from './whats_new.js';
 
@@ -116,12 +115,12 @@ describeWithEnvironment('Release Note View', () => {
     sinon.stub(WhatsNew.ReleaseNoteView.ReleaseNoteView, 'getFileContent').returns(Promise.resolve(''));
     const releaseNoteView = new WhatsNew.ReleaseNoteView.ReleaseNoteView();
     await releaseNoteView.updateComplete;
-    const button = releaseNoteView.contentElement.querySelector<Buttons.Button.Button>('devtools-button');
+    const button = releaseNoteView.contentElement.querySelector('devtools-button');
     assert.isNotNull(button);
     const openInNewTabStub = sinon.stub(Host.InspectorFrontendHost.InspectorFrontendHostInstance, 'openInNewTab');
 
     button.click();
-    assert.strictEqual(openInNewTabStub.callCount, 1);
+    sinon.assert.callCount(openInNewTabStub, 1);
     assert.isTrue(
         openInNewTabStub.firstCall.calledWith(urlString`https://google.com/`),
         'openInNewTab was not called with the expected URL.');
@@ -131,7 +130,7 @@ describeWithEnvironment('Release Note View', () => {
     sinon.stub(WhatsNew.ReleaseNoteView.ReleaseNoteView, 'getFileContent').returns(Promise.resolve(''));
     const releaseNoteView = new WhatsNew.ReleaseNoteView.ReleaseNoteView();
     await releaseNoteView.updateComplete;
-    const videos = releaseNoteView.contentElement.querySelectorAll<UI.XLink.XLink>('.video-container > x-link');
+    const videos = releaseNoteView.contentElement.querySelectorAll<Link>('.video-container > devtools-link');
     assert.lengthOf(videos, 3);
 
     const releaseNotes = WhatsNew.ReleaseNoteText.getReleaseNote();

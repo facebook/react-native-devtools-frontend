@@ -1,25 +1,21 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import './NodeLink.js';
 
 import type {ViewportInsightModel} from '../../../../models/trace/insights/Viewport.js';
 import type * as Trace from '../../../../models/trace/trace.js';
 import * as Lit from '../../../../ui/lit/lit.js';
-import type * as Overlays from '../../overlays/overlays.js';
 
 import {BaseInsightComponent} from './BaseInsightComponent.js';
+import {nodeLink} from './NodeLink.js';
 
 const {html} = Lit;
 
 export class Viewport extends BaseInsightComponent<ViewportInsightModel> {
-  static override readonly litTagName = Lit.StaticHtml.literal`devtools-performance-viewport`;
   override internalName = 'viewport';
 
-  override createOverlays(): Overlays.Overlays.TimelineOverlay[] {
-    // TODO(b/351757418): create overlay for synthetic input delay events
-    return [];
+  protected override hasAskAiSupport(): boolean {
+    return true;
   }
 
   override getEstimatedSavingsTime(): Trace.Types.Timing.Milli|null {
@@ -39,23 +35,13 @@ export class Viewport extends BaseInsightComponent<ViewportInsightModel> {
     // clang-format off
     return html`
       <div>
-        <devtools-performance-node-link
-          .data=${{
-            backendNodeId,
-            frame: this.model.viewportEvent.args.data.frame ?? '',
-            options: {tooltip: this.model.viewportEvent.args.data.content},
-            fallbackHtmlSnippet: `<meta name=viewport content="${this.model.viewportEvent.args.data.content}">`,
-          }}>
-        </devtools-performance-node-link>
+        ${nodeLink({
+          backendNodeId,
+          frame: this.model.viewportEvent.args.data.frame ?? '',
+          options: {tooltip: this.model.viewportEvent.args.data.content},
+          fallbackHtmlSnippet: `<meta name=viewport content="${this.model.viewportEvent.args.data.content}">`,
+        })}
       </div>`;
     // clang-format on
   }
 }
-
-declare global {
-  interface HTMLElementTagNameMap {
-    'devtools-performance-viewport': Viewport;
-  }
-}
-
-customElements.define('devtools-performance-viewport', Viewport);

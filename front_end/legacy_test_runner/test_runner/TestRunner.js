@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,13 +14,13 @@ import * as CodeHighlighter from '../../ui/components/code_highlighter/code_high
 import * as UI from '../../ui/legacy/legacy.js';
 
 /**
- * @fileoverview using private properties isn't a Closure violation in tests.
+ * @file using private properties isn't a Closure violation in tests.
  */
 
 /* eslint-disable no-console */
 
 /**
- * @return {boolean}
+ * @returns {boolean}
  */
 export function isDebugTest() {
   return !self.testRunner || Boolean(Root.Runtime.Runtime.queryParam('debugFrontend'));
@@ -194,7 +194,7 @@ export function addSniffer(receiver, methodName, override, opt_sticky) {
 /**
  * @param {!Object} receiver
  * @param {string} methodName
- * @return {!Promise<*>}
+ * @returns {!Promise<*>}
  */
 export function addSnifferPromise(receiver, methodName) {
   return new Promise(function(resolve, reject) {
@@ -228,7 +228,7 @@ export function addSnifferPromise(receiver, methodName) {
  * @param {Text} textNode
  * @param {number=} start
  * @param {number=} end
- * @return {Text}
+ * @returns {Text}
  */
 export function selectTextInTextNode(textNode, start, end) {
   start = start || 0;
@@ -249,7 +249,7 @@ export function selectTextInTextNode(textNode, start, end) {
 
 /**
  * @param {string} panel
- * @return {!Promise.<?UI.Panel.Panel>}
+ * @returns {!Promise.<?UI.Panel.Panel>}
  */
 export function showPanel(panel) {
   return UI.ViewManager.ViewManager.instance().showView(panel);
@@ -261,7 +261,7 @@ export function showPanel(panel) {
  * @param {boolean=} altKey
  * @param {boolean=} shiftKey
  * @param {boolean=} metaKey
- * @return {!KeyboardEvent}
+ * @returns {!KeyboardEvent}
  */
 export function createKeyEvent(key, ctrlKey, altKey, shiftKey, metaKey) {
   return new KeyboardEvent('keydown', {
@@ -280,7 +280,7 @@ export function createKeyEvent(key, ctrlKey, altKey, shiftKey, metaKey) {
  * correctly for async functions; use safeAsyncWrap instead.
  * @param {!Function|undefined} func
  * @param {!Function=} onexception
- * @return {!Function}
+ * @returns {!Function}
  */
 export function safeWrap(func, onexception) {
   /**
@@ -310,7 +310,7 @@ export function safeWrap(func, onexception) {
  * filter. Does not work correctly for functions which don't return
  * a Promise; use safeWrap instead.
  * @param {function(...):Promise<*>} func
- * @return {function(...):Promise<*>}
+ * @returns {function(...):Promise<*>}
  */
 function safeAsyncWrap(func) {
   /**
@@ -333,7 +333,7 @@ function safeAsyncWrap(func) {
 
 /**
  * @param {!Node} node
- * @return {string}
+ * @returns {string}
  */
 export function textContentWithLineBreaks(node) {
   function padding(currentNode) {
@@ -353,7 +353,8 @@ export function textContentWithLineBreaks(node) {
   let ignoreFirst = false;
   while (currentNode.traverseNextNode(node)) {
     currentNode = currentNode.traverseNextNode(node);
-    if (currentNode.nodeType === Node.TEXT_NODE && currentNode.parentNode?.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) {
+    if (currentNode.nodeType === Node.TEXT_NODE && currentNode.parentNode?.nodeType !== Node.DOCUMENT_FRAGMENT_NODE &&
+        currentNode.parentNode?.nodeName !== 'STYLE') {
       buffer += currentNode.nodeValue;
     } else if (currentNode.nodeName === 'LI' || currentNode.nodeName === 'TR') {
       if (!ignoreFirst) {
@@ -373,7 +374,7 @@ export function textContentWithLineBreaks(node) {
 
 /**
  * @param {!Node} node
- * @return {string}
+ * @returns {string}
  */
 export function textContentWithLineBreaksTrimmed(node) {
   // We want to allow single empty lines (2 white space characters), but
@@ -383,7 +384,7 @@ export function textContentWithLineBreaksTrimmed(node) {
 
 /**
  * @param {!Node} node
- * @return {string}
+ * @returns {string}
  */
 export function textContentWithoutStyles(node) {
   let buffer = '';
@@ -394,13 +395,12 @@ export function textContentWithoutStyles(node) {
     if (!currentNode) {
       break;
     }
-    if (currentNode.nodeType === Node.TEXT_NODE) {
+    if (currentNode.nodeType === Node.TEXT_NODE && currentNode.parentElement?.tagName !== 'STYLE') {
       buffer += currentNode.nodeValue;
     } else if (currentNode.tagName === 'DEVTOOLS-TOOLTIP') {
       // <devtools-tooltip> holds popover contents in-line in a slot, so its contents appear in textContent. This is
       // not what the tests expect, so step over its contents entirely.
-      currentNode =
-          currentNode.lastChild?.traverseNextNode(node)?.traverseNextNode(node) ?? currentNode.traverseNextNode(node);
+      currentNode = currentNode.lastChild?.traverseNextNode(node) ?? currentNode.traverseNextNode(node);
     } else if (currentNode.nodeName === 'STYLE') {
       currentNode = currentNode.traverseNextNode(node);
     }
@@ -410,7 +410,7 @@ export function textContentWithoutStyles(node) {
 
 /**
  * @param {string} code
- * @return {!Promise<*>}
+ * @returns {!Promise<*>}
  */
 export async function evaluateInPageRemoteObject(code) {
   const response = await _evaluateInPage(code);
@@ -431,7 +431,7 @@ let _evaluateInPageCounter = 0;
 
 /**
  * @param {string} code
- * @return {!Promise<undefined|{response: (!SDK.RuntimeModel.RemoteObject|undefined),
+ * @returns {!Promise<undefined|{response: (!SDK.RuntimeModel.RemoteObject|undefined),
  *   exceptionDetails: (!Protocol.Runtime.ExceptionDetails|undefined)}>}
  */
 export async function _evaluateInPage(code) {
@@ -478,7 +478,7 @@ function logResponseError(response) {
  * to avoid churning test expectations
  * @param {string} code
  * @param {boolean=} userGesture
- * @return {!Promise<*>}
+ * @returns {!Promise<*>}
  */
 export async function evaluateInPageAnonymously(code, userGesture) {
   const response =
@@ -492,7 +492,7 @@ export async function evaluateInPageAnonymously(code, userGesture) {
 
 /**
  * @param {string} code
- * @return {!Promise<*>}
+ * @returns {!Promise<*>}
  */
 export function evaluateInPagePromise(code) {
   return new Promise(success => evaluateInPage(code, success));
@@ -500,7 +500,7 @@ export function evaluateInPagePromise(code) {
 
 /**
  * @param {string} code
- * @return {!Promise<*>}
+ * @returns {!Promise<*>}
  */
 export async function evaluateInPageAsync(code) {
   const response = await TestRunner.RuntimeAgent.invoke_evaluate(
@@ -516,7 +516,7 @@ export async function evaluateInPageAsync(code) {
 /**
  * @param {string} name
  * @param {!Array<*>} args
- * @return {!Promise<*>}
+ * @returns {!Promise<*>}
  */
 export function callFunctionInPageAsync(name, args) {
   args = args || [];
@@ -575,7 +575,7 @@ export function deprecatedRunAfterPendingDispatches(callback) {
  * are relative to the test file and not the inspected page
  * (i.e. http/tests/devtools/resources/inspected-page.html).
  * @param {string} html
- * @return {!Promise<*>}
+ * @returns {!Promise<*>}
  */
 export function loadHTML(html) {
   if (!html.includes('<base')) {
@@ -594,7 +594,7 @@ export function loadHTML(html) {
 
 /**
  * @param {string} path
- * @return {!Promise<*>}
+ * @returns {!Promise<*>}
  */
 export function addScriptTag(path) {
   return evaluateInPageAsync(`
@@ -609,7 +609,7 @@ export function addScriptTag(path) {
 
 /**
  * @param {string} path
- * @return {!Promise<*>}
+ * @returns {!Promise<*>}
  */
 export function addStylesheetTag(path) {
   return evaluateInPageAsync(`
@@ -638,7 +638,7 @@ export function addStylesheetTag(path) {
  * in line with the standard (crbug 365457).
  * @param {string} path
  * @param {!Object|undefined} options
- * @return {!Promise<*>}
+ * @returns {!Promise<*>}
  */
 export function addIframe(path, options = {}) {
   options.id = options.id || '';
@@ -692,14 +692,20 @@ export function startDumpingProtocolMessages() {
 export function addScriptForFrame(url, content, frame) {
   content += '\n//# sourceURL=' + url;
   const executionContext = TestRunner.runtimeModel.executionContexts().find(context => context.frameId === frame.id);
-  TestRunner.RuntimeAgent.evaluate(content, 'console', false, false, executionContext.id);
+  TestRunner.RuntimeAgent.invoke_evaluate({
+    expression: content,
+    objectGroup: 'console',
+    includeCommandLineAPI: false,
+    silent: false,
+    contextId: executionContext.id
+  });
 }
 
 export const formatters = {
 
   /**
    * @param {*} value
-   * @return {string}
+   * @returns {string}
    */
   formatAsTypeName(value) {
     return '<' + typeof value + '>';
@@ -707,7 +713,7 @@ export const formatters = {
 
   /**
    * @param {*} value
-   * @return {string}
+   * @returns {string}
    */
   formatAsTypeNameOrNull(value) {
     if (value === null) {
@@ -718,7 +724,7 @@ export const formatters = {
 
   /**
    * @param {*} value
-   * @return {string|!Date}
+   * @returns {string|!Date}
    */
   formatAsRecentTime(value) {
     if (typeof value !== 'object' || !(value instanceof Date)) {
@@ -730,7 +736,7 @@ export const formatters = {
 
   /**
    * @param {string} value
-   * @return {string}
+   * @returns {string}
    */
   formatAsURL(value) {
     if (!value) {
@@ -745,7 +751,7 @@ export const formatters = {
 
   /**
    * @param {string} value
-   * @return {string}
+   * @returns {string}
    */
   formatAsDescription(value) {
     if (!value) {
@@ -840,7 +846,7 @@ export function dumpDeepInnerHTML(node) {
 
 /**
  * @param {!Node} node
- * @return {string}
+ * @returns {string}
  */
 export function deepTextContent(node) {
   if (!node) {
@@ -889,7 +895,7 @@ export function dump(value, customFormatters, prefix, prefixWithName) {
  * @param {symbol} eventName
  * @param {!Common.ObjectWrapper.ObjectWrapper} obj
  * @param {function(?):boolean=} condition
- * @return {!Promise}
+ * @returns {!Promise}
  */
 export function waitForEvent(eventName, obj, condition) {
   condition = condition || function() {
@@ -913,7 +919,7 @@ export function waitForEvent(eventName, obj, condition) {
 
 /**
  * @param {function(!SDK.Target.Target):boolean} filter
- * @return {!Promise<!SDK.Target.Target>}
+ * @returns {!Promise<!SDK.Target.Target>}
  */
 export function waitForTarget(filter) {
   filter = filter || (target => true);
@@ -938,7 +944,7 @@ export function waitForTarget(filter) {
 
 /**
  * @param {!SDK.Target.Target} targetToRemove
- * @return {!Promise<!SDK.Target.Target>}
+ * @returns {!Promise<!SDK.Target.Target>}
  */
 export function waitForTargetRemoved(targetToRemove) {
   return new Promise(fulfill => {
@@ -957,7 +963,7 @@ export function waitForTargetRemoved(targetToRemove) {
 
 /**
  * @param {!SDK.RuntimeModel.RuntimeModel} runtimeModel
- * @return {!Promise}
+ * @returns {!Promise}
  */
 export function waitForExecutionContext(runtimeModel) {
   if (runtimeModel.executionContexts().length) {
@@ -968,7 +974,7 @@ export function waitForExecutionContext(runtimeModel) {
 
 /**
  * @param {!SDK.RuntimeModel.ExecutionContext} context
- * @return {!Promise}
+ * @returns {!Promise}
  */
 export function waitForExecutionContextDestroyed(context) {
   const runtimeModel = context.runtimeModel;
@@ -1006,7 +1012,7 @@ export function navigate(url, callback) {
 }
 
 /**
- * @return {!Promise}
+ * @returns {!Promise}
  */
 export function navigatePromise(url) {
   return new Promise(fulfill => navigate(url, fulfill));
@@ -1040,7 +1046,7 @@ export function reloadPageWithInjectedScript(injectedScript, callback) {
 }
 
 /**
- * @return {!Promise}
+ * @returns {!Promise}
  */
 export function reloadPagePromise() {
   return new Promise(fulfill => reloadPage(fulfill));
@@ -1166,7 +1172,7 @@ export function assertTrue(found, message) {
  * @param {string} methodName
  * @param {!Function} override
  * @param {boolean=} opt_sticky
- * @return {!Function}
+ * @returns {!Function}
  */
 export function override(receiver, methodName, override, opt_sticky) {
   override = safeWrap(override);
@@ -1193,7 +1199,7 @@ export function override(receiver, methodName, override, opt_sticky) {
 
 /**
  * @param {string} text
- * @return {string}
+ * @returns {string}
  */
 export function clearSpecificInfoFromStackFrames(text) {
   let buffer = text.replace(/\(file:\/\/\/(?:[^)]+\)|[\w\/:-]+)/g, '(...)');
@@ -1209,7 +1215,7 @@ export function hideInspectorView() {
 }
 
 /**
- * @return {?SDK.ResourceTreeModel.ResourceTreeFrame}
+ * @returns {?SDK.ResourceTreeModel.ResourceTreeFrame}
  */
 export function mainFrame() {
   return TestRunner.resourceTreeModel.mainFrame;
@@ -1226,7 +1232,7 @@ export class StringOutputStream {
 
   /**
    * @param {string} fileName
-   * @return {!Promise<boolean>}
+   * @returns {!Promise<boolean>}
    */
   async open(fileName) {
     return true;
@@ -1256,7 +1262,7 @@ export class MockSetting {
   }
 
   /**
-   * @return {V}
+   * @returns {V}
    */
   get() {
     return this.value;
@@ -1273,12 +1279,12 @@ export class MockSetting {
 /**
  * @param {string} urlSuffix
  * @param {!Workspace.Workspace.projectTypes=} projectType
- * @return {!Promise}
+ * @returns {!Promise}
  */
 export function waitForUISourceCode(urlSuffix, projectType) {
   /**
    * @param {!Workspace.UISourceCode.UISourceCode} uiSourceCode
-   * @return {boolean}
+   * @returns {boolean}
    */
   function matches(uiSourceCode) {
     if (projectType && uiSourceCode.project().type() !== projectType) {
@@ -1312,7 +1318,7 @@ export function waitForUISourceCodeRemoved(callback) {
 
 /**
  * @param {string=} url
- * @return {string}
+ * @returns {string}
  */
 export function url(url = '') {
   const testScriptURL = /** @type {string} */ (
@@ -1326,7 +1332,7 @@ export function url(url = '') {
 /**
  * @param {string} str
  * @param {string} mimeType
- * @return {!Promise.<undefined>}
+ * @returns {!Promise.<undefined>}
  */
 export function dumpSyntaxHighlight(str, mimeType) {
   const node = document.createElement('span');
@@ -1358,7 +1364,7 @@ export function dumpSyntaxHighlight(str, mimeType) {
  *
  * @param {string} inputString
  * @param {string} searchString
- * @return {!Array.<number>}
+ * @returns {!Array.<number>}
  */
 const findIndexesOfSubString = function(inputString, searchString) {
   const matches = [];
@@ -1373,7 +1379,7 @@ const findIndexesOfSubString = function(inputString, searchString) {
 /**
  *
  * @param {string} inputString
- * @return {!Array.<number>}
+ * @returns {!Array.<number>}
  */
 export const findLineEndingIndexes = function(inputString) {
   const endings = findIndexesOfSubString(inputString, '\n');
@@ -1401,6 +1407,7 @@ export async function dumpInspectedPageElementText(querySelector) {
 export async function waitForPendingLiveLocationUpdates() {
   await Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance().pendingLiveLocationChangesPromise();
   await Bindings.CSSWorkspaceBinding.CSSWorkspaceBinding.instance().pendingLiveLocationChangesPromise();
+  await UI.Widget.Widget.allUpdatesComplete;  // Let async Widgets finish rendering.
 }
 
 /** @type {!{logToStderr: function(), navigateSecondaryWindow: function(string), notifyDone: function()}|undefined} */

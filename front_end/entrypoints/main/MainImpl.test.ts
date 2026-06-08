@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,6 +16,7 @@ describeWithMockConnection('MainMenuItem', () => {
   beforeEach(async () => {
     stubNoopSettings();
     sinon.stub(UI.ShortcutRegistry.ShortcutRegistry, 'instance').returns({
+      keyAndModifiersForAction: () => {},
       shortcutTitleForAction: () => {},
       shortcutsForAction: () => [],
     } as unknown as UI.ShortcutRegistry.ShortcutRegistry);
@@ -24,10 +25,10 @@ describeWithMockConnection('MainMenuItem', () => {
     createTarget({parentTarget: tabTaget});
 
     sinon.stub(UI.ActionRegistry.ActionRegistry.instance(), 'hasAction')
-        .withArgs(sinon.match(/inspector-main.focus-debuggee|main.toggle-drawer/))
+        .withArgs(sinon.match(/inspector-main.focus-debuggee|main.toggle-drawer|freestyler.main-menu/))
         .returns(true);
     sinon.stub(UI.ActionRegistry.ActionRegistry.instance(), 'getAction')
-        .withArgs(sinon.match(/inspector-main.focus-debuggee|main.toggle-drawer/))
+        .withArgs(sinon.match(/inspector-main.focus-debuggee|main.toggle-drawer|freestyler.main-menu/))
         .returns(sinon.createStubInstance(UI.ActionRegistration.Action));
   });
 
@@ -52,7 +53,7 @@ describeWithMockConnection('MainMenuItem', () => {
       cancelable: true,
     }));
 
-    assert.isTrue(contextMenuShow.calledOnce);
+    sinon.assert.calledOnce(contextMenuShow);
     assert.notExists(contextMenuShow.thisValues[0].defaultSection().items.find(
         (item: UI.ContextMenu.Item) => item.buildDescriptor().label === 'Focus page'));
   });

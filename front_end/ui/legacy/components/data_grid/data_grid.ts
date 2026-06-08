@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,4 +13,5 @@ import * as ShowMoreDataGridNode from './ShowMoreDataGridNode.js';
 import * as SortableDataGrid from './SortableDataGrid.js';
 import * as ViewportDataGrid from './ViewportDataGrid.js';
 
+export {ifExpanded} from './DataGridElement.js';
 export {DataGrid, ShowMoreDataGridNode, SortableDataGrid, ViewportDataGrid};

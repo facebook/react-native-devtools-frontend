@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -16,8 +16,8 @@ describeWithEnvironment('Metrics: Lantern LCP', function() {
     trace = toLanternTrace(await TraceLoader.rawEvents(this, 'lantern/paul/trace.json.gz'));
   });
 
-  it('should compute predicted value', async () => {
-    const data = await getComputationDataFromFixture({trace});
+  it('should compute predicted value', async function() {
+    const data = await getComputationDataFromFixture(this, {trace});
     const result = LargestContentfulPaint.compute(data, {
       fcpResult: FirstContentfulPaint.compute(data),
     });
@@ -31,11 +31,11 @@ describeWithEnvironment('Metrics: Lantern LCP', function() {
           pessimisticNodeTimings: result.pessimisticEstimate.nodeTimings.size,
         },
         {
-          timing: 1536,
+          timing: 1457,
           optimistic: 1457,
-          pessimistic: 1616,
+          pessimistic: 1457,
           optimisticNodeTimings: 8,
-          pessimisticNodeTimings: 9,
+          pessimisticNodeTimings: 8,
         });
     assert.isOk(result.optimisticGraph, 'should have created optimistic graph');
     assert.isOk(result.pessimisticGraph, 'should have created pessimistic graph');

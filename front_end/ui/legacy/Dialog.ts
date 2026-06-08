@@ -1,34 +1,12 @@
-/*
- * Copyright (C) 2012 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2012 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../core/common/common.js';
+import * as i18n from '../../core/i18n/i18n.js';
+import * as Buttons from '../components/buttons/buttons.js';
 import * as VisualLogging from '../visual_logging/visual_logging.js';
 
 import * as ARIAUtils from './ARIAUtils.js';
@@ -39,14 +17,23 @@ import {KeyboardShortcut, Keys} from './KeyboardShortcut.js';
 import type {SplitWidget} from './SplitWidget.js';
 import {WidgetFocusRestorer} from './Widget.js';
 
+const UIStrings = {
+  /**
+   * @description Text to close the dialog
+   */
+  close: 'Close',
+} as const;
+const str_ = i18n.i18n.registerUIStrings('ui/legacy/Dialog.ts', UIStrings);
+const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
+
 export class Dialog extends Common.ObjectWrapper.eventMixin<EventTypes, typeof GlassPane>(GlassPane) {
   private tabIndexBehavior = OutsideTabIndexBehavior.DISABLE_ALL_OUTSIDE_TAB_INDEX;
   private tabIndexMap = new Map<HTMLElement, number>();
   private focusRestorer: WidgetFocusRestorer|null = null;
   private closeOnEscape = true;
   private targetDocument: Document|null = null;
-  private readonly targetDocumentKeyDownHandler: (event: Event) => void;
-  private escapeKeyCallback: ((arg0: Event) => void)|null = null;
+  private readonly targetDocumentKeyDownHandler: (event: KeyboardEvent) => void;
+  private escapeKeyCallback: ((arg0: KeyboardEvent) => void)|null = null;
 
   constructor(jslogContext?: string) {
     super();
@@ -57,9 +44,14 @@ export class Dialog extends Common.ObjectWrapper.eventMixin<EventTypes, typeof G
       this.contentElement.setAttribute(
           'jslog', `${VisualLogging.dialog(jslogContext).track({resize: true, keydown: 'Escape'})}`);
     }
-    this.widget().setDefaultFocusedElement(this.contentElement);
     this.setPointerEventsBehavior(PointerEventsBehavior.BLOCKED_BY_GLASS_PANE);
     this.setOutsideClickCallback(event => {
+      // If there are stacked dialogs, we only want to
+      // handle the outside click for the top most dialog.
+      if (Dialog.getInstance() !== this) {
+        return;
+      }
+
       this.hide();
       event.consume(true);
     });
@@ -68,22 +60,35 @@ export class Dialog extends Common.ObjectWrapper.eventMixin<EventTypes, typeof G
   }
 
   static hasInstance(): boolean {
-    return Boolean(Dialog.instance);
+    return Dialog.dialogs.length > 0;
   }
 
+  /**
+   * If there is only one dialog, returns that.
+   * If there are stacked dialogs, returns the topmost one.
+   */
   static getInstance(): Dialog|null {
-    return Dialog.instance;
+    return Dialog.dialogs[Dialog.dialogs.length - 1] || null;
   }
 
-  override show(where?: Document|Element): void {
+  /**
+   * `stack` parameter is needed for being able to open a dialog on top
+   * of an existing dialog. The main reason is, Settings Tab is
+   * implemented as a Dialog. So, if we want to open a dialog on the
+   * Settings Tab, we need to stack it on top of that dialog.
+   *
+   * @param where Container element of the dialog.
+   * @param stack Whether to open this dialog on top of an existing dialog.
+   */
+  override show(where?: Document|Element, stack?: boolean): void {
     const document = (where instanceof Document ? where : (where || InspectorView.instance().element).ownerDocument);
     this.targetDocument = document;
     this.targetDocument.addEventListener('keydown', this.targetDocumentKeyDownHandler, true);
 
-    if (Dialog.instance) {
-      Dialog.instance.hide();
+    if (!stack && Dialog.dialogs.length) {
+      Dialog.dialogs.forEach(dialog => dialog.hide());
     }
-    Dialog.instance = this;
+    Dialog.dialogs.push(this);
     this.disableTabIndexOnElements(document);
     super.show(document);
     this.focusRestorer = new WidgetFocusRestorer(this.widget());
@@ -100,7 +105,10 @@ export class Dialog extends Common.ObjectWrapper.eventMixin<EventTypes, typeof G
     }
     this.restoreTabIndexOnElements();
     this.dispatchEventToListeners(Events.HIDDEN);
-    Dialog.instance = null;
+    const index = Dialog.dialogs.indexOf(this);
+    if (index !== -1) {
+      Dialog.dialogs.splice(index, 1);
+    }
   }
 
   setAriaLabel(label: string): void {
@@ -111,13 +119,21 @@ export class Dialog extends Common.ObjectWrapper.eventMixin<EventTypes, typeof G
     this.closeOnEscape = close;
   }
 
-  setEscapeKeyCallback(callback: (arg0: Event) => void): void {
+  setEscapeKeyCallback(callback: (arg0: KeyboardEvent) => void): void {
     this.escapeKeyCallback = callback;
   }
 
   addCloseButton(): void {
-    const closeButton = this.contentElement.createChild('dt-close-button', 'dialog-close-button');
-    closeButton.addEventListener('click', this.hide.bind(this), false);
+    const button = new Buttons.Button.Button();
+    button.data = {
+      variant: Buttons.Button.Variant.ICON,
+      iconName: 'cross',
+      accessibleLabel: i18nString(UIStrings.close),
+      jslogContext: 'dialog-close',
+    };
+    button.classList.add('dialog-close-button');
+    button.addEventListener('click', this.hide.bind(this));
+    this.contentElement.appendChild(button);
   }
 
   setOutsideTabIndexBehavior(tabIndexBehavior: OutsideTabIndexBehavior): void {
@@ -189,8 +205,11 @@ export class Dialog extends Common.ObjectWrapper.eventMixin<EventTypes, typeof G
     this.tabIndexMap.clear();
   }
 
-  private onKeyDown(event: Event): void {
-    const keyboardEvent = (event as KeyboardEvent);
+  private onKeyDown(event: KeyboardEvent): void {
+    const keyboardEvent = event;
+    if (Dialog.getInstance() !== this) {
+      return;
+    }
     if (keyboardEvent.keyCode === Keys.Esc.code && KeyboardShortcut.hasNoModifiers(event)) {
       if (this.escapeKeyCallback) {
         this.escapeKeyCallback(event);
@@ -207,7 +226,7 @@ export class Dialog extends Common.ObjectWrapper.eventMixin<EventTypes, typeof G
     }
   }
 
-  private static instance: Dialog|null = null;
+  private static dialogs: Dialog[] = [];
 }
 
 export const enum Events {

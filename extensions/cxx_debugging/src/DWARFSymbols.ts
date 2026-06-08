@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -183,6 +183,7 @@ export class DWARFLanguageExtensionPlugin implements Chrome.DevTools.LanguageExt
       });
 
       // Set up lazy dwo files if we are running on a worker
+      // @ts-expect-error can't find global
       if (typeof global === 'undefined' && typeof importScripts === 'function' &&
           typeof XMLHttpRequest !== 'undefined') {
         mapVector(manage(addRawModuleResponse.dwos), dwoFile => {

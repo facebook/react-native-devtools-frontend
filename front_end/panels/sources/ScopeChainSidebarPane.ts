@@ -1,6 +1,7 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 /*
  * Copyright (C) 2008 Apple Inc. All Rights Reserved.
@@ -33,6 +34,7 @@ import * as i18n from '../../core/i18n/i18n.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
 import * as SourceMapScopes from '../../models/source_map_scopes/source_map_scopes.js';
+import * as StackTrace from '../../models/stack_trace/stack_trace.js';
 import * as ObjectUI from '../../ui/legacy/components/object_ui/object_ui.js';
 import * as Components from '../../ui/legacy/components/utils/utils.js';
 import * as UI from '../../ui/legacy/legacy.js';
@@ -42,24 +44,24 @@ import scopeChainSidebarPaneStyles from './scopeChainSidebarPane.css.js';
 
 const UIStrings = {
   /**
-   *@description Loading indicator in Scope Sidebar Pane of the Sources panel
+   * @description Loading indicator in Scope Sidebar Pane of the Sources panel
    */
-  loading: 'Loading...',
+  loading: 'Loading…',
   /**
-   *@description Not paused message element text content in Call Stack Sidebar Pane of the Sources panel
+   * @description Not paused message element text content in Call Stack Sidebar Pane of the Sources panel
    */
   notPaused: 'Not paused',
   /**
-   *@description Empty placeholder in Scope Chain Sidebar Pane of the Sources panel
+   * @description Empty placeholder in Scope Chain Sidebar Pane of the Sources panel
    */
   noVariables: 'No variables',
   /**
-   *@description Text in the Sources panel Scope pane describing a closure scope.
-   *@example {func} PH1
+   * @description Text in the Sources panel Scope pane describing a closure scope.
+   * @example {func} PH1
    */
   closureS: 'Closure ({PH1})',
   /**
-   *@description Text that refers to closure as a programming term
+   * @description Text that refers to closure as a programming term
    */
   closure: 'Closure',
 } as const;
@@ -75,13 +77,15 @@ export class ScopeChainSidebarPane extends UI.Widget.VBox implements UI.ContextF
   #scopeChainModel: SourceMapScopes.ScopeChainModel.ScopeChainModel|null = null;
 
   private constructor() {
-    super(true);
+    super({
+      jslog: `${VisualLogging.section('sources.scope-chain')}`,
+      useShadowDom: true,
+    });
     this.registerRequiredCSS(scopeChainSidebarPaneStyles);
 
-    this.contentElement.setAttribute('jslog', `${VisualLogging.section('sources.scope-chain')}`);
     this.treeOutline = new ObjectUI.ObjectPropertiesSection.ObjectPropertiesSectionsTreeOutline();
     this.treeOutline.registerRequiredCSS(scopeChainSidebarPaneStyles);
-    this.treeOutline.hideOverflow();
+    this.treeOutline.setHideOverflow(true);
 
     this.treeOutline.setShowSelectionOnKeyboardFocus(/* show */ true);
     this.expandController =
@@ -90,7 +94,7 @@ export class ScopeChainSidebarPane extends UI.Widget.VBox implements UI.ContextF
     this.infoElement = document.createElement('div');
     this.infoElement.className = 'gray-info-message';
     this.infoElement.tabIndex = -1;
-    this.flavorChanged(UI.Context.Context.instance().flavor(SDK.DebuggerModel.CallFrame));
+    this.flavorChanged(UI.Context.Context.instance().flavor(StackTrace.StackTrace.DebuggableFrameFlavor));
   }
 
   static instance(): ScopeChainSidebarPane {
@@ -100,7 +104,7 @@ export class ScopeChainSidebarPane extends UI.Widget.VBox implements UI.ContextF
     return scopeChainSidebarPaneInstance;
   }
 
-  flavorChanged(callFrame: SDK.DebuggerModel.CallFrame|null): void {
+  flavorChanged(callFrame: StackTrace.StackTrace.DebuggableFrameFlavor|null): void {
     this.#scopeChainModel?.dispose();
     this.#scopeChainModel = null;
 
@@ -113,7 +117,7 @@ export class ScopeChainSidebarPane extends UI.Widget.VBox implements UI.ContextF
       // is happening (see https://crbug.com/1162416).
       this.infoElement.textContent = i18nString(UIStrings.loading);
 
-      this.#scopeChainModel = new SourceMapScopes.ScopeChainModel.ScopeChainModel(callFrame);
+      this.#scopeChainModel = new SourceMapScopes.ScopeChainModel.ScopeChainModel(callFrame.sdkFrame);
       this.#scopeChainModel.addEventListener(
           SourceMapScopes.ScopeChainModel.Events.SCOPE_CHAIN_UPDATED, event => this.buildScopeTreeOutline(event.data),
           this);
@@ -194,9 +198,10 @@ export class ScopeChainSidebarPane extends UI.Widget.VBox implements UI.ContextF
     titleElement.createChild('div', 'scope-chain-sidebar-pane-section-subtitle').textContent = subtitle;
     titleElement.createChild('div', 'scope-chain-sidebar-pane-section-title').textContent = title;
 
-    const section = new ObjectUI.ObjectPropertiesSection.RootElement(
-        scope.object(), this.linkifier, emptyPlaceholder, ObjectUI.ObjectPropertiesSection.ObjectPropertiesMode.ALL,
-        scope.extraProperties());
+    const root = new ObjectUI.ObjectPropertiesSection.ObjectTree(
+        scope.object(), {propertiesMode: ObjectUI.ObjectPropertiesSection.ObjectPropertiesMode.ALL, readOnly: false});
+    root.addExtraProperties(...scope.extraProperties());
+    const section = new ObjectUI.ObjectPropertiesSection.RootElement(root, this.linkifier, emptyPlaceholder);
     section.title = titleElement;
     section.listItemElement.classList.add('scope-chain-sidebar-pane-section');
     section.listItemElement.setAttribute('aria-label', title);

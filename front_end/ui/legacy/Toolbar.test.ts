@@ -1,14 +1,18 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {dispatchClickEvent, doubleRaf, renderElementIntoDOM} from '../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../testing/EnvironmentHelpers.js';
+import * as Common from '../../core/common/common.js';
+import {dispatchClickEvent, renderElementIntoDOM} from '../../testing/DOMHelpers.js';
+import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
+import {expectCall} from '../../testing/ExpectStubCall.js';
+import {setupLocaleHooks} from '../../testing/LocaleHelpers.js';
 import * as RenderCoordinator from '../components/render_coordinator/render_coordinator.js';
 
 import * as UI from './legacy.js';
 
-describeWithLocale('Toolbar', () => {
+describe('Toolbar', () => {
+  setupLocaleHooks();
   const {Toolbar} = UI.Toolbar;
 
   describe('Toolbar', () => {
@@ -189,16 +193,15 @@ describeWithLocale('Toolbar', () => {
         buttons: 1,
       });
       element.dispatchEvent(mouseDownEvent);
-      await doubleRaf();  // give the timer time to resolve + initiate the context menu
     }
 
-    // Flaky
-    it.skip('[crbug.com/404486704] creates the context menu if it is enabled', async () => {
+    it('creates the context menu if it is enabled', async () => {
       const contextHandler = sinon.stub();
       const menuButton = createToolbarWithButton(contextHandler);
       menuButton.setEnabled(true);
+      const contextHandlerCalled = expectCall(contextHandler);
       await dispatchMouseDownEvent(menuButton.element);
-      assert.isTrue(contextHandler.called);
+      await contextHandlerCalled;
     });
 
     it('does not create a context menu if it is not enabled', async () => {
@@ -206,7 +209,38 @@ describeWithLocale('Toolbar', () => {
       const menuButton = createToolbarWithButton(contextHandler);
       menuButton.setEnabled(false);
       await dispatchMouseDownEvent(menuButton.element);
-      assert.isFalse(contextHandler.called);
+      sinon.assert.notCalled(contextHandler);
+    });
+  });
+
+  describeWithEnvironment('ToolbarSettingComboBox', () => {
+    it('updates its title with the currently active setting', async () => {
+      const setting = Common.Settings.Settings.instance().createSetting<string>('test-combo-box-setting', 'option-1');
+      setting.set('option-1');
+      const box = new UI.Toolbar.ToolbarSettingComboBox(
+          [{value: 'option-1', label: 'Option 1'}, {value: 'option-2', label: 'Option 2'}], setting, 'title-value');
+      assert.strictEqual(box.element.title, 'Option 1');
+      const options = box.options();
+      // Ensure it works with select()
+      box.select(options[1]);
+      assert.strictEqual(box.element.title, 'Option 2');
+
+      // Ensure it works with setSelectedIndex()
+      box.setSelectedIndex(0);
+      assert.strictEqual(box.element.title, 'Option 1');
+    });
+
+    it('updates the title when the user changes the setting', async () => {
+      const setting = Common.Settings.Settings.instance().createSetting<string>('test-combo-box-setting', 'option-1');
+      setting.set('option-1');
+      const box = new UI.Toolbar.ToolbarSettingComboBox(
+          [{value: 'option-1', label: 'Option 1'}, {value: 'option-2', label: 'Option 2'}], setting, 'title-value');
+
+      // Pretend that the user has interacted & clicked Option 2
+      sinon.stub(box, 'selectedIndex').callsFake(() => 1);
+      const changeEvent = new Event('change');
+      box.element.dispatchEvent(changeEvent);
+      assert.strictEqual(box.element.title, 'Option 2');
     });
   });
 });

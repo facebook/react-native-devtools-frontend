@@ -1,10 +1,11 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import type {Chrome} from '../../extension-api/ExtensionAPI.js';
 import * as Host from '../core/host/host.js';
-import * as Extensions from '../models/extensions/extensions.js';
+import type * as Extensions from '../models/extensions/extensions.js';
+import * as PanelCommon from '../panels/common/common.js';
 
 import {describeWithEnvironment, setupActionRegistry} from './EnvironmentHelpers.js';
 import {describeWithMockConnection} from './MockConnection.js';
@@ -34,7 +35,7 @@ export function describeWithDevtoolsExtension(
   };
 
   function setup() {
-    const server = Extensions.ExtensionServer.ExtensionServer.instance({forceNew: true});
+    const server = PanelCommon.ExtensionServer.ExtensionServer.instance({forceNew: true});
     sinon.stub(server, 'addExtensionFrame');
 
     sinon.stub(Host.InspectorFrontendHost.InspectorFrontendHostInstance, 'setInjectedScriptForOrigin')

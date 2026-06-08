@@ -1,24 +1,23 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import {assert} from 'chai';
 
-import {$$, waitFor} from '../../shared/helper.js';
+import type {DevToolsPage} from '../shared/frontend-helper.js';
 
 export async function clickStylePropertyEditorButton(
-    title: string, editorElement: 'devtools-grid-editor'|'devtools-flexbox-editor') {
-  const gridEditorButtons = await $$(`[title="${title}"]`);
+    title: string, editorElement: 'devtools-grid-editor'|'devtools-flexbox-editor'|'devtools-grid-lanes-editor',
+    devToolsPage: DevToolsPage) {
+  const gridEditorButtons = await devToolsPage.$$(`[title="${title}"]`);
   assert.lengthOf(gridEditorButtons, 1);
-  const gridEditorButton = gridEditorButtons[0];
-  await gridEditorButton.click();
-  await waitFor(editorElement);
+  await devToolsPage.click(`[title="${title}"]`);
+  await devToolsPage.waitFor(editorElement);
 }
 
-export async function clickPropertyButton(selector: string) {
-  await waitFor(selector);
-  const buttons = await $$(selector);
+export async function clickPropertyButton(selector: string, devToolsPage: DevToolsPage) {
+  await devToolsPage.waitFor(selector);
+  const buttons = await devToolsPage.$$(selector);
   assert.lengthOf(buttons, 1);
-  const button = buttons[0];
-  await button.click();
+  await devToolsPage.click(selector);
 }

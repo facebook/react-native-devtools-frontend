@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -30,9 +30,9 @@ describe('LoggingEvents', () => {
 
   async function assertThrottled(stub: sinon.SinonStub) {
     await new Promise(resolve => setTimeout(resolve, 0));
-    assert.isFalse(stub.called);
+    sinon.assert.notCalled(stub);
     await throttler.process?.();
-    assert.isTrue(stub.calledOnce);
+    sinon.assert.calledOnce(stub);
   }
 
   it('calls UI binding to log an impression', async () => {
@@ -41,7 +41,7 @@ describe('LoggingEvents', () => {
         'recordImpression',
     );
     await VisualLogging.LoggingEvents.logImpressions([element, parent]);
-    assert.isTrue(recordImpression.calledOnce);
+    sinon.assert.calledOnce(recordImpression);
     assert.sameDeepMembers(recordImpression.firstCall.firstArg.impressions, [
       {id: veid, type: 1, context: 42, parent: getVeId(parent), height: 0, width: 0},
       {id: getVeId(parent), type: 1, height: 0, width: 0},
@@ -88,7 +88,7 @@ describe('LoggingEvents', () => {
         'recordChange',
     );
     await VisualLogging.LoggingEvents.logChange(element);
-    assert.isTrue(recordChange.calledOnce);
+    sinon.assert.calledOnce(recordChange);
     assert.deepEqual(recordChange.firstCall.firstArg, {veid});
   });
 
@@ -99,7 +99,7 @@ describe('LoggingEvents', () => {
     );
     VisualLogging.LoggingState.getLoggingState(element)!.pendingChangeContext = 'instertText';
     await VisualLogging.LoggingEvents.logChange(element);
-    assert.isTrue(recordChange.calledOnce);
+    sinon.assert.calledOnce(recordChange);
     assert.deepEqual(recordChange.firstCall.firstArg, {veid, context: 296063892});
   });
 
@@ -170,9 +170,9 @@ describe('LoggingEvents', () => {
     void VisualLogging.LoggingEvents.logKeyDown(throttler)(element, event, '1');
     void VisualLogging.LoggingEvents.logKeyDown(throttler)(element, event, '2');
     await new Promise(resolve => setTimeout(resolve, 0));
-    assert.isTrue(recordKeyDown.calledOnce);
+    sinon.assert.calledOnce(recordKeyDown);
     await throttler.process?.();
-    assert.isTrue(recordKeyDown.calledTwice);
+    sinon.assert.calledTwice(recordKeyDown);
     assert.deepEqual(recordKeyDown.firstCall.firstArg, {veid, context: 1});
     assert.deepEqual(recordKeyDown.secondCall.firstArg, {veid, context: 2});
   });
@@ -198,7 +198,7 @@ describe('LoggingEvents', () => {
     const event = new KeyboardEvent('keydown', {code: 'KeyQ'});
     VisualLogging.LoggingState.getLoggingState(element)!.config.track = {keydown: 'Enter|Escape'};
     void VisualLogging.LoggingEvents.logKeyDown(throttler)(element, event);
-    assert.isFalse(recordKeyDown.called);
+    sinon.assert.notCalled(recordKeyDown);
   });
 
   it('calls UI binding to log a hover event', async () => {
@@ -243,6 +243,15 @@ describe('LoggingEvents', () => {
     assert.deepEqual(recordResize.firstCall.firstArg, {veid, width: 100, height: 50});
   });
 
+  it('calls UI binding to log a resize event with rounded dimensions', async () => {
+    const recordResize = sinon.stub(
+        Host.InspectorFrontendHost.InspectorFrontendHostInstance,
+        'recordResize',
+    );
+    VisualLogging.LoggingEvents.logResize(element, new DOMRect(0, 0, 100.5, 50.3));
+    assert.deepEqual(recordResize.firstCall.firstArg, {veid, width: 101, height: 50});
+  });
+
   it('calls UI binding to log a setting access event', async () => {
     const recordSettingAccess = sinon.stub(
         Host.InspectorFrontendHost.InspectorFrontendHostInstance,
@@ -250,11 +259,22 @@ describe('LoggingEvents', () => {
     );
     await VisualLogging.LoggingEvents.logSettingAccess('test-setting', 'test-value');
     assert.deepEqual(
-        recordSettingAccess.lastCall.firstArg,
-        {name: 'test-setting', numericValue: undefined, stringValue: 'test-value'});
+        recordSettingAccess.lastCall.firstArg, {name: -1361026584, numeric_value: undefined, string_value: 856719891});
 
     await VisualLogging.LoggingEvents.logSettingAccess('test-setting', 123);
     assert.deepEqual(
-        recordSettingAccess.lastCall.firstArg, {name: 'test-setting', numericValue: 123, stringValue: undefined});
+        recordSettingAccess.lastCall.firstArg, {name: -1361026584, numeric_value: 123, string_value: undefined});
+  });
+
+  it('calls UI binding to log a function call event', async () => {
+    const recordFunctionCall = sinon.stub(
+        Host.InspectorFrontendHost.InspectorFrontendHostInstance,
+        'recordFunctionCall',
+    );
+    await VisualLogging.LoggingEvents.logFunctionCall('test-function', 'test-context');
+    assert.deepEqual(recordFunctionCall.lastCall.firstArg, {name: -1470917656, context: 617717214});
+
+    await VisualLogging.LoggingEvents.logFunctionCall('test-function');
+    assert.deepEqual(recordFunctionCall.lastCall.firstArg, {name: -1470917656, context: undefined});
   });
 });

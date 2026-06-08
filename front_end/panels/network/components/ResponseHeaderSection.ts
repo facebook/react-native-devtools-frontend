@@ -1,6 +1,7 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view */
 
 import * as Common from '../../../core/common/common.js';
 import * as Host from '../../../core/host/host.js';
@@ -11,6 +12,7 @@ import type * as SDK from '../../../core/sdk/sdk.js';
 import * as Protocol from '../../../generated/protocol.js';
 import * as IssuesManager from '../../../models/issues_manager/issues_manager.js';
 import * as Persistence from '../../../models/persistence/persistence.js';
+import * as TextUtils from '../../../models/text_utils/text_utils.js';
 import type * as Workspace from '../../../models/workspace/workspace.js';
 import * as NetworkForward from '../../../panels/network/forward/forward.js';
 import * as Sources from '../../../panels/sources/sources.js';
@@ -27,53 +29,48 @@ import {
   type HeaderEditedEvent,
   type HeaderEditorDescriptor,
   type HeaderRemovedEvent,
-  type HeaderSectionRow,
   type HeaderSectionRowData,
   isValidHeaderName,
 } from './HeaderSectionRow.js';
-import responseHeaderSectionStylesRaw from './ResponseHeaderSection.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const responseHeaderSectionStyles = new CSSStyleSheet();
-responseHeaderSectionStyles.replaceSync(responseHeaderSectionStylesRaw.cssText);
+import responseHeaderSectionStyles from './ResponseHeaderSection.css.js';
 
 const UIStrings = {
   /**
-   *@description Label for a button which allows adding an HTTP header.
+   * @description Label for a button which allows adding an HTTP header.
    */
   addHeader: 'Add header',
   /**
-   *@description Explanation text for which cross-origin policy to set.
+   * @description Explanation text for which cross-origin policy to set.
    */
   chooseThisOptionIfTheResourceAnd:
       'Choose this option if the resource and the document are served from the same site.',
   /**
-   *@description Explanation text for which cross-origin policy to set.
+   * @description Explanation text for which cross-origin policy to set.
    */
   onlyChooseThisOptionIfAn:
       'Only choose this option if an arbitrary website including this resource does not impose a security risk.',
   /**
-   *@description Message in the Headers View of the Network panel when a cross-origin opener policy blocked loading a sandbox iframe.
+   * @description Message in the Headers View of the Network panel when a cross-origin opener policy blocked loading a sandbox iframe.
    */
   thisDocumentWasBlockedFrom:
       'The document was blocked from loading in a popup opened by a sandboxed iframe because this document specified a cross-origin opener policy.',
   /**
-   *@description Message in the Headers View of the Network panel when a cross-origin embedder policy header needs to be set.
+   * @description Message in the Headers View of the Network panel when a cross-origin embedder policy header needs to be set.
    */
   toEmbedThisFrameInYourDocument:
       'To embed this frame in your document, the response needs to enable the cross-origin embedder policy by specifying the following response header:',
   /**
-   *@description Message in the Headers View of the Network panel when a cross-origin resource policy header needs to be set.
+   * @description Message in the Headers View of the Network panel when a cross-origin resource policy header needs to be set.
    */
   toUseThisResourceFromADifferent:
       'To use this resource from a different origin, the server needs to specify a cross-origin resource policy in the response headers:',
   /**
-   *@description Message in the Headers View of the Network panel when the cross-origin resource policy header is too strict.
+   * @description Message in the Headers View of the Network panel when the cross-origin resource policy header is too strict.
    */
   toUseThisResourceFromADifferentOrigin:
       'To use this resource from a different origin, the server may relax the cross-origin resource policy response header:',
   /**
-   *@description Message in the Headers View of the Network panel when the cross-origin resource policy header is too strict.
+   * @description Message in the Headers View of the Network panel when the cross-origin resource policy header is too strict.
    */
   toUseThisResourceFromADifferentSite:
       'To use this resource from a different site, the server may relax the cross-origin resource policy response header:',
@@ -93,10 +90,6 @@ export interface ResponseHeaderSectionData {
 class ResponseHeaderSectionBase extends HTMLElement {
   protected readonly shadow = this.attachShadow({mode: 'open'});
   protected headerDetails: HeaderDetailsDescriptor[] = [];
-
-  connectedCallback(): void {
-    this.shadow.adoptedStyleSheets = [responseHeaderSectionStyles];
-  }
 
   protected setHeaders(headers: NameValue[]): void {
     headers.sort(function(a, b) {
@@ -139,6 +132,7 @@ export class EarlyHintsHeaderSection extends ResponseHeaderSectionBase {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
     render(html`
+      <style>${responseHeaderSectionStyles}</style>
       ${this.headerDetails.map(header => html`
         <devtools-header-section-row .data=${{
         header,
@@ -279,9 +273,9 @@ export class ResponseHeaderSection extends ResponseHeaderSectionBase {
       return;
     }
     try {
-      const deferredContent = await this.#uiSourceCode.requestContent();
-      this.#overrides =
-          JSON.parse(deferredContent.content || '[]') as Persistence.NetworkPersistenceManager.HeaderOverride[];
+      const contentData =
+          await this.#uiSourceCode.requestContentData().then(TextUtils.ContentData.ContentData.contentDataOrEmpty);
+      this.#overrides = JSON.parse(contentData.text || '[]') as Persistence.NetworkPersistenceManager.HeaderOverride[];
       if (!this.#overrides.every(Persistence.NetworkPersistenceManager.isHeaderOverride)) {
         throw new Error('Type mismatch after parsing');
       }
@@ -520,7 +514,7 @@ export class ResponseHeaderSection extends ResponseHeaderSectionBase {
     this.#updateOverrides(this.#headerEditors[index].name, this.#headerEditors[index].value || '', index);
     this.#render();
 
-    const rows = this.shadow.querySelectorAll<HeaderSectionRow>('devtools-header-section-row');
+    const rows = this.shadow.querySelectorAll('devtools-header-section-row');
     const [lastRow] = Array.from(rows).slice(-1);
     lastRow?.focus();
     Host.userMetrics.actionTaken(Host.UserMetrics.Action.HeaderOverrideHeaderAdded);
@@ -537,6 +531,7 @@ export class ResponseHeaderSection extends ResponseHeaderSectionBase {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
     render(html`
+      <style>${responseHeaderSectionStyles}</style>
       ${headerDescriptors.map((header, index) => html`
         <devtools-header-section-row
             .data=${{header} as HeaderSectionRowData}
@@ -567,14 +562,14 @@ export class ResponseHeaderSection extends ResponseHeaderSectionBase {
     }
     Host.userMetrics.actionTaken(Host.UserMetrics.Action.HeaderOverrideEnableEditingClicked);
     const requestUrl = this.#request.url();
-    const networkPersistanceManager = Persistence.NetworkPersistenceManager.NetworkPersistenceManager.instance();
-    if (networkPersistanceManager.project()) {
+    const networkPersistenceManager = Persistence.NetworkPersistenceManager.NetworkPersistenceManager.instance();
+    if (networkPersistenceManager.project()) {
       Common.Settings.Settings.instance().moduleSetting('persistence-network-overrides-enabled').set(true);
-      await networkPersistanceManager.getOrCreateHeadersUISourceCodeFromUrl(requestUrl);
+      await networkPersistenceManager.getOrCreateHeadersUISourceCodeFromUrl(requestUrl);
     } else {  // If folder for local overrides has not been provided yet
       UI.InspectorView.InspectorView.instance().displaySelectOverrideFolderInfobar(async () => {
         await Sources.SourcesNavigator.OverridesNavigatorView.instance().setupNewWorkspace();
-        await networkPersistanceManager.getOrCreateHeadersUISourceCodeFromUrl(requestUrl);
+        await networkPersistenceManager.getOrCreateHeadersUISourceCodeFromUrl(requestUrl);
       });
     }
   }
@@ -597,7 +592,9 @@ const BlockedReasonDetails = new Map<Protocol.Network.BlockedReason, HeaderDetai
       value: null,
       blockedDetails: {
         explanation: i18nLazyString(UIStrings.toEmbedThisFrameInYourDocument),
-        examples: [{codeSnippet: 'Cross-Origin-Embedder-Policy: require-corp', comment: undefined}],
+        examples: [{
+          codeSnippet: 'Cross-Origin-Embedder-Policy: require-corp',
+        }],
         link: {url: 'https://web.dev/coop-coep/'},
       },
     },

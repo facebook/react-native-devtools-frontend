@@ -1,12 +1,13 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {describeWithLocale} from '../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../testing/LocaleHelpers.js';
 
 import * as Platform from './platform.js';
 
-describeWithLocale('NumberUtilities', () => {
+describe('NumberUtilities', () => {
+  setupLocaleHooks();
   describe('clamp', () => {
     it('takes the lower bound if the number is smaller', () => {
       assert.strictEqual(5, Platform.NumberUtilities.clamp(1, 5, 10));

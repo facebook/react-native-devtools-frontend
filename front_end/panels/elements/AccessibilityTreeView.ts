@@ -1,6 +1,7 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import type * as Common from '../../core/common/common.js';
 import * as SDK from '../../core/sdk/sdk.js';
@@ -15,25 +16,19 @@ import {ElementsPanel} from './ElementsPanel.js';
 export class AccessibilityTreeView extends UI.Widget.VBox implements
     SDK.TargetManager.SDKModelObserver<SDK.AccessibilityModel.AccessibilityModel> {
   private accessibilityTreeComponent: TreeOutline.TreeOutline.TreeOutline<AccessibilityTreeUtils.AXTreeNodeData>;
-  private readonly toggleButton: HTMLElement;
   private inspectedDOMNode: SDK.DOMModel.DOMNode|null = null;
   private root: SDK.AccessibilityModel.AccessibilityNode|null = null;
 
   constructor(
-      toggleButton: HTMLElement,
       accessibilityTreeComponent: TreeOutline.TreeOutline.TreeOutline<AccessibilityTreeUtils.AXTreeNodeData>) {
     super();
     this.registerRequiredCSS(accessibilityTreeViewStyles);
-    // toggleButton is bound to a click handler on ElementsPanel to switch between the DOM tree
-    // and accessibility tree views.
-    this.toggleButton = toggleButton;
     this.accessibilityTreeComponent = accessibilityTreeComponent;
 
     const container = this.contentElement.createChild('div');
 
     container.classList.add('accessibility-tree-view-container');
     container.setAttribute('jslog', `${VisualLogging.tree('full-accessibility')}`);
-    container.appendChild(this.toggleButton);
     container.appendChild(this.accessibilityTreeComponent);
 
     SDK.TargetManager.TargetManager.instance().observeModels(
@@ -53,7 +48,8 @@ export class AccessibilityTreeView extends UI.Widget.VBox implements
         deferredNode.resolve(domNode => {
           if (domNode) {
             this.inspectedDOMNode = domNode;
-            void ElementsPanel.instance().revealAndSelectNode(domNode, true, false);
+            void ElementsPanel.instance().revealAndSelectNode(
+                domNode, {showPanel: true, focusNode: true, highlightInOverlay: true});
           }
         });
       }
@@ -93,6 +89,12 @@ export class AccessibilityTreeView extends UI.Widget.VBox implements
   }
 
   async renderTree(): Promise<void> {
+    if (!this.root) {
+      const frameId = SDK.FrameManager.FrameManager.instance().getOutermostFrame()?.id;
+      if (frameId) {
+        this.root = await AccessibilityTreeUtils.getRootNode(frameId);
+      }
+    }
     if (!this.root) {
       return;
     }
@@ -147,10 +149,14 @@ export class AccessibilityTreeView extends UI.Widget.VBox implements
   treeUpdated({data}: Common.EventTarget
                   .EventTargetEvent<SDK.AccessibilityModel.EventTypes[SDK.AccessibilityModel.Events.TREE_UPDATED]>):
       void {
+    if (data.root) {
+      this.root = data.root;
+    }
     if (!this.isShowing()) {
       return;
     }
     if (!data.root) {
+      this.root = null;
       void this.renderTree();
       return;
     }

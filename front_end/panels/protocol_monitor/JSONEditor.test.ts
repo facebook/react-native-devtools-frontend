@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -258,10 +258,10 @@ describeWithEnvironment('JSONEditor', () => {
   const serializePopupContent = () => {
     const container = document.body.querySelector<HTMLDivElement>('[data-devtools-glass-pane]');
     const hintDetailView = container?.shadowRoot?.querySelector('devtools-css-hint-details-view');
-    return hintDetailView?.shadowRoot?.textContent?.replaceAll(/\s/g, '');
+    return hintDetailView?.shadowRoot?.querySelector('.hint-popup-wrapper')?.textContent?.replaceAll(/\s/g, '');
   };
 
-  const renderEditorForCommand = async(command: string, parameters: {[paramName: string]: unknown}): Promise<{
+  const renderEditorForCommand = async(command: string, parameters: Record<string, unknown>): Promise<{
     inputs: NodeListOf<SuggestionInput.SuggestionInput.SuggestionInput>,
     displayedCommand: string,
     jsonEditor: ProtocolMonitor.JSONEditor.JSONEditor,
@@ -357,7 +357,7 @@ describeWithEnvironment('JSONEditor', () => {
          const {command, parameters} = ProtocolMonitor.ProtocolMonitor.parseCommandInput(JSON.stringify(cdpCommand));
          const {inputs} = await renderEditorForCommand(command, parameters);
          const parameterRecorderInput = inputs[1];
-         const value = parameterRecorderInput.renderRoot.textContent?.replaceAll(/\s/g, '');
+         const value = parameterRecorderInput.value;
          const expectedValue = 'test';
          assert.deepEqual(value, expectedValue);
        });
@@ -373,7 +373,7 @@ describeWithEnvironment('JSONEditor', () => {
          const {command, parameters} = ProtocolMonitor.ProtocolMonitor.parseCommandInput(JSON.stringify(cdpCommand));
          const {inputs} = await renderEditorForCommand(command, parameters);
          const parameterRecorderInput = inputs[1];
-         const value = parameterRecorderInput.renderRoot.textContent?.replaceAll(/\s/g, '');
+         const value = parameterRecorderInput.value;
          const expectedValue = 'test';
          assert.deepEqual(value, expectedValue);
        });
@@ -393,7 +393,7 @@ describeWithEnvironment('JSONEditor', () => {
          const {command, parameters} = ProtocolMonitor.ProtocolMonitor.parseCommandInput(JSON.stringify(cdpCommand));
          const {inputs} = await renderEditorForCommand(command, parameters);
          const parameterRecorderInput = inputs[1];
-         const value = parameterRecorderInput.renderRoot.textContent?.replaceAll(/\s/g, '');
+         const value = parameterRecorderInput.value;
          const expectedValue = 'test1';
          assert.deepEqual(value, expectedValue);
        });
@@ -997,10 +997,12 @@ describeWithEnvironment('JSONEditor', () => {
          };
 
          jsonEditor.parameters = inputParameters as ProtocolMonitor.JSONEditor.Parameter[];
+         await jsonEditor.updateComplete;
 
          const promise = jsonEditor.once(ProtocolMonitor.JSONEditor.Events.SUBMIT_EDITOR);
 
-         dispatchKeyDownEvent(jsonEditor.contentElement, {key: 'Enter', ctrlKey: true, metaKey: true});
+         dispatchKeyDownEvent(
+             jsonEditor.contentElement.querySelector('.wrapper')!, {key: 'Enter', ctrlKey: true, metaKey: true});
 
          const response = await promise;
 
@@ -1039,6 +1041,35 @@ describeWithEnvironment('JSONEditor', () => {
 
          assert.deepEqual(response.parameters, expectedParameters);
        });
+
+    it('should format unknown parameters as parsed JSON if they contain JSON, or verbatim otherwise', async () => {
+      const jsonEditor = renderJSONEditor();
+      jsonEditor.command = 'Test.test';
+      jsonEditor.parameters = [
+        {
+          name: 'anyOfProp1',
+          type: ProtocolMonitor.JSONEditor.ParameterType.UNKNOWN,
+          description: 'test',
+          optional: false,
+          value: '{"a": 1}',
+        },
+        {
+          name: 'anyOfProp2',
+          type: ProtocolMonitor.JSONEditor.ParameterType.UNKNOWN,
+          description: 'test',
+          optional: false,
+          value: 'raw string',
+        },
+      ];
+      await jsonEditor.updateComplete;
+
+      const expectedParameters = {
+        anyOfProp1: {a: 1},
+        anyOfProp2: 'raw string',
+      };
+
+      assert.deepEqual(jsonEditor.getParameters(), expectedParameters);
+    });
   });
 
   describe('Verify the type of the entered value', () => {
@@ -1259,7 +1290,8 @@ describeWithEnvironment('JSONEditor', () => {
        const promise = jsonEditor.once(ProtocolMonitor.JSONEditor.Events.SUBMIT_EDITOR);
 
        // We send the command
-       dispatchKeyDownEvent(jsonEditor.contentElement, {key: 'Enter', ctrlKey: true, metaKey: true});
+       dispatchKeyDownEvent(
+           jsonEditor.contentElement.querySelector('.wrapper')!, {key: 'Enter', ctrlKey: true, metaKey: true});
 
        const response = await promise;
 
@@ -1308,11 +1340,129 @@ describeWithEnvironment('JSONEditor', () => {
     assert.deepEqual(numberOfInputs, 4);
   });
 
+  describe('UI Visibility Properties', () => {
+    it('hides the target selector when displayTargetSelector is false', async () => {
+      const jsonEditor = renderJSONEditor();
+      jsonEditor.displayTargetSelector = false;
+      jsonEditor.performUpdate();
+      await jsonEditor.updateComplete;
+
+      const targetSelector = jsonEditor.contentElement.querySelector('.target-selector');
+      assert.isNull(targetSelector);
+    });
+
+    it('hides the command input when displayCommandInput is false', async () => {
+      const jsonEditor = renderJSONEditor();
+      jsonEditor.displayCommandInput = false;
+      jsonEditor.performUpdate();
+      await jsonEditor.updateComplete;
+
+      const commandInput = jsonEditor.contentElement.querySelector('.command');
+      assert.isNull(commandInput);
+    });
+
+    it('sets the command via commandToDisplay', async () => {
+      const jsonEditor = renderJSONEditor();
+      jsonEditor.commandToDisplay = {command: 'Test.testCommand', parameters: {}};
+      await jsonEditor.updateComplete;
+
+      assert.strictEqual(jsonEditor.command, 'Test.testCommand');
+      const input = jsonEditor.contentElement.querySelector('devtools-suggestion-input');
+      assert.strictEqual((input as SuggestionInput.SuggestionInput.SuggestionInput).value, 'Test.testCommand');
+    });
+  });
+
+  describe('displayCommand', () => {
+    it('should display the correct parameters with a command containing an UNKNOWN parameter', async () => {
+      const jsonEditor = renderJSONEditor();
+      jsonEditor.metadataByCommand = new Map([
+        [
+          'Test.test', {
+            parameters: [{
+              name: 'test',
+              type: ProtocolMonitor.JSONEditor.ParameterType.UNKNOWN,
+              optional: true,
+              description: '',
+              isCorrectType: true,
+            }],
+            description: 'Description',
+            replyArgs: [],
+          }
+        ],
+      ]);
+      jsonEditor.commandToDisplay = {command: 'Test.test'};
+      await jsonEditor.updateComplete;
+
+      jsonEditor.displayCommand('Test.test', {test: {complex: 'object'}});
+      await jsonEditor.updateComplete;
+
+      const parameters = jsonEditor.getParameters();
+      assert.deepEqual(parameters, {test: {complex: 'object'}});
+    });
+
+    it('should ignore extra parameters that do not match the schema', async () => {
+      const jsonEditor = renderJSONEditor();
+      jsonEditor.metadataByCommand = new Map([
+        [
+          'Test.test', {
+            parameters: [{
+              name: 'test',
+              type: ProtocolMonitor.JSONEditor.ParameterType.STRING,
+              optional: true,
+              description: '',
+              isCorrectType: true,
+            }],
+            description: 'Description',
+            replyArgs: [],
+          }
+        ],
+      ]);
+      jsonEditor.commandToDisplay = {command: 'Test.test'};
+      await jsonEditor.updateComplete;
+
+      jsonEditor.displayCommand('Test.test', {test: 'value', extra: 123});
+      await jsonEditor.updateComplete;
+
+      const parameters = jsonEditor.getParameters();
+      // Only the schema-defined parameter should be kept.
+      assert.deepEqual(parameters, {test: 'value'});
+    });
+
+    it('should safely handle parameters that entirely do not match the schema (e.g. array instead of object)',
+       async () => {
+         const jsonEditor = renderJSONEditor();
+         jsonEditor.metadataByCommand = new Map([
+           [
+             'Test.test', {
+               parameters: [{
+                 name: 'test',
+                 type: ProtocolMonitor.JSONEditor.ParameterType.STRING,
+                 optional: true,
+                 description: '',
+                 isCorrectType: true,
+               }],
+               description: 'Description',
+               replyArgs: [],
+             }
+           ],
+         ]);
+         jsonEditor.commandToDisplay = {command: 'Test.test'};
+         await jsonEditor.updateComplete;
+
+         jsonEditor.displayCommand(
+             'Test.test', ['an array', 'instead of object'] as unknown as Record<string, unknown>);
+         await jsonEditor.updateComplete;
+
+         const parameters = jsonEditor.getParameters();
+         assert.isUndefined(parameters);
+       });
+  });
+
   describe('Command suggestion filter', () => {
     it('filters the commands by substring match', async () => {
       assert(ProtocolMonitor.JSONEditor.suggestionFilter('Test', 'Tes'));
       assert(ProtocolMonitor.JSONEditor.suggestionFilter('Test', 'est'));
-      assert(!ProtocolMonitor.JSONEditor.suggestionFilter('Test', 'dest'));
+      assert.isNotOk(ProtocolMonitor.JSONEditor.suggestionFilter('Test', 'dest'));
     });
   });
 });

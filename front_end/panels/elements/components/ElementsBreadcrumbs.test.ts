@@ -1,8 +1,9 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import type * as SDK from '../../../core/sdk/sdk.js';
+import type * as Protocol from '../../../generated/protocol.js';
 import {
   assertElements,
   dispatchClickEvent,
@@ -19,32 +20,28 @@ import * as RenderCoordinator from '../../../ui/components/render_coordinator/re
 
 import * as ElementsComponents from './components.js';
 
-interface MakeCrumbOptions extends Partial<ElementsComponents.Helper.DOMNode> {
-  attributes?: {[x: string]: string};
+interface MakeCrumbOptions {
+  nodeType?: number;
+  id?: number;
+  pseudoType?: string;
+  shadowRootType?: string;
+  nodeName?: string;
+  nodeNameNicelyCased?: string;
+  attributes?: Record<string, string>;
 }
-
-/*
- * This very clearly is not a real legacy SDK DOMNode, but for the purposes of
- * the test we just need something that presents as one, and doesn't need to
- * implement anything */
-const FAKE_LEGACY_SDK_DOM_NODE = {} as unknown as SDK.DOMModel.DOMNode;
 
 const makeCrumb = (overrides: MakeCrumbOptions = {}) => {
   const attributes = overrides.attributes || {};
-  const newCrumb: ElementsComponents.Helper.DOMNode = {
-    parentNode: null,
-    nodeType: Node.ELEMENT_NODE,
-    id: 1,
-    pseudoType: '',
-    shadowRootType: '',
-    nodeName: 'body',
-    nodeNameNicelyCased: 'body',
-    legacyDomNode: FAKE_LEGACY_SDK_DOM_NODE,
-    highlightNode: () => {},
-    clearHighlight: () => {},
-    getAttribute: x => attributes[x] || '',
-    ...overrides,
-  };
+  const newCrumb = {
+    id: (overrides.id || 1) as Protocol.DOM.NodeId,
+    nodeType: () => overrides.nodeType ?? Node.ELEMENT_NODE,
+    pseudoType: () => overrides.pseudoType ?? '',
+    shadowRootType: () => overrides.shadowRootType ?? '',
+    nodeName: () => overrides.nodeName ?? 'body',
+    nodeNameInCorrectCase: () => overrides.nodeNameNicelyCased ?? 'body',
+    getAttribute: (x: string) => attributes[x] || '',
+    highlight: () => {},
+  } as unknown as SDK.DOMModel.DOMNode;
   return newCrumb;
 };
 
@@ -183,7 +180,6 @@ describe('ElementsBreadcrumbs', () => {
           },
           selected: true,
           node: bodyCrumb,
-          originalNode: bodyCrumb.legacyDomNode,
         },
       ]);
     });
@@ -249,7 +245,7 @@ describe('ElementsBreadcrumbs', () => {
       });
 
       await withNoMutations(shadowRoot, async shadowRoot => {
-        const newDiv: ElementsComponents.Helper.DOMNode = {...divCrumb, nodeName: 'span', nodeNameNicelyCased: 'span'};
+        const newDiv = makeCrumb({nodeName: 'span', nodeNameNicelyCased: 'span'});
         component.data = {
           crumbs: [newDiv, bodyCrumb],
           selectedNode: bodyCrumb,

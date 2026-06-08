@@ -1,6 +1,6 @@
 #!/usr/bin/env vpython3
 #
-# Copyright 2019 The Chromium Authors. All rights reserved.
+# Copyright 2019 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """
@@ -10,10 +10,13 @@ Update manually maintained dependencies from Chromium.
 import argparse
 import enum
 import json
+import hashlib
 import os
-import shutil
+import re
 import subprocess
 import sys
+import tempfile
+import urllib.request
 
 
 def node_path(options):
@@ -32,6 +35,7 @@ FILES = [
     'v8/include/js_protocol.pdl',
     'third_party/blink/renderer/core/css/css_properties.json5',
     'third_party/blink/renderer/core/html/aria_properties.json5',
+    'third_party/blink/public/devtools_protocol/domains',
     'third_party/blink/public/devtools_protocol/browser_protocol.pdl',
     'third_party/blink/renderer/core/frame/deprecation/deprecation.json5',
 ]
@@ -55,6 +59,7 @@ for f in FILES:
 class ReferenceMode(enum.Enum):
     Tot = 'tot'
     WorkingTree = 'working-tree'
+    CfT = 'CfT'
 
     def __str__(self):
         return self.value
@@ -93,19 +98,77 @@ def update(options):
     subprocess.check_call(['gclient', 'sync'], cwd=options.chromium_dir)
 
 
+def checkout_chromium_commit_position(options, target_position):
+    target_position = int(target_position)
+
+    grep_pattern = f'Cr-Commit-Position: .*@{{#{target_position}}}'
+    cmd = [
+        'git', 'log', 'origin/main', f'--grep={grep_pattern}', '-1',
+        '--format=%H'
+    ]
+    commit_hash = subprocess.check_output(cmd,
+                                          cwd=options.chromium_dir,
+                                          text=True).strip()
+
+    if not commit_hash:
+        raise RuntimeError(
+            f'Could not find commit for position {target_position}')
+
+    subprocess.check_call(['git', 'checkout', commit_hash],
+                          cwd=options.chromium_dir)
+
+
 def sync_node(options):
     """Node is managed as a standard GCS deps so we run gclient sync but without hooks"""
     subprocess.check_call(['gclient', 'sync', '--nohooks'],
                           cwd=options.devtools_dir)
 
 
+def replace_ifttt(content):
+    # Replace IFTTT tags with skipped versions.
+    # Escape "L" as "\x4C" to avoid presubmit failures.
+    content = content.replace('\x4CINT.IfChange', '\x4CINT_SKIP.IfChange')
+    content = content.replace('\x4CINT.ThenChange', '\x4CINT_SKIP.ThenChange')
+    return content
+
+
+def copy_file_content(from_path, to_path):
+    with open(from_path, 'r', encoding='utf-8') as infile:
+        content = infile.read()
+
+    content = replace_ifttt(content)
+
+    with open(to_path, 'w', encoding='utf-8') as outfile:
+        outfile.write(content)
+
+
 def copy_files(options):
     for from_path, to_path in FILE_MAPPINGS.items():
-        from_path = os.path.normpath(from_path)
-        to_path = os.path.normpath(to_path)
-        print('%s => %s' % (from_path, to_path))
-        shutil.copy(os.path.join(options.chromium_dir, from_path),
-                    os.path.join(options.devtools_dir, to_path))
+        from_path_full = os.path.join(options.chromium_dir,
+                                      os.path.normpath(from_path))
+        to_path_full = os.path.join(options.devtools_dir,
+                                    os.path.normpath(to_path))
+        print(f'{os.path.normpath(from_path)} => {os.path.normpath(to_path)}')
+
+        if not os.path.exists(from_path_full):
+            if from_path_full.endswith("/domains"):
+                continue
+            raise Exception(f'{os.path.normpath(from_path)} does not exist')
+
+        # Create destination directory if it doesn't exist
+        os.makedirs(os.path.dirname(to_path_full), exist_ok=True)
+
+        if os.path.isdir(from_path_full):
+            # Copy files from dirs
+            for file in os.listdir(from_path_full):
+                file_from_path = os.path.join(from_path_full, file)
+                if os.path.isdir(file_from_path):
+                    continue
+                file_to_path = os.path.join(to_path_full, file)
+                copy_file_content(file_from_path, file_to_path)
+            continue
+
+        copy_file_content(from_path_full, to_path_full)
 
 
 def generate_signatures(options):
@@ -175,6 +238,7 @@ def update_deps_revision(options):
         cwd=options.devtools_dir,
     )
     if options.output:
+        print(f'writing output file at {options.output}')
         with open(options.output, 'w', encoding='utf-8') as f:
             json.dump(
                 {
@@ -183,16 +247,161 @@ def update_deps_revision(options):
                 }, f)
 
 
+def get_json(url):
+    with urllib.request.urlopen(url) as response:
+        return json.loads(response.read().decode('utf-8'))
+
+
+def version_tuple(version):
+    return tuple(map(int, version.split('.')))
+
+
+def updateCfT(options):
+    """
+    Update the Chrome for testing dependency.
+    """
+    print('Updating Chrome for Testing...')
+    json_data = get_json(
+        "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json"
+    )
+    canary_channel = json_data['channels']['Canary']
+    new_version = canary_channel['version']
+    commit_position = canary_channel['revision']
+
+    current_version = subprocess.check_output(
+        ['gclient', 'getdep', '--var=chrome'],
+        cwd=options.devtools_dir,
+        text=True).strip()
+
+    if current_version and (version_tuple(current_version)
+                            < version_tuple(new_version)):
+        print(
+            f'Updating Chrome for Testing: {current_version} -> {new_version}')
+        subprocess.check_call(
+            ['gclient', 'setdep', f'--var=chrome={new_version}'],
+            cwd=options.devtools_dir)
+        dep_keys = [
+            'third_party/chrome/chrome-win',
+            'third_party/chrome/chrome-mac-x64',
+            'third_party/chrome/chrome-mac-arm64',
+            'third_party/chrome/chrome-linux',
+        ]
+        for key in dep_keys:
+            dep_props = subprocess.check_output(
+                ['gclient', 'getdep', f'--revision={key}'],
+                cwd=options.devtools_dir,
+                text=True).strip()
+            object_name = json.loads(dep_props.replace("'",
+                                                       '"'))[0]['object_name']
+            object_path = re.sub(r'^([^/]+)', new_version, object_name)
+            gcs_metadata = get_gcs_metadata('chrome-for-testing-public',
+                                            object_path)
+            if not gcs_metadata:
+                print("Failed to fetch GCS metadata. DEPS file not updated.")
+                exit(1)
+            print(f'Updating GCS dependency: {key}')
+            subprocess.check_call([
+                'gclient',
+                'setdep',
+                f'--revision={key}@{gcs_metadata["object_name"]},{gcs_metadata["sha256sum"]},'
+                f'{gcs_metadata["size_bytes"]},{gcs_metadata["generation"]}',
+            ],
+                                  cwd=options.devtools_dir)
+    else:
+        print(f'Chrome for Testing is up to date: {current_version}')
+    return commit_position
+
+
+def get_gcs_metadata(bucket, object_path):
+    """
+    Fetches metadata required for a DEPS GCS entry.
+    """
+    gs_url = f"gs://{bucket}/{object_path}"
+    print(f"Fetching metadata for {gs_url}...")
+    try:
+        describe_proc = subprocess.run([
+            'gcloud', 'storage', 'objects', 'describe', gs_url,
+            '--format=json(size,generation)'
+        ],
+                                       capture_output=True,
+                                       text=True,
+                                       check=True,
+                                       encoding='utf-8')
+        metadata = json.loads(describe_proc.stdout)
+
+        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+            temp_path = tmp_file.name
+            print(f"Downloading to {temp_path} for SHA256 calculation...")
+            subprocess.run(['gcloud', 'storage', 'cp', gs_url, temp_path],
+                           check=True)
+
+            sha256_hash = ""
+            hasher = hashlib.sha256()
+            with open(temp_path, 'rb') as f:
+                while chunk := f.read(8192):
+                    hasher.update(chunk)
+            sha256_hash = hasher.hexdigest()
+        os.remove(temp_path)
+        print("Metadata fetch complete.")
+
+        return {
+            'object_name': object_path,
+            'sha256sum': sha256_hash,
+            'size_bytes': int(metadata['size']),
+            'generation': int(metadata['generation']),
+        }
+    except subprocess.CalledProcessError as e:
+        print(f"Error interacting with GCS for {gs_url}: {e}")
+        if e.stderr: print(f"gcloud stderr: {e.stderr}")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return None
+
+
+def update_readme_revision(options):
+    print('updating README.chromium revision')
+    readme_path = os.path.join(options.devtools_dir, 'front_end',
+                               'third_party', 'chromium', 'README.chromium')
+
+    old_content = ""
+    with open(readme_path, 'r', encoding='utf-8') as f:
+        old_content = f.read()
+
+    old_revision = ""
+    for line in old_content.splitlines():
+        if line.startswith('Revision:'):
+            old_revision = line.split(':', 1)[1].strip()
+            break
+
+    new_revision = subprocess.check_output(
+        ['git', 'log', '-1', '--pretty=format:%H'],
+        cwd=options.chromium_dir,
+        text=True).strip()
+
+    # Replace the old revision with the new revision.
+    print(f'-> from {old_revision} to {new_revision}')
+    patched_content = old_content.replace(f'Revision: {old_revision}',
+                                          f'Revision: {new_revision}')
+    with open(readme_path, 'w', encoding='utf-8') as f:
+        f.write(patched_content)
+
+
 if __name__ == '__main__':
     OPTIONS = parse_options(sys.argv[1:])
     if OPTIONS.ref == ReferenceMode.Tot:
         update(OPTIONS)
+    if OPTIONS.ref == ReferenceMode.CfT:
+        commit_position = updateCfT(OPTIONS)
+        checkout_chromium_commit_position(OPTIONS, commit_position)
     elif OPTIONS.update_node:
         sync_node(OPTIONS)
     copy_files(OPTIONS)
     generate_signatures(OPTIONS)
     generate_protocol_resources(OPTIONS)
     if files_changed(OPTIONS):
-        run_git_cl_format(OPTIONS)
+        # EsLint needs before git cl format
         run_eslint(OPTIONS)
+        run_git_cl_format(OPTIONS)
         update_deps_revision(OPTIONS)
+        update_readme_revision(OPTIONS)

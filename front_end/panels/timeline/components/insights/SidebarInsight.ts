@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -48,8 +48,7 @@ export class InsightProvideOverlays extends Event {
   static readonly eventName = 'insightprovideoverlays';
 
   constructor(
-      public overlays: Overlays.Overlays.TimelineOverlay[],
-      public options: Overlays.Overlays.TimelineOverlaySetOptions) {
+      public overlays: Trace.Types.Overlays.Overlay[], public options: Overlays.Overlays.TimelineOverlaySetOptions) {
     super(InsightProvideOverlays.eventName, {bubbles: true, composed: true});
   }
 }

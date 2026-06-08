@@ -1,11 +1,11 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Helpers from '../../../testing/DOMHelpers.js';  // eslint-disable-line rulesdir/es-modules-import
+import {renderElementIntoDOM} from '../../../testing/DOMHelpers.js';
 import {
-  describeWithLocale,
-} from '../../../testing/EnvironmentHelpers.js';
+  setupLocaleHooks,
+} from '../../../testing/LocaleHelpers.js';
 import {html} from '../../lit/lit.js';
 import * as Dialogs from '../dialogs/dialogs.js';
 import * as RenderCoordinator from '../render_coordinator/render_coordinator.js';
@@ -49,23 +49,18 @@ async function createMenu(): Promise<Menus.SelectMenu.SelectMenu> {
   return menu;
 }
 
-describeWithLocale('SelectMenu', () => {
+describe('SelectMenu', () => {
+  setupLocaleHooks();
   it('will use the buttonTitle property if that is provided', async () => {
     const menu = await createMenu();
     const firsItem = menu.querySelector('devtools-menu-item');
-    if (!firsItem) {
-      assert.fail('No item was found.');
-      return;
-    }
+    assert.exists(firsItem);
     menu.buttonTitle = 'Override Title';
-    Helpers.renderElementIntoDOM(menu);
+    renderElementIntoDOM(menu);
     await RenderCoordinator.done();
     assert.isNotNull(menu.shadowRoot);
     const button = menu.shadowRoot.querySelector('devtools-select-menu-button');
-    if (!button) {
-      assert.fail('devtools-select-menu-button not found');
-      return;
-    }
+    assert.exists(button);
     assert.instanceOf(button, HTMLElement);
     assert.strictEqual(button.innerText, 'Override Title');
   });
@@ -73,27 +68,21 @@ describeWithLocale('SelectMenu', () => {
   it('allows the buttonTitle to be a function', async () => {
     const menu = await createMenu();
     const firsItem = menu.querySelector('devtools-menu-item');
-    if (!firsItem) {
-      assert.fail('No item was found.');
-      return;
-    }
+    assert.exists(firsItem);
     firsItem.selected = true;
     menu.buttonTitle = () => html`Override Title`;
-    Helpers.renderElementIntoDOM(menu);
+    renderElementIntoDOM(menu);
     await RenderCoordinator.done();
     assert.isNotNull(menu.shadowRoot);
     const button = menu.shadowRoot.querySelector('devtools-select-menu-button');
-    if (!button) {
-      assert.fail('devtools-select-menu-button not found');
-      return;
-    }
+    assert.exists(button);
     assert.instanceOf(button, HTMLElement);
     assert.strictEqual(button.innerText, 'Override Title');
   });
 
   it('can render multiple options as selected at once', async () => {
     const selectMenu = await createMenu();
-    Helpers.renderElementIntoDOM(selectMenu);
+    renderElementIntoDOM(selectMenu);
     [...selectMenu.querySelectorAll('devtools-menu-item')][0].selected = true;
     [...selectMenu.querySelectorAll('devtools-menu-item')][1].selected = true;
     assert.isNotNull(selectMenu.shadowRoot);

@@ -1,6 +1,7 @@
-// Copyright (c) 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import './Toolbar.js';
 
@@ -25,7 +26,7 @@ export class ReportView extends VBox {
   private subtitleElement?: HTMLElement;
   private urlElement?: HTMLElement;
   constructor(title?: string) {
-    super(true);
+    super({useShadowDom: true});
     this.registerRequiredCSS(reportViewStyles);
 
     this.contentBox = this.contentElement.createChild('div', 'report-content-box');
@@ -54,7 +55,7 @@ export class ReportView extends VBox {
   }
 
   setSubtitle(subtitle: string): void {
-    if (this.subtitleElement && this.subtitleElement.textContent === subtitle) {
+    if (this.subtitleElement?.textContent === subtitle) {
       return;
     }
     if (!this.subtitleElement) {
@@ -86,7 +87,7 @@ export class ReportView extends VBox {
 
   sortSections(comparator: (arg0: Section, arg1: Section) => number): void {
     const sections = (this.children().slice() as Section[]);
-    const sorted = sections.every((e, i, a) => !i || comparator(a[i - 1], a[i]) <= 0);
+    const sorted = sections.every((_, i, a) => !i || comparator(a[i - 1], a[i]) <= 0);
     if (sorted) {
       return;
     }
@@ -186,7 +187,7 @@ export class Section extends VBox {
     return row.lastElementChild as HTMLElement;
   }
 
-  appendFlexedField(title: string, textValue?: string): Element {
+  appendFlexedField(title: string, textValue?: string): HTMLElement {
     const field = this.appendField(title, textValue);
     field.classList.add('report-field-value-is-flexed');
     return field;
@@ -228,9 +229,5 @@ export class Section extends VBox {
   markFieldListAsGroup(): void {
     ARIAUtils.markAsGroup(this.fieldList);
     ARIAUtils.setLabel(this.fieldList, this.title());
-  }
-
-  setIconMasked(masked: boolean): void {
-    this.element.classList.toggle('show-mask', masked);
   }
 }

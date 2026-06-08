@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,12 +12,6 @@ const {LinearMemoryInspectorController} = LinearMemoryInspector;
 const {ValueInterpreterDisplayUtils} = LinearMemoryInspectorComponents;
 
 class MockRemoteObject extends SDK.RemoteObject.LocalJSONObject {
-  private objSubtype?: string;
-
-  constructor(array: ArrayBuffer) {
-    super(array);
-  }
-
   override arrayBufferByteLength() {
     return this.value.byteLength;
   }
@@ -120,8 +114,8 @@ describeWithEnvironment('LinearMemoryInspectorController', () => {
     const expressionName = 'myCar';
     const result = await instance.evaluateExpression(callFrame, expressionName);
     assert.isUndefined(result);
-    assert.isTrue(stub.calledOnceWithExactly(
-        `Tried to evaluate the expression '${expressionName}' but got an error: ${errorText}`));
+    sinon.assert.calledOnceWithExactly(
+        stub, `Tried to evaluate the expression '${expressionName}' but got an error: ${errorText}`);
   });
 
   it('returns undefined when exceptionDetails is set on the result of evaluateExpression', async () => {
@@ -141,8 +135,8 @@ describeWithEnvironment('LinearMemoryInspectorController', () => {
     const expressionName = 'myCar.manufacturer';
     const result = await instance.evaluateExpression(callFrame, expressionName);
     assert.isUndefined(result);
-    assert.isTrue(stub.calledOnceWithExactly(
-        `Tried to evaluate the expression '${expressionName}' but got an exception: ${exceptionText}`));
+    sinon.assert.calledOnceWithExactly(
+        stub, `Tried to evaluate the expression '${expressionName}' but got an exception: ${exceptionText}`);
   });
 
   it('returns RemoteObject when no exception happens in evaluateExpression', async () => {

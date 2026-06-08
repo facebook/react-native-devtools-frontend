@@ -1,38 +1,110 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
 import * as i18n from '../../../../core/i18n/i18n.js';
 import type * as Trace from '../../../../models/trace/trace.js';
-import * as Lit from '../../../../ui/lit/lit.js';
+import * as UI from '../../../../ui/legacy/legacy.js';
+import {Directives, html, nothing, render, type TemplateResult} from '../../../../ui/lit/lit.js';
 
-import stylesRaw from './timespanBreakdownOverlay.css.js';
+import timespanBreakdownOverlayStyles from './timespanBreakdownOverlay.css.js';
 
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const styles = new CSSStyleSheet();
-styles.replaceSync(stylesRaw.cssText);
-
-const {html} = Lit;
-
-/**
- * An EntryBreakdown, or section, that makes up a TimespanBreakdown.
- */
-export interface EntryBreakdown {
-  bounds: Trace.Types.Timing.TraceWindowMicro;
-  label: string|Lit.LitTemplate;
-  showDuration: boolean;
+export interface Input {
+  sections: Trace.Types.Overlays.TimespanBreakdownEntryBreakdown[]|null;
+  positions: SectionPosition[];
+  left: number|null;
+  width: number|null;
+  maxHeight: number|null;
+  top: number|null;
+  className: string;
+}
+export interface SectionPosition {
+  left: number|null;
+  width: number|null;
 }
 
-export class TimespanBreakdownOverlay extends HTMLElement {
-  readonly #shadow = this.attachShadow({mode: 'open'});
-  #canvasRect: DOMRect|null = null;
-  #sections: EntryBreakdown[]|null = null;
+type View = (input: Input, _output: undefined, target: HTMLElement) => void;
 
-  connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [styles];
+const renderSection =
+    (section: Trace.Types.Overlays.TimespanBreakdownEntryBreakdown, position: SectionPosition): TemplateResult => {
+      const style = Directives.styleMap(
+          {left: position ? `${position.left}px` : undefined, width: position ? `${position.width}px` : undefined});
+
+      // clang-format off
+    return html`
+      <div class="timespan-breakdown-overlay-section" style=${style}>
+        <div class="timespan-breakdown-overlay-label">
+          ${
+            section.showDuration ?
+                html`<span class="duration-text">${i18n.TimeUtilities.formatMicroSecondsAsMillisFixed(section.bounds.range)}</span> ` :
+                nothing
+          }
+          <span class="section-label-text">${section.label}</span>
+        </div>
+      </div>`;
+      // clang-format on
+    };
+
+export const DEFAULT_VIEW = (input: Input, _output: undefined, target: HTMLElement): void => {
+  const style = Directives.styleMap({
+    left: input.left ? `${input.left}px` : undefined,
+    width: input.width ? `${input.width}px` : undefined,
+    top: input.top ? `${input.top}px` : undefined,
+    maxHeight: input.maxHeight ? `${input.maxHeight}px` : undefined,
+    position: 'relative'
+  });
+  // clang-format off
+  render(
+      html`
+        <style>${timespanBreakdownOverlayStyles}</style>
+        <div style=${style} class=${input.className}>
+          ${input.sections?.map((curr, index) => {
+            return renderSection(curr, input.positions[index]);
+          })}
+        </div>`,
+      target, {container: {classes: ['devtools-timespan-breakdown-overlay']}});
+  // clang-format off
+};
+
+export class TimespanBreakdownOverlay extends UI.Widget.Widget {
+  #canvasRect: DOMRect|null = null;
+  #sections: Trace.Types.Overlays.TimespanBreakdownEntryBreakdown[]|null = null;
+  #sectionsPositions: SectionPosition[] = [];
+  #left: number|null = null;
+  #width: number|null = null;
+  #maxHeight: number|null = null;
+  #top: number|null = null;
+
+  #view: View;
+
+  constructor(element?: HTMLElement, view: View = DEFAULT_VIEW) {
+    super(element);
+    this.#view = view;
+    this.requestUpdate();
+  }
+
+  set top(top: number) {
+    this.#top = top;
+    this.requestUpdate();
+  }
+
+  set maxHeight(maxHeight: number) {
+    this.#maxHeight = maxHeight;
+    this.requestUpdate();
+  }
+
+  set width(width: number) {
+    this.#width = width;
+    this.requestUpdate();
+  }
+
+  set left(left: number) {
+    this.#left = left;
+    this.requestUpdate();
   }
 
   set isBelowEntry(isBelow: boolean) {
-    this.classList.toggle('is-below', isBelow);
+    this.element.classList.toggle('is-below', isBelow);
   }
 
   set canvasRect(rect: DOMRect|null) {
@@ -40,15 +112,24 @@ export class TimespanBreakdownOverlay extends HTMLElement {
       return;
     }
     this.#canvasRect = rect;
-    this.#render();
+    this.requestUpdate();
   }
 
-  set sections(sections: EntryBreakdown[]|null) {
+  set widths(widths: SectionPosition[]) {
+    if (widths === this.#sectionsPositions) {
+      return;
+    }
+
+    this.#sectionsPositions = widths;
+    this.requestUpdate();
+  }
+
+  set sections(sections: Trace.Types.Overlays.TimespanBreakdownEntryBreakdown[]|null) {
     if (sections === this.#sections) {
       return;
     }
     this.#sections = sections;
-    this.#render();
+    this.requestUpdate();
   }
 
   /**
@@ -58,7 +139,7 @@ export class TimespanBreakdownOverlay extends HTMLElement {
    * align the text so the label is visible as long as possible.
    */
   checkSectionLabelPositioning(): void {
-    const sections = this.#shadow.querySelectorAll<HTMLElement>('.timespan-breakdown-overlay-section');
+    const sections = this.element.querySelectorAll<HTMLElement>('.timespan-breakdown-overlay-section');
     if (!sections) {
       return;
     }
@@ -154,41 +235,26 @@ export class TimespanBreakdownOverlay extends HTMLElement {
     }
   }
 
-  renderedSections(): HTMLElement[] {
-    return Array.from(this.#shadow.querySelectorAll('.timespan-breakdown-overlay-section'));
-  }
+  override performUpdate(): void {
+    let className = 'timeline-segment-container';
 
-  #renderSection(section: EntryBreakdown): Lit.TemplateResult {
-    // clang-format off
-    return html`
-      <div class="timespan-breakdown-overlay-section">
-        <div class="timespan-breakdown-overlay-label">
-        ${section.showDuration ?
-          html`
-            <span class="duration-text">${i18n.TimeUtilities.formatMicroSecondsAsMillisFixed(section.bounds.range)}</span>
-          ` : Lit.nothing}
-          <span class="section-label-text">
-            ${section.label}
-          </span>
-        </div>
-      </div>`;
-    // clang-format on
-  }
-
-  #render(): void {
     if (this.#sections) {
-      this.classList.toggle('odd-number-of-sections', this.#sections.length % 2 === 1);
-      this.classList.toggle('even-number-of-sections', this.#sections.length % 2 === 0);
+      if(this.#sections.length % 2 === 0) {
+        className += ' even-number-of-sections';
+      } else {
+        className += ' odd-number-of-sections';
+      }
     }
-    Lit.render(html`${this.#sections?.map(this.#renderSection)}`, this.#shadow, {host: this});
+
+    this.#view({sections: this.#sections,
+      positions: this.#sectionsPositions,
+      left: this.#left,
+      width: this.#width,
+      top: this.#top,
+      maxHeight: this.#maxHeight,
+      className
+    }, undefined, this.contentElement);
+
     this.checkSectionLabelPositioning();
-  }
-}
-
-customElements.define('devtools-timespan-breakdown-overlay', TimespanBreakdownOverlay);
-
-declare global {
-  interface HTMLElementTagNameMap {
-    'devtools-timespan-breakdown-overlay': TimespanBreakdownOverlay;
   }
 }

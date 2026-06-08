@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -43,7 +43,7 @@ export class TestPlugin implements Bindings.DebuggerLanguagePlugins.DebuggerLang
   }
 
   async addRawModule(_rawModuleId: string, _symbolsURL: string, _rawModule: Chrome.DevTools.RawModule):
-      Promise<string[]> {
+      Promise<string[]|{missingSymbolFiles: string[]}> {
     return [];
   }
 

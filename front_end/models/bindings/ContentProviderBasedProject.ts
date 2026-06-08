@@ -1,32 +1,6 @@
-/*
- * Copyright (C) 2013 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2013 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 import type * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -50,14 +24,13 @@ interface UISourceCodeData {
 }
 
 export class ContentProviderBasedProject extends Workspace.Workspace.ProjectStore {
-  readonly #isServiceProjectInternal: boolean;
-  readonly #uiSourceCodeToData: WeakMap<Workspace.UISourceCode.UISourceCode, UISourceCodeData>;
+  readonly #isServiceProject: boolean;
+  readonly #uiSourceCodeToData = new WeakMap<Workspace.UISourceCode.UISourceCode, UISourceCodeData>();
   constructor(
       workspace: Workspace.Workspace.WorkspaceImpl, id: string, type: Workspace.Workspace.projectTypes,
       displayName: string, isServiceProject: boolean) {
     super(workspace, id, type, displayName);
-    this.#isServiceProjectInternal = isServiceProject;
-    this.#uiSourceCodeToData = new WeakMap();
+    this.#isServiceProject = isServiceProject;
     workspace.addProject(this);
   }
 
@@ -75,7 +48,7 @@ export class ContentProviderBasedProject extends Workspace.Workspace.ProjectStor
   }
 
   isServiceProject(): boolean {
-    return this.#isServiceProjectInternal;
+    return this.#isServiceProject;
   }
 
   async requestMetadata(uiSourceCode: Workspace.UISourceCode.UISourceCode):
@@ -111,17 +84,11 @@ export class ContentProviderBasedProject extends Workspace.Workspace.ProjectStor
   }
 
   override rename(
-      uiSourceCode: Workspace.UISourceCode.UISourceCode, newName: Platform.DevToolsPath.RawPathString,
+      _uiSourceCode: Workspace.UISourceCode.UISourceCode, _newName: Platform.DevToolsPath.RawPathString,
       callback:
           (arg0: boolean, arg1?: string|undefined, arg2?: Platform.DevToolsPath.UrlString|undefined,
            arg3?: Common.ResourceType.ResourceType|undefined) => void): void {
-    const path = uiSourceCode.url();
-    this.performRename(path, newName, (success: boolean, newName?: string) => {
-      if (success && newName) {
-        this.renameUISourceCode(uiSourceCode, newName);
-      }
-      callback(success, newName);
-    });
+    callback(false);
   }
 
   override excludeFolder(_path: Platform.DevToolsPath.UrlString): void {
@@ -147,12 +114,6 @@ export class ContentProviderBasedProject extends Workspace.Workspace.ProjectStor
   override remove(): void {
   }
 
-  performRename(
-      path: Platform.DevToolsPath.UrlString, newName: string,
-      callback: (arg0: boolean, arg1?: string|undefined) => void): void {
-    callback(false);
-  }
-
   searchInFileContent(
       uiSourceCode: Workspace.UISourceCode.UISourceCode, query: string, caseSensitive: boolean,
       isRegex: boolean): Promise<TextUtils.ContentProvider.SearchMatch[]> {
@@ -165,9 +126,9 @@ export class ContentProviderBasedProject extends Workspace.Workspace.ProjectStor
       progress: Common.Progress.Progress):
       Promise<Map<Workspace.UISourceCode.UISourceCode, TextUtils.ContentProvider.SearchMatch[]|null>> {
     const result = new Map();
-    progress.setTotalWork(filesMatchingFileQuery.length);
+    progress.totalWork = filesMatchingFileQuery.length;
     await Promise.all(filesMatchingFileQuery.map(searchInContent.bind(this)));
-    progress.done();
+    progress.done = true;
     return result;
 
     async function searchInContent(
@@ -187,17 +148,22 @@ export class ContentProviderBasedProject extends Workspace.Workspace.ProjectStor
       if (allMatchesFound) {
         result.set(uiSourceCode, matches);
       }
-      progress.incrementWorked(1);
+      ++progress.worked;
     }
   }
 
   override indexContent(progress: Common.Progress.Progress): void {
-    queueMicrotask(progress.done.bind(progress));
+    queueMicrotask(() => {
+      progress.done = true;
+    });
   }
 
   addUISourceCodeWithProvider(
-      uiSourceCode: Workspace.UISourceCode.UISourceCode, contentProvider: TextUtils.ContentProvider.ContentProvider,
-      metadata: Workspace.UISourceCode.UISourceCodeMetadata|null, mimeType: string): void {
+      uiSourceCode: Workspace.UISourceCode.UISourceCode,
+      contentProvider: TextUtils.ContentProvider.ContentProvider,
+      metadata: Workspace.UISourceCode.UISourceCodeMetadata|null,
+      mimeType: string,
+      ): void {
     this.#uiSourceCodeToData.set(uiSourceCode, {mimeType, metadata, contentProvider});
     this.addUISourceCode(uiSourceCode);
   }

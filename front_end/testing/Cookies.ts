@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,13 +25,9 @@ const cookieExpectationDefaults: CookieExpectation = {
   name: 'name',
   value: 'value',
   httpOnly: false,
-  sameSite: undefined,
   secure: false,
   session: true,
-  path: undefined,
-  domain: undefined,
   expires: null,
-  size: undefined,
   priority: Protocol.Network.CookiePriority.Medium,
   partitionKey: null,
   partitionKeyOpaque: false,

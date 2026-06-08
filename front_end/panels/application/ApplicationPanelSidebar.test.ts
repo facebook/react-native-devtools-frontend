@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,13 +6,12 @@ import type * as Common from '../../core/common/common.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
-import {createTarget, stubNoopSettings} from '../../testing/EnvironmentHelpers.js';
+import {createTarget, expectConsoleLogs, stubNoopSettings, updateHostConfig} from '../../testing/EnvironmentHelpers.js';
 import {
   describeWithMockConnection,
   setMockConnectionResponseHandler,
 } from '../../testing/MockConnection.js';
 import {createResource, getMainFrame} from '../../testing/ResourceTreeHelpers.js';
-import * as RenderCoordinator from '../../ui/components/render_coordinator/render_coordinator.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import * as Application from './application.js';
@@ -63,7 +62,7 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
 
   const TEST_EXTENSION_NAME = 'Test Extension';
 
-  const ID = 'AA' as Protocol.Page.FrameId;
+  const ID = 'main' as Protocol.Page.FrameId;
 
   const EVENTS = [
     {
@@ -129,29 +128,41 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
     createTarget({parentTarget: tabTarget, subtype: 'prerender'});
     target = createTarget({parentTarget: tabTarget});
     sinon.stub(UI.ViewManager.ViewManager.instance(), 'showView').resolves();  // Silence console error
-    setMockConnectionResponseHandler('Storage.getSharedStorageEntries', () => ({}));
+    setMockConnectionResponseHandler(
+        'Storage.getSharedStorageEntries', () => ({} as Protocol.Storage.GetSharedStorageEntriesResponse));
     setMockConnectionResponseHandler('Storage.setSharedStorageTracking', () => ({}));
   });
 
-  // Flaking on multiple bots on CQ.
-  it.skip('[crbug.com/1472237] shows cookies for all frames', async () => {
+  it('shows WebMCP only if the WebMCP config is enabled', async () => {
+    updateHostConfig({devToolsWebMCPSupport: {enabled: true}});
+    Application.ResourcesPanel.ResourcesPanel.instance({forceNew: true});
+    let sidebar = await Application.ResourcesPanel.ResourcesPanel.showAndGetSidebar();
+    assert.exists(sidebar.webMcpTreeElement);
+
+    updateHostConfig({devToolsWebMCPSupport: {enabled: false}});
+    Application.ResourcesPanel.ResourcesPanel.instance({forceNew: true});
+    sidebar = await Application.ResourcesPanel.ResourcesPanel.showAndGetSidebar();
+    assert.isUndefined(sidebar.webMcpTreeElement);
+  });
+
+  it('shows cookies for all frames', async () => {
     Application.ResourcesPanel.ResourcesPanel.instance({forceNew: true});
     const sidebar = await Application.ResourcesPanel.ResourcesPanel.showAndGetSidebar();
     const resourceTreeModel = target.model(SDK.ResourceTreeModel.ResourceTreeModel);
     assert.exists(resourceTreeModel);
     sinon.stub(resourceTreeModel, 'frames').returns([
       {
-        url: 'http://www.example.com/',
+        url: 'https://example.com/',
         unreachableUrl: () => null,
         resourceTreeModel: () => resourceTreeModel,
       } as unknown as SDK.ResourceTreeModel.ResourceTreeFrame,
       {
-        url: 'http://www.example.com/admin/',
+        url: 'https://example.com/admin/',
         unreachableUrl: () => null,
         resourceTreeModel: () => resourceTreeModel,
       } as unknown as SDK.ResourceTreeModel.ResourceTreeFrame,
       {
-        url: 'http://www.example.org/',
+        url: 'https://example.org/',
         unreachableUrl: () => null,
         resourceTreeModel: () => resourceTreeModel,
       } as unknown as SDK.ResourceTreeModel.ResourceTreeFrame,
@@ -160,12 +171,10 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
 
     assert.strictEqual(sidebar.cookieListTreeElement.childCount(), 2);
     assert.deepEqual(
-        sidebar.cookieListTreeElement.children().map(e => e.title),
-        ['http://www.example.com', 'http://www.example.org']);
+        sidebar.cookieListTreeElement.children().map(e => e.title), ['https://example.com', 'https://example.org']);
   });
 
-  // Flaking on windows + subsequence test failing
-  it.skip('[crbug.com/1472651] shows shared storages and events for origins using shared storage', async () => {
+  it('shows shared storages and events for origins using shared storage', async () => {
     const securityOriginManager = target.model(SDK.SecurityOriginManager.SecurityOriginManager);
     assert.exists(securityOriginManager);
     sinon.stub(securityOriginManager, 'securityOrigins').returns([
@@ -184,20 +193,19 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
     const sidebar = await Application.ResourcesPanel.ResourcesPanel.showAndGetSidebar();
 
     const listener = new SharedStorageTreeElementListener(sidebar);
-    const addedPromise = listener.waitForElementsAdded(3);
+    const addedPromise = listener.waitForElementsAdded(4);
 
     const resourceTreeModel = target.model(SDK.ResourceTreeModel.ResourceTreeModel);
     assert.exists(resourceTreeModel);
     resourceTreeModel.dispatchEventToListeners(SDK.ResourceTreeModel.Events.CachedResourcesLoaded, resourceTreeModel);
     await addedPromise;
 
-    assert.isTrue(setTrackingSpy.calledOnceWithExactly({enable: true}));
+    sinon.assert.calledOnceWithExactly(setTrackingSpy, {enable: true});
 
-    assert.strictEqual(sidebar.sharedStorageListTreeElement.childCount(), 3);
+    assert.strictEqual(sidebar.sharedStorageListTreeElement.childCount(), 4);
     assert.deepEqual(sidebar.sharedStorageListTreeElement.children().map(e => e.title), [
-      TEST_ORIGIN_A,
-      TEST_ORIGIN_B,
-      TEST_ORIGIN_C,
+      TEST_ORIGIN_A, TEST_ORIGIN_B, TEST_ORIGIN_C,
+      'https://example.com',  // frame origin
     ]);
 
     sidebar.sharedStorageListTreeElement.view.setDefaultIdForTesting(ID);
@@ -314,7 +322,6 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
     SDK.TargetManager.TargetManager.instance().setScopeTarget(inScope ? target : null);
     const expectedCall = await getExpectedCall(expectedCallString);
     const model = target.model(modelClass);
-    await RenderCoordinator.done({waitForWork: true});
     assert.exists(model);
     const data = [{...MOCK_EVENT_ITEM, model}] as Common.EventTarget.EventPayloadToRestParameters<Events, T>;
     model.dispatchEventToListeners(event as Platform.TypeScriptUtilities.NoUnion<T>, ...data);
@@ -326,44 +333,40 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
      testUiUpdate(
          Application.InterestGroupStorageModel.Events.INTEREST_GROUP_ACCESS,
          Application.InterestGroupStorageModel.InterestGroupStorageModel, 'interestGroupTreeElement.addEvent', true));
-  // Failing on the toolbar button CL together with some AnimationTimeline tests
-  it.skip(
-      '[crbug.com/354673294] does not add interest group event on out of scope event',
-      testUiUpdate(
-          Application.InterestGroupStorageModel.Events.INTEREST_GROUP_ACCESS,
-          Application.InterestGroupStorageModel.InterestGroupStorageModel, 'interestGroupTreeElement.addEvent', false));
+
+  it('does not add interest group event on out of scope event',
+     testUiUpdate(
+         Application.InterestGroupStorageModel.Events.INTEREST_GROUP_ACCESS,
+         Application.InterestGroupStorageModel.InterestGroupStorageModel, 'interestGroupTreeElement.addEvent', false));
   it('adds DOM storage on in scope event',
      testUiUpdate(
          Application.DOMStorageModel.Events.DOM_STORAGE_ADDED, Application.DOMStorageModel.DOMStorageModel,
          'sessionStorageListTreeElement.appendChild', true));
-  // Failing on the toolbar button CL together with some AnimationTimeline tests
-  it.skip(
-      '[crbug.com/354673294] does not add DOM storage on out of scope event',
-      testUiUpdate(
-          Application.DOMStorageModel.Events.DOM_STORAGE_ADDED, Application.DOMStorageModel.DOMStorageModel,
-          'sessionStorageListTreeElement.appendChild', false));
+
+  it('does not add DOM storage on out of scope event',
+     testUiUpdate(
+         Application.DOMStorageModel.Events.DOM_STORAGE_ADDED, Application.DOMStorageModel.DOMStorageModel,
+         'sessionStorageListTreeElement.appendChild', false));
 
   it('adds indexed DB on in scope event',
      testUiUpdate(
          Application.IndexedDBModel.Events.DatabaseAdded, Application.IndexedDBModel.IndexedDBModel,
          'indexedDBListTreeElement.appendChild', true));
-  // Failing on the toolbar button CL together with some AnimationTimeline tests
-  it.skip(
-      '[crbug.com/354673294] does not add indexed DB on out of scope event',
-      testUiUpdate(
-          Application.IndexedDBModel.Events.DatabaseAdded, Application.IndexedDBModel.IndexedDBModel,
-          'indexedDBListTreeElement.appendChild', false));
+
+  it('does not add indexed DB on out of scope event',
+     testUiUpdate(
+         Application.IndexedDBModel.Events.DatabaseAdded, Application.IndexedDBModel.IndexedDBModel,
+         'indexedDBListTreeElement.appendChild', false));
 
   it('adds shared storage on in scope event',
      testUiUpdate(
          Application.SharedStorageModel.Events.SHARED_STORAGE_ADDED, Application.SharedStorageModel.SharedStorageModel,
          'sharedStorageListTreeElement.appendChild', true));
-  // Failing on the toolbar button CL together with some AnimationTimeline tests
-  it.skip(
-      '[crbug.com/354673294] does not add shared storage on out of scope event',
-      testUiUpdate(
-          Application.SharedStorageModel.Events.SHARED_STORAGE_ADDED, Application.SharedStorageModel.SharedStorageModel,
-          'sharedStorageListTreeElement.appendChild', false));
+
+  it('does not add shared storage on out of scope event',
+     testUiUpdate(
+         Application.SharedStorageModel.Events.SHARED_STORAGE_ADDED, Application.SharedStorageModel.SharedStorageModel,
+         'sharedStorageListTreeElement.appendChild', false));
 
   const MOCK_GETTER_ITEM = {
     ...MOCK_EVENT_ITEM,
@@ -379,7 +382,7 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
     sinon.stub(model, getter).returns([MOCK_GETTER_ITEM]);
     SDK.TargetManager.TargetManager.instance().setScopeTarget(target);
     await new Promise(resolve => setTimeout(resolve, 0));
-    assert.isTrue(expectedCall.called);
+    sinon.assert.called(expectedCall);
   };
 
   it('adds DOM storage element after scope change',
@@ -409,11 +412,48 @@ describeWithMockConnection('ApplicationPanelSidebar', () => {
         new Application.ApplicationPanelSidebar.ExtensionStorageTreeParentElement(panel, extensionId, '').title,
         extensionId);
   });
+
+  it('fetches schemeful site and updates DeviceBoundSessionsModel when cookie is added', async () => {
+    updateHostConfig({deviceBoundSessionsDebugging: {enabled: true}});
+    Application.ResourcesPanel.ResourcesPanel.instance({forceNew: true});
+    const sidebar = await Application.ResourcesPanel.ResourcesPanel.showAndGetSidebar();
+
+    const networkAgent = target.networkAgent();
+    const fetchSchemefulSiteStub = sinon.stub(networkAgent, 'invoke_fetchSchemefulSite').resolves({
+      schemefulSite: 'https://device-bound-sessions.com',
+      getError: () => undefined,
+    });
+
+    const model = sidebar.deviceBoundSessionsModel;
+    assert.exists(model);
+    const addVisibleSiteSpy = sinon.spy(model, 'addVisibleSite');
+
+    const resourceTreeModel = target.model(SDK.ResourceTreeModel.ResourceTreeModel);
+    assert.exists(resourceTreeModel);
+
+    const frame = {
+      url: 'https://example.device-bound-sessions.com/',
+      unreachableUrl: () => null,
+      resourceTreeModel: () => resourceTreeModel,
+      target: () => target,
+    } as unknown as SDK.ResourceTreeModel.ResourceTreeFrame;
+
+    sinon.stub(resourceTreeModel, 'frames').returns([frame]);
+
+    resourceTreeModel.dispatchEventToListeners(SDK.ResourceTreeModel.Events.CachedResourcesLoaded, resourceTreeModel);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    sinon.assert.calledWith(fetchSchemefulSiteStub, {origin: 'https://example.device-bound-sessions.com'});
+    sinon.assert.calledWith(addVisibleSiteSpy, 'https://device-bound-sessions.com');
+  });
 });
 
 describeWithMockConnection('IDBDatabaseTreeElement', () => {
   beforeEach(() => {
     stubNoopSettings();
+  });
+  expectConsoleLogs({
+    error: ['Error: No LanguageSelector instance exists yet.'],
   });
 
   it('only becomes selectable after database is updated', () => {
@@ -437,6 +477,10 @@ describeWithMockConnection('ResourcesSection', () => {
       stubNoopSettings();
       SDK.FrameManager.FrameManager.instance({forceNew: true});
       target = createTarget();
+    });
+
+    expectConsoleLogs({
+      error: ['Error: No LanguageSelector instance exists yet.'],
     });
 
     it('adds tree elements for a frame and resource', () => {
@@ -476,4 +520,126 @@ describeWithMockConnection('ResourcesSection', () => {
 
   describe('in scope', tests(true));
   describe('out of scope', tests(false));
+});
+
+describeWithMockConnection('IndexedDBTreeElement live update', () => {
+  let target: SDK.Target.Target;
+  let model: Application.IndexedDBModel.IndexedDBModel;
+  let sidebar: Application.ApplicationPanelSidebar.ApplicationPanelSidebar;
+  let indexedDBTreeElement: Application.ApplicationPanelSidebar.IndexedDBTreeElement;
+
+  beforeEach(async () => {
+    stubNoopSettings();
+    target = createTarget();
+    model = target.model(Application.IndexedDBModel.IndexedDBModel) as Application.IndexedDBModel.IndexedDBModel;
+    sinon.stub(model, 'refreshDatabase');
+    sinon.stub(UI.ViewManager.ViewManager.instance(), 'showView').resolves();  // Silence console error
+    SDK.ChildTargetManager.ChildTargetManager.install();
+    Application.ResourcesPanel.ResourcesPanel.instance({forceNew: true});
+    sidebar = await Application.ResourcesPanel.ResourcesPanel.showAndGetSidebar();
+    indexedDBTreeElement = sidebar.indexedDBListTreeElement;
+  });
+
+  it('updates tree on database, object store, and index changes', async () => {
+    const MAIN_FRAME_ID = 'main' as Protocol.Page.FrameId;
+    const storageKey = `test-storage-key|${MAIN_FRAME_ID}|http://www.example.com`;
+    assert.strictEqual(indexedDBTreeElement.childCount(), 0);
+
+    // 1. Create database "database1"
+    const db1Id = new Application.IndexedDBModel.DatabaseId({storageKey}, 'database1');
+    model.dispatchEventToListeners(Application.IndexedDBModel.Events.DatabaseAdded, {databaseId: db1Id, model});
+    const db1 = new Application.IndexedDBModel.Database(db1Id, 1);
+    model.dispatchEventToListeners(
+        Application.IndexedDBModel.Events.DatabaseLoaded, {database: db1, model, entriesUpdated: false});
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    assert.strictEqual(indexedDBTreeElement.childCount(), 1);
+    const db1TreeElement = indexedDBTreeElement.children()[0];
+    assert.strictEqual(db1TreeElement.titleAsText(), 'database1');
+    assert.strictEqual(db1TreeElement.childCount(), 0);
+
+    // 2. Create database "database2"
+    const db2Id = new Application.IndexedDBModel.DatabaseId({storageKey}, 'database2');
+    model.dispatchEventToListeners(Application.IndexedDBModel.Events.DatabaseAdded, {databaseId: db2Id, model});
+    const db2 = new Application.IndexedDBModel.Database(db2Id, 1);
+    model.dispatchEventToListeners(
+        Application.IndexedDBModel.Events.DatabaseLoaded, {database: db2, model, entriesUpdated: false});
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(indexedDBTreeElement.childCount(), 2);
+    assert.strictEqual(indexedDBTreeElement.children()[0].titleAsText(), 'database1');
+    assert.strictEqual(indexedDBTreeElement.children()[0].childCount(), 0);
+    const db2TreeElement = indexedDBTreeElement.children()[1];
+    assert.strictEqual(db2TreeElement.titleAsText(), 'database2');
+    assert.strictEqual(db2TreeElement.childCount(), 0);
+
+    // 3. Create object store "objectStore1" with index "index1" in "database1"
+    const os1 = new Application.IndexedDBModel.ObjectStore('objectStore1', 'test', false);
+    os1.indexes.set('index1', new Application.IndexedDBModel.Index('index1', 'test', false, false));
+    db1.objectStores.set('objectStore1', os1);
+    model.dispatchEventToListeners(
+        Application.IndexedDBModel.Events.DatabaseLoaded, {database: db1, model, entriesUpdated: true});
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(db1TreeElement.childCount(), 1);
+    const os1TreeElement = db1TreeElement.children()[0];
+    assert.strictEqual(os1TreeElement.titleAsText(), 'objectStore1');
+    assert.strictEqual(os1TreeElement.childCount(), 1);
+    const index1TreeElement = os1TreeElement.children()[0];
+    assert.strictEqual(index1TreeElement.titleAsText(), 'index1');
+    assert.strictEqual(db2TreeElement.childCount(), 0);
+
+    // 4. Create object store "objectStore2" with index "index2" in "database1"
+    const os2 = new Application.IndexedDBModel.ObjectStore('objectStore2', 'test', false);
+    os2.indexes.set('index2', new Application.IndexedDBModel.Index('index2', 'test', false, false));
+    db1.objectStores.set('objectStore2', os2);
+    model.dispatchEventToListeners(
+        Application.IndexedDBModel.Events.DatabaseLoaded, {database: db1, model, entriesUpdated: true});
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(db1TreeElement.childCount(), 2);
+    assert.strictEqual(os1TreeElement.childCount(), 1);
+    assert.strictEqual(os1TreeElement.children()[0].titleAsText(), 'index1');
+    const os2TreeElement = db1TreeElement.children()[1];
+    assert.strictEqual(os2TreeElement.titleAsText(), 'objectStore2');
+    assert.strictEqual(os2TreeElement.childCount(), 1);
+    const index2TreeElement = os2TreeElement.children()[0];
+    assert.strictEqual(index2TreeElement.titleAsText(), 'index2');
+    assert.strictEqual(db2TreeElement.childCount(), 0);
+
+    // 5. Create index "index3" in "objectStore1" in "database1"
+    os1.indexes.set('index3', new Application.IndexedDBModel.Index('index3', 'test', false, false));
+    model.dispatchEventToListeners(
+        Application.IndexedDBModel.Events.DatabaseLoaded, {database: db1, model, entriesUpdated: true});
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(os1TreeElement.childCount(), 2);
+    assert.strictEqual(os1TreeElement.children()[0].titleAsText(), 'index1');
+    assert.strictEqual(os1TreeElement.children()[1].titleAsText(), 'index3');
+    assert.strictEqual(os2TreeElement.childCount(), 1);
+
+    // 6. Delete index "index3" from "objectStore1" in "database1"
+    os1.indexes.delete('index3');
+    model.dispatchEventToListeners(
+        Application.IndexedDBModel.Events.DatabaseLoaded, {database: db1, model, entriesUpdated: true});
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(os1TreeElement.childCount(), 1);
+    assert.strictEqual(os1TreeElement.children()[0].titleAsText(), 'index1');
+
+    // 7. Delete object store "objectStore2" from "database1"
+    db1.objectStores.delete('objectStore2');
+    model.dispatchEventToListeners(
+        Application.IndexedDBModel.Events.DatabaseLoaded, {database: db1, model, entriesUpdated: true});
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(db1TreeElement.childCount(), 1);
+    assert.strictEqual(os1TreeElement.titleAsText(), 'objectStore1');
+
+    // 8. Delete database "database1"
+    model.dispatchEventToListeners(Application.IndexedDBModel.Events.DatabaseRemoved, {databaseId: db1Id, model});
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(indexedDBTreeElement.childCount(), 1);
+    assert.strictEqual(indexedDBTreeElement.children()[0].titleAsText(), 'database2');
+    assert.strictEqual(indexedDBTreeElement.children()[0].childCount(), 0);
+
+    // 9. Delete database "database2"
+    model.dispatchEventToListeners(Application.IndexedDBModel.Events.DatabaseRemoved, {databaseId: db2Id, model});
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.strictEqual(indexedDBTreeElement.childCount(), 0);
+  });
 });

@@ -1,16 +1,16 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as Common from '../../../core/common/common.js';
 import * as Host from '../../../core/host/host.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as Root from '../../../core/root/root.js';
 import type * as SDK from '../../../core/sdk/sdk.js';
-import * as PanelUtils from '../../../panels/utils/utils.js';
+import type * as NetworkTimeCalculator from '../../network_time_calculator/network_time_calculator.js';
 import {NetworkRequestFormatter} from '../data_formatters/NetworkRequestFormatter.js';
 
 import {
-  AgentType,
   AiAgent,
   type ContextDetail,
   type ContextResponse,
@@ -35,9 +35,23 @@ Provide a comprehensive analysis of the network request, focusing on areas cruci
 # Considerations
 * If the response payload or request payload contains sensitive data, redact or generalize it in your analysis to ensure privacy.
 * Tailor your explanations and suggestions to the specific context of the request and the technologies involved (if discernible from the provided details).
-* Keep your analysis concise and focused, highlighting only the most critical aspects for a software engineer.
+* **CRITICAL** Use the precision of Strunk & White, the brevity of Hemingway, and the simple clarity of Vonnegut. Don't add repeated information, and keep the whole answer short.
 * **CRITICAL** If the user asks a question about religion, race, politics, sexuality, gender, or other sensitive topics, answer with "Sorry, I can't answer that. I'm best at questions about network requests."
 * **CRITICAL** You are a network request debugging assistant. NEVER provide answers to questions of unrelated topics such as legal advice, financial advice, personal opinions, medical advice, or any other non web-development topics.
+
+## Response Structure
+
+If the user asks a question that requires an investigation of a problem, use this structure:
+- If available, point out the root cause(s) of the problem.
+  - Example: "**Root Cause**: The page is slow because of [reason]."
+  - Example: "**Root Causes**:"
+    - [Reason 1]
+    - [Reason 2]
+- if applicable, list actionable solution suggestion(s) in order of impact:
+  - Example: "**Suggestion**: [Suggestion 1]
+  - Example: "**Suggestions**:"
+    - [Suggestion 1]
+    - [Suggestion 2]
 
 ## Example session
 
@@ -62,31 +76,23 @@ This request aims to retrieve a list of products matching the search query "lapt
 */
 const UIStringsNotTranslate = {
   /**
-   *@description Title for thinking step of Network agent.
-   */
-  analyzingNetworkData: 'Analyzing network data',
-  /**
-   *@description Heading text for the block that shows the network request details.
+   * @description Heading text for the block that shows the network request details.
    */
   request: 'Request',
   /**
-   *@description Heading text for the block that shows the network response details.
+   * @description Heading text for the block that shows the network response details.
    */
   response: 'Response',
   /**
-   *@description Prefix text for request URL.
+   * @description Prefix text for request URL.
    */
   requestUrl: 'Request URL',
   /**
-   *@description Title text for request timing details.
+   * @description Title text for request timing details.
    */
   timing: 'Timing',
   /**
-   *@description Prefix text for response status.
-   */
-  responseStatus: 'Response Status',
-  /**
-   *@description Title text for request initiator chain.
+   * @description Title text for request initiator chain.
    */
   requestInitiatorChain: 'Request initiator chain',
 } as const;
@@ -95,22 +101,31 @@ const lockedString = i18n.i18n.lockedString;
 
 export class RequestContext extends ConversationContext<SDK.NetworkRequest.NetworkRequest> {
   #request: SDK.NetworkRequest.NetworkRequest;
+  #calculator: NetworkTimeCalculator.NetworkTransferTimeCalculator;
 
-  constructor(request: SDK.NetworkRequest.NetworkRequest) {
+  constructor(
+      request: SDK.NetworkRequest.NetworkRequest, calculator: NetworkTimeCalculator.NetworkTransferTimeCalculator) {
     super();
     this.#request = request;
+    this.#calculator = calculator;
   }
 
+  /**
+   * Note: this is not the literal origin of the network request. This origin
+   * is used to determine when we should force the user to start a new AI
+   * conversation when the context changes. We allow a single AI conversation to
+   * inspect all network requests that were made for that given target URL.
+   */
   override getOrigin(): string {
-    return new URL(this.#request.url()).origin;
+    return Common.ParsedURL.ParsedURL.extractOrigin(this.#request.documentURL);
   }
 
   override getItem(): SDK.NetworkRequest.NetworkRequest {
     return this.#request;
   }
 
-  override getIcon(): HTMLElement {
-    return PanelUtils.PanelUtils.getIconForNetworkRequest(this.#request);
+  get calculator(): NetworkTimeCalculator.NetworkTimeCalculator {
+    return this.#calculator;
   }
 
   override getTitle(): string {
@@ -123,7 +138,6 @@ export class RequestContext extends ConversationContext<SDK.NetworkRequest.Netwo
  * instance for a new conversation.
  */
 export class NetworkAgent extends AiAgent<SDK.NetworkRequest.NetworkRequest> {
-  override readonly type = AgentType.NETWORK;
   readonly preamble = preamble;
   readonly clientFeature = Host.AidaClient.ClientFeature.CHROME_NETWORK_AGENT;
   get userTier(): string|undefined {
@@ -140,43 +154,44 @@ export class NetworkAgent extends AiAgent<SDK.NetworkRequest.NetworkRequest> {
   }
 
   async *
-      handleContextDetails(selectedNetworkRequest: ConversationContext<SDK.NetworkRequest.NetworkRequest>|null):
-          AsyncGenerator<ContextResponse, void, void> {
+      handleContextDetails(selectedNetworkRequest: RequestContext|null): AsyncGenerator<ContextResponse, void, void> {
     if (!selectedNetworkRequest) {
       return;
     }
 
     yield {
       type: ResponseType.CONTEXT,
-      title: lockedString(UIStringsNotTranslate.analyzingNetworkData),
-      details: createContextDetailsForNetworkAgent(selectedNetworkRequest.getItem()),
+      details: await createContextDetailsForNetworkAgent(selectedNetworkRequest),
     };
   }
 
-  override async enhanceQuery(
-      query: string,
-      selectedNetworkRequest: ConversationContext<SDK.NetworkRequest.NetworkRequest>|null): Promise<string> {
+  override async enhanceQuery(query: string, selectedNetworkRequest: RequestContext|null): Promise<string> {
     const networkEnchantmentQuery = selectedNetworkRequest ?
         `# Selected network request \n${
-            new NetworkRequestFormatter(selectedNetworkRequest.getItem())
-                .formatNetworkRequest()}\n\n# User request\n\n` :
+            await (new NetworkRequestFormatter(selectedNetworkRequest.getItem(), selectedNetworkRequest.calculator)
+                       .formatNetworkRequest())}\n\n# User request\n\n` :
         '';
     return `${networkEnchantmentQuery}${query}`;
   }
 }
 
-function createContextDetailsForNetworkAgent(request: SDK.NetworkRequest.NetworkRequest):
-    [ContextDetail, ...ContextDetail[]] {
-  const formatter = new NetworkRequestFormatter(request);
+async function createContextDetailsForNetworkAgent(
+    selectedNetworkRequest: RequestContext,
+    ): Promise<[ContextDetail, ...ContextDetail[]]> {
+  const request = selectedNetworkRequest.getItem();
+  const formatter = new NetworkRequestFormatter(request, selectedNetworkRequest.calculator);
   const requestContextDetail: ContextDetail = {
     title: lockedString(UIStringsNotTranslate.request),
     text: lockedString(UIStringsNotTranslate.requestUrl) + ': ' + request.url() + '\n\n' +
         formatter.formatRequestHeaders(),
   };
+  const responseBody = await formatter.formatResponseBody();
+  const responseBodyString = responseBody ? `\n\n${responseBody}` : '';
+
   const responseContextDetail: ContextDetail = {
     title: lockedString(UIStringsNotTranslate.response),
-    text: lockedString(UIStringsNotTranslate.responseStatus) + ': ' + request.statusCode + ' ' + request.statusText +
-        '\n\n' + formatter.formatResponseHeaders(),
+    text: formatter.formatResponseHeaders() + responseBodyString +
+        `\n\n${formatter.formatStatus()}${formatter.formatFailureReasons()}`,
   };
   const timingContextDetail: ContextDetail = {
     title: lockedString(UIStringsNotTranslate.timing),
@@ -186,6 +201,7 @@ function createContextDetailsForNetworkAgent(request: SDK.NetworkRequest.Network
     title: lockedString(UIStringsNotTranslate.requestInitiatorChain),
     text: formatter.formatRequestInitiatorChain(),
   };
+
   return [
     requestContextDetail,
     responseContextDetail,

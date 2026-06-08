@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -25,30 +25,37 @@ async function captureScreenshot(): Promise<Screenshot> {
 
 export async function resizeScreenshot(data: Screenshot): Promise<Screenshot> {
   const img = new Image();
-  const promise = new Promise(resolve => {
+  const imageLoaded = new Promise(resolve => {
     img.onload = resolve;
   });
   img.src = data;
-  await promise;
+  await imageLoaded;
 
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
+  const aspectRatio = img.width / img.height;
+  const canvas = new OffscreenCanvas(
+      SCREENSHOT_WIDTH,
+      Math.min(
+          SCREENSHOT_MAX_HEIGHT,
+          SCREENSHOT_WIDTH / aspectRatio,
+          ));
+  const context = canvas.getContext('2d', {willReadFrequently: true});
   if (!context) {
     throw new Error('Could not create context.');
   }
-  const aspectRatio = img.width / img.height;
-  canvas.width = SCREENSHOT_WIDTH;
-  canvas.height = Math.min(
-      SCREENSHOT_MAX_HEIGHT,
-      SCREENSHOT_WIDTH / aspectRatio,
-  );
   const bitmap = await createImageBitmap(img, {
     resizeWidth: SCREENSHOT_WIDTH,
     resizeQuality: 'high',
   });
   context.drawImage(bitmap, 0, 0);
 
-  return canvas.toDataURL('image/png') as Screenshot;
+  const blob = await canvas.convertToBlob({type: 'image/png'});
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+  return dataUrl as Screenshot;
 }
 
 export async function takeScreenshot(): Promise<Screenshot> {

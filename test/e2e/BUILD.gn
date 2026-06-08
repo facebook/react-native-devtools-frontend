@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -15,9 +15,11 @@ group("e2e") {
 
 node_ts_library("tests") {
   deps = [
+    "../conductor:implementation",
     "ai_assistance",
     "animations",
     "application",
+    "assertion",
     "changes",
     "console",
     "coverage",
@@ -28,6 +30,7 @@ node_ts_library("tests") {
     "extensions",
     "host",
     "inline_editor",
+    "inspector",
     "issues",
     "layers",
     "lighthouse",
@@ -46,7 +49,9 @@ node_ts_library("tests") {
     "settings",
     "snippets",
     "sources",
+    "targets",
     "throttling",
+    "webaudio",
   ]
   sources = [ "mocharc.ts" ]
 }

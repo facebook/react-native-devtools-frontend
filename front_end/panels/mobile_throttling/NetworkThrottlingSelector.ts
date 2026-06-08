@@ -1,86 +1,361 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
+import * as CrUXManager from '../../models/crux-manager/crux-manager.js';
+import * as UI from '../../ui/legacy/legacy.js';
+import * as Lit from '../../ui/lit/lit.js';
+import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
+import * as PanelsCommon from '../common/common.js';
 
-import {ThrottlingPresets, type NetworkThrottlingConditionsGroup} from './ThrottlingPresets.js';
+import {ThrottlingManager} from './ThrottlingManager.js';
+import type {NetworkThrottlingConditionsGroup} from './ThrottlingPresets.js';
+
+const {render, html, Directives} = Lit;
 
 const UIStrings = {
   /**
-   *@description Text to indicate something is not enabled
+   * @description Text to indicate something is not enabled
    */
   disabled: 'Disabled',
   /**
-   *@description Title for a group of configuration options
+   * @description Title for a group of configuration options
    */
   presets: 'Presets',
   /**
-   *@description Text in Network Throttling Selector of the Network panel
+   * @description Text in Network Throttling Selector of the Network panel
    */
   custom: 'Custom',
+  /**
+   * @description  Title for a network throttling group containing the request blocking option
+   */
+  blockingGroup: 'Blocking',
+  /**
+   *@description Text with two placeholders separated by a colon
+   *@example {Node removed} PH1
+   *@example {div#id1} PH2
+   */
+  sS: '{PH1}: {PH2}',
+  /**
+   *@description Accessibility label for custom add network throttling option
+   *@example {Custom} PH1
+   */
+  addS: 'Add {PH1}',
+  /**
+   *@description Text in Throttling Manager of the Network panel
+   */
+  add: 'Add…',
+  /**
+   * @description Text label for a selection box showing that a specific option is recommended for CPU or Network throttling.
+   * @example {Fast 4G} PH1
+   * @example {4x slowdown} PH1
+   */
+  recommendedThrottling: '{PH1} – recommended',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/mobile_throttling/NetworkThrottlingSelector.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-export class NetworkThrottlingSelector {
-  private populateCallback: (arg0: NetworkThrottlingConditionsGroup[]) => Array<SDK.NetworkManager.Conditions|null>;
-  private readonly selectCallback: (arg0: number) => void;
-  private readonly customNetworkConditionsSetting: Common.Settings.Setting<SDK.NetworkManager.Conditions[]>;
-  private options!: Array<SDK.NetworkManager.Conditions|null>;
+
+interface ViewInput {
+  recommendedConditions: SDK.NetworkManager.ThrottlingConditions|null;
+  selectedConditions: SDK.NetworkManager.ThrottlingConditions|undefined;
+  throttlingGroups: NetworkThrottlingConditionsGroup[];
+  customConditionsGroup: NetworkThrottlingConditionsGroup;
+  jslogContext: string|undefined;
+  title: string|undefined;
+  disabled: boolean;
+  onSelect: (conditions: SDK.NetworkManager.ThrottlingConditions) => void;
+  onAddCustomConditions: () => void;
+}
+export type ViewFunction = (input: ViewInput, output: object, target: HTMLSelectElement) => void;
+
+export const DEFAULT_VIEW: ViewFunction = (input, output, target) => {
+  // The title is usually an i18nLazyString except for custom values that are stored in the local storage in the form of a string.
+  const title = (conditions: SDK.NetworkManager.ThrottlingConditions): string =>
+      typeof conditions.title === 'function' ? conditions.title() : conditions.title;
+  const jslog = (group: NetworkThrottlingConditionsGroup, condition: SDK.NetworkManager.ThrottlingConditions): string =>
+      `${
+          VisualLogging
+              .item(Platform.StringUtilities.toKebabCase(
+                  ('i18nTitleKey' in condition && condition.i18nTitleKey) || title(condition)))
+              .track({click: true})}`;
+  const optionsMap = new WeakMap<HTMLOptionElement, SDK.NetworkManager.ThrottlingConditions>();
+  let selectedConditions = input.selectedConditions;
+  function onSelect(event: Event): void {
+    const element = (event.target as HTMLSelectElement | null);
+    if (!element) {
+      return;
+    }
+    const option = element.selectedOptions[0];
+    if (!option) {
+      return;
+    }
+    if (option === element.options[element.options.length - 1]) {
+      input.onAddCustomConditions();
+      event.consume(true);
+      if (selectedConditions) {
+        element.value = title(selectedConditions);
+      }
+    } else {
+      const conditions = optionsMap.get(option);
+      if (conditions) {
+        selectedConditions = conditions;
+        input.onSelect(conditions);
+      }
+    }
+  }
+
+  render(
+      // clang-format off
+    html`${input.throttlingGroups.map(
+          group =>
+          html`<optgroup
+            label=${group.title}>
+            ${group.items.map(condition => html`<option
+              ${Directives.ref(option => option && optionsMap.set(option as HTMLOptionElement, condition))}
+              ?selected=${selectedConditions ?
+                  SDK.NetworkManager.networkConditionsEqual(condition, selectedConditions) :
+                  (group === input.throttlingGroups[0])}
+              value=${title(condition)}
+              aria-label=${i18nString(UIStrings.sS, {PH1: group.title, PH2: title(condition)})}
+              jslog=${jslog(group, condition)}>
+                ${condition === input.recommendedConditions ?
+                  i18nString(UIStrings.recommendedThrottling, {PH1: title(condition)}):
+                  title(condition)}
+            </option>`)}
+        </optgroup>`)}
+        <optgroup label=${input.customConditionsGroup.title}>
+          ${input.customConditionsGroup.items.map(condition => html`<option
+              ${Directives.ref(option => option && optionsMap.set(option as HTMLOptionElement, condition))}
+              ?selected=${selectedConditions && SDK.NetworkManager.networkConditionsEqual(condition, selectedConditions)}
+              value=${title(condition)}
+              aria-label=${i18nString(UIStrings.sS, {PH1: input.customConditionsGroup.title, PH2: title(condition)})}
+              jslog=${VisualLogging.item('custom-network-throttling-item').track({click: true})}>
+                ${condition === input.recommendedConditions ?
+                  i18nString(UIStrings.recommendedThrottling, {PH1: title(condition)}):
+                  title(condition)}
+          </option>`)}
+          <option
+            value=${i18nString(UIStrings.add)}
+            aria-label=${i18nString(UIStrings.addS, {PH1: input.customConditionsGroup.title})}
+            jslog=${VisualLogging.action('add').track({click: true})}>
+              ${i18nString(UIStrings.add)}
+          </option>
+        </optgroup>`,  // clang-format on
+      target, {
+        container: {
+          listeners: {change: onSelect},
+          attributes: {
+            disabled: input.disabled,
+            'aria-label': input.title,
+            jslog: `${VisualLogging.dropDown(input.jslogContext).track({change: true})}`
+          }
+        }
+      });
+};
+
+export const enum Events {
+  CONDITIONS_CHANGED = 'ConditionsChanged',
+}
+
+export interface EventTypes {
+  [Events.CONDITIONS_CHANGED]: SDK.NetworkManager.ThrottlingConditions;
+}
+
+export class NetworkThrottlingSelect extends Common.ObjectWrapper.eventMixin<EventTypes, typeof UI.Widget.Widget>(
+    UI.Widget.Widget) {
+  #recommendedConditions: SDK.NetworkManager.Conditions|null = null;
+  #jslogContext?: string;
+  #currentConditions: SDK.NetworkManager.ThrottlingConditions|undefined;
+  #title?: string;
+  readonly #view: ViewFunction;
+  #variant: NetworkThrottlingSelect.Variant = NetworkThrottlingSelect.Variant.GLOBAL_CONDITIONS;
+  #disabled = false;
+
+  static createForGlobalConditions(element: HTMLElement, title: string): NetworkThrottlingSelect {
+    const selectElement = element.createChild('select');
+    const select = new NetworkThrottlingSelect(selectElement, {title});
+    select.bindToGlobalConditions = true;
+    select.show(element, undefined, /* suppressOrphanWidgetError= */ true);
+    select.performUpdate();
+
+    return select;
+  }
 
   constructor(
-      populateCallback: (arg0: NetworkThrottlingConditionsGroup[]) => Array<SDK.NetworkManager.Conditions|null>,
-      selectCallback: (arg0: number) => void,
-      customNetworkConditionsSetting: Common.Settings.Setting<SDK.NetworkManager.Conditions[]>) {
-    this.populateCallback = populateCallback;
-    this.selectCallback = selectCallback;
-    this.customNetworkConditionsSetting = customNetworkConditionsSetting;
-    this.customNetworkConditionsSetting.addChangeListener(this.populateOptions, this);
-    SDK.NetworkManager.MultitargetNetworkManager.instance().addEventListener(
-        SDK.NetworkManager.MultitargetNetworkManager.Events.CONDITIONS_CHANGED, () => {
-          this.networkConditionsChanged();
-        }, this);
-    this.populateOptions();
+      element?: HTMLElement, options: {
+        title?: string,
+        jslogContext?: string,
+        currentConditions?: SDK.NetworkManager.Conditions,
+        includeBlocking?: true,
+      } = {},
+      view = DEFAULT_VIEW) {
+    super(element);
+    SDK.NetworkManager.customUserNetworkConditionsSetting().addChangeListener(this.requestUpdate, this);
+    this.#jslogContext = options.jslogContext;
+    this.#currentConditions = options.currentConditions;
+    this.#title = options.title;
+    this.#view = view;
+
+    this.performUpdate();
   }
 
-  revealAndUpdate(): void {
-    void Common.Revealer.reveal(this.customNetworkConditionsSetting);
-    this.networkConditionsChanged();
+  get disabled(): boolean {
+    return this.#disabled;
+  }
+  set disabled(disabled: boolean) {
+    this.#disabled = disabled;
+    this.requestUpdate();
   }
 
-  optionSelected(conditions: SDK.NetworkManager.Conditions): void {
-    SDK.NetworkManager.MultitargetNetworkManager.instance().setNetworkConditions(conditions);
+  get recommendedConditions(): SDK.NetworkManager.Conditions|null {
+    return this.#recommendedConditions;
+  }
+  set recommendedConditions(recommendedConditions: SDK.NetworkManager.Conditions|null) {
+    this.#recommendedConditions = recommendedConditions;
+    this.requestUpdate();
   }
 
-  private populateOptions(): void {
-    const disabledGroup = {title: i18nString(UIStrings.disabled), items: [SDK.NetworkManager.NoThrottlingConditions]};
-    const presetsGroup = {title: i18nString(UIStrings.presets), items: ThrottlingPresets.networkPresets};
-    const customGroup = {title: i18nString(UIStrings.custom), items: this.customNetworkConditionsSetting.get()};
-    this.options = this.populateCallback([disabledGroup, presetsGroup, customGroup]);
-    if (!this.networkConditionsChanged()) {
-      for (let i = this.options.length - 1; i >= 0; i--) {
-        if (this.options[i]) {
-          this.optionSelected(this.options[i] as SDK.NetworkManager.Conditions);
-          break;
+  get currentConditions(): SDK.NetworkManager.ThrottlingConditions|undefined {
+    return this.#currentConditions;
+  }
+  set currentConditions(currentConditions: SDK.NetworkManager.ThrottlingConditions|undefined) {
+    this.#currentConditions = currentConditions;
+    this.requestUpdate();
+  }
+
+  get jslogContext(): string|undefined {
+    return this.#jslogContext;
+  }
+  set jslogContext(jslogContext: string|undefined) {
+    this.#jslogContext = jslogContext;
+    this.requestUpdate();
+  }
+
+  #onConditionsChanged =
+      (event: Common.EventTarget.EventTargetEvent<SDK.NetworkManager.ThrottlingConditions>): void => {
+        const conditions = event.data;
+        if (!('block' in conditions)) {
+          SDK.NetworkManager.MultitargetNetworkManager.instance().setNetworkConditions(conditions);
         }
-      }
+      };
+
+  #onGlobalConditionsChanged = (): void => {
+    this.currentConditions = SDK.NetworkManager.MultitargetNetworkManager.instance().networkConditions();
+  };
+
+  #updateRecommendation = (): void => {
+    const cruxManager = CrUXManager.CrUXManager.instance();
+    const roundTripTimeMetricData = cruxManager.getSelectedFieldMetricData('round_trip_time');
+    this.recommendedConditions = PanelsCommon.ThrottlingUtils.getRecommendedNetworkConditions(roundTripTimeMetricData);
+  };
+
+  set bindToGlobalConditions(bind: boolean) {
+    const cruxManager = CrUXManager.CrUXManager.instance();
+    const multitargetNetworkManager = SDK.NetworkManager.MultitargetNetworkManager.instance();
+
+    if (bind) {
+      this.#jslogContext = SDK.NetworkManager.activeNetworkThrottlingKeySetting().name;
+      ThrottlingManager.instance();  // Instantiate the throttling manager to connect network manager with the setting
+      this.#currentConditions = multitargetNetworkManager.networkConditions();
+
+      this.addEventListener(Events.CONDITIONS_CHANGED, this.#onConditionsChanged);
+      multitargetNetworkManager.addEventListener(
+          SDK.NetworkManager.MultitargetNetworkManager.Events.CONDITIONS_CHANGED, this.#onGlobalConditionsChanged);
+
+      // Subscribe to CrUX field data changes to show recommended throttling
+      // presets based on real-user RTT data.
+      cruxManager.addEventListener(CrUXManager.Events.FIELD_DATA_CHANGED, this.#updateRecommendation);
+      this.#updateRecommendation();
+    } else {
+      this.removeEventListener(Events.CONDITIONS_CHANGED, this.#onConditionsChanged);
+      multitargetNetworkManager.removeEventListener(
+          SDK.NetworkManager.MultitargetNetworkManager.Events.CONDITIONS_CHANGED, this.#onGlobalConditionsChanged);
+      cruxManager.removeEventListener(CrUXManager.Events.FIELD_DATA_CHANGED, this.#updateRecommendation);
     }
+
+    this.requestUpdate();
   }
 
-  /**
-   * returns false if selected condition no longer exists
-   */
-  private networkConditionsChanged(): boolean {
-    const value = SDK.NetworkManager.MultitargetNetworkManager.instance().networkConditions();
-    for (let index = 0; index < this.options.length; ++index) {
-      const option = this.options[index];
-      if (option && SDK.NetworkManager.networkConditionsEqual(value, option)) {
-        this.selectCallback(index);
-        return true;
-      }
+  get variant(): NetworkThrottlingSelect.Variant {
+    return this.#variant;
+  }
+  set variant(variant: NetworkThrottlingSelect.Variant) {
+    this.#variant = variant;
+    this.requestUpdate();
+  }
+
+  get title(): string|undefined {
+    return this.#title;
+  }
+
+  set title(title: string|undefined) {
+    this.#title = title;
+    this.requestUpdate();
+  }
+
+  override performUpdate(): void {
+    const customNetworkConditionsSetting = SDK.NetworkManager.customUserNetworkConditionsSetting();
+    const customNetworkConditions = customNetworkConditionsSetting.get();
+    const onAddCustomConditions = (): void => {
+      void Common.Revealer.reveal(SDK.NetworkManager.customUserNetworkConditionsSetting());
+    };
+
+    const onSelect = (conditions: SDK.NetworkManager.ThrottlingConditions): void => {
+      this.dispatchEventToListeners(Events.CONDITIONS_CHANGED, conditions);
+    };
+
+    const throttlingGroups: NetworkThrottlingConditionsGroup[] = [];
+
+    switch (this.#variant) {
+      case NetworkThrottlingSelect.Variant.GLOBAL_CONDITIONS:
+        throttlingGroups.push(
+            {title: i18nString(UIStrings.disabled), items: [SDK.NetworkManager.NoThrottlingConditions]}, {
+              title: i18nString(UIStrings.presets),
+              items: [
+                SDK.NetworkManager.Fast4GConditions,
+                SDK.NetworkManager.Slow4GConditions,
+                SDK.NetworkManager.Slow3GConditions,
+                SDK.NetworkManager.OfflineConditions,
+              ]
+            });
+        break;
+      case NetworkThrottlingSelect.Variant.INDIVIDUAL_REQUEST_CONDITIONS:
+        throttlingGroups.push(
+            {title: i18nString(UIStrings.blockingGroup), items: [SDK.NetworkManager.BlockingConditions]},
+            {
+              title: i18nString(UIStrings.presets),
+              items: [
+                SDK.NetworkManager.Fast4GConditions,
+                SDK.NetworkManager.Slow4GConditions,
+                SDK.NetworkManager.Slow3GConditions,
+              ]
+            },
+        );
+        break;
     }
-    return false;
+    const customConditionsGroup = {title: i18nString(UIStrings.custom), items: customNetworkConditions};
+
+    const viewInput: ViewInput = {
+      recommendedConditions: this.#recommendedConditions,
+      selectedConditions: this.#currentConditions,
+      jslogContext: this.#jslogContext,
+      title: this.#title,
+      disabled: this.#disabled,
+      onSelect,
+      onAddCustomConditions,
+      throttlingGroups,
+      customConditionsGroup,
+    };
+    this.#view(viewInput, {}, this.contentElement as HTMLSelectElement);
+  }
+}
+export namespace NetworkThrottlingSelect {
+  export const enum Variant {
+    GLOBAL_CONDITIONS = 'global-conditions',
+    INDIVIDUAL_REQUEST_CONDITIONS = 'individual-request-conditions',
   }
 }

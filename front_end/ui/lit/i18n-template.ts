@@ -1,6 +1,9 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+// This files is import lit directly
+/* eslint-disable @devtools/lit-template-result-or-nothing */
 
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as I18n from '../../third_party/i18n/i18n.js';
@@ -14,10 +17,10 @@ const {html} = Lit.StaticHtml;
  */
 export function i18nTemplate(
     registeredStrings: I18n.LocalizedStringSet.RegisteredFileStrings, stringId: string,
-    placeholders: Record<string, Lit.TemplateResult|string>): Lit.TemplateResult {
+    placeholders: Record<string, Lit.TemplateResult|string>): Lit.TemplateResult|typeof Lit.nothing {
   const formatter = registeredStrings.getLocalizedStringSetFor(i18n.DevToolsLocale.DevToolsLocale.instance().locale)
                         .getMessageFormatterFor(stringId);
-  let result = html``;
+  let result: Lit.TemplateResult|typeof Lit.nothing = Lit.nothing;
   for (const icuElement of formatter.getAst()) {
     if (icuElement.type === /* argumentElement */ 1) {
       const placeholderValue = placeholders[icuElement.value];

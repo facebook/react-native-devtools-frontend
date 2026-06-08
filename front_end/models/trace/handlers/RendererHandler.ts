@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -26,25 +26,25 @@ import type {HandlerName} from './types.js';
  * event type.
  */
 
-const processes = new Map<Types.Events.ProcessID, RendererProcess>();
+let processes = new Map<Types.Events.ProcessID, RendererProcess>();
 
 let entityMappings: HandlerHelpers.EntityMappings = {
   eventsByEntity: new Map<HandlerHelpers.Entity, Types.Events.Event[]>(),
   entityByEvent: new Map<Types.Events.Event, HandlerHelpers.Entity>(),
   createdEntityCache: new Map<string, HandlerHelpers.Entity>(),
+  entityByUrlCache: new Map<string, HandlerHelpers.Entity>(),
 };
 
 // We track the compositor tile worker thread name events so that at the end we
 // can return these keyed by the process ID. These are used in the frontend to
 // show the user the rasterization thread(s) on the main frame as tracks.
-const compositorTileWorkers = Array<{
+let compositorTileWorkers = Array<{
   pid: Types.Events.ProcessID,
   tid: Types.Events.ThreadID,
 }>();
-const entryToNode = new Map<Types.Events.Event, Helpers.TreeHelpers.TraceEntryNode>();
-let allTraceEntries: Types.Events.Event[] = [];
+let entryToNode = new Map<Types.Events.Event, Helpers.TreeHelpers.TraceEntryNode>();
 
-const completeEventStack: (Types.Events.SyntheticComplete)[] = [];
+let completeEventStack: (Types.Events.SyntheticComplete)[] = [];
 
 let config: Types.Configuration.Configuration = Types.Configuration.defaults();
 
@@ -59,7 +59,7 @@ const makeRendererThread = (): RendererThread => ({
   entries: [],
   profileCalls: [],
   layoutEvents: [],
-  updateLayoutTreeEvents: [],
+  recalcStyleEvents: [],
 });
 
 const getOrCreateRendererProcess =
@@ -76,14 +76,16 @@ export function handleUserConfig(userConfig: Types.Configuration.Configuration):
 }
 
 export function reset(): void {
-  processes.clear();
-  entryToNode.clear();
-  entityMappings.eventsByEntity.clear();
-  entityMappings.entityByEvent.clear();
-  entityMappings.createdEntityCache.clear();
-  allTraceEntries.length = 0;
-  completeEventStack.length = 0;
-  compositorTileWorkers.length = 0;
+  processes = new Map();
+  entryToNode = new Map();
+  entityMappings = {
+    eventsByEntity: new Map<HandlerHelpers.Entity, Types.Events.Event[]>(),
+    entityByEvent: new Map<Types.Events.Event, HandlerHelpers.Entity>(),
+    createdEntityCache: new Map<string, HandlerHelpers.Entity>(),
+    entityByUrlCache: new Map<string, HandlerHelpers.Entity>(),
+  };
+  completeEventStack = [];
+  compositorTileWorkers = [];
 }
 
 export function handleEvent(event: Types.Events.Event): void {
@@ -102,7 +104,6 @@ export function handleEvent(event: Types.Events.Event): void {
       return;
     }
     thread.entries.push(completeEvent);
-    allTraceEntries.push(completeEvent);
     return;
   }
 
@@ -110,7 +111,6 @@ export function handleEvent(event: Types.Events.Event): void {
     const process = getOrCreateRendererProcess(processes, event.pid);
     const thread = getOrCreateRendererThread(process, event.tid);
     thread.entries.push(event);
-    allTraceEntries.push(event);
   }
 
   if (Types.Events.isLayout(event)) {
@@ -119,10 +119,10 @@ export function handleEvent(event: Types.Events.Event): void {
     thread.layoutEvents.push(event);
   }
 
-  if (Types.Events.isUpdateLayoutTree(event)) {
+  if (Types.Events.isRecalcStyle(event)) {
     const process = getOrCreateRendererProcess(processes, event.pid);
     const thread = getOrCreateRendererThread(process, event.tid);
-    thread.updateLayoutTreeEvents.push(event);
+    thread.recalcStyleEvents.push(event);
   }
 }
 
@@ -134,19 +134,18 @@ export async function finalize(): Promise<void> {
   sanitizeProcesses(processes);
   buildHierarchy(processes);
   sanitizeThreads(processes);
-  Helpers.Trace.sortTraceEventsInPlace(allTraceEntries);
 }
 
 export function data(): RendererHandlerData {
   return {
-    processes: new Map(processes),
-    compositorTileWorkers: new Map(gatherCompositorThreads()),
-    entryToNode: new Map(entryToNode),
-    allTraceEntries: [...allTraceEntries],
+    processes,
+    compositorTileWorkers: gatherCompositorThreads(),
+    entryToNode,
     entityMappings: {
-      entityByEvent: new Map(entityMappings.entityByEvent),
-      eventsByEntity: new Map(entityMappings.eventsByEntity),
-      createdEntityCache: new Map(entityMappings.createdEntityCache),
+      entityByEvent: entityMappings.entityByEvent,
+      eventsByEntity: entityMappings.eventsByEntity,
+      createdEntityCache: entityMappings.createdEntityCache,
+      entityByUrlCache: entityMappings.entityByUrlCache,
     },
   };
 }
@@ -173,7 +172,7 @@ export function assignMeta(
     threadsInProcess: Map<Types.Events.ProcessID, Map<Types.Events.ThreadID, Types.Events.ThreadName>>): void {
   assignOrigin(processes, rendererProcessesByFrame);
   assignIsMainFrame(processes, mainFrameId, rendererProcessesByFrame);
-  assignThreadName(processes, rendererProcessesByFrame, threadsInProcess);
+  assignThreadName(processes, threadsInProcess);
 }
 
 /**
@@ -234,7 +233,7 @@ export function assignIsMainFrame(
  * @see assignMeta
  */
 export function assignThreadName(
-    processes: Map<Types.Events.ProcessID, RendererProcess>, rendererProcessesByFrame: FrameProcessData,
+    processes: Map<Types.Events.ProcessID, RendererProcess>,
     threadsInProcess: Map<Types.Events.ProcessID, Map<Types.Events.ThreadID, Types.Events.ThreadName>>): void {
   for (const [pid, process] of processes) {
     for (const [tid, threadInfo] of threadsInProcess.get(pid) ?? []) {
@@ -242,6 +241,16 @@ export function assignThreadName(
       thread.name = threadInfo?.args.name ?? `${tid}`;
     }
   }
+}
+
+// [RN] ExperimentsSupport.isEnabled() throws for experiments that were never
+// registered. Trace handlers run in unit tests that don't bootstrap the RN
+// experiments, so check registration first and treat unregistered as disabled.
+function isReactNativeSpecificUiEnabled(): boolean {
+  const {experiments, ExperimentName} = Root.Runtime;
+  return experiments.allConfigurableExperiments().some(
+             experiment => experiment.name === ExperimentName.REACT_NATIVE_SPECIFIC_UI) &&
+      experiments.isEnabled(ExperimentName.REACT_NATIVE_SPECIFIC_UI);
 }
 
 /**
@@ -252,7 +261,7 @@ export function assignThreadName(
 export function sanitizeProcesses(processes: Map<Types.Events.ProcessID, RendererProcess>): void {
   // [RN] Used to scope down available features for React Native targets
   // See https://docs.google.com/document/d/1_mtLIHEd9bFQN4xWBSVDR357GaRo56khB1aOxgWDeu4/edit?tab=t.0 for context.
-  if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI)) {
+  if (isReactNativeSpecificUiEnabled()) {
     return;
   }
   const auctionWorklets = auctionWorkletsData().worklets;
@@ -343,13 +352,12 @@ export function buildHierarchy(
                 cpuProfile, samplesDataForThread.profileId, pid, tid, config);
         const profileCalls = samplesIntegrator?.buildProfileCalls(thread.entries);
         if (samplesIntegrator && profileCalls) {
-          allTraceEntries = [...allTraceEntries, ...profileCalls];
           thread.entries = Helpers.Trace.mergeEventsInOrder(thread.entries, profileCalls);
           thread.profileCalls = profileCalls;
+
           // We'll also inject the instant JSSample events (in debug mode only)
           const jsSamples = samplesIntegrator.jsSampleEvents;
-          if (jsSamples) {
-            allTraceEntries = [...allTraceEntries, ...jsSamples];
+          if (jsSamples.length) {
             thread.entries = Helpers.Trace.mergeEventsInOrder(thread.entries, jsSamples);
           }
         }
@@ -411,11 +419,6 @@ export interface RendererHandlerData {
    */
   compositorTileWorkers: Map<Types.Events.ProcessID, Types.Events.ThreadID[]>;
   entryToNode: Map<Types.Events.Event, Helpers.TreeHelpers.TraceEntryNode>;
-  /**
-   * All trace events and synthetic profile calls made from
-   * samples.
-   */
-  allTraceEntries: Types.Events.Event[];
   entityMappings: HandlerHelpers.EntityMappings;
 }
 
@@ -436,6 +439,6 @@ export interface RendererThread {
   entries: Types.Events.Event[];
   profileCalls: Types.Events.SyntheticProfileCall[];
   layoutEvents: Types.Events.Layout[];
-  updateLayoutTreeEvents: Types.Events.UpdateLayoutTree[];
+  recalcStyleEvents: Types.Events.RecalcStyle[];
   tree?: Helpers.TreeHelpers.TraceEntryTree;
 }

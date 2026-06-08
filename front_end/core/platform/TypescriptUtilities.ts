@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@ export function assertNotNullOrUndefined<T>(val: T, message?: string): asserts v
   }
 }
 
-export function assertNever(type: never, message: string): never {
+export function assertNever(_type: never, message: string): never {
   throw new Error(message);
 }
 

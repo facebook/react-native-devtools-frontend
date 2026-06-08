@@ -1,6 +1,7 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../../../core/common/common.js';
 import * as Host from '../../../../core/host/host.js';
@@ -12,12 +13,12 @@ import imagePreviewStyles from './imagePreview.css.js';
 
 const UIStrings = {
   /**
-   *@description Alt text description of an image's source
+   * @description Alt text description of an image's source
    */
   unknownSource: 'unknown source',
   /**
-   *@description Text to indicate the source of an image
-   *@example {example.com} PH1
+   * @description Text to indicate the source of an image
+   * @example {example.com} PH1
    */
   imageFromS: 'Image from {PH1}',
   /**
@@ -72,18 +73,20 @@ function isImageResource(resource: SDK.Resource.Resource|null): boolean {
 
 export class ImagePreview {
   static async build(
-      target: SDK.Target.Target, originalImageURL: Platform.DevToolsPath.UrlString, showDimensions: boolean, options: {
-        precomputedFeatures: (PrecomputedFeatures|undefined),
-        imageAltText: (string|undefined),
+      originalImageURL: Platform.DevToolsPath.UrlString,
+      showDimensions: boolean,
+      options: {
         align: Align,
+        precomputedFeatures?: PrecomputedFeatures,
+        imageAltText?: string,
         hideFileData?: boolean,
-      }|undefined = {precomputedFeatures: undefined, imageAltText: undefined, align: Align.CENTER}):
-      Promise<Element|null> {
+      } = {align: Align.CENTER},
+      ): Promise<HTMLDivElement|null> {
     const {precomputedFeatures, imageAltText, align} = options;
 
     let resource = SDK.ResourceTreeModel.ResourceTreeModel.resourceForURL(originalImageURL);
     let imageURL = originalImageURL;
-    if (!isImageResource(resource) && precomputedFeatures && precomputedFeatures.currentSrc) {
+    if (!isImageResource(resource) && precomputedFeatures?.currentSrc) {
       imageURL = precomputedFeatures.currentSrc;
       resource = SDK.ResourceTreeModel.ResourceTreeModel.resourceForURL(imageURL);
     }
@@ -112,7 +115,7 @@ export class ImagePreview {
       function buildContent(): void {
         const shadowBoundary = document.createElement('div');
         const shadowRoot = shadowBoundary.attachShadow({mode: 'open'});
-        shadowRoot.createChild('style').textContent = imagePreviewStyles.cssText;
+        shadowRoot.createChild('style').textContent = imagePreviewStyles;
         const container = shadowRoot.createChild('table');
         container.className = 'image-preview-container';
 
@@ -180,33 +183,37 @@ export class ImagePreview {
     });
   }
 
-  static async loadDimensionsForNode(node: SDK.DOMModel.DOMNode): Promise<PrecomputedFeatures|undefined> {
-    if (!node.nodeName() || node.nodeName().toLowerCase() !== 'img') {
-      return;
-    }
-
-    const object = await node.resolveToObject('');
-
-    if (!object) {
-      return;
-    }
-
-    const featuresObject = await object.callFunctionJSON(features, undefined);
-    object.release();
-    return featuresObject;
-
-    function features(this: HTMLImageElement): PrecomputedFeatures {
-      return {
-        renderedWidth: this.width,
-        renderedHeight: this.height,
-        currentSrc: this.currentSrc as Platform.DevToolsPath.UrlString,
-      };
-    }
-  }
-
   static defaultAltTextForImageURL(url: Platform.DevToolsPath.UrlString): string {
     const parsedImageURL = new Common.ParsedURL.ParsedURL(url);
     const imageSourceText = parsedImageURL.isValid ? parsedImageURL.displayName : i18nString(UIStrings.unknownSource);
     return i18nString(UIStrings.imageFromS, {PH1: imageSourceText});
+  }
+}
+
+export async function loadPrecomputedFeatures(node?: SDK.DOMModel.DOMNode|null):
+    Promise<PrecomputedFeatures|undefined> {
+  if (!node) {
+    return undefined;
+  }
+  if (!node.nodeName() || node.nodeName().toLowerCase() !== 'img') {
+    return undefined;
+  }
+
+  const object = await node.resolveToObject('');
+
+  if (!object) {
+    return undefined;
+  }
+
+  const featuresObject = await object.callFunctionJSON(features, undefined);
+  object.release();
+  return featuresObject ?? undefined;
+
+  function features(this: HTMLImageElement): PrecomputedFeatures {
+    return {
+      renderedWidth: this.width,
+      renderedHeight: this.height,
+      currentSrc: this.currentSrc as Platform.DevToolsPath.UrlString,
+    };
   }
 }

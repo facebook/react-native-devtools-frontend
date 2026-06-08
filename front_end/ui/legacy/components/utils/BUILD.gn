@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -15,7 +15,7 @@ generate_css("css_files") {
   ]
 }
 
-devtools_module("utils") {
+devtools_ui_module("utils") {
   sources = [
     "ImagePreview.ts",
     "JSPresentationUtils.ts",
@@ -29,14 +29,19 @@ devtools_module("utils") {
     "../../../../core/host:bundle",
     "../../../../core/i18n:bundle",
     "../../../../core/platform:bundle",
+    "../../../../core/root:bundle",
     "../../../../core/sdk:bundle",
     "../../../../generated:protocol",
     "../../../../models/bindings:bundle",
     "../../../../models/breakpoints:bundle",
+    "../../../../models/stack_trace:bundle",
     "../../../../models/text_utils:bundle",
     "../../../../models/trace:bundle",
     "../../../../models/workspace:bundle",
     "../../../../ui/legacy:bundle",
+    "../../../helpers:bundle",
+    "../../../lit:bundle",
+    "../../../visual_logging:bundle",
   ]
 }
 
@@ -49,13 +54,15 @@ devtools_entrypoint("bundle") {
   ]
 
   visibility = [
+    # IMPORTANT: Be careful when extending visibility of front_end/ui/legacy/*,
+    # as the UI modules should only be used to actually build user interfaces,
+    # and the business logic should never depend on the UI modules.
     ":*",
     "../../../../entrypoints/*",
-    "../../../../models/extensions/*",
-    "../../../../models/persistence/*",
     "../../../../panels/*",
     "../../../../panels/search/*",
     "../../../components/linear_memory_inspector/*",
+    "../../../components/report_view/*",
     "../inline_editor/*",
     "../object_ui/*",
   ]
@@ -63,7 +70,7 @@ devtools_entrypoint("bundle") {
   visibility += devtools_ui_legacy_visibility
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [

@@ -1,11 +1,13 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../core/common/common.js';
+import * as Host from '../../core/host/host.js';
 import * as Platform from '../../core/platform/platform.js';
-import * as Root from '../../core/root/root.js';
 import * as Trace from '../../models/trace/trace.js';
+import * as SourceMapsResolver from '../../models/trace_source_maps_resolver/trace_source_maps_resolver.js';
 import type * as PerfUI from '../../ui/legacy/components/perf_ui/perf_ui.js';
 import * as ThemeSupport from '../../ui/legacy/theme_support/theme_support.js';
 
@@ -33,20 +35,9 @@ export interface PopoverInfo {
   additionalElements: HTMLElement[];
 }
 
-let showPostMessageEvents: boolean|undefined;
-function isShowPostMessageEventsEnabled(): boolean {
-  // Everytime the experiment is toggled devtools is reloaded so the
-  // cache is updated automatically.
-  if (showPostMessageEvents === undefined) {
-    showPostMessageEvents =
-        Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.TIMELINE_SHOW_POST_MESSAGE_EVENTS);
-  }
-  return showPostMessageEvents;
-}
-
 export function entryIsVisibleInTimeline(
-    entry: Trace.Types.Events.Event, parsedTrace?: Trace.Handlers.Types.ParsedTrace): boolean {
-  if (parsedTrace?.Meta.traceIsGeneric) {
+    entry: Trace.Types.Events.Event, parsedTrace?: Trace.TraceModel.ParsedTrace): boolean {
+  if (parsedTrace?.data.Meta.traceIsGeneric) {
     return true;
   }
 
@@ -61,10 +52,8 @@ export function entryIsVisibleInTimeline(
     return true;
   }
 
-  if (isShowPostMessageEventsEnabled()) {
-    if (Trace.Types.Events.isSchedulePostMessage(entry) || Trace.Types.Events.isHandlePostMessage(entry)) {
-      return true;
-    }
+  if (Trace.Types.Events.isSchedulePostMessage(entry) || Trace.Types.Events.isHandlePostMessage(entry)) {
+    return true;
   }
 
   if (Trace.Types.Extensions.isSyntheticExtensionEntry(entry)) {
@@ -73,11 +62,15 @@ export function entryIsVisibleInTimeline(
 
   // Default styles are globally defined for each event name. Some
   // events are hidden by default.
-  const eventStyle = TimelineUtils.EntryStyles.getEventStyle(entry.name as Trace.Types.Events.Name);
+  const eventStyle = Trace.Styles.getEventStyle(entry.name as Trace.Types.Events.Name);
   const eventIsTiming = Trace.Types.Events.isConsoleTime(entry) || Trace.Types.Events.isPerformanceMeasure(entry) ||
       Trace.Types.Events.isPerformanceMark(entry) || Trace.Types.Events.isConsoleTimeStamp(entry);
   return (eventStyle && !eventStyle.hidden) || eventIsTiming;
 }
+
+// These threads have no useful information. Omit them from the UI.
+const HIDDEN_THREAD_NAMES: ReadonlySet<string> =
+    new Set(['Chrome_ChildIOThread', 'Compositor', 'GpuMemoryThread', 'PerfettoTrace']);
 
 /**
  * Track appenders add the data of each track into the timeline flame
@@ -110,7 +103,7 @@ export interface TrackAppender {
    * Appends into the flame chart data the data corresponding to a track.
    * @param level the horizontal level of the flame chart events where the
    * track's events will start being appended.
-   * @param expanded wether the track should be rendered expanded.
+   * @param expanded whether the track should be rendered expanded.
    * @returns the first available level to append more data after having
    * appended the track's events.
    */
@@ -144,8 +137,10 @@ export const TrackNames = [
   'Extension',
   'ServerTimings',
 ] as const;
-// Network track will use TrackAppender interface, but it won't be shown in Main flamechart.
-// So manually add it to TrackAppenderName.
+/**
+ * Network track will use TrackAppender interface, but it won't be shown in Main flamechart.
+ * So manually add it to TrackAppenderName.
+ **/
 export type TrackAppenderName = typeof TrackNames[number]|'Network';
 
 export type DrawOverride = PerfUI.FlameChart.DrawOverride;
@@ -177,6 +172,7 @@ export const enum VisualLoggingTrackName {
   THREAD_POOL = 'thread.pool',
   THREAD_OTHER = 'thread.other',
   EXTENSION = 'extension',
+  ANGULAR_TRACK = 'angular-track',
   NETWORK = 'network',
 }
 
@@ -186,7 +182,7 @@ export class CompatibilityTracksAppender {
   #eventsForTrack = new Map<TrackAppender, Trace.Types.Events.Event[]>();
   #trackEventsForTreeview = new Map<TrackAppender, Trace.Types.Events.Event[]>();
   #flameChartData: PerfUI.FlameChart.FlameChartTimelineData;
-  #parsedTrace: Trace.Handlers.Types.ParsedTrace;
+  #parsedTrace: Trace.TraceModel.ParsedTrace;
   #entryData: Trace.Types.Events.Event[];
   #colorGenerator: Common.Color.Generator;
   #allTrackAppenders: TrackAppender[] = [];
@@ -199,7 +195,7 @@ export class CompatibilityTracksAppender {
   #gpuTrackAppender: GPUTrackAppender;
   #layoutShiftsTrackAppender: LayoutShiftsTrackAppender;
   #threadAppenders: ThreadAppender[] = [];
-  #entityMapper: TimelineUtils.EntityMapper.EntityMapper|null;
+  #entityMapper: Trace.EntityMapper.EntityMapper|null;
 
   /**
    * @param flameChartData the data used by the flame chart renderer on
@@ -216,15 +212,15 @@ export class CompatibilityTracksAppender {
    * @param entityMapper 3P entity data for the trace.
    */
   constructor(
-      flameChartData: PerfUI.FlameChart.FlameChartTimelineData, parsedTrace: Trace.Handlers.Types.ParsedTrace,
+      flameChartData: PerfUI.FlameChart.FlameChartTimelineData, parsedTrace: Trace.TraceModel.ParsedTrace,
       entryData: Trace.Types.Events.Event[], legacyEntryTypeByLevel: EntryType[],
-      entityMapper: TimelineUtils.EntityMapper.EntityMapper|null) {
+      entityMapper: Trace.EntityMapper.EntityMapper|null) {
     this.#flameChartData = flameChartData;
     this.#parsedTrace = parsedTrace;
     this.#entityMapper = entityMapper;
     this.#entryData = entryData;
     this.#colorGenerator = new Common.Color.Generator(
-        /* hueSpace= */ {min: 30, max: 55, count: undefined},
+        /* hueSpace= */ {min: 30, max: 55},
         /* satSpace= */ {min: 70, max: 100, count: 6},
         /* lightnessSpace= */ 50,
         /* alphaSpace= */ 0.7);
@@ -282,7 +278,7 @@ export class CompatibilityTracksAppender {
     if (!TimelinePanel.extensionDataVisibilitySetting().get()) {
       return;
     }
-    const tracks = this.#parsedTrace.ExtensionTraceData.extensionTrackData;
+    const tracks = this.#parsedTrace.data.ExtensionTraceData.extensionTrackData;
     for (const trackData of tracks) {
       this.#allTrackAppenders.push(new ExtensionTrackAppender(this, trackData));
     }
@@ -316,23 +312,22 @@ export class CompatibilityTracksAppender {
           return 8;
       }
     };
-    const threads = Trace.Handlers.Threads.threadsInTrace(this.#parsedTrace);
-    const showAllEvents = Root.Runtime.experiments.isEnabled('timeline-show-all-events');
+    const threads = Trace.Handlers.Threads.threadsInTrace(this.#parsedTrace.data);
+    const showAllEvents = Common.Settings.Settings.instance().moduleSetting('timeline-show-all-events').get();
 
     for (const {pid, tid, name, type, entries, tree} of threads) {
-      if (this.#parsedTrace.Meta.traceIsGeneric) {
+      if (this.#parsedTrace.data.Meta.traceIsGeneric) {
         // If the trace is generic, we just push all of the threads with no effort to differentiate them, hence
         // overriding the thread type to be OTHER for all threads.
         this.#threadAppenders.push(new ThreadAppender(
             this, this.#parsedTrace, pid, tid, name, Trace.Handlers.Threads.ThreadType.OTHER, entries, tree));
         continue;
       }
-      // These threads have no useful information. Omit them
-      if ((name === 'Chrome_ChildIOThread' || name === 'Compositor' || name === 'GpuMemoryThread') && !showAllEvents) {
+      if ((name && HIDDEN_THREAD_NAMES.has(name)) && !showAllEvents) {
         continue;
       }
 
-      const matchingWorklet = this.#parsedTrace.AuctionWorklets.worklets.get(pid);
+      const matchingWorklet = this.#parsedTrace.data.AuctionWorklets.worklets.get(pid);
       if (matchingWorklet) {
         // Each AuctionWorklet has two key threads:
         // 1. the Utility Thread
@@ -401,6 +396,7 @@ export class CompatibilityTracksAppender {
     if (trackStartLevel === null || trackEndLevel === null) {
       throw new Error(`Could not find events for track: ${trackAppender}`);
     }
+
     const entryLevels = this.#flameChartData.entryLevels;
     const events = [];
     for (let i = 0; i < entryLevels.length; i++) {
@@ -408,7 +404,13 @@ export class CompatibilityTracksAppender {
         events.push(this.#entryData[i]);
       }
     }
-    events.sort((a, b) => a.ts - b.ts);  // TODO(paulirish): Remove as I'm 90% it's already sorted.
+
+    // TODO(crbug.com/457866795): callers expect this to be sorted, but #entryData
+    // currently isn't guaranteed to be sorted because of appendEventsAtLevel and
+    // appendEventAtLevel. Also, see
+    // TimelineFlameChartDataProvider#insertEventToEntryData. This method is cached
+    // in eventsForTreeView, so it doesn't impact performance much.
+    events.sort((a, b) => a.ts - b.ts);
 
     this.#eventsForTrack.set(trackAppender, events);
     return events;
@@ -502,7 +504,6 @@ export class CompatibilityTracksAppender {
    * @returns the index of the event in all events to be rendered in the flamechart.
    */
   appendEventAtLevel(event: Trace.Types.Events.Event, level: number, appender: TrackAppender): number {
-    // TODO(crbug.com/1442454) Figure out how to avoid the circular calls.
     this.#trackForLevel.set(level, appender);
     const index = this.#entryData.length;
     this.#entryData.push(event);
@@ -534,6 +535,11 @@ export class CompatibilityTracksAppender {
   appendEventsAtLevel<T extends Trace.Types.Events.Event>(
       events: readonly T[], trackStartLevel: number, appender: TrackAppender,
       eventAppendedCallback?: (event: T, index: number) => void): number {
+    // Usage of getEventLevel below requires `events` to be sorted.
+    if (Host.InspectorFrontendHost.isUnderTest()) {
+      Platform.ArrayUtilities.assertArrayIsSorted(events, (a, b) => a.ts - b.ts);
+    }
+
     const lastTimestampByLevel: LastTimestampByLevel = [];
     for (let i = 0; i < events.length; ++i) {
       const event = events[i];
@@ -572,19 +578,6 @@ export class CompatibilityTracksAppender {
     return result;
   }
 
-  /**
-   * Sets the visible tracks internally
-   * @param visibleTracks set with the names of the visible track
-   * appenders. If undefined, all tracks are set to be visible.
-   */
-  setVisibleTracks(visibleTracks?: Set<TrackAppenderName>): void {
-    if (!visibleTracks) {
-      this.#visibleTrackNames = new Set([...TrackNames]);
-      return;
-    }
-    this.#visibleTrackNames = visibleTracks;
-  }
-
   getDrawOverride(event: Trace.Types.Events.Event, level: number): DrawOverride|undefined {
     const track = this.#trackForLevel.get(level);
     if (!track) {
@@ -614,7 +607,7 @@ export class CompatibilityTracksAppender {
 
     // Historically all tracks would have a titleForEvent() method. However a
     // lot of these were duplicated so we worked on removing them in favour of
-    // the EntryName.nameForEntry method called below (see crbug.com/365047728).
+    // the Name.forEntry method called below (see crbug.com/365047728).
     // However, sometimes an appender needs to customise the titles slightly;
     // for example the LayoutShiftsTrackAppender does not show any titles as we
     // use diamonds to represent layout shifts.
@@ -623,7 +616,7 @@ export class CompatibilityTracksAppender {
     if (track.titleForEvent) {
       return track.titleForEvent(event);
     }
-    return TimelineUtils.EntryName.nameForEntry(event, this.#parsedTrace);
+    return Trace.Name.forEntry(event, this.#parsedTrace);
   }
   /**
    * Returns the info shown when an event in the timeline is hovered.
@@ -650,8 +643,7 @@ export class CompatibilityTracksAppender {
 
     // If there's a url associated, add into additionalElements
     const url = URL.parse(
-        info.url ?? TimelineUtils.SourceMapsResolver.SourceMapsResolver.resolvedURLForEntry(this.#parsedTrace, event) ??
-        '');
+        info.url ?? SourceMapsResolver.SourceMapsResolver.resolvedURLForEntry(this.#parsedTrace, event) ?? '');
     if (url) {
       const MAX_PATH_LENGTH = 45;
       const path = Platform.StringUtilities.trimMiddle(url.href.replace(url.origin, ''), MAX_PATH_LENGTH);

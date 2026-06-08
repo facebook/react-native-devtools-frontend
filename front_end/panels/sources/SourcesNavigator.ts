@@ -1,32 +1,8 @@
-/*
- * Copyright (C) 2011 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2011 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import '../../ui/legacy/legacy.js';
 
@@ -37,7 +13,10 @@ import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import * as Persistence from '../../models/persistence/persistence.js';
+import * as TextUtils from '../../models/text_utils/text_utils.js';
 import * as Workspace from '../../models/workspace/workspace.js';
+import * as uiI18n from '../../ui/i18n/i18n.js';
+import {Link} from '../../ui/kit/kit.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as Snippets from '../snippets/snippets.js';
 
@@ -46,80 +25,85 @@ import sourcesNavigatorStyles from './sourcesNavigator.css.js';
 
 const UIStrings = {
   /**
-   *@description Text to show if no workspaces are set up. https://goo.gle/devtools-workspace
+   * @description Text to show if no workspaces are set up. https://goo.gle/devtools-workspace
    */
   noWorkspace: 'No workspaces set up',
   /**
-   *@description Text to explain the Workspace feature in the Sources panel. https://goo.gle/devtools-workspace
+   * @description Text to explain the Workspace feature in the Sources panel. https://goo.gle/devtools-workspace
    */
   explainWorkspace: 'Set up workspaces to sync edits directly to the sources you develop.',
   /**
-   *@description Text to show if no local overrides are set up. https://goo.gle/devtools-overrides
+   * @description Text to show if no local overrides are set up. https://goo.gle/devtools-overrides
    */
   noLocalOverrides: 'No local overrides set up',
   /**
-   *@description Text to explain the Local Overrides feature. https://goo.gle/devtools-overrides
+   * @description Text to explain the Local Overrides feature. https://goo.gle/devtools-overrides
    */
   explainLocalOverrides: 'Override network requests and web content locally to mock remote resources.',
   /**
-   *@description Tooltip text that appears when hovering over the largeicon clear button in the Sources Navigator of the Sources panel
+   * @description Tooltip text that appears when hovering over the largeicon clear button in the Sources Navigator of the Sources panel
    */
   clearConfiguration: 'Clear configuration',
   /**
-   *@description Text in Sources Navigator of the Sources panel
+   * @description Text in Sources Navigator of the Sources panel
    */
   selectFolderForOverrides: 'Select folder for overrides',
   /**
-   *@description Text to show if no content scripts can be found in the Sources panel. https://developer.chrome.com/extensions/content_scripts
+   * @description Text to show if no content scripts can be found in the Sources panel. https://developer.chrome.com/extensions/content_scripts
    */
   noContentScripts: 'No content scripts detected',
   /**
-   *@description Text to explain the content scripts pane in the Sources panel
+   * @description Text to explain the content scripts pane in the Sources panel
    */
   explainContentScripts: 'View content scripts served by extensions.',
   /**
-   *@description Text to show if no snippets were created and saved in the Sources panel https://goo.gle/devtools-snippets
+   * @description Text to show if no snippets were created and saved in the Sources panel https://goo.gle/devtools-snippets
    */
   noSnippets: 'No snippets saved',
   /**
-   *@description Text to explain the Snippets feature in the Sources panel https://goo.gle/devtools-snippets
+   * @description Text to explain the Snippets feature in the Sources panel https://goo.gle/devtools-snippets
    */
   explainSnippets: 'Save the JavaScript code you run often in a snippet to run it again anytime.',
   /**
-   *@description Text in Sources Navigator of the Sources panel
+   * @description Text in Sources Navigator of the Sources panel
    */
   newSnippet: 'New snippet',
   /**
-   *@description Title of an action in the sources tool to create snippet
+   * @description Title of an action in the sources tool to create snippet
    */
   createNewSnippet: 'Create new snippet',
   /**
-   *@description A context menu item in the Sources Navigator of the Sources panel
+   * @description A context menu item in the Sources Navigator of the Sources panel
    */
   run: 'Run',
   /**
-   *@description A context menu item in the Navigator View of the Sources panel
+   * @description A context menu item in the Navigator View of the Sources panel
    */
   rename: 'Rename…',
   /**
-   *@description Label for an item to remove something
+   * @description Label for an item to remove something
    */
   remove: 'Remove',
   /**
-   *@description Text to save content as a specific file type
+   * @description Text to save content as a specific file type
    */
-  saveAs: 'Save as...',
+  saveAs: 'Save as…',
   /**
-   * @description Text in Workspaces tab in the Sources panel when an automatic
-   *              workspace folder is detected.
-   * @example {/path/to/foo} PH1
+   * @description An error message logged to the Console panel when the user uses
+   *              the "Save as…" context menu in the Sources panel and the operation
+   *              fails.
    */
-  automaticWorkspaceFolderDetected: 'Workspace folder {PH1} detected',
+  saveAsFailed: 'Failed to save file to disk.',
   /**
-   * @description Button description in Workspaces tab in the Sources panel
-   *              to connect to an automatic workspace folder.
+   * @description Message shown in the Workspace tab of the Sources panel to nudge
+   *              developers into utilizing the Automatic Workspace Folders feature
+   *              in Chrome DevTools by setting up a `com.chrome.devtools.json`
+   *              file / endpoint in their project. This nudge is only shown when
+   *              the feature is enabled and there's no automatic workspace folder
+   *              detected.
+   * @example {com.chrome.devtools.json} PH1
    */
-  automaticWorkspaceFolderConnect: 'Connect',
+  automaticWorkspaceNudge: 'Use {PH1} to automatically connect your project folder',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/sources/SourcesNavigator.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -169,7 +153,7 @@ export class NetworkNavigatorView extends NavigatorView {
     if (event.data !== mainTarget) {
       return;
     }
-    const inspectedURL = mainTarget && mainTarget.inspectedURL();
+    const inspectedURL = mainTarget?.inspectedURL();
     if (!inspectedURL) {
       return;
     }
@@ -182,7 +166,7 @@ export class NetworkNavigatorView extends NavigatorView {
 
   override uiSourceCodeAdded(uiSourceCode: Workspace.UISourceCode.UISourceCode): void {
     const mainTarget = SDK.TargetManager.TargetManager.instance().scopeTarget();
-    const inspectedURL = mainTarget && mainTarget.inspectedURL();
+    const inspectedURL = mainTarget?.inspectedURL();
     if (!inspectedURL) {
       return;
     }
@@ -194,8 +178,8 @@ export class NetworkNavigatorView extends NavigatorView {
 
 export class FilesNavigatorView extends NavigatorView {
   #automaticFileSystemManager = Persistence.AutomaticFileSystemManager.AutomaticFileSystemManager.instance();
-  #infobar: UI.Infobar.Infobar|null = null;
   #eventListeners: Common.EventTarget.EventDescriptor[] = [];
+  #automaticFileSystemNudge: HTMLSpanElement;
 
   constructor() {
     super('navigator-files');
@@ -203,7 +187,13 @@ export class FilesNavigatorView extends NavigatorView {
     const placeholder =
         new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.noWorkspace), i18nString(UIStrings.explainWorkspace));
     this.setPlaceholder(placeholder);
-    placeholder.appendLink('https://developer.chrome.com/docs/devtools/workspaces/' as Platform.DevToolsPath.UrlString);
+    placeholder.link = 'https://developer.chrome.com/docs/devtools/workspaces/' as Platform.DevToolsPath.UrlString;
+
+    const link = Link.create('https://goo.gle/devtools-automatic-workspace-folders', 'com.chrome.devtools.json');
+    this.#automaticFileSystemNudge =
+        uiI18n.getFormatLocalizedString(str_, UIStrings.automaticWorkspaceNudge, {PH1: link});
+    this.#automaticFileSystemNudge.classList.add('automatic-file-system-nudge');
+    this.contentElement.insertBefore(this.#automaticFileSystemNudge, this.contentElement.firstChild);
 
     const toolbar = document.createElement('devtools-toolbar');
     toolbar.classList.add('navigator-toolbar');
@@ -220,6 +210,8 @@ export class FilesNavigatorView extends NavigatorView {
       this.#automaticFileSystemManager.addEventListener(
           Persistence.AutomaticFileSystemManager.Events.AUTOMATIC_FILE_SYSTEM_CHANGED, this.#automaticFileSystemChanged,
           this),
+      this.#automaticFileSystemManager.addEventListener(
+          Persistence.AutomaticFileSystemManager.Events.AVAILABILITY_CHANGED, this.#availabilityChanged, this),
     ];
     this.#automaticFileSystemChanged({data: this.#automaticFileSystemManager.automaticFileSystem});
   }
@@ -236,6 +228,9 @@ export class FilesNavigatorView extends NavigatorView {
   }
 
   override acceptProject(project: Workspace.Workspace.Project): boolean {
+    if (project.type() === Workspace.Workspace.projectTypes.ConnectableFileSystem) {
+      return true;
+    }
     return project.type() === Workspace.Workspace.projectTypes.FileSystem &&
         Persistence.FileSystemWorkspaceBinding.FileSystemWorkspaceBinding.fileSystemType(project) !== 'overrides' &&
         !Snippets.ScriptSnippetFileSystem.isSnippetsProject(project);
@@ -248,30 +243,18 @@ export class FilesNavigatorView extends NavigatorView {
   }
 
   #automaticFileSystemChanged(
-      event: Common.EventTarget.EventTargetEvent<Persistence.AutomaticFileSystemManager.AutomaticFileSystem|null>):
+      _event: Common.EventTarget.EventTargetEvent<Persistence.AutomaticFileSystemManager.AutomaticFileSystem|null>):
       void {
-    const automaticFileSystem = event.data;
-    if (automaticFileSystem === null || automaticFileSystem.state !== 'disconnected') {
-      this.#infobar?.dispose();
-      this.#infobar = null;
-    } else {
-      this.#infobar = UI.Infobar.Infobar.create(
-          UI.Infobar.Type.INFO,
-          i18nString(UIStrings.automaticWorkspaceFolderDetected, {PH1: automaticFileSystem.root}),
-          [{
-            text: i18nString(UIStrings.automaticWorkspaceFolderConnect),
-            delegate: () => this.#automaticFileSystemManager.connectAutomaticFileSystem(/* addIfMissing= */ true),
-            dismiss: true,
-            jslogContext: 'automatic-workspace-folders.connect',
-          }],
-          Common.Settings.Settings.instance().moduleSetting('persistence-automatic-workspace-folders'),
-          'automatic-workspace-folders',
-      );
-      if (this.#infobar) {
-        this.#infobar.element.classList.add('automatic-workspace-infobar');
-        this.contentElement.append(this.#infobar.element);
-      }
-    }
+    this.#availabilityChanged({data: this.#automaticFileSystemManager.availability});
+  }
+
+  #availabilityChanged(
+      event:
+          Common.EventTarget.EventTargetEvent<Persistence.AutomaticFileSystemManager.AutomaticFileSystemAvailability>):
+      void {
+    const availability = event.data;
+    const {automaticFileSystem} = this.#automaticFileSystemManager;
+    this.#automaticFileSystemNudge.hidden = automaticFileSystem !== null || availability !== 'available';
   }
 }
 
@@ -284,7 +267,7 @@ export class OverridesNavigatorView extends NavigatorView {
     const placeholder = new UI.EmptyWidget.EmptyWidget(
         i18nString(UIStrings.noLocalOverrides), i18nString(UIStrings.explainLocalOverrides));
     this.setPlaceholder(placeholder);
-    placeholder.appendLink('https://developer.chrome.com/docs/devtools/overrides/' as Platform.DevToolsPath.UrlString);
+    placeholder.link = 'https://developer.chrome.com/docs/devtools/overrides/' as Platform.DevToolsPath.UrlString;
 
     this.toolbar = document.createElement('devtools-toolbar');
     this.toolbar.classList.add('navigator-toolbar');
@@ -377,8 +360,7 @@ export class ContentScriptsNavigatorView extends NavigatorView {
     const placeholder = new UI.EmptyWidget.EmptyWidget(
         i18nString(UIStrings.noContentScripts), i18nString(UIStrings.explainContentScripts));
     this.setPlaceholder(placeholder);
-    placeholder.appendLink(
-        'https://developer.chrome.com/extensions/content_scripts' as Platform.DevToolsPath.UrlString);
+    placeholder.link = 'https://developer.chrome.com/extensions/content_scripts' as Platform.DevToolsPath.UrlString;
   }
 
   override acceptProject(project: Workspace.Workspace.Project): boolean {
@@ -392,8 +374,8 @@ export class SnippetsNavigatorView extends NavigatorView {
     const placeholder =
         new UI.EmptyWidget.EmptyWidget(i18nString(UIStrings.noSnippets), i18nString(UIStrings.explainSnippets));
     this.setPlaceholder(placeholder);
-    placeholder.appendLink(
-        'https://developer.chrome.com/docs/devtools/javascript/snippets/' as Platform.DevToolsPath.UrlString);
+    placeholder.link =
+        'https://developer.chrome.com/docs/devtools/javascript/snippets/' as Platform.DevToolsPath.UrlString;
 
     const toolbar = document.createElement('devtools-toolbar');
     toolbar.classList.add('navigator-toolbar');
@@ -438,9 +420,14 @@ export class SnippetsNavigatorView extends NavigatorView {
 
   private async handleSaveAs(uiSourceCode: Workspace.UISourceCode.UISourceCode): Promise<void> {
     uiSourceCode.commitWorkingCopy();
-    const {content} = await uiSourceCode.requestContent();
+    const contentData = await uiSourceCode.requestContentData();
+    if (TextUtils.ContentData.ContentData.isError(contentData)) {
+      console.error(`Failed to retrieve content for ${uiSourceCode.url()}: ${contentData}`);
+      Common.Console.Console.instance().error(i18nString(UIStrings.saveAsFailed), /* show=*/ false);
+      return;
+    }
     await Workspace.FileManager.FileManager.instance().save(
-        this.addJSExtension(uiSourceCode.url()), content || '', true, false /* isBase64 */);
+        this.addJSExtension(uiSourceCode.url()), contentData, /* forceSaveAs=*/ true);
     Workspace.FileManager.FileManager.instance().close(uiSourceCode.url());
   }
 
@@ -450,7 +437,7 @@ export class SnippetsNavigatorView extends NavigatorView {
 }
 
 export class ActionDelegate implements UI.ActionRegistration.ActionDelegate {
-  handleAction(context: UI.Context.Context, actionId: string): boolean {
+  handleAction(_context: UI.Context.Context, actionId: string): boolean {
     switch (actionId) {
       case 'sources.create-snippet':
         void Snippets.ScriptSnippetFileSystem.findSnippetsProject()

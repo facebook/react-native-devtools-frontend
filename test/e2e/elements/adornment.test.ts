@@ -1,0 +1,479 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import {assert} from 'chai';
+
+import {
+  ACTIVE_STARTING_STYLE_ADORNER_SELECTOR,
+  editCSSProperty,
+  expandSelectedNodeRecursively,
+  focusElementsTree,
+  getComputedStylesForDomNode,
+  INACTIVE_GRID_ADORNER_SELECTOR,
+  INACTIVE_STARTING_STYLE_ADORNER_SELECTOR,
+  toggleAdornerSetting,
+  waitForAdornerOnSelectedNode,
+  waitForAdorners,
+  waitForAndClickTreeElementWithPartialText,
+  waitForElementsStyleSection,
+  waitForNoAdornersOnSelectedNode,
+  waitForPartialContentOfSelectedElementsNode,
+  waitForSpecificAdornerOnSelectedNode,
+} from '../helpers/elements-helpers.js';
+import type {DevToolsPage} from '../shared/frontend-helper.js';
+
+const prepareElementsTab = async (devToolsPage: DevToolsPage) => {
+  await waitForElementsStyleSection(null, devToolsPage);
+  await expandSelectedNodeRecursively(devToolsPage);
+};
+
+describe('Adornment in the Elements Tab', function() {
+  // This test relies on the context menu which takes a while to appear, so we bump the timeout a bit.
+  if (this.timeout() > 0) {
+    this.timeout(20000);
+  }
+
+  it('displays a starting-style adorner for elements with starting styles', async ({devToolsPage, inspectedPage}) => {
+    await inspectedPage.goToResource('elements/adornment-starting-style.html');
+    await prepareElementsTab(devToolsPage);
+
+    await waitForAdorners(
+        [
+          {textContent: 'view-source', isActive: false},
+          {textContent: 'starting-style', isActive: false},
+          {textContent: 'starting-style', isActive: false},
+        ],
+        devToolsPage);
+  });
+
+  it('displays a starting-style adorner for selected elements with starting styles',
+     async ({devToolsPage, inspectedPage}) => {
+       await inspectedPage.goToResource('elements/adornment-starting-style.html');
+       await prepareElementsTab(devToolsPage);
+
+       await waitForAndClickTreeElementWithPartialText('no-starting-style', devToolsPage);
+       await waitForNoAdornersOnSelectedNode(devToolsPage);
+
+       await waitForAndClickTreeElementWithPartialText('with-inner-starting-style', devToolsPage);
+       await waitForAdornerOnSelectedNode('starting-style', devToolsPage);
+
+       await waitForAndClickTreeElementWithPartialText('with-outer-starting-style', devToolsPage);
+       await waitForAdornerOnSelectedNode('starting-style', devToolsPage);
+     });
+
+  it('enforces starting styles when clicking the adorner', async ({devToolsPage, inspectedPage}) => {
+    await inspectedPage.goToResource('elements/adornment-starting-style.html');
+    await prepareElementsTab(devToolsPage);
+
+    await devToolsPage.click(INACTIVE_STARTING_STYLE_ADORNER_SELECTOR);
+
+    await waitForAdorners(
+        [
+          {textContent: 'view-source', isActive: false},
+          {textContent: 'starting-style', isActive: true},
+          {textContent: 'starting-style', isActive: false},
+        ],
+        devToolsPage, ACTIVE_STARTING_STYLE_ADORNER_SELECTOR);
+
+    const backgroundColorComputedStyle =
+        await getComputedStylesForDomNode('.with-inner-starting-style', 'backgroundColor', inspectedPage);
+    assert.strictEqual(backgroundColorComputedStyle, 'rgb(0, 128, 0)');
+  });
+
+  it('displays grid and flex adorners', async ({devToolsPage, inspectedPage}) => {
+    await inspectedPage.goToResource('elements/adornment.html');
+    await prepareElementsTab(devToolsPage);
+
+    await waitForAdorners(
+        [
+          {textContent: 'view-source', isActive: false},
+          {textContent: 'grid', isActive: false},
+          {textContent: 'subgrid', isActive: false},
+          {textContent: 'subgrid', isActive: false},
+          {textContent: 'subgrid', isActive: false},
+          {textContent: 'grid', isActive: false},
+          {textContent: 'flex', isActive: false},
+          {textContent: 'flex', isActive: false},
+        ],
+        devToolsPage);
+  });
+
+  it('displays grid-lanes adorners', async ({devToolsPage, inspectedPage}) => {
+    await inspectedPage.goToResource('elements/adornment-grid-lanes.html');
+    await prepareElementsTab(devToolsPage);
+
+    await waitForAdorners(
+        [
+          {textContent: 'view-source', isActive: false},
+          {textContent: 'grid-lanes', isActive: false},
+          {textContent: 'grid-lanes', isActive: false},
+        ],
+        devToolsPage);
+  });
+
+  it('displays scroll-snap adorners', async ({devToolsPage, inspectedPage}) => {
+    await inspectedPage.goToResource('elements/adornment-scroll-snap.html');
+    await prepareElementsTab(devToolsPage);
+
+    await waitForAdorners(
+        [
+          {textContent: 'view-source', isActive: false},
+          {textContent: 'scroll-snap', isActive: false},
+          {textContent: 'scroll', isActive: false},
+        ],
+        devToolsPage);
+  });
+
+  it('displays media adorner for video and audio elements', async ({devToolsPage, inspectedPage}) => {
+    // Note that this test simulates several property value editing, with delay between each keystrokes.
+    // If this test become flaky in the future, it is likely that we will have to increase the timeout.
+    await inspectedPage.goToResource('elements/adornment-media.html');
+    await toggleAdornerSetting('media', devToolsPage);
+    await focusElementsTree(devToolsPage);
+    await prepareElementsTab(devToolsPage);
+
+    await waitForAdorners(
+        [
+          {textContent: 'view-source', isActive: false},
+          {textContent: 'media', isActive: false},
+          {textContent: 'media', isActive: false},
+        ],
+        devToolsPage);
+
+    // Select the first video element.
+    await devToolsPage.pressKey('ArrowDown');
+    await waitForAdornerOnSelectedNode('media', devToolsPage);
+
+    // Select the second audio element.
+    await devToolsPage.pressKey('ArrowDown');
+    await waitForAdornerOnSelectedNode('media', devToolsPage);
+  });
+
+  it('opens sources panel with main document when view-source adorner is clicked',
+     async ({devToolsPage, inspectedPage}) => {
+       await inspectedPage.goToResource('elements/adornment-view-source.html');
+       await prepareElementsTab(devToolsPage);
+
+       await waitForAdorners(
+           [
+             {textContent: 'view-source', isActive: false},
+           ],
+           devToolsPage);
+
+       await devToolsPage.click('devtools-adorner');
+
+       await devToolsPage.waitFor('div[aria-label="Sources panel"]');
+
+       await devToolsPage.waitFor('[aria-label="adornment-view-source.html"][aria-selected="true"]');
+     });
+
+  it('displays container query adorners', async ({devToolsPage, inspectedPage}) => {
+    await inspectedPage.goToResource('elements/adornment-container-query.html');
+    await prepareElementsTab(devToolsPage);
+
+    await waitForAdorners(
+        [
+          {textContent: 'view-source', isActive: false},
+          {textContent: 'inline-size', isActive: false},
+        ],
+        devToolsPage);
+  });
+
+  it('does not display container adorner for normal container type', async ({devToolsPage, inspectedPage}) => {
+    await inspectedPage.goToResource('elements/adornment-container-query.html');
+    await prepareElementsTab(devToolsPage);
+
+    await waitForAndClickTreeElementWithPartialText('container-normal', devToolsPage);
+    await waitForNoAdornersOnSelectedNode(devToolsPage);
+  });
+
+  it('can toggle adorners', async ({devToolsPage, inspectedPage}) => {
+    await inspectedPage.goToResource('elements/adornment.html');
+    await prepareElementsTab(devToolsPage);
+
+    await waitForAdorners(
+        [
+          {textContent: 'view-source', isActive: false},
+          {textContent: 'grid', isActive: false},
+          {textContent: 'subgrid', isActive: false},
+          {textContent: 'subgrid', isActive: false},
+          {textContent: 'subgrid', isActive: false},
+          {textContent: 'grid', isActive: false},
+          {textContent: 'flex', isActive: false},
+          {textContent: 'flex', isActive: false},
+        ],
+        devToolsPage);
+
+    // Toggle both grid adorners on and try to select them with the active selector
+    await devToolsPage.click(INACTIVE_GRID_ADORNER_SELECTOR);
+    await devToolsPage.click(INACTIVE_GRID_ADORNER_SELECTOR);
+
+    await waitForAdorners(
+        [
+          {textContent: 'view-source', isActive: false},
+          {textContent: 'grid', isActive: true},
+          {textContent: 'subgrid', isActive: true},
+          {textContent: 'subgrid', isActive: false},
+          {textContent: 'subgrid', isActive: false},
+          {textContent: 'grid', isActive: false},
+          {textContent: 'flex', isActive: false},
+          {textContent: 'flex', isActive: false},
+        ],
+        devToolsPage);
+  });
+
+  it('does not display adorners on shadow roots when their parents are grid or flex containers',
+     async ({devToolsPage, inspectedPage}) => {
+       await inspectedPage.goToResource('elements/adornment-shadow.html');
+       await prepareElementsTab(devToolsPage);
+
+       await waitForAdorners(
+           [
+             {textContent: 'view-source', isActive: false},
+             {textContent: 'grid', isActive: false},
+             {textContent: 'flex', isActive: false},
+           ],
+           devToolsPage);
+     });
+
+  it('updates when display properties change', async ({devToolsPage, inspectedPage}) => {
+    // Note that this test simulates several property value editing, like a user would type, with delay between
+    // keystrokes. So if this test became flaky in the future, we'd likely have to increase the timeout.
+    await inspectedPage.goToResource('elements/adornment.html');
+    await prepareElementsTab(devToolsPage);
+
+    // Select the first element.
+    await devToolsPage.pressKey('ArrowDown');
+
+    await waitForAdornerOnSelectedNode('grid', devToolsPage);
+
+    await editCSSProperty('.grid', 'display', 'flex', devToolsPage);
+    await waitForAdornerOnSelectedNode('flex', devToolsPage);
+
+    await editCSSProperty('.grid', 'display', 'inline-grid', devToolsPage);
+    await waitForAdornerOnSelectedNode('grid', devToolsPage);
+  });
+
+  it('displays scroll adorner for an element with overflow:scroll and scrollable contents',
+     async ({devToolsPage, inspectedPage}) => {
+       await inspectedPage.goToResource('elements/adornment-scroll.html');
+       await prepareElementsTab(devToolsPage);
+       await waitForAndClickTreeElementWithPartialText('scroller', devToolsPage);
+
+       await waitForAdornerOnSelectedNode('scroll', devToolsPage);
+     });
+
+  it('displays scroll adorner for an element with `overflow: hidden` changed to `overflow: scroll`',
+     async ({devToolsPage, inspectedPage}) => {
+       await inspectedPage.goToResource('elements/adornment-scroll.html');
+       await prepareElementsTab(devToolsPage);
+       await waitForAndClickTreeElementWithPartialText('overflow-hidden', devToolsPage);
+       await waitForNoAdornersOnSelectedNode(devToolsPage);
+
+       await editCSSProperty('#overflow-hidden', 'overflow', 'scroll', devToolsPage);
+       await waitForAdornerOnSelectedNode('scroll', devToolsPage);
+     });
+
+  it('displays scroll adorner for an element with `overflow: visible` changed to `overflow: scroll`',
+     async ({devToolsPage, inspectedPage}) => {
+       await inspectedPage.goToResource('elements/adornment-scroll.html');
+       await prepareElementsTab(devToolsPage);
+       await waitForAndClickTreeElementWithPartialText('overflow-visible', devToolsPage);
+       await waitForNoAdornersOnSelectedNode(devToolsPage);
+
+       await editCSSProperty('#overflow-visible', 'overflow', 'scroll', devToolsPage);
+       await waitForAdornerOnSelectedNode('scroll', devToolsPage);
+     });
+
+  it('removes scroll adorner for an element with `overflow: scroll` changed to `overflow: visible`',
+     async ({devToolsPage, inspectedPage}) => {
+       await inspectedPage.goToResource('elements/adornment-scroll.html');
+       await prepareElementsTab(devToolsPage);
+       await waitForAndClickTreeElementWithPartialText('overflow-scroll', devToolsPage);
+       await waitForAdornerOnSelectedNode('scroll', devToolsPage);
+
+       await editCSSProperty('#overflow-scroll', 'overflow', 'visible', devToolsPage);
+       await waitForNoAdornersOnSelectedNode(devToolsPage);
+     });
+
+  it('removes scroll adorner for an element whose content shrinks', async ({devToolsPage, inspectedPage}) => {
+    await inspectedPage.goToResource('elements/adornment-scroll.html');
+    await prepareElementsTab(devToolsPage);
+    await waitForAndClickTreeElementWithPartialText('content-shrinking', devToolsPage);
+    await waitForAdornerOnSelectedNode('scroll', devToolsPage);
+
+    await inspectedPage.evaluate(() => {
+      document.getElementById('content-shrinking')?.classList.add('shrunk');
+    });
+    await waitForNoAdornersOnSelectedNode(devToolsPage);
+  });
+
+  it('displays scroll adorner for document node in an iframe', async ({devToolsPage, inspectedPage}) => {
+    await inspectedPage.goToResource('elements/adornment-scroll.html');
+    await prepareElementsTab(devToolsPage);
+
+    await waitForAndClickTreeElementWithPartialText('iframe', devToolsPage);
+    await waitForPartialContentOfSelectedElementsNode('"iframe"', devToolsPage);
+    await waitForNoAdornersOnSelectedNode(devToolsPage);
+
+    await devToolsPage.pressKey('ArrowDown');
+    await waitForPartialContentOfSelectedElementsNode('document', devToolsPage);
+    await waitForNoAdornersOnSelectedNode(devToolsPage);
+
+    await devToolsPage.pressKey('ArrowDown');
+    await waitForPartialContentOfSelectedElementsNode('<html>', devToolsPage);
+    await waitForSpecificAdornerOnSelectedNode('devtools-adorner.scroll', devToolsPage);
+
+    await devToolsPage.pressKey('ArrowDown');
+    await devToolsPage.pressKey('ArrowLeft');
+    await devToolsPage.pressKey('ArrowDown');
+    await waitForPartialContentOfSelectedElementsNode('<body>', devToolsPage);
+    await waitForNoAdornersOnSelectedNode(devToolsPage);
+  });
+
+  it('displays scroll adorner for the body node in an iframe', async ({devToolsPage, inspectedPage}) => {
+    await inspectedPage.goToResource('elements/adornment-scroll.html');
+    await prepareElementsTab(devToolsPage);
+
+    await waitForAndClickTreeElementWithPartialText('iframe-with-scrollable-body', devToolsPage);
+    await waitForPartialContentOfSelectedElementsNode('"iframe-with-scrollable-body"', devToolsPage);
+    await waitForNoAdornersOnSelectedNode(devToolsPage);
+
+    await devToolsPage.pressKey('ArrowDown');
+    await waitForPartialContentOfSelectedElementsNode('document', devToolsPage);
+    await waitForNoAdornersOnSelectedNode(devToolsPage);
+
+    await devToolsPage.pressKey('ArrowDown');
+    await waitForPartialContentOfSelectedElementsNode('DOCTYPE', devToolsPage);
+    await waitForNoAdornersOnSelectedNode(devToolsPage);
+
+    await devToolsPage.pressKey('ArrowDown');
+    await waitForPartialContentOfSelectedElementsNode('<html>', devToolsPage);
+    await waitForAdornerOnSelectedNode('view-source', devToolsPage);
+
+    await devToolsPage.pressKey('ArrowDown');
+    await devToolsPage.pressKey('ArrowLeft');
+    await devToolsPage.pressKey('ArrowDown');
+    await waitForPartialContentOfSelectedElementsNode('<body>', devToolsPage);
+    await waitForAdornerOnSelectedNode('scroll', devToolsPage);
+  });
+
+  it('removes scroll adorner for an document element whose body shrinks', async ({devToolsPage, inspectedPage}) => {
+    await inspectedPage.goToResource('elements/adornment-scroll.html');
+    await prepareElementsTab(devToolsPage);
+
+    await waitForAndClickTreeElementWithPartialText('iframe-with-shrinking-body', devToolsPage);
+    await waitForPartialContentOfSelectedElementsNode('"iframe-with-shrinking-body"', devToolsPage);
+    await waitForNoAdornersOnSelectedNode(devToolsPage);
+
+    await devToolsPage.pressKey('ArrowDown');
+    await waitForPartialContentOfSelectedElementsNode('document', devToolsPage);
+    await waitForNoAdornersOnSelectedNode(devToolsPage);
+
+    await devToolsPage.pressKey('ArrowDown');
+    await waitForPartialContentOfSelectedElementsNode('body-shrinking', devToolsPage);
+    await waitForSpecificAdornerOnSelectedNode('devtools-adorner.scroll', devToolsPage);
+
+    await inspectedPage.evaluate(() => {
+      const frame = document.getElementById('iframe-with-shrinking-body') as HTMLIFrameElement;
+      const doc = frame.contentDocument;
+      if (doc) {
+        doc.getElementById('body-shrinking')?.classList.add('shrunk');
+      }
+    });
+
+    await waitForAdornerOnSelectedNode('view-source', devToolsPage);
+  });
+
+  it('displays popover adorners', async ({devToolsPage, inspectedPage}) => {
+    await inspectedPage.goToResource('elements/adornment-popover.html');
+    await prepareElementsTab(devToolsPage);
+
+    await waitForAdorners(
+        [
+          {textContent: 'view-source', isActive: false},
+          {textContent: 'popover', isActive: false},
+          {textContent: 'popover', isActive: false},
+        ],
+        devToolsPage);
+  });
+
+  it('can toggle popover adorner', async ({devToolsPage, inspectedPage}) => {
+    await inspectedPage.goToResource('elements/adornment-popover.html');
+    await prepareElementsTab(devToolsPage);
+
+    const activePopoverSelector = '[aria-label="Stop keeping this popover open"]';
+    await waitForAdorners(
+        [
+          {textContent: 'view-source', isActive: false},
+          {textContent: 'popover', isActive: false},
+          {textContent: 'popover', isActive: false},
+        ],
+        devToolsPage, activePopoverSelector);
+
+    let adorners = await devToolsPage.$$('[aria-label="Keep this popover open"]');
+    await adorners[0].click();
+    await waitForAdorners(
+        [
+          {textContent: 'view-source', isActive: false}, {textContent: 'popover', isActive: true},
+          {textContent: 'top-layer (1)', isActive: false}, {textContent: 'popover', isActive: false},
+          {textContent: 'reveal', isActive: false}, {textContent: 'reveal', isActive: false}
+        ],
+        devToolsPage, activePopoverSelector);
+
+    adorners = await devToolsPage.$$('[aria-label="Stop keeping this popover open"]');
+    await adorners[0].click();
+    await waitForAdorners(
+        [
+          {textContent: 'view-source', isActive: false},
+          {textContent: 'popover', isActive: false},
+          {textContent: 'popover', isActive: false},
+        ],
+        devToolsPage, activePopoverSelector);
+  });
+
+  it('popover adorner does not toggled off when another popover is force-opened',
+     async ({devToolsPage, inspectedPage}) => {
+       await inspectedPage.goToResource('elements/adornment-popover.html');
+       await prepareElementsTab(devToolsPage);
+
+       const activePopoverSelector = '[aria-label="Stop keeping this popover open"]';
+       await waitForAdorners(
+           [
+             {textContent: 'view-source', isActive: false},
+             {textContent: 'popover', isActive: false},
+             {textContent: 'popover', isActive: false},
+           ],
+           devToolsPage, activePopoverSelector);
+
+       let adorners = await devToolsPage.$$('[aria-label="Keep this popover open"]');
+       await adorners[0].click();
+       await waitForAdorners(
+           [
+             {textContent: 'view-source', isActive: false},
+             {textContent: 'popover', isActive: true},
+             {textContent: 'top-layer (1)', isActive: false},
+             {textContent: 'popover', isActive: false},
+             {textContent: 'reveal', isActive: false},
+             {textContent: 'reveal', isActive: false},
+           ],
+           devToolsPage, activePopoverSelector);
+
+       adorners = await devToolsPage.$$('[aria-label="Keep this popover open"]');
+       await adorners[0].click();
+       await waitForAdorners(
+           [
+             {textContent: 'view-source', isActive: false},
+             {textContent: 'popover', isActive: true},
+             {textContent: 'top-layer (1)', isActive: false},
+             {textContent: 'popover', isActive: true},
+             {textContent: 'top-layer (2)', isActive: false},
+             {textContent: 'reveal', isActive: false},
+             {textContent: 'reveal', isActive: false},
+             {textContent: 'reveal', isActive: false},
+             {textContent: 'reveal', isActive: false},
+           ],
+           devToolsPage, activePopoverSelector);
+     });
+});

@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -14,40 +14,44 @@ devtools_module("issues_manager") {
     "BounceTrackingIssue.ts",
     "CheckFormsIssuesTrigger.ts",
     "ClientHintIssue.ts",
+    "ConnectionAllowlistIssue.ts",
     "ContentSecurityPolicyIssue.ts",
-    "ContrastCheckTrigger.ts",
     "CookieDeprecationMetadataIssue.ts",
     "CookieIssue.ts",
     "CorsIssue.ts",
     "CrossOriginEmbedderPolicyIssue.ts",
     "DeprecationIssue.ts",
+    "ElementAccessibilityIssue.ts",
     "FederatedAuthRequestIssue.ts",
     "FederatedAuthUserInfoRequestIssue.ts",
     "GenericIssue.ts",
     "HeavyAdIssue.ts",
     "Issue.ts",
+    "IssueAggregator.ts",
     "IssueResolver.ts",
     "IssuesManager.ts",
     "IssuesManagerEvents.ts",
-    "LowTextContrastIssue.ts",
     "MarkdownIssueDescription.ts",
     "MixedContentIssue.ts",
     "PartitioningBlobURLIssue.ts",
+    "PermissionElementIssue.ts",
     "PropertyRuleIssue.ts",
     "QuirksModeIssue.ts",
     "RelatedIssue.ts",
     "SRIMessageSignatureIssue.ts",
-    "SelectElementAccessibilityIssue.ts",
+    "SelectivePermissionsInterventionIssue.ts",
     "SharedArrayBufferIssue.ts",
     "SharedDictionaryIssue.ts",
     "SourceFrameIssuesManager.ts",
     "StylesheetLoadingIssue.ts",
+    "UnencodedDigestIssue.ts",
   ]
 
   deps = [
     "../../core/common:bundle",
     "../../core/host:bundle",
     "../../core/i18n:bundle",
+    "../../core/platform:bundle",
     "../../core/protocol_client:bundle",
     "../../core/root:bundle",
     "../../core/sdk:bundle",
@@ -92,6 +96,12 @@ devtools_issue_description_files = [
   "CoepCorpNotSameOriginAfterDefaultedToSameOriginByCoep.md",
   "CoepCorpNotSameSite.md",
   "CoepFrameResourceNeedsCoepHeader.md",
+  "connectionAllowlistInvalidAllowlistItemType.md",
+  "connectionAllowlistInvalidHeader.md",
+  "connectionAllowlistInvalidUrlPattern.md",
+  "connectionAllowlistItemNotInnerList.md",
+  "connectionAllowlistMoreThanOneList.md",
+  "connectionAllowlistReportingEndpointNotToken.md",
   "CompatibilityModeQuirks.md",
   "CookieAttributeValueExceedsMaxSize.md",
   "cookieExcludeBlockedWithinRelatedWebsiteSet.md",
@@ -101,14 +111,11 @@ devtools_issue_description_files = [
   "corsDisabledScheme.md",
   "corsDisallowedByMode.md",
   "corsHeaderDisallowedByPreflightResponse.md",
-  "corsInsecurePrivateNetwork.md",
   "corsInvalidHeaderValues.md",
   "corsLocalNetworkAccessPermissionDenied.md",
   "corsMethodDisallowedByPreflightResponse.md",
   "corsNoCorsRedirectModeNotFollow.md",
   "corsOriginMismatch.md",
-  "corsPreflightAllowPrivateNetworkError.md",
-  "corsPrivateNetworkPermissionDenied.md",
   "corsPreflightResponseInvalid.md",
   "corsRedirectContainsCredentials.md",
   "corsWildcardOriginNotAllowed.md",
@@ -124,19 +131,22 @@ devtools_issue_description_files = [
   "genericFormInputWithNoLabelError.md",
   "genericFormAutocompleteAttributeEmptyError.md",
   "genericFormEmptyIdAndNameAttributesForInputError.md",
-  "genericFormAriaLabelledByToNonExistingId.md",
+  "genericFormAriaLabelledByToNonExistingIdError.md",
   "genericFormInputAssignedAutocompleteValueToIdOrNameAttributeError.md",
-  "genericFormLabelHasNeitherForNorNestedInput.md",
+  "genericFormLabelHasNeitherForNorNestedInputError.md",
   "genericFormLabelForMatchesNonExistingIdError.md",
+  "genericNavigationEntryMarkedSkippable.md",
   "genericResponseWasBlockedByORB.md",
+  "genericFormModelContextMissingToolName.md",
+  "genericFormModelContextMissingToolDescription.md",
+  "genericFormModelContextParameterMissingTitleAndDescription.md",
+  "genericFormModelContextRequiredParameterMissingName.md",
+  "genericFormModelContextParameterMissingName.md",
   "federatedAuthRequestApprovalDeclined.md",
   "federatedAuthRequestTooManyRequests.md",
   "federatedAuthRequestManifestHttpNotFound.md",
   "federatedAuthRequestManifestNoResponse.md",
   "federatedAuthRequestManifestInvalidResponse.md",
-  "federatedAuthRequestClientMetadataHttpNotFound.md",
-  "federatedAuthRequestClientMetadataNoResponse.md",
-  "federatedAuthRequestClientMetadataInvalidResponse.md",
   "federatedAuthRequestErrorFetchingSignin.md",
   "federatedAuthRequestInvalidSigninResponse.md",
   "federatedAuthRequestAccountsHttpNotFound.md",
@@ -160,10 +170,32 @@ devtools_issue_description_files = [
   "heavyAd.md",
   "LowTextContrast.md",
   "mixedContent.md",
+  "permissionElementActivationDisabled.md",
+  "permissionElementActivationDisabledWithOccluder.md",
+  "permissionElementActivationDisabledWithOccluderParent.md",
+  "permissionElementCspFrameAncestorsMissing.md",
+  "permissionElementFencedFrameDisallowed.md",
+  "permissionElementFontSizeTooLarge.md",
+  "permissionElementFontSizeTooSmall.md",
+  "permissionElementGeolocationDeprecated.md",
+  "permissionElementInsetBoxShadowUnsupported.md",
+  "permissionElementInvalidDisplayStyle.md",
+  "permissionElementInvalidSizeValue.md",
+  "permissionElementInvalidType.md",
+  "permissionElementInvalidTypeActivation.md",
+  "permissionElementLowContrast.md",
+  "permissionElementNonOpaqueColor.md",
+  "permissionElementPaddingBottomUnsupported.md",
+  "permissionElementPaddingRightUnsupported.md",
+  "permissionElementPermissionsPolicyBlocked.md",
+  "permissionElementRegistrationFailed.md",
+  "permissionElementRequestInProgress.md",
+  "permissionElementSecurityChecksFailed.md",
+  "permissionElementTypeNotSupported.md",
+  "permissionElementUntrustedEvent.md",
   "SameSiteExcludeContextDowngradeRead.md",
   "SameSiteExcludeContextDowngradeSet.md",
   "SameSiteExcludeNavigationContextDowngrade.md",
-  "SameSiteInvalidSameParty.md",
   "SameSiteNoneInsecureErrorRead.md",
   "SameSiteNoneInsecureErrorSet.md",
   "SameSiteNoneInsecureWarnRead.md",
@@ -190,6 +222,8 @@ devtools_issue_description_files = [
   "selectElementAccessibilityInteractiveContentLegendChild.md",
   "selectElementAccessibilityInteractiveContentOptionChild.md",
   "selectElementAccessibilityNonPhrasingContentOptionChild.md",
+  "selectivePermissionsIntervention.md",
+  "summaryElementAccessibilityInteractiveContentSummaryDescendant.md",
   "sharedArrayBuffer.md",
   "stylesheetLateImport.md",
   "stylesheetRequestFailed.md",
@@ -204,8 +238,10 @@ devtools_issue_description_files = [
   "sharedDictionaryWriteErrorInsufficientResources.md",
   "sharedDictionaryWriteErrorInvalidMatchField.md",
   "sharedDictionaryWriteErrorInvalidStructuredHeader.md",
+  "sharedDictionaryWriteErrorInvalidTTLField.md",
   "sharedDictionaryWriteErrorNavigationRequest.md",
   "sharedDictionaryWriteErrorNoMatchField.md",
+  "sharedDictionaryWriteErrorNonIntegerTTLField.md",
   "sharedDictionaryWriteErrorNonListMatchDestField.md",
   "sharedDictionaryWriteErrorNonSecureContext.md",
   "sharedDictionaryWriteErrorNonStringIdField.md",
@@ -240,6 +276,10 @@ devtools_issue_description_files = [
   "placeholderDescriptionForInvisibleIssues.md",
   "fetchingPartitionedBlobURL.md",
   "navigatingPartitionedBlobURL.md",
+  "unencodedDigestIncorrectDigestLength.md",
+  "unencodedDigestIncorrectDigestType.md",
+  "unencodedDigestMalformedDictionary.md",
+  "unencodedDigestUnknownAlgorithm.md",
 ]
 
 devtools_pre_built("descriptions") {
@@ -249,6 +289,10 @@ devtools_pre_built("descriptions") {
     sources += [ "descriptions/$file" ]
     data += [ "$target_gen_dir/descriptions/$file" ]
   }
+
+  write_file("$target_gen_dir/description_list.json",
+             devtools_issue_description_files,
+             "json")
 }
 
 devtools_entrypoint("bundle") {
@@ -258,6 +302,7 @@ devtools_entrypoint("bundle") {
 
   visibility = [
     ":*",
+    "../../../mcp/*",
     "../../entrypoints/main/*",
     "../../panels/application/*",
     "../../panels/console/*",
@@ -270,6 +315,7 @@ devtools_entrypoint("bundle") {
     "../../testing/*",
     "../../ui/components/docs/issue_counter/*",
     "../../ui/components/issue_counter/*",
+    "../../ui/components/markdown_view/*",
     "../../ui/legacy/components/cookie_table/*",
   ]
 
@@ -281,20 +327,39 @@ ts_library("unittests") {
 
   sources = [
     "CheckFormsIssuesTrigger.test.ts",
+    "IssuesManager.test.ts",
+    "SelectivePermissionsInterventionIssue.test.ts",
+  ]
+
+  deps = [
+    ":bundle",
+    "../../core/common:bundle",
+    "../../core/sdk:bundle",
+    "../../generated:protocol",
+    "../../testing",
+  ]
+}
+
+devtools_foundation_module("foundation_unittests") {
+  testonly = true
+
+  sources = [
+    "ConnectionAllowlistIssue.test.ts",
     "DeprecationIssue.test.ts",
+    "ElementAccessibilityIssue.test.ts",
     "FederatedAuthUserInfoRequestIssue.test.ts",
     "GenericIssue.test.ts",
     "Issue.test.ts",
+    "IssueAggregator.test.ts",
     "IssueResolver.test.ts",
-    "IssuesManager.test.ts",
-    "LowTextContrastIssue.test.ts",
     "MarkdownIssueDescription.test.ts",
+    "PermissionElementIssue.test.ts",
     "PropertyRuleIssue.test.ts",
     "RelatedIssue.test.ts",
     "SRIMessageSignatureIssue.test.ts",
-    "SelectElementAccessibilityIssue.test.ts",
     "SharedDictionaryIssue.test.ts",
     "StylesheetLoadingIssue.test.ts",
+    "UnencodedDigestIssue.test.ts",
   ]
 
   deps = [

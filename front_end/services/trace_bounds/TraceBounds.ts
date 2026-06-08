@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -19,8 +19,10 @@ export class StateChangedEvent extends Event {
   }
 }
 
-// Exposed as a shortcut to BoundsManager.instance().addEventListener, which
-// also takes care of type-casting the event to StateChangedEvent.
+/**
+ * Exposed as a shortcut to BoundsManager.instance().addEventListener, which
+ * also takes care of type-casting the event to StateChangedEvent.
+ **/
 export function onChange(cb: (event: StateChangedEvent) => void): void {
   BoundsManager.instance().addEventListener(
       StateChangedEvent.eventName,
@@ -142,7 +144,7 @@ export class BoundsManager extends EventTarget {
 
   /**
    * Updates the visible part of the trace that the user can see.
-   * @param options.ignoreMiniMapBounds - by default the visible window will be
+   * @param options.ignoreMiniMapBounds by default the visible window will be
    * bound by the minimap bounds. If you set this to `true` then the timeline
    * visible window will not be constrained by the minimap bounds. Be careful
    * with this! Unless you deal with this situation, the UI of the performance

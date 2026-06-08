@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """
@@ -68,7 +68,11 @@ def script_main(args):
     url = DOWNLOAD_URL % (os_name, options.tag, arch_suffix, file_extension)
 
     build_revision_same = check_stamp_file(options, url)
-    if build_revision_same:
+
+    binary_path = os.path.join(options.dest, 'install', 'bin')
+    binary_exists = os.path.exists(binary_path)
+
+    if build_revision_same and binary_exists:
         return 0
     elif build_revision_same is False:
         try:
@@ -80,6 +84,14 @@ def script_main(args):
         filename, _ = urllib.request.urlretrieve(url)
 
         unzip(os_name, filename, options.dest)
+
+        if os_name != 'win':
+            bin_dir = os.path.join(options.dest, 'install', 'bin')
+            if os.path.exists(os.path.join(bin_dir, 'lld')):
+                try:
+                    os.symlink('lld', os.path.join(bin_dir, 'ld.lld'))
+                except OSError:
+                    pass
 
         write_stamp_file(options, url)
     except Exception as e:

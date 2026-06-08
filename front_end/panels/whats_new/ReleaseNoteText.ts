@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,28 +40,22 @@ export function getReleaseNote(): ReleaseNote {
 }
 
 let releaseNote: ReleaseNote = {
-  version: 77,
-  header: 'What\'s new in DevTools 136',
+  version: 149,
+  header: 'What’s new in DevTools 149',
   markdownLinks: [
     {
-      key: 'perf-insights',
-      link: 'https://developer.chrome.com/blog/new-in-devtools-136/#perf-insights',
+      key: 'devtools-for-agents',
+      link: 'https://developer.chrome.com/blog/new-in-devtools-149/#devtools-for-agents',
     },
     {
-      key: 'click-to-highlight',
-      link: 'https://developer.chrome.com/blog/new-in-devtools-136/#click-to-highlight',
+      key: 'ai-assistance',
+      link: 'https://developer.chrome.com/blog/new-in-devtools-149/#ai-assistance',
     },
     {
-      key: 'cookies-filter',
-      link: 'https://developer.chrome.com/blog/new-in-devtools-136/#cookies-filter',
-    },
+      key: 'css-code-completion',
+      link: 'https://developer.chrome.com/blog/new-in-devtools-149/#css-code-completion',
+    }
   ],
-  videoLinks: [
-    {
-      description: 'See the highlights from Chrome 136',
-      link: 'https://developer.chrome.com/blog/new-in-devtools-136' as Platform.DevToolsPath.UrlString,
-      type: VideoType.WHATS_NEW,
-    },
-  ],
-  link: 'https://developer.chrome.com/blog/new-in-devtools-136/',
+  videoLinks: [],
+  link: 'https://developer.chrome.com/blog/new-in-devtools-149/',
 };

@@ -1,5 +1,5 @@
 #!/usr/bin/env vpython3
-# Copyright 2023 The Chromium Authors. All rights reserved.
+# Copyright 2023 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -8,11 +8,13 @@ from collections import Counter
 import http.server
 import json
 import os
+import platform
 import subprocess
 import sys
 import threading
 
 import yaml
+
 
 def repo_path(*paths):
     RootDirectory = os.path.dirname(
@@ -111,6 +113,7 @@ NODE = repo_path('//third_party/node/node.py')
 
 
 class Test(object):
+
     def __init__(self, build_root, path):
         output_directory = repo_path(build_root,
                                      get_artifact_dir('test_suite'))
@@ -183,7 +186,7 @@ class Test(object):
 
             flags += ' -c'
             # Build the object file from the source file
-            yield f'rule build_{object_rule_name}\n  command = cd {test_directory} && {compiler} {flags} {source_file_name} -o {object_rule_name}\n  description = Linking test {self.name} to binary with flags: "{flags}"\n'  #.format(
+            yield f'rule build_{object_rule_name}\n  command = cd {test_directory} && {compiler} {flags} {source_file_name} -o {object_rule_name}\n  description = Linking test {self.name} to binary with flags: "{flags}"\n'  # .format(
 
             if '-gsplit-dwarf' in flags:
                 # Generate the dwarf package file if necessary
@@ -265,7 +268,8 @@ class Compile(RunnerCommand):
             rules = set()
             for test in tests:
                 for rule in test.compile():
-                    if rule in rules: continue
+                    if rule in rules:
+                        continue
                     ninja_file.write('{}\n'.format(rule))
                     rules.add(rule)
 
@@ -416,6 +420,7 @@ class Inspect(Init):
     Help = 'Interactively run the test programs'
 
     class RequestHandlerFactory(object):
+
         def __init__(self, build_root):
             self.build_root = build_root
 
@@ -447,14 +452,20 @@ class Inspect(Init):
                                         daemon=True)
         httpd_thread.start()
 
-        chrome_binaries = {
-            'linux': '//third_party/chrome/chrome-linux/chrome',
-            'darwin':
-            '//third_party/chrome/chrome-mac/Chromium.app/Contents/MacOS/Chromium',
-            'win32': '//third_party/chrome/chrome-win/chrome.exe'
-        }
+        def chrome_binary():
+            if sys.platform == 'linux':
+                return '//third_party/chrome/chrome-linux/chrome-linux64/chrome'
+            elif sys.platform == 'darwin':
+                arch = 'arm64' if platform.processor().startswith(
+                    'arm') else 'x64'
+                return (
+                    f'//third_party/chrome/chrome-mac-{arch}/chrome-mac-{arch}/'
+                    'Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing'
+                )
+            elif sys.platform == 'win32':
+                return '//third_party/chrome/chrome-win/chrome-win64/chrome.exe'
 
-        chrome_binary = repo_path(chrome_binaries[sys.platform])
+        chrome_binary_path = repo_path(chrome_binary())
         if options.tests:
             tests = [
                 t for t in Test.load_tests(options.build_root)
@@ -468,7 +479,7 @@ class Inspect(Init):
             pages = [f'http://localhost:{options.port}/']
 
         run_process(
-            chrome_binary,
+            chrome_binary_path,
             f'--auto-open-devtools-for-tabs',
             f'--load-extension={repo_path(options.build_root, get_artifact_dir("cxx_debugging"), "src")}',
             f'--custom-devtools-frontend=file://{repo_path(options.build_root, get_artifact_dir("devtools-frontend"), "gen", "front_end")}',
@@ -513,7 +524,7 @@ class Run(Init):
         run_process(sys.executable,
                     NODE,
                     '--output',
-                    repo_path('//node_modules/mocha/bin/mocha'),
+                    repo_path('//node_modules/mocha/bin/mocha.js'),
                     '--config',
                     repo_path(options.build_root,
                               get_artifact_dir('test_suite'), '.mocharc.js'),

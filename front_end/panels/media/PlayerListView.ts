@@ -1,11 +1,14 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../ui/kit/kit.js';
+
 import * as i18n from '../../core/i18n/i18n.js';
+import * as Platform from '../../core/platform/platform.js';
 import type * as Protocol from '../../generated/protocol.js';
-import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as UI from '../../ui/legacy/legacy.js';
+import {Directives, html, render} from '../../ui/lit/lit.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import type {MainView, TriggerDispatcher} from './MainView.js';
@@ -13,89 +16,136 @@ import type {PlayerEvent} from './MediaModel.js';
 import playerListViewStyles from './playerListView.css.js';
 import {PlayerPropertyKeys} from './PlayerPropertiesView.js';
 
+const {classMap} = Directives;
+
 const UIStrings = {
   /**
-   *@description A right-click context menu entry which when clicked causes the menu entry for that player to be removed.
+   * @description A right-click context menu entry which when clicked causes the menu entry for that player to be removed.
    */
   hidePlayer: 'Hide player',
   /**
-   *@description A right-click context menu entry which should keep the element selected, while hiding all other entries.
+   * @description A right-click context menu entry which should keep the element selected, while hiding all other entries.
    */
   hideAllOthers: 'Hide all others',
   /**
-   *@description Context menu entry which downloads the json dump when clicked
+   * @description Context menu entry which downloads the json dump when clicked
    */
   savePlayerInfo: 'Save player info',
   /**
-   *@description Side-panel entry title text for the players section.
+   * @description Side-panel entry title text for the players section.
    */
   players: 'Players',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/media/PlayerListView.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-export interface PlayerStatus {
+
+interface PlayerStatus {
   playerTitle: string;
+  frameTitle: string;
   playerID: string;
   exists: boolean;
   playing: boolean;
   titleEdited: boolean;
+  iconName: string;
 }
-export interface PlayerStatusMapElement {
-  playerStatus: PlayerStatus;
-  playerTitleElement: HTMLElement|null;
+
+export interface ViewInput {
+  players: PlayerStatus[];
+  selectedPlayerID: string|null;
+  onPlayerClick: (playerID: string) => void;
+  onPlayerContextMenu: (playerID: string, event: Event) => void;
 }
+export type View = (input: ViewInput, output: object, target: HTMLElement) => void;
+
+const DEFAULT_VIEW: View = (input, _output, target) => {
+  // clang-format off
+  render(
+    html`
+      <style>${playerListViewStyles}</style>
+      <div class="player-entry-header" id="players-header">${i18nString(UIStrings.players)}</div>
+      <div role="listbox" aria-labelledby="players-header">
+      ${input.players.map(player => {
+        const isSelected = player.playerID === input.selectedPlayerID;
+        return html`
+          <div class=${classMap({
+            'player-entry-row': true,
+            hbox: true,
+            selected: isSelected,
+            'force-white-icons': isSelected,
+          })}
+               tabindex="0"
+               @click=${() => input.onPlayerClick(player.playerID)}
+               @keydown=${(e: KeyboardEvent) => {
+                 if (Platform.KeyboardUtilities.isEnterOrSpaceKey(e)) {
+                   e.preventDefault();
+                   input.onPlayerClick(player.playerID);
+                 }
+               }}
+               @contextmenu=${(e: Event) => input.onPlayerContextMenu(player.playerID, e)}
+               role="option"
+               aria-selected=${isSelected}
+               jslog=${VisualLogging.item('player').track({click: true, resize: true})}>
+            <div class="player-entry-status-icon vbox">
+              <div class="player-entry-status-icon-centering">
+                <devtools-icon name=${player.iconName}></devtools-icon>
+              </div>
+            </div>
+            <div class="player-entry-frame-title">${player.frameTitle}</div>
+            <div class="player-entry-player-title">${player.playerTitle}</div>
+          </div>
+        `;
+      })}
+      </div>
+    `,
+    target
+  );
+  // clang-format on
+};
 
 export class PlayerListView extends UI.Widget.VBox implements TriggerDispatcher {
-  private readonly playerEntryFragments: Map<string, UI.Fragment.Fragment>;
+  #view: View;
+  private readonly playerStatuses: Map<string, PlayerStatus>;
   private readonly playerEntriesWithHostnameFrameTitle: Set<string>;
   private readonly mainContainer: MainView;
-  private currentlySelectedEntry: Element|null;
+  private currentlySelectedPlayerID: string|null;
 
-  constructor(mainContainer: MainView) {
-    super(true);
-    this.registerRequiredCSS(playerListViewStyles);
+  constructor(mainContainer: MainView, view: View = DEFAULT_VIEW) {
+    super({useShadowDom: true});
+    this.#view = view;
 
-    this.playerEntryFragments = new Map();
+    this.playerStatuses = new Map();
     this.playerEntriesWithHostnameFrameTitle = new Set();
 
     // Container where new panels can be added based on clicks.
     this.mainContainer = mainContainer;
 
-    this.currentlySelectedEntry = null;
-    this.contentElement.createChild('div', 'player-entry-header').textContent = i18nString(UIStrings.players);
+    this.currentlySelectedPlayerID = null;
+    this.requestUpdate();
   }
 
-  private createPlayerListEntry(playerID: string): UI.Fragment.Fragment {
-    const entry = UI.Fragment.Fragment.build`
-    <div class="player-entry-row hbox">
-    <div class="player-entry-status-icon vbox">
-    <div $="icon" class="player-entry-status-icon-centering"></div>
-    </div>
-    <div $="frame-title" class="player-entry-frame-title">FrameTitle</div>
-    <div $="player-title" class="player-entry-player-title">PlayerTitle</div>
-    </div>
-    `;
-    const element = entry.element();
-    element.setAttribute('jslog', `${VisualLogging.item('player').track({click: true})}`);
-    element.addEventListener('click', this.selectPlayer.bind(this, playerID, element));
-    element.addEventListener('contextmenu', this.rightClickPlayer.bind(this, playerID));
-
-    entry.$('icon').appendChild(IconButton.Icon.create('pause', 'media-player'));
-    return entry;
+  override performUpdate(): void {
+    const input: ViewInput = {
+      players: Array.from(this.playerStatuses.values()),
+      selectedPlayerID: this.currentlySelectedPlayerID,
+      onPlayerClick: this.selectPlayer.bind(this),
+      onPlayerContextMenu: this.rightClickPlayer.bind(this),
+    };
+    this.#view(input, {}, this.contentElement);
   }
 
-  private selectPlayer(playerID: string, element: Element): void {
-    this.mainContainer.renderMainPanel(playerID);
-    if (this.currentlySelectedEntry !== null) {
-      this.currentlySelectedEntry.classList.remove('selected');
-      this.currentlySelectedEntry.classList.remove('force-white-icons');
+  selectPlayerById(playerID: string): void {
+    if (this.playerStatuses.has(playerID)) {
+      this.selectPlayer(playerID);
     }
-    element.classList.add('selected');
-    element.classList.add('force-white-icons');
-    this.currentlySelectedEntry = element;
   }
 
-  private rightClickPlayer(playerID: string, event: Event): boolean {
+  private selectPlayer(playerID: string): void {
+    this.mainContainer.renderMainPanel(playerID);
+    this.currentlySelectedPlayerID = playerID;
+    this.requestUpdate();
+  }
+
+  private rightClickPlayer(playerID: string, event: Event): void {
     const contextMenu = new UI.ContextMenu.ContextMenu(event);
     contextMenu.headerSection().appendItem(
         i18nString(UIStrings.hidePlayer), this.mainContainer.markPlayerForDeletion.bind(this.mainContainer, playerID),
@@ -108,11 +158,10 @@ export class PlayerListView extends UI.Widget.VBox implements TriggerDispatcher 
         i18nString(UIStrings.savePlayerInfo), this.mainContainer.exportPlayerData.bind(this.mainContainer, playerID),
         {jslogContext: 'save-player-info'});
     void contextMenu.show();
-    return true;
   }
 
   private setMediaElementFrameTitle(playerID: string, frameTitle: string, isHostname: boolean): void {
-    // Only remove the title from the set if we arent setting a hostname title.
+    // Only remove the title from the set if we aren't setting a hostname title.
     // Otherwise, if it has a non-hostname title, and the requested new title is
     // a hostname, just drop it.
     if (this.playerEntriesWithHostnameFrameTitle.has(playerID)) {
@@ -123,41 +172,36 @@ export class PlayerListView extends UI.Widget.VBox implements TriggerDispatcher 
       return;
     }
 
-    if (!this.playerEntryFragments.has(playerID)) {
+    if (!this.playerStatuses.has(playerID)) {
       return;
     }
-    const fragment = this.playerEntryFragments.get(playerID);
-    if (fragment?.element() === undefined) {
-      return;
+    const playerStatus = this.playerStatuses.get(playerID);
+    if (playerStatus) {
+      playerStatus.frameTitle = frameTitle;
+      this.requestUpdate();
     }
-    fragment.$('frame-title').textContent = frameTitle;
   }
 
   private setMediaElementPlayerTitle(playerID: string, playerTitle: string): void {
-    if (!this.playerEntryFragments.has(playerID)) {
+    if (!this.playerStatuses.has(playerID)) {
       return;
     }
-    const fragment = this.playerEntryFragments.get(playerID);
-    if (fragment === undefined) {
-      return;
+    const playerStatus = this.playerStatuses.get(playerID);
+    if (playerStatus) {
+      playerStatus.playerTitle = playerTitle;
+      this.requestUpdate();
     }
-    fragment.$('player-title').textContent = playerTitle;
   }
 
   private setMediaElementPlayerIcon(playerID: string, iconName: string): void {
-    if (!this.playerEntryFragments.has(playerID)) {
+    if (!this.playerStatuses.has(playerID)) {
       return;
     }
-    const fragment = this.playerEntryFragments.get(playerID);
-    if (fragment === undefined) {
-      return;
+    const playerStatus = this.playerStatuses.get(playerID);
+    if (playerStatus) {
+      playerStatus.iconName = iconName;
+      this.requestUpdate();
     }
-    const icon = fragment.$('icon');
-    if (icon === undefined) {
-      return;
-    }
-    icon.textContent = '';
-    icon.appendChild(IconButton.Icon.create(iconName, 'media-player'));
   }
 
   private formatAndEvaluate(
@@ -166,28 +210,31 @@ export class PlayerListView extends UI.Widget.VBox implements TriggerDispatcher 
       return;
     }
     if (candidate.length >= max) {
-      candidate = candidate.substring(0, max - 3) + '...';
+      candidate = candidate.substring(0, max - 1) + '…';
     }
     func.bind(this)(playerID, candidate);
   }
 
   addMediaElementItem(playerID: string): void {
-    const sidebarEntry = this.createPlayerListEntry(playerID);
-    this.contentElement.appendChild(sidebarEntry.element());
-    this.playerEntryFragments.set(playerID, sidebarEntry);
+    this.playerStatuses.set(playerID, {
+      playerTitle: 'PlayerTitle',
+      frameTitle: 'FrameTitle',
+      playerID,
+      exists: true,
+      playing: false,
+      titleEdited: false,
+      iconName: 'pause',
+    });
     this.playerEntriesWithHostnameFrameTitle.add(playerID);
+    this.requestUpdate();
   }
 
   deletePlayer(playerID: string): void {
-    if (!this.playerEntryFragments.has(playerID)) {
+    if (!this.playerStatuses.has(playerID)) {
       return;
     }
-    const fragment = this.playerEntryFragments.get(playerID);
-    if (fragment?.element() === undefined) {
-      return;
-    }
-    this.contentElement.removeChild(fragment.element());
-    this.playerEntryFragments.delete(playerID);
+    this.playerStatuses.delete(playerID);
+    this.requestUpdate();
   }
 
   onEvent(playerID: string, event: PlayerEvent): void {
@@ -238,7 +285,7 @@ export class PlayerListView extends UI.Widget.VBox implements TriggerDispatcher 
     // since the site is free to set the title to _anything_, it might just be
     // junk, or it might be super long. If it's empty, or 1 character, It's
     // preferable to just drop it. Titles longer than 20 will have the first
-    // 17 characters kept and an elipsis appended.
+    // 17 characters kept and an ellipsis appended.
     if (property.name === PlayerPropertyKeys.FRAME_TITLE && property.value) {
       this.formatAndEvaluate(playerID, this.setMediaElementFrameTitle, property.value, 1, 20);
       return;

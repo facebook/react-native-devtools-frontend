@@ -1,12 +1,14 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Platform from '../../core/platform/platform.js';
 import * as Trace from '../../models/trace/trace.js';
 
-// We could add a `type` field here to distinguish them, but it is not needed
-// as we use the existence of "event" or "bounds" to do that.
+/**
+ * We could add a `type` field here to distinguish them, but it is not needed
+ * as we use the existence of "event" or "bounds" to do that.
+ **/
 export interface EventSelection {
   event: Trace.Types.Events.Event;
 }

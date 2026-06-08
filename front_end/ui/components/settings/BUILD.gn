@@ -1,4 +1,4 @@
-# Copyright 2021 The Chromium Authors. All rights reserved.
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -15,7 +15,7 @@ generate_css("css_files") {
   ]
 }
 
-devtools_module("settings") {
+devtools_ui_module("settings") {
   sources = [
     "SettingCheckbox.ts",
     "SettingDeprecationWarning.ts",
@@ -23,11 +23,15 @@ devtools_module("settings") {
 
   deps = [
     "../../../core/common:bundle",
+    "../../../core/host:bundle",
+    "../../../core/i18n:bundle",
+    "../../kit:bundle",
     "../../lit:bundle",
     "../../visual_logging:bundle",
     "../buttons:bundle",
     "../helpers:bundle",
     "../input:bundle",
+    "../tooltips:bundle",
   ]
 }
 
@@ -42,7 +46,7 @@ devtools_entrypoint("bundle") {
   visibility = default_components_visibility + [ "../../legacy/*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [

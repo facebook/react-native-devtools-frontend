@@ -1,4 +1,4 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,44 +6,45 @@ import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
 import type * as ProtocolClient from '../../core/protocol_client/protocol_client.js';
 import * as SDK from '../../core/sdk/sdk.js';
+import type * as Protocol from '../../generated/protocol.js';
+import type * as LighthouseModel from '../../models/lighthouse/lighthouse.js';
 
-import type * as ReportRenderer from './LighthouseReporterTypes.js';
-
-/* eslint-disable jsdoc/check-alignment */
 /**
- * @overview
-                                                   ┌────────────┐
-                                                   │CDP Backend │
-                                                   └────────────┘
-                                                        │ ▲
-                                                        │ │ parallelConnection
-                          ┌┐                            ▼ │                     ┌┐
-                          ││   dispatchProtocolMessage     sendProtocolMessage  ││
-                          ││                     │          ▲                   ││
-          ProtocolService ││                     |          │                   ││
-                          ││    sendWithResponse ▼          │                   ││
-                          ││              │    send          onWorkerMessage    ││
-                          └┘              │    │                 ▲              └┘
-          worker boundary - - - - - - - - ┼ - -│- - - - - - - - -│- - - - - - - - - - - -
-                          ┌┐              ▼    ▼                 │                    ┌┐
-                          ││   onFrontendMessage      notifyFrontendViaWorkerMessage  ││
-                          ││                   │       ▲                              ││
-                          ││                   ▼       │                              ││
-LighthouseWorkerService   ││          Either ConnectionProxy or LegacyPort            ││
-                          ││                           │ ▲                            ││
-                          ││     ┌─────────────────────┼─┼───────────────────────┐    ││
-                          ││     │  Lighthouse    ┌────▼──────┐                  │    ││
-                          ││     │                │connection │                  │    ││
-                          ││     │                └───────────┘                  │    ││
-                          └┘     └───────────────────────────────────────────────┘    └┘
-
- * All messages traversing the worker boundary are action-wrapped.
- * All messages over the parallelConnection speak pure CDP.
- * All messages within ConnectionProxy/LegacyPort speak pure CDP.
- * The foundational CDP connection is `parallelConnection`.
- * All connections within the worker are not actual ParallelConnection's.
+ * @file
+ *                                                 ┌───────────────┐
+ *                                                 │ CDPConnection │
+ *                                                 └───────────────┘
+ *                                                        │ ▲
+ *                                                        │ │
+ *                          ┌┐                            ▼ │                     ┌┐
+ *                          ││   dispatchProtocolMessage     sendProtocolMessage  ││
+ *                          ││                     │          ▲                   ││
+ *          ProtocolService ││                     |          │                   ││
+ *                          ││    sendWithResponse ▼          │                   ││
+ *                          ││              │    send          onWorkerMessage    ││
+ *                          └┘              │    │                 ▲              └┘
+ *          worker boundary - - - - - - - - ┼ - -│- - - - - - - - -│- - - - - - - - - - - -
+ *                          ┌┐              ▼    ▼                 │                    ┌┐
+ *                          ││   onFrontendMessage      notifyFrontendViaWorkerMessage  ││
+ *                          ││                   │       ▲                              ││
+ *                          ││                   ▼       │                              ││
+ *  LighthouseWorkerService ││               WorkerConnectionTransport                  ││
+ *                          ││                           │ ▲                            ││
+ *                          ││                           ▼ │                            ││
+ *                          ││                     CDPConnection                        ││
+ *                          ││                           │ ▲                            ││
+ *                          ││     ┌─────────────────────┼─┼───────────────────────┐    ││
+ *                          ││     │  Lighthouse    ┌────▼──────┐                  │    ││
+ *                          ││     │                │connection │                  │    ││
+ *                          ││     │                └───────────┘                  │    ││
+ *                          └┘     └───────────────────────────────────────────────┘    └┘
+ *
+ * - All messages traversing the worker boundary are action-wrapped.
+ * - All messages over the CDPConnection speak pure CDP.
+ * - Within the worker we also use a 'CDPConnection' but with a custom
+ *   transport called WorkerConnectionTransport.
+ * - All messages within WorkerConnectionTransport/LegacyPort speak pure CDP.
  */
-/* eslint-enable jsdoc/check-alignment */
 
 let lastId = 1;
 
@@ -54,19 +55,35 @@ export interface LighthouseRun {
     formFactor: (string|undefined),
     mode: string,
   };
+  isAIControlled?: boolean;
+}
+
+export class CancelledError extends Error {
+  constructor() {
+    super('Lighthouse run cancelled');
+  }
 }
 
 /**
  * ProtocolService manages a connection between the frontend (Lighthouse panel) and the Lighthouse worker.
  */
-export class ProtocolService {
-  private mainSessionId?: string;
+export class ProtocolService implements ProtocolClient.CDPConnection.CDPConnectionObserver {
+  private mainSessionId?: Protocol.Target.SessionID;
   private rootTargetId?: string;
-  private parallelConnection?: ProtocolClient.InspectorBackend.Connection;
+  private rootTarget?: SDK.Target.Target;
   private lighthouseWorkerPromise?: Promise<Worker>;
   private lighthouseMessageUpdateCallback?: ((arg0: string) => void);
   private removeDialogHandler?: () => void;
   private configForTesting?: object;
+  private connection?: ProtocolClient.CDPConnection.CDPConnection;
+
+  /**
+   * Tracks pending requests to the Lighthouse worker.
+   * Key: The message ID sent to the worker.
+   * Value: The rejection function for the corresponding promise.
+   * This is used to gracefully cancel hanging promises if the ProtocolService is detached before the worker replies.
+   */
+  readonly #pendingRequests = new Map<number, (reason: Error) => void>();
 
   async attach(): Promise<void> {
     await SDK.TargetManager.TargetManager.instance().suspendAllTargets();
@@ -92,12 +109,15 @@ export class ProtocolService {
       throw new Error('Could not find the child target manager class for the root target');
     }
 
-    const {connection, sessionId} = await rootChildTargetManager.createParallelConnection(message => {
-      if (typeof message === 'string') {
-        message = JSON.parse(message);
-      }
-      this.dispatchProtocolMessage(message);
-    });
+    const connection = rootTarget.router()?.connection;
+    if (!connection) {
+      throw new Error('Expected root target to have a session router');
+    }
+
+    const rootTargetId = await rootChildTargetManager.getParentTargetId();
+    const {sessionId} = await rootTarget.targetAgent().invoke_attachToTarget({targetId: rootTargetId, flatten: true});
+    this.connection = connection;
+    this.connection.observe(this);
 
     // Lighthouse implements its own dialog handler like this, however its lifecycle ends when
     // the internal Lighthouse session is disposed.
@@ -116,8 +136,8 @@ export class ProtocolService {
     this.removeDialogHandler = () =>
         resourceTreeModel.removeEventListener(SDK.ResourceTreeModel.Events.JavaScriptDialogOpening, dialogHandler);
 
-    this.parallelConnection = connection;
-    this.rootTargetId = await rootChildTargetManager.getParentTargetId();
+    this.rootTargetId = rootTargetId;
+    this.rootTarget = rootTarget;
     this.mainSessionId = sessionId;
   }
 
@@ -143,7 +163,8 @@ export class ProtocolService {
     });
   }
 
-  async collectLighthouseResults(currentLighthouseRun: LighthouseRun): Promise<ReportRenderer.RunnerResult> {
+  async collectLighthouseResults(currentLighthouseRun: LighthouseRun):
+      Promise<LighthouseModel.ReporterTypes.RunnerResult> {
     const {inspectedURL, categoryIDs, flags} = currentLighthouseRun;
 
     if (!this.mainSessionId || !this.rootTargetId) {
@@ -167,21 +188,27 @@ export class ProtocolService {
   }
 
   async detach(): Promise<void> {
+    for (const reject of this.#pendingRequests.values()) {
+      reject(new CancelledError());
+    }
+    this.#pendingRequests.clear();
     const oldLighthouseWorker = this.lighthouseWorkerPromise;
-    const oldParallelConnection = this.parallelConnection;
+    const oldRootTarget = this.rootTarget;
 
     // When detaching, make sure that we remove the old promises, before we
     // perform any async cleanups. That way, if there is a message coming from
     // lighthouse while we are in the process of cleaning up, we shouldn't deliver
     // them to the backend.
     this.lighthouseWorkerPromise = undefined;
-    this.parallelConnection = undefined;
+    this.rootTarget = undefined;
+    this.connection?.unobserve(this);
+    this.connection = undefined;
 
     if (oldLighthouseWorker) {
       (await oldLighthouseWorker).terminate();
     }
-    if (oldParallelConnection) {
-      await oldParallelConnection.disconnect();
+    if (oldRootTarget && this.mainSessionId) {
+      await oldRootTarget.targetAgent().invoke_detachFromTarget({sessionId: this.mainSessionId});
     }
     await SDK.TargetManager.TargetManager.instance().resumeAllTargets();
     this.removeDialogHandler?.();
@@ -191,7 +218,11 @@ export class ProtocolService {
     this.lighthouseMessageUpdateCallback = callback;
   }
 
-  private dispatchProtocolMessage(message: string|object): void {
+  onEvent<T extends ProtocolClient.CDPConnection.Event>(event: ProtocolClient.CDPConnection.CDPEvent<T>): void {
+    this.dispatchProtocolMessage(event);
+  }
+
+  private dispatchProtocolMessage(message: ProtocolClient.CDPConnection.CDPReceivableMessage): void {
     // A message without a sessionId is the main session of the main target (call it "Main session").
     // A parallel connection and session was made that connects to the same main target (call it "Lighthouse session").
     // Messages from the "Lighthouse session" have a sessionId.
@@ -201,13 +232,13 @@ export class ProtocolService {
     //   * the message has a sessionId (is not for the "Main session")
     //   * the message does not have a sessionId (is for the "Main session"), but only for the Target domain
     //     (to kickstart autoAttach in LH).
-    const protocolMessage = message as {
-      sessionId?: string,
-      method?: string,
-    };
-    if (protocolMessage.sessionId || (protocolMessage.method?.startsWith('Target'))) {
+    if (message.sessionId || ('method' in message && message.method?.startsWith('Target'))) {
       void this.send('dispatchProtocolMessage', {message});
     }
+  }
+
+  onDisconnect(): void {
+    // Do nothing.
   }
 
   private initWorker(): Promise<Worker> {
@@ -232,7 +263,7 @@ export class ProtocolService {
     return this.lighthouseWorkerPromise;
   }
 
-  private async ensureWorkerExists(): Promise<Worker> {
+  async ensureWorkerExists(): Promise<Worker> {
     let worker: Worker;
     if (!this.lighthouseWorkerPromise) {
       worker = await this.initWorker();
@@ -257,32 +288,44 @@ export class ProtocolService {
   }
 
   private sendProtocolMessage(message: string): void {
-    if (this.parallelConnection) {
-      this.parallelConnection.sendRawMessage(message);
-    }
+    const {id, method, params, sessionId} = JSON.parse(message);
+    // CDPConnection manages it's own message IDs and it's important, otherwise we'd clash
+    // with the rest of the DevTools traffic.
+    // Instead, we ignore the ID coming from the worker when sending the command, but
+    // patch it back in when sending the response back to the worker.
+    void this.connection?.send(method, params, sessionId).then(response => {
+      const message =
+          'result' in response ? {id, sessionId, result: response.result} : {id, sessionId, error: response.error};
+      this.dispatchProtocolMessage(message);
+    });
   }
 
-  private async send(action: string, args: {[x: string]: string|string[]|object} = {}): Promise<void> {
+  private async send(action: string, args: Record<string, string|string[]|object> = {}): Promise<void> {
     const worker = await this.ensureWorkerExists();
     const messageId = lastId++;
     worker.postMessage({id: messageId, action, args: {...args, id: messageId}});
   }
 
   /** sendWithResponse currently only handles the original startLighthouse request and LHR-filled response. */
-  private async sendWithResponse(action: string, args: {[x: string]: string|string[]|object|undefined} = {}):
-      Promise<ReportRenderer.RunnerResult> {
+  private async sendWithResponse(action: string, args: Record<string, string|string[]|object|undefined> = {}):
+      Promise<LighthouseModel.ReporterTypes.RunnerResult> {
     const worker = await this.ensureWorkerExists();
     const messageId = lastId++;
-    const messageResult = new Promise<ReportRenderer.RunnerResult>(resolve => {
+    const messageResult = new Promise<LighthouseModel.ReporterTypes.RunnerResult>((resolve, reject) => {
       const workerListener = (event: MessageEvent): void => {
         const lighthouseMessage = event.data;
 
         if (lighthouseMessage.id === messageId) {
           worker.removeEventListener('message', workerListener);
+          this.#pendingRequests.delete(messageId);
           resolve(lighthouseMessage.result);
         }
       };
       worker.addEventListener('message', workerListener);
+      this.#pendingRequests.set(messageId, (err: Error) => {
+        worker.removeEventListener('message', workerListener);
+        reject(err);
+      });
     });
     worker.postMessage({id: messageId, action, args: {...args, id: messageId}});
 

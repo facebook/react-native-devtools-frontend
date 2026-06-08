@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,13 +9,7 @@ import * as Trace from '../trace.js';
 describe('MetaHandler', function() {
   let baseEvents: Trace.Types.Events.Event[];
   beforeEach(async function() {
-    let defaultTraceEvents: readonly Trace.Types.Events.Event[];
-    try {
-      defaultTraceEvents = await TraceLoader.rawEvents(this, 'basic.json.gz');
-    } catch (error) {
-      assert.fail(error);
-      return;
-    }
+    const defaultTraceEvents = await TraceLoader.rawEvents(this, 'basic.json.gz');
 
     baseEvents = [
       ...defaultTraceEvents,
@@ -123,10 +117,8 @@ describe('MetaHandler', function() {
       assert.strictEqual(data.navigationsByNavigationId.size, 1);
 
       const firstNavigation = data.navigationsByNavigationId.get('navigation-1');
-      if (!firstNavigation?.args.data) {
-        assert.fail('Navigation data was expected in trace events');
-        return;
-      }
+
+      assert.exists(firstNavigation?.args.data, 'Navigation data was expected in trace events');
 
       assert.strictEqual(firstNavigation.args.data.documentLoaderURL, 'test1');
     });
@@ -235,10 +227,8 @@ describe('MetaHandler', function() {
     assert.deepEqual([...data.topLevelRendererIds], [3601132]);
 
     const rendererProcesses = data.rendererProcessesByFrame.get(data.mainFrameId);
-    if (!rendererProcesses) {
-      assert.fail('No renderer processes found');
-      return;
-    }
+    assert.exists(rendererProcesses, 'No renderer processes found');
+
     assert.deepEqual([...rendererProcesses?.keys()], [3601132]);
     const windowMinTime = 1143381875846;
     assert.deepEqual(
@@ -272,10 +262,7 @@ describe('MetaHandler', function() {
     assert.deepEqual([...data.topLevelRendererIds], [78450, 78473, 79194]);
 
     const rendererProcesses = data.rendererProcessesByFrame.get(data.mainFrameId);
-    if (!rendererProcesses) {
-      assert.fail('No renderer processes found');
-      return;
-    }
+    assert.exists(rendererProcesses, 'No renderer processes found');
 
     const windowMinTime = 3550807444741;
     assert.deepEqual([...rendererProcesses?.keys()], [78450, 78473, 79194]);
@@ -309,6 +296,7 @@ describe('MetaHandler', function() {
       }],
     ]);
   });
+
   it('handles multiple renderers from navigations where a process handled multiple URLs ', async function() {
     let traceEvents: readonly Trace.Types.Events.Event[];
     try {
@@ -328,10 +316,7 @@ describe('MetaHandler', function() {
     assert.deepEqual([...data.topLevelRendererIds], [2080]);
 
     const rendererProcesses = data.rendererProcessesByFrame.get(data.mainFrameId);
-    if (!rendererProcesses) {
-      assert.fail('No renderer processes found');
-      return;
-    }
+    assert.exists(rendererProcesses, 'No renderer processes found');
 
     assert.deepEqual([...rendererProcesses?.keys()], [2080]);
     assert.deepEqual([...rendererProcesses?.values()], [
@@ -422,7 +407,6 @@ describe('MetaHandler', function() {
       traceEvents = await TraceLoader.rawEvents(this, 'web-dev.json.gz');
     } catch (error) {
       assert.fail(error);
-      return;
     }
 
     Trace.Handlers.ModelHandlers.Meta.reset();
@@ -515,6 +499,17 @@ describe('MetaHandler', function() {
   it('marks a web trace as being not generic', async function() {
     const events = await TraceLoader.rawEvents(this, 'web-dev-with-commit.json.gz');
     for (const event of events) {
+      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
+    }
+    await Trace.Handlers.ModelHandlers.Meta.finalize();
+    assert.isFalse(Trace.Handlers.ModelHandlers.Meta.data().traceIsGeneric);
+  });
+
+  it('marks a cpu profile as being not generic', async function() {
+    const profile = await TraceLoader.rawCPUProfile(this, 'basic.cpuprofile.gz');
+    const contents = Trace.Helpers.SamplesIntegrator.SamplesIntegrator.createFakeTraceFromCpuProfile(
+        profile, Trace.Types.Events.ThreadID(1));
+    for (const event of contents.traceEvents) {
       Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
     }
     await Trace.Handlers.ModelHandlers.Meta.finalize();

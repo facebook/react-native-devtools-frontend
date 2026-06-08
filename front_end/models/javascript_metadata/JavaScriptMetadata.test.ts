@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -24,7 +24,8 @@ describe('JavaScriptMetadata', () => {
   describe('with static methods', () => {
     it('retrieves by name and class', () => {
       const signatures = metadata.signaturesForStaticMethod('from', 'Array');
-      assert.deepEqual(signatures, [['iterable', '?mapfn', '?thisArg'], ['arrayLike', '?mapfn', '?thisArg']]);
+      assert.isNotNull(signatures);
+      assert.sameDeepMembers(signatures, [['iterable', '?mapfn', '?thisArg'], ['arrayLike', '?mapfn', '?thisArg']]);
     });
 
     it('does not retrieve methods that are bound to an instance', () => {

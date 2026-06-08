@@ -8,8 +8,6 @@ export declare const initMetric: <MetricName extends MetricType["name"]>(name: M
         name: MetricName;
     }> | Extract<import("../types.js").FCPMetric, {
         name: MetricName;
-    }> | Extract<import("../types.js").FIDMetric, {
-        name: MetricName;
     }> | Extract<import("../types.js").INPMetric, {
         name: MetricName;
     }> | Extract<import("../types.js").LCPMetric, {
@@ -18,5 +16,5 @@ export declare const initMetric: <MetricName extends MetricType["name"]>(name: M
         name: MetricName;
     }>)["entries"];
     id: string;
-    navigationType: "reload" | "navigate" | "prerender" | "back-forward" | "back-forward-cache" | "restore";
+    navigationType: "reload" | "navigate" | "back-forward" | "back-forward-cache" | "prerender" | "restore";
 };

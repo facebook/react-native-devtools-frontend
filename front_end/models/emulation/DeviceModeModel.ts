@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,7 @@ import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
-import * as UI from '../../ui/legacy/legacy.js';
+import * as Geometry from '../geometry/geometry.js';
 
 import {
   type EmulatedDevice,
@@ -88,53 +88,51 @@ let deviceModeModelInstance: DeviceModeModel|null;
 
 export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTypes> implements
     SDK.TargetManager.SDKModelObserver<SDK.EmulationModel.EmulationModel> {
-  #screenRectInternal: Rect;
-  #visiblePageRectInternal: Rect;
-  #availableSize: UI.Geometry.Size;
-  #preferredSize: UI.Geometry.Size;
+  #screenRect: Rect;
+  #visiblePageRect: Rect;
+  #availableSize: Geometry.Size;
+  #preferredSize: Geometry.Size;
   #initialized: boolean;
-  #appliedDeviceSizeInternal: UI.Geometry.Size;
-  #appliedDeviceScaleFactorInternal: number;
-  #appliedUserAgentTypeInternal: UA;
-  readonly #webPlatformExperimentalFeaturesEnabledInternal: boolean;
-  readonly #scaleSettingInternal: Common.Settings.Setting<number>;
-  #scaleInternal: number;
+  #appliedDeviceSize: Geometry.Size;
+  #appliedDeviceScaleFactor: number;
+  #appliedUserAgentType: UA;
+  readonly #scaleSetting: Common.Settings.Setting<number>;
+  #scale: number;
   #widthSetting: Common.Settings.Setting<number>;
   #heightSetting: Common.Settings.Setting<number>;
-  #uaSettingInternal: Common.Settings.Setting<UA>;
-  readonly #deviceScaleFactorSettingInternal: Common.Settings.Setting<number>;
-  readonly #deviceOutlineSettingInternal: Common.Settings.Setting<boolean>;
-  readonly #toolbarControlsEnabledSettingInternal: Common.Settings.Setting<boolean>;
-  #typeInternal: Type;
-  #deviceInternal: EmulatedDevice|null;
-  #modeInternal: Mode|null;
-  #fitScaleInternal: number;
+  #uaSetting: Common.Settings.Setting<UA>;
+  readonly #deviceScaleFactorSetting: Common.Settings.Setting<number>;
+  readonly #deviceOutlineSetting: Common.Settings.Setting<boolean>;
+  readonly #toolbarControlsEnabledSetting: Common.Settings.Setting<boolean>;
+  #type: Type;
+  #device: EmulatedDevice|null;
+  #mode: Mode|null;
+  #fitScale: number;
   #touchEnabled: boolean;
   #touchMobile: boolean;
   #emulationModel: SDK.EmulationModel.EmulationModel|null;
   #onModelAvailable: (() => void)|null;
-  #outlineRectInternal?: Rect;
+  #outlineRect?: Rect;
+  #screenOrientationLocked: boolean;
 
   private constructor() {
     super();
-    this.#screenRectInternal = new Rect(0, 0, 1, 1);
-    this.#visiblePageRectInternal = new Rect(0, 0, 1, 1);
-    this.#availableSize = new UI.Geometry.Size(1, 1);
-    this.#preferredSize = new UI.Geometry.Size(1, 1);
+    this.#screenRect = new Rect(0, 0, 1, 1);
+    this.#visiblePageRect = new Rect(0, 0, 1, 1);
+    this.#availableSize = new Geometry.Size(1, 1);
+    this.#preferredSize = new Geometry.Size(1, 1);
     this.#initialized = false;
-    this.#appliedDeviceSizeInternal = new UI.Geometry.Size(1, 1);
-    this.#appliedDeviceScaleFactorInternal = window.devicePixelRatio;
-    this.#appliedUserAgentTypeInternal = UA.DESKTOP;
-    this.#webPlatformExperimentalFeaturesEnabledInternal =
-        window.visualViewport ? 'segments' in window.visualViewport : false;
+    this.#appliedDeviceSize = new Geometry.Size(1, 1);
+    this.#appliedDeviceScaleFactor = globalThis.devicePixelRatio;
+    this.#appliedUserAgentType = UA.DESKTOP;
 
-    this.#scaleSettingInternal = Common.Settings.Settings.instance().createSetting('emulation.device-scale', 1);
+    this.#scaleSetting = Common.Settings.Settings.instance().createSetting('emulation.device-scale', 1);
     // We've used to allow zero before.
-    if (!this.#scaleSettingInternal.get()) {
-      this.#scaleSettingInternal.set(1);
+    if (!this.#scaleSetting.get()) {
+      this.#scaleSetting.set(1);
     }
-    this.#scaleSettingInternal.addChangeListener(this.scaleSettingChanged, this);
-    this.#scaleInternal = 1;
+    this.#scaleSetting.addChangeListener(this.scaleSettingChanged, this);
+    this.#scale = 1;
 
     this.#widthSetting = Common.Settings.Settings.instance().createSetting('emulation.device-width', 400);
     if (this.#widthSetting.get() < MinDeviceSize) {
@@ -154,28 +152,28 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
     }
     this.#heightSetting.addChangeListener(this.heightSettingChanged, this);
 
-    this.#uaSettingInternal = Common.Settings.Settings.instance().createSetting('emulation.device-ua', UA.MOBILE);
-    this.#uaSettingInternal.addChangeListener(this.uaSettingChanged, this);
-    this.#deviceScaleFactorSettingInternal =
+    this.#uaSetting = Common.Settings.Settings.instance().createSetting('emulation.device-ua', UA.MOBILE);
+    this.#uaSetting.addChangeListener(this.uaSettingChanged, this);
+    this.#deviceScaleFactorSetting =
         Common.Settings.Settings.instance().createSetting('emulation.device-scale-factor', 0);
-    this.#deviceScaleFactorSettingInternal.addChangeListener(this.deviceScaleFactorSettingChanged, this);
+    this.#deviceScaleFactorSetting.addChangeListener(this.deviceScaleFactorSettingChanged, this);
 
-    this.#deviceOutlineSettingInternal =
-        Common.Settings.Settings.instance().moduleSetting('emulation.show-device-outline');
-    this.#deviceOutlineSettingInternal.addChangeListener(this.deviceOutlineSettingChanged, this);
+    this.#deviceOutlineSetting = Common.Settings.Settings.instance().moduleSetting('emulation.show-device-outline');
+    this.#deviceOutlineSetting.addChangeListener(this.deviceOutlineSettingChanged, this);
 
-    this.#toolbarControlsEnabledSettingInternal = Common.Settings.Settings.instance().createSetting(
+    this.#toolbarControlsEnabledSetting = Common.Settings.Settings.instance().createSetting(
         'emulation.toolbar-controls-enabled', true, Common.Settings.SettingStorageType.SESSION);
 
-    this.#typeInternal = Type.None;
-    this.#deviceInternal = null;
-    this.#modeInternal = null;
-    this.#fitScaleInternal = 1;
+    this.#type = Type.None;
+    this.#device = null;
+    this.#mode = null;
+    this.#fitScale = 1;
     this.#touchEnabled = false;
     this.#touchMobile = false;
 
     this.#emulationModel = null;
     this.#onModelAvailable = null;
+    this.#screenOrientationLocked = false;
     SDK.TargetManager.TargetManager.instance().observeModels(SDK.EmulationModel.EmulationModel, this);
   }
 
@@ -270,10 +268,10 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   get scaleSettingInternal(): Common.Settings.Setting<number> {
-    return this.#scaleSettingInternal;
+    return this.#scaleSetting;
   }
 
-  setAvailableSize(availableSize: UI.Geometry.Size, preferredSize: UI.Geometry.Size): void {
+  setAvailableSize(availableSize: Geometry.Size, preferredSize: Geometry.Size): void {
     this.#availableSize = availableSize;
     this.#preferredSize = preferredSize;
     this.#initialized = true;
@@ -281,23 +279,22 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   emulate(type: Type, device: EmulatedDevice|null, mode: Mode|null, scale?: number): void {
-    const resetPageScaleFactor =
-        this.#typeInternal !== type || this.#deviceInternal !== device || this.#modeInternal !== mode;
-    this.#typeInternal = type;
+    const resetPageScaleFactor = this.#type !== type || this.#device !== device || this.#mode !== mode;
+    this.#type = type;
 
     if (type === Type.Device && device && mode) {
       console.assert(Boolean(device) && Boolean(mode), 'Must pass device and mode for device emulation');
-      this.#modeInternal = mode;
-      this.#deviceInternal = device;
+      this.#mode = mode;
+      this.#device = device;
       if (this.#initialized) {
         const orientation = device.orientationByName(mode.orientation);
-        this.#scaleSettingInternal.set(
+        this.#scaleSetting.set(
             scale ||
             this.calculateFitScale(orientation.width, orientation.height, this.currentOutline(), this.currentInsets()));
       }
     } else {
-      this.#deviceInternal = null;
-      this.#modeInternal = null;
+      this.#device = null;
+      this.#mode = null;
     }
 
     if (type !== Type.None) {
@@ -314,7 +311,7 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
 
   setWidthAndScaleToFit(width: number): void {
     width = Math.max(Math.min(width, MaxDeviceSize), 1);
-    this.#scaleSettingInternal.set(this.calculateFitScale(width, this.#heightSetting.get()));
+    this.#scaleSetting.set(this.calculateFitScale(width, this.#heightSetting.get()));
     this.#widthSetting.set(width);
   }
 
@@ -329,66 +326,65 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
 
   setHeightAndScaleToFit(height: number): void {
     height = Math.max(Math.min(height, MaxDeviceSize), 0);
-    this.#scaleSettingInternal.set(this.calculateFitScale(this.#widthSetting.get(), height));
+    this.#scaleSetting.set(this.calculateFitScale(this.#widthSetting.get(), height));
     this.#heightSetting.set(height);
   }
 
   setScale(scale: number): void {
-    this.#scaleSettingInternal.set(scale);
+    this.#scaleSetting.set(scale);
   }
 
   device(): EmulatedDevice|null {
-    return this.#deviceInternal;
+    return this.#device;
   }
 
   mode(): Mode|null {
-    return this.#modeInternal;
+    return this.#mode;
   }
 
   type(): Type {
-    return this.#typeInternal;
+    return this.#type;
   }
 
   screenImage(): string {
-    return (this.#deviceInternal && this.#modeInternal) ? this.#deviceInternal.modeImage(this.#modeInternal) : '';
+    return (this.#device && this.#mode) ? this.#device.modeImage(this.#mode) : '';
   }
 
   outlineImage(): string {
-    return (this.#deviceInternal && this.#modeInternal && this.#deviceOutlineSettingInternal.get()) ?
-        this.#deviceInternal.outlineImage(this.#modeInternal) :
-        '';
+    return (this.#device && this.#mode && this.#deviceOutlineSetting.get()) ? this.#device.outlineImage(this.#mode) :
+                                                                              '';
   }
 
   outlineRect(): Rect|null {
-    return this.#outlineRectInternal || null;
+    return this.#outlineRect || null;
   }
 
   screenRect(): Rect {
-    return this.#screenRectInternal;
+    return this.#screenRect;
   }
 
   visiblePageRect(): Rect {
-    return this.#visiblePageRectInternal;
+    return this.#visiblePageRect;
   }
 
   scale(): number {
-    return this.#scaleInternal;
+    return this.#scale;
   }
 
   fitScale(): number {
-    return this.#fitScaleInternal;
+    return this.#fitScale;
   }
 
-  appliedDeviceSize(): UI.Geometry.Size {
-    return this.#appliedDeviceSizeInternal;
+  appliedDeviceSize(): Geometry.Size {
+    return this.#appliedDeviceSize;
   }
 
   appliedDeviceScaleFactor(): number {
-    return this.#appliedDeviceScaleFactorInternal;
+    return this.#appliedDeviceScaleFactor;
   }
 
   appliedUserAgentType(): UA {
-    return this.#appliedUserAgentTypeInternal;
+    return this.#appliedUserAgentType;
   }
 
   isFullHeight(): boolean {
@@ -396,13 +392,13 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   isMobile(): boolean {
-    switch (this.#typeInternal) {
+    switch (this.#type) {
       case Type.Device:
-        return this.#deviceInternal ? this.#deviceInternal.mobile() : false;
+        return this.#device ? this.#device.mobile() : false;
       case Type.None:
         return false;
       case Type.Responsive:
-        return this.#uaSettingInternal.get() === UA.MOBILE || this.#uaSettingInternal.get() === UA.MOBILE_NO_TOUCH;
+        return this.#uaSetting.get() === UA.MOBILE || this.#uaSetting.get() === UA.MOBILE_NO_TOUCH;
     }
     return false;
   }
@@ -412,31 +408,31 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   scaleSetting(): Common.Settings.Setting<number> {
-    return this.#scaleSettingInternal;
+    return this.#scaleSetting;
   }
 
   uaSetting(): Common.Settings.Setting<UA> {
-    return this.#uaSettingInternal;
+    return this.#uaSetting;
   }
 
   deviceScaleFactorSetting(): Common.Settings.Setting<number> {
-    return this.#deviceScaleFactorSettingInternal;
+    return this.#deviceScaleFactorSetting;
   }
 
   deviceOutlineSetting(): Common.Settings.Setting<boolean> {
-    return this.#deviceOutlineSettingInternal;
+    return this.#deviceOutlineSetting;
   }
 
   toolbarControlsEnabledSetting(): Common.Settings.Setting<boolean> {
-    return this.#toolbarControlsEnabledSettingInternal;
+    return this.#toolbarControlsEnabledSetting;
   }
 
   reset(): void {
-    this.#deviceScaleFactorSettingInternal.set(0);
-    this.#scaleSettingInternal.set(1);
+    this.#deviceScaleFactorSetting.set(0);
+    this.#scaleSetting.set(1);
     this.setWidth(400);
     this.setHeight(0);
-    this.#uaSettingInternal.set(UA.MOBILE);
+    this.#uaSetting.set(UA.MOBILE);
   }
 
   modelAdded(emulationModel: SDK.EmulationModel.EmulationModel): void {
@@ -448,6 +444,9 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
         this.#onModelAvailable = null;
         callback();
       }
+      emulationModel.addEventListener(
+          SDK.EmulationModel.EmulationModelEvents.SCREEN_ORIENTATION_LOCK_CHANGED, this.onScreenOrientationLockChanged,
+          this);
       const resourceTreeModel = emulationModel.target().model(SDK.ResourceTreeModel.ResourceTreeModel);
       if (resourceTreeModel) {
         resourceTreeModel.addEventListener(SDK.ResourceTreeModel.Events.FrameResized, this.onFrameChange, this);
@@ -460,7 +459,12 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
 
   modelRemoved(emulationModel: SDK.EmulationModel.EmulationModel): void {
     if (this.#emulationModel === emulationModel) {
+      emulationModel.removeEventListener(
+          SDK.EmulationModel.EmulationModelEvents.SCREEN_ORIENTATION_LOCK_CHANGED, this.onScreenOrientationLockChanged,
+          this);
       this.#emulationModel = null;
+      this.#screenOrientationLocked = false;
+      this.dispatchEventToListeners(Events.UPDATED);
     }
   }
 
@@ -475,6 +479,43 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
     }
 
     this.showHingeIfApplicable(overlayModel);
+  }
+
+  private onScreenOrientationLockChanged(
+      event: Common.EventTarget.EventTargetEvent<SDK.EmulationModel.ScreenOrientationLockChangedEvent>): void {
+    this.#screenOrientationLocked = event.data.locked;
+    if (event.data.locked && event.data.orientation) {
+      this.applyOrientationLock(event.data.orientation);
+    }
+    this.dispatchEventToListeners(Events.UPDATED);
+  }
+
+  private applyOrientationLock(orientation: Protocol.Emulation.ScreenOrientation): void {
+    const wantsLandscape = orientation.type === Protocol.Emulation.ScreenOrientationType.LandscapePrimary ||
+        orientation.type === Protocol.Emulation.ScreenOrientationType.LandscapeSecondary;
+
+    if (this.#type === Type.Device && this.#device && this.#mode) {
+      // For device emulation, switch to the matching orientation mode.
+      const isCurrentlyLandscape =
+          this.#mode.orientation === Horizontal || this.#mode.orientation === HorizontalSpanned;
+      if (wantsLandscape !== isCurrentlyLandscape) {
+        const rotationPartner = this.#device.getRotationPartner(this.#mode);
+        if (rotationPartner) {
+          this.emulate(this.#type, this.#device, rotationPartner);
+        }
+      }
+    } else if (this.#type === Type.Responsive) {
+      // For responsive mode, swap width/height if orientation doesn't match.
+      const appliedSize = this.appliedDeviceSize();
+      const isCurrentlyLandscape = appliedSize.width > appliedSize.height;
+      if (wantsLandscape !== isCurrentlyLandscape) {
+        this.setSizeAndScaleToFit(appliedSize.height, appliedSize.width);
+      }
+    }
+  }
+
+  isScreenOrientationLocked(): boolean {
+    return this.#screenOrientationLocked;
   }
 
   private scaleSettingChanged(): void {
@@ -502,37 +543,37 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   private preferredScaledWidth(): number {
-    return Math.floor(this.#preferredSize.width / (this.#scaleSettingInternal.get() || 1));
+    return Math.floor(this.#preferredSize.width / (this.#scaleSetting.get() || 1));
   }
 
   private preferredScaledHeight(): number {
-    return Math.floor(this.#preferredSize.height / (this.#scaleSettingInternal.get() || 1));
+    return Math.floor(this.#preferredSize.height / (this.#scaleSetting.get() || 1));
   }
 
   private currentOutline(): Insets {
     let outline: Insets = new Insets(0, 0, 0, 0);
-    if (this.#typeInternal !== Type.Device || !this.#deviceInternal || !this.#modeInternal) {
+    if (this.#type !== Type.Device || !this.#device || !this.#mode) {
       return outline;
     }
-    const orientation = this.#deviceInternal.orientationByName(this.#modeInternal.orientation);
-    if (this.#deviceOutlineSettingInternal.get()) {
+    const orientation = this.#device.orientationByName(this.#mode.orientation);
+    if (this.#deviceOutlineSetting.get()) {
       outline = orientation.outlineInsets || outline;
     }
     return outline;
   }
 
   private currentInsets(): Insets {
-    if (this.#typeInternal !== Type.Device || !this.#modeInternal) {
+    if (this.#type !== Type.Device || !this.#mode) {
       return new Insets(0, 0, 0, 0);
     }
-    return this.#modeInternal.insets;
+    return this.#mode.insets;
   }
 
   private getScreenOrientationType(): Protocol.Emulation.ScreenOrientationType {
-    if (!this.#modeInternal) {
+    if (!this.#mode) {
       throw new Error('Mode required to get orientation type.');
     }
-    switch (this.#modeInternal.orientation) {
+    switch (this.#mode.orientation) {
       case VerticalSpanned:
       case Vertical:
         return Protocol.Emulation.ScreenOrientationType.PortraitPrimary;
@@ -552,31 +593,30 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
     if (overlayModel) {
       this.showHingeIfApplicable(overlayModel);
     }
-    if (this.#typeInternal === Type.Device && this.#deviceInternal && this.#modeInternal) {
-      const orientation = this.#deviceInternal.orientationByName(this.#modeInternal.orientation);
+    if (this.#type === Type.Device && this.#device && this.#mode) {
+      const orientation = this.#device.orientationByName(this.#mode.orientation);
       const outline = this.currentOutline();
       const insets = this.currentInsets();
-      this.#fitScaleInternal = this.calculateFitScale(orientation.width, orientation.height, outline, insets);
+      this.#fitScale = this.calculateFitScale(orientation.width, orientation.height, outline, insets);
       if (mobile) {
-        this.#appliedUserAgentTypeInternal = this.#deviceInternal.touch() ? UA.MOBILE : UA.MOBILE_NO_TOUCH;
+        this.#appliedUserAgentType = this.#device.touch() ? UA.MOBILE : UA.MOBILE_NO_TOUCH;
       } else {
-        this.#appliedUserAgentTypeInternal = this.#deviceInternal.touch() ? UA.DESKTOP_TOUCH : UA.DESKTOP;
+        this.#appliedUserAgentType = this.#device.touch() ? UA.DESKTOP_TOUCH : UA.DESKTOP;
       }
       this.applyDeviceMetrics(
-          new UI.Geometry.Size(orientation.width, orientation.height), insets, outline,
-          this.#scaleSettingInternal.get(), this.#deviceInternal.deviceScaleFactor, mobile,
-          this.getScreenOrientationType(), resetPageScaleFactor, this.#webPlatformExperimentalFeaturesEnabledInternal);
-      this.applyUserAgent(this.#deviceInternal.userAgent, this.#deviceInternal.userAgentMetadata);
-      this.applyTouch(this.#deviceInternal.touch(), mobile);
-    } else if (this.#typeInternal === Type.None) {
-      this.#fitScaleInternal = this.calculateFitScale(this.#availableSize.width, this.#availableSize.height);
-      this.#appliedUserAgentTypeInternal = UA.DESKTOP;
+          new Geometry.Size(orientation.width, orientation.height), insets, outline, this.#scaleSetting.get(),
+          this.#device.deviceScaleFactor, mobile, this.getScreenOrientationType(), resetPageScaleFactor);
+      this.applyUserAgent(this.#device.userAgent, this.#device.userAgentMetadata);
+      this.applyTouch(this.#device.touch(), mobile);
+    } else if (this.#type === Type.None) {
+      this.#fitScale = this.calculateFitScale(this.#availableSize.width, this.#availableSize.height);
+      this.#appliedUserAgentType = UA.DESKTOP;
       this.applyDeviceMetrics(
           this.#availableSize, new Insets(0, 0, 0, 0), new Insets(0, 0, 0, 0), 1, 0, mobile, null,
           resetPageScaleFactor);
       this.applyUserAgent('', null);
       this.applyTouch(false, false);
-    } else if (this.#typeInternal === Type.Responsive) {
+    } else if (this.#type === Type.Responsive) {
       let screenWidth = this.#widthSetting.get();
       if (!screenWidth || screenWidth > this.preferredScaledWidth()) {
         screenWidth = this.preferredScaledWidth();
@@ -586,23 +626,24 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
         screenHeight = this.preferredScaledHeight();
       }
       const defaultDeviceScaleFactor = mobile ? defaultMobileScaleFactor : 0;
-      this.#fitScaleInternal = this.calculateFitScale(this.#widthSetting.get(), this.#heightSetting.get());
-      this.#appliedUserAgentTypeInternal = this.#uaSettingInternal.get();
+      this.#fitScale = this.calculateFitScale(this.#widthSetting.get(), this.#heightSetting.get());
+      this.#appliedUserAgentType = this.#uaSetting.get();
       this.applyDeviceMetrics(
-          new UI.Geometry.Size(screenWidth, screenHeight), new Insets(0, 0, 0, 0), new Insets(0, 0, 0, 0),
-          this.#scaleSettingInternal.get(), this.#deviceScaleFactorSettingInternal.get() || defaultDeviceScaleFactor,
-          mobile,
+          new Geometry.Size(screenWidth, screenHeight), new Insets(0, 0, 0, 0), new Insets(0, 0, 0, 0),
+          this.#scaleSetting.get(), this.#deviceScaleFactorSetting.get() || defaultDeviceScaleFactor, mobile,
           screenHeight >= screenWidth ? Protocol.Emulation.ScreenOrientationType.PortraitPrimary :
                                         Protocol.Emulation.ScreenOrientationType.LandscapePrimary,
           resetPageScaleFactor);
-      this.applyUserAgent(mobile ? defaultMobileUserAgent : '', mobile ? defaultMobileUserAgentMetadata : null);
+      this.applyUserAgent(
+          mobile ? DeviceModeModel.defaultMobileUserAgent() : '',
+          mobile ? DeviceModeModel.defaultMobileUserAgentMetadata() : null);
       this.applyTouch(
-          this.#uaSettingInternal.get() === UA.DESKTOP_TOUCH || this.#uaSettingInternal.get() === UA.MOBILE,
-          this.#uaSettingInternal.get() === UA.MOBILE);
+          this.#uaSetting.get() === UA.DESKTOP_TOUCH || this.#uaSetting.get() === UA.MOBILE,
+          this.#uaSetting.get() === UA.MOBILE);
     }
 
     if (overlayModel) {
-      overlayModel.setShowViewportSizeOnResize(this.#typeInternal === Type.None);
+      overlayModel.setShowViewportSizeOnResize(this.#type === Type.None);
     }
     this.dispatchEventToListeners(Events.UPDATED);
   }
@@ -635,19 +676,23 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   setSizeAndScaleToFit(width: number, height: number): void {
-    this.#scaleSettingInternal.set(this.calculateFitScale(width, height));
+    this.#scaleSetting.set(this.calculateFitScale(width, height));
     this.setWidth(width);
     this.setHeight(height);
   }
 
   private applyUserAgent(userAgent: string, userAgentMetadata: Protocol.Emulation.UserAgentMetadata|null): void {
-    SDK.NetworkManager.MultitargetNetworkManager.instance().setUserAgentOverride(userAgent, userAgentMetadata);
+    // When the user agent string is empty (e.g. custom desktop device without
+    // a UA override), metadata must also be cleared. The backend rejects
+    // setUserAgentOverride calls that provide metadata without a UA string.
+    SDK.NetworkManager.MultitargetNetworkManager.instance().setUserAgentOverride(
+        userAgent, userAgent ? userAgentMetadata : null);
   }
 
   private applyDeviceMetrics(
-      screenSize: UI.Geometry.Size, insets: Insets, outline: Insets, scale: number, deviceScaleFactor: number,
-      mobile: boolean, screenOrientation: Protocol.Emulation.ScreenOrientationType|null, resetPageScaleFactor: boolean,
-      forceMetricsOverride: boolean|undefined = false): void {
+      screenSize: Geometry.Size, insets: Insets, outline: Insets, scale: number, deviceScaleFactor: number,
+      mobile: boolean, screenOrientation: Protocol.Emulation.ScreenOrientationType|null,
+      resetPageScaleFactor: boolean): void {
     screenSize.width = Math.max(1, Math.floor(screenSize.width));
     screenSize.height = Math.max(1, Math.floor(screenSize.height));
 
@@ -659,21 +704,21 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
     const screenOrientationAngle =
         screenOrientation === Protocol.Emulation.ScreenOrientationType.LandscapePrimary ? 90 : 0;
 
-    this.#appliedDeviceSizeInternal = screenSize;
-    this.#appliedDeviceScaleFactorInternal = deviceScaleFactor || window.devicePixelRatio;
-    this.#screenRectInternal = new Rect(
+    this.#appliedDeviceSize = screenSize;
+    this.#appliedDeviceScaleFactor = deviceScaleFactor || window.devicePixelRatio;
+    this.#screenRect = new Rect(
         Math.max(0, (this.#availableSize.width - screenSize.width * scale) / 2), outline.top * scale,
         screenSize.width * scale, screenSize.height * scale);
-    this.#outlineRectInternal = new Rect(
-        this.#screenRectInternal.left - outline.left * scale, 0,
-        (outline.left + screenSize.width + outline.right) * scale,
+    this.#outlineRect = new Rect(
+        this.#screenRect.left - outline.left * scale, 0, (outline.left + screenSize.width + outline.right) * scale,
         (outline.top + screenSize.height + outline.bottom) * scale);
-    this.#visiblePageRectInternal = new Rect(
+    this.#visiblePageRect = new Rect(
         positionX * scale, positionY * scale,
-        Math.min(pageWidth * scale, this.#availableSize.width - this.#screenRectInternal.left - positionX * scale),
-        Math.min(pageHeight * scale, this.#availableSize.height - this.#screenRectInternal.top - positionY * scale));
-    this.#scaleInternal = scale;
-    if (!forceMetricsOverride) {
+        Math.min(pageWidth * scale, this.#availableSize.width - this.#screenRect.left - positionX * scale),
+        Math.min(pageHeight * scale, this.#availableSize.height - this.#screenRect.top - positionY * scale));
+    this.#scale = scale;
+    const displayFeature = this.getDisplayFeature();
+    if (!displayFeature) {
       // When sending displayFeature, we cannot use the optimization below due to backend restrictions.
       if (scale === 1 && this.#availableSize.width >= screenSize.width &&
           this.#availableSize.height >= screenSize.height) {
@@ -681,9 +726,8 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
         pageWidth = 0;
         pageHeight = 0;
       }
-      if (this.#visiblePageRectInternal.width === pageWidth * scale &&
-          this.#visiblePageRectInternal.height === pageHeight * scale && Number.isInteger(pageWidth * scale) &&
-          Number.isInteger(pageHeight * scale)) {
+      if (this.#visiblePageRect.width === pageWidth * scale && this.#visiblePageRect.height === pageHeight * scale &&
+          Number.isInteger(pageWidth * scale) && Number.isInteger(pageHeight * scale)) {
         // When we only have to apply scale, do not resize the page. This will speed things up and remove lag.
         pageWidth = 0;
         pageHeight = 0;
@@ -697,8 +741,7 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
     if (resetPageScaleFactor) {
       void this.#emulationModel.resetPageScaleFactor();
     }
-    if (pageWidth || pageHeight || mobile || deviceScaleFactor || scale !== 1 || screenOrientation ||
-        forceMetricsOverride) {
+    if (pageWidth || pageHeight || mobile || deviceScaleFactor || scale !== 1 || screenOrientation || displayFeature) {
       const metrics: Protocol.Emulation.SetDeviceMetricsOverrideRequest = {
         width: pageWidth,
         height: pageHeight,
@@ -710,11 +753,7 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
         positionX,
         positionY,
         dontSetVisibleSize: true,
-        displayFeature: undefined,
-        devicePosture: undefined,
-        screenOrientation: undefined,
       };
-      const displayFeature = this.getDisplayFeature();
       if (displayFeature) {
         metrics.displayFeature = displayFeature;
         metrics.devicePosture = {type: Protocol.Emulation.DevicePostureType.Folded};
@@ -735,14 +774,6 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
     if (overlayModel) {
       overlayModel.showHingeForDualScreen(null);
     }
-  }
-
-  webPlatformExperimentalFeaturesEnabled(): boolean {
-    return this.#webPlatformExperimentalFeaturesEnabledInternal;
-  }
-
-  shouldReportDisplayFeature(): boolean {
-    return this.#webPlatformExperimentalFeaturesEnabledInternal;
   }
 
   async captureScreenshot(fullSize: boolean, clip?: Protocol.Page.Viewport): Promise<string|null> {
@@ -766,35 +797,30 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
       overlayModel.setShowViewportSizeOnResize(false);
     }
 
-    const screenshot = await screenCaptureModel.captureScreenshot(
-        Protocol.Page.CaptureScreenshotRequestFormat.Png, 100, screenshotMode, clip);
-
-    const deviceMetrics: Protocol.Page.SetDeviceMetricsOverrideRequest = {
-      width: 0,
-      height: 0,
-      deviceScaleFactor: 0,
-      mobile: false,
-    };
-    if (fullSize && this.#emulationModel) {
-      if (this.#deviceInternal && this.#modeInternal) {
-        const orientation = this.#deviceInternal.orientationByName(this.#modeInternal.orientation);
-        deviceMetrics.width = orientation.width;
-        deviceMetrics.height = orientation.height;
-        const dispFeature = this.getDisplayFeature();
-        if (dispFeature) {
-          // @ts-expect-error: displayFeature isn't in protocol.ts but is an
-          // experimental flag:
-          // https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setDeviceMetricsOverride
-          deviceMetrics.displayFeature = dispFeature;
-        }
-      } else {
-        deviceMetrics.width = 0;
-        deviceMetrics.height = 0;
+    if (this.#emulationModel && this.#device && this.#mode) {
+      const orientation = this.#device.orientationByName(this.#mode.orientation);
+      const deviceMetrics: Protocol.Emulation.SetDeviceMetricsOverrideRequest = {
+        width: orientation.width,
+        height: orientation.height,
+        deviceScaleFactor: this.#device.deviceScaleFactor,
+        mobile: this.isMobile(),
+      };
+      const dispFeature = this.getDisplayFeature();
+      if (dispFeature) {
+        deviceMetrics.displayFeature = dispFeature;
       }
       await this.#emulationModel.emulateDevice(deviceMetrics);
     }
-    this.calculateAndEmulate(false);
-    return screenshot;
+
+    try {
+      const screenshot = await screenCaptureModel.captureScreenshot(
+          Protocol.Page.CaptureScreenshotRequestFormat.Png, 100, screenshotMode, clip);
+      return screenshot;
+    } finally {
+      await this.#emulationModel?.emulateDevice(null);
+      overlayModel?.setShowViewportSizeOnResize(this.#type === Type.None);
+      this.calculateAndEmulate(false);
+    }
   }
 
   private applyTouch(touchEnabled: boolean, mobile: boolean): void {
@@ -806,9 +832,7 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   private showHingeIfApplicable(overlayModel: SDK.OverlayModel.OverlayModel): void {
-    const orientation = (this.#deviceInternal && this.#modeInternal) ?
-        this.#deviceInternal.orientationByName(this.#modeInternal.orientation) :
-        null;
+    const orientation = (this.#device && this.#mode) ? this.#device.orientationByName(this.#mode.orientation) : null;
     if (orientation?.hinge) {
       overlayModel.showHingeForDualScreen(orientation.hinge);
       return;
@@ -818,10 +842,10 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   private getDisplayFeatureOrientation(): Protocol.Emulation.DisplayFeatureOrientation {
-    if (!this.#modeInternal) {
+    if (!this.#mode) {
       throw new Error('Mode required to get display feature orientation.');
     }
-    switch (this.#modeInternal.orientation) {
+    switch (this.#mode.orientation) {
       case VerticalSpanned:
       case Vertical:
         return Protocol.Emulation.DisplayFeatureOrientation.Vertical;
@@ -833,16 +857,12 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   private getDisplayFeature(): Protocol.Emulation.DisplayFeature|null {
-    if (!this.shouldReportDisplayFeature()) {
+    if (!this.#device || !this.#mode ||
+        (this.#mode.orientation !== VerticalSpanned && this.#mode.orientation !== HorizontalSpanned)) {
       return null;
     }
 
-    if (!this.#deviceInternal || !this.#modeInternal ||
-        (this.#modeInternal.orientation !== VerticalSpanned && this.#modeInternal.orientation !== HorizontalSpanned)) {
-      return null;
-    }
-
-    const orientation = this.#deviceInternal.orientationByName(this.#modeInternal.orientation);
+    const orientation = this.#device.orientationByName(this.#mode.orientation);
     if (!orientation?.hinge) {
       return null;
     }
@@ -850,9 +870,48 @@ export class DeviceModeModel extends Common.ObjectWrapper.ObjectWrapper<EventTyp
     const hinge = orientation.hinge;
     return {
       orientation: this.getDisplayFeatureOrientation(),
-      offset: (this.#modeInternal.orientation === VerticalSpanned) ? hinge.x : hinge.y,
-      maskLength: (this.#modeInternal.orientation === VerticalSpanned) ? hinge.width : hinge.height,
+      offset: (this.#mode.orientation === VerticalSpanned) ? hinge.x : hinge.y,
+      maskLength: (this.#mode.orientation === VerticalSpanned) ? hinge.width : hinge.height,
     };
+  }
+
+  /**
+   * Heuristic to keep the default mobile User Agent fresh and aligned with the adoption bell curve.
+   * Android: We target N-1 versions (where N is the latest) to represent the plurality of global users.
+   * iOS: We follow the calendar year (starting from the 2025 shift to year-based versioning).
+   * Data sources:
+   * - StatCounter Global Stats: https://gs.statcounter.com/os-version-market-share/android
+   * - Android adoption typically lags by ~12-18 months for plurality.
+   * - iOS adoption typically reaches majority within ~3-6 months.
+   */
+  static getDynamicMobileUA(): {userAgent: string, metadata: Protocol.Emulation.UserAgentMetadata} {
+    const now = new Date();
+    const year = now.getFullYear();
+    const isLateInYear = now.getMonth() >= 9;  // Oct, Nov, Dec
+
+    // Android: Released in late summer/fall. plurality is usually Year - 2011 (e.g. Android 15 in early 2026).
+    const androidVersion = isLateInYear ? (year - 2010) : (year - 2011);
+    const pixelModel = isLateInYear ? (year - 2016) : (year - 2017);
+
+    const ua = `Mozilla/5.0 (Linux; Android ${androidVersion}; Pixel ${
+        pixelModel}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36`;
+    const metadata = {
+      platform: 'Android',
+      platformVersion: androidVersion.toString(),
+      architecture: '',
+      model: `Pixel ${pixelModel}`,
+      mobile: true,
+    };
+    return {userAgent: ua, metadata};
+  }
+
+  static defaultMobileUserAgent(): string {
+    return SDK.NetworkManager.MultitargetNetworkManager.patchUserAgentWithChromeVersion(
+        DeviceModeModel.getDynamicMobileUA().userAgent);
+  }
+
+  static defaultMobileUserAgentMetadata(): Protocol.Emulation.UserAgentMetadata {
+    return DeviceModeModel.getDynamicMobileUA().metadata;
   }
 }
 
@@ -919,16 +978,4 @@ export const MinDeviceScaleFactor = 0;
 export const MaxDeviceScaleFactor = 10;
 export const MaxDeviceNameLength = 50;
 
-const mobileUserAgent =
-    'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36';
-const defaultMobileUserAgent =
-    SDK.NetworkManager.MultitargetNetworkManager.patchUserAgentWithChromeVersion(mobileUserAgent);
-
-const defaultMobileUserAgentMetadata = {
-  platform: 'Android',
-  platformVersion: '6.0',
-  architecture: '',
-  model: 'Nexus 5',
-  mobile: true,
-};
 export const defaultMobileScaleFactor = 2;

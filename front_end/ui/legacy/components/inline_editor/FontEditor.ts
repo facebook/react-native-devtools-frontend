@@ -1,14 +1,14 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import '../../legacy.js';
 
 import * as Common from '../../../../core/common/common.js';
 import * as i18n from '../../../../core/i18n/i18n.js';
 import * as Platform from '../../../../core/platform/platform.js';
-import * as SDK from '../../../../core/sdk/sdk.js';
-import * as IconButton from '../../../components/icon_button/icon_button.js';
+import {Icon} from '../../../kit/kit.js';
 import * as VisualLogging from '../../../visual_logging/visual_logging.js';
 import * as UI from '../../legacy.js';
 
@@ -18,47 +18,47 @@ import * as FontEditorUtils from './FontEditorUtils.js';
 
 const UIStrings = {
   /**
-   *@description Font editor label for font family selector
+   * @description Font editor label for font family selector
    */
   fontFamily: 'Font Family',
   /**
-   *@description Section header for CSS property inputs
+   * @description Section header for CSS property inputs
    */
   cssProperties: 'CSS Properties',
   /**
-   *@description Font size slider label for Font Editor
+   * @description Font size slider label for Font Editor
    */
   fontSize: 'Font Size',
   /**
-   *@description Line height slider label for Font Editor
+   * @description Line height slider label for Font Editor
    */
   lineHeight: 'Line Height',
   /**
-   *@description Font weight slider label for Font Editor
+   * @description Font weight slider label for Font Editor
    */
   fontWeight: 'Font Weight',
   /**
-   *@description Label for letter-spacing labels
+   * @description Label for letter-spacing labels
    */
   spacing: 'Spacing',
   /**
-   *@description Label for numbered fallback selectors
-   *@example {2} PH1
+   * @description Label for numbered fallback selectors
+   * @example {2} PH1
    */
   fallbackS: 'Fallback {PH1}',
   /**
-   *@description Announcement for deleting an empty font family selector in the Font Editor
-   *@example {2} PH1
+   * @description Announcement for deleting an empty font family selector in the Font Editor
+   * @example {2} PH1
    */
   thereIsNoValueToDeleteAtIndexS: 'There is no value to delete at index: {PH1}',
   /**
-   *@description Announcement when deleting a font selector in the Font Editor
-   *@example {2} PH1
+   * @description Announcement when deleting a font selector in the Font Editor
+   * @example {2} PH1
    */
   fontSelectorDeletedAtIndexS: 'Font Selector deleted at index: {PH1}',
   /**
-   *@description Label for Font Editor button to delete font family/fallback selectors
-   *@example {Fallback 1} PH1
+   * @description Label for Font Editor button to delete font family/fallback selectors
+   * @example {Fallback 1} PH1
    */
   deleteS: 'Delete {PH1}',
   /**
@@ -68,23 +68,23 @@ const UIStrings = {
    */
   PleaseEnterAValidValueForSText: '* Please enter a valid value for {PH1} text input',
   /**
-   *@description Error text in Font Editor
-   *@example {font-size} PH1
+   * @description Error text in Font Editor
+   * @example {font-size} PH1
    */
   thisPropertyIsSetToContainUnits:
       'This property is set to contain units but does not have a defined corresponding unitsArray: {PH1}',
   /**
-   *@description Label for slider input in the Font Editor.
-   *@example {font-size} PH1
+   * @description Label for slider input in the Font Editor.
+   * @example {font-size} PH1
    */
   sSliderInput: '{PH1} Slider Input',
   /**
-   *@description Accessible label for a text input for a property in the Font Editor.
-   *@example {font-size} PH1
+   * @description Accessible label for a text input for a property in the Font Editor.
+   * @example {font-size} PH1
    */
   sTextInput: '{PH1} Text Input',
   /**
-   *@description Font Editor units text box label
+   * @description Font Editor units text box label
    */
   units: 'Units',
   /**
@@ -94,8 +94,8 @@ const UIStrings = {
    */
   sUnitInput: '{PH1} Unit Input',
   /**
-   *@description Text used in the Font Editor for the key values selector
-   *@example {font-size} PH1
+   * @description Text used in the Font Editor for the key values selector
+   * @example {font-size} PH1
    */
   sKeyValueSelector: '{PH1} Key Value Selector',
   /**
@@ -108,11 +108,11 @@ const UIStrings = {
    */
   sToggleInputType: '{PH1} toggle input type',
   /**
-   *@description Label for Font Editor alert in CSS Properties section when toggling inputs
+   * @description Label for Font Editor alert in CSS Properties section when toggling inputs
    */
   selectorInputMode: 'Selector Input Mode',
   /**
-   *@description Label for Font Editor alert in CSS Properties section when toggling inputs
+   * @description Label for Font Editor alert in CSS Properties section when toggling inputs
    */
   sliderInputMode: 'Slider Input Mode',
 } as const;
@@ -120,17 +120,14 @@ const str_ = i18n.i18n.registerUIStrings('ui/legacy/components/inline_editor/Fon
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class FontEditor extends Common.ObjectWrapper.eventMixin<EventTypes, typeof UI.Widget.VBox>(UI.Widget.VBox) {
-  private readonly selectedNode: SDK.DOMModel.DOMNode|null;
   private readonly propertyMap: Map<string, string>;
   private readonly fontSelectorSection: HTMLElement;
   private fontSelectors: FontEditor.FontSelectorObject[];
   private fontsList: Array<Map<string, string[]>>|null;
 
   constructor(propertyMap: Map<string, string>) {
-    super(true);
+    super({useShadowDom: true});
     this.registerRequiredCSS(fontEditorStyles);
-    this.selectedNode = UI.Context.Context.instance().flavor(SDK.DOMModel.DOMNode);
-
     this.propertyMap = propertyMap;
     this.contentElement.tabIndex = 0;
     this.contentElement.setAttribute(
@@ -266,7 +263,7 @@ export class FontEditor extends Common.ObjectWrapper.eventMixin<EventTypes, type
     let fontSelectorObject: FontEditor.FontSelectorObject = this.fontSelectors[index];
     const isPrimary = index === 0;
     if (fontSelectorObject.input.value === '' && !isGlobalValue) {
-      UI.ARIAUtils.alert(i18nString(UIStrings.thereIsNoValueToDeleteAtIndexS, {PH1: index}));
+      UI.ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.thereIsNoValueToDeleteAtIndexS, {PH1: index}));
       return;
     }
     if (isPrimary) {
@@ -292,7 +289,7 @@ export class FontEditor extends Common.ObjectWrapper.eventMixin<EventTypes, type
           this.updateFontSelectorList();
         }
       }
-      UI.ARIAUtils.alert(i18nString(UIStrings.fontSelectorDeletedAtIndexS, {PH1: index}));
+      UI.ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.fontSelectorDeletedAtIndexS, {PH1: index}));
     }
     this.onFontSelectorChanged();
     this.resizePopout();
@@ -459,7 +456,6 @@ class FontPropertyInputs {
   private initialRange: FontEditor.PropertyRange;
   private readonly boundUpdateCallback: (arg0: string, arg1: string) => void;
   private readonly boundResizeCallback: () => void;
-  private readonly selectedNode: SDK.DOMModel.DOMNode|null;
   private sliderInput: HTMLInputElement;
   private textBoxInput: HTMLInputElement;
   private unitInput: HTMLSelectElement;
@@ -495,7 +491,6 @@ class FontPropertyInputs {
 
     this.boundUpdateCallback = updateCallback;
     this.boundResizeCallback = resizeCallback;
-    this.selectedNode = UI.Context.Context.instance().flavor(SDK.DOMModel.DOMNode);
     const propertyLabel = UI.UIUtils.createLabel(label, 'shadow-editor-label');
     propertyField.append(propertyLabel);
     this.sliderInput = this.createSliderInput(propertyField, propertyName);
@@ -738,8 +733,9 @@ class FontPropertyInputs {
 
   private createTypeToggle(field: Element, jslogContext: string): void {
     const displaySwitcher = field.createChild('div', 'spectrum-switcher');
-    const icon = new IconButton.Icon.Icon();
-    icon.data = {iconName: 'fold-more', color: 'var(--icon-default)', width: '16px', height: '16px'};
+    const icon = new Icon();
+    icon.name = 'fold-more';
+    icon.classList.add('medium');
     displaySwitcher.appendChild(icon);
     UI.UIUtils.setTitle(displaySwitcher, i18nString(UIStrings.sToggleInputType, {PH1: this.propertyName}));
     displaySwitcher.tabIndex = 0;
@@ -759,7 +755,7 @@ class FontPropertyInputs {
       this.unitInput.hidden = true;
       this.selectorInput.hidden = false;
       this.showSliderMode = false;
-      UI.ARIAUtils.alert(i18nString(UIStrings.selectorInputMode));
+      UI.ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.selectorInputMode));
     } else {
       // Show sliderinput type
       this.sliderInput.hidden = false;
@@ -767,7 +763,7 @@ class FontPropertyInputs {
       this.unitInput.hidden = false;
       this.selectorInput.hidden = true;
       this.showSliderMode = true;
-      UI.ARIAUtils.alert(i18nString(UIStrings.sliderInputMode));
+      UI.ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.sliderInputMode));
     }
   }
 

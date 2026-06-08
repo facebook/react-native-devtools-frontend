@@ -1,13 +1,22 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import type * as Platform from '../../../../core/platform/platform.js';
 import type * as TextUtils from '../../../../models/text_utils/text_utils.js';
-import inspectorCommonStyles from '../../inspectorCommon.css.js';
+import * as Lit from '../../../lit/lit.js';
+import * as UI from '../../legacy.js';
 
 import dataGridStyles from './dataGrid.css.js';
-import {Align, type ColumnDescriptor, DataType, Events as DataGridEvents} from './DataGrid.js';
+import {
+  Align,
+  type ColumnDescriptor,
+  DataType,
+  Events as DataGridEvents,
+  Order,
+  type ResizeMethod
+} from './DataGrid.js';
 import {SortableDataGrid, SortableDataGridNode} from './SortableDataGrid.js';
 
 const DUMMY_COLUMN_ID = 'dummy';  // SortableDataGrid.create requires at least one column.
@@ -35,15 +44,16 @@ const DUMMY_COLUMN_ID = 'dummy';  // SortableDataGrid.create requires at least o
  * Under the hood it uses SortableDataGrid, which extends ViewportDataGrid so only
  * visible rows are layed out and sorting is provided out of the box.
  *
- * @attr striped
- * @attr displayName
- * @prop filters
+ * @property filters Set of text filters to be applied to the data grid.
+ * @attribute inline If true, the data grid will render inline instead of taking a full container height.
+ * @attribute resize Column resize method, one of 'nearest' (default), 'first' or 'last'.
+ * @attribute striped If true, the data grid will have striped rows.
+ * @attribute displayName
  */
-class DataGridElement extends HTMLElement {
-  static readonly observedAttributes = ['striped', 'name', 'inline'];
+export class DataGridElement extends UI.UIUtils.HTMLElementWithLightDOMTemplate {
+  static readonly observedAttributes = ['striped', 'name', 'inline', 'resize'];
 
   #dataGrid = SortableDataGrid.create([DUMMY_COLUMN_ID], [], '') as SortableDataGrid<DataGridElementNode>;
-  #mutationObserver = new MutationObserver(this.#onChange.bind(this));
   #resizeObserver = new ResizeObserver(() => {
     if (!this.inline) {
       this.#dataGrid.onResize();
@@ -61,22 +71,28 @@ class DataGridElement extends HTMLElement {
     this.style.display = 'flex';
     this.#dataGrid.element.style.flex = 'auto';
 
-    this.#shadowRoot = this.attachShadow({mode: 'open', delegatesFocus: true});
-    this.#shadowRoot.createChild('style').textContent = dataGridStyles.cssText;
-    this.#shadowRoot.createChild('style').textContent = inspectorCommonStyles.cssText;
+    this.#shadowRoot = UI.UIUtils.createShadowRootWithCoreStyles(this, {delegatesFocus: true, cssFile: dataGridStyles});
     this.#shadowRoot.appendChild(this.#dataGrid.element);
 
     this.#dataGrid.addEventListener(
         DataGridEvents.SELECTED_NODE,
-        e => this.dispatchEvent(new CustomEvent('select', {detail: (e.data as DataGridElementNode).configElement})));
+        e => (e.data as DataGridElementNode).configElement.dispatchEvent(new CustomEvent('select')));
     this.#dataGrid.addEventListener(
-        DataGridEvents.DESELECTED_NODE, () => this.dispatchEvent(new CustomEvent('select', {detail: null})));
+        DataGridEvents.DESELECTED_NODE, () => this.dispatchEvent(new CustomEvent('deselect')));
+    this.#dataGrid.addEventListener(
+        DataGridEvents.OPENED_NODE,
+        e => (e.data as DataGridElementNode).configElement.dispatchEvent(new CustomEvent('open')));
+    this.#dataGrid.addEventListener(
+        DataGridEvents.EXPANDED_NODE,
+        e => (e.data as DataGridElementNode).configElement.dispatchEvent(new CustomEvent('expand')));
+    this.#dataGrid.addEventListener(
+        DataGridEvents.COLLAPSED_NODE,
+        e => (e.data as DataGridElementNode).configElement.dispatchEvent(new CustomEvent('collapse')));
     this.#dataGrid.addEventListener(DataGridEvents.SORTING_CHANGED, () => this.dispatchEvent(new CustomEvent('sort', {
       detail: {columnId: this.#dataGrid.sortColumnId(), ascending: this.#dataGrid.isSortOrderAscending()}
     })));
     this.#dataGrid.setRowContextMenuCallback((menu, node) => {
-      this.dispatchEvent(
-          new CustomEvent('contextmenu', {detail: {menu, element: (node as DataGridElementNode).configElement}}));
+      (node as DataGridElementNode).configElement.dispatchEvent(new CustomEvent('contextmenu', {detail: menu}));
     });
     this.#dataGrid.setHeaderContextMenuCallback(menu => {
       for (const column of this.#columns) {
@@ -95,10 +111,9 @@ class DataGridElement extends HTMLElement {
       }
     });
 
-    this.#mutationObserver.observe(this, {childList: true, attributes: true, subtree: true, characterData: true});
     this.#resizeObserver.observe(this);
     this.#updateColumns();
-    this.#addNodes(this.querySelectorAll('tr'));
+    this.addNodes(this.templateRoot.querySelectorAll('tr'));
   }
 
   attributeChangedCallback(name: string, oldValue: string|null, newValue: string|null): void {
@@ -114,6 +129,9 @@ class DataGridElement extends HTMLElement {
         break;
       case 'inline':
         this.#dataGrid.renderInline();
+        break;
+      case 'resize':
+        this.#dataGrid.setResizeMethod(newValue as ResizeMethod);
         break;
     }
   }
@@ -142,6 +160,14 @@ class DataGridElement extends HTMLElement {
     return this.getAttribute('name');
   }
 
+  set resizeMethod(resizeMethod: ResizeMethod) {
+    this.setAttribute('resize', resizeMethod);
+  }
+
+  get resizeMethod(): ResizeMethod {
+    return this.getAttribute('resize') as ResizeMethod;
+  }
+
   set filters(filters: TextUtils.TextUtils.ParsedFilter[]) {
     this.#dataGrid.setFilters(filters);
     this.#dataGrid.element.setAttribute('aria-rowcount', String(this.#dataGrid.getNumberOfRows()));
@@ -151,6 +177,14 @@ class DataGridElement extends HTMLElement {
     return this.#columns;
   }
 
+  #updateHasChildren(dataGridNode: DataGridElementNode, dataRow: Element): void {
+    let hasChildren = dataGridNode.children.length > 0;
+    if (!hasChildren) {
+      hasChildren = Boolean(dataRow.querySelector('td table'));
+    }
+    dataGridNode.setHasChildren(hasChildren);
+  }
+
   #updateColumns(): void {
     for (const column of Object.keys(this.#dataGrid.columns)) {
       this.#dataGrid.removeColumn(column);
@@ -158,7 +192,7 @@ class DataGridElement extends HTMLElement {
     this.#hideableColumns.clear();
     this.#columns = [];
     let hasEditableColumn = false;
-    for (const column of this.querySelectorAll('th[id]') || []) {
+    for (const column of this.templateRoot.querySelectorAll('th[id]') || []) {
       const id = column.id as Lowercase<string>;
       let title = column.textContent?.trim() || '';
       const titleDOMFragment = column.firstElementChild ? document.createDocumentFragment() : undefined;
@@ -182,11 +216,15 @@ class DataGridElement extends HTMLElement {
       if (editable) {
         hasEditableColumn = true;
       }
+      const sort = column.getAttribute('sort') === 'descending' ? Order.Descending :
+          column.getAttribute('sort') === 'ascending'           ? Order.Ascending :
+                                                                  undefined;
       const columnDescriptor = {
         id,
         title: title as Platform.UIString.LocalizedString,
         titleDOMFragment,
         sortable,
+        sort,
         fixedWidth,
         width,
         align,
@@ -229,14 +267,26 @@ class DataGridElement extends HTMLElement {
     return [...nodes]
         .flatMap(node => {
           if (node instanceof HTMLTableRowElement) {
-            return [node];
+            return [node, ...node.querySelectorAll<HTMLTableRowElement>('table tr')];
           }
           if (node instanceof HTMLElement) {
-            return [...node.querySelectorAll('tr')];
+            return [...node.querySelectorAll<HTMLTableRowElement>('tr')];
           }
           return [] as HTMLElement[];
         })
         .filter(node => node.querySelector('td') && !hasBooleanAttribute(node, 'placeholder'));
+  }
+
+  #getStyleElements(nodes: NodeList): HTMLElement[] {
+    return [...nodes].flatMap(node => {
+      if (node instanceof HTMLStyleElement) {
+        return [node];
+      }
+      if (node instanceof HTMLElement) {
+        return [...node.querySelectorAll<HTMLStyleElement>('style')];
+      }
+      return [] as HTMLElement[];
+    });
   }
 
   #findNextExistingNode(element: Element): DataGridElementNode|null {
@@ -249,12 +299,18 @@ class DataGridElement extends HTMLElement {
     return null;
   }
 
-  #addNodes(nodes: NodeList): void {
+  override addNodes(nodes: NodeList): void {
     for (const element of this.#getDataRows(nodes)) {
-      const parentNode = this.#dataGrid.rootNode();  // TODO(dsv): support nested nodes
+      const parentRow = element.parentElement?.closest('td')?.closest('tr');
+      const parentDataGridNode = parentRow ? DataGridElementNode.get(parentRow) : undefined;
+      const parentNode = parentDataGridNode || this.#dataGrid.rootNode();
       const nextNode = this.#findNextExistingNode(element);
       const index = nextNode ? parentNode.children.indexOf(nextNode) : parentNode.children.length;
       const node = new DataGridElementNode(element, this);
+      this.#updateHasChildren(node, element);
+      if ((parentRow || node.hasChildren()) && !this.#dataGrid.disclosureColumnId) {
+        this.#dataGrid.disclosureColumnId = this.#columns[0].id;
+      }
       parentNode.insertChild(node, index);
       if (hasBooleanAttribute(element, 'selected')) {
         node.select();
@@ -269,18 +325,22 @@ class DataGridElement extends HTMLElement {
         node.setHighlighted(true);
       }
     }
+    for (const element of this.#getStyleElements(nodes)) {
+      this.#shadowRoot.appendChild(element.cloneNode(true));
+    }
+    this.#dataGrid.dispatchEventToListeners(DataGridEvents.SORTING_CHANGED);
   }
 
-  #removeNodes(nodes: NodeList): void {
+  override removeNodes(nodes: NodeList): void {
     for (const element of this.#getDataRows(nodes)) {
       const node = DataGridElementNode.get(element);
       if (node) {
-        node.remove();
+        DataGridElementNode.remove(node);
       }
     }
   }
 
-  #updateNode(node: Node, attributeName: string|null): void {
+  override updateNode(node: Node, attributeName: string|null): void {
     while (node?.parentNode && !(node instanceof HTMLElement)) {
       node = node.parentNode;
     }
@@ -300,9 +360,14 @@ class DataGridElement extends HTMLElement {
       } else if (attributeName === 'highlighted') {
         dataGridNode.setHighlighted(hasBooleanAttribute(dataRow, 'highlighted'));
       } else {
+        this.#updateHasChildren(dataGridNode, dataRow);
         dataGridNode.refresh();
       }
     }
+  }
+
+  deselectRow(): void {
+    this.#dataGrid.selectedNode?.deselect();
   }
 
   #updateCreationNode(): void {
@@ -311,7 +376,7 @@ class DataGridElement extends HTMLElement {
       this.#usedCreationNode = null;
       this.#dataGrid.creationNode = undefined;
     }
-    const placeholder = this.querySelector('tr[placeholder]');
+    const placeholder = this.templateRoot.querySelector('tr[placeholder]');
     if (!placeholder) {
       this.#dataGrid.creationNode?.remove();
       this.#dataGrid.creationNode = undefined;
@@ -323,16 +388,19 @@ class DataGridElement extends HTMLElement {
     }
   }
 
-  #onChange(mutationList: MutationRecord[]): void {
+  override onChange(mutationList: MutationRecord[]): void {
     if (this.#needUpdateColumns(mutationList)) {
       this.#updateColumns();
     }
     this.#updateCreationNode();
 
-    for (const mutation of mutationList) {
-      this.#removeNodes(mutation.removedNodes);
-      this.#addNodes(mutation.addedNodes);
-      this.#updateNode(mutation.target, mutation.attributeName);
+    const hadAddedNodes = mutationList.some(m => m.addedNodes.length > 0);
+    // If we got an update, and the data grid is sorted, we need to update the
+    // columns to maintain the sort order as the data within has changed.
+    // However, if we have nodes added, that will trigger a sort anyway so we
+    // don't need to re-sort again.
+    if (this.#dataGrid.sortColumnId() !== null && !hadAddedNodes) {
+      this.#dataGrid.dispatchEventToListeners(DataGridEvents.SORTING_CHANGED);
     }
   }
 
@@ -354,12 +422,11 @@ class DataGridElement extends HTMLElement {
       return;
     }
 
-    this.dispatchEvent(
-        new CustomEvent('edit', {detail: {node: node.configElement, columnId, valueBeforeEditing, newText}}));
+    node.configElement.dispatchEvent(new CustomEvent('edit', {detail: {columnId, valueBeforeEditing, newText}}));
   }
 
   #deleteCallback(node: DataGridElementNode): void {
-    this.dispatchEvent(new CustomEvent('delete', {detail: node.configElement}));
+    node.configElement.dispatchEvent(new CustomEvent('delete'));
   }
 
   override addEventListener<K extends keyof HTMLElementEventMap>(
@@ -403,12 +470,15 @@ class DataGridElementNode extends SortableDataGridNode<DataGridElementNode> {
   }
 
   #updateData(): void {
-    const cells = this.#configElement.querySelectorAll('td');
-    for (let i = 0; i < cells.length; ++i) {
-      const cell = cells[i];
+    const cells = [...this.#configElement.children].filter(c => c.tagName === 'TD');
+    for (let i = 0; i < this.#dataGridElement.columns.length; ++i) {
+      const cell = cells[i] as HTMLElement;
+      if (!cell) {
+        continue;
+      }
       const column = this.#dataGridElement.columns[i];
       if (column.dataType === DataType.BOOLEAN) {
-        this.data[column.id] = hasBooleanAttribute(cell, 'data-value');
+        this.data[column.id] = hasBooleanAttribute(cell, 'data-value') || cell.textContent === 'true';
       } else {
         this.data[column.id] = cell.dataset.value ?? cell.textContent ?? '';
       }
@@ -448,34 +518,43 @@ class DataGridElementNode extends SortableDataGridNode<DataGridElementNode> {
   }
 
   #onRowMouseEvent(event: MouseEvent): void {
-    let currentElement = event.target as HTMLElement;
-    const childIndexesOnPathToRoot: number[] = [];
-    while (currentElement?.parentElement && currentElement !== event.currentTarget) {
-      childIndexesOnPathToRoot.push([...currentElement.parentElement.children].indexOf(currentElement));
-      currentElement = currentElement.parentElement;
-    }
-    if (!currentElement) {
+    const targetInConfigRow = UI.UIUtils.HTMLElementWithLightDOMTemplate.findCorrespondingElement(
+        event.target as HTMLElement, event.currentTarget as HTMLElement, this.#configElement);
+    if (!targetInConfigRow) {
       throw new Error('Cell click event target not found in the data grid');
     }
-    let targetInConfigRow = this.#configElement;
-    for (const index of childIndexesOnPathToRoot.reverse()) {
-      targetInConfigRow = targetInConfigRow.children[index];
-    }
+
     if (targetInConfigRow instanceof HTMLElement) {
       targetInConfigRow?.dispatchEvent(new MouseEvent(event.type, {bubbles: true, composed: true}));
+    }
+  }
+
+  override createCells(element: Element): void {
+    const configCells = [...this.#configElement.querySelectorAll('td')];
+    const hasCollspan = configCells.some(cell => cell.hasAttribute('colspan'));
+    if (!hasCollspan) {
+      super.createCells(element);
+    } else {
+      for (const cell of configCells) {
+        element.appendChild(cell.cloneNode(true));
+      }
     }
   }
 
   override createCell(columnId: string): HTMLElement {
     const index = this.#dataGridElement.columns.findIndex(({id}) => id === columnId);
     if (this.#dataGridElement.columns[index].dataType === DataType.BOOLEAN) {
-      return super.createCell(columnId);
-    }
-    const cell = this.createTD(columnId);
-    if (this.isCreationNode) {
+      const cell = super.createCell(columnId);
+      cell.setAttribute('part', `${columnId}-column`);
       return cell;
     }
-    const configCell = this.#configElement.querySelectorAll('td')[index];
+    const cell = this.createTD(columnId);
+    cell.setAttribute('part', `${columnId}-column`);
+    const configCells = [...this.#configElement.children].filter(c => c.tagName === 'TD') as HTMLTableCellElement[];
+    const configCell = configCells[index];
+    if (this.isCreationNode && !configCell) {
+      return cell;
+    }
     if (!configCell) {
       throw new Error(`Column ${columnId} not found in the data grid`);
     }
@@ -488,6 +567,10 @@ class DataGridElementNode extends SortableDataGridNode<DataGridElementNode> {
     cell.title = configCell.title;
     if (configCell.hasAttribute('aria-label')) {
       this.setCellAccessibleName(configCell.getAttribute('aria-label') || '', cell, columnId);
+    }
+    const style = configCell.getAttribute('style');
+    if (style !== null) {
+      cell.setAttribute('style', style);
     }
 
     return cell;
@@ -525,3 +608,36 @@ export interface DataGridInternalToken {
 const INTERNAL_TOKEN: DataGridInternalToken = {
   token: 'DataGridInternalToken'
 };
+
+class IfExpandedDirective extends Lit.Directive.Directive {
+  #partInfo: {type: Lit.Directive.PartType, startNode: Node};
+  constructor(partInfo: Lit.Directive.PartInfo) {
+    if (partInfo.type !== Lit.Directive.PartType.CHILD) {
+      throw new Error('ifExpanded directive must be used in a child node');
+    }
+    super(partInfo);
+    this.#partInfo = partInfo as {type: Lit.Directive.PartType, startNode: Node};
+  }
+
+  render(content: Lit.LitTemplate|Iterable<Lit.LitTemplate>): Lit.LitTemplate|Iterable<Lit.LitTemplate> {
+    return this.#isInExpandedRow(this.#partInfo.startNode) ? content : Lit.nothing;
+  }
+
+  #isInExpandedRow(element: Node|null|undefined): boolean {
+    if (!element) {
+      return false;
+    }
+    if (!(element instanceof HTMLElement)) {
+      element = element.parentNode;
+    }
+    if (!(element instanceof HTMLElement)) {
+      return false;
+    }
+    const node = DataGridElementNode.get(element.closest('tr') ?? undefined);
+    if (!node) {
+      return false;
+    }
+    return node.expanded;
+  }
+}
+export const ifExpanded = Lit.Directive.directive(IfExpandedDirective);

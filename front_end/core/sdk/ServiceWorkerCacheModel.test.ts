@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,7 +56,7 @@ describeWithMockConnection('ServiceWorkerCacheModel', () => {
           'CacheStorage.requestCacheNames',
           () => ({
             caches: [{cacheId: 'id', storageKey: testKey, storageBucket: testStorageBucket, cacheName: 'test-cache'}],
-          }));
+          } as Protocol.CacheStorage.RequestCacheNamesResponse));
 
       manager?.storageBucketCreatedOrUpdated({bucketInfo: testStorageBucketInfo});
       assert.isFalse(cacheAdeddSpy.calledWithExactly(
@@ -74,7 +74,7 @@ describeWithMockConnection('ServiceWorkerCacheModel', () => {
       cacheStorageModel.enable();
       manager?.storageBucketCreatedOrUpdated({bucketInfo: testStorageBucketInfo});
 
-      assert.isTrue(trackCacheSpy.calledOnceWithExactly({storageKey: testKey}));
+      sinon.assert.calledOnceWithExactly(trackCacheSpy, {storageKey: testKey});
     });
   });
 
@@ -85,7 +85,7 @@ describeWithMockConnection('ServiceWorkerCacheModel', () => {
     manager?.storageBucketCreatedOrUpdated({bucketInfo: testStorageBucketInfo});
     manager?.storageBucketDeleted({bucketId: testStorageBucketInfo.id});
 
-    assert.isTrue(untrackCacheSpy.calledOnceWithExactly({storageKey: testKey}));
+    sinon.assert.calledOnceWithExactly(untrackCacheSpy, {storageKey: testKey});
   });
 
   it('detaches storage key event listeners on dispose', () => {
@@ -97,8 +97,8 @@ describeWithMockConnection('ServiceWorkerCacheModel', () => {
     manager?.storageBucketCreatedOrUpdated({bucketInfo: testStorageBucketInfo});
     manager?.storageBucketDeleted({bucketId: testStorageBucketInfo.id});
 
-    assert.isTrue(trackCacheSpy.notCalled);
-    assert.isTrue(untrackCacheSpy.notCalled);
+    sinon.assert.notCalled(trackCacheSpy);
+    sinon.assert.notCalled(untrackCacheSpy);
   });
 
   it('calls protocol method and dispatches event on refreshCacheNames', async () => {
@@ -112,13 +112,13 @@ describeWithMockConnection('ServiceWorkerCacheModel', () => {
         'CacheStorage.requestCacheNames',
         () => ({
           caches: [{cacheId: 'id', storageKey: testKey, storageBucket: testStorageBucket, cacheName: 'test-cache'}],
-        }));
+        } as Protocol.CacheStorage.RequestCacheNamesResponse));
     cacheStorageModel.enable();
     manager?.storageBucketCreatedOrUpdated({bucketInfo: testStorageBucketInfo});
 
     void cacheStorageModel.refreshCacheNames();
 
-    assert.isTrue(requestCacheNamesSpy.calledWithExactly({storageBucket: testStorageBucket}));
+    sinon.assert.calledWithExactly(requestCacheNamesSpy, {storageBucket: testStorageBucket});
     await cacheAddedPromise;
   });
 
@@ -129,9 +129,10 @@ describeWithMockConnection('ServiceWorkerCacheModel', () => {
     cacheStorageModel.cacheStorageContentUpdated(
         {origin: '', storageKey: testKey, bucketId: testStorageBucketInfo.id, cacheName: 'test-cache'});
 
-    assert.isTrue(dispatcherSpy.calledOnceWithExactly(
+    sinon.assert.calledOnceWithExactly(
+        dispatcherSpy,
         SDK.ServiceWorkerCacheModel.Events.CACHE_STORAGE_CONTENT_UPDATED as unknown as sinon.SinonMatcher,
-        {storageBucket: testStorageBucket, cacheName: 'test-cache'}));
+        {storageBucket: testStorageBucket, cacheName: 'test-cache'});
   });
 
   it('requests cache names on cacheStorageListUpdated', async () => {
@@ -141,7 +142,7 @@ describeWithMockConnection('ServiceWorkerCacheModel', () => {
 
     cacheStorageModel.cacheStorageListUpdated({origin: '', storageKey: testKey, bucketId: testStorageBucketInfo.id});
 
-    assert.isTrue(requestCacheNamesSpy.calledWithExactly({storageBucket: testStorageBucket}));
+    sinon.assert.calledWithExactly(requestCacheNamesSpy, {storageBucket: testStorageBucket});
   });
 
   it('gets caches added for storage key', async () => {
@@ -158,7 +159,7 @@ describeWithMockConnection('ServiceWorkerCacheModel', () => {
             {cacheId: 'id1', storageKey: testKey, storageBucket: testStorageBucket, cacheName: 'test-cache-1'},
             {cacheId: 'id2', storageKey: testKey, storageBucket: testStorageBucket, cacheName: 'test-cache-2'},
           ],
-        }));
+        } as Protocol.CacheStorage.RequestCacheNamesResponse));
     cacheStorageModel.enable();
     manager?.storageBucketCreatedOrUpdated({bucketInfo: testStorageBucketInfo});
     // make sure enough time passed for caches to populate
@@ -177,7 +178,7 @@ describeWithMockConnection('ServiceWorkerCacheModel', () => {
             {cacheId: 'id1', storageKey: testKey, storageBucket: testStorageBucket, cacheName: 'test-cache-1'},
             {cacheId: 'id2', storageKey: testKey, storageBucket: testStorageBucket, cacheName: 'test-cache-2'},
           ],
-        }));
+        } as Protocol.CacheStorage.RequestCacheNamesResponse));
     cacheStorageModel.enable();
     manager?.storageBucketCreatedOrUpdated({bucketInfo: testStorageBucketInfo});
     cacheStorageModel.refreshCacheNames();
@@ -194,6 +195,6 @@ describeWithMockConnection('ServiceWorkerCacheModel', () => {
     manager?.storageBucketCreatedOrUpdated({bucketInfo: testStorageBucketInfo});
     cacheStorageModel.enable();
 
-    assert.isTrue(trackCacheSpy.calledOnceWithExactly({storageKey: testKey}));
+    sinon.assert.calledOnceWithExactly(trackCacheSpy, {storageKey: testKey});
   });
 });

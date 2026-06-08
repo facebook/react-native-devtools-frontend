@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 The Chromium Authors. All rights reserved.
+ * Copyright 2015 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -8,6 +8,10 @@
   overflow: hidden;
 
   --timeline-controls-width: 150px;
+}
+
+.toolbar-view-container {
+  min-height: fit-content;
 }
 
 .animation-node-row {
@@ -282,73 +286,6 @@ text.animation-timeline-grid-label {
   text-anchor: middle;
 }
 
-@keyframes --full-opacity-for-screenshots-container {
-  from {
-    opacity: 100%;
-  }
-
-  to {
-    opacity: 100%;
-  }
-}
-
-.preview-ui-container {
-  position: relative;
-
-  & .screenshot-arrow {
-    /* stylelint-disable-next-line custom-property-pattern */
-    background-image: var(--image-file-popoverArrows);
-    background-position: 0 76px;
-    width: 19px;
-    height: 19px;
-    position: absolute;
-    left: 6px;
-    top: -19px;
-    z-index: 100;
-    pointer-events: none;
-  }
-
-  & .screenshots-container {
-    position: absolute;
-    display: none;
-    opacity: 0%;
-    left: 6px;
-    top: 100%;
-    z-index: 100;
-    border: 1px solid transparent;
-    box-shadow: var(--drop-shadow);
-    border-radius: 2px;
-    max-width: 220px;
-    max-height: 220px;
-  }
-
-  & .screenshots-container.to-the-left {
-    left: unset;
-    right: 6px;
-  }
-
-  & .screenshots-container.to-the-left .screenshot-arrow {
-    left: unset;
-    right: 6px;
-  }
-
-  &:hover .screenshots-container:not(.no-screenshots) {
-    display: block;
-    animation-name: --full-opacity-for-screenshots-container;
-    animation-duration: 0s;
-    animation-delay: 0.2s; /* Show the screenshots after 0.2s delay */
-    animation-fill-mode: forwards;
-  }
-
-  &:hover .screenshots-container:not(.no-screenshots):hover {
-    display: none;
-  }
-
-  &:has(.selected):hover .screenshots-container:not(.no-screenshots) {
-    display: none;
-  }
-}
-
 .animation-timeline-rows,
 .animation-timeline-rows-hint,
 .animation-timeline-buffer-hint {
@@ -537,6 +474,7 @@ text.animation-timeline-grid-label {
 .animation-playback-rate-button:focus-visible {
   outline: 2px solid var(--sys-color-primary);
   outline-offset: 2px;
+  z-index: 9999;
 }
 
 .animation-playback-rate-button:not(.selected, [disabled]):hover {
@@ -573,7 +511,11 @@ text.animation-timeline-grid-label {
   }
 }
 
-.animation-buffer-preview:hover .animation-remove-button {
+.animation-group-preview-ui {
+  position: relative;
+}
+
+.animation-group-preview-ui:hover .animation-remove-button {
   display: flex;
 }
 

@@ -1,10 +1,12 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import type * as Protocol from '../../generated/protocol.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
+import {setupRuntimeHooks} from '../../testing/RuntimeHelpers.js';
+import {setupSettingsHooks} from '../../testing/SettingsHelpers.js';
 import {setupPageResourceLoaderForSourceMap} from '../../testing/SourceMapHelpers.js';
 import * as Platform from '../platform/platform.js';
 
@@ -45,7 +47,7 @@ describeWithMockConnection('SourceMapManager', () => {
 
     const script = new SDK.Script.Script(
         debuggerModel, '1' as Protocol.Runtime.ScriptId, scriptUrl, 0, 0, 0, 0, 0, '', false, false, sourceMapUrl,
-        false, 0, null, null, null, null, null, null);
+        false, 0, null, null, null, null, null, null, null);
 
     sourceMapManager.attachSourceMap(script, sourceUrl, sourceMapUrl);
 
@@ -74,7 +76,7 @@ describeWithMockConnection('SourceMapManager', () => {
 
     const script = new SDK.Script.Script(
         debuggerModel, '1' as Protocol.Runtime.ScriptId, scriptUrl, 0, 0, 0, 0, 0, '', false, false, sourceMapUrl,
-        false, 0, null, null, null, null, null, null);
+        false, 0, null, null, null, null, null, null, null);
 
     sourceMapManager.attachSourceMap(script, sourceUrl, sourceMapUrl);
 
@@ -87,6 +89,9 @@ describe('SourceMapManager', () => {
   const sourceURL = urlString`http://localhost/foo.js`;
   const sourceMappingURL = `${sourceURL}.map`;
 
+  setupRuntimeHooks();
+  setupSettingsHooks();
+
   beforeEach(() => {
     SDK.TargetManager.TargetManager.instance({forceNew: true});
     SDK.PageResourceLoader.PageResourceLoader.instance({forceNew: true, loadOverride: null, maxConcurrentLoads: 1});
@@ -97,18 +102,16 @@ describe('SourceMapManager', () => {
     SDK.TargetManager.TargetManager.removeInstance();
   });
 
-  const createTarget = () => {
-    const target = sinon.createStubInstance(SDK.Target.Target);
-    target.type.returns(SDK.Target.Type.FRAME);
-    return target;
-  };
-
   class MockClient implements SDK.FrameAssociated.FrameAssociated {
     constructor(private target: SDK.Target.Target) {
     }
 
     createPageResourceLoadInitiator(): SDK.PageResourceLoader.PageResourceLoadInitiator {
       return {target: this.target, frameId: null, initiatorUrl: null};
+    }
+
+    debugId(): SDK.SourceMap.DebugId|null {
+      return null;
     }
   }
 
@@ -134,11 +137,11 @@ describe('SourceMapManager', () => {
       sinon.stub(SDK.PageResourceLoader.PageResourceLoader.instance(), 'loadResource').resolves({content});
       sourceMapManager.attachSourceMap(client, sourceURL, sourceMappingURL);
       assert.strictEqual(sourceMapWillAttach.callCount, 1, 'SourceMapWillAttach events');
-      assert.isTrue(sourceMapWillAttach.calledWith(sinon.match.hasNested('data.client', client)));
+      sinon.assert.calledWith(sourceMapWillAttach, sinon.match.hasNested('data.client', client));
       const sourceMap = await sourceMapManager.sourceMapForClientPromise(client);
       assert.strictEqual(sourceMapAttached.callCount, 1, 'SourceMapAttached events');
-      assert.isTrue(sourceMapAttached.calledWith(sinon.match.hasNested('data.client', client)));
-      assert.isTrue(sourceMapAttached.calledWith(sinon.match.hasNested('data.sourceMap', sourceMap)));
+      sinon.assert.calledWith(sourceMapAttached, sinon.match.hasNested('data.client', client));
+      sinon.assert.calledWith(sourceMapAttached, sinon.match.hasNested('data.sourceMap', sourceMap));
       assert.isTrue(sourceMapAttached.calledAfter(sourceMapWillAttach));
     });
 
@@ -153,10 +156,10 @@ describe('SourceMapManager', () => {
       sinon.stub(SDK.PageResourceLoader.PageResourceLoader.instance(), 'loadResource').rejects('Error');
       sourceMapManager.attachSourceMap(client, sourceURL, sourceMappingURL);
       assert.strictEqual(sourceMapWillAttach.callCount, 1, 'SourceMapWillAttach events');
-      assert.isTrue(sourceMapWillAttach.calledWith(sinon.match.hasNested('data.client', client)));
+      sinon.assert.calledWith(sourceMapWillAttach, sinon.match.hasNested('data.client', client));
       await sourceMapManager.sourceMapForClientPromise(client);
       assert.strictEqual(sourceMapFailedToAttach.callCount, 1, 'SourceMapFailedToAttach events');
-      assert.isTrue(sourceMapFailedToAttach.calledWith(sinon.match.hasNested('data.client', client)));
+      sinon.assert.calledWith(sourceMapFailedToAttach, sinon.match.hasNested('data.client', client));
       assert.isTrue(sourceMapFailedToAttach.calledAfter(sourceMapWillAttach));
     });
 
@@ -171,11 +174,11 @@ describe('SourceMapManager', () => {
       sinon.stub(SDK.PageResourceLoader.PageResourceLoader.instance(), 'loadResource').resolves({content});
       sourceMapManager.attachSourceMap(client, sourceURL, sourceMappingURL);
       sourceMapManager.detachSourceMap(client);
-      assert.isTrue(sourceMapFailedToAttach.calledWith(sinon.match.hasNested('data.client', client)));
+      sinon.assert.calledWith(sourceMapFailedToAttach, sinon.match.hasNested('data.client', client));
       sourceMapManager.attachSourceMap(client, sourceURL, sourceMappingURL);
       await sourceMapManager.sourceMapForClientPromise(client);
       assert.strictEqual(sourceMapAttached.callCount, 1, 'SourceMapAttached events');
-      assert.isTrue(sourceMapAttached.calledWith(sinon.match.hasNested('data.client', client)));
+      sinon.assert.calledWith(sourceMapAttached, sinon.match.hasNested('data.client', client));
       assert.isTrue(sourceMapAttached.calledAfter(sourceMapFailedToAttach));
     });
 
@@ -199,7 +202,7 @@ describe('SourceMapManager', () => {
       const sourceMapManager = new SDK.SourceMapManager.SourceMapManager(target);
       sourceMapManager.setEnabled(false);
       const client = new MockClient(target);
-      const loadResource = sinon.spy(SDK.PageResourceLoader.PageResourceLoader.instance(), 'loadResource');
+      const loadResource = sinon.stub(SDK.PageResourceLoader.PageResourceLoader.instance(), 'loadResource');
       sourceMapManager.attachSourceMap(client, sourceURL, sourceMappingURL);
       assert.strictEqual(loadResource.callCount, 0, 'loadResource calls');
       assert.isUndefined(sourceMapManager.sourceMapForClient(client));
@@ -223,7 +226,7 @@ describe('SourceMapManager', () => {
       assert.strictEqual(loadResource.callCount, 0, 'loadResource calls');
       await sourceMapManager.sourceMapForClientPromise(client);
       assert.strictEqual(sourceMapFailedToAttach.callCount, 1, 'SourceMapFailedToAttach events');
-      assert.isTrue(sourceMapFailedToAttach.calledWith(sinon.match.hasNested('data.client', client)));
+      sinon.assert.calledWith(sourceMapFailedToAttach, sinon.match.hasNested('data.client', client));
     });
   });
 
@@ -246,8 +249,8 @@ describe('SourceMapManager', () => {
       const sourceMap = await sourceMapManager.sourceMapForClientPromise(client);
       sourceMapManager.detachSourceMap(client);
       assert.strictEqual(sourceMapDetached.callCount, 1, 'SourceMapDetached events');
-      assert.isTrue(sourceMapDetached.calledWith(sinon.match.hasNested('data.client', client)));
-      assert.isTrue(sourceMapDetached.calledWith(sinon.match.hasNested('data.sourceMap', sourceMap)));
+      sinon.assert.calledWith(sourceMapDetached, sinon.match.hasNested('data.client', client));
+      sinon.assert.calledWith(sourceMapDetached, sinon.match.hasNested('data.sourceMap', sourceMap));
     });
 
     it('triggers the correct lifecycle events when disabled', async () => {
@@ -281,7 +284,7 @@ describe('SourceMapManager', () => {
       sourceMapManager.setEnabled(false);
 
       assert.strictEqual(sourceMapFailedToAttach.callCount, 1, 'SourceMapFailedToAttach events');
-      assert.isTrue(sourceMapFailedToAttach.calledWith(sinon.match.hasNested('data.client', client)));
+      sinon.assert.calledWith(sourceMapFailedToAttach, sinon.match.hasNested('data.client', client));
     });
 
     it('triggers the correct lifecycle events when disabling once attached', async () => {
@@ -297,8 +300,8 @@ describe('SourceMapManager', () => {
       sourceMapManager.setEnabled(false);
 
       assert.strictEqual(sourceMapDetached.callCount, 1, 'SourceMapDetached events');
-      assert.isTrue(sourceMapDetached.calledWith(sinon.match.hasNested('data.client', client)));
-      assert.isTrue(sourceMapDetached.calledWith(sinon.match.hasNested('data.sourceMap', sourceMap)));
+      sinon.assert.calledWith(sourceMapDetached, sinon.match.hasNested('data.client', client));
+      sinon.assert.calledWith(sourceMapDetached, sinon.match.hasNested('data.sourceMap', sourceMap));
     });
 
     it('triggers the correct lifecycle events when re-enabling', async () => {
@@ -324,11 +327,11 @@ describe('SourceMapManager', () => {
       assert.strictEqual(sourceMapDetached.callCount, 0, 'SourceMapDetached events');
       assert.strictEqual(sourceMapFailedToAttach.callCount, 0, 'SourceMapFailedToAttach events');
       assert.strictEqual(sourceMapWillAttach.callCount, 1, 'SourceMapWillAttach events');
-      assert.isTrue(sourceMapWillAttach.calledWith(sinon.match.hasNested('data.client', client)));
+      sinon.assert.calledWith(sourceMapWillAttach, sinon.match.hasNested('data.client', client));
       assert.isTrue(sourceMapAttached.calledAfter(sourceMapWillAttach));
       assert.strictEqual(sourceMapAttached.callCount, 1, 'SourceMapAttached events');
-      assert.isTrue(sourceMapAttached.calledWith(sinon.match.hasNested('data.client', client)));
-      assert.isTrue(sourceMapAttached.calledWith(sinon.match.hasNested('data.sourceMap', sourceMap)));
+      sinon.assert.calledWith(sourceMapAttached, sinon.match.hasNested('data.client', client));
+      sinon.assert.calledWith(sourceMapAttached, sinon.match.hasNested('data.sourceMap', sourceMap));
     });
   });
 });

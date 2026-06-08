@@ -1,57 +1,56 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import './Table.js';
-
+import * as Common from '../../../../core/common/common.js';
 import * as i18n from '../../../../core/i18n/i18n.js';
-import type {LegacyJavaScriptInsightModel} from '../../../../models/trace/insights/LegacyJavaScript.js';
+import * as SDK from '../../../../core/sdk/sdk.js';
+import * as Bindings from '../../../../models/bindings/bindings.js';
+import type {
+  LegacyJavaScriptInsightModel, PatternMatchResult} from '../../../../models/trace/insights/LegacyJavaScript.js';
 import * as Trace from '../../../../models/trace/trace.js';
+import * as UI from '../../../../ui/legacy/legacy.js';
 import * as Lit from '../../../../ui/lit/lit.js';
-import type * as Overlays from '../../overlays/overlays.js';
 
 import {BaseInsightComponent} from './BaseInsightComponent.js';
 import {scriptRef} from './ScriptRef.js';
-import type {TableData, TableDataRow} from './Table.js';
+import {Table, type TableDataRow} from './Table.js';
 
 const {UIStrings, i18nString} = Trace.Insights.Models.LegacyJavaScript;
 
 const {html} = Lit;
+const {widget} = UI.Widget;
 
 export class LegacyJavaScript extends BaseInsightComponent<LegacyJavaScriptInsightModel> {
-  static override readonly litTagName = Lit.StaticHtml.literal`devtools-performance-legacy-javascript`;
   override internalName = 'legacy-javascript';
 
   override getEstimatedSavingsTime(): Trace.Types.Timing.Milli|null {
     return this.model?.metricSavings?.FCP ?? null;
   }
 
-  override getEstimatedSavingsBytes(): number|null {
-    if (!this.model) {
-      return null;
-    }
-
-    let estimatedByteSavings = 0;
-    for (const result of this.model.legacyJavaScriptResults.values()) {
-      estimatedByteSavings += result.estimatedByteSavings;
-    }
-
-    return estimatedByteSavings;
+  protected override hasAskAiSupport(): boolean {
+    return true;
   }
 
-  override createOverlays(): Overlays.Overlays.TimelineOverlay[] {
-    if (!this.model) {
-      return [];
+  async #revealLocation(script: Trace.Handlers.ModelHandlers.Scripts.Script, match: PatternMatchResult): Promise<void> {
+    const target = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
+    if (!target) {
+      return;
     }
 
-    const requests = [...this.model.legacyJavaScriptResults.keys()].map(script => script.request).filter(e => !!e);
-    return requests.map(request => {
-      return {
-        type: 'ENTRY_OUTLINE',
-        entry: request,
-        outlineReason: 'ERROR',
-      };
-    });
+    const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel);
+    if (!debuggerModel) {
+      return;
+    }
+
+    const location = new SDK.DebuggerModel.Location(debuggerModel, script.scriptId, match.line, match.column);
+    if (!location) {
+      return;
+    }
+
+    const uiLocation =
+        await Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance().rawLocationToUILocation(location);
+    await Common.Revealer.reveal(uiLocation);
   }
 
   override renderContent(): Lit.LitTemplate {
@@ -61,7 +60,7 @@ export class LegacyJavaScript extends BaseInsightComponent<LegacyJavaScriptInsig
 
     const rows: TableDataRow[] =
         [...this.model.legacyJavaScriptResults.entries()].slice(0, 10).map(([script, result]) => {
-          const overlays: Overlays.Overlays.TimelineOverlay[] = [];
+          const overlays: Trace.Types.Overlays.Overlay[] = [];
           if (script.request) {
             overlays.push({
               type: 'ENTRY_OUTLINE',
@@ -75,7 +74,9 @@ export class LegacyJavaScript extends BaseInsightComponent<LegacyJavaScriptInsig
             overlays,
             subRows: result.matches.map(match => {
               return {
-                values: [html`<span title=${`${script.url}:${match.line}:${match.column}`}>${match.name}</span>`],
+                values: [html`<span @click=${
+                    () => this.#revealLocation(
+                        script, match)} title=${`${script.url}:${match.line}:${match.column}`}>${match.name}</span>`],
               };
             })
           };
@@ -84,23 +85,14 @@ export class LegacyJavaScript extends BaseInsightComponent<LegacyJavaScriptInsig
     // clang-format off
     return html`
       <div class="insight-section">
-        <devtools-performance-table
-          .data=${{
+        ${widget(Table, {
+           data: {
             insight: this,
             headers: [i18nString(UIStrings.columnScript), i18nString(UIStrings.columnWastedBytes)],
             rows,
-          } as TableData}>
-        </devtools-performance-table>
+          }})}
       </div>
     `;
     // clang-format on
   }
 }
-
-declare global {
-  interface HTMLElementTagNameMap {
-    'devtools-performance-legacy-javascript': LegacyJavaScript;
-  }
-}
-
-customElements.define('devtools-performance-legacy-javascript', LegacyJavaScript);

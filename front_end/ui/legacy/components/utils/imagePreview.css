@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 The Chromium Authors. All rights reserved.
+ * Copyright 2017 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -12,7 +12,7 @@
 
 .image-preview-container img {
   margin: 6px 0;
-  max-width: 100px;
+  width: auto;
   max-height: 100px;
   background-image: var(--image-file-checker);
   user-select: text;

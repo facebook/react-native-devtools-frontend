@@ -176,13 +176,27 @@ function isTypeReadonlyObject(program, type, options, seenTypes) {
 function isTypeReadonlyRecurser(program, type, options, seenTypes) {
     const checker = program.getTypeChecker();
     seenTypes.add(type);
+    // If the type has an alias symbol, check it against the allow list first
+    if (type.aliasSymbol && options.allow) {
+        const aliasSymbol = type.aliasSymbol;
+        const aliasMatches = options.allow.some(specifier => {
+            const specifierName = typeof specifier === 'string' ? specifier : specifier.name;
+            const names = Array.isArray(specifierName)
+                ? specifierName
+                : [specifierName];
+            return names.includes(aliasSymbol.getName());
+        });
+        if (aliasMatches) {
+            return Readonlyness.Readonly;
+        }
+    }
     if ((0, TypeOrValueSpecifier_1.typeMatchesSomeSpecifier)(type, options.allow, program)) {
         return Readonlyness.Readonly;
     }
     if (tsutils.isUnionType(type)) {
         // all types in the union must be readonly
         const result = tsutils
-            .unionTypeParts(type)
+            .unionConstituents(type)
             .every(t => seenTypes.has(t) ||
             isTypeReadonlyRecurser(program, t, options, seenTypes) ===
                 Readonlyness.Readonly);

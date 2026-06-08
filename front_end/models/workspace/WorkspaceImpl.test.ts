@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -109,7 +109,7 @@ describe('WorkspaceImpl', () => {
     assert.deepEqual(result, [projectStub0]);
   });
 
-  it('can return the UI source code from project type', async () => {
+  it('can return the UI source code', async () => {
     const sut = Workspace.Workspace.WorkspaceImpl.instance({forceNew: true});
     const uiSourceCodeStub = sinon.createStubInstance(Workspace.UISourceCode.UISourceCode);
     const projectStub = sinon.createStubInstance(Bindings.ContentProviderBasedProject.ContentProviderBasedProject);

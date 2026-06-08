@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,87 +11,87 @@ import {Context} from './Context.js';
 
 const UIStrings = {
   /**
-   *@description Title of the keybind category 'Elements' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Elements' in Settings' Shortcuts pannel.
    */
   elements: 'Elements',
   /**
-   *@description Title of the keybind category 'Screenshot' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Screenshot' in Settings' Shortcuts pannel.
    */
   screenshot: 'Screenshot',
   /**
-   *@description Title of the keybind category 'Network' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Network' in Settings' Shortcuts pannel.
    */
   network: 'Network',
   /**
-   *@description Title of the keybind category 'Memory' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Memory' in Settings' Shortcuts pannel.
    */
   memory: 'Memory',
   /**
-   *@description Title of the keybind category 'JavaScript Profiler' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'JavaScript Profiler' in Settings' Shortcuts pannel.
    */
   javascript_profiler: 'JavaScript Profiler',
   /**
-   *@description Title of the keybind category 'Console' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Console' in Settings' Shortcuts pannel.
    */
   console: 'Console',
   /**
-   *@description Title of the keybind category 'Performance' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Performance' in Settings' Shortcuts pannel.
    */
   performance: 'Performance',
   /**
-   *@description Title of the keybind category 'Mobile' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Mobile' in Settings' Shortcuts pannel.
    */
   mobile: 'Mobile',
   /**
-   *@description Title of the keybind category 'Help' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Help' in Settings' Shortcuts pannel.
    */
   help: 'Help',
   /**
-   *@description Title of the keybind category 'Layers' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Layers' in Settings' Shortcuts pannel.
    */
   layers: 'Layers',
   /**
-   *@description Title of the keybind category 'Navigation' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Navigation' in Settings' Shortcuts pannel.
    */
   navigation: 'Navigation',
   /**
-   *@description Title of the keybind category 'Drawer' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Drawer' in Settings' Shortcuts pannel.
    */
   drawer: 'Drawer',
   /**
-   *@description Title of the keybind category 'Global' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Global' in Settings' Shortcuts pannel.
    */
   global: 'Global',
   /**
-   *@description Title of the keybind category 'Resources' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Resources' in Settings' Shortcuts pannel.
    */
   resources: 'Resources',
   /**
-   *@description Title of the keybind category 'Background Services' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Background Services' in Settings' Shortcuts pannel.
    */
   background_services: 'Background Services',
   /**
-   *@description Title of the keybind category 'Settings' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Settings' in Settings' Shortcuts pannel.
    */
   settings: 'Settings',
   /**
-   *@description Title of the keybind category 'Debugger' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Debugger' in Settings' Shortcuts pannel.
    */
   debugger: 'Debugger',
   /**
-   *@description Title of the keybind category 'Sources' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Sources' in Settings' Shortcuts pannel.
    */
   sources: 'Sources',
   /**
-   *@description Title of the keybind category 'Rendering' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Rendering' in Settings' Shortcuts pannel.
    */
   rendering: 'Rendering',
   /**
-   *@description Title of the keybind category 'Recorder' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Recorder' in Settings' Shortcuts pannel.
    */
   recorder: 'Recorder',
   /**
-   *@description Title of the keybind category 'Changes' in Settings' Shortcuts pannel.
+   * @description Title of the keybind category 'Changes' in Settings' Shortcuts pannel.
    */
   changes: 'Changes',
 } as const;
@@ -99,12 +99,12 @@ const str_ = i18n.i18n.registerUIStrings('ui/legacy/ActionRegistration.ts', UISt
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export interface ActionDelegate {
-  handleAction(context: Context, actionId: string): boolean;
+  handleAction(context: Context, actionId: string, opts?: Record<string, unknown>): boolean;
 }
 
 export class Action extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
-  private enabledInternal = true;
-  private toggledInternal = false;
+  #enabled = true;
+  #toggled = false;
   private actionRegistration: ActionRegistration;
   constructor(actionRegistration: ActionRegistration) {
     super();
@@ -115,13 +115,13 @@ export class Action extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
     return this.actionRegistration.actionId;
   }
 
-  async execute(): Promise<boolean> {
+  async execute(opts?: Record<string, unknown>): Promise<boolean> {
     if (!this.actionRegistration.loadActionDelegate) {
       return false;
     }
     const delegate = await this.actionRegistration.loadActionDelegate();
     const actionId = this.id();
-    return delegate.handleAction(Context.instance(), actionId);
+    return delegate.handleAction(Context.instance(), actionId, opts);
   }
 
   icon(): string|undefined {
@@ -137,16 +137,16 @@ export class Action extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
   }
 
   setEnabled(enabled: boolean): void {
-    if (this.enabledInternal === enabled) {
+    if (this.#enabled === enabled) {
       return;
     }
 
-    this.enabledInternal = enabled;
+    this.#enabled = enabled;
     this.dispatchEventToListeners(Events.ENABLED, enabled);
   }
 
   enabled(): boolean {
-    return this.enabledInternal;
+    return this.#enabled;
   }
 
   category(): ActionCategory {
@@ -174,7 +174,7 @@ export class Action extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
       // with the 'value' of the options are used to determine which one it is.
 
       for (const pair of options) {
-        if (pair.value !== this.toggledInternal) {
+        if (pair.value !== this.#toggled) {
           title = pair.title();
         }
       }
@@ -183,16 +183,16 @@ export class Action extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
   }
 
   toggled(): boolean {
-    return this.toggledInternal;
+    return this.#toggled;
   }
 
   setToggled(toggled: boolean): void {
     console.assert(this.toggleable(), 'Shouldn\'t be toggling an untoggleable action', this.id());
-    if (this.toggledInternal === toggled) {
+    if (this.#toggled === toggled) {
       return;
     }
 
-    this.toggledInternal = toggled;
+    this.#toggled = toggled;
     this.dispatchEventToListeners(Events.TOGGLED, toggled);
   }
 
@@ -215,8 +215,16 @@ export class Action extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
     return this.actionRegistration.bindings;
   }
 
+  configurableBindings(): boolean {
+    return this.actionRegistration.configurableBindings ?? true;
+  }
+
   experiment(): string|undefined {
     return this.actionRegistration.experiment;
+  }
+
+  featurePromotionId(): string|undefined {
+    return this.actionRegistration.featurePromotionId;
   }
 
   setting(): string|undefined {
@@ -535,10 +543,21 @@ export interface ActionRegistration {
    */
   bindings?: Binding[];
   /**
+   * Whether the action's bindings should be displayed for configuration in the
+   * Settings UI. Setting this to `false` will hide the action from the Shortcuts
+   * tab. Defaults to `true`.
+   */
+  // TODO(crbug.com/436764687): Consider removing this again if parametrized actions get moved to a separate mechanism
+  configurableBindings?: boolean;
+  /**
    * The name of the experiment an action is associated with. Enabling and disabling the declared
    * experiment will enable and disable the action respectively.
    */
-  experiment?: Root.Runtime.ExperimentName;
+  experiment?: Root.ExperimentNames.ExperimentName;
+  /**
+   * Whether an action needs to be promoted. A new badge is shown next to the menu items then.
+   */
+  featurePromotionId?: string;
   /**
    * The name of the setting an action is associated with. Enabling and
    * disabling the declared setting will enable and disable the action

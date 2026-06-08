@@ -3,7 +3,7 @@
  * Copyright 2022 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
-import type { Permission } from '../api/Browser.js';
+import type { CreatePageOptions, Permission, PermissionDescriptor, PermissionState } from '../api/Browser.js';
 import type { BrowserContextEvents } from '../api/BrowserContext.js';
 import { BrowserContext } from '../api/BrowserContext.js';
 import { type Page } from '../api/Page.js';
@@ -14,6 +14,7 @@ import type { Viewport } from '../common/Viewport.js';
 import type { BidiBrowser } from './Browser.js';
 import { UserContext } from './core/UserContext.js';
 import { BidiPage } from './Page.js';
+import { BidiPageTarget } from './Target.js';
 /**
  * @internal
  */
@@ -30,11 +31,19 @@ export declare class BidiBrowserContext extends BrowserContext {
     readonly userContext: UserContext;
     private constructor();
     targets(): Target[];
-    newPage(): Promise<Page>;
+    /**
+     * @internal
+     */
+    getTargetForPage(page: BidiPage): BidiPageTarget | undefined;
+    newPage(options?: CreatePageOptions): Promise<Page>;
     close(): Promise<void>;
     browser(): BidiBrowser;
-    pages(): Promise<BidiPage[]>;
+    pages(_includeAll?: boolean): Promise<BidiPage[]>;
     overridePermissions(origin: string, permissions: Permission[]): Promise<void>;
+    setPermission(origin: string | '*', ...permissions: Array<{
+        permission: PermissionDescriptor;
+        state: PermissionState;
+    }>): Promise<void>;
     clearPermissionOverrides(): Promise<void>;
     get id(): string | undefined;
     cookies(): Promise<Cookie[]>;

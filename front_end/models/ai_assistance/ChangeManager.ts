@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,16 +9,21 @@ import type * as Protocol from '../../generated/protocol.js';
 
 export interface Change {
   groupId: string;
+  // Optional turn ID to group changes from the same turn.
+  turnId?: number;
   // Optional about where in the source the selector was defined.
   sourceLocation?: string;
+  // Selector used by the page or a simple selector as the fallback.
   selector: string;
+  // Selector computed based on the element attributes.
+  simpleSelector?: string;
   className: string;
   styles: Record<string, string>;
+  backendNodeId?: Protocol.DOM.BackendNodeId;
 }
 
 function formatStyles(styles: Record<string, string>, indent = 2): string {
-  const kebabStyles = Platform.StringUtilities.toKebabCaseKeys(styles);
-  const lines = Object.entries(kebabStyles).map(([key, value]) => `${' '.repeat(indent)}${key}: ${value};`);
+  const lines = Object.entries(styles).map(([key, value]) => `${' '.repeat(indent)}${key}: ${value};`);
   return lines.join('\n');
 }
 
@@ -29,9 +34,18 @@ function formatStyles(styles: Record<string, string>, indent = 2): string {
 export class ChangeManager {
   readonly #stylesheetMutex = new Common.Mutex.Mutex();
   readonly #cssModelToStylesheetId =
-      new Map<SDK.CSSModel.CSSModel, Map<Protocol.Page.FrameId, Protocol.CSS.StyleSheetId>>();
-  readonly #stylesheetChanges = new Map<Protocol.CSS.StyleSheetId, Change[]>();
-  readonly #backupStylesheetChanges = new Map<Protocol.CSS.StyleSheetId, Change[]>();
+      new Map<SDK.CSSModel.CSSModel, Map<Protocol.Page.FrameId, Protocol.DOM.StyleSheetId>>();
+  readonly #stylesheetChanges = new Map<Protocol.DOM.StyleSheetId, Change[]>();
+  readonly #backupStylesheetChanges = new Map<Protocol.DOM.StyleSheetId, Change[]>();
+
+  constructor() {
+    SDK.TargetManager.TargetManager.instance().addModelListener(
+        SDK.ResourceTreeModel.ResourceTreeModel,
+        SDK.ResourceTreeModel.Events.PrimaryPageChanged,
+        this.clear,
+        this,
+    );
+  }
 
   async stashChanges(): Promise<void> {
     for (const [cssModel, stylesheetMap] of this.#cssModelToStylesheetId.entries()) {
@@ -80,16 +94,22 @@ export class ChangeManager {
     const stylesheetId = await this.#getStylesheet(cssModel, frameId);
     const changes = this.#stylesheetChanges.get(stylesheetId) || [];
     const existingChange = changes.find(c => c.className === change.className);
+    // Make sure teh styles are real CSS values.
+    const stylesKebab = Platform.StringUtilities.toKebabCaseKeys(change.styles);
     if (existingChange) {
-      Object.assign(existingChange.styles, change.styles);
+      Object.assign(existingChange.styles, stylesKebab);
       // This combines all style changes for a given element,
       // regardless of the conversation they originated from, into a single rule.
       // While separating these changes by conversation would be ideal,
       // it currently causes crashes in the Styles tab when duplicate selectors exist (crbug.com/393515428).
       // This workaround avoids that crash.
       existingChange.groupId = change.groupId;
+      existingChange.turnId = change.turnId;
     } else {
-      changes.push(change);
+      changes.push({
+        ...change,
+        styles: stylesKebab,
+      });
     }
     const content = this.#formatChangesForInspectorStylesheet(changes);
     await cssModel.setStyleSheetText(stylesheetId, content, true);
@@ -97,13 +117,25 @@ export class ChangeManager {
     return content;
   }
 
-  formatChangesForPatching(groupId: string, includeSourceLocation = false): string {
+  formatChangesForPatching(groupId: string, includeMetadata = false): string {
     return Array.from(this.#stylesheetChanges.values())
         .flatMap(
             changesPerStylesheet => changesPerStylesheet.filter(change => change.groupId === groupId)
-                                        .map(change => this.#formatChange(change, includeSourceLocation)))
+                                        .map(change => this.#formatChange(change, includeMetadata)))
         .filter(change => change !== '')
         .join('\n\n');
+  }
+
+  getChangedNodesForGroupId(groupId: string, turnId?: number): Protocol.DOM.BackendNodeId[] {
+    const nodes = new Set<Protocol.DOM.BackendNodeId>();
+    for (const changes of this.#stylesheetChanges.values()) {
+      for (const change of changes) {
+        if (change.groupId === groupId && change.backendNodeId && (turnId === undefined || change.turnId === turnId)) {
+          nodes.add(change.backendNodeId);
+        }
+      }
+    }
+    return Array.from(nodes);
   }
 
   #formatChangesForInspectorStylesheet(changes: Change[]): string {
@@ -118,16 +150,20 @@ ${formatStyles(change.styles, 4)}
         .join('\n');
   }
 
-  #formatChange(change: Change, includeSourceLocation = false): string {
+  #formatChange(change: Change, includeMetadata = false): string {
     const sourceLocation =
-        includeSourceLocation && change.sourceLocation ? `/* related resource: ${change.sourceLocation} */\n` : '';
-    return `${sourceLocation}${change.selector} {
+        includeMetadata && change.sourceLocation ? `/* related resource: ${change.sourceLocation} */\n` : '';
+    // TODO: includeMetadata indicates whether we are using Patch
+    // agent. If needed we can have an separate knob.
+    const simpleSelector =
+        includeMetadata && change.simpleSelector ? ` /* the element was ${change.simpleSelector} */` : '';
+    return `${sourceLocation}${change.selector} {${simpleSelector}
 ${formatStyles(change.styles)}
 }`;
   }
 
   async #getStylesheet(cssModel: SDK.CSSModel.CSSModel, frameId: Protocol.Page.FrameId):
-      Promise<Protocol.CSS.StyleSheetId> {
+      Promise<Protocol.DOM.StyleSheetId> {
     return await this.#stylesheetMutex.run(async () => {
       let frameToStylesheet = this.#cssModelToStylesheetId.get(cssModel);
       if (!frameToStylesheet) {

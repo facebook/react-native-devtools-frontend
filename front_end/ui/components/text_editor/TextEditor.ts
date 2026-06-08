@@ -1,10 +1,11 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/enforce-custom-element-definitions-location */
 
 import * as Common from '../../../core/common/common.js';
-import * as WindowBoundsService from '../../../services/window_bounds/window_bounds.js';
 import * as CodeMirror from '../../../third_party/codemirror.next/codemirror.next.js';
+import * as UI from '../../legacy/legacy.js';
 import * as ThemeSupport from '../../legacy/theme_support/theme_support.js';
 import * as CodeHighlighter from '../code_highlighter/code_highlighter.js';
 
@@ -40,7 +41,7 @@ export class TextEditor extends HTMLElement {
   constructor(pendingState?: CodeMirror.EditorState) {
     super();
     this.#pendingState = pendingState;
-    this.#shadow.createChild('style').textContent = CodeHighlighter.codeHighlighterStyles.cssText;
+    this.#shadow.createChild('style').textContent = CodeHighlighter.codeHighlighterStyles;
   }
 
   #createEditor(): CodeMirror.EditorView {
@@ -65,6 +66,9 @@ export class TextEditor extends HTMLElement {
 
       this.#lastScrollSnapshot = this.#activeEditor.scrollSnapshot();
       this.scrollEventHandledToSaveScrollPositionForTest();
+    });
+    this.#activeEditor.scrollDOM.addEventListener('scrollend', () => {
+      this.dispatchEvent(new Event('scrollend'));
     });
 
     this.#ensureSettingListeners();
@@ -133,9 +137,7 @@ export class TextEditor extends HTMLElement {
   }
 
   override focus(): void {
-    if (this.#activeEditor) {
-      this.#activeEditor.focus();
-    }
+    this.editor.focus();
   }
 
   #ensureSettingListeners(): void {
@@ -166,8 +168,7 @@ export class TextEditor extends HTMLElement {
   }
 
   #startObservingResize(): void {
-    const devtoolsElement =
-        WindowBoundsService.WindowBoundsService.WindowBoundsServiceImpl.instance().getDevToolsBoundingElement();
+    const devtoolsElement = UI.UIUtils.getDevToolsBoundingElement();
     if (devtoolsElement) {
       this.#devtoolsResizeObserver.observe(devtoolsElement);
     }

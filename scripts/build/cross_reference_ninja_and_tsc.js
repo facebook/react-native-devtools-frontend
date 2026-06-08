@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,17 +6,18 @@
 // $ node scripts/build/cross_reference_ninja_and_tsc.js [Target] [Path to bundle],
 // e.g. node scripts/build/cross_reference_ninja_and_tsc.js Default front_end/common:bundle,
 
-const childProcess = require('child_process');
-const fs = require('fs');
-const path = require('path');
+import childProcess from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+
 const [, , buildDir, gnTarget] = process.argv;
 const cwd = process.cwd();
 
 /**
  * Execs a command.
  *
- * @param {string} cmd
- * @return {string}
+ * @param cmd
+ * @returns
  */
 async function exec(cmd) {
   const env = process.env;
@@ -42,12 +43,12 @@ async function exec(cmd) {
 
 /**
  *
- * @param {string} buildDir
- * @param {string} gnTarget
+ * @param buildDir
+ * @param gnTarget
  */
 async function buildTargetInfo(buildDir, gnTarget) {
   /**
-   * @param {string} outputList
+   * @param outputList
    */
   const flattenOutput = outputList => {
     try {

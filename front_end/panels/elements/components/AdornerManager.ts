@@ -1,130 +1,31 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-export const enum AdornerCategories {
-  SECURITY = 'Security',
-  LAYOUT = 'Layout',
-  DEFAULT = 'Default',
-}
-
-export interface AdornerSetting {
+interface AdornerSetting {
   adorner: string;
   isEnabled: boolean;
 }
 
-export type AdornerSettingsMap = Map<string, boolean>;
-
-export interface RegisteredAdorner {
-  readonly name: string;
-  readonly category: AdornerCategories;
-  readonly enabledByDefault: boolean;
-}
+type AdornerSettingsMap = Map<string, boolean>;
 
 export enum RegisteredAdorners {
-  GRID = 'grid',
-  SUBGRID = 'subgrid',
-  FLEX = 'flex',
   AD = 'ad',
-  SCROLL_SNAP = 'scroll-snap',
   CONTAINER = 'container',
-  SLOT = 'slot',
-  TOP_LAYER = 'top-layer',
-  REVEAL = 'reveal',
+  FLEX = 'flex',
+  GRID = 'grid',
+  GRID_LANES = 'grid-lanes',
   MEDIA = 'media',
+  POPOVER = 'popover',
+  REVEAL = 'reveal',
   SCROLL = 'scroll',
+  SCROLL_SNAP = 'scroll-snap',
+  SLOT = 'slot',
+  VIEW_SOURCE = 'view-source',
+  STARTING_STYLE = 'starting-style',
+  SUBGRID = 'subgrid',
+  TOP_LAYER = 'top-layer',
 }
-
-// This enum-like const object serves as the authoritative registry for all the
-// adorners available.
-export function getRegisteredAdorner(which: RegisteredAdorners): RegisteredAdorner {
-  switch (which) {
-    case RegisteredAdorners.GRID:
-      return {
-        name: 'grid',
-        category: AdornerCategories.LAYOUT,
-        enabledByDefault: true,
-      };
-    case RegisteredAdorners.SUBGRID:
-      return {
-        name: 'subgrid',
-        category: AdornerCategories.LAYOUT,
-        enabledByDefault: true,
-      };
-    case RegisteredAdorners.FLEX:
-      return {
-        name: 'flex',
-        category: AdornerCategories.LAYOUT,
-        enabledByDefault: true,
-      };
-    case RegisteredAdorners.AD:
-      return {
-        name: 'ad',
-        category: AdornerCategories.SECURITY,
-        enabledByDefault: true,
-      };
-    case RegisteredAdorners.SCROLL_SNAP:
-      return {
-        name: 'scroll-snap',
-        category: AdornerCategories.LAYOUT,
-        enabledByDefault: true,
-      };
-    case RegisteredAdorners.CONTAINER:
-      return {
-        name: 'container',
-        category: AdornerCategories.LAYOUT,
-        enabledByDefault: true,
-      };
-    case RegisteredAdorners.SLOT:
-      return {
-        name: 'slot',
-        category: AdornerCategories.LAYOUT,
-        enabledByDefault: true,
-      };
-    case RegisteredAdorners.TOP_LAYER:
-      return {
-        name: 'top-layer',
-        category: AdornerCategories.LAYOUT,
-        enabledByDefault: true,
-      };
-    case RegisteredAdorners.REVEAL:
-      return {
-        name: 'reveal',
-        category: AdornerCategories.DEFAULT,
-        enabledByDefault: true,
-      };
-    case RegisteredAdorners.MEDIA:
-      return {
-        name: 'media',
-        category: AdornerCategories.DEFAULT,
-        enabledByDefault: false,
-      };
-    case RegisteredAdorners.SCROLL:
-      return {
-        name: 'scroll',
-        category: AdornerCategories.LAYOUT,
-        enabledByDefault: true,
-      };
-  }
-}
-
-let adornerNameToCategoryMap: Map<string, AdornerCategories>|undefined = undefined;
-
-function getCategoryFromAdornerName(name: string): AdornerCategories {
-  if (!adornerNameToCategoryMap) {
-    adornerNameToCategoryMap = new Map();
-    for (const {name, category} of Object.values(RegisteredAdorners).map(getRegisteredAdorner)) {
-      adornerNameToCategoryMap.set(name, category);
-    }
-  }
-  return adornerNameToCategoryMap.get(name) || AdornerCategories.DEFAULT;
-}
-
-export const DefaultAdornerSettings: AdornerSetting[] =
-    Object.values(RegisteredAdorners).map(getRegisteredAdorner).map(({name, enabledByDefault}) => ({
-                                                                      adorner: name,
-                                                                      isEnabled: enabledByDefault,
-                                                                    }));
 
 interface SettingStore<Setting> {
   get(): Setting;
@@ -173,9 +74,11 @@ export class AdornerManager {
 
     // Prune outdated adorners and add new ones to the persistence.
     const outdatedAdorners = new Set(this.#adornerSettings.keys());
-    for (const {adorner, isEnabled} of DefaultAdornerSettings) {
+    for (const adorner of Object.values(RegisteredAdorners)) {
       outdatedAdorners.delete(adorner);
       if (!this.#adornerSettings.has(adorner)) {
+        // Only the MEDIA adorner is disabled by default.
+        const isEnabled = adorner !== RegisteredAdorners.MEDIA;
         this.#adornerSettings.set(adorner, isEnabled);
       }
     }
@@ -185,19 +88,4 @@ export class AdornerManager {
 
     this.#persistCurrentSettings();
   }
-}
-
-const OrderedAdornerCategories = [
-  AdornerCategories.SECURITY,
-  AdornerCategories.LAYOUT,
-  AdornerCategories.DEFAULT,
-];
-
-// Use idx + 1 for the order to avoid JavaScript's 0 == false issue
-export const AdornerCategoryOrder = new Map(OrderedAdornerCategories.map((category, idx) => [category, idx + 1]));
-
-export function compareAdornerNamesByCategory(nameA: string, nameB: string): number {
-  const orderA = AdornerCategoryOrder.get(getCategoryFromAdornerName(nameA)) || Number.POSITIVE_INFINITY;
-  const orderB = AdornerCategoryOrder.get(getCategoryFromAdornerName(nameB)) || Number.POSITIVE_INFINITY;
-  return orderA - orderB;
 }

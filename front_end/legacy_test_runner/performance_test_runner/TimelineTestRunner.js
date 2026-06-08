@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,11 +6,10 @@ import * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Trace from '../../models/trace/trace.js';
 import * as Timeline from '../../panels/timeline/timeline.js';
-import * as Components from '../../ui/legacy/components/utils/utils.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 /**
- * @fileoverview using private properties isn't a Closure violation in tests.
+ * @file using private properties isn't a Closure violation in tests.
  */
 self.PerformanceTestRunner = self.PerformanceTestRunner || {};
 
@@ -120,7 +119,7 @@ PerformanceTestRunner.createTraceEngineDataFromEvents = async function(events) {
   await model.parse(events);
   // Model only has one trace, so we can hardcode 0 here to get the latest
   // result.
-  return model.parsedTrace(0);
+  return model.parsedTrace(0)?.data;
 };
 
 PerformanceTestRunner.createTimelineController = function() {
@@ -234,14 +233,6 @@ PerformanceTestRunner.printTraceEventProperties = function(traceEvent) {
   }
 
   TestRunner.addObject(object, PerformanceTestRunner.timelinePropertyFormatters);
-};
-
-PerformanceTestRunner.printTraceEventPropertiesWithDetails = async function(event) {
-  PerformanceTestRunner.printTraceEventProperties(event);
-  const details = await Timeline.TimelineUIUtils.TimelineUIUtils.buildDetailsTextForTraceEvent(
-      event, SDK.TargetManager.TargetManager.instance().primaryPageTarget(), new Components.Linkifier.Linkifier());
-  TestRunner.waitForPendingLiveLocationUpdates();
-  TestRunner.addResult(`Text details for ${event.name}: ${details}`);
 };
 
 PerformanceTestRunner.findChildEvent = function(events, parentIndex, name) {

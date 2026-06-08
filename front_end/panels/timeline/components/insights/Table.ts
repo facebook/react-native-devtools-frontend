@@ -1,17 +1,15 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as i18n from '../../../../core/i18n/i18n.js';
 import type * as Trace from '../../../../models/trace/trace.js';
-import * as ComponentHelpers from '../../../../ui/components/helpers/helpers.js';
 import * as UI from '../../../../ui/legacy/legacy.js';
 import * as Lit from '../../../../ui/lit/lit.js';
-import type * as Overlays from '../../overlays/overlays.js';
 
 import type * as BaseInsightComponent from './BaseInsightComponent.js';
 import {EventReferenceClick} from './EventRef.js';
-import tableStylesRaw from './table.css.js';
+import tableStyles from './table.css.js';
 
 const UIStrings = {
   /**
@@ -24,16 +22,12 @@ const UIStrings = {
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/components/insights/Table.ts', UIStrings);
 export const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const tableStyles = new CSSStyleSheet();
-tableStyles.replaceSync(tableStylesRaw.cssText);
-
 const {html} = Lit;
 
 type BaseInsightComponent = BaseInsightComponent.BaseInsightComponent<Trace.Insights.Types.InsightModel>;
 
 /**
- * @fileoverview An interactive table component.
+ * @file An interactive table component.
  *
  * On hover:
  *           desaturates the relevant events (in both the minimap and the flamegraph), and
@@ -53,7 +47,7 @@ export interface TableState {
   selectionIsSticky: boolean;
 }
 
-export interface TableData {
+interface TableData {
   insight: BaseInsightComponent;
   headers: string[];
   rows: TableDataRow[];
@@ -61,8 +55,13 @@ export interface TableData {
 
 export interface TableDataRow {
   values: Array<number|string|Lit.LitTemplate>;
-  overlays?: Overlays.Overlays.TimelineOverlay[];
+  overlays?: Trace.Types.Overlays.Overlay[];
   subRows?: TableDataRow[];
+}
+
+interface FlattenedTableDataRow {
+  row: TableDataRow;
+  depth: number;
 }
 
 export function renderOthersLabel(numOthers: number): string {
@@ -99,94 +98,195 @@ export function createLimitedRows<T>(arr: T[], aggregator: RowLimitAggregator<T>
   return items;
 }
 
-export class Table extends HTMLElement {
-  readonly #shadow = this.attachShadow({mode: 'open'});
-  readonly #boundRender = this.#render.bind(this);
+interface ViewInput {
+  interactive: boolean;
+  headers: string[];
+  flattenedRows: FlattenedTableDataRow[];
+
+  onHoverRow: (row: TableDataRow, rowEl: HTMLElement) => void;
+  onClickRow: (row: TableDataRow, rowEl: HTMLElement) => void;
+  onMouseLeave: () => void;
+}
+
+type View = (input: ViewInput, output: undefined, target: HTMLElement) => void;
+
+export const DEFAULT_VIEW: View = (input, output, target) => {
+  const {
+    interactive,
+    headers,
+    flattenedRows,
+    onHoverRow,
+    onClickRow,
+    onMouseLeave,
+  } = input;
+
+  const numColumns = headers.length;
+
+  function renderRow({row, depth}: FlattenedTableDataRow): Lit.TemplateResult {
+    const thStyles = Lit.Directives.styleMap({
+      paddingLeft: `calc(${depth} * var(--sys-size-5))`,
+      backgroundImage: `repeating-linear-gradient(
+            to right,
+            var(--sys-color-tonal-outline) 0 var(--sys-size-1),
+            transparent var(--sys-size-1) var(--sys-size-5)
+          )`,
+      backgroundPosition: '0 0',
+      backgroundRepeat: 'no-repeat',
+      backgroundSize: `calc(${depth} * var(--sys-size-5))`,
+    });
+    const trStyles = Lit.Directives.styleMap({
+      color: depth ? 'var(--sys-color-on-surface-subtle)' : '',
+    });
+    const columnEls = row.values.map(
+        (value, i) => i === 0 ? html`<th
+              scope="row"
+              colspan=${i === row.values.length - 1 ? numColumns - i : 1}
+              style=${thStyles}>${value}
+            </th>` :
+                                html`<td>${value}</td>`);
+    return html`<tr style=${trStyles}>${columnEls}</tr>`;
+  }
+
+  const findRowAndEl = (el: HTMLElement): {row: TableDataRow, rowEl: HTMLElement} => {
+    const rowEl = el.closest('tr') as HTMLTableRowElement;
+    const row = flattenedRows[rowEl.sectionRowIndex].row;
+    return {row, rowEl};
+  };
+
+  // clang-format off
+  Lit.render(html`
+    <style>${tableStyles}</style>
+    <table
+        class=${Lit.Directives.classMap({
+        interactive,
+      })}
+        @mouseleave=${interactive ? onMouseLeave : null}>
+      <thead>
+        <tr>
+          ${headers.map(h => html`<th scope="col">${h}</th>`)}
+        </tr>
+      </thead>
+      <tbody
+        @mouseover=${interactive ? (e: Event) => {
+          const {row, rowEl} = findRowAndEl(e.target as HTMLElement);
+          onHoverRow(row, rowEl);
+        } : null}
+        @click=${interactive ? (e: Event) => {
+          const {row, rowEl} = findRowAndEl(e.target as HTMLElement);
+          onClickRow(row, rowEl);
+        } : null}
+      >${flattenedRows.map(renderRow)}</tbody>
+    </table>`,
+    target);
+  // clang-format on
+};
+
+export class Table extends UI.Widget.Widget {
+  #view: View;
   #insight?: BaseInsightComponent;
   #state?: TableState;
   #headers?: string[];
   /** The rows as given as by the user, which may include recursive rows via subRows. */
   #rows?: TableDataRow[];
   /** All rows/subRows, in the order that they appear visually. This is the result of traversing `#rows` and any subRows found. */
-  #flattenedRows?: TableDataRow[];
+  #flattenedRows?: FlattenedTableDataRow[];
+  #rowToParentRow = new Map<TableDataRow, TableDataRow>();
   #interactive = false;
-  #currentHoverIndex: number|null = null;
+  #currentHoverRow: TableDataRow|null = null;
+
+  constructor(element?: HTMLElement, view: View = DEFAULT_VIEW) {
+    super(element, {useShadowDom: true});
+    this.#view = view;
+  }
 
   set data(data: TableData) {
     this.#insight = data.insight;
     this.#state = data.insight.sharedTableState;
     this.#headers = data.headers;
     this.#rows = data.rows;
+    this.#flattenedRows = this.#createFlattenedRows();
     // If this table isn't interactive, don't attach mouse listeners or use CSS :hover.
-    this.#interactive = this.#rows.some(row => row.overlays);
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
+    this.#interactive = this.#rows.some(row => row.overlays || row.subRows?.length);
+    this.requestUpdate();
   }
 
-  connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets.push(tableStyles);
-    UI.UIUtils.injectCoreStyles(this.#shadow);
+  #createFlattenedRows(): FlattenedTableDataRow[] {
+    if (!this.#rows) {
+      return [];
+    }
 
-    void ComponentHelpers.ScheduledRender.scheduleRender(this, this.#boundRender);
+    const rowToParentRow = this.#rowToParentRow;
+    rowToParentRow.clear();
+
+    const flattenedRows: FlattenedTableDataRow[] = [];
+    function traverse(parent: TableDataRow|null, row: TableDataRow, depth = 0): void {
+      if (parent) {
+        rowToParentRow.set(row, parent);
+      }
+
+      flattenedRows.push({depth, row});
+
+      for (const subRow of row.subRows ?? []) {
+        traverse(row, subRow, depth + 1);
+      }
+    }
+
+    for (const row of this.#rows) {
+      traverse(null, row);
+    }
+
+    return flattenedRows;
   }
 
-  #onHoverRow(e: MouseEvent): void {
-    if (!(e.target instanceof HTMLElement)) {
+  #onHoverRow(row: TableDataRow, rowEl: HTMLElement): void {
+    if (row === this.#currentHoverRow || !this.element.shadowRoot) {
       return;
     }
 
-    const rowEl = e.target.closest('tr');
-    if (!rowEl?.parentElement) {
-      return;
+    for (const el of this.element.shadowRoot.querySelectorAll('.hover')) {
+      el.classList.remove('hover');
     }
 
-    const index = [...rowEl.parentElement.children].indexOf(rowEl);
-    if (index === -1 || index === this.#currentHoverIndex) {
-      return;
+    // Add 'hover' class to all parent rows.
+    let curRow: TableDataRow|undefined = this.#rowToParentRow.get(row);
+    while (curRow) {
+      rowEl.classList.add('hover');
+      curRow = this.#rowToParentRow.get(curRow);
     }
 
-    this.#currentHoverIndex = index;
+    this.#currentHoverRow = row;
     // Temporarily selects the row, but only if there is not already a sticky selection.
-    this.#onSelectedRowChanged(rowEl, index, {isHover: true});
+    this.#onSelectedRowChanged(row, rowEl, {isHover: true});
   }
 
-  #onClickRow(e: MouseEvent): void {
-    if (!(e.target instanceof HTMLElement)) {
-      return;
-    }
-
-    const rowEl = e.target.closest('tr');
-    if (!rowEl?.parentElement) {
-      return;
-    }
-
-    const index = [...rowEl.parentElement.children].indexOf(rowEl);
-    if (index === -1) {
-      return;
-    }
-
+  #onClickRow(row: TableDataRow, rowEl: HTMLElement): void {
     // If the desired overlays consist of just a single ENTRY_OUTLINE, then
     // it is more intuitive to just select the target event.
-    const overlays = this.#flattenedRows?.[index]?.overlays;
+    const overlays = row.overlays;
     if (overlays?.length === 1 && overlays[0].type === 'ENTRY_OUTLINE') {
-      this.dispatchEvent(new EventReferenceClick(overlays[0].entry));
+      this.element.dispatchEvent(new EventReferenceClick(overlays[0].entry));
       return;
     }
 
     // Select the row and make it sticky.
-    this.#onSelectedRowChanged(rowEl, index, {sticky: true});
+    this.#onSelectedRowChanged(row, rowEl, {sticky: true});
   }
 
   #onMouseLeave(): void {
-    this.#currentHoverIndex = null;
+    for (const el of this.element.shadowRoot?.querySelectorAll('.hover') ?? []) {
+      el.classList.remove('hover');
+    }
+
+    this.#currentHoverRow = null;
     // Unselect the row, unless it's sticky.
     this.#onSelectedRowChanged(null, null);
   }
 
-  #onSelectedRowChanged(rowEl: HTMLElement|null, rowIndex: number|null, opts: {
+  #onSelectedRowChanged(row: TableDataRow|null, rowEl: HTMLElement|null, opts: {
     sticky?: boolean,
     isHover?: boolean,
   } = {}): void {
-    if (!this.#flattenedRows || !this.#state || !this.#insight) {
+    if (!this.#state || !this.#insight) {
       return;
     }
 
@@ -200,8 +300,8 @@ export class Table extends HTMLElement {
       opts.sticky = false;
     }
 
-    if (rowEl && rowIndex !== null) {
-      const overlays = this.#flattenedRows[rowIndex].overlays;
+    if (rowEl && row) {
+      const overlays = row.overlays;
       if (overlays) {
         this.#insight.toggleTemporaryOverlays(overlays, {updateTraceWindow: !opts.isHover});
       }
@@ -215,67 +315,19 @@ export class Table extends HTMLElement {
     this.#state.selectionIsSticky = opts.sticky ?? false;
   }
 
-  async #render(): Promise<void> {
-    if (!this.#headers || !this.#rows) {
+  override performUpdate(): void {
+    if (!this.#headers || !this.#flattenedRows) {
       return;
     }
 
-    const numColumns = this.#headers.length;
-    const flattenedRows: TableDataRow[] = [];
-    const rowEls: Lit.TemplateResult[] = [];
-    function traverse(row: TableDataRow, depth = 0): void {
-      const thStyles = Lit.Directives.styleMap({
-        paddingLeft: `calc(${depth} * var(--sys-size-5))`,
-        borderLeft: depth ? 'var(--sys-size-1) solid var(--sys-color-divider)' : '',
-      });
-      const trStyles = Lit.Directives.styleMap({
-        color: depth ? 'var(--sys-color-on-surface-subtle)' : '',
-      });
-      const columnEls = row.values.map(
-          (value, i) => i === 0 ? html`<th
-                scope="row"
-                colspan=${i === row.values.length - 1 ? numColumns - i : 1}
-                style=${thStyles}>${value}
-              </th>` :
-                                  html`<td>${value}</td>`);
-      rowEls.push(html`<tr style=${trStyles}>${columnEls}</tr>`);
-
-      flattenedRows.push(row);
-
-      for (const subRow of row.subRows ?? []) {
-        traverse(subRow, depth + 1);
-      }
-    }
-    for (const row of this.#rows) {
-      traverse(row);
-    }
-
-    this.#flattenedRows = flattenedRows;
-
-    Lit.render(
-        html`<table
-          class=${Lit.Directives.classMap({
-          interactive: this.#interactive,
-        })}
-          @mouseleave=${this.#interactive ? this.#onMouseLeave : null}>
-        <thead>
-          <tr>
-          ${this.#headers.map(h => html`<th scope="col">${h}</th>`)}
-          </tr>
-        </thead>
-        <tbody
-          @mouseover=${this.#interactive ? this.#onHoverRow : null}
-          @click=${this.#interactive ? this.#onClickRow : null}
-        >${rowEls}</tbody>
-      </table>`,
-        this.#shadow, {host: this});
+    const input: ViewInput = {
+      interactive: this.#interactive,
+      headers: this.#headers,
+      flattenedRows: this.#flattenedRows,
+      onHoverRow: this.#onHoverRow.bind(this),
+      onClickRow: this.#onClickRow.bind(this),
+      onMouseLeave: this.#onMouseLeave.bind(this),
+    };
+    this.#view(input, undefined, this.contentElement);
   }
 }
-
-declare global {
-  interface HTMLElementTagNameMap {
-    'devtools-performance-table': Table;
-  }
-}
-
-customElements.define('devtools-performance-table', Table);

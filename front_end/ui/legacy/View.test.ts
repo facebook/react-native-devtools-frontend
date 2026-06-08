@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,6 +8,19 @@ import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
 import * as UI from './legacy.js';
 
 describe('View', () => {
+  describe('SimpleView', () => {
+    const {SimpleView} = UI.View;
+
+    describe('constructor', () => {
+      assert.throws(
+          () => new SimpleView({
+            title: 'Some title' as Platform.UIString.LocalizedString,
+            viewId: 'foo_bar',
+          }),
+          TypeError);
+    });
+  });
+
   describeWithEnvironment('TabbedViewLocation', () => {
     let tabbedLocation: UI.View.TabbedViewLocation;
     let viewManager: UI.ViewManager.ViewManager;
@@ -26,7 +39,7 @@ describe('View', () => {
         });
       });
       viewManager = UI.ViewManager.ViewManager.instance({forceNew: true});
-      tabbedLocation = viewManager.createTabbedLocation(undefined, 'mock-location', true, true);
+      tabbedLocation = viewManager.createTabbedLocation(() => {}, 'mock-location', true, true);
     });
 
     it('Creates an empty tabbed location', () => {

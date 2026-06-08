@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,11 +14,11 @@ import {Events as LmiEvents, LinearMemoryInspectorPane} from './LinearMemoryInsp
 
 const UIStrings = {
   /**
-   *@description Error message that shows up in the console if a buffer to be opened in the linear memory inspector cannot be found.
+   * @description Error message that shows up in the console if a buffer to be opened in the linear memory inspector cannot be found.
    */
   couldNotOpenLinearMemory: 'Could not open linear memory inspector: failed locating buffer.',
   /**
-   *@description A context menu item in the Scope View of the Sources Panel
+   * @description A context menu item in the Scope View of the Sources Panel
    */
   openInMemoryInspectorPanel: 'Open in Memory inspector panel',
 } as const;
@@ -53,7 +53,8 @@ export class RemoteArrayBufferWrapper implements LazyUint8Array {
       return new Uint8Array(0);
     }
     const array = await this.#remoteArrayBuffer.bytes(start, newEnd);
-    return new Uint8Array(array);
+
+    return new Uint8Array(array ?? []);
   }
 }
 
@@ -317,9 +318,9 @@ export class LinearMemoryInspectorController extends SDK.TargetManager.SDKModelO
   appendApplicableItems(
       _event: Event, contextMenu: UI.ContextMenu.ContextMenu,
       target: ObjectUI.ObjectPropertiesSection.ObjectPropertyTreeElement): void {
-    if (target.property.value?.isLinearMemoryInspectable()) {
+    if (target.property.object?.isLinearMemoryInspectable()) {
       const expression = target.path();
-      const object = target.property.value;
+      const object = target.property.object;
       contextMenu.debugSection().appendItem(
           i18nString(UIStrings.openInMemoryInspectorPanel),
           this.reveal.bind(this, new SDK.RemoteObject.LinearMemoryInspectable(object, expression)),

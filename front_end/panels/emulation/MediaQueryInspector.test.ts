@@ -1,10 +1,11 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
+import {renderElementIntoDOM} from '../../testing/DOMHelpers.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {expectCall} from '../../testing/ExpectStubCall.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
@@ -33,8 +34,8 @@ describeWithMockConnection('MediaQueryInspector', () => {
         (_: number) => {},
         throttler,
     );
-    inspector.markAsRoot();
-    inspector.show(document.body);
+    renderElementIntoDOM(inspector);
+    await inspector.updateComplete;
     assert.lengthOf(inspector.contentElement.querySelectorAll('.media-inspector-marker'), 0);
 
     const cssModel = target.model(SDK.CSSModel.CSSModel);
@@ -50,6 +51,7 @@ describeWithMockConnection('MediaQueryInspector', () => {
         SDK.CSSModel.Events.StyleSheetAdded, {} as SDK.CSSStyleSheetHeader.CSSStyleSheetHeader);
     const [work] = await workScheduled;
     await work();
+    await inspector.updateComplete;
     assert.lengthOf(inspector.contentElement.querySelectorAll('.media-inspector-marker'), 1);
   });
 });

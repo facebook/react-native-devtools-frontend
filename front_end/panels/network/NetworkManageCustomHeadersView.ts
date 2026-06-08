@@ -1,6 +1,7 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as i18n from '../../core/i18n/i18n.js';
 import * as UI from '../../ui/legacy/legacy.js';
@@ -9,19 +10,19 @@ import networkManageCustomHeadersViewStyles from './networkManageCustomHeadersVi
 
 const UIStrings = {
   /**
-   *@description Text in Network Manage Custom Headers View of the Network panel
+   * @description Text in Network Manage Custom Headers View of the Network panel
    */
   manageHeaderColumns: 'Manage Header Columns',
   /**
-   *@description Placeholder text content in Network Manage Custom Headers View of the Network panel
+   * @description Placeholder text content in Network Manage Custom Headers View of the Network panel
    */
   noCustomHeaders: 'No custom headers',
   /**
-   *@description Text of add button in Network Manage Custom Headers View of the Network panel
+   * @description Text of add button in Network Manage Custom Headers View of the Network panel
    */
   addCustomHeader: 'Add custom header…',
   /**
-   *@description Text in Network Manage Custom Headers View of the Network panel
+   * @description Text in Network Manage Custom Headers View of the Network panel
    */
   headerName: 'Header Name',
 } as const;
@@ -51,7 +52,7 @@ export class NetworkManageCustomHeadersView extends UI.Widget.VBox implements UI
       addHeaderColumnCallback: (arg0: string) => boolean,
       changeHeaderColumnCallback: (arg0: string, arg1: string) => boolean,
       removeHeaderColumnCallback: (arg0: string) => boolean) {
-    super(true);
+    super({useShadowDom: true});
     this.registerRequiredCSS(networkManageCustomHeadersViewStyles);
 
     this.contentElement.createChild('div', 'header').textContent = i18nString(UIStrings.manageHeaderColumns);
@@ -161,7 +162,9 @@ export class NetworkManageCustomHeadersView extends UI.Widget.VBox implements UI
       if (this.columnConfigs.has(headerId) && item.header !== headerId) {
         valid = false;
       }
-      return {valid, errorMessage: undefined};
+      return {
+        valid,
+      };
     }
   }
 }

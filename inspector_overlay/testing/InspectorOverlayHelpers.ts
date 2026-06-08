@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -217,11 +217,7 @@ export function drawGridLineNamesAndAssertLabels(
 
   for (const expected of expectedLabels) {
     const foundLabel = foundLabels.find(({textContent}) => textContent === expected.textContent);
-
-    if (!foundLabel) {
-      assert.fail(`Expected line name label with text content ${expected.textContent} not found`);
-      return;
-    }
+    assert.exists(foundLabel, `Expected line name label with text content ${expected.textContent} not found`);
 
     if (expected.type === 'column' && typeof expected.x !== 'undefined') {
       assert.closeTo(
@@ -256,11 +252,7 @@ export function drawGridAreaNamesAndAssertLabels(
   });
   for (const expected of expectedLabels) {
     const foundLabel = foundLabels.find(({textContent}) => textContent === expected.textContent);
-
-    if (!foundLabel) {
-      assert.fail(`Expected area label with text content ${expected.textContent} not found`);
-      return;
-    }
+    assert.exists(foundLabel, `Expected area label with text content ${expected.textContent} not found`);
 
     if (typeof expected.left !== 'undefined') {
       assert.strictEqual(

@@ -62,6 +62,15 @@
   },
   data: [
     {
+      name: "AttributionReporting",
+      message: "Attribution Reporting is deprecated and will be removed. See https://goo.gle/ps-status for details.",
+      translation_note: "This warning occurs when the website uses Attribution Reporting.",
+      web_features: [
+        "kAttributionReportingAPIAll",
+      ],
+      chrome_status_feature: 6320639375966208,
+    },
+    {
       name: "AuthorizationCoveredByWildcard",
       message: "Authorization will not be covered by the wildcard symbol (*) in CORS `Access-Control-Allow-Headers` handling.",
       translation_note: "We show this warning when 1) an 'authorization' header is attached to the request by scripts, 2) there is no 'authorization' in the 'access-control-allow-headers' header in the response, and 3) there is a wildcard symbol ('*') in the 'access-control-allow-header' header in the response. This is allowed now, but we're planning to reject such responses and require responses to have an 'access-control-allow-headers' containing 'authorization'.",
@@ -117,15 +126,6 @@
       chrome_status_feature: 5637885046816768,
     },
     {
-      name: "CookieWithTruncatingChar",
-      message: "Cookies containing a `\\(0|r|n)` character will be rejected instead of truncated.",
-      translation_note: "This warning occurs when the browser attempts to store a cookie containing a banned character. Rather than the cookie string being truncated at the banned character, the entire cookie will be rejected now.",
-      web_features: [
-        "kCookieWithTruncatingChar",
-      ],
-      milestone: 103,
-    },
-    {
       name: "CrossOriginAccessBasedOnDocumentDomain",
       message: "Relaxing the same-origin policy by setting `document.domain` is deprecated, and will be disabled by default. This deprecation warning is for a cross-origin access that was enabled by setting `document.domain`.",
       translation_note: "This warning occurs when a frame accesses another frame's data after having set `document.domain` without having set the `Origin-Agent-Cluster` http header. This is a companion warning to `documentDomainSettingWithoutOriginAgentClusterHeader`, where that warning occurs when `document.domain` is set, and this warning occurs when an access has been made, based on that previous `document.domain` setting.",
@@ -160,17 +160,6 @@
       chrome_status_feature: 5714245488476160,
     },
     {
-      name: "CSSValueAppearanceNonStandard",
-      message: "CSS appearance values  `inner-spin-button`, `media-slider`, `media-sliderthumb`, `media-volume-slider`, `media-volume-sliderthumb`, `push-button`, `searchfield-cancel-button`, `slider-horizontal`, `sliderthumb-horizontal`, `sliderthumb-vertical`, `square-button` are not standardized and will be removed.",
-      translation_note: "Warning displayed to developers to let them know the CSS appearance property values they used are deprecated and will be removed.",
-      web_features: [
-        "kCSSValueAppearanceNonStandard",
-      ],
-      chrome_status_feature: 5066630972833792,
-      milestone: 118,
-      obsolete_to_be_removed_after_milestone: 142,
-    },
-    {
       name: "CSSValueAppearanceSliderVertical",
       message: "CSS appearance value `slider-vertical` is not standardized and will be removed.",
       translation_note: "Warning displayed to developers to let them know the CSS appearance property value they used is not standard and will be removed.",
@@ -190,34 +179,41 @@
       milestone: 119,
     },
     {
-      name: "DOMMutationEvents",
-      message: "DOM Mutation Events, including `DOMSubtreeModified`, `DOMNodeInserted`, `DOMNodeRemoved`, `DOMNodeRemovedFromDocument`, `DOMNodeInsertedIntoDocument`, and `DOMCharacterDataModified` are deprecated (https://w3c.github.io/uievents/#legacy-event-types) and will be removed. Please use `MutationObserver` instead.",
-      translation_note: "Warning displayed to developers when non-standard Mutation Events are used. These are deprecated and will be removed.",
+      name: "DocumentCreateEventKeyboardEvents",
+      message: "document.createEvent('KeyboardEvents') is deprecated and will be removed. Use `new KeyboardEvent()` instead.",
+      translation_note: "Warning displayed to developers when document.createEvent() is called with 'KeyboardEvents', which is a non-standard event interface that will be removed.",
       web_features: [
-        "kDOMCharacterDataModifiedEvent",
-        "kDOMNodeInsertedEvent",
-        "kDOMNodeInsertedIntoDocumentEvent",
-        "kDOMNodeRemovedEvent",
-        "kDOMNodeRemovedFromDocumentEvent",
-        "kDOMSubtreeModifiedEvent",
+        "kDocumentCreateEventKeyboardEvents",
       ],
-      chrome_status_feature: 5083947249172480,
-      milestone: 127,
+      chrome_status_feature: 5095987863486464,
+      milestone: 151,
     },
     {
-      name: "EventPath",
-      message: "`Event.path` is deprecated and will be removed. Please use `Event.composedPath()` instead.",
-      translation_note: "Warning displayed to developers when the non-standard `Event.path` API is used to notify them that this API is deprecated.",
+      name: "DocumentCreateEventTransitionEvent",
+      message: "document.createEvent('TransitionEvent') is deprecated and will be removed. Use `new TransitionEvent()` instead.",
+      translation_note: "Warning displayed to developers when document.createEvent() is called with 'TransitionEvent', which is a non-standard event interface that will be removed.",
       web_features: [
-        "kOBSOLETE_EventPath",
+        "kDocumentCreateEventTransitionEvent",
       ],
-      chrome_status_feature: 5726124632965120,
-      milestone: 109,
-      obsolete_to_be_removed_after_milestone: 127,
+      chrome_status_feature: 5095987863486464,
+      milestone: 151,
+    },
+    {
+      name: "ExampleBrowserProcessDeprecation",
+      message: "This is an example for showing the code required for a browser process reported deprecation.",
+      translation_note: "Translation is not needed, this will never be exposed in production code.",
+    },
+    {
+      name: "Fledge",
+      message: "The Protected Audience API is deprecated and will be removed in a future release.",
+      translation_note: "A deprecation warning shown in the DevTools Issues tab. It's shown when one of the Protected Audience APIs like `navigator.joinAdInterestGroup`, `navigator.getInterestGroupAdAuctionData` or `navigator.runAdAuction` are called.",
+      web_features: [
+        "kFledge",
+      ],
     },
     {
       name: "GeolocationInsecureOrigin",
-      message: "`getCurrentPosition()` and `watchPosition()` no longer work on insecure origins. To use this feature, you should consider switching your application to a secure origin, such as HTTPS. See https://goo.gle/chrome-insecure-origins for more details.",
+      message: "`getCurrentPosition()` and `watchPosition()` no longer work on insecure origins. To use this feature, you should consider switching your application to a secure origin, such as HTTPS. See https://www.chromium.org/Home/chromium-security/deprecating-powerful-features-on-insecure-origins/ for more details.",
       translation_note: "Warning displayed to developers when the Geolocation API is used from an insecure origin (one that isn't localhost or doesn't use HTTPS) to notify them that this use is no longer supported.",
       web_features: [
         "kGeolocationInsecureOrigin",
@@ -226,7 +222,7 @@
     },
     {
       name: "GeolocationInsecureOriginDeprecatedNotRemoved",
-      message: "`getCurrentPosition()` and `watchPosition()` are deprecated on insecure origins. To use this feature, you should consider switching your application to a secure origin, such as HTTPS. See https://goo.gle/chrome-insecure-origins for more details.",
+      message: "`getCurrentPosition()` and `watchPosition()` are deprecated on insecure origins. To use this feature, you should consider switching your application to a secure origin, such as HTTPS. See https://www.chromium.org/Home/chromium-security/deprecating-powerful-features-on-insecure-origins/ for more details.",
       translation_note: "Warning displayed to developers when the Geolocation API is used from an insecure origin (one that isn't localhost or doesn't use HTTPS) to notify them that this use is deprecated.",
       web_features: [
         "kGeolocationInsecureOriginDeprecatedNotRemoved",
@@ -235,22 +231,12 @@
     },
     {
       name: "GetUserMediaInsecureOrigin",
-      message: "`getUserMedia()` no longer works on insecure origins. To use this feature, you should consider switching your application to a secure origin, such as HTTPS. See https://goo.gle/chrome-insecure-origins for more details.",
+      message: "`getUserMedia()` no longer works on insecure origins. To use this feature, you should consider switching your application to a secure origin, such as HTTPS. See https://www.chromium.org/Home/chromium-security/deprecating-powerful-features-on-insecure-origins/ for more details.",
       translation_note: "This warning occurs when the `getUserMedia()` API is invoked on an insecure (e.g., HTTP) site. This is only permitted on secure sites (e.g., HTTPS).",
       web_features: [
         "kGetUserMediaInsecureOrigin",
         "kGetUserMediaInsecureOriginIframe",
       ],
-    },
-    {
-      name: "H1UserAgentFontSizeInSection",
-      message: "Found an <h1> tag within an <article>, <aside>, <nav>, or <section> which does not have a specified font-size. The size of this heading text will be changing in this browser in the near future. See https://developer.mozilla.org/en-US/docs/Web/HTML/Element/Heading_Elements#specifying_a_uniform_font_size_for_h1 for more information.",
-      translation_note: "This warning occurs when a site uses <h1> inside <article>, <aside>, <nav>, or <section>. It means the behavior (font size) may change in a future Chrome release, when some special rules are removed from the browser.",
-      web_features: [
-        "kH1UserAgentFontSizeInSectionApplied",
-      ],
-      chrome_status_feature: 6192419898654720,
-      milestone: 136,
     },
     {
       name: "HostCandidateAttributeGetter",
@@ -259,15 +245,6 @@
       web_features: [
         "kHostCandidateAttributeGetter",
       ],
-    },
-    {
-      name: "IdentityDigitalCredentials",
-      message: "This format for the navigator.credentials.get() request for digital credentials is deprecated, please update your call to use the new format.",
-      translation_note: "A deprecation warning shown in the DevTools Issues tab, when a request for digital credentials API is formatted using a deprecated format.",
-      web_features: [
-        "kIdentityDigitalCredentials",
-      ],
-      chrome_status_feature: 5166035265650688,
     },
     {
       name: "IdentityInCanMakePaymentEvent",
@@ -283,9 +260,9 @@
       message: "The website requested a subresource from a network that it could only access because of its users' privileged network position. These requests expose non-public devices and servers to the internet, increasing the risk of a cross-site request forgery (CSRF) attack, and/or information leakage. To mitigate these risks, Chrome deprecates requests to non-public subresources when initiated from non-secure contexts, and will start blocking them.",
       translation_note: "This warning occurs when an insecure context (e.g., HTTP) requests a private resource (not on open internet). This is done to mitigate the potential for CSRF and other attacks.",
       web_features: [
-        "kAddressSpacePrivateNonSecureContextEmbeddedLocal",
-        "kAddressSpacePublicNonSecureContextEmbeddedLocal",
-        "kAddressSpacePublicNonSecureContextEmbeddedPrivate",
+        "kAddressSpaceLocalNonSecureContextEmbeddedLoopbackV2",
+        "kAddressSpacePublicNonSecureContextEmbeddedLocalV2",
+        "kAddressSpacePublicNonSecureContextEmbeddedLoopbackV2",
       ],
       chrome_status_feature: 5436853517811712,
       milestone: 92,
@@ -307,6 +284,69 @@
       ],
     },
     {
+      "name": "LanguageModel_InputQuota",
+      "message": "LanguageModel.inputQuota is deprecated. Please use LanguageModel.contextWindow instead. This alias is only available in extensions.",
+      "translation_note": "Warning for using deprecated 'inputQuota' attribute.",
+      "web_features": [
+        "kLanguageModel_InputQuota"
+      ],
+      "chrome_status_feature": 5134603979063296
+    },
+    {
+      "name": "LanguageModel_InputUsage",
+      "message": "LanguageModel.inputUsage is deprecated. Please use LanguageModel.contextUsage instead. This alias is only available in extensions.",
+      "translation_note": "Warning for using deprecated 'inputUsage' attribute.",
+      "web_features": [
+        "kLanguageModel_InputUsage"
+      ],
+      "chrome_status_feature": 5134603979063296
+    },
+    {
+      "name": "LanguageModel_MeasureInputUsage",
+      "message": "LanguageModel.measureInputUsage() is deprecated. Please use LanguageModel.measureContextUsage() instead. This alias is only available in extensions.",
+      "translation_note": "Warning for using deprecated 'measureInputUsage' method.",
+      "web_features": [
+        "kLanguageModel_MeasureInputUsage"
+      ],
+      "chrome_status_feature": 5134603979063296
+    },
+    {
+      "name": "LanguageModel_OnQuotaOverflow",
+      "message": "LanguageModel.onquotaoverflow is deprecated. Please use LanguageModel.oncontextoverflow instead. The LanguageModel.onquotaoverflow alias is only available in extensions.",
+      "translation_note": "Warning for using deprecated 'onquotaoverflow' event handler.",
+      "web_features": [
+        "kLanguageModel_OnQuotaOverflow"
+      ],
+      "chrome_status_feature": 5134603979063296
+    },
+    {
+      "name": "LanguageModelParams",
+      "message": "LanguageModel.params() is deprecated and now only available in extension contexts. The topK and temperature related fields within its result are also deprecated.",
+      "translation_note": "Warning message for web developers when they call the deprecated LanguageModel.params() method.",
+      "web_features": [
+        "kLanguageModel_Params"
+      ],
+      "chrome_status_feature": 5134603979063296
+    },
+    {
+      "name": "LanguageModelTemperature",
+      "message": "The 'temperature' parameter/attribute for LanguageModel is deprecated. It is only functional within extensions and may be removed in the future.",
+      "translation_note": "Warning message for web developers when they use the deprecated 'temperature' option in LanguageModel.create() or access the .temperature attribute.",
+      "web_features": [
+        "kLanguageModel_Temperature"
+      ],
+      "chrome_status_feature": 5134603979063296
+    },
+    {
+      "name": "LanguageModelTopK",
+      "message": "The 'topK' parameter/attribute for LanguageModel is deprecated. It is only functional within extensions and may be removed in the future.",
+      "translation_note": "Warning message for web developers when they use the deprecated 'topK' option in LanguageModel.create() or access the .topK attribute.",
+      "web_features": [
+        "kLanguageModel_TopK"
+      ],
+      "chrome_status_feature": 5134603979063296
+    },
+    {
       name: "LocalCSSFileExtensionRejected",
       message: "CSS cannot be loaded from `file:` URLs unless they end in a `.css` file extension.",
       translation_note: "This warning occurs when a stylesheet loaded from a local file directive does not end in the file type `.css`.",
@@ -314,35 +354,6 @@
         "kLocalCSSFileExtensionRejected",
       ],
       milestone: 64,
-    },
-    {
-      name: "MediaSourceAbortRemove",
-      message: "Using `SourceBuffer.abort()` to abort `remove()`'s asynchronous range removal is deprecated due to specification change. Support will be removed in the future. You should listen to the `updateend` event instead. `abort()` is intended to only abort an asynchronous media append or reset parser state.",
-      translation_note: "This is a deprecation warning to developers that occurs when the script attempts to use the Media Source Extensions API in a way that is no longer supported by the specification for the API. The usage that is problematic is when the script calls the `SourceBuffer.abort()` method at a time when there is still processing happening in response to a previous `SourceBuffer.remove()` call for the same SourceBuffer object. More precisely, we show this warning to developers when script calls the SourceBuffer abort() method while the asynchronous processing of a remove() call on that SourceBuffer is not yet complete. Early versions of the Media Source Extensions specification allowed such aborts, but standardization of the specification resulted in disallowing the aborts. The script should instead wait for the asynchronous remove() operation to complete, which is observable by listening for the associated 'updateend' event from the SourceBuffer. A note is also included in the warning, describing when abort() is meaningful and allowed by the specification for purposes other than interrupting a remove() operation's asynchronous steps. Those supported purposes include using abort() to interrupt processing that may still be happening in response to a previous appendBuffer() call on that SourceBuffer, or using abort() to clear the internal of any unprocessed data remaining from previous appendBuffer() calls. See https://www.w3.org/TR/media-source-2/#dom-sourcebuffer-abort for the currently specified behavior, which would throw an exception once the deprecated removal abort is no longer supported. See https://github.com/w3c/media-source/issues/19 for the discussion that led to the specification change.",
-      web_features: [
-        "kMediaSourceAbortRemove",
-      ],
-      chrome_status_feature: 6107495151960064,
-    },
-    {
-      name: "MediaSourceDurationTruncatingBuffered",
-      message: "Setting `MediaSource.duration` below the highest presentation timestamp of any buffered coded frames is deprecated due to specification change. Support for implicit removal of truncated buffered media will be removed in the future. You should instead perform explicit `remove(newDuration, oldDuration)` on all `sourceBuffers`, where `newDuration < oldDuration`.",
-      translation_note: "This is a deprecation warning to developers that occurs when the script attempts to use the Media Source Extensions API in a way that is no longer supported by the specification for the API. The usage that is problematic is when the script sets the duration attribute of a MediaSource object too low. The duration attribute of a MediaSource must be longer than the actual duration of any media (audio or video) already in the MediaSource. When set too low, the MediaSource must remove audio and video content that is beyond the time indicated by the new duration. Content removal that is caused by setting the duration attribute too low is no longer allowed by the specification. The message describes the minimum allowable duration value as the 'highest presentation timestamp of any buffered coded frames' as a more precise way of describing the duration of content already in the MediaSource: 'coded frames' are the specification's way of describing compressed audio frames or compressed video frames, and they each have a 'presentation timestamp' that describes precisely when that frame's playback occurs in the overall media presentation. Early versions of the Media Source Extensions specification allowed this to happen, but standardization of the specification resulted in disallowing this behavior. The underlying issue leading to this specification change was that setting the duration attribute should be synchronous, but setting it lower than the timestamp of something currently buffered would cause confusing removal of media between that new duration and the previous, larger, duration. The script should instead explicitly remove that range of media first, before lowering the duration. See https://www.w3.org/TR/media-source-2/#dom-mediasource-duration and https://www.w3.org/TR/media-source-2/#dom-mediasource-duration for the currently specified behavior, which would throw an exception once support is removed for deprecated implicit asynchronous range removal when duration is truncated. See both https://github.com/w3c/media-source/issues/20 and https://github.com/w3c/media-source/issues/26 for the discussion that led to the specification change.",
-      web_features: [
-        "kMediaSourceDurationTruncatingBuffered",
-      ],
-      chrome_status_feature: 6107495151960064,
-    },
-    {
-      name: "NonStandardDeclarativeShadowDOM",
-      message: "The older, non-standardized `shadowroot` attribute is deprecated, and will *no longer function* in M119. Please use the new, standardized `shadowrootmode` attribute instead.",
-      translation_note: "This warning is displayed when a site contains a `<template>` element with the `shadowroot` attribute.",
-      web_features: [
-        "kDeclarativeShadowRoot",
-      ],
-      chrome_status_feature: 6239658726391808,
-      milestone: 119,
-      obsolete_to_be_removed_after_milestone: 132,
     },
     {
       name: "NoSysexWebMIDIWithoutPermission",
@@ -356,7 +367,7 @@
     },
     {
       name: "NotificationInsecureOrigin",
-      message: "The Notification API may no longer be used from insecure origins. You should consider switching your application to a secure origin, such as HTTPS. See https://goo.gle/chrome-insecure-origins for more details.",
+      message: "The Notification API may no longer be used from insecure origins. You should consider switching your application to a secure origin, such as HTTPS. See https://www.chromium.org/Home/chromium-security/deprecating-powerful-features-on-insecure-origins/ for more details.",
       translation_note: "Warning displayed to developers when the Notification API is used from an insecure origin (one that isn't localhost or doesn't use HTTPS) to notify them that this use is no longer supported.",
       web_features: [
         "kNotificationAPIInsecureOriginIframe",
@@ -400,6 +411,15 @@
       ],
       chrome_status_feature: 5137515594383360,
       milestone: 108,
+    },
+    {
+      name: "OverrideFlashEmbedwithHTML",
+      message: "Legacy flash video embed has been rewritten to HTML iframe. Flash is long gone, this rewriting hack is deprecated and may be removed in the future.",
+      translation_note: "Warning displayed to developers when they use a Flash Embed URLS to let them know that the browser will not automatically link to their equivalent HTML5 link.",
+      web_features: [
+        "kOverrideFlashEmbedwithHTML",
+      ],
+      milestone: 140,
     },
     {
       name: "PaymentInstruments",
@@ -502,12 +522,13 @@
       ],
     },
     {
-      name: "PrivacySandboxExtensionsAPI",
-      message: "We're deprecating the API `chrome.privacy.websites.privacySandboxEnabled`, though it will remain active for backward compatibility until release M113. Instead, please use `chrome.privacy.websites.topicsEnabled`, `chrome.privacy.websites.fledgeEnabled` and `chrome.privacy.websites.adMeasurementEnabled`. See https://developer.chrome.com/docs/extensions/reference/privacy/#property-websites-privacySandboxEnabled.",
-      translation_note: "Warning displayed to developers that the API `chrome.privacy.websites.privacySandboxEnabled` is being deprecated in favour of three new more granular APIs: topicsEnabled, FledgeEnabled and adMeasurementEnabled. The `privacySandboxEnabled` API allowed extensions to control the homologous Chrome Setting. The existing Chrome Setting for Privacy Sandbox is also going away in favor of more granular settings that are matched by the new extensions APIs- topicsEnabled, FledgeEnabled and adMeasurementEnabled.",
+      name: "PreventSvgFilterPaint",
+      message: "SVG filters cannot be applied to cross-origin iframes, restricted iframes (e.g., sandboxed), or plugins.",
+      translation_note: "Warning displayed to developers when an SVG filter is applied to a disallowed content type.",
       web_features: [
-        // This deprecation is unique and is not dispatched from the renderer.
+        "kPreventSvgFilterPaint",
       ],
+      chrome_status_feature: 5117170452398080,
     },
     {
       name: "RangeExpand",
@@ -515,6 +536,15 @@
       translation_note: "Standard message when one web API is deprecated in favor of another.",
       web_features: [
         "kRangeExpand",
+      ],
+    },
+    {
+      name: "RelatedWebsiteSets",
+      message: "`Related Website Sets` is deprecated and will be removed. See https://privacysandbox.com/news/update-on-plans-for-privacy-sandbox-technologies/ for more details.",
+      translation_note: "A deprecation warning shown in the DevTools Issues tab. It's shown when the Storage Access API is automatically granted by Related Website Sets. The placeholder will always be the string `Related Website Sets`.",
+      chrome_status_feature: 5194473869017088,
+      web_features: [
+        // This deprecation is unique and is not dispatched from the renderer.
       ],
     },
     {
@@ -574,6 +604,24 @@
       milestone: 106,
     },
     {
+      name: "SharedStorage",
+      message: "The Shared Storage API is deprecated and will be removed in a future release.",
+      translation_note: "A deprecation warning shown in the DevTools Issues tab. It's shown when one of the Shared Storage APIs like `sharedStorage.set()`, `sharedStorage.worklet.addModule()`, `sharedStorage.selectURL()`, etc., along with `<img sharedstoragewritable>`, `<iframe sharedstoragewritable>`, or `fetch(url, {sharedStorageWritable: true})` are used.",
+      web_features: [
+        "kSharedStorageAPIAll",
+      ],
+      chrome_status_feature: 5076349064708096,
+    },
+    {
+      name: "StorageAccessAPI_requestStorageAccessFor_Method",
+      message: "`document.requestStorageAccessFor` is deprecated and will be removed. See https://privacysandbox.com/news/update-on-plans-for-privacy-sandbox-technologies/ for more details.",
+      translation_note: "A deprecation warning shown in the DevTools Issues tab. It's shown when the `document.requestStorageAccessFor` API is called. The placeholder will always be the string `document.requestStorageAccessFor`.",
+      web_features: [
+        "kStorageAccessAPI_requestStorageAccessFor_Method",
+      ],
+      chrome_status_feature: 5162221567082496,
+    },
+    {
       name: "TextToSpeech_DisallowedByAutoplay",
       message: "`speechSynthesis.speak()` without user activation is deprecated and will be removed.",
       translation_note: "A deprecation warning shown in the DevTools Issues tab. It's shown when the speech synthesis API is called before the page receives a user activation.",
@@ -582,6 +630,14 @@
       ],
       chrome_status_feature: 5687444770914304,
       milestone: 71,
+    },
+    {
+      name: "Topics",
+      message: "The Topics API is deprecated and will be removed in a future release.",
+      translation_note: "A deprecation warning shown in the DevTools Issues tab. It's shown when one of the Topics APIs like `document.browsingTopics()`, `<img browsingtopics>`, `<iframe browsingtopics>`, or `fetch(url, {browsingTopics: true})` are used.",
+      web_features: [
+        "kTopicsAPIAll",
+      ],
     },
     {
       name: "UnloadHandler",
@@ -602,6 +658,15 @@
       milestone: 96,
     },
     {
+      name: "WebBluetoothRemoteCharacteristicWriteValue",
+      message: "`BluetoothRemoteGATTCharacteristic.writeValue()` is deprecated. Use `writeValueWithResponse()` or `writeValueWithoutResponse()` instead.",
+      translation_note: "This warning occurs when the deprecated `BluetoothRemoteGATTCharacteristic.writeValue()` method is used. Developers should use `writeValueWithResponse()` or `writeValueWithoutResponse()` instead.",
+      web_features: [
+        "kWebBluetoothRemoteCharacteristicWriteValue",
+      ],
+      chrome_status_feature: 5088568590598144,
+    },
+    {
       name: "XHRJSONEncodingDetection",
       message: "UTF-16 is not supported by response json in `XMLHttpRequest`",
       translation_note: "Warning displayed to developers that they are using `XMLHttpRequest` API in a way that they expect an unsupported character encoding `UTF-16` could be used in the server reply.",
@@ -617,6 +682,17 @@
       web_features: [
         "kXMLHttpRequestSynchronousInNonWorkerOutsideBeforeUnload",
       ],
+    },
+    {
+      name: "XSLT",
+      message: "XSLTProcessor and XSLT Processing Instructions have been deprecated by all browsers. These features will be removed from this browser soon.",
+      translation_note: "Warning displayed to developers that they are using either the XSLTProcessor API, or XSLT processing instructions, both of which have been deprecated and are scheduled to be removed.",
+      web_features: [
+        "kXSLProcessingInstruction",
+        "kXSLTProcessor",
+      ],
+      chrome_status_feature: 4709671889534976,
+      milestone: 143,
     },
   ],
 }

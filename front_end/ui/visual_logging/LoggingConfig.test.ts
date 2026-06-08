@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -90,6 +90,12 @@ describe('LoggingConfig', () => {
       element.setAttribute('jslog', 'Panel;context:developer-resources');
       const config = VisualLogging.LoggingConfig.getLoggingConfig(element);
       assert.strictEqual(config.context, 'developer-resources');
+    });
+
+    it('for Selective Permissions Intervention', () => {
+      element.setAttribute('jslog', 'TreeItem;context:selective-permissions-intervention-details');
+      const config = VisualLogging.LoggingConfig.getLoggingConfig(element);
+      assert.strictEqual(config.context, 'selective-permissions-intervention-details');
     });
   });
 

@@ -1,20 +1,22 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-export const buildPropertyDefinitionText = (property: string, value?: string): string => {
+import {html, type LitTemplate} from '../../ui/lit/lit.js';
+
+export const buildPropertyDefinitionText = (property: string, value?: string): LitTemplate => {
   if (value === undefined) {
     return buildPropertyName(property);
   }
-  return '<code class="unbreakable-text"><span class="property">' + property + '</span>: ' + value + '</code>';
+  return html`<code class="unbreakable-text"><span class="property">${property}</span>: ${value}</code>`;
 };
 
-export const buildPropertyName = (property: string): string => {
-  return '<code class="unbreakable-text"><span class="property">' + property + '</span></code>';
+export const buildPropertyName = (property: string): LitTemplate => {
+  return html`<code class="unbreakable-text"><span class="property">${property}</span></code>`;
 };
 
-export const buildPropertyValue = (property: string): string => {
-  return '<code class="unbreakable-text">' + property + '</code>';
+export const buildPropertyValue = (property: string): LitTemplate => {
+  return html`<code class="unbreakable-text">${property}</code>`;
 };
 
 export const isFlexContainer = (computedStyles?: Map<string, string>): boolean => {
@@ -89,6 +91,14 @@ export const isGridContainer = (computedStyles?: Map<string, string>): boolean =
   }
   const display = computedStyles.get('display');
   return display === 'grid' || display === 'inline-grid';
+};
+
+export const isGridLanesContainer = (computedStyles?: Map<string, string>): boolean => {
+  if (!computedStyles) {
+    return false;
+  }
+  const display = computedStyles.get('display');
+  return display === 'grid-lanes' || display === 'inline-grid-lanes';
 };
 
 export const isMulticolContainer = (computedStyles?: Map<string, string>): boolean => {

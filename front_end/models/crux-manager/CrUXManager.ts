@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,7 +12,7 @@ const UIStrings = {
   /**
    * @description Warning message indicating that the user will see real user data for a URL which is different from the URL they are currently looking at.
    */
-  fieldOverrideWarning: 'Field data is configured for a different URL than the current page.',
+  fieldOverrideWarning: 'Field metrics are configured for a different URL than the current page.',
 } as const;
 
 const str_ = i18n.i18n.registerUIStrings('models/crux-manager/CrUXManager.ts', UIStrings);
@@ -67,7 +67,7 @@ interface CollectionDate {
 
 interface CrUXRecord {
   key: Omit<CrUXRequest, 'metrics'>;
-  metrics: {[K in StandardMetricNames]?: MetricResponse;}&{
+  metrics: Partial<Record<StandardMetricNames, MetricResponse>>&{
     // eslint-disable-next-line @typescript-eslint/naming-convention
     form_factors?: FormFactorsResponse,
   };
@@ -85,10 +85,9 @@ export interface CrUXResponse {
   };
 }
 
-export type PageResult = {
-  [K in`${PageScope}-${DeviceScope}`]: CrUXResponse|null;
-}&{
+export type PageResult = Record<`${PageScope}-${DeviceScope}`, CrUXResponse|null>&{
   warnings: string[],
+  normalizedUrl: string,
 };
 
 export interface OriginMapping {
@@ -105,7 +104,7 @@ export interface ConfigSetting {
 
 let cruxManagerInstance: CrUXManager;
 
-// TODO: Potentially support `TABLET`. Tablet field data will always be `null` until then.
+/** TODO: Potentially support `TABLET`. Tablet field data will always be `null` until then. **/
 export const DEVICE_SCOPE_LIST: DeviceScope[] = ['ALL', 'DESKTOP', 'PHONE'];
 
 const pageScopeList: PageScope[] = ['origin', 'url'];
@@ -196,10 +195,12 @@ export class CrUXManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
       'url-PHONE': null,
       'url-TABLET': null,
       warnings: [],
+      normalizedUrl: '',
     };
 
     try {
       const normalizedUrl = this.#normalizeUrl(pageUrl);
+      pageResult.normalizedUrl = normalizedUrl.href;
       const promises: Array<Promise<void>> = [];
 
       for (const pageScope of pageScopeList) {
@@ -252,11 +253,11 @@ export class CrUXManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes> 
    */
   async #getFieldDataForCurrentPage(): Promise<PageResult> {
     const currentUrl = this.#mainDocumentUrl || await this.#getInspectedURL();
-    const urlForCrux = this.#configSetting.get().overrideEnabled ? this.#configSetting.get().override || '' :
-                                                                   this.#getMappedUrl(currentUrl);
+    const normalizedUrl = this.#configSetting.get().overrideEnabled ? this.#configSetting.get().override || '' :
+                                                                      this.#getMappedUrl(currentUrl);
 
-    const result = await this.getFieldDataForPage(urlForCrux);
-    if (currentUrl !== urlForCrux) {
+    const result = await this.getFieldDataForPage(normalizedUrl);
+    if (currentUrl !== normalizedUrl) {
       result.warnings.push(i18nString(UIStrings.fieldOverrideWarning));
     }
     return result;

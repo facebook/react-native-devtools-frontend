@@ -1,32 +1,6 @@
-/*
- * Copyright (C) 2012 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2012 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
 import type * as Platform from '../../core/platform/platform.js';
@@ -36,7 +10,7 @@ import * as TextUtils from '../text_utils/text_utils.js';
 import * as Workspace from '../workspace/workspace.js';
 
 import {ContentProviderBasedProject} from './ContentProviderBasedProject.js';
-import {CSSWorkspaceBinding, type SourceMapping} from './CSSWorkspaceBinding.js';
+import type {CSSWorkspaceBinding, SourceMapping} from './CSSWorkspaceBinding.js';
 import {NetworkProject} from './NetworkProject.js';
 
 export class SASSSourceMapping implements SourceMapping {
@@ -44,12 +18,14 @@ export class SASSSourceMapping implements SourceMapping {
   readonly #project: ContentProviderBasedProject;
   readonly #eventListeners: Common.EventTarget.EventDescriptor[];
   readonly #bindings: Map<string, Binding>;
+  readonly #cssWorkspaceBinding: CSSWorkspaceBinding;
 
   constructor(
       target: SDK.Target.Target,
       sourceMapManager: SDK.SourceMapManager.SourceMapManager<SDK.CSSStyleSheetHeader.CSSStyleSheetHeader>,
-      workspace: Workspace.Workspace.WorkspaceImpl) {
+      workspace: Workspace.Workspace.WorkspaceImpl, cssWorkspaceBinding: CSSWorkspaceBinding) {
     this.#sourceMapManager = sourceMapManager;
+    this.#cssWorkspaceBinding = cssWorkspaceBinding;
     this.#project = new ContentProviderBasedProject(
         workspace, 'cssSourceMaps:' + target.id(), Workspace.Workspace.projectTypes.Network, '',
         false /* isServiceProject */);
@@ -84,7 +60,7 @@ export class SASSSourceMapping implements SourceMapping {
       }
       binding.addSourceMap(sourceMap, header.frameId);
     }
-    await CSSWorkspaceBinding.instance().updateLocations(header);
+    await this.#cssWorkspaceBinding.updateLocations(header);
     this.sourceMapAttachedForTest(sourceMap);
   }
 
@@ -104,7 +80,7 @@ export class SASSSourceMapping implements SourceMapping {
         }
       }
     }
-    await CSSWorkspaceBinding.instance().updateLocations(header);
+    await this.#cssWorkspaceBinding.updateLocations(header);
   }
 
   rawLocationToUILocation(rawLocation: SDK.CSSModel.CSSLocation): Workspace.UISourceCode.UILocation|null {
@@ -126,7 +102,7 @@ export class SASSSourceMapping implements SourceMapping {
       }
     }
     const entry = sourceMap.findEntry(lineNumber, columnNumber);
-    if (!entry || !entry.sourceURL) {
+    if (!entry?.sourceURL) {
       return null;
     }
     const uiSourceCode = this.#project.uiSourceCodeForURL(entry.sourceURL);

@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -32,11 +32,11 @@ describeWithEnvironment('RecordingStorage', () => {
     const flow1 = {title: 'Test1', steps: []};
     const flow2 = {title: 'Test2', steps: []};
     const flow3 = {title: 'Test3', steps: []};
-    assert.deepEqual(await storage.saveRecording(flow1), {
+    assert.deepEqual(await storage.upsertRecording(flow1), {
       storageName: 'recording_1',
       flow: flow1,
     });
-    assert.deepEqual(await storage.saveRecording(flow2), {
+    assert.deepEqual(await storage.upsertRecording(flow2), {
       storageName: 'recording_2',
       flow: flow2,
     });
@@ -49,7 +49,7 @@ describeWithEnvironment('RecordingStorage', () => {
       flow: flow2,
     });
     assert.isUndefined(await storage.getRecording('recording_3'));
-    assert.deepEqual(await storage.updateRecording('recording_2', flow3), {
+    assert.deepEqual(await storage.upsertRecording(flow3, 'recording_2'), {
       storageName: 'recording_2',
       flow: flow3,
     });

@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,37 +11,43 @@ import * as UI from '../../ui/legacy/legacy.js';
 import type {HeapSnapshotView} from './HeapSnapshotView.js';
 import type {ProfileType} from './ProfileHeader.js';
 import {ProfilesPanel} from './ProfilesPanel.js';
-import {instance} from './ProfileTypeRegistry.js';
 
 const UIStrings = {
   /**
-   *@description A context menu item in the Heap Profiler Panel of a profiler tool
+   * @description A context menu item in the Heap Profiler Panel of a profiler tool
    */
   revealInSummaryView: 'Reveal in Summary view',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/profiler/HeapProfilerPanel.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
+
 let heapProfilerPanelInstance: HeapProfilerPanel;
 export class HeapProfilerPanel extends ProfilesPanel implements UI.ContextMenu.Provider<SDK.RemoteObject.RemoteObject>,
                                                                 UI.ActionRegistration.ActionDelegate {
   constructor() {
+    super('heap-profiler', 'profiler.heap-toggle-recording');
+  }
+
+  override get profileTypes(): ProfileType[] {
+    const registry = ProfilesPanel.registry;
     const isReactNative = Root.Runtime.experiments.isEnabled(
-      Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
+        Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI,
     );
-    const registry = instance;
     // [RN] Allocation sampling and Detached elements memory profiling options are not supported.
     // We are hiding these options from the UI.
-    const profileTypes = isReactNative ? [
-      registry.heapSnapshotProfileType,
-      registry.trackingHeapSnapshotProfileType,
-      registry.samplingHeapProfileType,
-    ] : [
+    if (isReactNative) {
+      return [
+        registry.heapSnapshotProfileType,
+        registry.trackingHeapSnapshotProfileType,
+        registry.samplingHeapProfileType,
+      ];
+    }
+    return [
       registry.heapSnapshotProfileType,
       registry.trackingHeapSnapshotProfileType,
       registry.samplingHeapProfileType,
       registry.detachedElementProfileType,
     ];
-    super('heap-profiler', profileTypes as ProfileType[], 'profiler.heap-toggle-recording');
   }
 
   static instance(): HeapProfilerPanel {
@@ -62,7 +68,7 @@ export class HeapProfilerPanel extends ProfilesPanel implements UI.ContextMenu.P
     }
     const objectId = object.objectId;
 
-    const heapProfiles = instance.heapSnapshotProfileType.getProfiles();
+    const heapProfiles = ProfilesPanel.registry.heapSnapshotProfileType.getProfiles();
     if (!heapProfiles.length) {
       return;
     }
@@ -107,8 +113,7 @@ export class HeapProfilerPanel extends ProfilesPanel implements UI.ContextMenu.P
   }
 
   override showObject(snapshotObjectId: string, perspectiveName: string): void {
-    const registry = instance;
-    const heapProfiles = registry.heapSnapshotProfileType.getProfiles();
+    const heapProfiles = ProfilesPanel.registry.heapSnapshotProfileType.getProfiles();
     for (let i = 0; i < heapProfiles.length; i++) {
       const profile = heapProfiles[i];
       // FIXME: allow to choose snapshot if there are several options.

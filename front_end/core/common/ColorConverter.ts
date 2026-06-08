@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -50,13 +50,15 @@ class Matrix3x3 {
   }
 }
 
-// A transfer function mapping encoded values to linear values,
-// represented by this 7-parameter piecewise function:
-//
-//   linear = sign(encoded) *  (c*|encoded| + f)       , 0 <= |encoded| < d
-//          = sign(encoded) * ((a*|encoded| + b)^g + e), d <= |encoded|
-//
-// (A simple gamma transfer function sets g to gamma and a to 1.)
+/**
+ * A transfer function mapping encoded values to linear values,
+ * represented by this 7-parameter piecewise function:
+ *
+ * linear = sign(encoded) *  (c*|encoded| + f)       , 0 <= |encoded| < d
+ * = sign(encoded) * ((a*|encoded| + b)^g + e), d <= |encoded|
+ *
+ * (A simple gamma transfer function sets g to gamma and a to 1.)
+ **/
 class TransferFunction {
   g: number;
   a: number;

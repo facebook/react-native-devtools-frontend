@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,10 +9,8 @@ import {
 } from '../../../testing/EnvironmentHelpers.js';
 import * as AiAssistance from '../ai_assistance.js';
 
-const {AiAgent, ResponseType, ConversationContext, ErrorType} = AiAssistance;
-
-function mockConversationContext(): AiAssistance.ConversationContext<unknown> {
-  return new (class extends ConversationContext<unknown>{
+function mockConversationContext(): AiAssistance.AiAgent.ConversationContext<unknown> {
+  return new (class extends AiAssistance.AiAgent.ConversationContext<unknown>{
     override getOrigin(): string {
       return 'origin';
     }
@@ -21,33 +19,24 @@ function mockConversationContext(): AiAssistance.ConversationContext<unknown> {
       return null;
     }
 
-    override getIcon(): HTMLElement {
-      return document.createElement('span');
-    }
-
     override getTitle(): string {
       return 'title';
-    }
-
-    override getSuggestions(): undefined {
-      return;
     }
   })();
 }
 
-class AiAgentMock extends AiAgent<unknown> {
-  type = AiAssistance.AgentType.STYLING;
+class AiAgentMock extends AiAssistance.AiAgent.AiAgent<unknown> {
   override preamble = 'preamble';
 
   // eslint-disable-next-line require-yield
-  override async * handleContextDetails(): AsyncGenerator<AiAssistance.ContextResponse, void, void> {
+  override async * handleContextDetails(): AsyncGenerator<AiAssistance.AiAgent.ContextResponse, void, void> {
     return;
   }
 
   clientFeature: Host.AidaClient.ClientFeature = 0;
   userTier: undefined|string;
 
-  options: AiAssistance.RequestOptions = {
+  options: AiAssistance.AiAgent.RequestOptions = {
     temperature: 1,
     modelId: 'test model',
   };
@@ -57,10 +46,6 @@ describeWithEnvironment('AiAgent', () => {
   describe('buildRequest', () => {
     beforeEach(() => {
       sinon.stub(crypto, 'randomUUID').returns('sessionId' as `${string}-${string}-${string}-${string}-${string}`);
-    });
-
-    afterEach(() => {
-      sinon.restore();
     });
 
     it('builds a request with a temperature', async () => {
@@ -140,6 +125,27 @@ describeWithEnvironment('AiAgent', () => {
       assert.strictEqual(request.metadata?.string_session_id, 'sessionId');
     });
 
+    it('builds a request with preamble features in version', async () => {
+      const features = ['test'];
+      class MockWithFeatures extends AiAgentMock {
+        override preambleFeatures(): string[] {
+          return features;
+        }
+      }
+      const agent = new MockWithFeatures({
+        aidaClient: mockAidaClient(),
+      });
+      {
+        const request = agent.buildRequest({text: 'test input'}, Host.AidaClient.Role.USER);
+        assert.include(request.metadata.client_version, '+test');
+      }
+      features.push('2test');
+      {
+        const request = agent.buildRequest({text: 'test input'}, Host.AidaClient.Role.USER);
+        assert.include(request.metadata.client_version, '+test+2test');
+      }
+    });
+
     it('builds a request with preamble if user tier is TESTERS', async () => {
       const agent = new AiAgentMock({
         aidaClient: mockAidaClient(),
@@ -163,16 +169,15 @@ describeWithEnvironment('AiAgent', () => {
     });
 
     it('builds a request without preamble', async () => {
-      class AiAgentMockWithoutPreamble extends AiAgent<unknown> {
-        type = AiAssistance.AgentType.STYLING;
+      class AiAgentMockWithoutPreamble extends AiAssistance.AiAgent.AiAgent<unknown> {
         override preamble = undefined;
         // eslint-disable-next-line require-yield
-        override async * handleContextDetails(): AsyncGenerator<AiAssistance.ContextResponse, void, void> {
+        override async * handleContextDetails(): AsyncGenerator<AiAssistance.AiAgent.ContextResponse, void, void> {
           return;
         }
         clientFeature: Host.AidaClient.ClientFeature = 0;
         userTier: undefined;
-        options: AiAssistance.RequestOptions = {
+        options: AiAssistance.AiAgent.RequestOptions = {
           temperature: 1,
           modelId: 'test model',
         };
@@ -185,6 +190,47 @@ describeWithEnvironment('AiAgent', () => {
       assert.deepEqual(request.current_message?.parts[0], {text: 'test input'});
       assert.isUndefined(request.preamble);
       assert.isUndefined(request.historical_contexts);
+    });
+
+    it('builds a request with a fact', async () => {
+      const agent = new AiAgentMock({
+        aidaClient: mockAidaClient([[{
+          explanation: 'answer',
+        }]]),
+        serverSideLoggingEnabled: true,
+      });
+      const fact: Host.AidaClient.RequestFact = {text: 'This is a fact', metadata: {source: 'devtools'}};
+      agent.addFact(fact);
+      await Array.fromAsync(agent.run('question', {selected: null}));
+      const request = agent.buildRequest({text: 'test input'}, Host.AidaClient.Role.USER);
+      assert.deepEqual(request.facts, [fact]);
+    });
+
+    it('can manage multiple facts and remove them', async () => {
+      const agent = new AiAgentMock({
+        aidaClient: mockAidaClient([[{
+          explanation: 'answer',
+        }]]),
+        serverSideLoggingEnabled: true,
+      });
+      const f1: Host.AidaClient.RequestFact = {text: 'f1', metadata: {source: 'devtools'}};
+      const f2 = {text: 'f2', metadata: {source: 'devtools'}};
+      agent.addFact(f1);
+      agent.addFact(f2);
+
+      await Array.fromAsync(agent.run('question', {selected: null}));
+      const request1 = agent.buildRequest({text: 'test input'}, Host.AidaClient.Role.USER);
+      assert.deepEqual(request1.facts, [f1, f2]);
+
+      agent.removeFact(f1);
+      await Array.fromAsync(agent.run('question', {selected: null}));
+      const request2 = agent.buildRequest({text: 'test input'}, Host.AidaClient.Role.USER);
+      assert.deepEqual(request2.facts, [f2]);
+
+      agent.clearFacts();
+      await Array.fromAsync(agent.run('question', {selected: null}));
+      const request3 = agent.buildRequest({text: 'test input'}, Host.AidaClient.Role.USER);
+      assert.isUndefined(request3.facts);
     });
 
     it('builds a request with chat history', async () => {
@@ -246,21 +292,15 @@ describeWithEnvironment('AiAgent', () => {
 
         assert.deepEqual(responses, [
           {
-            type: ResponseType.USER_QUERY,
-            query: 'query',
-            imageInput: undefined,
-            imageId: undefined,
+            type: AiAssistance.AiAgent.ResponseType.QUERYING,
           },
           {
-            type: ResponseType.QUERYING,
-          },
-          {
-            type: ResponseType.ANSWER,
+            type: AiAssistance.AiAgent.ResponseType.ANSWER,
             complete: false,
             text: 'Partial ans',
           },
           {
-            type: ResponseType.ANSWER,
+            type: AiAssistance.AiAgent.ResponseType.ANSWER,
             text: 'Partial answer is now completed',
             complete: true,
             rpcId: undefined,
@@ -296,7 +336,7 @@ describeWithEnvironment('AiAgent', () => {
       });
     });
 
-    it('should yield unknown error when aidaFetch does not return anything', async () => {
+    it('should yield unknown error when aida doConversation does not return anything', async () => {
       const agent = new AiAgentMock({
         aidaClient: mockAidaClient([]),
       });
@@ -305,17 +345,11 @@ describeWithEnvironment('AiAgent', () => {
 
       assert.deepEqual(responses, [
         {
-          type: ResponseType.USER_QUERY,
-          query: 'query',
-          imageInput: undefined,
-          imageId: undefined,
+          type: AiAssistance.AiAgent.ResponseType.QUERYING,
         },
         {
-          type: ResponseType.QUERYING,
-        },
-        {
-          type: ResponseType.ERROR,
-          error: ErrorType.UNKNOWN,
+          type: AiAssistance.AiAgent.ResponseType.ERROR,
+          error: AiAssistance.AiAgent.ErrorType.UNKNOWN,
         },
       ]);
     });
@@ -323,10 +357,7 @@ describeWithEnvironment('AiAgent', () => {
 
   describe('ConversationContext', () => {
     function getTestContext(origin: string) {
-      class TestContext extends ConversationContext<undefined> {
-        override getIcon(): HTMLElement {
-          throw new Error('Method not implemented.');
-        }
+      class TestContext extends AiAssistance.AiAgent.ConversationContext<undefined> {
         override getTitle(): string {
           throw new Error('Method not implemented.');
         }
@@ -335,10 +366,6 @@ describeWithEnvironment('AiAgent', () => {
         }
         override getItem(): undefined {
           return undefined;
-        }
-
-        override getSuggestions(): undefined {
-          return;
         }
       }
       return new TestContext();
@@ -383,16 +410,20 @@ describeWithEnvironment('AiAgent', () => {
   });
 
   describe('functions', () => {
-    class AgentWithFunction extends AiAgent<unknown> {
-      type = AiAssistance.AgentType.STYLING;
+    class AgentWithFunction extends AiAssistance.AiAgent.AiAgent<unknown> {
       override preamble = 'preamble';
       called = 0;
 
-      constructor(opts: AiAssistance.AgentOptions) {
+      constructor(opts: AiAssistance.AiAgent.AgentOptions) {
         super(opts);
         this.declareFunction('testFn', {
           description: 'test fn description',
-          parameters: {type: Host.AidaClient.ParametersTypes.OBJECT, properties: {}, description: 'arg description'},
+          parameters: {
+            type: Host.AidaClient.ParametersTypes.OBJECT,
+            properties: {},
+            description: 'arg description',
+            required: []
+          },
           handler: this.#test.bind(this),
         });
       }
@@ -405,13 +436,13 @@ describeWithEnvironment('AiAgent', () => {
       }
 
       // eslint-disable-next-line require-yield
-      override async * handleContextDetails(): AsyncGenerator<AiAssistance.ContextResponse, void, void> {
+      override async * handleContextDetails(): AsyncGenerator<AiAssistance.AiAgent.ContextResponse, void, void> {
         return;
       }
 
       clientFeature: Host.AidaClient.ClientFeature = 0;
       userTier: undefined;
-      options: AiAssistance.RequestOptions = {
+      options: AiAssistance.AiAgent.RequestOptions = {
         temperature: 1,
         modelId: 'test model',
       };
@@ -431,9 +462,51 @@ describeWithEnvironment('AiAgent', () => {
               description: 'arg description',
               properties: {},
               type: 6,
+              required: [],
             },
           }],
       );
+    });
+
+    it('should add explanation to history when function call is present', async () => {
+      const agent = new AgentWithFunction({
+        aidaClient: mockAidaClient([
+          [
+            {
+              explanation: 'This is the explanation',
+              functionCalls: [{
+                name: 'testFn',
+                args: {arg: 'test'},
+              }],
+            },
+          ],
+          [{
+            explanation: 'Final answer',
+          }]
+        ]),
+      });
+
+      await Array.fromAsync(agent.run('query', {selected: mockConversationContext()}));
+
+      const request = agent.buildRequest({text: 'test input'}, Host.AidaClient.Role.USER);
+      // History should contain:
+      // 1. User query
+      // 2. Model explanation + function call
+      // 3. Function result (user role)
+      // 4. Model final answer
+      assert.lengthOf(request.historical_contexts ?? [], 4);
+      assert.deepEqual(request.historical_contexts?.[1], {
+        role: Host.AidaClient.Role.MODEL,
+        parts: [
+          {text: 'This is the explanation'},
+          {
+            functionCall: {
+              name: 'testFn',
+              args: {arg: 'test'},
+            },
+          },
+        ],
+      });
     });
   });
 });

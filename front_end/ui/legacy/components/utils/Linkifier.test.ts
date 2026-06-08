@@ -1,12 +1,14 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as Common from '../../../../core/common/common.js';
 import * as Platform from '../../../../core/platform/platform.js';
 import * as SDK from '../../../../core/sdk/sdk.js';
 import type * as Protocol from '../../../../generated/protocol.js';
 import * as Bindings from '../../../../models/bindings/bindings.js';
 import * as Breakpoints from '../../../../models/breakpoints/breakpoints.js';
+import type * as StackTrace from '../../../../models/stack_trace/stack_trace.js';
 import * as Workspace from '../../../../models/workspace/workspace.js';
 import {findMenuItemWithLabel} from '../../../../testing/ContextMenuHelpers.js';
 import {
@@ -18,6 +20,8 @@ import {
   dispatchEvent,
 } from '../../../../testing/MockConnection.js';
 import {MockProtocolBackend} from '../../../../testing/MockScopeChain.js';
+import {setMockResourceTree} from '../../../../testing/ResourceTreeHelpers.js';
+import {TestUniverse} from '../../../../testing/TestUniverse.js';
 import * as UI from '../../legacy.js';
 
 import * as Components from './utils.js';
@@ -36,6 +40,7 @@ function foo(x) {
 
 describeWithMockConnection('Linkifier', () => {
   function setUpEnvironment() {
+    setMockResourceTree(false);
     const target = createTarget();
     const linkifier = new Components.Linkifier.Linkifier(100, false);
     linkifier.targetAdded(target);
@@ -43,14 +48,16 @@ describeWithMockConnection('Linkifier', () => {
     const forceNew = true;
     const targetManager = target.targetManager();
     const resourceMapping = new Bindings.ResourceMapping.ResourceMapping(targetManager, workspace);
+    const ignoreListManager = Workspace.IgnoreListManager.IgnoreListManager.instance({forceNew: true});
     const debuggerWorkspaceBinding = Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance({
-      forceNew,
+      forceNew: true,
       resourceMapping,
       targetManager,
+      ignoreListManager,
+      workspace,
     });
-    Bindings.IgnoreListManager.IgnoreListManager.instance({forceNew, debuggerWorkspaceBinding});
     Breakpoints.BreakpointManager.BreakpointManager.instance(
-        {forceNew, targetManager, workspace, debuggerWorkspaceBinding});
+        {forceNew, targetManager, workspace, debuggerWorkspaceBinding, settings: Common.Settings.Settings.instance()});
     const backend = new MockProtocolBackend();
     return {target, linkifier, backend};
   }
@@ -153,7 +160,7 @@ describeWithMockConnection('Linkifier', () => {
     observer.observe(anchor, {childList: true});
   });
 
-  it('always favors script ID over url', done => {
+  it('always favors script ID over url', async () => {
     const {target, linkifier} = setUpEnvironment();
     const lineNumber = 4;
     const url = 'https://www.google.com/script.js';
@@ -203,22 +210,24 @@ describeWithMockConnection('Linkifier', () => {
     };
     dispatchEvent(target, 'Debugger.scriptParsed', scriptParsedEvent2);
 
-    const callback: MutationCallback = function(mutations: MutationRecord[]) {
-      for (const mutation of mutations) {
-        if (mutation.type === 'childList') {
-          const info = Components.Linkifier.Linkifier.linkInfo(anchor);
-          assert.exists(info);
-          assert.exists(info.uiLocation);
+    await new Promise<void>(resolve => {
+      const callback: MutationCallback = function(mutations: MutationRecord[]) {
+        for (const mutation of mutations) {
+          if (mutation.type === 'childList') {
+            const info = Components.Linkifier.Linkifier.linkInfo(anchor);
+            assert.exists(info);
+            assert.exists(info.uiLocation);
 
-          // Make sure that a uiSourceCode is linked to that anchor.
-          assert.exists(info.uiLocation.uiSourceCode);
-          observer.disconnect();
-          done();
+            // Make sure that a uiSourceCode is linked to that anchor.
+            assert.exists(info.uiLocation.uiSourceCode);
+            observer.disconnect();
+            resolve();
+          }
         }
-      }
-    };
-    const observer = new MutationObserver(callback);
-    observer.observe(anchor, {childList: true});
+      };
+      const observer = new MutationObserver(callback);
+      observer.observe(anchor, {childList: true});
+    });
   });
 
   it('optionally shows column numbers in the link text', done => {
@@ -286,6 +295,67 @@ describeWithMockConnection('Linkifier', () => {
 
     assert.exists(anchor);
     assert.strictEqual(anchor.textContent, `w.com/a.js:${lineNumber + 1}`);
+  });
+
+  describe('linkifyStackTraceFrame', () => {
+    it('applies ignore-list-link class to fallback anchor if URL is ignore-listed and manager is provided', () => {
+      const universe = new TestUniverse();
+      const ignoreListManager = universe.ignoreListManager;
+      const url = Platform.DevToolsPath.urlString`http://example.com/script.js`;
+      ignoreListManager.ignoreListURL(url);
+
+      const frame = {
+        url,
+        line: 1,
+        column: 1,
+        uiSourceCode: null,
+      } as unknown as StackTrace.StackTrace.Frame;
+
+      const anchor = Components.Linkifier.Linkifier.linkifyStackTraceFrame(frame, {ignoreListManager});
+
+      assert.exists(anchor);
+      assert.isTrue(anchor.classList.contains('ignore-list-link'));
+    });
+  });
+
+  describe('linkifyUILocation', () => {
+    it('creates a link from a UILocation', async () => {
+      const {target, backend} = setUpEnvironment();
+      const debuggerWorkspaceBinding = Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance();
+      const url = Platform.DevToolsPath.urlString`https://www.google.com/script.js`;
+      const script = await backend.addScript(target, {content: simpleScriptContent, url}, null);
+      const uiSourceCode = debuggerWorkspaceBinding.uiSourceCodeForScript(script);
+      assert.exists(uiSourceCode);
+
+      const uiLocation = new Workspace.UISourceCode.UILocation(uiSourceCode, 1, 2);
+      const anchor = Components.Linkifier.Linkifier.linkifyUILocation(uiLocation);
+
+      assert.exists(anchor);
+      assert.include(anchor.textContent, 'script.js');
+      assert.include(anchor.textContent, '2');
+    });
+
+    it('applies ignore-list-link class to fallback anchor if URL is ignore-listed and manager is provided',
+       async () => {
+         const {target, backend} = setUpEnvironment();
+         const debuggerWorkspaceBinding = Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance();
+         const url = Platform.DevToolsPath.urlString`https://www.google.com/script.js`;
+         const script = await backend.addScript(target, {content: simpleScriptContent, url}, null);
+         const uiSourceCode = debuggerWorkspaceBinding.uiSourceCodeForScript(script);
+         assert.exists(uiSourceCode);
+
+         const ignoreListManager = Workspace.IgnoreListManager.IgnoreListManager.instance();
+         ignoreListManager.ignoreListURL(url);
+
+         const uiLocation = new Workspace.UISourceCode.UILocation(uiSourceCode, 1, 2);
+         const anchor = Components.Linkifier.Linkifier.linkifyUILocation(uiLocation, {ignoreListManager});
+
+         assert.exists(anchor);
+         const info = Components.Linkifier.Linkifier.linkInfo(anchor);
+         assert.exists(info);
+         assert.exists(info.fallback);
+         assert.isTrue(info.fallback.classList.contains('ignore-list-link'));
+       });
   });
 
   describe('maybeLinkifyScriptLocation', () => {
@@ -357,7 +427,7 @@ describeWithMockConnection('Linkifier', () => {
       linkifier.maybeLinkifyScriptLocation(target, script.scriptId, url, lineNumber);
 
       await debuggerWorkspaceBinding.pendingLiveLocationChangesPromise();
-      assert.isTrue(eventCallback.calledOnce);
+      sinon.assert.calledOnce(eventCallback);
 
       // Detach the source map and check we get the update event.
       const debuggerModel = target.model(SDK.DebuggerModel.DebuggerModel);
@@ -368,6 +438,157 @@ describeWithMockConnection('Linkifier', () => {
       // We currently receive more than one event after detaching the source map.
       // This is also valid but might constitute unnecessary work.
       assert.isTrue(eventCallback.callCount >= 2);
+    });
+  });
+
+  describe('linkActions', () => {
+    const registrations: Components.Linkifier.LinkHandlerRegistration[] = [];
+
+    afterEach(() => {
+      for (const registration of registrations) {
+        Components.Linkifier.Linkifier.unregisterLinkHandler(registration);
+      }
+      registrations.length = 0;
+    });
+
+    function registerHandler(registration: Components.Linkifier.LinkHandlerRegistration): void {
+      Components.Linkifier.Linkifier.registerLinkHandler(registration);
+      registrations.push(registration);
+    }
+
+    it('returns no actions when no link handlers are registered', () => {
+      const url = urlString`foo-extension://node/1`;
+      const actions = Components.Linkifier.Linkifier.linkActions({
+        url,
+        icon: null,
+        enableDecorator: false,
+        uiLocation: null,
+        liveLocation: null,
+        lineNumber: null,
+        columnNumber: null,
+        inlineFrameIndex: 0,
+        revealable: null,
+        fallback: null
+      });
+      const openUsingActions = actions.filter(action => action.title.startsWith('Open using'));
+      assert.isEmpty(openUsingActions);
+    });
+
+    it('returns an action for a registered scheme-specific link handler', async () => {
+      const handler = sinon.spy();
+
+      registerHandler({
+        title: 'Handler for foo-extension',
+        origin: urlString`foo-extension:abcdefghijklmnop`,
+        scheme: urlString`foo-extension:`,
+        handler,
+        shouldHandleOpenResource: (url, schemes) =>
+            Components.Linkifier.Linkifier.shouldHandleOpenResource(urlString`foo-extension:`, url, schemes),
+      });
+
+      const url = urlString`foo-extension://node/1`;
+      const actions = Components.Linkifier.Linkifier.linkActions({
+        url,
+        icon: null,
+        enableDecorator: false,
+        uiLocation: null,
+        liveLocation: null,
+        lineNumber: null,
+        columnNumber: null,
+        inlineFrameIndex: 0,
+        revealable: null,
+        fallback: null
+      });
+      const openUsingAction = actions.find(action => action.title === 'Open using Handler for foo-extension');
+      assert.exists(openUsingAction);
+      await openUsingAction?.handler();
+      sinon.assert.called(handler);
+    });
+
+    it('returns the right action for multiple link handler', async () => {
+      // Register a (global) handler for the global: origin.
+      registerHandler({
+        title: 'Global Handler',
+        origin: urlString`global:abcdefghijklmnop`,
+        scheme: undefined,
+        handler: () => {},
+        shouldHandleOpenResource: (url, schemes) =>
+            Components.Linkifier.Linkifier.shouldHandleOpenResource(null, url, schemes),
+      });
+
+      // Register a scheme-specific handler for the foo-extension: origin.
+      registerHandler({
+        title: 'Handler for foo-extension',
+        origin: urlString`foo-extension:abcdefghijklmnop`,
+        scheme: urlString`foo-extension:`,
+        handler: () => {},
+        shouldHandleOpenResource: (url, schemes) =>
+            Components.Linkifier.Linkifier.shouldHandleOpenResource(urlString`foo-extension:`, url, schemes),
+      });
+
+      {
+        // Ensure that the foo-extension is the main handler for foo-extension links, and that the
+        // global handler doesn't take precedent.
+        const url = urlString`foo-extension://node/1`;
+        const actions = Components.Linkifier.Linkifier.linkActions({
+          url,
+          icon: null,
+          enableDecorator: false,
+          uiLocation: null,
+          liveLocation: null,
+          lineNumber: null,
+          columnNumber: null,
+          inlineFrameIndex: 0,
+          revealable: null,
+          fallback: null
+        });
+        assert.lengthOf(actions, 3);  // Two fallback actions are always added.
+
+        const openUsingAction = actions.find(action => action.title === 'Open using Handler for foo-extension');
+        assert.exists(openUsingAction);
+      }
+
+      {
+        // Ensure that the Global handler handles its own links.
+        const url = urlString`global://node/1`;
+        const actions = Components.Linkifier.Linkifier.linkActions({
+          url,
+          icon: null,
+          enableDecorator: false,
+          uiLocation: null,
+          liveLocation: null,
+          lineNumber: null,
+          columnNumber: null,
+          inlineFrameIndex: 0,
+          revealable: null,
+          fallback: null
+        });
+        assert.lengthOf(actions, 3);  // One for our handler + 'Open in New Tab' and 'Copy link'.
+
+        const openUsingAction = actions.find(action => action.title === 'Open using Global Handler');
+        assert.exists(openUsingAction);
+      }
+
+      {
+        // Ensure that the Global handler handles all other links.
+        const url = urlString`http://www.example.com`;
+        const actions = Components.Linkifier.Linkifier.linkActions({
+          url,
+          icon: null,
+          enableDecorator: false,
+          uiLocation: null,
+          liveLocation: null,
+          lineNumber: null,
+          columnNumber: null,
+          inlineFrameIndex: 0,
+          revealable: null,
+          fallback: null
+        });
+        assert.lengthOf(actions, 3);  // One for our handler + 'Open in New Tab' and 'Copy link'.
+
+        const openUsingAction = actions.find(action => action.title === 'Open using Global Handler');
+        assert.exists(openUsingAction);
+      }
     });
   });
 });

@@ -1,10 +1,12 @@
-// Copyright 2018 The Chromium Authors. All rights reserved.
+// Copyright 2018 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Bindings from '../../models/bindings/bindings.js';
 import type * as Workspace from '../../models/workspace/workspace.js';
+import * as uiI18n from '../../ui/i18n/i18n.js';
 import * as Components from '../../ui/legacy/components/utils/utils.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
@@ -26,6 +28,8 @@ const str_ = i18n.i18n.registerUIStrings('panels/sources/ResourceOriginPlugin.ts
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class ResourceOriginPlugin extends Plugin {
+  readonly #linkifier = new Components.Linkifier.Linkifier();
+
   static override accepts(uiSourceCode: Workspace.UISourceCode.UISourceCode): boolean {
     const contentType = uiSourceCode.contentType();
     return contentType.hasScripts() || contentType.isFromSourceMap();
@@ -61,19 +65,21 @@ export class ResourceOriginPlugin extends Plugin {
         }
         element.append(link);
       });
-      return [new UI.Toolbar.ToolbarItem(i18n.i18n.getFormatLocalizedString(str_, UIStrings.fromS, {PH1: element}))];
+      return [new UI.Toolbar.ToolbarItem(uiI18n.getFormatLocalizedString(str_, UIStrings.fromS, {PH1: element}))];
     }
 
     // Handle anonymous scripts with an originStackTrace.
     for (const script of debuggerWorkspaceBinding.scriptsForUISourceCode(this.uiSourceCode)) {
-      if (script.originStackTrace) {
-        const link = linkifier.linkifyStackTraceTopFrame(script.debuggerModel.target(), script.originStackTrace);
-        return [new UI.Toolbar.ToolbarItem(i18n.i18n.getFormatLocalizedString(str_, UIStrings.fromS, {PH1: link}))];
+      if (script.originStackTrace?.callFrames.length) {
+        const link = this.#linkifier.linkifyStackTraceTopFrame(script.debuggerModel.target(), script.originStackTrace);
+        return [new UI.Toolbar.ToolbarItem(uiI18n.getFormatLocalizedString(str_, UIStrings.fromS, {PH1: link}))];
       }
     }
 
     return [];
   }
-}
 
-export const linkifier = new Components.Linkifier.Linkifier();
+  override dispose(): void {
+    this.#linkifier.dispose();
+  }
+}

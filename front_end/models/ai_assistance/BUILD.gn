@@ -1,4 +1,4 @@
-# Copyright 2025 The Chromium Authors. All rights reserved.
+# Copyright 2025 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -10,40 +10,64 @@ import("../visibility.gni")
 devtools_module("ai_assistance") {
   sources = [
     "AgentProject.ts",
+    "AiConversation.ts",
     "AiHistoryStorage.ts",
+    "AiUtils.ts",
+    "BuiltInAi.ts",
     "ChangeManager.ts",
     "EvaluateAction.ts",
     "ExtensionScope.ts",
+    "agents/AccessibilityAgent.ts",
     "agents/AiAgent.ts",
+    "agents/BreakpointDebuggerAgent.ts",
+    "agents/BreakpointDebuggerAgentOverlay.ts",
+    "agents/ContextSelectionAgent.ts",
+    "agents/ConversationSummaryAgent.ts",
+    "agents/ExecuteJavascript.ts",
     "agents/FileAgent.ts",
+    "agents/GreenDevAgent.ts",
     "agents/NetworkAgent.ts",
     "agents/PatchAgent.ts",
     "agents/PerformanceAgent.ts",
     "agents/PerformanceAnnotationsAgent.ts",
-    "agents/PerformanceInsightsAgent.ts",
     "agents/StylingAgent.ts",
     "data_formatters/FileFormatter.ts",
+    "data_formatters/LighthouseFormatter.ts",
     "data_formatters/NetworkRequestFormatter.ts",
     "data_formatters/PerformanceInsightFormatter.ts",
+    "data_formatters/PerformanceTraceFormatter.ts",
+    "data_formatters/UnitFormatters.ts",
     "debug.ts",
     "injected.ts",
+    "performance/AICallTree.ts",
+    "performance/AIContext.ts",
+    "performance/AIQueries.ts",
   ]
 
   deps = [
     "../../core/common:bundle",
     "../../core/host:bundle",
     "../../core/i18n:bundle",
+    "../../core/platform:bundle",
     "../../core/root:bundle",
-    "../../panels/elements:bundle",
-    "../../panels/network:bundle",
-    "../../panels/timeline/utils:bundle",
-    "../../panels/utils:bundle",
+    "../../core/sdk:bundle",
+    "../../generated:protocol",
+    "../../models/computed_style:bundle",
+    "../../models/network_time_calculator:bundle",
+    "../../models/persistence:bundle",
+    "../../services/tracing:bundle",
     "../../third_party/diff:bundle",
-    "../../ui/legacy:bundle",
-    "../../ui/lit:bundle",
+    "../annotations:bundle",
     "../bindings:bundle",
+    "../crux-manager:bundle",
+    "../lighthouse:bundle",
     "../logs:bundle",
+    "../network_time_calculator:bundle",
+    "../source_map_scopes:bundle",
+    "../text_utils:bundle",
     "../trace:bundle",
+    "../trace/insights:bundle",
+    "../trace_source_maps_resolver:bundle",
     "../workspace:bundle",
   ]
 }
@@ -55,9 +79,18 @@ devtools_entrypoint("bundle") {
 
   visibility = [
     ":*",
+    "../../entrypoints/greendev_floaty/*",
     "../../entrypoints/main/*",
     "../../panels/ai_assistance/*",
+    "../../panels/common/*",
+    "../../panels/console/*",
+    "../../panels/elements/*",
+    "../../panels/greendev/*",
+    "../../panels/settings/*",
+    "../../panels/sources/*",
     "../../panels/timeline/*",
+    "../ai_code_completion",
+    "./data_formatters:*",
   ]
 
   visibility += devtools_models_visibility
@@ -68,21 +101,25 @@ ts_library("unittests") {
 
   sources = [
     "AgentProject.test.ts",
+    "AiConversation.test.ts",
     "AiHistoryStorage.test.ts",
+    "BuiltInAi.test.ts",
     "ChangeManager.test.ts",
     "EvaluateAction.test.ts",
     "ExtensionScope.test.ts",
+    "agents/AccessibilityAgent.test.ts",
     "agents/AiAgent.test.ts",
+    "agents/ContextSelectionAgent.test.ts",
+    "agents/ConversationSummaryAgent.test.ts",
     "agents/FileAgent.test.ts",
+    "agents/GreenDevAgent.test.ts",
     "agents/NetworkAgent.test.ts",
     "agents/PatchAgent.test.ts",
     "agents/PerformanceAgent.test.ts",
     "agents/PerformanceAnnotationsAgent.test.ts",
-    "agents/PerformanceInsightsAgent.test.ts",
     "agents/StylingAgent.test.ts",
-    "data_formatters/FileFormatter.test.ts",
-    "data_formatters/NetworkRequestFormatter.test.ts",
-    "data_formatters/PerformanceInsightFormatter.test.ts",
+    "performance/AICallTree.test.ts",
+    "performance/AIQueries.test.ts",
   ]
 
   deps = [
@@ -94,6 +131,13 @@ ts_library("unittests") {
     "../../generated:protocol",
     "../../testing",
     "../bindings:bundle",
+    "../lighthouse:bundle",
+    "../text_utils:bundle",
     "../trace:bundle",
+    "./data_formatters:unittests",
   ]
+}
+
+group("foundation_unittests") {
+  deps = [ "./data_formatters:foundation_unittests" ]
 }

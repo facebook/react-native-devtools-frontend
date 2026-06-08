@@ -1,0 +1,46 @@
+# Copyright 2025 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("../../../../scripts/build/ninja/devtools_entrypoint.gni")
+import("../../../../scripts/build/ninja/devtools_module.gni")
+import("../../../../scripts/build/ninja/generate_css.gni")
+import("../../../../scripts/build/typescript/typescript.gni")
+import("../visibility.gni")
+
+generate_css("css_files") {
+  sources = [ "list.css" ]
+}
+
+devtools_module("lists") {
+  sources = [ "List.ts" ]
+
+  deps = [
+    "../../../core/i18n:bundle",
+    "../../../ui/legacy:bundle",
+    "../../../ui/lit:bundle",
+    "../buttons:bundle",
+  ]
+}
+
+devtools_entrypoint("bundle") {
+  entrypoint = "lists.ts"
+
+  deps = [
+    ":css_files",
+    ":lists",
+  ]
+
+  visibility = default_components_visibility
+}
+
+devtools_ui_module("unittests") {
+  testonly = true
+
+  sources = [ "List.test.ts" ]
+
+  deps = [
+    ":bundle",
+    "../../../testing",
+  ]
+}

@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,7 +7,9 @@ import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
 import * as TextUtils from '../../models/text_utils/text_utils.js';
 import {renderElementIntoDOM} from '../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../testing/LocaleHelpers.js';
+import * as SourceFrame from '../../ui/legacy/components/source_frame/source_frame.js';
+import * as UI from '../../ui/legacy/legacy.js';
 
 import * as Network from './network.js';
 
@@ -27,7 +29,8 @@ function renderPreviewView(request: SDK.NetworkRequest.NetworkRequest): Network.
   return component;
 }
 
-describeWithLocale('RequestPreviewView', () => {
+describe('RequestPreviewView', () => {
+  setupLocaleHooks();
   it('prevents previewed html from making same-site requests', async () => {
     const request = SDK.NetworkRequest.NetworkRequest.create(
         'requestId' as Protocol.Network.RequestId, urlString`http://devtools-frontend.test/content`, urlString``, null,
@@ -84,5 +87,20 @@ describeWithLocale('RequestPreviewView', () => {
 
     assert.include(frame.src, 'charset=utf-16');
     assert.include(frame.src, 'base64');
+  });
+
+  it('creates a searchable view for json', async () => {
+    const request = SDK.NetworkRequest.NetworkRequest.create(
+        'requestId' as Protocol.Network.RequestId, urlString`http://devtools-frontend.test/content`, urlString``, null,
+        null, null);
+    request.setContentDataProvider(
+        async () => new TextUtils.ContentData.ContentData('{"foo": 42}', false, 'application/json'));
+    request.mimeType = 'application/json';
+
+    const component = renderPreviewView(request);
+    const widget = await component.showPreview();
+
+    assert.instanceOf(widget, UI.SearchableView.SearchableView);
+    assert.instanceOf(widget.children()[0], SourceFrame.JSONView.JSONView);
   });
 });

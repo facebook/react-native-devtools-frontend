@@ -1,42 +1,33 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import {assert} from 'chai';
 import type * as puppeteer from 'puppeteer-core';
 
-import {
-  $,
-  $$,
-  click,
-  getBrowserAndPages,
-  goToResource,
-  setCheckBox,
-  typeText,
-  waitFor,
-  waitForAria,
-  waitForFunction,
-} from '../../shared/helper.js';
+import type {DevToolsPage} from '../shared/frontend-helper.js';
+import type {InspectedPage} from '../shared/target-helper.js';
 
 import {veImpression} from './visual-logging-helpers.js';
 
 const REQUEST_LIST_SELECTOR = '.network-log-grid tbody';
 
-export async function waitForNetworkTab(): Promise<void> {
+export async function waitForNetworkTab(devToolsPage: DevToolsPage): Promise<void> {
   // Make sure the network tab is shown on the screen
-  await waitFor('.network-log-grid');
+  await devToolsPage.waitFor('.network-log-grid');
 }
 
-export async function openNetworkTab(): Promise<void> {
-  await click('#tab-network');
-  await waitForNetworkTab();
+export async function openNetworkTab(devToolsPage: DevToolsPage): Promise<void> {
+  await devToolsPage.click('#tab-network');
+  await waitForNetworkTab(devToolsPage);
 }
 
 /**
  * Select the Network tab in DevTools
  */
-export async function navigateToNetworkTab(testName: string) {
-  await goToResource(`network/${testName}`);
-  await openNetworkTab();
+export async function navigateToNetworkTab(testName: string, devToolsPage: DevToolsPage, inspectedPage: InspectedPage) {
+  await inspectedPage.goToResource(`network/${testName}`);
+  await openNetworkTab(devToolsPage);
 }
 
 /**
@@ -44,45 +35,57 @@ export async function navigateToNetworkTab(testName: string) {
  * @param numberOfRequests The expected number of requests to wait for.
  * @param selector Optional. The selector to use to get the list of requests.
  */
-export async function waitForSomeRequestsToAppear(numberOfRequests: number) {
-  await waitForFunction(async () => {
-    const requests = await getAllRequestNames();
+export async function waitForSomeRequestsToAppear(numberOfRequests: number, devToolsPage: DevToolsPage) {
+  await devToolsPage.waitForFunction(async () => {
+    const requests = await getAllRequestNames(devToolsPage);
     return requests.length >= numberOfRequests && Boolean(requests.map(name => name ? name.trim() : '').join(''));
   });
 }
 
-export async function getAllRequestNames() {
-  const requests = await $$(REQUEST_LIST_SELECTOR + ' .name-column');
-  return await Promise.all(requests.map(request => request.evaluate(r => r.childNodes[1].textContent)));
+export async function getAllRequestNames(devToolsPage: DevToolsPage) {
+  const requests = await devToolsPage.$$(REQUEST_LIST_SELECTOR + ' .name-column');
+  return await Promise.all(requests.map(
+      request => request.evaluate(
+          r => [...r.childNodes].find(({nodeType}) => nodeType === Node.TEXT_NODE)?.textContent ?? '')));
 }
 
-export async function getNumberOfRequests() {
-  return (await getAllRequestNames()).length;
+export async function getNumberOfRequests(devToolsPage: DevToolsPage) {
+  return (await getAllRequestNames(devToolsPage)).length;
 }
 
-export async function getSelectedRequestName() {
-  const request = await $(REQUEST_LIST_SELECTOR + ' tr.selected .name-column');
+export async function getSelectedRequestName(devToolsPage: DevToolsPage) {
+  const request = await devToolsPage.$(REQUEST_LIST_SELECTOR + ' tr.selected .name-column');
   if (!request) {
     return null;
   }
   return await request.evaluate(node => {
-    return node?.childNodes[1].textContent;
+    return node?.childNodes[2].textContent;
   });
 }
 
-export async function selectRequestByName(name: string, clickOptions?: puppeteer.ClickOptions) {
+export async function selectRequestByName(
+    name: string, clickOptions: puppeteer.ClickOptions = {}, devToolsPage: DevToolsPage) {
+  await devToolsPage.waitForFunction(async () => {
+    const requests = await getAllRequestNames(devToolsPage);
+    return requests.some(request => request.trim() === name);
+  });
+
   const selector = REQUEST_LIST_SELECTOR + ' .name-column';
-  const {frontend} = getBrowserAndPages();
+
+  // FIXME: this needs to be fixed to return a stable selector like
+  // .network-log-grid `tbody tr:nth-child(x) .name-column` where x is extracted
+  // based on the request name match. Then this selector should be given to the
+  // click helper. Or even better if an ARIA selector is used.
 
   // Finding he click position is done in a single frontend.evaluate call
   // to make sure the element still exists after finding the element.
   // If this were done outside of evaluate code, it would be possible for an
   // element to be removed from the dom between the $$(.selector) call and the
   // click(element) call.
-  const rect = await frontend.evaluate((name, selector) => {
+  const rect = await devToolsPage.evaluate((name, selector) => {
     const elements = document.querySelectorAll(selector);
     for (const element of elements) {
-      if (element.childNodes[1].textContent === name) {
+      if ([...element.childNodes].find(({nodeType}) => nodeType === Node.TEXT_NODE)?.textContent === name) {
         const {left, top, width, height} = element.getBoundingClientRect();
         return {left, top, width, height};
       }
@@ -90,74 +93,79 @@ export async function selectRequestByName(name: string, clickOptions?: puppeteer
     return null;
   }, name, selector);
 
-  if (rect) {
-    const x = rect.left + rect.width * 0.5;
-    const y = rect.top + rect.height * 0.5;
-    await frontend.mouse.click(x, y, clickOptions);
+  if (!rect) {
+    throw new Error('Could not locate the network request');
   }
+  const x = rect.left + rect.width * 0.5;
+  const y = rect.top + rect.height * 0.5;
+  await devToolsPage.page.mouse.click(x, y, clickOptions);
 }
 
-export async function waitForSelectedRequestChange(initialRequestName: string|null) {
-  await waitForFunction(async () => {
-    const name = await getSelectedRequestName();
+export async function waitForSelectedRequestChange(initialRequestName: string|null, devToolsPage: DevToolsPage) {
+  await devToolsPage.waitForFunction(async () => {
+    const name = await getSelectedRequestName(devToolsPage);
     return name !== initialRequestName;
   });
 }
 
-export async function setPersistLog(persist: boolean) {
-  await setCheckBox('[title="Do not clear log on page reload / navigation"]', persist);
+export async function setPersistLog(persist: boolean, devToolsPage: DevToolsPage) {
+  await devToolsPage.setCheckBox('[title="Do not clear log on page reload / navigation"]', persist);
 }
 
-export async function setCacheDisabled(disabled: boolean): Promise<void> {
-  await setCheckBox('[title^="Disable cache"]', disabled);
+export async function setCacheDisabled(disabled: boolean, devToolsPage: DevToolsPage): Promise<void> {
+  await devToolsPage.setCheckBox('[title^="Disable cache"]', disabled);
 }
 
-export async function setInvert(invert: boolean) {
-  await setCheckBox('[title="Invert"]', invert);
+export async function setInvert(invert: boolean, devToolsPage: DevToolsPage) {
+  await devToolsPage.setCheckBox('[title="Invert"]', invert);
 }
 
-export async function setTimeWindow(): Promise<void> {
-  const overviewGridCursorArea = await waitFor('.overview-grid-cursor-area');
+export async function setTimeWindow(devToolsPage: DevToolsPage): Promise<void> {
+  const overviewGridCursorArea = await devToolsPage.waitFor('.overview-grid-cursor-area');
   await overviewGridCursorArea.click({offset: {x: 0, y: 10}});
 }
 
-export async function clearTimeWindow(): Promise<void> {
-  const overviewGridCursorArea = await waitFor('.overview-grid-cursor-area');
+export async function clearTimeWindow(devToolsPage: DevToolsPage): Promise<void> {
+  const overviewGridCursorArea = await devToolsPage.waitFor('.overview-grid-cursor-area');
   await overviewGridCursorArea.click({count: 2});
 }
 
-export async function setTextFilter(text: string): Promise<void> {
-  const toolbarHandle = await waitFor('.text-filter');
-  const input = await waitForAria('Filter', toolbarHandle);
+export async function setTextFilter(text: string, devToolsPage: DevToolsPage): Promise<void> {
+  const toolbarHandle = await devToolsPage.waitFor('.text-filter');
+  const input = await devToolsPage.waitForAria('Filter', toolbarHandle);
   await input.focus();
-  await typeText(text);
+  await devToolsPage.typeText(text);
 }
 
-export async function getTextFilterContent(): Promise<string> {
-  const toolbarHandle = await waitFor('.text-filter');
-  const textFilterContent = toolbarHandle.evaluate(toolbar => {
+export async function getTextFilterContent(devToolsPage: DevToolsPage): Promise<string> {
+  const toolbarHandle = await devToolsPage.waitFor('.text-filter');
+  const textFilterContent = await toolbarHandle.evaluate(toolbar => {
     return toolbar.querySelector('[aria-label="Filter"]')?.textContent ?? '';
   });
-  return await textFilterContent;
+  return textFilterContent;
 }
 
-export async function clearTextFilter(): Promise<void> {
-  const textFilterContent = await getTextFilterContent();
+export async function clearTextFilter(devToolsPage: DevToolsPage): Promise<void> {
+  const textFilterContent = await getTextFilterContent(devToolsPage);
   if (textFilterContent) {
-    const toolbarHandle = await waitFor('.text-filter');
-    await click('[aria-label="Clear"]', {root: toolbarHandle});
+    const toolbarHandle = await devToolsPage.waitFor('.text-filter');
+    await devToolsPage.click('[aria-label="Clear"]', {root: toolbarHandle});
   }
 }
 
-export async function getTextFromHeadersRow(row: puppeteer.ElementHandle<Element>) {
-  const headerNameElement = await waitFor('.header-name', row);
+export async function getTextFromHeadersRow(row: puppeteer.ElementHandle<Element>, devToolsPage: DevToolsPage) {
+  const headerNameElement = await row.waitForSelector('.header-name');
+  assert.isOk(headerNameElement);
   const headerNameText = await headerNameElement.evaluate(el => el.textContent || '');
 
-  const headerValueElement = await waitFor('.header-value', row);
+  const headerValueElement = await row.waitForSelector('.header-value');
+  assert.isOk(headerValueElement);
   let headerValueText = (await headerValueElement.evaluate(el => el.textContent || '')).trim();
   if (headerValueText === '') {
-    const headerValueEditableSpanComponent = await waitFor('.header-value devtools-editable-span', row);
-    const editableSpan = await waitFor('.editable', headerValueEditableSpanComponent);
+    const headerValueEditableSpanComponent = await devToolsPage.waitFor('.header-value devtools-editable-span', row);
+    assert.isOk(headerValueEditableSpanComponent);
+    const editableSpan = await devToolsPage.waitFor('.editable', headerValueEditableSpanComponent);
+    assert.isOk(editableSpan);
     headerValueText = (await editableSpan.evaluate(el => el.textContent || '')).trim();
   }
 
@@ -215,7 +223,7 @@ export function veImpressionForNetworkPanel(options?: {newFilterBar?: boolean}) 
           veImpression('Action', 'export-har'),
           veImpression('Toggle', 'network-log.preserve-log'),
           veImpression('Toggle', 'cache-disabled'),
-          veImpression('DropDown', 'preferred-network-condition'),
+          veImpression('DropDown', 'active-network-condition-key'),
         ]),
     veImpression('Timeline', 'network-overview'),
     veImpression('Toggle', 'network-settings'),
@@ -232,4 +240,13 @@ export function veImpressionForNetworkPanel(options?: {newFilterBar?: boolean}) 
     veImpression('TableHeader', 'size'),
     veImpression('TableHeader', 'time'),
   ]);
+}
+
+export async function clickInfobarButton(devToolsPage: DevToolsPage) {
+  const infoBar = await devToolsPage.waitForAria('Select a folder to store override files in');
+  // Allow time for infobar to animate in before clicking the button
+  await devToolsPage.timeout(550);
+  await devToolsPage.click('.infobar-main-row .infobar-button', {
+    root: infoBar,
+  });
 }

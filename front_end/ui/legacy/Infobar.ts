@@ -1,12 +1,13 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import type * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Buttons from '../../ui/components/buttons/buttons.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
-import * as IconButton from '../components/icon_button/icon_button.js';
+import {createIcon} from '../kit/kit.js';
 
 import * as ARIAUtils from './ARIAUtils.js';
 import infobarStyles from './infobar.css.js';
@@ -16,11 +17,11 @@ import type {Widget} from './Widget.js';
 
 const UIStrings = {
   /**
-   *@description Text on a button to close the infobar and never show the infobar in the future
+   * @description Text on a button to close the infobar and never show the infobar in the future
    */
   dontShowAgain: 'Don\'t show again',
   /**
-   *@description Text to close something
+   * @description Text to close something
    */
   close: 'Close',
 } as const;
@@ -54,7 +55,7 @@ export class Infobar {
     this.shadowRoot = createShadowRootWithCoreStyles(this.element, {cssFile: infobarStyles});
 
     this.contentElement = this.shadowRoot.createChild('div', 'infobar infobar-' + type);
-    const icon = IconButton.Icon.create(TYPE_TO_ICON[type], type + '-icon');
+    const icon = createIcon(TYPE_TO_ICON[type], type + '-icon');
     this.contentElement.createChild('div', 'icon-container').appendChild(icon);
 
     this.mainRow = this.contentElement.createChild('div', 'infobar-main-row');
@@ -71,7 +72,8 @@ export class Infobar {
     this.disableSetting = disableSetting || null;
     if (disableSetting) {
       const disableButton = createTextButton(
-          i18nString(UIStrings.dontShowAgain), this.onDisable.bind(this), {className: 'infobar-button'});
+          i18nString(UIStrings.dontShowAgain), this.onDisable.bind(this),
+          {className: 'infobar-button', jslogContext: 'dont-show-again'});
       this.actionContainer.appendChild(disableButton);
 
       // If we have a disable button, make the other buttons tonal (if not otherwise specified).
@@ -178,7 +180,7 @@ export class Infobar {
     if (!this.detailsRows) {
       const details = document.createElement('details');
       const summary = details.createChild('summary');
-      const triangleIcon = IconButton.Icon.create('arrow-drop-down');
+      const triangleIcon = createIcon('arrow-drop-down');
       summary.createChild('div', 'icon-container').appendChild(triangleIcon);
       this.contentElement.insertBefore(details, this.mainRow);
       summary.appendChild(this.mainRow);

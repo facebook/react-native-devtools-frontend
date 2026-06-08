@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -65,15 +65,15 @@ export function relativePathname(url: URL, base: URL): string {
   return result.join('/');
 }
 
-export function nonNull<T>(value: T|null|undefined): T {
-  assert.exists(value);
-  return value as T;
+export function nonNull<T>(value?: T|null): T {
+  chai.assert.exists(value);
+  return value;
 }
 
 export function remoteObject(value: Chrome.DevTools.RemoteObject|Chrome.DevTools.ForeignObject|null):
     Chrome.DevTools.RemoteObject {
-  assert.exists(value);
-  assert(value.type !== 'reftype');
+  chai.assert.exists(value);
+  chai.assert(value.type !== 'reftype');
   return value;
 }
 
@@ -172,7 +172,7 @@ export class TestValue implements Value {
     address = address ?? elements[0].location;
     content.setUint32(0, address, true);
     const space = elements[0].typeNames[0].endsWith('*') ? '' : ' ';
-    const members: {[key: string|number]: TestValue} = {'*': elements[0]};
+    const members: Record<string|number, TestValue> = {'*': elements[0]};
     for (let i = 0; i < elements.length; ++i) {
       members[i] = elements[i];
     }
@@ -226,7 +226,7 @@ export class TestValue implements Value {
     if (typeof member === 'number' || !member.includes('.')) {
       return this.members[member];
     }
-    let value = this as Value;
+    let value: Value = this;
     for (const prop of member.split('.')) {
       value = value.$(prop);
     }

@@ -1,4 +1,4 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -75,7 +75,11 @@ export async function frameworkEventListeners(object: SDK.RemoteObject.RemoteObj
         return {type: this.type, useCapture: this.useCapture, passive: this.passive, once: this.once};
       }
 
-      function storeTruncatedListener(truncatedListener: TruncatedEventListenerObjectInInspectedPage): void {
+      function storeTruncatedListener(truncatedListener: TruncatedEventListenerObjectInInspectedPage|null): void {
+        if (!truncatedListener) {
+          return;
+        }
+
         if (truncatedListener.type !== undefined) {
           type = truncatedListener.type;
         }
@@ -259,7 +263,6 @@ export async function frameworkEventListeners(object: SDK.RemoteObject.RemoteObj
     } = {
       eventListeners,
       internalHandlers: internalHandlers.length ? internalHandlers : undefined,
-      errorString: undefined,
     };
 
     // The logic further up seems to expect that if the internalHandlers is set,

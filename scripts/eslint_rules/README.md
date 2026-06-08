@@ -3,7 +3,7 @@
 The [`lib/` folder](./lib/) contains a set of [ESLint](https://eslint.org) rules
 specific to Chromium DevTools. These rules are executed as part of the
 
-```
+```bash
 npm run lint
 ```
 
@@ -15,13 +15,15 @@ all rules that disallow something with `no-`.
 
 ## Testing the rules
 
-When writing a custom ESLint rule, place the logic into a file `lib/foo.js` and
-add a corresponding test for the logic to `tests/foo.test.js`.
+When writing a custom ESLint rule, place the logic into a file `lib/foo.ts` and
+add a corresponding test for the logic to `tests/foo.test.ts`.
 
 You can use
 
-```
+```bash
 npm run test -- ./scripts/eslint_rules/tests
 ```
 
 to run the tests for the custom ESLint rules.
+
+To run only specific test cases, add `only: true` to the objects within the valid/invalid arrays.

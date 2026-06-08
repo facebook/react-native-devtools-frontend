@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -12,12 +12,13 @@ generate_css("css_files") {
   sources = [ "linkifierImpl.css" ]
 }
 
-devtools_module("linkifier") {
+devtools_ui_module("linkifier") {
   sources = [
     "LinkifierImpl.ts",
     "LinkifierUtils.ts",
   ]
   deps = [
+    "../../../core/platform:bundle",
     "../../../models/bindings:bundle",
     "../../../ui/components/render_coordinator:bundle",
     "../../../ui/lit:bundle",
@@ -36,7 +37,7 @@ devtools_entrypoint("bundle") {
   visibility = default_components_visibility
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [ "LinkifierImpl.test.ts" ]

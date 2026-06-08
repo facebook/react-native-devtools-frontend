@@ -1,4 +1,4 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -29,17 +29,18 @@
  */
 /* eslint no-return-assign: "off" */
 import * as i18n from '../../core/i18n/i18n.js';
+import * as Geometry from '../../models/geometry/geometry.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import {Directives as LitDirectives, html, nothing, render} from '../../ui/lit/lit.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
-import type * as ApplicationComponents from './components/components.js';
-import {StorageItemsView} from './StorageItemsView.js';
+import * as ApplicationComponents from './components/components.js';
+import {StorageItemsToolbar} from './StorageItemsToolbar.js';
 
 const {ARIAUtils} = UI;
 const {EmptyWidget} = UI.EmptyWidget;
-const {VBox, widgetConfig} = UI.Widget;
-const {Size} = UI.Geometry;
+const {VBox, widget} = UI.Widget;
+const {Size} = Geometry;
 const {repeat} = LitDirectives;
 
 type Widget = UI.Widget.Widget;
@@ -47,24 +48,24 @@ type VBox = UI.Widget.VBox;
 
 const UIStrings = {
   /**
-   *@description Text that shows in the Applicaiton Panel if no value is selected for preview
+   * @description Text that shows in the Application Panel if no value is selected for preview
    */
   noPreviewSelected: 'No value selected',
   /**
-   *@description Preview text when viewing storage in Application panel
+   * @description Preview text when viewing storage in Application panel
    */
   selectAValueToPreview: 'Select a value to preview',
   /**
-   *@description Text for announcing number of entries after filtering
-   *@example {5} PH1
+   * @description Text for announcing number of entries after filtering
+   * @example {5} PH1
    */
   numberEntries: 'Number of entries shown in table: {PH1}',
   /**
-   *@description Text in DOMStorage Items View of the Application panel
+   * @description Text in DOMStorage Items View of the Application panel
    */
   key: 'Key',
   /**
-   *@description Text for the value of something
+   * @description Text for the value of something
    */
   value: 'Value',
 } as const;
@@ -76,23 +77,30 @@ export interface ViewInput {
   selectedKey: string|null;
   editable: boolean;
   preview: Widget;
-  onSelect: (event: CustomEvent<HTMLElement|null>) => void;
-  onSort: (event: CustomEvent<{columnId: string, ascending: boolean}>) => void;
-  onCreate: (event: CustomEvent<{key: string, value: string}>) => void;
-  onReferesh: () => void;
-  onEdit:
-      (event: CustomEvent<{node: HTMLElement, columnId: string, valueBeforeEditing: string, newText: string}>) => void;
-  onDelete: (event: CustomEvent<HTMLElement>) => void;
+  onSelect: (item: {key: string, value: string}|null) => void;
+  onSort: (ascending: boolean) => void;
+  onCreate: (key: string, value: string) => void;
+  onRefresh: () => void;
+  onEdit: (key: string, value: string, columnId: string, valueBeforeEditing: string, newText: string) => void;
+  onDelete: (key: string) => void;
+  onDeleteSelected: () => void;
+  onDeleteAll: () => void;
+  jslog?: string;
+  classes?: string[];
+}
+
+interface ViewOutput {
+  toolbar: StorageItemsToolbar;
 }
 
 const MAX_VALUE_LENGTH = 4096;
 
-export type View = (input: ViewInput, output: object, target: HTMLElement) => void;
+export type View = (input: ViewInput, output: ViewOutput, target: HTMLElement) => void;
 /**
  * A helper typically used in the Application panel. Renders a split view
  * between a DataGrid displaying key-value pairs and a preview Widget.
  */
-export abstract class KeyValueStorageItemsView extends StorageItemsView {
+export abstract class KeyValueStorageItemsView extends UI.Widget.VBox {
   #preview: Widget;
   #previewValue: string|null;
 
@@ -101,28 +109,45 @@ export abstract class KeyValueStorageItemsView extends StorageItemsView {
   #view: View;
   #isSortOrderAscending = true;
   #editable: boolean;
+  #toolbar: StorageItemsToolbar|undefined;
+  readonly metadataView: ApplicationComponents.StorageMetadataView.StorageMetadataView;
+  #jslog?: string;
+  #classes?: string[];
 
   constructor(
-      title: string, id: string, editable: boolean, view?: View,
-      metadataView?: ApplicationComponents.StorageMetadataView.StorageMetadataView) {
+      title: string,
+      id: string,
+      editable: boolean,
+      view?: View,
+      metadataView?: ApplicationComponents.StorageMetadataView.StorageMetadataView,
+      jslog?: string,
+      classes?: string[],
+  ) {
+    metadataView ??= new ApplicationComponents.StorageMetadataView.StorageMetadataView();
     if (!view) {
-      view = (input: ViewInput, _, target: HTMLElement) => {
+      view = (input: ViewInput, output: ViewOutput, target: HTMLElement) => {
         // clang-format off
         render(html `
+            <devtools-widget
+              ${widget(StorageItemsToolbar, {metadataView})}
+              class=flex-none
+              @Refresh=${input.onRefresh}
+              @DeleteAll=${input.onDeleteAll}
+              @DeleteSelected=${input.onDeleteSelected}
+              ${UI.Widget.widgetRef(StorageItemsToolbar, view => {output.toolbar = view;})}
+            ></devtools-widget>
             <devtools-split-view sidebar-position="second" name="${id}-split-view-state">
                <devtools-widget
                   slot="main"
-                  .widgetConfig=${widgetConfig(VBox, {minimumSize: new Size(0, 50)})}>
+                  ${widget(VBox, {minimumSize: new Size(0, 50)})}>
                 <devtools-data-grid
                   .name=${`${id}-datagrid-with-preview`}
                   striped
                   style="flex: auto"
-                  @select=${input.onSelect}
-                  @sort=${input.onSort}
-                  @refresh=${input.onReferesh}
-                  @create=${input.onCreate}
-                  @edit=${input.onEdit}
-                  @delete=${input.onDelete}
+                  @sort=${(e: CustomEvent<{columnId: string, ascending: boolean}>) => input.onSort(e.detail.ascending)}
+                  @refresh=${input.onRefresh}
+                  @create=${(e: CustomEvent<{key: string, value: string}>) => input.onCreate(e.detail.key, e.detail.value)}
+                  @deselect=${() => input.onSelect(null)}
                 >
                   <table>
                     <tr>
@@ -135,6 +160,10 @@ export abstract class KeyValueStorageItemsView extends StorageItemsView {
                     </tr>
                     ${repeat(input.items, item => item.key, item => html`
                       <tr data-key=${item.key} data-value=${item.value}
+                          @select=${() => input.onSelect(item)}
+                          @edit=${(e: CustomEvent<{columnId: string, valueBeforeEditing: string, newText: string}>) =>
+                            input.onEdit(item.key, item.value, e.detail.columnId, e.detail.valueBeforeEditing, e.detail.newText)}
+                          @delete=${() => input.onDelete(item.key)}
                           selected=${(input.selectedKey === item.key) || nothing}>
                         <td>${item.key}</td>
                         <td>${item.value.substr(0, MAX_VALUE_LENGTH)}</td>
@@ -145,17 +174,20 @@ export abstract class KeyValueStorageItemsView extends StorageItemsView {
               </devtools-widget>
               <devtools-widget
                   slot="sidebar"
-                  .widgetConfig=${widgetConfig(VBox, {minimumSize: new Size(0, 50)})}
+                  ${widget(VBox, {minimumSize: new Size(0, 50)})}
                   jslog=${VisualLogging.pane('preview').track({resize: true})}>
                ${input.preview?.element}
               </devtools-widget>
             </devtools-split-view>`,
             // clang-format on
-            target, {host: input});
+            target, {container: {attributes: {jslog: input.jslog}, classes: input.classes}});
       };
     }
-    super(title, id, metadataView);
+    super();
+    this.metadataView = metadataView;
     this.#editable = editable;
+    this.#jslog = jslog;
+    this.#classes = classes;
     this.#view = view;
     this.performUpdate();
 
@@ -166,45 +198,72 @@ export abstract class KeyValueStorageItemsView extends StorageItemsView {
     this.showPreview(null, null);
   }
 
+  override wasShown(): void {
+    super.wasShown();
+    this.refreshItems();
+  }
+
   override performUpdate(): void {
+    const that = this;
+    const viewOutput = {
+      set toolbar(toolbar: StorageItemsToolbar) {
+        that.#toolbar = toolbar;
+      }
+    };
     const viewInput = {
       items: this.#items,
       selectedKey: this.#selectedKey,
       editable: this.#editable,
       preview: this.#preview,
-      onSelect: (event: CustomEvent<HTMLElement|null>) => {
-        this.setCanDeleteSelected(Boolean(event.detail));
-        if (!event.detail) {
+      jslog: this.#jslog,
+      classes: this.#classes,
+      onSelect: (item: {key: string, value: string}|null) => {
+        this.#toolbar?.setCanDeleteSelected(Boolean(item));
+        if (!item) {
           void this.#previewEntry(null);
         } else {
-          void this.#previewEntry({key: event.detail.dataset.key || '', value: event.detail.dataset.value || ''});
+          void this.#previewEntry(item);
         }
       },
-      onSort: (event: CustomEvent<{columnId: string, ascending: boolean}>) => {
-        this.#isSortOrderAscending = event.detail.ascending;
+      onSort: (ascending: boolean) => {
+        this.#isSortOrderAscending = ascending;
       },
-      onCreate: (event: CustomEvent<{key: string, value: string}>) => {
-        this.#createCallback(event.detail.key, event.detail.value);
+      onCreate: (key: string, value: string) => {
+        this.#createCallback(key, value);
       },
-      onEdit:
-          (event: CustomEvent<{node: HTMLElement, columnId: string, valueBeforeEditing: string, newText: string}>) => {
-            this.#editingCallback(
-                event.detail.node, event.detail.columnId, event.detail.valueBeforeEditing, event.detail.newText);
-          },
-      onDelete: (event: CustomEvent<HTMLElement>) => {
-        this.#deleteCallback(event.detail.dataset.key || '');
+      onEdit: (key: string, value: string, columnId: string, valueBeforeEditing: string, newText: string) => {
+        this.#editingCallback(key, value, columnId, valueBeforeEditing, newText);
       },
-      onReferesh: () => {
+      onDelete: (key: string) => {
+        this.#deleteCallback(key);
+      },
+      onDeleteSelected: () => {
+        this.deleteSelectedItem();
+      },
+      onDeleteAll: () => {
+        this.deleteAllItems();
+      },
+      onRefresh: () => {
         this.refreshItems();
       },
     };
-    this.#view(viewInput, {}, this.contentElement);
+    this.#view(viewInput, viewOutput, this.contentElement);
+  }
+
+  protected get toolbar(): StorageItemsToolbar|undefined {
+    return this.#toolbar;
+  }
+
+  refreshItems(): void {
+  }
+
+  deleteAllItems(): void {
   }
 
   itemsCleared(): void {
     this.#items = [];
     this.performUpdate();
-    this.setCanDeleteSelected(false);
+    this.#toolbar?.setCanDeleteSelected(false);
   }
 
   itemRemoved(key: string): void {
@@ -214,7 +273,7 @@ export abstract class KeyValueStorageItemsView extends StorageItemsView {
     }
     this.#items.splice(index, 1);
     this.performUpdate();
-    this.setCanDeleteSelected(this.#items.length > 1);
+    this.#toolbar?.setCanDeleteSelected(this.#items.length > 1);
   }
 
   itemAdded(key: string, value: string): void {
@@ -241,7 +300,7 @@ export abstract class KeyValueStorageItemsView extends StorageItemsView {
     if (this.#previewValue !== value) {
       void this.#previewEntry({key, value});
     }
-    this.setCanDeleteSelected(true);
+    this.#toolbar?.setCanDeleteSelected(true);
   }
 
   showItems(items: Array<{key: string, value: string}>): void {
@@ -254,11 +313,11 @@ export abstract class KeyValueStorageItemsView extends StorageItemsView {
       void this.#previewEntry(selectedItem);
     }
     this.performUpdate();
-    this.setCanDeleteSelected(Boolean(this.#selectedKey));
-    ARIAUtils.alert(i18nString(UIStrings.numberEntries, {PH1: this.#items.length}));
+    this.#toolbar?.setCanDeleteSelected(Boolean(this.#selectedKey));
+    ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.numberEntries, {PH1: this.#items.length}));
   }
 
-  override deleteSelectedItem(): void {
+  deleteSelectedItem(): void {
     if (!this.#selectedKey) {
       return;
     }
@@ -276,7 +335,7 @@ export abstract class KeyValueStorageItemsView extends StorageItemsView {
     return true;
   }
 
-  #editingCallback(editingNode: HTMLElement, columnIdentifier: string, oldText: string, newText: string): void {
+  #editingCallback(key: string, value: string, columnIdentifier: string, oldText: string, newText: string): void {
     if (!this.isEditAllowed(columnIdentifier, oldText, newText)) {
       return;
     }
@@ -284,13 +343,12 @@ export abstract class KeyValueStorageItemsView extends StorageItemsView {
       if (typeof oldText === 'string') {
         this.removeItem(oldText);
       }
-      this.setItem(newText, editingNode.dataset.value || '');
-      this.#removeDupes(newText, editingNode.dataset.value || '');
-      editingNode.dataset.key = newText;
-      void this.#previewEntry({key: newText, value: editingNode.dataset.value || ''});
+      this.setItem(newText, value);
+      this.#removeDupes(newText, value);
+      void this.#previewEntry({key: newText, value});
     } else {
-      this.setItem(editingNode.dataset.key || '', newText);
-      void this.#previewEntry({key: editingNode.dataset.key || '', value: newText});
+      this.setItem(key, newText);
+      void this.#previewEntry({key, value: newText});
     }
   }
 

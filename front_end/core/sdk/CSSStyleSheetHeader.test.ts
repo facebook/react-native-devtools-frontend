@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,7 +9,7 @@ import * as SDK from './sdk.js';
 describe('CSSStyleSheetHeader', () => {
   describe('createPageResourceLoadInitiator', () => {
     const frameId = 'Frame#123' as Protocol.Page.FrameId;
-    const styleSheetId = 'StyleSheet#123' as Protocol.CSS.StyleSheetId;
+    const styleSheetId = 'StyleSheet#123' as Protocol.DOM.StyleSheetId;
     const sourceURL = 'http://localhost/style.css';
 
     it('yields the correct frame ID', () => {
@@ -108,7 +108,7 @@ describe('CSSStyleSheetHeader', () => {
 
   describe('resourceURL()', () => {
     const frameId = '123' as Protocol.Page.FrameId;
-    const styleSheetId = '456' as Protocol.CSS.StyleSheetId;
+    const styleSheetId = '456' as Protocol.DOM.StyleSheetId;
     const sourceURL = 'http://localhost/style.css';
 
     it('returns a unique resourceURL for inspector originated stylesheet', () => {
@@ -131,9 +131,7 @@ describe('CSSStyleSheetHeader', () => {
         endLine: 1,
         endColumn: 8,
       });
-      const {protocol, hash} = new URL(cssStyleSheetHeader.resourceURL());
-      assert.strictEqual(protocol, 'inspector:');
-      assert.strictEqual(hash, `#${styleSheetId}`);
+      assert.strictEqual(cssStyleSheetHeader.resourceURL(), 'inspector://inspector-stylesheet#456');
     });
   });
 });

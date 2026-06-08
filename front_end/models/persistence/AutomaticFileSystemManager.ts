@@ -1,11 +1,10 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
-import type * as Host from '../../core/host/host.js';
+import * as Host from '../../core/host/host.js';
 import type * as Platform from '../../core/platform/platform.js';
-import type * as Root from '../../core/root/root.js';
 import * as ProjectSettings from '../project_settings/project_settings.js';
 
 /**
@@ -17,6 +16,16 @@ export interface AutomaticFileSystem {
   state: 'disconnected'|'connecting'|'connected';
 }
 
+/**
+ * Indicates the availability of the Automatic Workspace Folders feature.
+ *
+ * `'available'` means that the feature is enabled and the project settings
+ * are also available. It doesn't indicate whether or not the page is actually
+ * providing a `com.chrome.devtools.json` or not, and whether or not that file
+ * (if it exists) provides workspace information.
+ */
+export type AutomaticFileSystemAvailability = 'available'|'unavailable';
+
 let automaticFileSystemManagerInstance: AutomaticFileSystemManager|undefined;
 
 /**
@@ -26,34 +35,52 @@ let automaticFileSystemManagerInstance: AutomaticFileSystemManager|undefined;
  */
 export class AutomaticFileSystemManager extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
   #automaticFileSystem: AutomaticFileSystem|null;
+  #availability: AutomaticFileSystemAvailability = 'unavailable';
   #inspectorFrontendHost: Host.InspectorFrontendHostAPI.InspectorFrontendHostAPI;
   #projectSettingsModel: ProjectSettings.ProjectSettingsModel.ProjectSettingsModel;
 
   /**
    * Yields the current `AutomaticFileSystem` (if any).
    *
-   * @return the current automatic file system or `null`.
+   * @returns the current automatic file system or `null`.
    */
   get automaticFileSystem(): Readonly<AutomaticFileSystem>|null {
     return this.#automaticFileSystem;
   }
 
   /**
+   * Yields the availability of the Automatic Workspace Folders feature.
+   *
+   * `'available'` means that the feature is enabled and the project settings
+   * are also available. It doesn't indicate whether or not the page is actually
+   * providing a `com.chrome.devtools.json` or not, and whether or not that file
+   * (if it exists) provides workspace information.
+   *
+   * @returns `'available'` if the feature is available and the project settings
+   *         feature is also available, otherwise `'unavailable'`.
+   */
+  get availability(): AutomaticFileSystemAvailability {
+    return this.#availability;
+  }
+
+  /**
    * @internal
    */
   private constructor(
-      hostConfig: Root.Runtime.HostConfig,
       inspectorFrontendHost: Host.InspectorFrontendHostAPI.InspectorFrontendHostAPI,
       projectSettingsModel: ProjectSettings.ProjectSettingsModel.ProjectSettingsModel) {
     super();
     this.#automaticFileSystem = null;
     this.#inspectorFrontendHost = inspectorFrontendHost;
     this.#projectSettingsModel = projectSettingsModel;
-    if (hostConfig.devToolsAutomaticFileSystems?.enabled) {
-      this.#projectSettingsModel.addEventListener(
-          ProjectSettings.ProjectSettingsModel.Events.PROJECT_SETTINGS_CHANGED, this.#projectSettingsChanged, this);
-      this.#projectSettingsChanged({data: this.#projectSettingsModel.projectSettings});
-    }
+    this.#inspectorFrontendHost.events.addEventListener(
+        Host.InspectorFrontendHostAPI.Events.FileSystemRemoved, this.#fileSystemRemoved, this);
+    this.#projectSettingsModel.addEventListener(
+        ProjectSettings.ProjectSettingsModel.Events.AVAILABILITY_CHANGED, this.#availabilityChanged, this);
+    this.#availabilityChanged({data: this.#projectSettingsModel.availability});
+    this.#projectSettingsModel.addEventListener(
+        ProjectSettings.ProjectSettingsModel.Events.PROJECT_SETTINGS_CHANGED, this.#projectSettingsChanged, this);
+    this.#projectSettingsChanged({data: this.#projectSettingsModel.projectSettings});
   }
 
   /**
@@ -61,21 +88,18 @@ export class AutomaticFileSystemManager extends Common.ObjectWrapper.ObjectWrapp
    *
    * @returns the singleton.
    */
-  static instance({forceNew, hostConfig, inspectorFrontendHost, projectSettingsModel}: {
+  static instance({forceNew, inspectorFrontendHost, projectSettingsModel}: {
     forceNew: boolean|null,
-    hostConfig: Root.Runtime.HostConfig|null,
     inspectorFrontendHost: Host.InspectorFrontendHostAPI.InspectorFrontendHostAPI|null,
     projectSettingsModel: ProjectSettings.ProjectSettingsModel.ProjectSettingsModel|null,
-  } = {forceNew: false, hostConfig: null, inspectorFrontendHost: null, projectSettingsModel: null}):
-      AutomaticFileSystemManager {
+  } = {forceNew: false, inspectorFrontendHost: null, projectSettingsModel: null}): AutomaticFileSystemManager {
     if (!automaticFileSystemManagerInstance || forceNew) {
-      if (!hostConfig || !inspectorFrontendHost || !projectSettingsModel) {
+      if (!inspectorFrontendHost || !projectSettingsModel) {
         throw new Error(
-            'Unable to create AutomaticFileSysteManager: ' +
-            'hostConfig, inspectorFrontendHost, and projectSettingsModel must be provided');
+            'Unable to create AutomaticFileSystemManager: ' +
+            'inspectorFrontendHost, and projectSettingsModel must be provided');
       }
       automaticFileSystemManagerInstance = new AutomaticFileSystemManager(
-          hostConfig,
           inspectorFrontendHost,
           projectSettingsModel,
       );
@@ -94,8 +118,35 @@ export class AutomaticFileSystemManager extends Common.ObjectWrapper.ObjectWrapp
   }
 
   #dispose(): void {
+    this.#inspectorFrontendHost.events.removeEventListener(
+        Host.InspectorFrontendHostAPI.Events.FileSystemRemoved, this.#fileSystemRemoved, this);
+    this.#projectSettingsModel.removeEventListener(
+        ProjectSettings.ProjectSettingsModel.Events.AVAILABILITY_CHANGED, this.#availabilityChanged, this);
     this.#projectSettingsModel.removeEventListener(
         ProjectSettings.ProjectSettingsModel.Events.PROJECT_SETTINGS_CHANGED, this.#projectSettingsChanged, this);
+  }
+
+  #availabilityChanged(
+      event: Common.EventTarget.EventTargetEvent<ProjectSettings.ProjectSettingsModel.ProjectSettingsAvailability>):
+      void {
+    const availability = event.data;
+    if (this.#availability !== availability) {
+      this.#availability = availability;
+      this.dispatchEventToListeners(Events.AVAILABILITY_CHANGED, this.#availability);
+    }
+  }
+
+  #fileSystemRemoved(event: Common.EventTarget.EventTargetEvent<Platform.DevToolsPath.RawPathString>): void {
+    if (this.#automaticFileSystem === null) {
+      return;
+    }
+    if (this.#automaticFileSystem.root === event.data) {
+      this.#automaticFileSystem = Object.freeze({
+        ...this.#automaticFileSystem,
+        state: 'disconnected',
+      });
+      this.dispatchEventToListeners(Events.AUTOMATIC_FILE_SYSTEM_CHANGED, this.#automaticFileSystem);
+    }
   }
 
   #projectSettingsChanged(
@@ -104,7 +155,7 @@ export class AutomaticFileSystemManager extends Common.ObjectWrapper.ObjectWrapp
     let automaticFileSystem = this.#automaticFileSystem;
     if (projectSettings.workspace) {
       const {root, uuid} = projectSettings.workspace;
-      if (automaticFileSystem === null || automaticFileSystem.root !== root || automaticFileSystem.uuid !== uuid) {
+      if (automaticFileSystem?.root !== root || automaticFileSystem.uuid !== uuid) {
         automaticFileSystem = Object.freeze({root, uuid, state: 'disconnected'});
       }
     } else if (automaticFileSystem !== null) {
@@ -172,6 +223,12 @@ export const enum Events {
    * `AutomaticFileSystemManager` changes.
    */
   AUTOMATIC_FILE_SYSTEM_CHANGED = 'AutomaticFileSystemChanged',
+
+  /**
+   * Emitted whenever the `availability` property of the
+   * `AutomaticFileSystemManager` changes.
+   */
+  AVAILABILITY_CHANGED = 'AvailabilityChanged',
 }
 
 /**
@@ -179,4 +236,5 @@ export const enum Events {
  */
 export interface EventTypes {
   [Events.AUTOMATIC_FILE_SYSTEM_CHANGED]: Readonly<AutomaticFileSystem>|null;
+  [Events.AVAILABILITY_CHANGED]: AutomaticFileSystemAvailability;
 }

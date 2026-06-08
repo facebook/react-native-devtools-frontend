@@ -1,9 +1,7 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 import * as Host from '../../../../core/host/host.js';
-
-let fontFamily: string|null = null;
 
 /**
  * Because we run our UI in a couple of contexts (actual app & test
@@ -19,18 +17,7 @@ let fontFamily: string|null = null;
  * to ensure that the screenshot tests are consistent.
  **/
 export function getFontFamilyForCanvas(): string {
-  if (fontFamily) {
-    return fontFamily;
-  }
-
-  const bodyStyles = getComputedStyle(document.body);
-  if (bodyStyles.fontFamily) {
-    fontFamily = bodyStyles.fontFamily;
-  } else {
-    fontFamily = Host.Platform.fontFamily();
-  }
-
-  return fontFamily;
+  return Host.Platform.fontFamily();
 }
 
 export const DEFAULT_FONT_SIZE = '11px';

@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -39,7 +39,6 @@ describe('Cookie', () => {
       name: 'name',
       path: '/test',
       sameSite: Protocol.Network.CookieSameSite.Strict,
-      sameParty: false,
       secure: true,
       session: false,
       size: 23,
@@ -85,7 +84,6 @@ describe('Cookie', () => {
       value: 'value',
       expires: 0,
       httpOnly: false,
-      sameParty: false,
       secure: false,
       session: true,
       priority: Protocol.Network.CookiePriority.Medium,
@@ -123,7 +121,6 @@ describe('Cookie', () => {
       value: 'value',
       expires: 0,
       httpOnly: false,
-      sameParty: false,
       secure: false,
       session: true,
       priority: Protocol.Network.CookiePriority.Medium,

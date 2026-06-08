@@ -1,0 +1,174 @@
+// Copyright 2025 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import * as SDK from '../../core/sdk/sdk.js';
+import * as CrUXManager from '../../models/crux-manager/crux-manager.js';
+import {doubleRaf, renderElementIntoDOM} from '../../testing/DOMHelpers.js';
+import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
+
+import * as MobileThrottling from './mobile_throttling.js';
+
+const optGroupsToObject = (groups: NodeListOf<HTMLOptGroupElement>) => {
+  return groups.values()
+      .map(
+          group => ({[group.label]: group.querySelectorAll('option').values().map(node => node.textContent).toArray()}))
+      .toArray();
+};
+
+describeWithEnvironment('NetworkThrottlingSelector', () => {
+  it('renders the global throttling variant', async () => {
+    const selectElement = document.createElement('select');
+    const widget = new MobileThrottling.NetworkThrottlingSelector.NetworkThrottlingSelect(selectElement);
+    widget.variant = MobileThrottling.NetworkThrottlingSelector.NetworkThrottlingSelect.Variant.GLOBAL_CONDITIONS;
+
+    await doubleRaf();
+
+    const optgroups = selectElement.querySelectorAll('optgroup');
+    assert.deepEqual(optGroupsToObject(optgroups), [
+      {
+        Disabled: [
+          'No throttling',
+        ]
+      },
+      {
+        Presets: [
+          'Fast 4G',
+          'Slow 4G',
+          '3G',
+          'Offline',
+        ]
+      },
+      {
+        Custom: [
+          'Add…',
+        ]
+      },
+    ]);
+  });
+
+  it('renders the individual request variant', async () => {
+    const selectElement = document.createElement('select');
+    const widget = new MobileThrottling.NetworkThrottlingSelector.NetworkThrottlingSelect(selectElement);
+    widget.variant =
+        MobileThrottling.NetworkThrottlingSelector.NetworkThrottlingSelect.Variant.INDIVIDUAL_REQUEST_CONDITIONS;
+
+    await doubleRaf();
+
+    const optgroups = selectElement.querySelectorAll('optgroup');
+    assert.deepEqual(optGroupsToObject(optgroups), [
+      {
+        Blocking: [
+          'Block',
+        ]
+      },
+      {
+        Presets: [
+          'Fast 4G',
+          'Slow 4G',
+          '3G',
+        ]
+      },
+      {
+        Custom: [
+          'Add…',
+        ]
+      },
+    ]);
+  });
+
+  it('sets the current conditions', async () => {
+    const selectElement = document.createElement('select');
+    const widget = new MobileThrottling.NetworkThrottlingSelector.NetworkThrottlingSelect(selectElement);
+    widget.variant = MobileThrottling.NetworkThrottlingSelector.NetworkThrottlingSelect.Variant.GLOBAL_CONDITIONS;
+    widget.currentConditions = SDK.NetworkManager.Slow3GConditions;
+
+    await doubleRaf();
+
+    assert.strictEqual(selectElement.value, '3G');
+  });
+
+  it('observes change events', async () => {
+    const selectElement = document.createElement('select');
+    const widget = new MobileThrottling.NetworkThrottlingSelector.NetworkThrottlingSelect(selectElement);
+    widget.variant = MobileThrottling.NetworkThrottlingSelector.NetworkThrottlingSelect.Variant.GLOBAL_CONDITIONS;
+
+    await doubleRaf();
+
+    const onConditionsChanged = sinon.stub();
+    selectElement.addEventListener('ConditionsChanged', onConditionsChanged);
+
+    selectElement.selectedIndex = 2;
+    selectElement.dispatchEvent(new Event('change'));
+
+    sinon.assert.calledOnce(onConditionsChanged);
+    const event = onConditionsChanged.firstCall.args[0] as CustomEvent;
+    assert.strictEqual(event.detail, SDK.NetworkManager.Slow4GConditions);
+  });
+});
+
+describeWithEnvironment('createForGlobalConditions CrUX integration', () => {
+  it('shows recommended label when CrUX data provides RTT', async () => {
+    const cruxManager = CrUXManager.CrUXManager.instance({forceNew: true});
+    sinon.stub(cruxManager, 'getSelectedFieldMetricData').returns({
+      percentiles: {p75: '150'},
+      histogram: [],
+    });
+
+    const container = document.createElement('div');
+    renderElementIntoDOM(container);
+    const select = MobileThrottling.NetworkThrottlingSelector.NetworkThrottlingSelect.createForGlobalConditions(
+        container, 'Network throttling');
+    assert.isNotNull(select.recommendedConditions);
+    assert.strictEqual(select.recommendedConditions, SDK.NetworkManager.Slow4GConditions);
+
+    await doubleRaf();
+
+    // Verify the recommended label appears in the rendered DOM.
+    const options = select.contentElement.querySelectorAll('option');
+    const slow4gOption = Array.from(options).find(opt => opt.textContent?.includes('Slow 4G'));
+    assert.isDefined(slow4gOption);
+    assert.include(slow4gOption.textContent, 'recommended');
+  });
+
+  it('updates recommendation when CrUX field data changes', () => {
+    const cruxManager = CrUXManager.CrUXManager.instance({forceNew: true});
+    const stub = sinon.stub(cruxManager, 'getSelectedFieldMetricData').returns(undefined);
+
+    const container = document.createElement('div');
+    renderElementIntoDOM(container);
+    const select = MobileThrottling.NetworkThrottlingSelector.NetworkThrottlingSelect.createForGlobalConditions(
+        container, 'Network throttling');
+    assert.isNull(select.recommendedConditions);
+
+    // Simulate CrUX data becoming available.
+    stub.returns({
+      percentiles: {p75: '150'},
+      histogram: [],
+    });
+    cruxManager.dispatchEventToListeners(CrUXManager.Events.FIELD_DATA_CHANGED, undefined);
+
+    assert.isNotNull(select.recommendedConditions);
+    assert.strictEqual(select.recommendedConditions, SDK.NetworkManager.Slow4GConditions);
+  });
+
+  it('clears recommendation when CrUX data is removed', () => {
+    const cruxManager = CrUXManager.CrUXManager.instance({forceNew: true});
+    const stub = sinon.stub(cruxManager, 'getSelectedFieldMetricData').returns({
+      percentiles: {p75: '150'},
+      histogram: [],
+    });
+
+    const container = document.createElement('div');
+    renderElementIntoDOM(container);
+    const select = MobileThrottling.NetworkThrottlingSelector.NetworkThrottlingSelect.createForGlobalConditions(
+        container, 'Network throttling');
+    assert.isNotNull(select.recommendedConditions);
+
+    // Simulate CrUX data being removed.
+    stub.returns(undefined);
+    cruxManager.dispatchEventToListeners(CrUXManager.Events.FIELD_DATA_CHANGED, undefined);
+
+    assert.isNull(select.recommendedConditions);
+  });
+});

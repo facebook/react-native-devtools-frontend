@@ -1,25 +1,29 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import {
   createTarget,
 } from '../../testing/EnvironmentHelpers.js';
-import {
-  describeWithMockConnection,
-} from '../../testing/MockConnection.js';
+import {setupRuntimeHooks} from '../../testing/RuntimeHelpers.js';
+import {setupSettingsHooks} from '../../testing/SettingsHelpers.js';
 import * as Platform from '../platform/platform.js';
 
 import * as SDK from './sdk.js';
 
 const {urlString} = Platform.DevToolsPath;
 
-describeWithMockConnection('Target', () => {
+describe('Target', () => {
+  let browserTarget: SDK.Target.Target;
   let tabTarget: SDK.Target.Target;
   let mainFrameTargetUnderTab: SDK.Target.Target;
   let subframeTarget: SDK.Target.Target;
 
+  setupRuntimeHooks();
+  setupSettingsHooks();
+
   beforeEach(() => {
+    browserTarget = createTarget({type: SDK.Target.Type.BROWSER});
     tabTarget = createTarget({type: SDK.Target.Type.TAB});
     mainFrameTargetUnderTab = createTarget({type: SDK.Target.Type.FRAME, parentTarget: tabTarget});
     subframeTarget = createTarget({type: SDK.Target.Type.FRAME, parentTarget: mainFrameTargetUnderTab});
@@ -36,14 +40,37 @@ describeWithMockConnection('Target', () => {
     assert.isFalse(subframeTarget.hasAllCapabilities(SDK.Target.Capability.DEVICE_EMULATION));
   });
 
+  it('should grant STORAGE capability to top-level workers', () => {
+    const serviceWorker = createTarget({type: SDK.Target.Type.ServiceWorker, parentTarget: browserTarget});
+    const sharedWorker = createTarget({type: SDK.Target.Type.SHARED_WORKER, parentTarget: browserTarget});
+    const dedicatedWorker = createTarget({type: SDK.Target.Type.Worker, parentTarget: browserTarget});
+
+    assert.isTrue(serviceWorker.hasAllCapabilities(SDK.Target.Capability.STORAGE), 'top-level service worker');
+    assert.isTrue(sharedWorker.hasAllCapabilities(SDK.Target.Capability.STORAGE), 'top-level shared worker');
+    assert.isTrue(dedicatedWorker.hasAllCapabilities(SDK.Target.Capability.STORAGE), 'top-level dedicated worker');
+  });
+
+  it('should NOT grant STORAGE capability to frame-attached workers', () => {
+    const frameTarget = mainFrameTargetUnderTab;
+
+    const serviceWorker = createTarget({type: SDK.Target.Type.ServiceWorker, parentTarget: frameTarget});
+    const sharedWorker = createTarget({type: SDK.Target.Type.SHARED_WORKER, parentTarget: frameTarget});
+    const dedicatedWorker = createTarget({type: SDK.Target.Type.Worker, parentTarget: frameTarget});
+
+    assert.isFalse(serviceWorker.hasAllCapabilities(SDK.Target.Capability.STORAGE), 'frame-attached service worker');
+    assert.isFalse(sharedWorker.hasAllCapabilities(SDK.Target.Capability.STORAGE), 'frame-attached shared worker');
+    assert.isFalse(
+        dedicatedWorker.hasAllCapabilities(SDK.Target.Capability.STORAGE), 'frame-attached dedicated worker');
+  });
+
   it('notifies about inspected URL change', () => {
     const inspectedURLChanged = sinon.spy(SDK.TargetManager.TargetManager.instance(), 'onInspectedURLChange');
 
     subframeTarget.setInspectedURL(urlString`https://example.com/`);
-    assert.isTrue(inspectedURLChanged.calledOnce);
+    sinon.assert.calledOnce(inspectedURLChanged);
 
     mainFrameTargetUnderTab.setInspectedURL(urlString`https://example.com/`);
-    assert.isTrue(inspectedURLChanged.calledTwice);
+    sinon.assert.calledTwice(inspectedURLChanged);
   });
 
   it('determines outermost target', () => {
@@ -66,7 +93,7 @@ describeWithMockConnection('Target', () => {
     target.setHasCrashed(true);
     const spy = sinon.spy(target, 'resume');
     target.setHasCrashed(false);
-    assert.isTrue(spy.calledOnce);
+    sinon.assert.calledOnce(spy);
   });
 
   it('does not resume itself if it was not already crashed', async () => {
@@ -76,7 +103,7 @@ describeWithMockConnection('Target', () => {
     // Call this twice, but ensure we only call the spy once.
     target.setHasCrashed(false);
     target.setHasCrashed(false);
-    assert.strictEqual(spy.callCount, 1);
+    sinon.assert.callCount(spy, 1);
   });
 
   it('marks a crashed target as suspended', async () => {

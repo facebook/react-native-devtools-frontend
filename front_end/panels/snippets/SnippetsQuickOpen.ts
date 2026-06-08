@@ -1,29 +1,32 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import '../../ui/kit/kit.js';
+import '../../ui/components/highlighting/highlighting.js';
+
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Workspace from '../../models/workspace/workspace.js';
-import * as IconButton from '../../ui/components/icon_button/icon_button.js';
 import * as QuickOpen from '../../ui/legacy/components/quick_open/quick_open.js';
+import {html, type TemplateResult} from '../../ui/lit/lit.js';
 
 import {evaluateScriptSnippet, findSnippetsProject} from './ScriptSnippetFileSystem.js';
 
 const UIStrings = {
   /**
-   *@description Text in Snippets Quick Open of the Sources panel when opening snippets
+   * @description Text in Snippets Quick Open of the Sources panel when opening snippets
    */
   noSnippetsFound: 'No snippets found.',
   /**
-   *@description Text for command prefix of run a code snippet
+   * @description Text for command prefix of run a code snippet
    */
   run: 'Run',
   /**
-   *@description Text for suggestion of run a code snippet
+   * @description Text for suggestion of run a code snippet
    */
   snippet: 'Snippet',
   /**
-   *@description Text for help title of run code snippet menu
+   * @description Text for help title of run code snippet menu
    */
   runSnippet: 'Run snippet',
 } as const;
@@ -34,11 +37,7 @@ const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined
 let snippetsQuickOpenInstance: SnippetsQuickOpen;
 
 export class SnippetsQuickOpen extends QuickOpen.FilteredListWidget.Provider {
-  private snippets: Workspace.UISourceCode.UISourceCode[];
-  private constructor() {
-    super('snippet');
-    this.snippets = [];
-  }
+  private snippets: Workspace.UISourceCode.UISourceCode[] = [];
 
   static instance(opts: {forceNew: boolean|null} = {forceNew: null}): SnippetsQuickOpen {
     const {forceNew} = opts;
@@ -81,11 +80,18 @@ export class SnippetsQuickOpen extends QuickOpen.FilteredListWidget.Provider {
     return this.snippets[itemIndex].name();
   }
 
-  override renderItem(itemIndex: number, query: string, titleElement: Element, _subtitleElement: Element): void {
-    const icon = IconButton.Icon.create('snippet', 'snippet');
-    titleElement.parentElement?.parentElement?.insertBefore(icon, titleElement.parentElement);
-    titleElement.textContent = this.snippets[itemIndex].name();
-    QuickOpen.FilteredListWidget.FilteredListWidget.highlightRanges(titleElement, query, true);
+  override renderItem(itemIndex: number, query: string): TemplateResult {
+    // clang-format off
+    const snippet = this.snippets[itemIndex].name();
+    const highlightRanges = QuickOpen.FilteredListWidget.FilteredListWidget.getHighlightRanges(snippet, query, true);
+    return html`
+      <devtools-icon class="snippet" name="snippet"></devtools-icon>
+      <div>
+        <devtools-highlight type="markup" ranges=${highlightRanges}>
+          ${snippet}
+        </devtools-highlight>
+      </div>`;
+    // clang-format on
   }
 }
 
@@ -96,4 +102,5 @@ QuickOpen.FilteredListWidget.registerProvider({
   helpTitle: i18nLazyString(UIStrings.runSnippet),
   titlePrefix: i18nLazyString(UIStrings.run),
   titleSuggestion: i18nLazyString(UIStrings.snippet),
+  jslogContext: 'snippet',
 });

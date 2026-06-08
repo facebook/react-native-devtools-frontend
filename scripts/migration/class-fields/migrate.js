@@ -1,10 +1,11 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-const {Project, ts, SyntaxKind, StructureKind} = require('ts-morph');
-const path = require('path');
-  const project = new Project({
+import path from 'path';
+import {Project, SyntaxKind} from 'ts-morph';
+
+const project = new Project({
   tsConfigFilePath: '../devtools-frontend/tsconfig.json',
 });
 
@@ -24,7 +25,16 @@ const files = project.getSourceFiles();
 for (const file of files) {
   const filePath = file.getFilePath();
   if (!filePath.startsWith(
-          path.normalize(path.join(process.cwd(), '..', 'devtools-frontend', 'front_end', process.argv[2])))) {
+          path.normalize(
+              path.join(
+                  process.cwd(),
+                  '..',
+                  'devtools-frontend',
+                  'front_end',
+                  process.argv[2],
+                  ),
+              ),
+          )) {
     continue;
   }
   console.log(filePath);
@@ -54,7 +64,9 @@ for (const file of files) {
         // Replace all `delete this.#somePrivateVariable;` (since that is illegal on private class fields)
         // and replace it with an assignment to `undefined`.
         if (containingNode.getKind() === SyntaxKind.DeleteExpression) {
-          console.log(`Replacing delete statement on line ${reference.getStartLineNumber()}`);
+          console.log(
+              `Replacing delete statement on line ${reference.getStartLineNumber()}`,
+          );
           // We should replace the statement, not the expression itself.
           containingNode.getFirstAncestor().replaceWithText(`this.${newName} = undefined;`);
         }

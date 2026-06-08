@@ -24,6 +24,70 @@
           }
         }
       ]
+    },
+   {
+    "label": "Create Widget",
+    "type": "shell",
+    "command": "node",
+    "args": [
+      "${workspaceFolder}/scripts/scaffold/scaffold-widget.js",
+      "${input:widgetPath}",
+      "${input:widgetName}"
+    ],
+    "options": {
+      "cwd": "${workspaceFolder}"
+    },
+    "problemMatcher": [],
+    "presentation": {
+      "echo": true,
+      "reveal": "always",
+      "focus": false,
+      "panel": "shared",
+      "showReuseMessage": false,
+      "clear": false
+    },
+    "group": {
+      "kind": "build",
+      "isDefault": false
+    }
+  },
+  {
+      "label": "Run unit tests",
+      "type": "shell",
+      "command": "npm run test -- --target=${input:target} ${input:testFile}",
+      "group": "test",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": false,
+        "clear": false
+      },
+      "problemMatcher": []
+  }],
+  "inputs": [
+    {
+      "id": "widgetPath",
+      "type": "promptString",
+      "description": "Enter the path to create the widget (e.g., front_end/panels/ai_assistance)"
+    },
+    {
+      "id": "widgetName",
+      "type": "promptString",
+      "description": "Enter the WidgetName (PascalCase, e.g., MyWidget)"
+    },
+    {
+      "id": "target",
+      "type": "promptString",
+      "description": "The build target",
+      "default": "Default"
+    },
+    {
+      "id": "testFile",
+      "type": "promptString",
+      "description": "The test file or directory to run",
+      "default": "${relativeFile}"
     }
   ]
 }

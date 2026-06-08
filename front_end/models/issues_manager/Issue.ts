@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,27 +13,27 @@ import type {MarkdownIssueDescription} from './MarkdownIssueDescription.js';
 
 const UIStrings = {
   /**
-   *@description The kind of an issue (plural) (Issues are categorized into kinds).
+   * @description The kind of an issue (plural) (Issues are categorized into kinds).
    */
   improvements: 'Improvements',
   /**
-   *@description The kind of an issue (plural) (Issues are categorized into kinds).
+   * @description The kind of an issue (plural) (Issues are categorized into kinds).
    */
   pageErrors: 'Page Errors',
   /**
-   *@description The kind of an issue (plural) (Issues are categorized into kinds).
+   * @description The kind of an issue (plural) (Issues are categorized into kinds).
    */
   breakingChanges: 'Breaking Changes',
   /**
-   *@description A description for a kind of issue we display in the issues tab.
+   * @description A description for a kind of issue we display in the issues tab.
    */
   pageErrorIssue: 'A page error issue: the page is not working correctly',
   /**
-   *@description A description for a kind of issue we display in the issues tab.
+   * @description A description for a kind of issue we display in the issues tab.
    */
   breakingChangeIssue: 'A breaking change issue: the page may stop working in an upcoming version of Chrome',
   /**
-   *@description A description for a kind of issue we display in the issues tab.
+   * @description A description for a kind of issue we display in the issues tab.
    */
   improvementIssue: 'An improvement issue: there is an opportunity to improve the page',
 } as const;
@@ -51,6 +51,8 @@ export const enum IssueCategory {
   CORS = 'Cors',
   ATTRIBUTION_REPORTING = 'AttributionReporting',
   QUIRKS_MODE = 'QuirksMode',
+  PERMISSION_ELEMENT = 'PermissionElement',
+  SELECTIVE_PERMISSIONS_INTERVENTION = 'SelectivePermissionsIntervention',
   OTHER = 'Other',
 }
 
@@ -119,17 +121,21 @@ export interface AffectedElement {
   nodeName: string;
   target: SDK.Target.Target|null;
 }
-
-export abstract class Issue<IssueCode extends string = string> {
+export type ValidIssueDetails =
+    NonNullable<Protocol.Audits.InspectorIssueDetails[keyof Protocol.Audits.InspectorIssueDetails]>;
+export abstract class Issue<IssueDetails extends ValidIssueDetails|null = ValidIssueDetails | null,
+                                                 IssueCode extends string = string> {
   #issueCode: IssueCode;
   #issuesModel: SDK.IssuesModel.IssuesModel|null;
   protected issueId: Protocol.Audits.IssueId|undefined = undefined;
+  #issueDetails: IssueDetails;
   #hidden: boolean;
 
   constructor(
-      code: IssueCode|{code: IssueCode, umaCode: string}, issuesModel: SDK.IssuesModel.IssuesModel|null = null,
-      issueId?: Protocol.Audits.IssueId) {
+      code: IssueCode|{code: IssueCode, umaCode: string}, issueDetails: IssueDetails,
+      issuesModel: SDK.IssuesModel.IssuesModel|null = null, issueId?: Protocol.Audits.IssueId) {
     this.#issueCode = typeof code === 'object' ? code.code : code;
+    this.#issueDetails = issueDetails;
     this.#issuesModel = issuesModel;
     this.issueId = issueId;
     Host.userMetrics.issueCreated(typeof code === 'string' ? code : code.umaCode);
@@ -144,6 +150,10 @@ export abstract class Issue<IssueCode extends string = string> {
   abstract getDescription(): MarkdownIssueDescription|null;
   abstract getCategory(): IssueCategory;
   abstract getKind(): IssueKind;
+
+  details(): IssueDetails {
+    return this.#issueDetails;
+  }
 
   getBlockedByResponseDetails(): Iterable<Protocol.Audits.BlockedByResponseIssueDetails> {
     return [];

@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -17,9 +17,10 @@ describeWithEnvironment('RecorderSettings', () => {
   });
 
   it('should have correct default values', async () => {
-    assert.isTrue(recorderSettings.selectorAttribute === '');
-    assert.isTrue(
-        recorderSettings.speed === Models.RecordingPlayer.PlayRecordingSpeed.NORMAL,
+    assert.strictEqual(recorderSettings.selectorAttribute, '');
+    assert.strictEqual(
+        recorderSettings.speed,
+        Models.RecordingPlayer.PlayRecordingSpeed.NORMAL,
     );
     Object.values(Models.Schema.SelectorType).forEach(type => {
       assert.isTrue(recorderSettings.getSelectorByType(type));

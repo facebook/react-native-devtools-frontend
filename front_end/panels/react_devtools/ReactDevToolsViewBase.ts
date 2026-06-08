@@ -81,7 +81,7 @@ export class ReactDevToolsViewBase extends UI.View.SimpleView implements
     tab: 'components' | 'profiler',
     title: Platform.UIString.LocalizedString,
   ) {
-    super(title, true);
+    super({title, viewId: `react-devtools-${tab}` as Lowercase<string>, useShadowDom: true});
     this.registerRequiredCSS(ReactDevTools.CSS);
 
     this.#tab = tab;

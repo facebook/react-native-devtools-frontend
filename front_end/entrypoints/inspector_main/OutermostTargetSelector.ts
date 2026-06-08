@@ -1,6 +1,7 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import type * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -14,12 +15,12 @@ import outermostTargetSelectorStyles from './outermostTargetSelector.css.js';
 
 const UIStrings = {
   /**
-   *@description Title of toolbar item in outermost target selector in the main toolbar
+   * @description Title of toolbar item in outermost target selector in the main toolbar
    */
   targetNotSelected: 'Page: Not selected',
   /**
-   *@description Title of toolbar item in outermost target selector in the main toolbar
-   *@example {top} PH1
+   * @description Title of toolbar item in outermost target selector in the main toolbar
+   * @example {top} PH1
    */
   targetS: 'Page: {PH1}',
 } as const;
@@ -90,7 +91,8 @@ export class OutermostTargetSelector implements SDK.TargetManager.Observer, UI.S
     this.listItems.insertWithComparator(target, this.#targetComparator());
     this.#toolbarItem.setVisible(this.listItems.length > 1);
 
-    if (target === UI.Context.Context.instance().flavor(SDK.Target.Target)) {
+    const primaryTarget = SDK.TargetManager.TargetManager.instance().primaryPageTarget();
+    if (target === primaryTarget || target === UI.Context.Context.instance().flavor(SDK.Target.Target)) {
       this.#dropDown.selectItem(target);
     }
   }

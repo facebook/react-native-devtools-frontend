@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,7 +11,7 @@ generate_css("css_files") {
   sources = [ "dataGrid.css" ]
 }
 
-devtools_module("data_grid") {
+devtools_ui_module("data_grid") {
   sources = [
     "DataGrid.ts",
     "DataGridElement.ts",
@@ -22,9 +22,14 @@ devtools_module("data_grid") {
 
   deps = [
     "../../../../core/common:bundle",
+    "../../../../core/host:bundle",
     "../../../../core/i18n:bundle",
     "../../../../core/platform:bundle",
+    "../../../../models/text_utils:bundle",
     "../../../../ui/legacy:bundle",
+    "../../../components/buttons:bundle",
+    "../../../components/render_coordinator:bundle",
+    "../../../visual_logging:bundle",
   ]
 }
 
@@ -37,6 +42,9 @@ devtools_entrypoint("bundle") {
   ]
 
   visibility = [
+    # IMPORTANT: Be careful when extending visibility of front_end/ui/legacy/*,
+    # as the UI modules should only be used to actually build user interfaces,
+    # and the business logic should never depend on the UI modules.
     ":*",
     "../../../../panels/*",
     "../cookie_table/*",
@@ -45,7 +53,7 @@ devtools_entrypoint("bundle") {
   visibility += devtools_ui_legacy_visibility
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [ "DataGridElement.test.ts" ]

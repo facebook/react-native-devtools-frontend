@@ -1,7 +1,8 @@
-# Copyright 2024 The Chromium Authors. All rights reserved.
+# Copyright 2024 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+import("../../scripts/build/ninja/copy.gni")
 import("../../scripts/build/typescript/typescript.gni")
 
 ts_library("testing") {
@@ -10,9 +11,11 @@ ts_library("testing") {
   sources = [
     "AiAssistanceHelpers.ts",
     "ConsoleHelpers.ts",
+    "ConsoleInsightHelpers.ts",
     "ContextMenuHelpers.ts",
     "Cookies.ts",
     "DOMHelpers.ts",
+    "DOMHooks.ts",
     "DataGridHelpers.ts",
     "EnvironmentHelpers.ts",
     "ExpectStubCall.ts",
@@ -20,27 +23,31 @@ ts_library("testing") {
     "FileManagerHelpers.ts",
     "InsightHelpers.ts",
     "LanguagePluginHelpers.ts",
+    "LocaleHelpers.ts",
+    "MockCDPConnection.ts",
     "MockConnection.ts",
     "MockExecutionContext.ts",
     "MockIssuesManager.ts",
     "MockIssuesModel.ts",
     "MockNetworkLog.ts",
-    "MockScopeChain.test.ts",
     "MockScopeChain.ts",
-    "MutationHelpers.test.ts",
     "MutationHelpers.ts",
     "NetworkHelpers.ts",
     "OverridesHelpers.ts",
     "PersistenceHelpers.ts",
     "PropertyParser.ts",
-    "RealConnection.ts",
     "ResourceTreeHelpers.ts",
-    "SourceMapEncoder.test.ts",
+    "RuntimeHelpers.ts",
+    "SettingsHelpers.ts",
+    "SnapshotTester.ts",
     "SourceMapEncoder.ts",
     "SourceMapHelpers.ts",
+    "StackTraceHelpers.ts",
     "StorageItemsViewHelpers.ts",
     "StubIssue.ts",
     "StyleHelpers.ts",
+    "TargetHelpers.ts",
+    "TestUniverse.ts",
     "TraceHelpers.ts",
     "TraceLoader.ts",
     "TrackAsyncOperations.ts",
@@ -48,9 +55,10 @@ ts_library("testing") {
     "UserMetricsHelpers.ts",
     "ViewFunctionHelpers.ts",
     "VisualLoggingHelpers.ts",
-    "test_post_setup.ts",
     "test_setup.ts",
   ]
+
+  data_deps = [ "../core/i18n/locales" ]
 
   deps = [
     "../../extension-api",
@@ -64,14 +72,20 @@ ts_library("testing") {
     "../entrypoints/inspector_main:meta",
     "../entrypoints/main:bundle",
     "../entrypoints/shell",
+    "../foundation:bundle",
     "../generated:protocol",
     "../models/bindings:bundle",
     "../models/extensions:bundle",
     "../models/issues_manager:bundle",
+    "../models/stack_trace:bundle",
     "../models/text_utils:bundle",
     "../models/trace:bundle",
+    "../models/trace_source_maps_resolver:bundle",
     "../models/workspace:bundle",
+    "../panels/common:bundle",
+    "../panels/console:bundle",
     "../panels/elements:meta",
+    "../panels/explain:bundle",
     "../panels/sensors:meta",
     "../panels/timeline:bundle",
     "../services/trace_bounds:bundle",
@@ -83,4 +97,17 @@ ts_library("testing") {
     "../ui/lit:bundle",
     "../ui/visual_logging:testing",
   ]
+}
+
+ts_library("unittests") {
+  testonly = true
+
+  sources = [
+    "MockScopeChain.test.ts",
+    "MutationHelpers.test.ts",
+    "SnapshotTester.test.ts",
+    "SourceMapEncoder.test.ts",
+  ]
+
+  deps = [ ":testing" ]
 }

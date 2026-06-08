@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -23,6 +23,7 @@ export const NetworkRequestTypes = {
   Preflight: 'Preflight',
   CSPViolationReport: 'CSPViolationReport',
   Prefetch: 'Prefetch',
+  FedCM: 'FedCM',
 } as const;
 
 export interface TraceEvent {
@@ -49,7 +50,7 @@ export interface Trace {
 }
 export type ResourcePriority = ('VeryLow'|'Low'|'Medium'|'High'|'VeryHigh');
 export type ResourceType = keyof typeof NetworkRequestTypes;
-type InitiatorType = ('parser'|'script'|'preload'|'SignedExchange'|'preflight'|'other');
+type InitiatorType = ('parser'|'script'|'preload'|'SignedExchange'|'preflight'|'FedCM'|'other');
 export type ResourceTiming = Protocol.Network.ResourceTiming;
 export interface CallStack {
   callFrames: Array<{
@@ -114,26 +115,26 @@ export interface NetworkRequest<T = AnyNetworkObject> {
   failed: boolean;
   statusCode: number;
   /** The network request that redirected to this one */
-  redirectSource: NetworkRequest<T>|undefined;
+  redirectSource?: NetworkRequest<T>;
   /** The network request that this one redirected to */
-  redirectDestination: NetworkRequest<T>|undefined;
+  redirectDestination?: NetworkRequest<T>;
   // TODO: can't use Protocol.Network.Initiator because of type mismatch in Lighthouse initiator.
   initiator: {
     type: InitiatorType,
     url?: string,
     stack?: CallStack,
   };
-  initiatorRequest: NetworkRequest<T>|undefined;
+  initiatorRequest?: NetworkRequest<T>;
   /** The chain of network requests that redirected to this one */
-  redirects: NetworkRequest[]|undefined;
-  timing: Protocol.Network.ResourceTiming|undefined;
-  resourceType: ResourceType|undefined;
+  redirects?: NetworkRequest[]|undefined;
+  timing?: Protocol.Network.ResourceTiming;
+  resourceType?: ResourceType;
   mimeType: string;
   priority: ResourcePriority;
   frameId: string|undefined;
   fromWorker: boolean;
   /**
-   * Optional value for how long the server took to respond to this request.
+   * Optional value for how long the server took to respond to this request, in ms.
    * When not provided, the server response time is derived from the timing object.
    */
   serverResponseTime?: number;
@@ -174,8 +175,8 @@ export namespace Simulation {
   }
 
   export interface PrecomputedLanternData {
-    additionalRttByOrigin: {[origin: string]: number};
-    serverResponseTimeByOrigin: {[origin: string]: number};
+    additionalRttByOrigin: Record<string, number>;
+    serverResponseTimeByOrigin: Record<string, number>;
   }
 
   export interface Settings {

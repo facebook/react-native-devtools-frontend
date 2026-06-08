@@ -1,6 +1,7 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -14,19 +15,18 @@ import type {TimelineModeViewDelegate} from './TimelinePanel.js';
 import {selectionIsEvent, type TimelineSelection} from './TimelineSelection.js';
 import {TimelineTreeView} from './TimelineTreeView.js';
 import {TimelineUIUtils} from './TimelineUIUtils.js';
-import * as Utils from './utils/utils.js';
 
 const UIStrings = {
   /**
-   *@description Text for the start time of an activity
+   * @description Text for the start time of an activity
    */
   startTime: 'Start time',
   /**
-   *@description Screen reader label for a select box that filters the Performance panel Event Log by duration.
+   * @description Screen reader label for a select box that filters the Performance panel Event Log by duration.
    */
   durationFilter: 'Duration filter',
   /**
-   *@description Text for everything
+   * @description Text for everything
    */
   all: 'All',
 } as const;
@@ -51,8 +51,8 @@ export class EventsTimelineTreeView extends TimelineTreeView {
     return [...super.filters(), ...this.filtersControl.filters()];
   }
 
-  override updateContents(selection: TimelineSelection): void {
-    super.updateContents(selection);
+  override set activeSelection(selection: TimelineSelection) {
+    super.activeSelection = selection;
     if (selectionIsEvent(selection)) {
       this.selectEvent(selection.event, true);
     }
@@ -72,29 +72,8 @@ export class EventsTimelineTreeView extends TimelineTreeView {
     }
   }
 
-  private findNodeWithEvent(event: Trace.Types.Events.Event): Trace.Extras.TraceTree.Node|null {
-    if (event.name === Trace.Types.Events.Name.RUN_TASK) {
-      // No node is ever created for the top level RunTask event, so
-      // bail out preemptively
-      return null;
-    }
-    const iterators = [this.currentTree.children().values()];
-    while (iterators.length) {
-      const {done, value: child} = iterators[iterators.length - 1].next();
-      if (done) {
-        iterators.pop();
-        continue;
-      }
-      if (child.event === event) {
-        return child;
-      }
-      iterators.push(child.children().values());
-    }
-    return null;
-  }
-
   private selectEvent(event: Trace.Types.Events.Event, expand?: boolean): void {
-    const node = this.findNodeWithEvent(event);
+    const node = this.eventToTreeNode.get(event);
     if (!node) {
       return;
     }
@@ -108,13 +87,13 @@ export class EventsTimelineTreeView extends TimelineTreeView {
   }
 
   override populateColumns(columns: DataGrid.DataGrid.ColumnDescriptor[]): void {
-    columns.push(({
+    columns.push({
       id: 'start-time',
       title: i18nString(UIStrings.startTime),
       width: '80px',
       fixedWidth: true,
       sortable: true,
-    } as DataGrid.DataGrid.ColumnDescriptor));
+    });
     super.populateColumns(columns);
     columns.filter(c => c.fixedWidth).forEach(c => {
       c.width = '80px';
@@ -127,7 +106,7 @@ export class EventsTimelineTreeView extends TimelineTreeView {
   }
 
   override showDetailsForNode(node: Trace.Extras.TraceTree.Node): boolean {
-    const parsedTrace = this.parsedTrace();
+    const parsedTrace = this.parsedTrace;
     if (!parsedTrace) {
       return false;
     }
@@ -148,16 +127,16 @@ export class EventsTimelineTreeView extends TimelineTreeView {
 export class Filters extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
   private readonly categoryFilter: Category;
   private readonly durationFilter: IsLong;
-  private readonly filtersInternal: Array<IsLong|Category>;
+  readonly #filters: Array<IsLong|Category>;
   constructor() {
     super();
     this.categoryFilter = new Category();
     this.durationFilter = new IsLong();
-    this.filtersInternal = [this.categoryFilter, this.durationFilter];
+    this.#filters = [this.categoryFilter, this.durationFilter];
   }
 
   filters(): Trace.Extras.TraceFilter.TraceFilter[] {
-    return this.filtersInternal;
+    return this.#filters;
   }
 
   populateToolbar(toolbar: UI.Toolbar.Toolbar): void {
@@ -171,17 +150,16 @@ export class Filters extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
     toolbar.appendToolbarItem(durationFilterUI);
 
     const categoryFiltersUI = new Map<string, UI.Toolbar.ToolbarCheckbox>();
-    const categories = Utils.EntryStyles.getCategoryStyles();
+    const categories = Trace.Styles.getCategoryStyles();
     for (const categoryName in categories) {
-      const category = categories[categoryName as Utils.EntryStyles.EventCategory];
+      const category = categories[categoryName as Trace.Styles.EventCategory];
       if (!category.visible) {
         continue;
       }
       const checkbox = new UI.Toolbar.ToolbarCheckbox(
-          category.title, undefined,
-          categoriesFilterChanged.bind(this, categoryName as Utils.EntryStyles.EventCategory), categoryName);
+          category.title, undefined, categoriesFilterChanged.bind(this, categoryName as Trace.Styles.EventCategory),
+          categoryName);
       checkbox.setChecked(true);
-      checkbox.inputElement.style.backgroundColor = category.color;
       categoryFiltersUI.set(category.name, checkbox);
       toolbar.appendToolbarItem(checkbox);
     }
@@ -193,8 +171,8 @@ export class Filters extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
       this.notifyFiltersChanged();
     }
 
-    function categoriesFilterChanged(this: Filters, name: Utils.EntryStyles.EventCategory): void {
-      const categories = Utils.EntryStyles.getCategoryStyles();
+    function categoriesFilterChanged(this: Filters, name: Trace.Styles.EventCategory): void {
+      const categories = Trace.Styles.getCategoryStyles();
       const checkBox = categoryFiltersUI.get(name);
       categories[name].hidden = !checkBox?.checked();
       this.notifyFiltersChanged();

@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,6 +15,7 @@ describe('RequestHTMLView', () => {
     htmlView.markAsRoot();
     const div = document.createElement('div');
     htmlView.show(div);
+    await htmlView.updateComplete;
 
     const iframe = htmlView.contentElement.querySelector('iframe');
     assert.exists(iframe);

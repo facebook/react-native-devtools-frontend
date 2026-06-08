@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,31 +12,39 @@ import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import {ApplicationPanelSidebar, StorageCategoryView} from './ApplicationPanelSidebar.js';
+import type {StorageMetadataView} from './components/components.js';
 import {CookieItemsView} from './CookieItemsView.js';
+import type {DeviceBoundSessionsModel} from './DeviceBoundSessionsModel.js';
+import {DeviceBoundSessionsView} from './DeviceBoundSessionsView.js';
 import {DOMStorageItemsView} from './DOMStorageItemsView.js';
 import type {DOMStorage} from './DOMStorageModel.js';
 import {ExtensionStorageItemsView} from './ExtensionStorageItemsView.js';
 import type {ExtensionStorage} from './ExtensionStorageModel.js';
 import type * as PreloadingHelper from './preloading/helper/helper.js';
 import resourcesPanelStyles from './resourcesPanel.css.js';
-import {StorageItemsView} from './StorageItemsView.js';
+import {StorageItemsToolbar} from './StorageItemsToolbar.js';
 
 let resourcesPanelInstance: ResourcesPanel;
 
 export class ResourcesPanel extends UI.Panel.PanelWithSidebar {
   private readonly resourcesLastSelectedItemSetting: Common.Settings.Setting<Platform.DevToolsPath.UrlString[]>;
-  visibleView: UI.Widget.Widget|null;
-  private pendingViewPromise: Promise<UI.Widget.Widget>|null;
+  visibleView: UI.Widget.AnyWidget|null;
+  private pendingViewPromise: Promise<UI.Widget.AnyWidget>|null;
   private categoryView: StorageCategoryView|null;
   storageViews: HTMLElement;
   private readonly storageViewToolbar: UI.Toolbar.Toolbar;
   private domStorageView: DOMStorageItemsView|null;
   private extensionStorageView: ExtensionStorageItemsView|null;
   private cookieView: CookieItemsView|null;
+  private deviceBoundSessionsView: DeviceBoundSessionsView|null;
   private readonly sidebar: ApplicationPanelSidebar;
+  mode: 'default'|'node' = 'default';
 
-  private constructor() {
+  private constructor(
+      mode: 'default'|'node' = 'default',
+  ) {
     super('resources');
+    this.mode = mode;
     this.registerRequiredCSS(resourcesPanelStyles);
 
     this.resourcesLastSelectedItemSetting =
@@ -58,28 +66,30 @@ export class ResourcesPanel extends UI.Panel.PanelWithSidebar {
     this.extensionStorageView = null;
 
     this.cookieView = null;
+    this.deviceBoundSessionsView = null;
 
     this.sidebar = new ApplicationPanelSidebar(this);
     this.sidebar.show(this.panelSidebarElement());
   }
 
   static instance(opts: {
-    forceNew: boolean|null,
-  } = {forceNew: null}): ResourcesPanel {
-    const {forceNew} = opts;
+    forceNew?: boolean|null,
+    mode?: 'default'|'node',
+  } = {forceNew: null, mode: 'default'}): ResourcesPanel {
+    const {forceNew, mode} = opts;
     if (!resourcesPanelInstance || forceNew) {
-      resourcesPanelInstance = new ResourcesPanel();
+      resourcesPanelInstance = new ResourcesPanel(mode);
     }
 
     return resourcesPanelInstance;
   }
 
-  private static shouldCloseOnReset(view: UI.Widget.Widget): boolean {
+  private static shouldCloseOnReset(view: UI.Widget.AnyWidget): boolean {
     const viewClassesToClose = [
       SourceFrame.ResourceSourceFrame.ResourceSourceFrame,
       SourceFrame.ImageView.ImageView,
       SourceFrame.FontView.FontView,
-      StorageItemsView,
+      StorageItemsToolbar,
     ];
     return viewClassesToClose.some(type => view instanceof type);
   }
@@ -107,7 +117,7 @@ export class ResourcesPanel extends UI.Panel.PanelWithSidebar {
     }
   }
 
-  showView(view: UI.Widget.Widget|null): void {
+  showView(view: UI.Widget.AnyWidget|null): void {
     this.pendingViewPromise = null;
     if (this.visibleView === view) {
       return;
@@ -132,7 +142,7 @@ export class ResourcesPanel extends UI.Panel.PanelWithSidebar {
     }
   }
 
-  async scheduleShowView(viewPromise: Promise<UI.Widget.Widget>): Promise<UI.Widget.Widget|null> {
+  async scheduleShowView(viewPromise: Promise<UI.Widget.AnyWidget>): Promise<UI.Widget.AnyWidget|null> {
     this.pendingViewPromise = viewPromise;
     const view = await viewPromise;
     if (this.pendingViewPromise !== viewPromise) {
@@ -206,6 +216,21 @@ export class ResourcesPanel extends UI.Panel.PanelWithSidebar {
       }
     });
   }
+
+  showDeviceBoundSession(model: DeviceBoundSessionsModel, site: string, sessionId?: string): void {
+    if (!this.deviceBoundSessionsView) {
+      this.deviceBoundSessionsView = new DeviceBoundSessionsView();
+    }
+    this.deviceBoundSessionsView.showSession(model, site, sessionId);
+    this.showView(this.deviceBoundSessionsView);
+  }
+  showDeviceBoundSessionDefault(model: DeviceBoundSessionsModel, title: string, description: string): void {
+    if (!this.deviceBoundSessionsView) {
+      this.deviceBoundSessionsView = new DeviceBoundSessionsView();
+    }
+    this.deviceBoundSessionsView.showDefault(model, title, description);
+    this.showView(this.deviceBoundSessionsView);
+  }
 }
 
 export class ResourceRevealer implements Common.Revealer.Revealer<SDK.Resource.Resource> {
@@ -234,5 +259,12 @@ export class AttemptViewWithFilterRevealer implements
   async reveal(filter: PreloadingHelper.PreloadingForward.AttemptViewWithFilter): Promise<void> {
     const sidebar = await ResourcesPanel.showAndGetSidebar();
     sidebar.showPreloadingAttemptViewWithFilter(filter);
+  }
+}
+
+export class StorageBucketRevealer implements Common.Revealer.Revealer<StorageMetadataView.StorageBucketRevealInfo> {
+  async reveal(revealInfo: StorageMetadataView.StorageBucketRevealInfo): Promise<void> {
+    const sidebar = await ResourcesPanel.showAndGetSidebar();
+    sidebar.showStorageBucket(revealInfo.bucketInfo);
   }
 }

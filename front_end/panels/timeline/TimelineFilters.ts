@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,9 +8,6 @@ import {TimelineUIUtils} from './TimelineUIUtils.js';
 
 export class IsLong extends Trace.Extras.TraceFilter.TraceFilter {
   #minimumRecordDurationMilli = Trace.Types.Timing.Milli(0);
-  constructor() {
-    super();
-  }
 
   setMinimumRecordDuration(value: Trace.Types.Timing.Milli): void {
     this.#minimumRecordDurationMilli = value;
@@ -23,31 +20,27 @@ export class IsLong extends Trace.Extras.TraceFilter.TraceFilter {
 }
 
 export class Category extends Trace.Extras.TraceFilter.TraceFilter {
-  constructor() {
-    super();
-  }
-
   accept(event: Trace.Types.Events.Event): boolean {
     return !TimelineUIUtils.eventStyle(event).category.hidden;
   }
 }
 
 export class TimelineRegExp extends Trace.Extras.TraceFilter.TraceFilter {
-  private regExpInternal!: RegExp|null;
+  #regExp!: RegExp|null;
   constructor(regExp?: RegExp) {
     super();
     this.setRegExp(regExp || null);
   }
 
   setRegExp(regExp: RegExp|null): void {
-    this.regExpInternal = regExp;
+    this.#regExp = regExp;
   }
 
   regExp(): RegExp|null {
-    return this.regExpInternal;
+    return this.#regExp;
   }
 
-  accept(event: Trace.Types.Events.Event, parsedTrace?: Trace.Handlers.Types.ParsedTrace): boolean {
-    return !this.regExpInternal || TimelineUIUtils.testContentMatching(event, this.regExpInternal, parsedTrace);
+  accept(event: Trace.Types.Events.Event, handlerData?: Trace.Handlers.Types.HandlerData): boolean {
+    return !this.#regExp || TimelineUIUtils.testContentMatching(event, this.#regExp, handlerData);
   }
 }

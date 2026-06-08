@@ -1,40 +1,16 @@
-/*
- * Copyright (C) 2013 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2013 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
+import * as Geometry from '../../models/geometry/geometry.js';
 import type * as TextUtils from '../../models/text_utils/text_utils.js';
 import * as VisualLogging from '../visual_logging/visual_logging.js';
 
 import * as ARIAUtils from './ARIAUtils.js';
-import {Size} from './Geometry.js';
 import {AnchorBehavior, GlassPane} from './GlassPane.js';
 import {ListControl, type ListDelegate, ListMode} from './ListControl.js';
 import {ListModel} from './ListModel.js';
@@ -43,15 +19,15 @@ import {createShadowRootWithCoreStyles, measuredScrollbarWidth, measurePreferred
 
 const UIStrings = {
   /**
-   *@description Aria alert to read the suggestion for the suggestion box when typing in text editor
-   *@example {name} PH1
-   *@example {2} PH2
-   *@example {5} PH3
+   * @description Aria alert to read the suggestion for the suggestion box when typing in text editor
+   * @example {name} PH1
+   * @example {2} PH2
+   * @example {5} PH3
    */
   sSuggestionSOfS: '{PH1}, suggestion {PH2} of {PH3}',
   /**
-   *@description Aria alert to confirm the suggestion when it is selected from the suggestion box
-   *@example {name} PH1
+   * @description Aria alert to confirm the suggestion when it is selected from the suggestion box
+   * @example {name} PH1
    */
   sSuggestionSSelected: '{PH1}, suggestion selected',
 } as const;
@@ -76,7 +52,6 @@ export class SuggestBox implements ListDelegate<Suggestion> {
   private readonly maxItemsHeight: number|undefined;
   private rowHeight: number;
   private userEnteredText: string;
-  private readonly defaultSelectionIsDimmed: boolean;
   private onlyCompletion: Suggestion|null;
   private readonly items: ListModel<Suggestion>;
   private readonly list: ListControl<Suggestion>;
@@ -88,7 +63,6 @@ export class SuggestBox implements ListDelegate<Suggestion> {
     this.maxItemsHeight = maxItemsHeight;
     this.rowHeight = 17;
     this.userEnteredText = '';
-    this.defaultSelectionIsDimmed = false;
 
     this.onlyCompletion = null;
 
@@ -113,6 +87,10 @@ export class SuggestBox implements ListDelegate<Suggestion> {
     return this.glassPane.isShowing();
   }
 
+  completion(): Suggestion|null {
+    return this.list.selectedItem();
+  }
+
   setPosition(anchorBox: AnchorBox): void {
     this.glassPane.setContentAnchorBox(anchorBox);
   }
@@ -125,7 +103,7 @@ export class SuggestBox implements ListDelegate<Suggestion> {
     const maxWidth = this.maxWidth(items);
     const length = this.maxItemsHeight ? Math.min(this.maxItemsHeight, items.length) : items.length;
     const maxHeight = length * this.rowHeight;
-    this.glassPane.setMaxContentSize(new Size(maxWidth, maxHeight));
+    this.glassPane.setMaxContentSize(new Geometry.Size(maxWidth, maxHeight));
   }
 
   private maxWidth(items: Suggestion[]): number {
@@ -155,7 +133,7 @@ export class SuggestBox implements ListDelegate<Suggestion> {
     VisualLogging.setMappedParent(this.element, this.suggestBoxDelegate.ownerElement());
     // TODO(dgozman): take document as a parameter.
     this.glassPane.show(document);
-    const suggestion = ({text: '1', subtitle: '12'} as Suggestion);
+    const suggestion: Suggestion = {text: '1', subtitle: '12'};
     this.rowHeight = measurePreferredSize(this.createElementForItem(suggestion), this.element).height;
     ARIAUtils.setControls(this.suggestBoxDelegate.ownerElement(), this.element);
     ARIAUtils.setExpanded(this.suggestBoxDelegate.ownerElement(), true);
@@ -173,22 +151,22 @@ export class SuggestBox implements ListDelegate<Suggestion> {
   private applySuggestion(isIntermediateSuggestion?: boolean): boolean {
     if (this.onlyCompletion) {
       isIntermediateSuggestion ?
-          ARIAUtils.alert(i18nString(
+          ARIAUtils.LiveAnnouncer.alert(i18nString(
               UIStrings.sSuggestionSOfS,
               {PH1: this.onlyCompletion.text, PH2: this.list.selectedIndex() + 1, PH3: this.items.length})) :
-          ARIAUtils.alert(i18nString(UIStrings.sSuggestionSSelected, {PH1: this.onlyCompletion.text}));
+          ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.sSuggestionSSelected, {PH1: this.onlyCompletion.text}));
       this.suggestBoxDelegate.applySuggestion(this.onlyCompletion, isIntermediateSuggestion);
       return true;
     }
     const suggestion = this.list.selectedItem();
     if (suggestion?.text) {
-      isIntermediateSuggestion ?
-          ARIAUtils.alert(i18nString(UIStrings.sSuggestionSOfS, {
-            PH1: suggestion.title || suggestion.text,
-            PH2: this.list.selectedIndex() + 1,
-            PH3: this.items.length,
-          })) :
-          ARIAUtils.alert(i18nString(UIStrings.sSuggestionSSelected, {PH1: suggestion.title || suggestion.text}));
+      isIntermediateSuggestion ? ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.sSuggestionSOfS, {
+        PH1: suggestion.title || suggestion.text,
+        PH2: this.list.selectedIndex() + 1,
+        PH3: this.items.length,
+      })) :
+                                 ARIAUtils.LiveAnnouncer.alert(i18nString(
+                                     UIStrings.sSuggestionSSelected, {PH1: suggestion.title || suggestion.text}));
     }
     this.suggestBoxDelegate.applySuggestion(suggestion, isIntermediateSuggestion);
 
@@ -253,7 +231,7 @@ export class SuggestBox implements ListDelegate<Suggestion> {
     return true;
   }
 
-  selectedItemChanged(from: Suggestion|null, to: Suggestion|null, fromElement: Element|null, toElement: Element|null):
+  selectedItemChanged(_from: Suggestion|null, _to: Suggestion|null, fromElement: Element|null, toElement: Element|null):
       void {
     if (fromElement) {
       fromElement.classList.remove('selected', 'force-white-icons');
@@ -367,6 +345,7 @@ export interface Suggestion {
   };
   hideGhostText?: boolean;
   iconElement?: HTMLElement;
+  disableAcceptSuggestionOnStopCharacters?: boolean;
 }
 
 export type Suggestions = Suggestion[];

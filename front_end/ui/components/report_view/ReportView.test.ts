@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,7 +15,7 @@ describe('ReportView', () => {
       renderElementIntoDOM(report);
 
       // TODO(szuend): Replace this with an aria selector once we can use them in unit tests.
-      const header = getElementWithinComponent(report, 'div.report-title', HTMLElement);
+      const header = getElementWithinComponent(report, 'h1.report-title', HTMLElement);
       assert.strictEqual(header.textContent, 'Title for test report');
     });
   });

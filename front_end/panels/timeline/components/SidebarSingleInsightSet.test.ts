@@ -1,85 +1,83 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Root from '../../../core/root/root.js';
 import * as Trace from '../../../models/trace/trace.js';
 import {getCleanTextContentFromElements, renderElementIntoDOM} from '../../../testing/DOMHelpers.js';
 import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
+import {getInsightSetOrError} from '../../../testing/InsightHelpers.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
-import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
+import type * as UI from '../../../ui/legacy/legacy.js';
 
 import * as Components from './components.js';
 import type * as InsightComponents from './insights/insights.js';
 
 type BaseInsightComponent =
     InsightComponents.BaseInsightComponent.BaseInsightComponent<Trace.Insights.Types.InsightModel>;
+type BaseInsightWidget = UI.Widget.WidgetElement<BaseInsightComponent>;
 
-function getUserVisibleInsights(component: Components.SidebarSingleInsightSet.SidebarSingleInsightSet):
+function getInsightComponents(insightSetComponent: Components.SidebarSingleInsightSet.SidebarSingleInsightSet):
     BaseInsightComponent[] {
-  assert.isOk(component.shadowRoot);
-  return [...component.shadowRoot.querySelectorAll<BaseInsightComponent>('[data-insight-name]')];
+  assert.isOk(insightSetComponent.element.shadowRoot);
+  return [
+    ...insightSetComponent.element.shadowRoot.querySelectorAll<BaseInsightWidget>('.insight-component-widget')
+  ].map(widgetElement => {
+    const widget = widgetElement.getWidget();
+    assert.isOk(widget);
+    return widget;
+  });
 }
 
-function getPassedInsights(component: Components.SidebarSingleInsightSet.SidebarSingleInsightSet):
-    BaseInsightComponent[] {
-  assert.isOk(component.shadowRoot);
-  return [...component.shadowRoot.querySelectorAll<BaseInsightComponent>(
-      '.passed-insights-section [data-insight-name]')];
+function getInsightComponentsTitles(insightSetComponent: Components.SidebarSingleInsightSet.SidebarSingleInsightSet):
+    string[] {
+  return getInsightComponents(insightSetComponent)
+      .flatMap(widget => getCleanTextContentFromElements(widget.element.shadowRoot!, '.insight-title'))
+      .filter(Boolean);
+}
+
+function getPassedInsights(insightSetComponent: Components.SidebarSingleInsightSet.SidebarSingleInsightSet): string[] {
+  assert.isOk(insightSetComponent.element.shadowRoot);
+  const passedInsightsSection =
+      insightSetComponent.element.shadowRoot.querySelector<HTMLDetailsElement>('.passed-insights-section');
+  assert.isOk(passedInsightsSection);
+  passedInsightsSection.open = true;
+  return getInsightComponents(insightSetComponent)
+      .filter(widget => widget.element.closest('.passed-insights-section'))
+      .flatMap(widget => getCleanTextContentFromElements(widget.element.shadowRoot!, '.insight-title'));
 }
 
 describeWithEnvironment('SidebarSingleInsightSet', () => {
   it('renders a list of insights', async function() {
-    const {insights, metadata, parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
+    const parsedTrace = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
 
-    assert.isOk(insights);
+    assert.isOk(parsedTrace.insights);
     // only one navigation in this trace.
-    assert.strictEqual(insights.size, 1);
-    // This is the navigationID from this trace.
-    const navigationId = '8463DF94CD61B265B664E7F768183DE3';
-    assert.isTrue(insights.has(navigationId));
+    assert.strictEqual(parsedTrace.insights.size, 1);
+    const insightSet = getInsightSetOrError(parsedTrace.insights, '8463DF94CD61B265B664E7F768183DE3');
 
     const component = new Components.SidebarSingleInsightSet.SidebarSingleInsightSet();
     renderElementIntoDOM(component);
     component.data = {
-      insights,
-      insightSetKey: navigationId,
+      insightSetKey: insightSet.id,
       activeCategory: Trace.Insights.Types.InsightCategory.ALL,
       activeInsight: null,
       parsedTrace,
-      traceMetadata: metadata,
     };
-    await RenderCoordinator.done();
+    await component.updateComplete;
 
-    const userVisibleTitles = getUserVisibleInsights(component).flatMap(component => {
-      return getCleanTextContentFromElements(component.shadowRoot!, '.insight-title');
-    });
+    const userVisibleTitles = getInsightComponentsTitles(component);
     assert.deepEqual(userVisibleTitles, [
-      'LCP by phase',
+      'LCP breakdown',
       'LCP request discovery',
-      'Render blocking requests',
+      'Render-blocking requests',
       'Document request latency',
       '3rd parties',
-      'INP by phase',
-      'Layout shift culprits',
-      'Network dependency tree',
-      'Improve image delivery',
-      'Font display',
-      'Optimize viewport for mobile',
-      'Optimize DOM size',
-      'Duplicated JavaScript',
-      'CSS Selector costs',
-      'Forced reflow',
-      'Use efficient cache lifetimes',
-      'Modern HTTP',
-      'Legacy JavaScript',
+      'Declare a character encoding',
     ]);
 
-    const passedInsightTitles = getPassedInsights(component).flatMap(component => {
-      return getCleanTextContentFromElements(component.shadowRoot!, '.insight-title');
-    });
+    const passedInsightTitles = getPassedInsights(component);
     assert.deepEqual(passedInsightTitles, [
-      'INP by phase',
+      'INP breakdown',
       'Layout shift culprits',
       'Network dependency tree',
       'Improve image delivery',
@@ -96,113 +94,37 @@ describeWithEnvironment('SidebarSingleInsightSet', () => {
   });
 
   it('does not render experimental insights by default', async function() {
-    const {parsedTrace, metadata, insights} = await TraceLoader.traceEngine(this, 'font-display.json.gz');
+    const parsedTrace = await TraceLoader.traceEngine(this, 'font-display.json.gz');
+    assert.isOk(parsedTrace.insights);
+
     const component = new Components.SidebarSingleInsightSet.SidebarSingleInsightSet();
     renderElementIntoDOM(component);
-    const firstNavigation = parsedTrace.Meta.mainFrameNavigations.at(0)?.args.data?.navigationId;
-    assert.isOk(firstNavigation);
+    const firstNavigation = parsedTrace.data.Meta.mainFrameNavigations.at(0);
+    const insightSet = getInsightSetOrError(parsedTrace.insights, firstNavigation);
     component.data = {
-      insights,
-      insightSetKey: firstNavigation,
+      insightSetKey: insightSet.id,
       activeCategory: Trace.Insights.Types.InsightCategory.ALL,
       activeInsight: null,
       parsedTrace,
-      traceMetadata: metadata,
     };
-    await RenderCoordinator.done();
-    const userVisibleTitles = getUserVisibleInsights(component).flatMap(component => {
-      return getCleanTextContentFromElements(component.shadowRoot!, '.insight-title');
-    });
-    // Does not include "font display", which is experimental.
+    await component.updateComplete;
+    const userVisibleTitles = getInsightComponentsTitles(component);
     assert.deepEqual(userVisibleTitles, [
-      'LCP by phase',
+      'LCP breakdown',
       'Layout shift culprits',
       'Network dependency tree',
       'Improve image delivery',
       'Font display',
       '3rd parties',
       'Use efficient cache lifetimes',
-      'INP by phase',
-      'LCP request discovery',
-      'Render blocking requests',
-      'Document request latency',
-      'Optimize viewport for mobile',
-      'Optimize DOM size',
-      'Duplicated JavaScript',
-      'CSS Selector costs',
-      'Forced reflow',
-      'Modern HTTP',
-      'Legacy JavaScript',
+      'Declare a character encoding',
     ]);
 
-    const passedInsightTitles = getPassedInsights(component).flatMap(component => {
-      return getCleanTextContentFromElements(component.shadowRoot!, '.insight-title');
-    });
-    // Does not include "font display", which is experimental.
+    const passedInsightTitles = getPassedInsights(component);
     assert.deepEqual(passedInsightTitles, [
-      'INP by phase',
+      'INP breakdown',
       'LCP request discovery',
-      'Render blocking requests',
-      'Document request latency',
-      'Optimize viewport for mobile',
-      'Optimize DOM size',
-      'Duplicated JavaScript',
-      'CSS Selector costs',
-      'Forced reflow',
-      'Modern HTTP',
-      'Legacy JavaScript',
-    ]);
-  });
-
-  it('renders experimental insights if the experiment is turned on', async function() {
-    const {parsedTrace, metadata, insights} = await TraceLoader.traceEngine(this, 'font-display.json.gz');
-    const component = new Components.SidebarSingleInsightSet.SidebarSingleInsightSet();
-    Root.Runtime.experiments.enableForTest(
-        Root.Runtime.ExperimentName.TIMELINE_EXPERIMENTAL_INSIGHTS,
-    );
-    renderElementIntoDOM(component);
-    const firstNavigation = parsedTrace.Meta.mainFrameNavigations.at(0)?.args.data?.navigationId;
-    assert.isOk(firstNavigation);
-    component.data = {
-      insights,
-      insightSetKey: firstNavigation,
-      activeCategory: Trace.Insights.Types.InsightCategory.ALL,
-      activeInsight: null,
-      parsedTrace,
-      traceMetadata: metadata,
-    };
-    await RenderCoordinator.done();
-    const userVisibleTitles = getUserVisibleInsights(component).flatMap(component => {
-      return getCleanTextContentFromElements(component.shadowRoot!, '.insight-title');
-    });
-    assert.deepEqual(userVisibleTitles, [
-      'LCP by phase',
-      'Layout shift culprits',
-      'Network dependency tree',
-      'Improve image delivery',
-      'Font display',
-      '3rd parties',
-      'Use efficient cache lifetimes',
-      'INP by phase',
-      'LCP request discovery',
-      'Render blocking requests',
-      'Document request latency',
-      'Optimize viewport for mobile',
-      'Optimize DOM size',
-      'Duplicated JavaScript',
-      'CSS Selector costs',
-      'Forced reflow',
-      'Modern HTTP',
-      'Legacy JavaScript',
-    ]);
-
-    const passedInsightTitles = getPassedInsights(component).flatMap(component => {
-      return getCleanTextContentFromElements(component.shadowRoot!, '.insight-title');
-    });
-    assert.deepEqual(passedInsightTitles, [
-      'INP by phase',
-      'LCP request discovery',
-      'Render blocking requests',
+      'Render-blocking requests',
       'Document request latency',
       'Optimize viewport for mobile',
       'Optimize DOM size',
@@ -215,39 +137,33 @@ describeWithEnvironment('SidebarSingleInsightSet', () => {
   });
 
   it('will render the active insight fully', async function() {
-    const {insights, metadata, parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
+    const parsedTrace = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
 
-    assert.isOk(insights);
+    assert.isOk(parsedTrace.insights);
     // only one navigation in this trace.
-    assert.strictEqual(insights.size, 1);
-    // This is the navigationID from this trace.
-    const navigationId = '8463DF94CD61B265B664E7F768183DE3';
-    assert.isTrue(insights.has(navigationId));
+    assert.strictEqual(parsedTrace.insights.size, 1);
+    const insightSet = getInsightSetOrError(parsedTrace.insights, '8463DF94CD61B265B664E7F768183DE3');
 
-    const model = insights.get(navigationId)?.model.LCPPhases;
+    const model = insightSet.model.LCPBreakdown;
     if (!model) {
-      throw new Error('missing LCPPhases model');
+      throw new Error('missing LCPBreakdown model');
     }
 
     const component = new Components.SidebarSingleInsightSet.SidebarSingleInsightSet();
     renderElementIntoDOM(component);
     component.data = {
-      insights,
-      insightSetKey: navigationId,
+      insightSetKey: insightSet.id,
       activeCategory: Trace.Insights.Types.InsightCategory.ALL,
       activeInsight: {
         model,
-        insightSetKey: navigationId,
+        insightSetKey: insightSet.id,
       },
       parsedTrace,
-      traceMetadata: metadata,
     };
-    await RenderCoordinator.done();
+    await component.updateComplete;
 
-    const expandedInsight = getUserVisibleInsights(component).find(insight => {
-      return insight.selected;
-    });
+    const expandedInsight = getInsightComponents(component).find(insightComponent => insightComponent.selected);
     assert.isOk(expandedInsight);
-    assert.strictEqual(expandedInsight.model?.title, 'LCP by phase');
+    assert.strictEqual(expandedInsight.model?.title, 'LCP breakdown');
   });
 });

@@ -1,6 +1,7 @@
-// Copyright (c) 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../../../core/common/common.js';
 import * as VisualLogging from '../../../visual_logging/visual_logging.js';
@@ -28,7 +29,7 @@ export class BezierEditor extends Common.ObjectWrapper.eventMixin<EventTypes, ty
   private debouncedStartPreviewAnimation: () => void;
 
   constructor(model: AnimationTimingModel) {
-    super(true);
+    super({useShadowDom: true});
     this.registerRequiredCSS(bezierEditorStyles);
 
     this.model = model;
@@ -98,6 +99,7 @@ export class BezierEditor extends Common.ObjectWrapper.eventMixin<EventTypes, ty
   }
 
   override wasShown(): void {
+    super.wasShown();
     this.unselectPresets();
     // Check if bezier matches a preset
     for (const category of this.presetCategories) {
@@ -145,7 +147,7 @@ export class BezierEditor extends Common.ObjectWrapper.eventMixin<EventTypes, ty
     return category;
   }
 
-  private createPresetModifyIcon(parentElement: Element, className: string, drawPath: string): Element {
+  private createPresetModifyIcon(parentElement: Element, className: string, drawPath: string): SVGElement {
     const icon = UI.UIUtils.createSVGChild(parentElement, 'svg', 'bezier-preset-modify ' + className);
     icon.setAttribute('width', '20');
     icon.setAttribute('height', '20');

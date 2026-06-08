@@ -1,4 +1,4 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,7 +10,7 @@ import * as TextUtils from '../../models/text_utils/text_utils.js';
 import {TestRunner} from '../test_runner/test_runner.js';
 
 /**
- * @fileoverview using private properties isn't a Closure violation in tests.
+ * @file using private properties isn't a Closure violation in tests.
  */
 export const SDKTestRunner = {};
 
@@ -58,14 +58,14 @@ SDKTestRunner.PageMock = class {
     this.enabledDomains.clear();
     SDK.TargetManager.TargetManager.instance().clearAllTargetsForTest();
 
-    const oldFactory = ProtocolClient.InspectorBackend.Connection.getFactory();
-    ProtocolClient.InspectorBackend.Connection.setFactory(() => {
+    const oldFactory = ProtocolClient.ConnectionTransport.ConnectionTransport.getFactory();
+    ProtocolClient.ConnectionTransport.ConnectionTransport.setFactory(() => {
       this.connection = new MockPageConnection(this);
       return this.connection;
     });
     const target =
         SDK.TargetManager.TargetManager.instance().createTarget(nextId('mock-target-'), targetName, this.type, null);
-    ProtocolClient.InspectorBackend.Connection.setFactory(oldFactory);
+    ProtocolClient.ConnectionTransport.ConnectionTransport.setFactory(oldFactory);
 
     this.target = target;
     SDK.TargetManager.TargetManager.instance().setScopeTarget(target);
@@ -251,9 +251,10 @@ SDKTestRunner.PageMock = class {
       return handler.call(this, id, params);
     }
 
-    this.sendResponse(
-        id, undefined,
-        {message: 'Can\'t handle command ' + methodName, code: ProtocolClient.InspectorBackend.DevToolsStubErrorCode});
+    this.sendResponse(id, undefined, {
+      message: 'Can\'t handle command ' + methodName,
+      code: ProtocolClient.CDPConnection.CDPErrorStatus.DEVTOOLS_STUB_ERROR
+    });
   }
 
   sendResponse(id, result, error) {

@@ -1,10 +1,11 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import type * as Protocol from '../../generated/protocol.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
+import type * as ScopesCodec from '../../third_party/source-map-scopes-codec/source-map-scopes-codec.js';
 
 import * as SDK from './sdk.js';
 
@@ -18,7 +19,7 @@ describeWithMockConnection('SourceMapScopeRemoteObject', () => {
   });
 
   it('returns "value unavailable" for unavailable scope variables', async () => {
-    const originalScope: SDK.SourceMapScopes.OriginalScope = {
+    const originalScope: ScopesCodec.OriginalScope = {
       start: {line: 0, column: 0},
       end: {line: 20, column: 0},
       isStackFrame: false,
@@ -41,7 +42,7 @@ describeWithMockConnection('SourceMapScopeRemoteObject', () => {
   });
 
   it('resolves variable values using binding expressions and evaluateOnCallFrame', async () => {
-    const originalScope: SDK.SourceMapScopes.OriginalScope = {
+    const originalScope: ScopesCodec.OriginalScope = {
       start: {line: 0, column: 0},
       end: {line: 20, column: 0},
       isStackFrame: false,
@@ -49,7 +50,7 @@ describeWithMockConnection('SourceMapScopeRemoteObject', () => {
       variables: ['variable1'],
       children: [],
     };
-    const range: SDK.SourceMapScopes.GeneratedRange = {
+    const range: ScopesCodec.GeneratedRange = {
       start: {line: 0, column: 0},
       end: {line: 0, column: 200},
       isStackFrame: false,
@@ -76,7 +77,7 @@ describeWithMockConnection('SourceMapScopeRemoteObject', () => {
   });
 
   it('uses the right binding expression when resolving variable values when ranges are split', async () => {
-    const originalScope: SDK.SourceMapScopes.OriginalScope = {
+    const originalScope: ScopesCodec.OriginalScope = {
       start: {line: 0, column: 0},
       end: {line: 20, column: 0},
       isStackFrame: false,
@@ -84,7 +85,7 @@ describeWithMockConnection('SourceMapScopeRemoteObject', () => {
       variables: ['variable1'],
       children: [],
     };
-    const range: SDK.SourceMapScopes.GeneratedRange = {
+    const range: ScopesCodec.GeneratedRange = {
       start: {line: 0, column: 0},
       end: {line: 0, column: 200},
       isStackFrame: false,

@@ -1,8 +1,9 @@
-// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
-import '../../../ui/components/cards/cards.js';
+import '../../../ui/kit/kit.js';
 
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as EmulationModel from '../../../models/emulation/emulation.js';
@@ -23,52 +24,56 @@ const UIStrings = {
    */
   defaultDevices: 'Default devices',
   /**
-   *@description Button to add a custom device (e.g. phone, tablet) the Device Toolbar.
+   * @description Button to add a custom device (e.g. phone, tablet) the Device Toolbar.
    */
   addCustomDevice: 'Add custom device',
   /**
-   *@description Label/title for UI to add a new custom device type. Device means mobile/tablet etc.
+   * @description Label/title for UI to add a new custom device type. Device means mobile/tablet etc.
    */
   device: 'Device',
   /**
-   *@description Placeholder for text input for the name of a custom device.
+   * @description Placeholder for text input for the name of a custom device.
    */
   deviceName: 'Device Name',
   /**
-   *@description Placeholder text for text input for the width of a custom device in pixels.
+   * @description Placeholder text for text input for the width of a custom device in pixels.
    */
   width: 'Width',
   /**
-   *@description Placeholder text for text input for the height of a custom device in pixels.
+   * @description Placeholder text for text input for the height of a custom device in pixels.
    */
   height: 'Height',
   /**
-   *@description Placeholder text for text input for the height/width ratio of a custom device in pixels.
+   * @description Placeholder text for text input for the height/width ratio of a custom device in pixels.
    */
   devicePixelRatio: 'Device pixel ratio',
   /**
-   *@description Label in the Devices settings pane for the user agent string input of a custom device
+   * @description Label in the Devices settings pane for the user agent string input of a custom device
    */
   userAgentString: 'User agent string',
   /**
-   *@description Tooltip text for a drop-down in the Devices settings pane, for the 'user agent type' input of a custom device.
+   * @description Tooltip text for a drop-down in the Devices settings pane, for the 'user agent type' input of a custom device.
    * 'Type' refers to different options e.g. mobile or desktop.
    */
   userAgentType: 'User agent type',
   /**
-   *@description Error message in the Devices settings pane that declares the maximum length of the device name input
-   *@example {50} PH1
+   * @description Error message in the Devices settings pane that declares the maximum length of the device name input
+   * @example {50} PH1
    */
   deviceNameMustBeLessThanS: 'Device name must be less than {PH1} characters.',
   /**
-   *@description Error message in the Devices settings pane that declares that the device name input must not be empty
+   * @description Error message in the Devices settings pane that declares that the device name input must not be empty
    */
   deviceNameCannotBeEmpty: 'Device name cannot be empty.',
   /**
-   *@description Success message for screen readers when device is added.
-   *@example {TestDevice} PH1
+   * @description Success message for screen readers when device is added.
+   * @example {TestDevice} PH1
    */
   deviceAddedOrUpdated: 'Device {PH1} successfully added/updated.',
+  /**
+   * @description Error message in the Devices settings pane shown when the user agent string is empty.
+   */
+  userAgentStringCannotBeEmpty: 'User agent string cannot be empty.',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/settings/emulation/DevicesSettingsTab.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -85,10 +90,8 @@ export class DevicesSettingsTab extends UI.Widget.VBox implements
   private editor?: UI.ListWidget.Editor<EmulationModel.EmulatedDevices.EmulatedDevice>;
 
   constructor() {
-    super();
+    super({jslog: `${VisualLogging.pane('devices')}`});
     this.registerRequiredCSS(devicesSettingsTabStyles);
-
-    this.element.setAttribute('jslog', `${VisualLogging.pane('devices')}`);
 
     this.containerElement =
         this.contentElement.createChild('div', 'settings-card-container-wrapper').createChild('div');
@@ -244,7 +247,9 @@ export class DevicesSettingsTab extends UI.Widget.VBox implements
         (editor.control('ua-metadata') as
          UI.ListWidget.CustomEditorControl<EmulationComponents.UserAgentClientHintsForm.UserAgentClientHintsFormData>)
             .value.metaData;
-    if (userAgentControlValue) {
+    const hasUserAgentOverride = device.userAgent.trim().length > 0;
+    device.userAgentMetadata = null;
+    if (hasUserAgentOverride && userAgentControlValue) {
       device.userAgentMetadata = {
         ...userAgentControlValue,
         mobile:
@@ -311,9 +316,7 @@ export class DevicesSettingsTab extends UI.Widget.VBox implements
     UI.UIUtils.createTextChild(uaStringFields.createChild('b'), i18nString(UIStrings.userAgentString));
 
     const ua = uaStringFields.createChild('div', 'hbox');
-    ua.appendChild(editor.createInput('user-agent', 'text', i18nString(UIStrings.userAgentString), () => {
-      return {valid: true, errorMessage: undefined};
-    }));
+    ua.appendChild(editor.createInput('user-agent', 'text', i18nString(UIStrings.userAgentString), userAgentValidator));
     const uaTypeOptions = [
       EmulationModel.DeviceModeModel.UA.MOBILE,
       EmulationModel.DeviceModeModel.UA.MOBILE_NO_TOUCH,
@@ -321,7 +324,7 @@ export class DevicesSettingsTab extends UI.Widget.VBox implements
       EmulationModel.DeviceModeModel.UA.DESKTOP_TOUCH,
     ];
     const uaType = editor.createSelect('ua-type', uaTypeOptions, () => {
-      return {valid: true, errorMessage: undefined};
+      return {valid: true};
     }, i18nString(UIStrings.userAgentType));
     uaType.classList.add('device-edit-fixed');
     ua.appendChild(uaType);
@@ -339,8 +342,18 @@ export class DevicesSettingsTab extends UI.Widget.VBox implements
       return uaMetadata.validate();
     }
 
+    function userAgentValidator(
+        _item: EmulationModel.EmulatedDevices.EmulatedDevice, _index: number,
+        input: UI.ListWidget.EditorControl): UI.ListWidget.ValidatorResult {
+      if (input.value.trim().length > 0) {
+        return {valid: true};
+      }
+
+      return {valid: false, errorMessage: i18nString(UIStrings.userAgentStringCannotBeEmpty)};
+    }
+
     function titleValidator(
-        item: EmulationModel.EmulatedDevices.EmulatedDevice, index: number,
+        _item: EmulationModel.EmulatedDevices.EmulatedDevice, _index: number,
         input: UI.ListWidget.EditorControl): UI.ListWidget.ValidatorResult {
       let valid = false;
       let errorMessage;
@@ -359,19 +372,19 @@ export class DevicesSettingsTab extends UI.Widget.VBox implements
     }
 
     function widthValidator(
-        item: EmulationModel.EmulatedDevices.EmulatedDevice, index: number,
+        _item: EmulationModel.EmulatedDevices.EmulatedDevice, _index: number,
         input: UI.ListWidget.EditorControl): UI.ListWidget.ValidatorResult {
       return EmulationModel.DeviceModeModel.DeviceModeModel.widthValidator(input.value);
     }
 
     function heightValidator(
-        item: EmulationModel.EmulatedDevices.EmulatedDevice, index: number,
+        _item: EmulationModel.EmulatedDevices.EmulatedDevice, _index: number,
         input: UI.ListWidget.EditorControl): UI.ListWidget.ValidatorResult {
       return EmulationModel.DeviceModeModel.DeviceModeModel.heightValidator(input.value);
     }
 
     function scaleValidator(
-        item: EmulationModel.EmulatedDevices.EmulatedDevice, index: number,
+        _item: EmulationModel.EmulatedDevices.EmulatedDevice, _index: number,
         input: UI.ListWidget.EditorControl): UI.ListWidget.ValidatorResult {
       return EmulationModel.DeviceModeModel.DeviceModeModel.scaleValidator(input.value);
     }

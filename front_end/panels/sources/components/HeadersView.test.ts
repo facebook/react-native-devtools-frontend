@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -216,7 +216,7 @@ describe('HeadersView', () => {
     assert.instanceOf(addRuleButton, HTMLElement);
     assert.strictEqual(addRuleButton.textContent?.trim(), 'Add override rule');
 
-    const learnMoreLink = editor.shadowRoot.querySelector('.learn-more-row x-link');
+    const learnMoreLink = editor.shadowRoot.querySelector('.learn-more-row devtools-link');
     assert.instanceOf(learnMoreLink, HTMLElement);
     assert.strictEqual(learnMoreLink.title, 'https://goo.gle/devtools-override');
 
@@ -234,7 +234,7 @@ describe('HeadersView', () => {
       'Apply to:*.jpg',
       'jpg-header:is image',
     ]);
-    assert.strictEqual(commitWorkingCopySpy.callCount, 4);
+    sinon.assert.callCount(commitWorkingCopySpy, 4);
   });
 
   it('resets edited value to previous state on Escape key', async () => {
@@ -339,7 +339,7 @@ describe('HeadersView', () => {
 
     dispatchFocusOutEvent(applyTo, {bubbles: true});
     assert.strictEqual(applyTo.innerHTML, '*');
-    assert.strictEqual(commitWorkingCopySpy.callCount, 1);
+    sinon.assert.callCount(commitWorkingCopySpy, 1);
   });
 
   it('removes the entire header when the header name is deleted', async () => {
@@ -374,7 +374,7 @@ describe('HeadersView', () => {
       'Apply to:*.jpg',
       'jpg-header:only for jpg files',
     ]);
-    assert.strictEqual(commitWorkingCopySpy.callCount, 1);
+    sinon.assert.callCount(commitWorkingCopySpy, 1);
     assert.isTrue(recordedMetricsContain(
         Host.InspectorFrontendHostAPI.EnumeratedHistogram.ActionTaken,
         Host.UserMetrics.Action.HeaderOverrideHeadersFileEdited));
@@ -502,7 +502,7 @@ describe('HeadersView', () => {
         Host.UserMetrics.Action.HeaderOverrideHeadersFileEdited));
 
     let hiddenDeleteElements = await editor.shadowRoot.querySelectorAll('.row.padded > .remove-header[hidden]');
-    assert.isTrue(hiddenDeleteElements.length === 0, 'remove-header button is visible');
+    assert.lengthOf(hiddenDeleteElements, 0, 'remove-header button is visible');
 
     await pressButton(editor.shadowRoot, 1, '.remove-header');
 
@@ -515,7 +515,7 @@ describe('HeadersView', () => {
     ]);
 
     hiddenDeleteElements = await editor.shadowRoot.querySelectorAll('.row.padded > .remove-header[hidden]');
-    assert.isTrue(hiddenDeleteElements.length === 1, 'remove-header button is hidden');
+    assert.lengthOf(hiddenDeleteElements, 1, 'remove-header button is hidden');
   });
 
   it('allows removing "ApplyTo"-blocks', async () => {

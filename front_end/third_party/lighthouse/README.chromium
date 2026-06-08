@@ -1,11 +1,19 @@
 Name: Lighthouse
 Short Name: lighthouse
-Version: 12.5.1
-Revision: 04f43865487b77384d5bfb02f774397ead5e3db2
+Version: 13.2.0
+Revision: a160d341f363acf2d99314214a6e0de7d0fead1f
+Update Mechanism: Manual
 URL: https://github.com/GoogleChrome/lighthouse
-License: Apache License 2.0
+License: Apache-2.0
 License File: LICENSE
 Security Critical: no
 Shipped: yes
 
-This directory contains Chromium's version of the lighthouse report assets, including renderer.
+This directory contains Chromium's version of Lighthouse. It includes:
+
+- locale strings
+- report assets
+- report renderer
+- worker bundle for running Lighthouse core
+
+Build documentation: https://github.com/GoogleChrome/lighthouse/blob/main/build/readme.md#building-for-devtools

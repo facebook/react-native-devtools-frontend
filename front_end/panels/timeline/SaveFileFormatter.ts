@@ -1,8 +1,7 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Protocol from '../../generated/protocol.js';
 import type * as Trace from '../../models/trace/trace.js';
 /**
  * Generates a JSON representation of an array of objects with the objects
@@ -56,11 +55,4 @@ export function*
   yield ',\n"traceEvents": ';
   yield* arrayOfObjectsJsonGenerator(traceEvents);
   yield '}\n';
-}
-
-/**
- * Generates a JSON representation of CPU profile.
- */
-export function cpuprofileJsonGenerator(cpuprofile: Protocol.Profiler.Profile): string {
-  return JSON.stringify(cpuprofile);
 }

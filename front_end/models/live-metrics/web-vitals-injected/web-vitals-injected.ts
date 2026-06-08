@@ -1,16 +1,14 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as WebVitals from '../../../third_party/web-vitals/web-vitals.js';
 import type * as Trace from '../../trace/trace.js';
 
-import * as OnEachInteraction from './OnEachInteraction.js';
 import * as OnEachLayoutShift from './OnEachLayoutShift.js';
 import * as Spec from './spec/spec.js';
 
 const {onLCP, onCLS, onINP} = WebVitals.Attribution;
-const {onEachInteraction} = OnEachInteraction;
 const {onEachLayoutShift} = OnEachLayoutShift;
 
 declare const window: Window&{
@@ -19,33 +17,64 @@ declare const window: Window&{
   [Spec.EVENT_BINDING_NAME]: (payload: string) => void,
 };
 
-type ListenerArgs = Parameters<typeof globalThis['addEventListener']>;
+const eventListenerCleanupController = new AbortController();
 
-const windowListeners: ListenerArgs[] = [];
-const documentListeners: ListenerArgs[] = [];
-const observers: PerformanceObserver[] = [];
+const patchAddListener = (proto: typeof Window.prototype|typeof Document.prototype): void => {
+  const original = proto.addEventListener;
 
-const originalWindowAddListener = Window.prototype.addEventListener;
-Window.prototype.addEventListener = function(...args: ListenerArgs) {
-  windowListeners.push(args);
-  return originalWindowAddListener.call(this, ...args);
+  proto.addEventListener = function(
+      type: string, listener: EventListenerOrEventListenerObject, options?: boolean|AddEventListenerOptions): void {
+    // Standardize options into an object
+    const navOptions = typeof options === 'boolean' ? {capture: options} : {...options};
+
+    // If we already have a signal, we should respect it,
+    // but also link it to our global cleanup signal.
+    if (navOptions.signal) {
+      navOptions.signal = AbortSignal.any([navOptions.signal, eventListenerCleanupController.signal]);
+    } else {
+      navOptions.signal = eventListenerCleanupController.signal;
+    }
+
+    return original.call(this, type, listener, navOptions);
+  };
 };
 
-const originalDocumentAddListener = Document.prototype.addEventListener;
-Document.prototype.addEventListener = function(...args: ListenerArgs) {
-  documentListeners.push(args);
-  return originalDocumentAddListener.call(this, ...args);
-};
+// Patch the core targets
+patchAddListener(Window.prototype);
+patchAddListener(Document.prototype);
 
-class InternalPerformanceObserver extends PerformanceObserver {
-  constructor(...args: ConstructorParameters<typeof PerformanceObserver>) {
-    super(...args);
-    observers.push(this);
+// Use a class wrapper that auto-registers and auto-unregisters
+const activeObservers = new Set<PerformanceObserver>();
+class TrackedPerformanceObserver extends globalThis.PerformanceObserver {
+  constructor(callback: PerformanceObserverCallback) {
+    super(callback);
+    activeObservers.add(this);
+  }
+
+  // Override disconnect to remove it from our tracking set
+  override disconnect(): void {
+    super.disconnect();
+    activeObservers.delete(this);
   }
 }
-globalThis.PerformanceObserver = InternalPerformanceObserver;
 
-let killed = false;
+const nodeList: Array<WeakRef<Node>> = [];
+const nodeToIdMap = new WeakMap<Node, number>();
+
+function establishNodeIndex(node: Node): number {
+  let index = nodeToIdMap.get(node);
+  if (index !== undefined) {
+    return index;
+  }
+
+  index = nodeList.length;
+  nodeList.push(new WeakRef(node));
+  nodeToIdMap.set(node, index);
+  return index;
+}
+
+// Replace the global constructor
+globalThis.PerformanceObserver = TrackedPerformanceObserver;
 
 /**
  * This is a hack solution to remove any listeners that were added by web-vitals.js
@@ -53,22 +82,23 @@ let killed = false;
  * context should be considered dead and a new one will need to be created for live metrics
  * to be served again.
  */
+let killed = false;
 window[Spec.INTERNAL_KILL_SWITCH] = () => {
   if (killed) {
     return;
   }
 
-  for (const observer of observers) {
+  for (const observer of activeObservers) {
+    // This calls the overridden disconnect above,
+    // cleaning up BOTH the browser resource and our Set.
     observer.disconnect();
   }
+  activeObservers.clear();
 
-  for (const args of windowListeners) {
-    window.removeEventListener(...args);
-  }
+  eventListenerCleanupController.abort();
 
-  for (const args of documentListeners) {
-    document.removeEventListener(...args);
-  }
+  // Explicitly clear the Node List to help GC
+  nodeList.length = 0;
 
   killed = true;
 };
@@ -76,14 +106,6 @@ window[Spec.INTERNAL_KILL_SWITCH] = () => {
 function sendEventToDevTools(event: Spec.WebVitalsEvent): void {
   const payload = JSON.stringify(event);
   window[Spec.EVENT_BINDING_NAME](payload);
-}
-
-const nodeList: Array<WeakRef<Node>> = [];
-
-function establishNodeIndex(node: Node): number {
-  const index = nodeList.length;
-  nodeList.push(new WeakRef(node));
-  return index;
 }
 
 /**
@@ -184,30 +206,7 @@ function initialize(): void {
     sendEventToDevTools(event);
   }, {reportAllChanges: true});
 
-  onINP(metric => {
-    // TODO(b/376777343): Remove this line when `interactionTargetElement` is removed from web-vitals.js
-    // The `metric` emitted in this callback is stored within web-vitals.js closures.
-    // This can lead to `interactionTargetElement` persisting in memory after it has been removed.
-    // We don't use `interactionTargetElement` here, and `onEachInteraction` will interaction
-    // elements separately so it is safe to remove here and prevent memory leaks.
-    metric.attribution.interactionTargetElement = undefined;
-
-    const event: Spec.InpChangeEvent = {
-      name: 'INP',
-      value: metric.value as Trace.Types.Timing.Milli,
-      phases: {
-        inputDelay: metric.attribution.inputDelay as Trace.Types.Timing.Milli,
-        processingDuration: metric.attribution.processingDuration as Trace.Types.Timing.Milli,
-        presentationDelay: metric.attribution.presentationDelay as Trace.Types.Timing.Milli,
-      },
-      startTime: metric.entries[0].startTime,
-      entryGroupId: metric.entries[0].interactionId as Spec.InteractionEntryGroupId,
-      interactionType: metric.attribution.interactionType,
-    };
-    sendEventToDevTools(event);
-  }, {reportAllChanges: true, durationThreshold: 0});
-
-  onEachInteraction(interaction => {
+  function onEachInteraction(interaction: WebVitals.INPMetricWithAttribution): void {
     // Multiple `InteractionEntry` events can be emitted for the same `uniqueInteractionId`
     // However, it is easier to combine these entries in the DevTools client rather than in
     // this injected code.
@@ -228,11 +227,39 @@ function initialize(): void {
       longAnimationFrameEntries: limitScripts(
           interaction.attribution.longAnimationFrameEntries.slice(-Spec.LOAF_LIMIT).map(loaf => loaf.toJSON())),
     };
-    const node = interaction.attribution.interactionTargetElement;
-    if (node) {
-      event.nodeIndex = establishNodeIndex(node);
+    const target = interaction.attribution.interactionTarget;
+    if (target) {
+      event.nodeIndex = Number(target);
     }
     sendEventToDevTools(event);
+  }
+
+  onINP(metric => {
+    const event: Spec.InpChangeEvent = {
+      name: 'INP',
+      value: metric.value as Trace.Types.Timing.Milli,
+      phases: {
+        inputDelay: metric.attribution.inputDelay as Trace.Types.Timing.Milli,
+        processingDuration: metric.attribution.processingDuration as Trace.Types.Timing.Milli,
+        presentationDelay: metric.attribution.presentationDelay as Trace.Types.Timing.Milli,
+      },
+      startTime: metric.entries[0].startTime,
+      entryGroupId: metric.entries[0].interactionId as Spec.InteractionEntryGroupId,
+      interactionType: metric.attribution.interactionType,
+    };
+    sendEventToDevTools(event);
+  }, {
+    reportAllChanges: true,
+    durationThreshold: 0,
+    includeProcessedEventEntries: false,
+    onEachInteraction,
+    generateTarget(el) {
+      if (el) {
+        return String(establishNodeIndex(el));
+      }
+
+      return undefined;
+    },
   });
 
   onEachLayoutShift(layoutShift => {

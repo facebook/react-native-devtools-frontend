@@ -1,0 +1,417 @@
+// Copyright 2011 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import * as Common from '../../core/common/common.js';
+import type * as PlatformApi from '../../core/platform/api/api.js';
+import * as Platform from '../../core/platform/platform.js';
+
+import type {ChildrenProvider} from './ChildrenProvider.js';
+import type * as HeapSnapshotModel from './HeapSnapshotModel.js';
+
+export class HeapSnapshotWorkerProxy extends Common.ObjectWrapper.ObjectWrapper<HeapSnapshotWorkerProxy.EventTypes> {
+  readonly eventHandler: (arg0: string, arg1: string) => void;
+  nextObjectId = 1;
+  nextCallId = 1;
+  callbacks = new Map<number, (...args: any[]) => void>();
+  readonly previousCallbacks = new Set<number>();
+  readonly worker: PlatformApi.HostRuntime.Worker;
+  interval?: number;
+  readonly workerUrl?: string;
+
+  constructor(eventHandler: (arg0: string, arg1: string) => void, workerUrl?: string) {
+    super();
+    this.eventHandler = eventHandler;
+    this.workerUrl = workerUrl;
+    this.worker = Platform.HostRuntime.HOST_RUNTIME.createWorker(
+        workerUrl ?? import.meta.resolve('../../entrypoints/heap_snapshot_worker/heap_snapshot_worker-entrypoint.js'),
+    );
+    this.worker.onmessage = this.messageReceived.bind(this);
+  }
+
+  createLoader(profileUid: number, snapshotReceivedCallback: (arg0: HeapSnapshotProxy) => void):
+      HeapSnapshotLoaderProxy {
+    const objectId = this.nextObjectId++;
+    const proxy = new HeapSnapshotLoaderProxy(this, objectId, profileUid, snapshotReceivedCallback);
+    this.postMessage({
+      callId: this.nextCallId++,
+      disposition: 'createLoader',
+      objectId,
+    });
+    return proxy;
+  }
+
+  dispose(): void {
+    this.worker.terminate();
+    clearInterval(this.interval);
+  }
+
+  disposeObject(objectId: number): void {
+    this.postMessage({callId: this.nextCallId++, disposition: 'dispose', objectId});
+  }
+
+  evaluateForTest(script: string, callback: (...arg0: any[]) => void): void {
+    const callId = this.nextCallId++;
+    this.callbacks.set(callId, callback);
+    this.postMessage({callId, disposition: 'evaluateForTest', source: script});
+  }
+
+  callFactoryMethod<T extends Object>(
+      callback: null, objectId: string, methodName: string, proxyConstructor: new(...arg1: any[]) => T,
+      transfer: PlatformApi.HostRuntime.WorkerTransferable[], ...methodArguments: any[]): T;
+  callFactoryMethod<T extends Object>(
+      callback: ((...arg0: any[]) => void), objectId: string, methodName: string,
+      proxyConstructor: new(...arg1: any[]) => T, transfer: PlatformApi.HostRuntime.WorkerTransferable[],
+      ...methodArguments: any[]): null;
+  callFactoryMethod<T extends Object>(
+      callback: ((...arg0: any[]) => void)|null, objectId: string, methodName: string,
+      proxyConstructor: new(...arg1: any[]) => T, transfer: PlatformApi.HostRuntime.WorkerTransferable[],
+      ...methodArguments: any[]): T|null {
+    const callId = this.nextCallId++;
+    const newObjectId = this.nextObjectId++;
+
+    if (callback) {
+      this.callbacks.set(callId, remoteResult => {
+        callback(remoteResult ? new proxyConstructor(this, newObjectId) : null);
+      });
+      this.postMessage(
+          {
+            callId,
+            disposition: 'factory',
+            objectId,
+            methodName,
+            methodArguments,
+            newObjectId,
+          },
+          transfer);
+      return null;
+    }
+    this.postMessage(
+        {
+          callId,
+          disposition: 'factory',
+          objectId,
+          methodName,
+          methodArguments,
+          newObjectId,
+        },
+        transfer);
+    return new proxyConstructor(this, newObjectId);
+  }
+
+  callMethod(callback: (...arg0: any[]) => void, objectId: string, methodName: string, ...methodArguments: any[]):
+      void {
+    const callId = this.nextCallId++;
+    if (callback) {
+      this.callbacks.set(callId, callback);
+    }
+    this.postMessage({
+      callId,
+      disposition: 'method',
+      objectId,
+      methodName,
+      methodArguments,
+    });
+  }
+
+  startCheckingForLongRunningCalls(): void {
+    if (this.interval) {
+      return;
+    }
+    this.checkLongRunningCalls();
+    this.interval = window.setInterval(this.checkLongRunningCalls.bind(this), 300);
+  }
+
+  checkLongRunningCalls(): void {
+    for (const callId of this.previousCallbacks) {
+      if (!this.callbacks.has(callId)) {
+        this.previousCallbacks.delete(callId);
+      }
+    }
+    const hasLongRunningCalls = Boolean(this.previousCallbacks.size);
+    this.dispatchEventToListeners(HeapSnapshotWorkerProxy.Events.WAIT, hasLongRunningCalls);
+    for (const callId of this.callbacks.keys()) {
+      this.previousCallbacks.add(callId);
+    }
+  }
+
+  setupForSecondaryInit(port: MessagePort): Promise<void> {
+    const callId = this.nextCallId++;
+    const done = new Promise<void>(resolve => {
+      this.callbacks.set(callId, resolve);
+    });
+    this.postMessage(
+        {
+          callId,
+          disposition: 'setupForSecondaryInit',
+          objectId: this.nextObjectId++,
+        },
+        [port]);
+    return done;
+  }
+
+  messageReceived(event: PlatformApi.HostRuntime.WorkerMessageEvent): void {
+    const data = event.data;
+    if (data.eventName) {
+      if (this.eventHandler) {
+        this.eventHandler(data.eventName, data.data);
+      }
+      return;
+    }
+    if (data.error) {
+      Common.Console.Console.instance().error(
+          `An error occurred when a call to method '${data.errorMethodName}' was requested`);
+      Common.Console.Console.instance().error(data['errorCallStack']);
+      this.callbacks.delete(data.callId);
+      return;
+    }
+    const callback = this.callbacks.get(data.callId);
+    if (!callback) {
+      return;
+    }
+    this.callbacks.delete(data.callId);
+    callback(data.result);
+  }
+
+  postMessage(message: unknown, transfer?: PlatformApi.HostRuntime.WorkerTransferable[]): void {
+    this.worker.postMessage(message, transfer);
+  }
+}
+
+export namespace HeapSnapshotWorkerProxy {
+  export const enum Events {
+    WAIT = 'Wait',
+  }
+
+  export interface EventTypes {
+    [Events.WAIT]: boolean;
+  }
+}
+
+export class HeapSnapshotProxyObject {
+  readonly worker: HeapSnapshotWorkerProxy;
+  readonly objectId: number;
+  constructor(worker: HeapSnapshotWorkerProxy, objectId: number) {
+    this.worker = worker;
+    this.objectId = objectId;
+  }
+
+  dispose(): void {
+    this.worker.disposeObject(this.objectId);
+  }
+
+  callFactoryMethod<T extends Object>(methodName: string, proxyConstructor: new(...arg1: any[]) => T, ...args: any[]):
+      T {
+    return this.worker.callFactoryMethod(null, String(this.objectId), methodName, proxyConstructor, [], ...args);
+  }
+
+  callFactoryMethodPromise<T extends Object>(
+      methodName: string, proxyConstructor: new(...arg1: any[]) => T,
+      transfer: PlatformApi.HostRuntime.WorkerTransferable[], ...args: any[]): Promise<T> {
+    return new Promise(
+        resolve => this.worker.callFactoryMethod(
+            resolve, String(this.objectId), methodName, proxyConstructor, transfer, ...args));
+  }
+
+  callMethodPromise<T>(methodName: string, ...args: any[]): Promise<T> {
+    return new Promise(resolve => this.worker.callMethod(resolve, String(this.objectId), methodName, ...args));
+  }
+}
+
+export class HeapSnapshotLoaderProxy extends HeapSnapshotProxyObject implements Common.StringOutputStream.OutputStream {
+  readonly profileUid: number;
+  readonly snapshotReceivedCallback: (arg0: HeapSnapshotProxy) => void;
+  constructor(
+      worker: HeapSnapshotWorkerProxy,
+      objectId: number,
+      profileUid: number,
+      snapshotReceivedCallback: (arg0: HeapSnapshotProxy) => void,
+  ) {
+    super(worker, objectId);
+    this.profileUid = profileUid;
+    this.snapshotReceivedCallback = snapshotReceivedCallback;
+  }
+
+  async write(chunk: string): Promise<void> {
+    await this.callMethodPromise('write', chunk);
+  }
+
+  async close(): Promise<void> {
+    await this.callMethodPromise('close');
+    const secondWorker = new HeapSnapshotWorkerProxy(() => {}, this.worker.workerUrl);
+    const channel = new MessageChannel();
+    await secondWorker.setupForSecondaryInit(channel.port2);
+    const snapshotProxy = await this.callFactoryMethodPromise('buildSnapshot', HeapSnapshotProxy, [channel.port1]);
+    secondWorker.dispose();
+    this.dispose();
+    // TODO(crbug.com/1172300) Ignored during the jsdoc to ts migration)
+    // @ts-expect-error
+    snapshotProxy.setProfileUid(this.profileUid);
+    await snapshotProxy.updateStaticData();
+    this.snapshotReceivedCallback(snapshotProxy);
+  }
+}
+
+export class HeapSnapshotProxy extends HeapSnapshotProxyObject {
+  staticData: HeapSnapshotModel.StaticData|null;
+  profileUid?: string;
+
+  constructor(worker: HeapSnapshotWorkerProxy, objectId: number) {
+    super(worker, objectId);
+    this.staticData = null;
+  }
+
+  search(searchConfig: HeapSnapshotModel.SearchConfig, filter: HeapSnapshotModel.NodeFilter): Promise<number[]> {
+    return this.callMethodPromise('search', searchConfig, filter);
+  }
+
+  interfaceDefinitions(): Promise<string> {
+    return this.callMethodPromise('interfaceDefinitions');
+  }
+
+  aggregatesWithFilter(filter: HeapSnapshotModel.NodeFilter):
+      Promise<Record<string, HeapSnapshotModel.AggregatedInfo>> {
+    return this.callMethodPromise('aggregatesWithFilter', filter);
+  }
+
+  aggregatesForDiff(interfaceDefinitions: string): Promise<Record<string, HeapSnapshotModel.AggregateForDiff>> {
+    return this.callMethodPromise('aggregatesForDiff', interfaceDefinitions);
+  }
+
+  calculateSnapshotDiff(
+      baseSnapshotId: string,
+      baseSnapshotAggregates: Record<string, HeapSnapshotModel.AggregateForDiff>,
+      ): Promise<Record<string, HeapSnapshotModel.Diff>> {
+    return this.callMethodPromise('calculateSnapshotDiff', baseSnapshotId, baseSnapshotAggregates);
+  }
+
+  nodeClassKey(snapshotObjectId: number): Promise<string|null> {
+    return this.callMethodPromise('nodeClassKey', snapshotObjectId);
+  }
+
+  createEdgesProvider(nodeIndex: number): HeapSnapshotProviderProxy {
+    return this.callFactoryMethod('createEdgesProvider', HeapSnapshotProviderProxy, nodeIndex);
+  }
+
+  createRetainingEdgesProvider(nodeIndex: number): HeapSnapshotProviderProxy {
+    return this.callFactoryMethod('createRetainingEdgesProvider', HeapSnapshotProviderProxy, nodeIndex);
+  }
+
+  createAddedNodesProvider(baseSnapshotId: string, classKey: string): HeapSnapshotProviderProxy {
+    return this.callFactoryMethod('createAddedNodesProvider', HeapSnapshotProviderProxy, baseSnapshotId, classKey);
+  }
+
+  createDeletedNodesProvider(nodeIndexes: number[]): HeapSnapshotProviderProxy {
+    return this.callFactoryMethod('createDeletedNodesProvider', HeapSnapshotProviderProxy, nodeIndexes);
+  }
+
+  createNodesProvider(filter: (...args: any[]) => boolean): HeapSnapshotProviderProxy {
+    return this.callFactoryMethod('createNodesProvider', HeapSnapshotProviderProxy, filter);
+  }
+
+  createNodesProviderForClass(classKey: string, nodeFilter: HeapSnapshotModel.NodeFilter): HeapSnapshotProviderProxy {
+    return this.callFactoryMethod('createNodesProviderForClass', HeapSnapshotProviderProxy, classKey, nodeFilter);
+  }
+
+  allocationTracesTops(): Promise<HeapSnapshotModel.SerializedAllocationNode[]> {
+    return this.callMethodPromise('allocationTracesTops');
+  }
+
+  allocationNodeCallers(nodeId: number): Promise<HeapSnapshotModel.AllocationNodeCallers> {
+    return this.callMethodPromise('allocationNodeCallers', nodeId);
+  }
+
+  allocationStack(nodeIndex: number): Promise<HeapSnapshotModel.AllocationStackFrame[]|null> {
+    return this.callMethodPromise('allocationStack', nodeIndex);
+  }
+
+  override dispose(): void {
+    throw new Error('Should never be called');
+  }
+
+  get nodeCount(): number {
+    if (!this.staticData) {
+      return 0;
+    }
+    return this.staticData.nodeCount;
+  }
+
+  get rootNodeIndex(): number {
+    if (!this.staticData) {
+      return 0;
+    }
+    return this.staticData.rootNodeIndex;
+  }
+
+  async updateStaticData(): Promise<void> {
+    this.staticData = await this.callMethodPromise('updateStaticData');
+  }
+
+  getStatistics(): Promise<HeapSnapshotModel.Statistics> {
+    return this.callMethodPromise('getStatistics');
+  }
+
+  getLocation(nodeIndex: number): Promise<HeapSnapshotModel.Location|null> {
+    return this.callMethodPromise('getLocation', nodeIndex);
+  }
+
+  getSamples(): Promise<HeapSnapshotModel.Samples|null> {
+    return this.callMethodPromise('getSamples');
+  }
+
+  ignoreNodeInRetainersView(nodeIndex: number): Promise<void> {
+    return this.callMethodPromise('ignoreNodeInRetainersView', nodeIndex);
+  }
+
+  unignoreNodeInRetainersView(nodeIndex: number): Promise<void> {
+    return this.callMethodPromise('unignoreNodeInRetainersView', nodeIndex);
+  }
+
+  unignoreAllNodesInRetainersView(): Promise<void> {
+    return this.callMethodPromise('unignoreAllNodesInRetainersView');
+  }
+
+  areNodesIgnoredInRetainersView(): Promise<boolean> {
+    return this.callMethodPromise('areNodesIgnoredInRetainersView');
+  }
+
+  get totalSize(): number {
+    if (!this.staticData) {
+      return 0;
+    }
+    return this.staticData.totalSize;
+  }
+
+  get uid(): string|undefined {
+    return this.profileUid;
+  }
+
+  setProfileUid(profileUid: string): void {
+    this.profileUid = profileUid;
+  }
+
+  maxJSObjectId(): number {
+    if (!this.staticData) {
+      return 0;
+    }
+    return this.staticData.maxJSObjectId;
+  }
+}
+
+export class HeapSnapshotProviderProxy extends HeapSnapshotProxyObject implements ChildrenProvider {
+  nodePosition(snapshotObjectId: number): Promise<number> {
+    return this.callMethodPromise('nodePosition', snapshotObjectId);
+  }
+
+  isEmpty(): Promise<boolean> {
+    return this.callMethodPromise('isEmpty');
+  }
+
+  serializeItemsRange(startPosition: number, endPosition: number): Promise<HeapSnapshotModel.ItemsRange> {
+    return this.callMethodPromise('serializeItemsRange', startPosition, endPosition);
+  }
+
+  async sortAndRewind(comparator: HeapSnapshotModel.ComparatorConfig): Promise<void> {
+    await this.callMethodPromise('sortAndRewind', comparator);
+  }
+}

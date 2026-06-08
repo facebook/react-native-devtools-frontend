@@ -1,8 +1,9 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view, @devtools/enforce-custom-element-definitions-location */
 
-import '../icon_button/icon_button.js';
+import '../../kit/kit.js';
 
 import * as Common from '../../../core/common/common.js';
 import type * as Host from '../../../core/host/host.js';
@@ -13,15 +14,15 @@ import surveyLinkStyles from './surveyLink.css.js';
 
 const UIStrings = {
   /**
-   *@description Text shown when the link to open a survey is clicked but the survey has not yet appeared
+   * @description Text shown when the link to open a survey is clicked but the survey has not yet appeared
    */
   openingSurvey: 'Opening survey …',
   /**
-   *@description Text displayed instead of the survey link after the survey link is clicked, if the survey was shown successfully
+   * @description Text displayed instead of the survey link after the survey link is clicked, if the survey was shown successfully
    */
   thankYouForYourFeedback: 'Thank you for your feedback',
   /**
-   *@description Text displayed instead of the survey link after the survey link is clicked, if the survey was not shown successfully
+   * @description Text displayed instead of the survey link after the survey link is clicked, if the survey was not shown successfully
    */
   anErrorOccurredWithTheSurvey: 'An error occurred with the survey',
 } as const;
@@ -47,8 +48,10 @@ const enum State {
   DONT_SHOW_LINK = 'DontShowLink',
 }
 
-// A link to a survey. The link is rendered aysnchronously because we need to first check if
-// canShowSurvey succeeds.
+/**
+ * A link to a survey. The link is rendered asynchronously because we need to first check if
+ * canShowSurvey succeeds.
+ **/
 export class SurveyLink extends HTMLElement {
   readonly #shadow = this.attachShadow({mode: 'open'});
   #trigger = '';
@@ -116,14 +119,15 @@ export class SurveyLink extends HTMLElement {
     const ariaDisabled = this.#state !== State.SHOW_LINK;
 
     // clang-format off
-
     const output = html`
-      <style>${surveyLinkStyles.cssText}</style>
-      <button class="link ${linkState}" tabindex=${ariaDisabled ? '-1' : '0'} .disabled=${ariaDisabled} aria-disabled=${ariaDisabled} @click=${this.#sendSurvey}>
-        <devtools-icon class="link-icon" .data=${{iconName: 'review', color: 'var(--sys-color-primary)', width: 'var(--issue-link-icon-size, 16px)', height: 'var(--issue-link-icon-size, 16px)'}}></devtools-icon><!--
-      -->${linkText}
-      </button>
-    `;
+      <style>${surveyLinkStyles}</style>
+      <button
+          class="link ${linkState}" tabindex=${ariaDisabled ? '-1' : '0'}
+          .disabled=${ariaDisabled} aria-disabled=${ariaDisabled} @click=${this.#sendSurvey}>
+        <devtools-icon class="link-icon" name="review" style="color: var(--sys-color-primary); width: var(--issue-link-icon-size, 16px); height: var(--issue-link-icon-size, 16px)">
+        </devtools-icon>
+        ${linkText}
+      </button>`;
     // clang-format on
     render(output, this.#shadow, {host: this});
   }

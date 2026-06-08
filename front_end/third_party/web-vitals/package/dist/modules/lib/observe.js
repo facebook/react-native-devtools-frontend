@@ -21,25 +21,22 @@
  * This function also feature-detects entry support and wraps the logic in a
  * try/catch to avoid errors in unsupporting browsers.
  */
-export const observe = (type, callback, opts) => {
+export const observe = (type, callback, opts = {}) => {
     try {
         if (PerformanceObserver.supportedEntryTypes.includes(type)) {
             const po = new PerformanceObserver((list) => {
                 // Delay by a microtask to workaround a bug in Safari where the
                 // callback is invoked immediately, rather than in a separate task.
                 // See: https://github.com/GoogleChrome/web-vitals/issues/277
-                Promise.resolve().then(() => {
+                queueMicrotask(() => {
                     callback(list.getEntries());
                 });
             });
-            po.observe(Object.assign({
-                type,
-                buffered: true,
-            }, opts || {}));
+            po.observe({ type, buffered: true, ...opts });
             return po;
         }
     }
-    catch (e) {
+    catch {
         // Do nothing.
     }
     return;

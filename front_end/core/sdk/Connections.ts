@@ -1,4 +1,4 @@
-// Copyright (c) 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -9,27 +9,23 @@ import type * as Platform from '../platform/platform.js';
 import * as ProtocolClient from '../protocol_client/protocol_client.js';
 import * as Root from '../root/root.js';
 
-import {RehydratingConnection} from './RehydratingConnection.js';
+import {RehydratingConnectionTransport} from './RehydratingConnection.js';
 
 const UIStrings = {
   /**
-   *@description Text on the remote debugging window to indicate the connection is lost
+   * @description Text on the remote debugging window to indicate the connection is lost
    */
   websocketDisconnected: 'WebSocket disconnected',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('core/sdk/Connections.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-export class MainConnection implements ProtocolClient.InspectorBackend.Connection {
-  onMessage: ((arg0: (Object|string)) => void)|null;
-  #onDisconnect: ((arg0: string) => void)|null;
-  #messageBuffer: string;
-  #messageSize: number;
+export class MainConnection implements ProtocolClient.ConnectionTransport.ConnectionTransport {
+  onMessage: ((arg0: Object|string) => void)|null = null;
+  #onDisconnect: ((arg0: string) => void)|null = null;
+  #messageBuffer = '';
+  #messageSize = 0;
   readonly #eventListeners: Common.EventTarget.EventDescriptor[];
   constructor() {
-    this.onMessage = null;
-    this.#onDisconnect = null;
-    this.#messageBuffer = '';
-    this.#messageSize = 0;
     this.#eventListeners = [
       Host.InspectorFrontendHost.InspectorFrontendHostInstance.events.addEventListener(
           Host.InspectorFrontendHostAPI.Events.DispatchMessage, this.dispatchMessage, this),
@@ -38,7 +34,7 @@ export class MainConnection implements ProtocolClient.InspectorBackend.Connectio
     ];
   }
 
-  setOnMessage(onMessage: (arg0: (Object|string)) => void): void {
+  setOnMessage(onMessage: (arg0: Object|string) => void): void {
     this.onMessage = onMessage;
   }
 
@@ -85,13 +81,13 @@ export class MainConnection implements ProtocolClient.InspectorBackend.Connectio
   }
 }
 
-export class WebSocketConnection implements ProtocolClient.InspectorBackend.Connection {
+export class WebSocketTransport implements ProtocolClient.ConnectionTransport.ConnectionTransport {
   #socket: WebSocket|null;
-  onMessage: ((arg0: (Object|string)) => void)|null;
-  #onDisconnect: ((arg0: string) => void)|null;
+  onMessage: ((arg0: Object|string) => void)|null = null;
+  #onDisconnect: ((arg0: string) => void)|null = null;
   #onWebSocketDisconnect: ((connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void)|null;
-  #connected: boolean;
-  #messages: string[];
+  #connected = false;
+  #messages: string[] = [];
   constructor(
       url: Platform.DevToolsPath.UrlString,
       onWebSocketDisconnect: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) => void) {
@@ -105,14 +101,10 @@ export class WebSocketConnection implements ProtocolClient.InspectorBackend.Conn
     };
     this.#socket.onclose = this.onClose.bind(this);
 
-    this.onMessage = null;
-    this.#onDisconnect = null;
     this.#onWebSocketDisconnect = onWebSocketDisconnect;
-    this.#connected = false;
-    this.#messages = [];
   }
 
-  setOnMessage(onMessage: (arg0: (Object|string)) => void): void {
+  setOnMessage(onMessage: (arg0: Object|string) => void): void {
     this.onMessage = onMessage;
   }
 
@@ -185,15 +177,11 @@ export class WebSocketConnection implements ProtocolClient.InspectorBackend.Conn
   }
 }
 
-export class StubConnection implements ProtocolClient.InspectorBackend.Connection {
-  onMessage: ((arg0: (Object|string)) => void)|null;
-  #onDisconnect: ((arg0: string) => void)|null;
-  constructor() {
-    this.onMessage = null;
-    this.#onDisconnect = null;
-  }
+export class StubTransport implements ProtocolClient.ConnectionTransport.ConnectionTransport {
+  onMessage: ((arg0: Object|string) => void)|null = null;
+  #onDisconnect: ((arg0: string) => void)|null = null;
 
-  setOnMessage(onMessage: (arg0: (Object|string)) => void): void {
+  setOnMessage(onMessage: (arg0: Object|string) => void): void {
     this.onMessage = onMessage;
   }
 
@@ -209,7 +197,7 @@ export class StubConnection implements ProtocolClient.InspectorBackend.Connectio
     const messageObject = JSON.parse(message);
     const error = {
       message: 'This is a stub connection, can\'t dispatch message.',
-      code: ProtocolClient.InspectorBackend.DevToolsStubErrorCode,
+      code: ProtocolClient.CDPConnection.CDPErrorStatus.DEVTOOLS_STUB_ERROR,
       data: messageObject,
     };
     if (this.onMessage) {
@@ -226,72 +214,22 @@ export class StubConnection implements ProtocolClient.InspectorBackend.Connectio
   }
 }
 
-export interface ParallelConnectionInterface extends ProtocolClient.InspectorBackend.Connection {
-  getSessionId: () => string;
-  getOnDisconnect: () => ((arg0: string) => void) | null;
-}
-
-export class ParallelConnection implements ParallelConnectionInterface {
-  readonly #connection: ProtocolClient.InspectorBackend.Connection;
-  #sessionId: string;
-  onMessage: ((arg0: Object) => void)|null;
-  #onDisconnect: ((arg0: string) => void)|null;
-  constructor(connection: ProtocolClient.InspectorBackend.Connection, sessionId: string) {
-    this.#connection = connection;
-    this.#sessionId = sessionId;
-    this.onMessage = null;
-    this.#onDisconnect = null;
-  }
-
-  setOnMessage(onMessage: (arg0: Object) => void): void {
-    this.onMessage = onMessage;
-  }
-
-  setOnDisconnect(onDisconnect: (arg0: string) => void): void {
-    this.#onDisconnect = onDisconnect;
-  }
-
-  getOnDisconnect(): ((arg0: string) => void)|null {
-    return this.#onDisconnect;
-  }
-
-  sendRawMessage(message: string): void {
-    const messageObject = JSON.parse(message);
-    // If the message isn't for a specific session, it must be for the root session.
-    if (!messageObject.sessionId) {
-      messageObject.sessionId = this.#sessionId;
-    }
-    this.#connection.sendRawMessage(JSON.stringify(messageObject));
-  }
-
-  getSessionId(): string {
-    return this.#sessionId;
-  }
-
-  async disconnect(): Promise<void> {
-    if (this.#onDisconnect) {
-      this.#onDisconnect.call(null, 'force disconnect');
-    }
-    this.#onDisconnect = null;
-    this.onMessage = null;
-  }
-}
-
 export async function initMainConnection(
     createRootTarget: () => Promise<void>,
     onConnectionLost: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) =>
         void): Promise<void> {
-  ProtocolClient.InspectorBackend.Connection.setFactory(createMainConnection.bind(null, onConnectionLost));
+  ProtocolClient.ConnectionTransport.ConnectionTransport.setFactory(createMainTransport.bind(null, onConnectionLost));
   await createRootTarget();
   Host.InspectorFrontendHost.InspectorFrontendHostInstance.connectionReady();
 }
 
-function createMainConnection(
+function createMainTransport(
     onConnectionLost: (connectionLostDetails?: {reason?: string, code?: string, errorType?: string}) =>
-        void): ProtocolClient.InspectorBackend.Connection {
-  if (Root.Runtime.getPathName().includes('rehydrated_devtools_app')) {
-    return new RehydratingConnection(onConnectionLost);
+        void): ProtocolClient.ConnectionTransport.ConnectionTransport {
+  if (Root.Runtime.Runtime.isTraceApp() || Root.Runtime.getPathName().includes('rehydrated_devtools_app')) {
+    return new RehydratingConnectionTransport(onConnectionLost);
   }
+
   const wsParam = Root.Runtime.Runtime.queryParam('ws');
   const wssParam = Root.Runtime.Runtime.queryParam('wss');
   if (wsParam || wssParam) {
@@ -304,10 +242,13 @@ function createMainConnection(
       schemelessUrl = `${window.location.host}${schemelessUrl}`;
     }
     const ws = `${scheme}://${schemelessUrl}` as Platform.DevToolsPath.UrlString;
-    return new WebSocketConnection(ws, onConnectionLost);
+    return new WebSocketTransport(ws, onConnectionLost);
   }
-  if (Host.InspectorFrontendHost.InspectorFrontendHostInstance.isHostedMode()) {
-    return new StubConnection();
+
+  const notEmbeddedOrWs = Host.InspectorFrontendHost.InspectorFrontendHostInstance.isHostedMode();
+  if (notEmbeddedOrWs) {
+    // eg., hosted mode (e.g. `http://localhost:9222/devtools/inspector.html`) without a WebSocket URL,
+    return new StubTransport();
   }
 
   return new MainConnection();

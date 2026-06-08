@@ -1,11 +1,14 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
+import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
+import {TraceLoader} from '../../../testing/TraceLoader.js';
 
 import * as Utils from './utils.js';
 
 describe('Treemap', () => {
-  describe('.makeScriptNode', () => {
+  describe('makeScriptNode', () => {
     const src = 'main.js';
 
     it('uses node data when available', () => {
@@ -17,19 +20,23 @@ describe('Treemap', () => {
       assert.deepEqual(node, {
         name: src,
         resourceBytes: 300,
+
         children: [
           {
             name: 'a.js',
             resourceBytes: 100,
+
           },
           {
             duplicatedNormalizedModuleName: 'blah',
             name: 'b.js',
             resourceBytes: 100,
+
           },
           {
             name: 'c.js',
             resourceBytes: 100,
+
           },
         ],
       });
@@ -48,10 +55,12 @@ describe('Treemap', () => {
               {
                 name: 'a.js',
                 resourceBytes: 100,
+
               },
               {
                 name: 'b.js',
                 resourceBytes: 100,
+
               },
             ],
             name: '/folder',
@@ -76,18 +85,22 @@ describe('Treemap', () => {
                 children: undefined,
                 name: 'folder1/a.js',
                 resourceBytes: 100,
+
               },
               {
                 children: undefined,
                 name: 'folder2/b.js',
                 resourceBytes: 100,
+
               },
             ],
             name: '/root',
             resourceBytes: 200,
+
           },
         ],
         resourceBytes: 200,
+
       });
     });
 
@@ -99,14 +112,17 @@ describe('Treemap', () => {
       assert.deepEqual(node, {
         name: src,
         resourceBytes: 200,
+
         children: [
           {
             name: 'a.js',
             resourceBytes: 100,
+
           },
           {
             name: 'b.js',
             resourceBytes: 100,
+
           },
         ],
       });
@@ -126,16 +142,20 @@ describe('Treemap', () => {
               {
                 name: 'a.js',
                 resourceBytes: 100,
+
               },
               {
                 name: 'b.js',
                 resourceBytes: 100,
+
               },
             ],
             resourceBytes: 200,
+
           },
         ],
         resourceBytes: 200,
+
       });
     });
 
@@ -151,20 +171,24 @@ describe('Treemap', () => {
           {
             name: 'some/prefix',
             resourceBytes: 201,
+
             children: [
               {
                 name: 'main.js',
                 resourceBytes: 100,
+
               },
               {
                 name: 'not/a.js',
                 resourceBytes: 101,
+
                 children: undefined,
               },
             ],
           },
         ],
         resourceBytes: 201,
+
       });
 
       expect(node.name).to.equal(src);
@@ -189,6 +213,7 @@ describe('Treemap', () => {
       assert.deepEqual(node, {
         name: src,
         resourceBytes: 502,
+
         children: [
           {
             children: [
@@ -196,6 +221,7 @@ describe('Treemap', () => {
                 children: undefined,
                 name: 'folder/a.js',
                 resourceBytes: 100,
+
               },
               {
                 children: [
@@ -203,19 +229,23 @@ describe('Treemap', () => {
                     duplicatedNormalizedModuleName: 'dep/a.js',
                     name: 'a.js',
                     resourceBytes: 101,
+
                   },
                   {
                     duplicatedNormalizedModuleName: 'dep/b.js',
                     name: 'b.js',
                     resourceBytes: 101,
+
                   },
                 ],
                 name: 'node_modules/dep',
                 resourceBytes: 202,
+
               },
             ],
             name: 'lib',
             resourceBytes: 302,
+
           },
           {
             children: [
@@ -223,18 +253,67 @@ describe('Treemap', () => {
                 duplicatedNormalizedModuleName: 'dep/a.js',
                 name: 'a.js',
                 resourceBytes: 100,
+
               },
               {
                 duplicatedNormalizedModuleName: 'dep/b.js',
                 name: 'b.js',
                 resourceBytes: 100,
+
               },
             ],
             name: 'node_modules/dep',
             resourceBytes: 200,
+
           },
         ],
       });
+    });
+  });
+
+  describeWithEnvironment('createTreemapData', () => {
+    it('works (source maps)', async function() {
+      const parsedTrace = await TraceLoader.traceEngine(this, 'dupe-js.json.gz');
+      const data = Utils.Treemap.createTreemapData(parsedTrace.data.Scripts, new Map())
+                       .map(d => [d.name, d.resourceBytes, d.encodedBytes, !!d.children?.length]);
+      assert.deepEqual(data, [
+        ['extensions::SafeBuiltins', 3204, 3204, false], ['v8/LoadTimes', 198, 198, false],
+        ['https://dupe-modules-lh-2.surge.sh/bundle.js?v1', 921607, 251055, true],
+        ['https://dupe-modules-lh-2.surge.sh/bundle.js?v2', 921607, 251053, true],
+        ['https://dupe-modules-lh-2.surge.sh/bundle.js?v3', 921607, 251055, true],
+        ['https://dupe-modules-lh-2.surge.sh/bundle.js?v4', 921607, 251055, true],
+        ['chrome-extension://cgaocdmhkmfnkdkbnckgmpopcbpaaejo/library/libraries.js', 67717, 67717, false],
+        ['chrome-extension://cgaocdmhkmfnkdkbnckgmpopcbpaaejo/content_scripts/detect.js', 1426, 1426, false],
+        ['chrome-extension://cgaocdmhkmfnkdkbnckgmpopcbpaaejo/content_scripts/run.js', 259, 259, false],
+        ['chrome-extension://pmhkaepabdniocnppdkfgifgonahhpdi/polyfills/webcomponents-ce.js', 19548, 19548, false],
+        ['chrome-extension://pmhkaepabdniocnppdkfgifgonahhpdi/incognito_content_script.js', 991691, 991691, false]
+      ]);
+    });
+
+    it('works (no source maps; inline scripts)', async function() {
+      const parsedTrace = await TraceLoader.traceEngine(this, 'yahoo-news.json.gz');
+      const data = Utils.Treemap.createTreemapData(parsedTrace.data.Scripts, new Map())
+                       .filter(d => d.children?.[0].name.includes('inline'))
+                       .map(d => [d.name.substring(0, 70), d.resourceBytes, d.encodedBytes, !!d.children?.length]);
+      assert.deepEqual(data, [
+        ['https://news.yahoo.com/', 264860, 52435, true],
+        ['https://cdn.taboola.com/libtrc/static/topics/taboola-browsing-topics.h', 492, 483, true],
+        ['https://cdn.taboola.com/scripts/prebid_iframe_sync.html?gdpr=0&gdpr_co', 25665, 25665, true],
+        ['https://securepubads.g.doubleclick.net/static/topics/topics_frame.html', 411400, 115046, true],
+        ['https://opus.analytics.yahoo.com/tag/opus-frame.html?referrer=https%3A', 5537, 2862, true],
+        ['https://onetag-sys.com/usync/?gdpr=0&gdpr_consent=&pubId=69f48c2160c81', 2356, 942, true],
+        ['https://sync.go.sonobi.com/uc.html?gdpr=0&gdpr_consent=&us_privacy=1YN', 3511, 4100, true],
+        ['https://c841865208bc99b5e2ae14cac96331fd.safeframe.googlesyndication.c', 31008, 31008, true],
+        ['https://tpc.googlesyndication.com/sodar/sodar2/232/runner.html', 77881, 77881, true],
+        ['https://c841865208bc99b5e2ae14cac96331fd.safeframe.googlesyndication.c', 20056, 20056, true],
+        ['https://c841865208bc99b5e2ae14cac96331fd.safeframe.googlesyndication.c', 41584, 41584, true],
+        ['https://us-u.openx.net/w/1.0/pd?cc=1&plm=6&ph=208e6dab-f554-4b1c-b023-', 113, 123, true],
+        ['https://tpc.googlesyndication.com/sodar/62bHydCX.html', 38984, 38984, true],
+        ['https://u.openx.net/w/1.0/cm?cc=1&id=4241c706-9fd2-4ae4-b2d7-c9f8d34e7', 113, 123, true],
+        ['https://c841865208bc99b5e2ae14cac96331fd.safeframe.googlesyndication.c', 696, 696, true],
+        ['https://s0.2mdn.net/sadbundle/16824365171377590673/index.html?ev=01_25', 8181, 2709, true],
+        ['https://onetag-sys.com/usync/?pubId=765b4e6bb9c8438', 2356, 942, true]
+      ]);
     });
   });
 });

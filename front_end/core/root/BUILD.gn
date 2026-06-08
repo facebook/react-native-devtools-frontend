@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -6,8 +6,12 @@ import("../../../scripts/build/ninja/devtools_entrypoint.gni")
 import("../../../scripts/build/ninja/devtools_module.gni")
 import("../../../scripts/build/typescript/typescript.gni")
 
-devtools_module("root") {
-  sources = [ "Runtime.ts" ]
+devtools_foundation_module("root") {
+  sources = [
+    "DevToolsContext.ts",
+    "ExperimentNames.ts",
+    "Runtime.ts",
+  ]
 
   deps = [ "../../core/platform:bundle" ]
 }
@@ -20,10 +24,13 @@ devtools_entrypoint("bundle") {
   visibility = [ "*" ]
 }
 
-ts_library("unittests") {
+devtools_foundation_module("foundation_unittests") {
   testonly = true
 
   sources = [ "Runtime.test.ts" ]
 
-  deps = [ ":bundle" ]
+  deps = [
+    ":bundle",
+    "../../testing",
+  ]
 }

@@ -10,7 +10,7 @@ exports.NodeWebSocketTransport = void 0;
  * SPDX-License-Identifier: Apache-2.0
  */
 const ws_1 = __importDefault(require("ws"));
-const version_js_1 = require("../generated/version.js");
+const version_js_1 = require("../util/version.js");
 /**
  * @internal
  */
@@ -20,7 +20,6 @@ class NodeWebSocketTransport {
             const ws = new ws_1.default(url, [], {
                 followRedirects: true,
                 perMessageDeflate: false,
-                // @ts-expect-error https://github.com/websockets/ws/blob/master/doc/ws.md#new-websocketaddress-protocols-options
                 allowSynchronousEvents: false,
                 maxPayload: 256 * 1024 * 1024, // 256Mb
                 headers: {

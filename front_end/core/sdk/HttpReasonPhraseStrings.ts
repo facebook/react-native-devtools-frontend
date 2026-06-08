@@ -1,13 +1,15 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as i18n from '../i18n/i18n.js';
 
-// Reason phrase sources
-// See https://www.rfc-editor.org/rfc/rfc9110.html#name-status-codes
+/**
+ * Reason phrase sources
+ * See https://www.rfc-editor.org/rfc/rfc9110.html#name-status-codes
+ **/
 export function getStatusText(statusCode: number): string {
-  const statusTextLookup: {[key: number]: string} = {
+  const statusTextLookup: Record<number, string> = {
     100: 'Continue',
     101: 'Switching Protocols',
     102: 'Processing',

@@ -14,9 +14,15 @@ exports.mergeUint8Arrays = mergeUint8Arrays;
  */
 function stringToTypedArray(string, base64Encoded = false) {
     if (base64Encoded) {
-        const binaryString = atob(string);
-        // @ts-expect-error There are non-proper overloads
-        return Uint8Array.from(binaryString, m => {
+        if ('fromBase64' in Uint8Array) {
+            // @ts-expect-error fromBase64 is newer than the types we use.
+            return Uint8Array.fromBase64(string);
+        }
+        // TODO: remove Buffer in v26 when it becomes LTS.
+        if (typeof Buffer === 'function') {
+            return Buffer.from(string, 'base64');
+        }
+        return Uint8Array.from(atob(string), m => {
             return m.codePointAt(0);
         });
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Chromium Authors. All rights reserved.
+ * Copyright 2021 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -32,7 +32,7 @@
   height: var(--size);
   margin: -1px 0 0 calc(-1 * var(--size));
   mask: var(--image-file-goto-filled) center / contain no-repeat;
-  background-color: var(--sys-color-surface-variant);
+  background-color: var(--sys-color-primary-bright);
 }
 
 .computed-style-trace:hover .goto {
@@ -55,7 +55,7 @@
 }
 
 .trace-selector {
-  --override-trace-selector-color: var(--sys-color-neutral-bright);
+  --override-trace-selector-color: var(--sys-color-token-subtle);
 
   color: var(--override-trace-selector-color);
   padding-left: 2em;

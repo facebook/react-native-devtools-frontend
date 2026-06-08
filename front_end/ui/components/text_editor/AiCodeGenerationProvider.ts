@@ -1,0 +1,497 @@
+// Copyright 2025 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import * as Common from '../../../core/common/common.js';
+import * as Host from '../../../core/host/host.js';
+import * as i18n from '../../../core/i18n/i18n.js';
+import * as Root from '../../../core/root/root.js';
+import type * as AiCodeCompletion from '../../../models/ai_code_completion/ai_code_completion.js';
+import * as AiCodeGeneration from '../../../models/ai_code_generation/ai_code_generation.js';
+import * as PanelCommon from '../../../panels/common/common.js';
+import * as CodeMirror from '../../../third_party/codemirror.next/codemirror.next.js';
+import * as UI from '../../../ui/legacy/legacy.js';
+import * as VisualLogging from '../../visual_logging/visual_logging.js';
+
+import {AccessiblePlaceholder} from './AccessiblePlaceholder.js';
+import {AiCodeGenerationParser} from './AiCodeGenerationParser.js';
+import {
+  acceptAiAutoCompleteSuggestion,
+  aiAutoCompleteSuggestion,
+  aiAutoCompleteSuggestionState,
+  AiSuggestionSource,
+  hasActiveAiSuggestion,
+  setAiAutoCompleteSuggestion,
+} from './config.js';
+import type {TextEditor} from './TextEditor.js';
+
+export enum AiCodeGenerationTeaserMode {
+  ACTIVE = 'active',
+  DISMISSED = 'dismissed',
+}
+
+export const setAiCodeGenerationTeaserMode = CodeMirror.StateEffect.define<AiCodeGenerationTeaserMode>();
+
+const aiCodeGenerationTeaserModeState = CodeMirror.StateField.define<AiCodeGenerationTeaserMode>({
+  create: () => AiCodeGenerationTeaserMode.ACTIVE,
+  update(value, tr) {
+    return tr.effects.find(effect => effect.is(setAiCodeGenerationTeaserMode))?.value ?? value;
+  },
+});
+
+export interface AiCodeGenerationConfig {
+  generationContext: {
+    additionalPreambleContext?: string,
+    inferenceLanguage?: Host.AidaClient.AidaInferenceLanguage,
+  };
+  onSuggestionAccepted: (citations: Host.AidaClient.Citation[]) => void;
+  onRequestTriggered: () => void;
+  onResponseReceived: () => void;
+  panel: AiCodeCompletion.AiCodeCompletion.ContextFlavor;
+}
+
+export class AiCodeGenerationProvider {
+  // 'ai-code-completion-enabled' setting controls both AI code completion and AI code generation.
+  // Since this provider deals with code generation, the field has been named `#aiCodeGenerationEnabledSetting`.
+  #aiCodeGenerationEnabledSetting =
+      Common.Settings.Settings.instance().createSetting('ai-code-completion-enabled', false);
+  #aiCodeGenerationSettingEnabled = this.#aiCodeGenerationEnabledSetting.get();
+  #aiCodeGenerationOnboardingCompletedSetting =
+      Common.Settings.Settings.instance().createSetting('ai-code-generation-onboarding-completed', false);
+  #aiCodeGenerationUsedSetting = Common.Settings.Settings.instance().createSetting('ai-code-generation-used', false);
+  #generationTeaserCompartment = new CodeMirror.Compartment();
+  #generationTeaser: PanelCommon.AiCodeGenerationTeaser.AiCodeGenerationTeaser;
+  #editor?: TextEditor;
+  #aiCodeGenerationConfig: AiCodeGenerationConfig;
+  #aiCodeGeneration?: AiCodeGeneration.AiCodeGeneration.AiCodeGeneration;
+  #aiCodeGenerationCitations: Host.AidaClient.Citation[] = [];
+
+  #aidaClient: Host.AidaClient.AidaClient = new Host.AidaClient.AidaClient();
+  #boundOnUpdateAiCodeGenerationState = this.#updateAiCodeGenerationState.bind(this);
+  #controller = new AbortController();
+
+  private constructor(aiCodeGenerationConfig: AiCodeGenerationConfig) {
+    if (!AiCodeGeneration.AiCodeGeneration.AiCodeGeneration.isAiCodeGenerationAvailable()) {
+      throw new Error('AI code generation feature is not available.');
+    }
+    this.#generationTeaser = new PanelCommon.AiCodeGenerationTeaser.AiCodeGenerationTeaser();
+    this.#generationTeaser.disclaimerTooltipId =
+        aiCodeGenerationConfig.panel + '-ai-code-generation-disclaimer-tooltip';
+    this.#generationTeaser.panel = aiCodeGenerationConfig.panel;
+    this.#aiCodeGenerationConfig = aiCodeGenerationConfig;
+  }
+
+  static createInstance(aiCodeGenerationConfig: AiCodeGenerationConfig): AiCodeGenerationProvider {
+    return new AiCodeGenerationProvider(aiCodeGenerationConfig);
+  }
+
+  extension(): CodeMirror.Extension[] {
+    return [
+      CodeMirror.EditorView.updateListener.of(update => this.#activateTeaser(update)),
+      CodeMirror.EditorView.updateListener.of(update => this.#abortOrDismissGenerationDuringUpdate(update)),
+      aiAutoCompleteSuggestion,
+      aiAutoCompleteSuggestionState,
+      aiCodeGenerationTeaserModeState,
+      CodeMirror.Prec.highest(this.#generationTeaserCompartment.of([])),
+      CodeMirror.Prec.highest(CodeMirror.keymap.of(this.#editorKeymap())),
+    ];
+  }
+
+  dispose(): void {
+    this.#controller.abort();
+    this.#cleanupAiCodeGeneration();
+    this.#aiCodeGenerationEnabledSetting.removeChangeListener(this.#boundOnUpdateAiCodeGenerationState);
+    Host.AidaClient.HostConfigTracker.instance().removeEventListener(
+        Host.AidaClient.Events.AIDA_AVAILABILITY_CHANGED, this.#boundOnUpdateAiCodeGenerationState);
+  }
+
+  editorInitialized(editor: TextEditor): void {
+    this.#editor = editor;
+    Host.AidaClient.HostConfigTracker.instance().addEventListener(
+        Host.AidaClient.Events.AIDA_AVAILABILITY_CHANGED, this.#boundOnUpdateAiCodeGenerationState);
+    this.#aiCodeGenerationEnabledSetting.addChangeListener(this.#boundOnUpdateAiCodeGenerationState);
+    void this.#updateAiCodeGenerationState();
+  }
+
+  async #setupAiCodeGeneration(): Promise<void> {
+    if (this.#aiCodeGeneration) {
+      return;
+    }
+    this.#aiCodeGeneration = new AiCodeGeneration.AiCodeGeneration.AiCodeGeneration({
+      aidaClient: this.#aidaClient,
+      serverSideLoggingEnabled: !Root.Runtime.hostConfig.aidaAvailability?.disallowLogging,
+    });
+    this.#editor?.dispatch({
+      effects:
+          [this.#generationTeaserCompartment.reconfigure([aiCodeGenerationTeaserExtension(this.#generationTeaser)])],
+    });
+  }
+
+  #cleanupAiCodeGeneration(): void {
+    if (!this.#aiCodeGeneration) {
+      return;
+    }
+    this.#aiCodeGeneration = undefined;
+    this.#editor?.dispatch({
+      effects: [this.#generationTeaserCompartment.reconfigure([])],
+    });
+  }
+
+  async #updateAiCodeGenerationState(): Promise<void> {
+    const aidaAvailability = await Host.AidaClient.AidaClient.checkAccessPreconditions();
+    const isAvailable = aidaAvailability === Host.AidaClient.AidaAccessPreconditions.AVAILABLE;
+    const devtoolsLocale = i18n.DevToolsLocale.DevToolsLocale.instance().locale;
+    const aiCodeGenerationEnabled =
+        AiCodeGeneration.AiCodeGeneration.AiCodeGeneration.isAiCodeGenerationEnabled(devtoolsLocale);
+    const isSettingEnabled = this.#aiCodeGenerationEnabledSetting.get();
+    if (isAvailable && aiCodeGenerationEnabled && isSettingEnabled) {
+      if (!this.#aiCodeGenerationSettingEnabled) {
+        // If the user enabled setting when code generation feature is already available,
+        // we do not need to show the upgrade dialog.
+        this.#aiCodeGenerationOnboardingCompletedSetting.set(true);
+      }
+      await this.#setupAiCodeGeneration();
+    } else {
+      this.#cleanupAiCodeGeneration();
+    }
+    this.#aiCodeGenerationSettingEnabled = isSettingEnabled;
+  }
+
+  #editorKeymap(): readonly CodeMirror.KeyBinding[] {
+    return [
+      {
+        key: 'Escape',
+        run: (): boolean => {
+          if (!this.#editor || !this.#aiCodeGeneration) {
+            return false;
+          }
+          if (hasActiveAiSuggestion(this.#editor.state)) {
+            if (this.#editor.state.field(aiAutoCompleteSuggestionState)?.source === AiSuggestionSource.COMPLETION) {
+              // If the suggestion is from code completion, we don't want to
+              // dismiss it here. The user should use the code completion
+              // provider's keymap to dismiss the suggestion.
+              return false;
+            }
+            this.#dismissTeaserAndSuggestion();
+            return true;
+          }
+          const generationTeaserIsLoading = this.#generationTeaser.displayState ===
+              PanelCommon.AiCodeGenerationTeaser.AiCodeGenerationTeaserDisplayState.LOADING;
+          if (this.#generationTeaser.isShowing() && generationTeaserIsLoading) {
+            this.#controller.abort();
+            this.#controller = new AbortController();
+            this.#dismissTeaserAndSuggestion();
+            return true;
+          }
+          return false;
+        },
+      },
+      {
+        key: 'Tab',
+        run: this.#acceptAiSuggestion.bind(this),
+      },
+      {
+        key: 'Enter',
+        run: this.#acceptAiSuggestion.bind(this),
+      },
+      {
+        any: (_view: unknown, event: KeyboardEvent) => {
+          if (!this.#editor || !this.#aiCodeGeneration || !this.#generationTeaser.isShowing()) {
+            return false;
+          }
+          if (UI.KeyboardShortcut.KeyboardShortcut.eventHasCtrlEquivalentKey(event)) {
+            if (event.key === 'i') {
+              void this.#triggerAiCodeGenerationFlow(event);
+              return true;
+            }
+          }
+          return false;
+        }
+      }
+    ];
+  }
+
+  async #triggerAiCodeGenerationFlow(event: KeyboardEvent): Promise<void> {
+    event.consume(true);
+
+    const isOnboarded = await this.#onboardUser();
+    if (!isOnboarded) {
+      return;
+    }
+
+    void VisualLogging.logKeyDown(event.currentTarget, event, 'ai-code-generation.triggered');
+    void this.#triggerAiCodeGeneration({signal: this.#controller.signal});
+  }
+
+  async #onboardUser(): Promise<boolean> {
+    if (this.#aiCodeGenerationOnboardingCompletedSetting.get()) {
+      return true;
+    }
+
+    const noLogging = Root.Runtime.hostConfig.aidaAvailability?.enterprisePolicyValue ===
+        Root.Runtime.GenAiEnterprisePolicyValue.ALLOW_WITHOUT_LOGGING;
+    const resolved = await PanelCommon.AiCodeGenerationUpgradeDialog.show({noLogging});
+    this.#aiCodeGenerationOnboardingCompletedSetting.set(resolved);
+    return resolved;
+  }
+
+  #dismissTeaserAndSuggestion(): void {
+    this.#generationTeaser.displayState = PanelCommon.AiCodeGenerationTeaser.AiCodeGenerationTeaserDisplayState.TRIGGER;
+    this.#editor?.dispatch({
+      effects: [
+        setAiCodeGenerationTeaserMode.of(AiCodeGenerationTeaserMode.DISMISSED),
+        setAiAutoCompleteSuggestion.of(null),
+      ]
+    });
+  }
+
+  #acceptAiSuggestion(): boolean {
+    if (!this.#aiCodeGeneration || !this.#editor || !hasActiveAiSuggestion(this.#editor.state)) {
+      return false;
+    }
+    const {accepted, suggestion} = acceptAiAutoCompleteSuggestion(this.#editor.editor);
+    if (!accepted) {
+      return false;
+    }
+    if (suggestion?.rpcGlobalId) {
+      this.#aiCodeGeneration.registerUserAcceptance(suggestion.rpcGlobalId, suggestion.sampleId);
+    }
+    this.#aiCodeGenerationConfig?.onSuggestionAccepted(this.#aiCodeGenerationCitations);
+    return true;
+  }
+
+  #activateTeaser(update: CodeMirror.ViewUpdate): void {
+    const currentTeaserMode = update.state.field(aiCodeGenerationTeaserModeState);
+    if (currentTeaserMode === AiCodeGenerationTeaserMode.ACTIVE) {
+      return;
+    }
+    if (!update.docChanged && update.state.selection.main.head === update.startState.selection.main.head) {
+      return;
+    }
+    update.view.dispatch({effects: setAiCodeGenerationTeaserMode.of(AiCodeGenerationTeaserMode.ACTIVE)});
+  }
+
+  /**
+   * Monitors editor changes to cancel an ongoing AI generation or dismiss one
+   * if it already exists.
+   * We abort the request (or dismiss suggestion) and dismiss the teaser if the
+   * user modifies the document or moves their cursor/selection. These actions
+   * indicate the user is no longer focused on the current generation point or
+   * has manually resumed editing, making the suggestion irrelevant.
+   */
+  #abortOrDismissGenerationDuringUpdate(update: CodeMirror.ViewUpdate): void {
+    if (!update.docChanged && update.state.selection.main.head === update.startState.selection.main.head) {
+      return;
+    }
+    const currentTeaserMode = update.state.field(aiCodeGenerationTeaserModeState);
+    if (currentTeaserMode === AiCodeGenerationTeaserMode.DISMISSED) {
+      return;
+    }
+    if (this.#generationTeaser.displayState ===
+        PanelCommon.AiCodeGenerationTeaser.AiCodeGenerationTeaserDisplayState.LOADING) {
+      this.#controller.abort();
+      this.#controller = new AbortController();
+      this.#dismissTeaserAndSuggestion();
+      return;
+    }
+    if (this.#generationTeaser.displayState ===
+        PanelCommon.AiCodeGenerationTeaser.AiCodeGenerationTeaserDisplayState.GENERATED) {
+      update.view.dispatch({effects: setAiAutoCompleteSuggestion.of(null)});
+      this.#generationTeaser.displayState =
+          PanelCommon.AiCodeGenerationTeaser.AiCodeGenerationTeaserDisplayState.DISCOVERY;
+      return;
+    }
+  }
+
+  async #triggerAiCodeGeneration(options?: {signal?: AbortSignal}): Promise<void> {
+    if (!this.#editor || !this.#aiCodeGeneration) {
+      return;
+    }
+
+    this.#aiCodeGenerationUsedSetting.set(true);
+
+    this.#aiCodeGenerationCitations = [];
+    const cursor = this.#editor.state.selection.main.head;
+    const commentNodeInfo = AiCodeGenerationParser.extractCommentNodeInfo(this.#editor.state, cursor);
+    if (!commentNodeInfo) {
+      return;
+    }
+    // Move cursor to end of comment node before triggering generation.
+    this.#editor.dispatch({selection: {anchor: commentNodeInfo.to}});
+
+    const query = commentNodeInfo.text;
+    if (!query || query.trim().length === 0) {
+      return;
+    }
+
+    this.#generationTeaser.displayState = PanelCommon.AiCodeGenerationTeaser.AiCodeGenerationTeaserDisplayState.LOADING;
+    try {
+      const startTime = performance.now();
+      this.#aiCodeGenerationConfig.onRequestTriggered();
+      Host.userMetrics.actionTaken(Host.UserMetrics.Action.AiCodeGenerationRequestTriggered);
+
+      const preamble = AiCodeGeneration.AiCodeGeneration.basePreamble +
+          this.#aiCodeGenerationConfig.generationContext.additionalPreambleContext;
+      const generationResponse = await this.#aiCodeGeneration.generateCode(
+          query, preamble, this.#aiCodeGenerationConfig.generationContext.inferenceLanguage, options);
+
+      if (this.#generationTeaser) {
+        this.#dismissTeaserAndSuggestion();
+      }
+
+      if (!generationResponse || generationResponse.samples.length === 0) {
+        this.#aiCodeGenerationConfig.onResponseReceived();
+        return;
+      }
+      const topSample = generationResponse.samples[0];
+
+      const shouldBlock = topSample.attributionMetadata?.attributionAction === Host.AidaClient.RecitationAction.BLOCK;
+      if (shouldBlock) {
+        return;
+      }
+
+      const backtickRegex = /^```(?:\w+)?\n([\s\S]*?)\n```$/;
+      const matchArray = topSample.generationString.match(backtickRegex);
+      const suggestionText = matchArray ? matchArray[1].trim() : topSample.generationString;
+
+      this.#editor.dispatch({
+        effects: [
+          setAiAutoCompleteSuggestion.of({
+            text: '\n' + suggestionText + '\n',
+            from: commentNodeInfo.to,
+            rpcGlobalId: generationResponse.metadata.rpcGlobalId,
+            sampleId: topSample.sampleId,
+            startTime,
+            onImpression: this.#aiCodeGeneration?.registerUserImpression.bind(this.#aiCodeGeneration),
+            source: AiSuggestionSource.GENERATION,
+          }),
+          setAiCodeGenerationTeaserMode.of(AiCodeGenerationTeaserMode.ACTIVE)
+        ]
+      });
+      this.#generationTeaser.displayState =
+          PanelCommon.AiCodeGenerationTeaser.AiCodeGenerationTeaserDisplayState.GENERATED;
+
+      AiCodeGeneration.debugLog('Suggestion dispatched to the editor', suggestionText);
+      const citations = topSample.attributionMetadata?.citations ?? [];
+      this.#aiCodeGenerationCitations = citations;
+      this.#aiCodeGenerationConfig.onResponseReceived();
+      return;
+    } catch (e) {
+      if (e instanceof Host.DispatchHttpRequestClient.DispatchHttpRequestError &&
+          e.type === Host.DispatchHttpRequestClient.ErrorType.ABORT) {
+        return;
+      }
+      AiCodeGeneration.debugLog('Error while fetching code generation suggestions from AIDA', e);
+      this.#aiCodeGenerationConfig.onResponseReceived();
+      Host.userMetrics.actionTaken(Host.UserMetrics.Action.AiCodeGenerationError);
+    }
+
+    if (this.#generationTeaser) {
+      this.#dismissTeaserAndSuggestion();
+    }
+  }
+}
+
+function aiCodeGenerationTeaserExtension(teaser: PanelCommon.AiCodeGenerationTeaser.AiCodeGenerationTeaser):
+    CodeMirror.Extension {
+  return CodeMirror.ViewPlugin.fromClass(class {
+    #view: CodeMirror.EditorView;
+
+    constructor(view: CodeMirror.EditorView) {
+      this.#view = view;
+      this.#updateTeaserState(view.state);
+    }
+
+    update(update: CodeMirror.ViewUpdate): void {
+      if (!update.docChanged && update.state.selection.main.head === update.startState.selection.main.head) {
+        return;
+      }
+      this.#updateTeaserState(update.state);
+    }
+
+    get decorations(): CodeMirror.DecorationSet {
+      const teaserMode = this.#view.state.field(aiCodeGenerationTeaserModeState);
+      if (teaserMode === AiCodeGenerationTeaserMode.DISMISSED) {
+        return CodeMirror.Decoration.none;
+      }
+
+      const cursorPosition = this.#view.state.selection.main.head;
+      const line = this.#view.state.doc.lineAt(cursorPosition);
+
+      const isEmptyLine = line.length === 0;
+      const canShowDiscoveryState =
+          UI.UIUtils.PromotionManager.instance().canShowPromotion(PanelCommon.AiCodeGenerationTeaser.PROMOTION_ID);
+
+      if ((isEmptyLine && canShowDiscoveryState)) {
+        return CodeMirror.Decoration.set([
+          CodeMirror.Decoration.widget({widget: new AccessiblePlaceholder(teaser), side: 1}).range(cursorPosition),
+        ]);
+      }
+
+      const commentInfo = AiCodeGenerationParser.extractCommentNodeInfo(this.#view.state, cursorPosition);
+      if (commentInfo) {
+        // If cursor is inside the comment, show at the end of the comment node.
+        // If cursor is after the comment (but on same line), show at the cursor.
+        const decorationPos = Math.max(cursorPosition, commentInfo.to);
+        return CodeMirror.Decoration.set([
+          CodeMirror.Decoration.widget({widget: new AccessiblePlaceholder(teaser), side: 1}).range(decorationPos),
+        ]);
+      }
+
+      return CodeMirror.Decoration.none;
+    }
+
+    #updateTeaserState(state: CodeMirror.EditorState): void {
+      // Only handle non loading and non generated states, as updates during and after generation are handled by
+      // #abortOrDismissGenerationDuringUpdate in AiCodeGenerationProvider
+      if (teaser.displayState === PanelCommon.AiCodeGenerationTeaser.AiCodeGenerationTeaserDisplayState.LOADING ||
+          teaser.displayState === PanelCommon.AiCodeGenerationTeaser.AiCodeGenerationTeaserDisplayState.GENERATED) {
+        return;
+      }
+      const cursorPosition = state.selection.main.head;
+      const line = state.doc.lineAt(cursorPosition);
+      const isEmptyLine = line.length === 0;
+      if (isEmptyLine) {
+        teaser.displayState = PanelCommon.AiCodeGenerationTeaser.AiCodeGenerationTeaserDisplayState.DISCOVERY;
+      } else {
+        teaser.displayState = PanelCommon.AiCodeGenerationTeaser.AiCodeGenerationTeaserDisplayState.TRIGGER;
+      }
+    }
+  }, {
+    decorations: v => v.decorations,
+    eventHandlers: {
+      mousemove(event: MouseEvent): boolean {
+        // Required for mouse hover to propagate to the info button in teaser.
+        return (event.target instanceof Node && teaser.contentElement.contains(event.target));
+      },
+      mousedown(event: MouseEvent, view: CodeMirror.EditorView): boolean {
+        if (!(event.target instanceof Node) || !teaser.contentElement.contains(event.target)) {
+          return false;
+        }
+        // On mouse click, move the cursor position to the end of the line.
+        const cursorPosition = view.state.selection.main.head;
+        const line = view.state.doc.lineAt(cursorPosition);
+        if (cursorPosition !== line.to) {
+          view.dispatch({selection: {anchor: line.to, head: line.to}});
+        }
+        // Explicitly focus the editor.
+        view.focus();
+        return true;
+      },
+      keydown(event: KeyboardEvent): boolean {
+        if (!UI.KeyboardShortcut.KeyboardShortcut.eventHasCtrlEquivalentKey(event) ||
+            teaser.displayState !== PanelCommon.AiCodeGenerationTeaser.AiCodeGenerationTeaserDisplayState.TRIGGER) {
+          return false;
+        }
+        if (event.key === '.') {
+          event.consume(true);
+          void VisualLogging.logKeyDown(
+              event.currentTarget, event, 'ai-code-generation-teaser.show-disclaimer-info-tooltip');
+          teaser.showTooltip();
+          return true;
+        }
+        return false;
+      }
+    },
+  });
+}

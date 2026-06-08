@@ -1,4 +1,4 @@
-// Copyright (c) 2015 The Chromium Authors. All rights reserved.
+// Copyright 2015 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -18,25 +18,24 @@ export class StylePropertyHighlighter {
   /**
    * Expand all shorthands, find the given property, scroll to it and highlight it.
    */
-  highlightProperty(cssProperty: SDK.CSSProperty.CSSProperty): void {
-    // Expand all shorthands.
-    for (const section of this.styleSidebarPane.allSections()) {
-      for (let treeElement = section.propertiesTreeOutline.firstChild(); treeElement;
-           treeElement = treeElement.nextSibling) {
-        void treeElement.onpopulate();
-      }
-    }
-
+  async highlightProperty(cssProperty: SDK.CSSProperty.CSSProperty): Promise<void> {
     const section =
-        this.styleSidebarPane.allSections().find(section => section.style().leadingProperties().includes(cssProperty));
+        this.styleSidebarPane.allSections().find(section => section.style().allProperties().includes(cssProperty));
     if (!section) {
       return;
     }
+    section.expand();
     section.showAllItems();
+    const populatePromises: Array<Promise<void>> = [];
+    for (let treeElement = section.propertiesTreeOutline.firstChild(); treeElement;
+         treeElement = treeElement.nextSibling) {
+      populatePromises.push(treeElement.onpopulate());
+    }
+    await Promise.all(populatePromises);
 
     const treeElement = this.findTreeElementFromSection(treeElement => treeElement.property === cssProperty, section);
     if (treeElement) {
-      treeElement.parent && treeElement.parent.expand();
+      treeElement.parent?.expand();
       this.scrollAndHighlightTreeElement(treeElement);
       section.element.focus();
     }
@@ -59,6 +58,7 @@ export class StylePropertyHighlighter {
       return;
     }
     block.expand(true);
+    section.expand();
     section.showAllItems();
     PanelUtils.highlightElement(section.element);
   }
@@ -80,6 +80,7 @@ export class StylePropertyHighlighter {
         continue;
       }
       block?.expand(true);
+      section.expand();
       section.showAllItems();
       const treeElement = this.findTreeElementFromSection(
           treeElement => treeElement.property.name === propertyName && !treeElement.overloaded(), section);

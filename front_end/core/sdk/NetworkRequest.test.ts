@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -410,7 +410,7 @@ data: bar\n\n`;
         dataLength: 1,
         encodedDataLength: 1,
         timestamp: time++,
-        data: window.btoa(c),
+        data: globalThis.btoa(c),
       });
     }
 
@@ -455,7 +455,7 @@ describeWithMockConnection('requestStreamingContent', () => {
 
     void networkManager.requestForId('1')!.requestStreamingContent();
 
-    assert.isTrue(responseBodySpy.calledOnce);
+    sinon.assert.calledOnce(responseBodySpy);
   });
 
   it('streams the full response body for in-flight requests', () => {
@@ -478,7 +478,7 @@ describeWithMockConnection('requestStreamingContent', () => {
 
     void networkManager.requestForId('1')!.requestStreamingContent();
 
-    assert.isTrue(responseBodySpy.calledOnce);
+    sinon.assert.calledOnce(responseBodySpy);
   });
 
   it('sends ChunkAdded events when new data is received', async () => {

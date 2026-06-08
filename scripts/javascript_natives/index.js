@@ -1,9 +1,9 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as fs from 'fs';
 import glob from 'glob';
+import * as fs from 'node:fs';
 import ts from 'typescript';
 import * as WebIDL2 from 'webidl2';
 

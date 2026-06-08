@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -6,18 +6,17 @@ import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
 import {getInsightOrError} from '../../../testing/InsightHelpers.js';
 import {TraceLoader} from '../../../testing/TraceLoader.js';
 
-export async function processTrace(testContext: Mocha.Suite|Mocha.Context|null, traceFile: string) {
-  const {parsedTrace, insights} = await TraceLoader.traceEngine(testContext, traceFile);
-  if (!insights) {
-    throw new Error('No insights');
+describeWithEnvironment('ForcedReflow', function() {
+  async function processTrace(context: Mocha.Suite|Mocha.Context, traceFile: string) {
+    const {data, insights} = await TraceLoader.traceEngine(context, traceFile);
+    if (!insights) {
+      throw new Error('No insights');
+    }
+
+    return {data, insights};
   }
 
-  return {data: parsedTrace, insights};
-}
-
-describeWithEnvironment('ForcedReflow', function() {
-  // Skip to re-open the tree
-  it.skip('[crbug.com/392557418]: generates call stacks', async function() {
+  it('generates call stacks', async function() {
     const {data, insights} = await processTrace(this, 'forced-reflow.json.gz');
     assert.strictEqual(insights.size, 1);
     const insight =
@@ -30,6 +29,6 @@ describeWithEnvironment('ForcedReflow', function() {
     const callStack = insight.aggregatedBottomUpData[1];
     assert.strictEqual(callStack.bottomUpData!.columnNumber, 197203);
     assert.strictEqual(callStack.bottomUpData!.lineNumber, 32);
-    assert.lengthOf(callStack.relatedEvents, 2);
+    assert.lengthOf(callStack.relatedEvents, 16);
   });
 });

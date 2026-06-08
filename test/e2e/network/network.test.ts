@@ -1,0 +1,181 @@
+// Copyright 2020 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+import {assert} from 'chai';
+
+import {
+  clearTimeWindow,
+  getAllRequestNames,
+  getNumberOfRequests,
+  getSelectedRequestName,
+  navigateToNetworkTab,
+  selectRequestByName,
+  setCacheDisabled,
+  setPersistLog,
+  setTimeWindow,
+  waitForSelectedRequestChange,
+  waitForSomeRequestsToAppear,
+} from '../helpers/network-helpers.js';
+import type {DevToolsPage} from '../shared/frontend-helper.js';
+import type {InspectedPage} from '../shared/target-helper.js';
+
+const SIMPLE_PAGE_REQUEST_NUMBER = 10;
+const SIMPLE_PAGE_URL = `requests.html?num=${SIMPLE_PAGE_REQUEST_NUMBER}`;
+
+describe('The Network Tab', function() {
+  async function navigateToNetworkTabEmptyPage(devToolsPage: DevToolsPage, inspectedPage: InspectedPage) {
+    await navigateToNetworkTab('empty.html', devToolsPage, inspectedPage);
+    await setCacheDisabled(true, devToolsPage);
+    await setPersistLog(false, devToolsPage);
+  }
+
+  it('displays requests', async ({devToolsPage, inspectedPage}) => {
+    await navigateToNetworkTabEmptyPage(devToolsPage, inspectedPage);
+    await navigateToNetworkTab(SIMPLE_PAGE_URL, devToolsPage, inspectedPage);
+
+    // Wait for all the requests to be displayed + 1 to account for the page itself.
+    await waitForSomeRequestsToAppear(SIMPLE_PAGE_REQUEST_NUMBER + 1, devToolsPage);
+
+    const expectedNames = [];
+    expectedNames.push('favicon.ico');
+    for (let i = 0; i < SIMPLE_PAGE_REQUEST_NUMBER; i++) {
+      expectedNames.push(`image.svg?id=${i}`);
+    }
+    expectedNames.push(SIMPLE_PAGE_URL);
+
+    const names = (await getAllRequestNames(devToolsPage)).sort();
+    assert.deepEqual(names, expectedNames, 'The right request names should appear in the list');
+  });
+
+  it('can select requests', async ({devToolsPage, inspectedPage}) => {
+    await navigateToNetworkTabEmptyPage(devToolsPage, inspectedPage);
+    await navigateToNetworkTab(SIMPLE_PAGE_URL, devToolsPage, inspectedPage);
+
+    let selected = await getSelectedRequestName(devToolsPage);
+    assert.isNull(selected, 'No request should be selected by default');
+
+    await selectRequestByName(SIMPLE_PAGE_URL, {}, devToolsPage);
+    await waitForSelectedRequestChange(selected, devToolsPage);
+
+    selected = await getSelectedRequestName(devToolsPage);
+    assert.strictEqual(selected, SIMPLE_PAGE_URL, 'Selecting the first request should work');
+
+    const lastRequestName = `image.svg?id=${SIMPLE_PAGE_REQUEST_NUMBER - 1}`;
+    await selectRequestByName(lastRequestName, {}, devToolsPage);
+    await waitForSelectedRequestChange(selected, devToolsPage);
+
+    selected = await getSelectedRequestName(devToolsPage);
+    assert.strictEqual(selected, lastRequestName, 'Selecting the last request should work');
+  });
+
+  it('can persist requests', async ({devToolsPage, inspectedPage}) => {
+    await navigateToNetworkTabEmptyPage(devToolsPage, inspectedPage);
+    await navigateToNetworkTab(SIMPLE_PAGE_URL, devToolsPage, inspectedPage);
+
+    // Wait for all the requests to be displayed + 1 to account for the page itself, and get their names.
+    await waitForSomeRequestsToAppear(SIMPLE_PAGE_REQUEST_NUMBER + 1, devToolsPage);
+    const firstPageRequestNames = (await getAllRequestNames(devToolsPage)).sort();
+
+    await setPersistLog(true, devToolsPage);
+
+    // Navigate to a new page, and wait for the same requests to still be there.
+    await inspectedPage.goTo('about:blank');
+    await waitForSomeRequestsToAppear(SIMPLE_PAGE_REQUEST_NUMBER + 1, devToolsPage);
+    let secondPageRequestNames: Array<string|null> = [];
+    await devToolsPage.waitForFunction(async () => {
+      secondPageRequestNames = await getAllRequestNames(devToolsPage);
+      return secondPageRequestNames.length === SIMPLE_PAGE_REQUEST_NUMBER + 2;
+    });
+    secondPageRequestNames.sort();
+
+    assert.deepEqual(secondPageRequestNames, firstPageRequestNames, 'The requests were persisted');
+  });
+
+  it('should continue receiving new requests after timeline filter is cleared',
+     async ({devToolsPage, inspectedPage}) => {
+       await navigateToNetworkTabEmptyPage(devToolsPage, inspectedPage);
+       await navigateToNetworkTab('infinite-requests.html', devToolsPage, inspectedPage);
+       await waitForSomeRequestsToAppear(2, devToolsPage);
+
+       await setTimeWindow(devToolsPage);
+       const initialNumberOfRequests = await getNumberOfRequests(devToolsPage);
+       assert.isTrue(initialNumberOfRequests > 1);
+
+       await clearTimeWindow(devToolsPage);
+
+       // Time filter is cleared so the number of requests must be greater than the initial number.
+       const numOfRequest = await devToolsPage.waitForFunction(async () => {
+         const numberOfRequestsAfterFilter = await getNumberOfRequests(devToolsPage);
+         if (numberOfRequestsAfterFilter < initialNumberOfRequests) {
+           return false;
+         }
+
+         return numberOfRequestsAfterFilter;
+       });
+
+       // After some time we expect new requests to come so it must be
+       // that the number of requests increased.
+       await waitForSomeRequestsToAppear(numOfRequest + 1, devToolsPage);
+     });
+
+  describe('with durable messages', function() {
+    setup({enabledFeatures: ['DevToolsEnableDurableMessages']});
+
+    it('can persist requests across cross-origin navigation', async ({devToolsPage, inspectedPage}) => {
+      await navigateToNetworkTabEmptyPage(devToolsPage, inspectedPage);
+      await setPersistLog(true, devToolsPage);
+
+      await navigateToNetworkTab('headers-and-payload.html', devToolsPage, inspectedPage);
+      await waitForSomeRequestsToAppear(3, devToolsPage);
+
+      // Navigate to a different origin's page
+      await inspectedPage.goToResourceWithCustomHost('devtools.test', 'host/page-with-oopif.html');
+
+      // Introspect a request from the first navigation
+      await selectRequestByName('headers-and-payload.html', {}, devToolsPage);
+      const networkView = await devToolsPage.waitFor('.network-item-view');
+      await devToolsPage.click('[aria-label=Response].tabbed-pane-header-tab', {
+        root: networkView,
+      });
+      await devToolsPage.waitFor('[aria-label=Response].tabbed-pane-header-tab[aria-selected=true]', networkView);
+      await devToolsPage.waitFor('devtools-text-editor');
+    });
+
+    it('does not persist response body if preserve log was disabled during request',
+       async ({devToolsPage, inspectedPage}) => {
+         await navigateToNetworkTabEmptyPage(devToolsPage, inspectedPage);
+         await setPersistLog(false, devToolsPage);
+
+         await navigateToNetworkTab('headers-and-payload.html', devToolsPage, inspectedPage);
+         await waitForSomeRequestsToAppear(3, devToolsPage);
+
+         // Enable preserve log after requests are made
+         await setPersistLog(true, devToolsPage);
+
+         // Navigate to a different origin's page
+         await inspectedPage.goToResourceWithCustomHost('devtools.test', 'host/page-with-oopif.html');
+
+         // Requests should still be there because preserve log was enabled before navigation
+         await waitForSomeRequestsToAppear(3, devToolsPage);
+
+         // Introspect a request from the first navigation
+         await selectRequestByName('headers-and-payload.html', {}, devToolsPage);
+         const networkView = await devToolsPage.waitFor('.network-item-view');
+         await devToolsPage.click('[aria-label=Response].tabbed-pane-header-tab', {
+           root: networkView,
+         });
+         await devToolsPage.waitFor('[aria-label=Response].tabbed-pane-header-tab[aria-selected=true]', networkView);
+
+         // Verify that the response body is NOT available.
+         // Wait for the expected fallback UI element that DevTools renders when a response body isn't available.
+         const emptyView = await devToolsPage.waitFor('.empty-state');
+         const emptyStateHeader = await emptyView.$('.empty-state-header');
+         const emptyStateText = await emptyStateHeader?.evaluate(el => el.textContent);
+         assert.strictEqual(emptyStateText, 'Failed to load response data');
+
+         const editors = await devToolsPage.$$('devtools-text-editor');
+         assert.isEmpty(editors, 'Editor should not have appeared because body should not be durable');
+       });
+  });
+});

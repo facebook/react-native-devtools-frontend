@@ -5,7 +5,6 @@
  */
 import { Deferred } from '../util/Deferred.js';
 import { rewriteError } from '../util/ErrorLike.js';
-import { createIncrementalIdGenerator } from '../util/incremental-id-generator.js';
 import { ProtocolError, TargetCloseError } from './Errors.js';
 import { debugError } from './util.js';
 /**
@@ -15,7 +14,10 @@ import { debugError } from './util.js';
  */
 export class CallbackRegistry {
     #callbacks = new Map();
-    #idGenerator = createIncrementalIdGenerator();
+    #idGenerator;
+    constructor(idGenerator) {
+        this.#idGenerator = idGenerator;
+    }
     create(label, timeout, request) {
         const callback = new Callback(this.#idGenerator(), label, timeout);
         this.#callbacks.set(callback.id, callback);

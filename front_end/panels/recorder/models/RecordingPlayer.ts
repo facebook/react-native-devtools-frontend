@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,8 +47,8 @@ export class RecordingPlayer extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   breakpointIndexes: Set<number>;
   steppingOver = false;
   aborted = false;
-  #stopPromise = Promise.withResolvers<void>();
-  #abortPromise = Promise.withResolvers<void>();
+  #stopResolver = Promise.withResolvers<void>();
+  #abortResolver = Promise.withResolvers<void>();
   #runner?: PuppeteerReplay.Runner;
 
   constructor(
@@ -69,8 +69,8 @@ export class RecordingPlayer extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   #resolveAndRefreshStopPromise(): void {
-    this.#stopPromise.resolve();
-    this.#stopPromise = Promise.withResolvers();
+    this.#stopResolver.resolve();
+    this.#stopResolver = Promise.withResolvers();
   }
 
   static async connectPuppeteer(): Promise<{
@@ -104,23 +104,24 @@ export class RecordingPlayer extends Common.ObjectWrapper.ObjectWrapper<EventTyp
     }
 
     const rootChildTargetManager = rootTarget.model(SDK.ChildTargetManager.ChildTargetManager);
-
     if (!rootChildTargetManager) {
       throw new Error('Could not find the child target manager class for the root target');
     }
 
-    // Pass an empty message handler because it will be overwritten by puppeteer anyways.
-    const result = await rootChildTargetManager.createParallelConnection(() => {});
-    const connection = result.connection as SDK.Connections.ParallelConnectionInterface;
+    const connection = rootTarget.router()?.connection;
+    if (!connection) {
+      throw new Error('Expected root target to have a router');
+    }
 
     const mainTargetId = await childTargetManager.getParentTargetId();
     const rootTargetId = await rootChildTargetManager.getParentTargetId();
-
+    const {sessionId} = await rootTarget.targetAgent().invoke_attachToTarget({targetId: rootTargetId, flatten: true});
     const {page, browser, puppeteerConnection} =
         await PuppeteerService.PuppeteerConnection.PuppeteerConnectionHelper.connectPuppeteerToConnectionViaTab(
             {
               connection,
-              rootTargetId: rootTargetId as string,
+              targetId: rootTargetId,
+              sessionId,
               isPageTargetCallback: isPageTarget,
             },
         );
@@ -129,7 +130,7 @@ export class RecordingPlayer extends Common.ObjectWrapper.ObjectWrapper<EventTyp
       throw new Error('could not find main page!');
     }
 
-    browser.on('targetdiscovered', (targetInfo: Protocol.Target.TargetInfo) => {
+    browser.on('targetdiscovered', (targetInfo: ReturnType<puppeteer.Target['_getTargetInfo']>) => {
       // Pop-ups opened by the main target won't be auto-attached. Therefore,
       // we need to create a session for them explicitly. We user openedId
       // and type to classify a target as requiring a session.
@@ -180,22 +181,22 @@ export class RecordingPlayer extends Common.ObjectWrapper.ObjectWrapper<EventTyp
   }
 
   async stop(): Promise<void> {
-    await Promise.race([this.#stopPromise, this.#abortPromise]);
+    await Promise.race([this.#stopResolver.promise, this.#abortResolver.promise]);
   }
 
   get abortPromise(): Promise<void> {
-    return this.#abortPromise.promise;
+    return this.#abortResolver.promise;
   }
 
   abort(): void {
     this.aborted = true;
-    this.#abortPromise.resolve();
+    this.#abortResolver.resolve();
     this.#runner?.abort();
   }
 
   disposeForTesting(): void {
-    this.#stopPromise.resolve();
-    this.#abortPromise.resolve();
+    this.#stopResolver.resolve();
+    this.#abortResolver.resolve();
   }
 
   continue(): void {

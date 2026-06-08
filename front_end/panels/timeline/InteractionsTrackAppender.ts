@@ -1,6 +1,7 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+
 import type * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Trace from '../../models/trace/trace.js';
@@ -15,11 +16,10 @@ import {
   VisualLoggingTrackName,
 } from './CompatibilityTracksAppender.js';
 import * as Components from './components/components.js';
-import * as Utils from './utils/utils.js';
 
 const UIStrings = {
   /**
-   *@description Text in Timeline Flame Chart Data Provider of the Performance panel
+   * @description Text in Timeline Flame Chart Data Provider of the Performance panel
    */
   interactions: 'Interactions',
 } as const;
@@ -32,10 +32,10 @@ export class InteractionsTrackAppender implements TrackAppender {
 
   #colorGenerator: Common.Color.Generator;
   #compatibilityBuilder: CompatibilityTracksAppender;
-  #parsedTrace: Readonly<Trace.Handlers.Types.ParsedTrace>;
+  #parsedTrace: Readonly<Trace.TraceModel.ParsedTrace>;
 
   constructor(
-      compatibilityBuilder: CompatibilityTracksAppender, parsedTrace: Trace.Handlers.Types.ParsedTrace,
+      compatibilityBuilder: CompatibilityTracksAppender, parsedTrace: Trace.TraceModel.ParsedTrace,
       colorGenerator: Common.Color.Generator) {
     this.#compatibilityBuilder = compatibilityBuilder;
     this.#colorGenerator = colorGenerator;
@@ -47,12 +47,12 @@ export class InteractionsTrackAppender implements TrackAppender {
    * interactions track.
    * @param trackStartLevel the horizontal level of the flame chart events where
    * the track's events will start being appended.
-   * @param expanded wether the track should be rendered expanded.
+   * @param expanded whether the track should be rendered expanded.
    * @returns the first available level to append more data after having
    * appended the track's events.
    */
   appendTrackAtLevel(trackStartLevel: number, expanded?: boolean): number {
-    if (this.#parsedTrace.UserInteractions.interactionEvents.length === 0) {
+    if (this.#parsedTrace.data.UserInteractions.interactionEvents.length === 0) {
       return trackStartLevel;
     }
     this.#appendTrackHeaderAtLevel(trackStartLevel, expanded);
@@ -69,8 +69,12 @@ export class InteractionsTrackAppender implements TrackAppender {
    * appended.
    */
   #appendTrackHeaderAtLevel(currentLevel: number, expanded?: boolean): void {
-    const trackIsCollapsible = this.#parsedTrace.UserInteractions.interactionEvents.length > 0;
-    const style = buildGroupStyle({collapsible: trackIsCollapsible, useDecoratorsForOverview: true});
+    const trackIsCollapsible = this.#parsedTrace.data.UserInteractions.interactionEvents.length > 0;
+    const style = buildGroupStyle({
+      collapsible: trackIsCollapsible ? PerfUI.FlameChart.GroupCollapsibleState.IF_MULTI_ROW :
+                                        PerfUI.FlameChart.GroupCollapsibleState.NEVER,
+      useDecoratorsForOverview: true,
+    });
     const group = buildTrackHeader(
         VisualLoggingTrackName.INTERACTIONS, currentLevel, i18nString(UIStrings.interactions), style,
         /* selectable= */ true, expanded);
@@ -87,7 +91,7 @@ export class InteractionsTrackAppender implements TrackAppender {
    * interactions (the first available level to append more data).
    */
   #appendInteractionsAtLevel(trackStartLevel: number): number {
-    const {interactionEventsWithNoNesting, interactionsOverThreshold} = this.#parsedTrace.UserInteractions;
+    const {interactionEventsWithNoNesting, interactionsOverThreshold} = this.#parsedTrace.data.UserInteractions;
 
     const addCandyStripeToLongInteraction =
         (event: Trace.Types.Events.SyntheticInteractionPair, index: number): void => {
@@ -115,11 +119,11 @@ export class InteractionsTrackAppender implements TrackAppender {
     decorationsForEvent.push(
         {
           type: PerfUI.FlameChart.FlameChartDecorationType.CANDY,
+          // Where the striping starts is hard. The problem is the whole interaction, isolating the part of it *responsible* for
+          // making the interaction 200ms is hard and our decoration won't do it perfectly. To simplify we just flag all the overage.
+          // AKA the first 200ms of the interaction aren't flagged. A downside is we often flag a lot of render delay.
+          // It'd be fair to shift the candystriping segment earlier in the interaction... Let's see what the feedback is like.
           startAtTime: Trace.Handlers.ModelHandlers.UserInteractions.LONG_INTERACTION_THRESHOLD,
-          // Interaction events have whiskers, so we do not want to candy stripe
-          // the entire duration. The box represents processing duration, so we only
-          // candystripe up to the end of processing.
-          endAtTime: entry.processingEnd,
         },
         {
           type: PerfUI.FlameChart.FlameChartDecorationType.WARNING_TRIANGLE,
@@ -139,7 +143,7 @@ export class InteractionsTrackAppender implements TrackAppender {
    * Gets the color an event added by this appender should be rendered with.
    */
   colorForEvent(event: Trace.Types.Events.Event): string {
-    let idForColorGeneration = Utils.EntryName.nameForEntry(event, this.#parsedTrace);
+    let idForColorGeneration = Trace.Name.forEntry(event, this.#parsedTrace);
     if (Trace.Types.Events.isSyntheticInteraction(event)) {
       // Append the ID so that we vary the colours, ensuring that two events of
       // the same type are coloured differently.
@@ -150,9 +154,7 @@ export class InteractionsTrackAppender implements TrackAppender {
 
   setPopoverInfo(event: Trace.Types.Events.Event, info: PopoverInfo): void {
     if (Trace.Types.Events.isSyntheticInteraction(event)) {
-      const breakdown = new Components.InteractionBreakdown.InteractionBreakdown();
-      breakdown.entry = event;
-      info.additionalElements.push(breakdown);
+      info.additionalElements.push(Components.InteractionBreakdown.InteractionBreakdown.createWidgetElement(event));
     }
   }
 }

@@ -1,23 +1,24 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2025 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("../../../scripts/build/typescript/typescript.gni")
 
-node_ts_library("network") {
+ts_e2e_library("network") {
   sources = [
-    "can-pretty-print-network_test.ts",
-    "network-conditions_test.ts",
-    "network-datagrid_test.ts",
-    "network-filter_test.ts",
-    "network-request-blocking-panel_test.ts",
-    "network-request-view_test.ts",
-    "network-throttle-persist_test.ts",
-    "network_test.ts",
+    "can-pretty-print-network.test.ts",
+    "network-conditions.test.ts",
+    "network-datagrid.test.ts",
+    "network-filter.test.ts",
+    "network-request-view.test.ts",
+    "network-search.test.ts",
+    "network-throttle-persist.test.ts",
+    "network.test.ts",
+    "request-blocking.test.ts",
+    "user-agent-override.test.ts",
   ]
 
   deps = [
-    "../../../front_end/generated",
     "../../shared",
     "../helpers",
   ]

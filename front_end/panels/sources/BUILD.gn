@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,9 +11,11 @@ import("../visibility.gni")
 generate_css("css_files") {
   sources = [
     "breakpointEditDialog.css",
+    "breakpointsView.css",
     "callStackSidebarPane.css",
     "debuggerPausedMessage.css",
     "dialog.css",
+    "filteredUISourceCodeListProvider.css",
     "navigatorTree.css",
     "navigatorView.css",
     "scopeChainSidebarPane.css",
@@ -25,11 +27,14 @@ generate_css("css_files") {
   ]
 }
 
-devtools_module("sources") {
+devtools_ui_module("sources") {
   sources = [
     "AddSourceMapURLDialog.ts",
+    "AiCodeCompletionPlugin.ts",
     "AiWarningInfobarPlugin.ts",
     "BreakpointEditDialog.ts",
+    "BreakpointsView.ts",
+    "BreakpointsViewUtils.ts",
     "CSSPlugin.ts",
     "CallStackSidebarPane.ts",
     "CategorizedBreakpointL10n.ts",
@@ -44,6 +49,7 @@ devtools_module("sources") {
     "NavigatorView.ts",
     "OpenFileQuickOpen.ts",
     "OutlineQuickOpen.ts",
+    "PersistenceActions.ts",
     "Plugin.ts",
     "ProfilePlugin.ts",
     "ResourceOriginPlugin.ts",
@@ -65,14 +71,22 @@ devtools_module("sources") {
     "../../core/host:bundle",
     "../../core/i18n:bundle",
     "../../core/platform:bundle",
+    "../../core/root:bundle",
     "../../core/sdk:bundle",
+    "../../entrypoints/formatter_worker:bundle",
+    "../../generated:protocol",
+    "../../models/ai_assistance:bundle",
+    "../../models/ai_code_completion:bundle",
+    "../../models/badges:bundle",
     "../../models/bindings:bundle",
     "../../models/breakpoints:bundle",
     "../../models/extensions:bundle",
     "../../models/formatter:bundle",
+    "../../models/geometry:bundle",
     "../../models/issues_manager:bundle",
     "../../models/persistence:bundle",
     "../../models/source_map_scopes:bundle",
+    "../../models/stack_trace:bundle",
     "../../models/text_utils:bundle",
     "../../models/workspace:bundle",
     "../../models/workspace_diff:bundle",
@@ -81,18 +95,32 @@ devtools_module("sources") {
     "../../panels/search:bundle",
     "../../panels/snippets:bundle",
     "../../panels/utils:bundle",
+    "../../third_party/codemirror.next:bundle",
     "../../third_party/diff:bundle",
-    "../../ui/components/floating_button:bundle",
-    "../../ui/components/icon_button:bundle",
+    # [RN] Required by the React Native "Open in editor" adorner in UISourceCodeFrame.ts.
+    "../../ui/components/adorners:bundle",
+    "../../ui/components/buttons:bundle",
+    "../../ui/components/highlighting:bundle",
+    "../../ui/components/input:bundle",
+    "../../ui/components/issue_counter:bundle",
+    "../../ui/components/render_coordinator:bundle",
+    "../../ui/components/spinners:bundle",
     "../../ui/components/text_editor:bundle",
+    "../../ui/components/tooltips:bundle",
+    "../../ui/i18n:bundle",
+    "../../ui/kit:bundle",
     "../../ui/legacy:bundle",
     "../../ui/legacy/components/color_picker:bundle",
     "../../ui/legacy/components/inline_editor:bundle",
     "../../ui/legacy/components/object_ui:bundle",
+    "../../ui/legacy/components/perf_ui:bundle",
     "../../ui/legacy/components/quick_open:bundle",
+    "../../ui/legacy/components/settings_ui:bundle",
     "../../ui/legacy/components/source_frame:bundle",
     "../../ui/legacy/components/utils:bundle",
+    "../../ui/lit:bundle",
     "../../ui/visual_logging:bundle",
+    "../common:bundle",
     "../utils:bundle",
     "./components:bundle",
   ]
@@ -110,7 +138,6 @@ devtools_entrypoint("bundle") {
   visibility = [
     ":*",
     "../../entrypoints/*",
-    "../../panels/ai_assistance/*",
     "../../panels/explain/*",
     "../../panels/network/*",
     "../browser_debugger/*",
@@ -130,22 +157,26 @@ devtools_entrypoint("meta") {
     "../../core/root:bundle",
     "../../core/sdk:bundle",
     "../../models/breakpoints:bundle",
+    "../../models/stack_trace:bundle",
     "../../models/workspace:bundle",
     "../../ui/legacy:bundle",
     "../../ui/legacy/components/object_ui:bundle",
     "../../ui/legacy/components/quick_open:bundle",
-    "./components:bundle",
   ]
 
   visibility = [ "../../entrypoints/*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [
+    "AiCodeCompletionPlugin.test.ts",
     "BreakpointEditDialog.test.ts",
+    "BreakpointsView.test.ts",
+    "BreakpointsViewUtils.test.ts",
     "CSSPlugin.test.ts",
+    "CallStackSidebarPane.test.ts",
     "CoveragePlugin.test.ts",
     "DebuggerPausedMessage.test.ts",
     "DebuggerPlugin.test.ts",
@@ -153,14 +184,20 @@ ts_library("unittests") {
     "FilteredUISourceCodeListProvider.test.ts",
     "NavigatorView.test.ts",
     "OutlineQuickOpen.test.ts",
+    "PersistenceAction.test.ts",
     "ResourceOriginPlugin.test.ts",
     "SourcesNavigator.test.ts",
+    "SourcesPanel.test.ts",
     "SourcesView.test.ts",
     "TabbedEditorContainer.test.ts",
+    "ThreadsSidebarPane.test.ts",
+    "UISourceCodeFrame.test.ts",
+    "WatchExpressionsSidebarPane.test.ts",
   ]
 
   deps = [
     ":bundle",
+    "../../core/common:bundle",
     "../../core/platform:bundle",
     "../../core/sdk:bundle",
     "../../models/bindings:bundle",
@@ -168,6 +205,9 @@ ts_library("unittests") {
     "../../testing",
     "../../third_party/codemirror.next:bundle",
     "../../ui/components/text_editor:bundle",
+    "../../ui/legacy:bundle",
+    "../../ui/legacy/components/object_ui:bundle",
     "../../ui/legacy/components/source_frame:bundle",
+    "../../ui/legacy/components/utils:bundle",
   ]
 }

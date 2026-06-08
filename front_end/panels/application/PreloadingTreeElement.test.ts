@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -22,9 +22,9 @@ describeWithMockConnection('PreloadingTreeElement', () => {
     const preloadingRuleSetTreeElement = new Application.PreloadingTreeElement.PreloadingRuleSetTreeElement(panel);
 
     preloadingRuleSetTreeElement.onselect(false);
-    assert.isTrue(spy.notCalled);
+    sinon.assert.notCalled(spy);
 
     preloadingRuleSetTreeElement.initialize(model);
-    assert.isTrue(spy.calledOnce);
+    sinon.assert.calledOnce(spy);
   });
 });

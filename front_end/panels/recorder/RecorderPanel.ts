@@ -1,6 +1,7 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
@@ -20,6 +21,7 @@ export class RecorderPanel extends UI.Panel.Panel {
     this.element.setAttribute('jslog', `${VisualLogging.panel('chrome-recorder').track({resize: true})}`);
     this.#controller = new RecorderController();
     this.contentElement.append(this.#controller);
+    this.setHideOnDetach();
   }
 
   static instance(
@@ -34,12 +36,14 @@ export class RecorderPanel extends UI.Panel.Panel {
   }
 
   override wasShown(): void {
+    super.wasShown();
     UI.Context.Context.instance().setFlavor(RecorderPanel, this);
     // Focus controller so shortcuts become active
     this.#controller.focus();
   }
 
   override willHide(): void {
+    super.willHide();
     UI.Context.Context.instance().setFlavor(RecorderPanel, null);
   }
 

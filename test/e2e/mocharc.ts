@@ -1,8 +1,8 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as path from 'path';
+import * as path from 'node:path';
 
 import {loadTests, TestConfig} from '../conductor/test_config.js';
 
@@ -10,7 +10,7 @@ module.exports = {
   // This should make mocha crash on uncaught errors.
   // See https://github.com/mochajs/mocha/blob/master/docs/index.md#--allow-uncaught.
   allowUncaught : true,
-  require : [path.join(path.dirname(__dirname), 'conductor', 'mocha_hooks.js'), 'source-map-support/register'],
+  require : [path.join(path.dirname(__dirname), 'e2e', 'conductor', 'mocha_hooks.js'), 'source-map-support/register'],
   spec : loadTests(__dirname),
   timeout : TestConfig.debug ? 0 : 10_000,
   retries : TestConfig.retries,

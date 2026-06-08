@@ -1,4 +1,4 @@
-# Copyright 2024 The Chromium Authors. All rights reserved.
+# Copyright 2024 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -16,11 +16,12 @@ generate_css("css_files") {
   ]
 }
 
-devtools_module("insights") {
+devtools_ui_module("insights") {
   sources = [
     "BaseInsightComponent.ts",
     "CLSCulprits.ts",
     "Cache.ts",
+    "CharacterSet.ts",
     "Checklist.ts",
     "DOMSize.ts",
     "DocumentLatency.ts",
@@ -29,10 +30,11 @@ devtools_module("insights") {
     "FontDisplay.ts",
     "ForcedReflow.ts",
     "Helpers.ts",
+    "INPBreakdown.ts",
     "ImageDelivery.ts",
-    "InteractionToNextPaint.ts",
+    "ImageRef.ts",
+    "LCPBreakdown.ts",
     "LCPDiscovery.ts",
-    "LCPPhases.ts",
     "LegacyJavaScript.ts",
     "ModernHTTP.ts",
     "NetworkDependencyTree.ts",
@@ -53,11 +55,14 @@ devtools_module("insights") {
     "../../../../core/sdk:bundle",
     "../../../../models/trace:bundle",
     "../../../../services/trace_bounds:bundle",
+    "../../../../third_party/marked:bundle",
     "../../../../ui/components/buttons:bundle",
     "../../../../ui/components/helpers:bundle",
-    "../../../../ui/components/icon_button:bundle",
     "../../../../ui/components/linkifier:bundle",
+    "../../../../ui/components/markdown_view:bundle",
+    "../../../../ui/kit:bundle",
     "../../../../ui/lit:bundle",
+    "../../../common:bundle",
     "../../overlays:bundle",
     "../../utils:bundle",
   ]
@@ -74,15 +79,19 @@ devtools_entrypoint("bundle") {
   visibility = [
     ":*",
     "..:*",
+    "../../../ai_assistance/*",
   ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [
     "BaseInsightComponent.test.ts",
     "CLSCulprits.test.ts",
+    "INPBreakdown.test.ts",
+    "NetworkDependencyTree.test.ts",
+    "NodeLink.test.ts",
     "Table.test.ts",
   ]
 

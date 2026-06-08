@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 The Chromium Authors. All rights reserved.
+ * Copyright 2021 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -7,6 +7,8 @@
 :host {
   white-space: normal;
   display: inline-block;
+  margin-right: var(--sys-size-1);
+  margin-left: var(--sys-size-1);
 }
 
 .icon-button {
@@ -19,6 +21,7 @@
   font-size: inherit;
   font-family: inherit;
   background-color: inherit;
+  cursor: inherit;
 }
 
 .icon-button.with-click-handler {
@@ -33,7 +36,7 @@
 }
 
 .icon-button:focus-visible {
-  background-color: var(--sys-color-state-hover-on-subtle);
+  outline: var(--sys-size-2) solid var(--sys-color-state-focus-ring);
 }
 
 .compact .icon-button-title {

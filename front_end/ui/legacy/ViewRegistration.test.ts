@@ -1,8 +1,9 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as i18n from '../../core/i18n/i18n.js';
+import * as Root from '../../core/root/root.js';
 import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
 
 import * as QuickOpen from './components/quick_open/quick_open.js';
@@ -41,6 +42,8 @@ describeWithEnvironment('ViewRegistration', () => {
         return new MockView();
       },
     });
+    UI.ViewManager.ViewManager.instance(
+        {forceNew: true, universe: {context: new Root.DevToolsContext.WritableDevToolsContext()}});
   });
 
   it('retrieves a registered view', async () => {

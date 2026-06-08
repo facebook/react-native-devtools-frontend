@@ -1,6 +1,8 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
+/* eslint-disable @devtools/no-lit-render-outside-of-view */
 
 /*
  * Copyright (C) 2009 Apple Inc.  All rights reserved.
@@ -40,7 +42,7 @@ import * as SDK from '../../../../core/sdk/sdk.js';
 import type * as Protocol from '../../../../generated/protocol.js';
 import * as IssuesManager from '../../../../models/issues_manager/issues_manager.js';
 import * as NetworkForward from '../../../../panels/network/forward/forward.js';
-import * as IconButton from '../../../components/icon_button/icon_button.js';
+import {Icon} from '../../../kit/kit.js';
 import {Directives, html, render} from '../../../lit/lit.js';
 import * as UI from '../../legacy.js';
 
@@ -53,27 +55,24 @@ interface ViewInput {
   renderInline?: boolean;
   portBindingEnabled?: boolean;
   schemeBindingEnabled?: boolean;
-  onEdit:
-      (event: CustomEvent<{node: HTMLElement, columnId: string, valueBeforeEditing: string, newText: string}>) => void;
-  onCreate: (event: CustomEvent<CookieData>) => void;
+  onEdit: (data: CookieData, columnId: string, valueBeforeEditing: string, newText: string) => void;
+  onCreate: (data: CookieData) => void;
   onRefresh: () => void;
-  onDelete: (event: CustomEvent<HTMLElement>) => void;
-  onContextMenu: (event: CustomEvent<{menu: UI.ContextMenu.ContextMenu, element: HTMLElement}>) => void;
-  onSelect: (event: CustomEvent<HTMLElement|null>) => void;
+  onDelete: (data: CookieData) => void;
+  onContextMenu: (data: CookieData, menu: UI.ContextMenu.ContextMenu) => void;
+  onSelect: (key: string|undefined) => void;
 }
 type ViewFunction = (input: ViewInput, output: object, target: HTMLElement) => void;
 type AttributeWithIcon = SDK.Cookie.Attribute.NAME|SDK.Cookie.Attribute.VALUE|SDK.Cookie.Attribute.DOMAIN|
                          SDK.Cookie.Attribute.PATH|SDK.Cookie.Attribute.SECURE|SDK.Cookie.Attribute.SAME_SITE;
 
-type CookieData = {
-  [key in SDK.Cookie.Attribute]?: string;
-}&{
+type CookieData = Partial<Record<SDK.Cookie.Attribute, string>>&{
   name: string,
   value: string,
 }&{
   key?: string,
   flagged?: boolean,
-  icons?: {[key in AttributeWithIcon]?: IconButton.Icon.Icon;},
+  icons?: Partial<Record<AttributeWithIcon, Icon>>,
   priorityValue?: number,
   expiresTooltip?: string,
   dirty?: boolean,
@@ -84,48 +83,74 @@ const {repeat, ifDefined} = Directives;
 
 const UIStrings = {
   /**
-   *@description Cookie table cookies table expires session value in Cookies Table of the Cookies table in the Application panel
+   * @description Cookie table cookies table expires session value in Cookies Table of the Cookies table in the Application panel
    */
   session: 'Session',
   /**
-   *@description Text for the name of something
+   * @description Text for the name of something
    */
   name: 'Name',
   /**
-   *@description Text for the value of something
+   * @description Text for the value of something
    */
   value: 'Value',
   /**
-   *@description Text for the size of something
+   * @description Text for the size of something
    */
   size: 'Size',
   /**
-   *@description Data grid name for Editable Cookies data grid
+   * @description Text for the "Domain" of the cookie
+   * https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie#domaindomain-value
+   */
+  domain: 'Domain',
+  /**
+   * @description Text for the "Path" of the cookie
+   * https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie#pathpath-value
+   */
+  path: 'Path',
+  /**
+   * @description Text for the "Secure" property of the cookie
+   * https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie#secure
+   */
+  secure: 'Secure',
+  /**
+   * @description Text for the "Partition Key Site" property of the cookie
+   * https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie#partitioned
+   */
+  partitionKeySite: 'Partition Key Site',
+  /**
+   * @description Text for the "Priority" property of the cookie
+   * Contains Low, Medium (default), or High if using deprecated cookie Priority attribute.
+   * https://bugs.chromium.org/p/chromium/issues/detail?id=232693
+   */
+  priority: 'Priority',
+  /**
+   * @description Data grid name for Editable Cookies data grid
    */
   editableCookies: 'Editable Cookies',
   /**
-   *@description Text for web cookies
+   * @description Text for web cookies
    */
   cookies: 'Cookies',
   /**
-   *@description Text for something not available
+   * @description Text for something not available
    */
   na: 'N/A',
   /**
-   *@description Text for Context Menu entry
+   * @description Text for Context Menu entry
    */
   showRequestsWithThisCookie: 'Show requests with this cookie',
   /**
-   *@description Text for Context Menu entry
+   * @description Text for Context Menu entry
    */
   showIssueAssociatedWithThis: 'Show issue associated with this cookie',
   /**
-   *@description Tooltip for the cell that shows the sourcePort property of a cookie in the cookie table. The source port is numberic attribute of a cookie.
+   * @description Tooltip for the cell that shows the sourcePort property of a cookie in the cookie table. The source port is numberic attribute of a cookie.
    */
   sourcePortTooltip:
       'Shows the source port (range 1-65535) the cookie was set on. If the port is unknown, this shows -1.',
   /**
-   *@description Tooltip for the cell that shows the sourceScheme property of a cookie in the cookie table. The source scheme is a trinary attribute of a cookie.
+   * @description Tooltip for the cell that shows the sourceScheme property of a cookie in the cookie table. The source scheme is a trinary attribute of a cookie.
    */
   sourceSchemeTooltip:
       'Shows the source scheme (`Secure`, `NonSecure`) the cookie was set on. If the scheme is unknown, this shows `Unset`.',
@@ -151,29 +176,35 @@ const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined
 
 const expiresSessionValue = i18nLazyString(UIStrings.session);
 
+export interface CookiesTableData {
+  cookies: SDK.Cookie.Cookie[];
+  cookieToBlockedReasons?: ReadonlyMap<SDK.Cookie.Cookie, SDK.CookieModel.BlockedReason[]>;
+  cookieToExemptionReason?: ReadonlyMap<SDK.Cookie.Cookie, SDK.CookieModel.ExemptionReason>;
+}
+
 export class CookiesTable extends UI.Widget.VBox {
-  private saveCallback?: ((arg0: SDK.Cookie.Cookie, arg1: SDK.Cookie.Cookie|null) => Promise<boolean>);
-  private readonly refreshCallback?: (() => void);
-  private readonly selectedCallback?: (() => void);
-  private readonly deleteCallback?: ((arg0: SDK.Cookie.Cookie, arg1: () => void) => void);
+  #saveCallback?: ((arg0: SDK.Cookie.Cookie, arg1: SDK.Cookie.Cookie|null) => Promise<boolean>);
+  #refreshCallback?: (() => void);
+  #selectedCallback?: ((arg0: SDK.Cookie.Cookie|null) => void);
+  #deleteCallback?: ((arg0: SDK.Cookie.Cookie, arg1: () => void) => void);
   private lastEditedColumnId: string|null;
   private data: CookieData[] = [];
   private cookies: SDK.Cookie.Cookie[] = [];
-  private cookieDomain: string;
+  #cookieDomain: string;
   private cookieToBlockedReasons: ReadonlyMap<SDK.Cookie.Cookie, SDK.CookieModel.BlockedReason[]>|null;
   private cookieToExemptionReason: ReadonlyMap<SDK.Cookie.Cookie, SDK.CookieModel.ExemptionReason>|null;
   private readonly view: ViewFunction;
   private selectedKey?: string;
-  private readonly editable: boolean;
-  private readonly renderInline: boolean;
+  #editable: boolean;
+  private renderInline: boolean;
   private readonly schemeBindingEnabled: boolean;
   private readonly portBindingEnabled: boolean;
   constructor(
-      renderInline?: boolean,
+      element?: HTMLElement, renderInline?: boolean,
       saveCallback?: ((arg0: SDK.Cookie.Cookie, arg1: SDK.Cookie.Cookie|null) => Promise<boolean>),
-      refreshCallback?: (() => void), selectedCallback?: (() => void),
+      refreshCallback?: (() => void), selectedCallback?: ((arg0: SDK.Cookie.Cookie|null) => void),
       deleteCallback?: ((arg0: SDK.Cookie.Cookie, arg1: () => void) => void), view?: ViewFunction) {
-    super();
+    super(element);
     if (!view) {
       view = (input, _, target) => {
         // clang-format off
@@ -183,12 +214,9 @@ export class CookiesTable extends UI.Widget.VBox {
                id="cookies-table"
                striped
                ?inline=${input.renderInline}
-               @edit=${input.onEdit}
-               @create=${input.onCreate}
+               @create=${(e: CustomEvent<CookieData>) => input.onCreate(e.detail)}
                @refresh=${input.onRefresh}
-               @delete=${input.onDelete}
-               @contextmenu=${input.onContextMenu}
-               @select=${input.onSelect}
+               @deselect=${() => input.onSelect(undefined)}
           >
             <table>
                <tr>
@@ -199,10 +227,10 @@ export class CookiesTable extends UI.Widget.VBox {
                    ${i18nString(UIStrings.value)}
                  </th>
                  <th id=${SDK.Cookie.Attribute.DOMAIN} sortable weight="7" ?editable=${input.editable}>
-                   Domain
+                   ${i18nString(UIStrings.domain)}
                  </th>
                  <th id=${SDK.Cookie.Attribute.PATH} sortable weight="7" ?editable=${input.editable}>
-                   Path
+                   ${i18nString(UIStrings.path)}
                  </th>
                  <th id=${SDK.Cookie.Attribute.EXPIRES} sortable weight="7" ?editable=${input.editable}>
                    Expires / Max-Age
@@ -214,19 +242,19 @@ export class CookiesTable extends UI.Widget.VBox {
                    HttpOnly
                  </th>
                  <th id=${SDK.Cookie.Attribute.SECURE} sortable align="center" weight="7" ?editable=${input.editable} type="boolean">
-                   Secure
+                   ${i18nString(UIStrings.secure)}
                  </th>
                  <th id=${SDK.Cookie.Attribute.SAME_SITE} sortable weight="7" ?editable=${input.editable}>
                    SameSite
                  </th>
                  <th id=${SDK.Cookie.Attribute.PARTITION_KEY_SITE} sortable weight="7" ?editable=${input.editable}>
-                   Partition Key Site
+                   ${i18nString(UIStrings.partitionKeySite)}
                  </th>
                  <th id=${SDK.Cookie.Attribute.HAS_CROSS_SITE_ANCESTOR} sortable align="center" weight="7" ?editable=${input.editable} type="boolean">
                    Cross Site
                  </th>
                  <th id=${SDK.Cookie.Attribute.PRIORITY} sortable weight="7" ?editable=${input.editable}>
-                   Priority
+                   ${i18nString(UIStrings.priority)}
                  </th>
                  ${input.schemeBindingEnabled ?  html`
                  <th id=${SDK.Cookie.Attribute.SOURCE_SCHEME} sortable align="center" weight="7" ?editable=${input.editable} type="string">
@@ -237,12 +265,16 @@ export class CookiesTable extends UI.Widget.VBox {
                    SourcePort
                 </th>` : ''}
               </tr>
-              ${repeat(this.data,
-                        cookie => cookie.key, cookie => html`<tr data-key=${ifDefined(cookie.key)}
-                    ?selected=${cookie.key === input.selectedKey}
+              ${repeat(this.data, cookie => cookie.key, cookie => html`
+                <tr ?selected=${cookie.key === input.selectedKey}
                     ?inactive=${cookie.inactive}
                     ?dirty=${cookie.dirty}
-                    ?highlighted=${cookie.flagged}>
+                    ?highlighted=${cookie.flagged}
+                    @edit=${(e: CustomEvent<{columnId: string, valueBeforeEditing: string, newText: string}>) =>
+                       input.onEdit(cookie, e.detail.columnId, e.detail.valueBeforeEditing, e.detail.newText)}
+                    @delete=${()=> input.onDelete(cookie)}
+                    @contextmenu=${(e: CustomEvent<UI.ContextMenu.ContextMenu>) => input.onContextMenu(cookie, e.detail)}
+                    @select=${() => input.onSelect(cookie.key)}>
                   <td>${cookie.icons?.name}${cookie.name}</td>
                   <td>${cookie.value}</td>
                   <td>${cookie.icons?.domain}${cookie.domain}</td>
@@ -270,11 +302,11 @@ export class CookiesTable extends UI.Widget.VBox {
 
     this.element.classList.add('cookies-table');
 
-    this.saveCallback = saveCallback;
-    this.refreshCallback = refreshCallback;
-    this.deleteCallback = deleteCallback;
+    this.#saveCallback = saveCallback;
+    this.#refreshCallback = refreshCallback;
+    this.#deleteCallback = deleteCallback;
 
-    this.editable = Boolean(saveCallback);
+    this.#editable = Boolean(saveCallback);
     const {devToolsEnableOriginBoundCookies} = Root.Runtime.hostConfig;
 
     this.schemeBindingEnabled = Boolean(devToolsEnableOriginBoundCookies?.schemeBindingEnabled);
@@ -284,18 +316,47 @@ export class CookiesTable extends UI.Widget.VBox {
 
     this.renderInline = Boolean(renderInline);
 
-    this.selectedCallback = selectedCallback;
+    this.#selectedCallback = selectedCallback;
 
     this.lastEditedColumnId = null;
 
     this.data = [];
 
-    this.cookieDomain = '';
+    this.#cookieDomain = '';
 
     this.cookieToBlockedReasons = null;
 
     this.cookieToExemptionReason = null;
 
+    this.requestUpdate();
+  }
+
+  set cookiesData(data: CookiesTableData) {
+    this.setCookies(data.cookies, data.cookieToBlockedReasons, data.cookieToExemptionReason);
+  }
+
+  set saveCallback(callback: (arg0: SDK.Cookie.Cookie, arg1: SDK.Cookie.Cookie|null) => Promise<boolean>) {
+    this.#saveCallback = callback;
+  }
+
+  set refreshCallback(callback: () => void) {
+    this.#refreshCallback = callback;
+  }
+
+  set selectedCallback(callback: (arg0: SDK.Cookie.Cookie|null) => void) {
+    this.#selectedCallback = callback;
+  }
+
+  set deleteCallback(callback: (arg0: SDK.Cookie.Cookie, arg1: () => void) => void) {
+    this.#deleteCallback = callback;
+  }
+
+  set editable(value: boolean) {
+    this.#editable = value;
+  }
+
+  set inline(value: boolean) {
+    this.renderInline = value;
     this.requestUpdate();
   }
 
@@ -316,8 +377,8 @@ export class CookiesTable extends UI.Widget.VBox {
     this.requestUpdate();
   }
 
-  setCookieDomain(cookieDomain: string): void {
-    this.cookieDomain = cookieDomain;
+  set cookieDomain(cookieDomain: string) {
+    this.#cookieDomain = cookieDomain;
   }
 
   selectedCookie(): SDK.Cookie.Cookie|null {
@@ -325,6 +386,7 @@ export class CookiesTable extends UI.Widget.VBox {
   }
 
   override willHide(): void {
+    super.willHide();
     this.lastEditedColumnId = null;
   }
 
@@ -332,41 +394,39 @@ export class CookiesTable extends UI.Widget.VBox {
     const input: ViewInput = {
       data: this.data,
       selectedKey: this.selectedKey,
-      editable: this.editable,
+      editable: this.#editable,
       renderInline: this.renderInline,
       schemeBindingEnabled: this.schemeBindingEnabled,
       portBindingEnabled: this.portBindingEnabled,
-      onEdit: event => this.onUpdateCookie(
-          event.detail.node, event.detail.columnId, event.detail.valueBeforeEditing, event.detail.newText),
-      onCreate: event => this.onCreateCookie(event.detail),
-      onRefresh: () => this.refresh(),
-      onDelete: event => this.onDeleteCookie(event.detail),
-      onSelect: event => this.onSelect(event.detail),
-      onContextMenu: event => this.populateContextMenu(event.detail.menu, event.detail.element),
+      onEdit: this.onUpdateCookie.bind(this),
+      onCreate: this.onCreateCookie.bind(this),
+      onRefresh: this.refresh.bind(this),
+      onDelete: this.onDeleteCookie.bind(this),
+      onSelect: this.onSelect.bind(this),
+      onContextMenu: this.populateContextMenu.bind(this),
     };
     const output = {};
     this.view(input, output, this.element);
   }
 
-  private onSelect(node: HTMLElement|null): void {
-    this.selectedKey = node?.dataset?.key;
-    this.selectedCallback?.();
+  private onSelect(key: string|undefined): void {
+    this.selectedKey = key;
+    this.#selectedCallback?.(this.selectedCookie());
   }
 
-  private onDeleteCookie(node: HTMLElement): void {
-    const cookie = this.cookies.find(cookie => cookie.key() === node.dataset.key);
-    if (cookie && this.deleteCallback) {
-      this.deleteCallback(cookie, () => this.refresh());
+  private onDeleteCookie(data: CookieData): void {
+    const cookie = this.cookies.find(cookie => cookie.key() === data.key);
+    if (cookie && this.#deleteCallback) {
+      this.#deleteCallback(cookie, () => this.refresh());
     }
   }
 
-  private onUpdateCookie(editingNode: HTMLElement, columnIdentifier: string, _oldText: string, newText: string): void {
-    const oldCookie = this.cookies.find(cookie => cookie.key() === editingNode.dataset.key);
-    const oldData = this.data.find(data => data.key === editingNode.dataset.key);
-    if (!oldData || !oldCookie) {
+  private onUpdateCookie(oldData: CookieData, columnIdentifier: string, _oldText: string, newText: string): void {
+    const oldCookie = this.cookies.find(cookie => cookie.key() === oldData.key);
+    if (!oldCookie) {
       return;
     }
-    const newCookieData = {...oldData, [columnIdentifier]: newText};  // as CookieData;
+    const newCookieData = {...oldData, [columnIdentifier]: newText};
     if (!this.isValidCookieData(newCookieData)) {
       newCookieData.dirty = true;
       this.requestUpdate();
@@ -394,7 +454,7 @@ export class CookiesTable extends UI.Widget.VBox {
       data[SDK.Cookie.Attribute.VALUE] = '';
     }
     if (data[SDK.Cookie.Attribute.DOMAIN] === undefined) {
-      data[SDK.Cookie.Attribute.DOMAIN] = this.cookieDomain;
+      data[SDK.Cookie.Attribute.DOMAIN] = this.#cookieDomain;
     }
     if (data[SDK.Cookie.Attribute.PATH] === undefined) {
       data[SDK.Cookie.Attribute.PATH] = '/';
@@ -408,11 +468,11 @@ export class CookiesTable extends UI.Widget.VBox {
   }
 
   private saveCookie(newCookieData: CookieData, oldCookie?: SDK.Cookie.Cookie): void {
-    if (!this.saveCallback) {
+    if (!this.#saveCallback) {
       return;
     }
     const newCookie = this.createCookieFromData(newCookieData);
-    void this.saveCallback(newCookie, oldCookie ?? null).then(success => {
+    void this.#saveCallback(newCookie, oldCookie ?? null).then(success => {
       if (!success) {
         newCookieData.dirty = true;
       }
@@ -477,7 +537,7 @@ export class CookiesTable extends UI.Widget.VBox {
           i18nString(UIStrings.timeAfterTooltip, {seconds: cookie.expires(), date: new Date(maxTime).toISOString()});
     }
     data[SDK.Cookie.Attribute.PARTITION_KEY_SITE] =
-        cookie.partitionKeyOpaque() ? i18nString(UIStrings.opaquePartitionKey) : cookie.topLevelSite();
+        cookie.partitionKeyOpaque() ? i18nString(UIStrings.opaquePartitionKey).toString() : cookie.topLevelSite();
     data[SDK.Cookie.Attribute.HAS_CROSS_SITE_ANCESTOR] = cookie.hasCrossSiteAncestor() ? 'true' : '';
     data[SDK.Cookie.Attribute.SIZE] = String(cookie.size());
     data[SDK.Cookie.Attribute.PRIORITY] = cookie.priority();
@@ -488,20 +548,16 @@ export class CookiesTable extends UI.Widget.VBox {
       const attribute = (blockedReason.attribute || SDK.Cookie.Attribute.NAME) as AttributeWithIcon;
       data.icons = data.icons || {};
       if (!(attribute in data.icons)) {
-        data.icons[attribute] = new IconButton.Icon.Icon();
+        data.icons[attribute] = new Icon();
         if (attribute === SDK.Cookie.Attribute.NAME &&
             IssuesManager.RelatedIssue.hasThirdPartyPhaseoutCookieIssue(cookie)) {
           data.icons[attribute].name = 'warning-filled';
-          data.icons[attribute].style.color = 'var(--icon-warning)';
-          data.icons[attribute].style.width = '14px';
-          data.icons[attribute].style.height = '14px';
           data.icons[attribute].onclick = () => IssuesManager.RelatedIssue.reveal(cookie);
           data.icons[attribute].style.cursor = 'pointer';
         } else {
           data.icons[attribute].name = 'info';
-          data.icons[attribute].style.width = '14px';
-          data.icons[attribute].style.height = '14px';
         }
+        data.icons[attribute].classList.add('small');
         data.icons[attribute].title = blockedReason.uiString;
       } else if (data.icons[attribute]) {
         data.icons[attribute].title += '\n' + blockedReason.uiString;
@@ -511,10 +567,9 @@ export class CookiesTable extends UI.Widget.VBox {
     if (exemptionReason) {
       data.icons = data.icons || {};
       data.flagged = true;
-      data.icons.name = new IconButton.Icon.Icon();
+      data.icons.name = new Icon();
       data.icons.name.name = 'info';
-      data.icons.name.style.width = '14px';
-      data.icons.name.style.height = '14px';
+      data.icons.name.classList.add('small');
       data.icons.name.title = exemptionReason;
     }
     data.key = cookie.key();
@@ -556,13 +611,13 @@ export class CookiesTable extends UI.Widget.VBox {
   }
 
   private refresh(): void {
-    if (this.refreshCallback) {
-      this.refreshCallback();
+    if (this.#refreshCallback) {
+      this.#refreshCallback();
     }
   }
 
-  private populateContextMenu(contextMenu: UI.ContextMenu.ContextMenu, gridNode: HTMLElement): void {
-    const maybeCookie = this.cookies.find(cookie => cookie.key() === gridNode.dataset.key);
+  private populateContextMenu(data: CookieData, contextMenu: UI.ContextMenu.ContextMenu): void {
+    const maybeCookie = this.cookies.find(cookie => cookie.key() === data.key);
     if (!maybeCookie) {
       return;
     }

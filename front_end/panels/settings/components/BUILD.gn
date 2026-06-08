@@ -1,4 +1,4 @@
-# Copyright 2021 The Chromium Authors. All rights reserved.
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,18 +11,26 @@ generate_css("css_files") {
   sources = [ "syncSection.css" ]
 }
 
-devtools_module("components") {
+devtools_ui_module("components") {
   sources = [ "SyncSection.ts" ]
 
   deps = [
     "../../../core/common:bundle",
     "../../../core/host:bundle",
     "../../../core/i18n:bundle",
+    "../../../core/platform:bundle",
     "../../../core/sdk:bundle",
-    "../../../ui/components/chrome_link:bundle",
+    "../../../models/badges:bundle",
+    "../../../panels/common:bundle",
+    "../../../panels/utils:bundle",
+    "../../../ui/components/buttons:bundle",
     "../../../ui/components/helpers:bundle",
     "../../../ui/components/settings:bundle",
+    "../../../ui/components/tooltips:bundle",
+    "../../../ui/i18n:bundle",
+    "../../../ui/legacy:bundle",
     "../../../ui/lit:bundle",
+    "../../../ui/visual_logging:bundle",
   ]
 }
 
@@ -40,7 +48,7 @@ devtools_entrypoint("bundle") {
   ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [ "SyncSection.test.ts" ]
@@ -50,8 +58,8 @@ ts_library("unittests") {
     "../../../core/common:bundle",
     "../../../core/host:bundle",
     "../../../core/i18n:bundle",
+    "../../../core/root:bundle",
     "../../../testing",
-    "../../../ui/components/chrome_link:bundle",
     "../../../ui/components/helpers:bundle",
     "../../../ui/components/settings:bundle",
     "../../../ui/lit:bundle",

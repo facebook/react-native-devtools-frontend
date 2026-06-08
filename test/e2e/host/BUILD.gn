@@ -1,17 +1,17 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("../../../scripts/build/typescript/typescript.gni")
 
-node_ts_library("host") {
+ts_e2e_library("host") {
   sources = [
-    "out-of-process_test.ts",
-    "user-metrics_test.ts",
+    "out-of-process.test.ts",
+    "user-metrics.test.ts",
   ]
 
   deps = [
-    "../../shared",
     "../helpers",
+    "../shared",
   ]
 }

@@ -1,18 +1,23 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as i18n from '../../../core/i18n/i18n.js';
 import type * as SDK from '../../../core/sdk/sdk.js';
-import * as Network from '../../../panels/network/network.js';
+import type * as Protocol from '../../../generated/protocol.js';
+import * as Annotations from '../../annotations/annotations.js';
 import * as Logs from '../../logs/logs.js';
+import * as NetworkTimeCalculator from '../../network_time_calculator/network_time_calculator.js';
+import * as TextUtils from '../../text_utils/text_utils.js';
+
+import {seconds} from './UnitFormatters.js';
 
 const MAX_HEADERS_SIZE = 1000;
+const MAX_BODY_SIZE = 10000;
 
 /**
  * Sanitizes the set of headers, removing values that are not on the allow-list and replacing them with '<redacted>'.
  */
-function sanitizeHeaders(headers: Array<{name: string, value: string}>): Array<{name: string, value: string}> {
+export function sanitizeHeaders(headers: Array<{name: string, value: string}>): Array<{name: string, value: string}> {
   return headers.map(header => {
     if (NetworkRequestFormatter.allowHeader(header.name)) {
       return header;
@@ -22,6 +27,9 @@ function sanitizeHeaders(headers: Array<{name: string, value: string}>): Array<{
 }
 
 export class NetworkRequestFormatter {
+  #calculator: NetworkTimeCalculator.NetworkTransferTimeCalculator;
+  #request: SDK.NetworkRequest.NetworkRequest;
+
   static allowHeader(headerName: string): boolean {
     return allowedHeaders.has(headerName.toLowerCase().trim());
   }
@@ -35,18 +43,93 @@ export class NetworkRequestFormatter {
         MAX_HEADERS_SIZE);
   }
 
-  static formatInitiatorUrl(initiatorUrl: string, allowedOrigin: string): string {
-    const initiatorOrigin = new URL(initiatorUrl).origin;
-    if (initiatorOrigin === allowedOrigin) {
-      return initiatorUrl;
+  static async formatBody(title: string, request: SDK.NetworkRequest.NetworkRequest, maxBodySize: number):
+      Promise<string> {
+    const data = await request.requestContentData();
+
+    if (TextUtils.ContentData.ContentData.isError(data)) {
+      return '';
     }
-    return '<redacted cross-origin initiator URL>';
+
+    if (data.isEmpty) {
+      return `${title}\n<empty response>`;
+    }
+
+    if (data.isTextContent) {
+      const dataAsText = data.text;
+
+      if (dataAsText.length > maxBodySize) {
+        return `${title}\n${dataAsText.substring(0, maxBodySize) + '... <truncated>'}`;
+      }
+
+      return `${title}\n${dataAsText}`;
+    }
+
+    return `${title}\n<binary data>`;
   }
 
-  #request: SDK.NetworkRequest.NetworkRequest;
+  static formatInitiatorUrl(initiatorUrl: string, allowedOrigin: string): string {
+    try {
+      // Some scheme or URLs might cause errors depending on the runtime environment.
+      const initiatorOrigin = new URL(initiatorUrl).origin;
+      if (initiatorOrigin === allowedOrigin) {
+        return initiatorUrl;
+      }
+      return '<redacted cross-origin initiator URL>';
+    } catch {
+      return '<redacted cross-origin initiator URL>';
+    }
+  }
 
-  constructor(request: SDK.NetworkRequest.NetworkRequest) {
+  static formatStatus(status: {
+    statusCode: number,
+    statusText: string,
+    failed: boolean,
+    canceled: boolean,
+    preserved: boolean,
+    finished: boolean,
+  }): string {
+    let responseStatus = '';
+    if (status.statusCode) {
+      responseStatus = `Response status: ${status.statusCode} ${status.statusText}\n`;
+    }
+    const flags = [];
+    flags.push(status.finished ? 'finished' : 'pending');
+    if (status.failed) {
+      flags.push('failed');
+    }
+    if (status.canceled) {
+      flags.push('canceled');
+    }
+    if (status.preserved) {
+      flags.push('preserved');
+    }
+    const requestStatus = flags.length > 0 ? `Network request status: ${flags.join(', ')}\n` : '';
+    return `${responseStatus}${requestStatus}`;
+  }
+
+  static formatFailureReasons(reasons: {
+    blockedReason?: Protocol.Network.BlockedReason,
+    corsErrorStatus?: Protocol.Network.CorsErrorStatus,
+    localizedFailDescription?: string|null,
+  }): string {
+    const lines = [];
+    if (reasons.blockedReason) {
+      lines.push(`Blocked reason: ${reasons.blockedReason}`);
+    }
+    if (reasons.corsErrorStatus) {
+      lines.push(`CORS error: ${reasons.corsErrorStatus.corsError} ${reasons.corsErrorStatus.failedParameter}`);
+    }
+    if (reasons.localizedFailDescription) {
+      lines.push(`Fail description: ${reasons.localizedFailDescription}`);
+    }
+    return lines.length > 0 ? `${lines.join('\n')}\n` : '';
+  }
+
+  constructor(
+      request: SDK.NetworkRequest.NetworkRequest, calculator: NetworkTimeCalculator.NetworkTransferTimeCalculator) {
     this.#request = request;
+    this.#calculator = calculator;
   }
 
   formatRequestHeaders(): string {
@@ -57,22 +140,51 @@ export class NetworkRequestFormatter {
     return NetworkRequestFormatter.formatHeaders('Response headers:', this.#request.responseHeaders);
   }
 
+  async formatResponseBody(): Promise<string> {
+    return await NetworkRequestFormatter.formatBody('Response body:', this.#request, MAX_BODY_SIZE);
+  }
+
   /**
    * Note: nothing here should include information from origins other than
    * the request's origin.
    */
-  formatNetworkRequest(): string {
-    return `Request: ${this.#request.url()}
+  async formatNetworkRequest(): Promise<string> {
+    let responseBody = await this.formatResponseBody();
 
+    if (responseBody) {
+      // if we have a response then we add 2 new line to follow same structure of the context
+      responseBody = `\n\n${responseBody}`;
+    }
+
+    return `Request: ${this.#request.url()}
+${Annotations.AnnotationRepository.annotationsEnabled() ? `\nRequest ID: ${this.#request.requestId()}\n` : ''}
 ${this.formatRequestHeaders()}
 
-${this.formatResponseHeaders()}
+${this.formatResponseHeaders()}${responseBody}
 
-Response status: ${this.#request.statusCode} ${this.#request.statusText}
-
+${this.formatStatus()}${this.formatFailureReasons()}
 Request timing:\n${this.formatNetworkRequestTiming()}
 
 Request initiator chain:\n${this.formatRequestInitiatorChain()}`;
+  }
+
+  formatStatus(): string {
+    return NetworkRequestFormatter.formatStatus({
+      statusCode: this.#request.statusCode,
+      statusText: this.#request.statusText,
+      failed: this.#request.failed,
+      canceled: this.#request.canceled,
+      preserved: this.#request.preserved,
+      finished: this.#request.finished,
+    });
+  }
+
+  formatFailureReasons(): string {
+    return NetworkRequestFormatter.formatFailureReasons({
+      blockedReason: this.#request.blockedReason(),
+      corsErrorStatus: this.#request.corsErrorStatus(),
+      localizedFailDescription: this.#request.localizedFailDescription,
+    });
   }
 
   /**
@@ -99,26 +211,24 @@ Request initiator chain:\n${this.formatRequestInitiatorChain()}`;
   }
 
   formatNetworkRequestTiming(): string {
-    const calculator = Network.NetworkPanel.NetworkPanel.instance().networkLogView.timeCalculator();
-    const results = Network.RequestTimingView.RequestTimingView.calculateRequestTimeRanges(
-        this.#request, calculator.minimumBoundary());
+    const results = NetworkTimeCalculator.calculateRequestTimeRanges(this.#request, this.#calculator.minimumBoundary());
 
-    function getDuration(name: string): string|undefined {
+    const getDuration = (name: string): string|undefined => {
       const result = results.find(r => r.name === name);
       if (!result) {
         return;
       }
-      return i18n.TimeUtilities.secondsToString(result.end - result.start, true);
-    }
+      return seconds(result.end - result.start);
+    };
 
     const labels = [
       {
         label: 'Queued at (timestamp)',
-        value: calculator.formatValue(this.#request.issueTime(), 2),
+        value: seconds(this.#request.issueTime() - this.#calculator.zeroTime()),
       },
       {
         label: 'Started at (timestamp)',
-        value: calculator.formatValue(this.#request.startTime, 2),
+        value: seconds(this.#request.startTime - this.#calculator.zeroTime()),
       },
       {
         label: 'Queueing (duration)',

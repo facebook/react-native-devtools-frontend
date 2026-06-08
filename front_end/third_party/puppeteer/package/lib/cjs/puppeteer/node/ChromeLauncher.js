@@ -18,6 +18,7 @@ const browsers_1 = require("@puppeteer/browsers");
 const util_js_1 = require("../common/util.js");
 const assert_js_1 = require("../util/assert.js");
 const BrowserLauncher_js_1 = require("./BrowserLauncher.js");
+const LaunchOptions_js_1 = require("./LaunchOptions.js");
 const fs_js_1 = require("./util/fs.js");
 /**
  * @internal
@@ -162,7 +163,6 @@ class ChromeLauncher extends BrowserLauncher_js_1.BrowserLauncher {
             '--disable-crash-reporter', // No crash reporting in CfT.
             '--disable-default-apps',
             '--disable-dev-shm-usage',
-            '--disable-extensions',
             '--disable-hang-monitor',
             '--disable-infobars',
             '--disable-ipc-flooding-protection',
@@ -184,9 +184,14 @@ class ChromeLauncher extends BrowserLauncher_js_1.BrowserLauncher {
         ].filter(arg => {
             return arg !== '';
         });
-        const { devtools = false, headless = !devtools, args = [], userDataDir, } = options;
+        const { devtools = false, headless = !devtools, args = [], userDataDir, enableExtensions = false, } = options;
+        if (process.env['PUPPETEER_DANGEROUS_NO_SANDBOX'] === 'true' &&
+            !args.includes('--no-sandbox')) {
+            chromeArguments.push('--no-sandbox');
+        }
         if (userDataDir) {
-            chromeArguments.push(`--user-data-dir=${node_path_1.default.resolve(userDataDir)}`);
+            // If absolute (for any platform) path is given, we should not resolve it.
+            chromeArguments.push(`--user-data-dir=${node_path_1.default.posix.isAbsolute(userDataDir) || node_path_1.default.win32.isAbsolute(userDataDir) ? userDataDir : node_path_1.default.resolve(userDataDir)}`);
         }
         if (devtools) {
             chromeArguments.push('--auto-open-devtools-for-tabs');
@@ -194,6 +199,9 @@ class ChromeLauncher extends BrowserLauncher_js_1.BrowserLauncher {
         if (headless) {
             chromeArguments.push(headless === 'shell' ? '--headless' : '--headless=new', '--hide-scrollbars', '--mute-audio');
         }
+        chromeArguments.push(enableExtensions
+            ? '--enable-unsafe-extension-debugging'
+            : '--disable-extensions');
         if (args.every(arg => {
             return arg.startsWith('-');
         })) {
@@ -206,7 +214,7 @@ class ChromeLauncher extends BrowserLauncher_js_1.BrowserLauncher {
         if (channel) {
             return (0, browsers_1.computeSystemExecutablePath)({
                 browser: browsers_1.Browser.CHROME,
-                channel: convertPuppeteerChannelToBrowsersChannel(channel),
+                channel: (0, LaunchOptions_js_1.convertPuppeteerChannelToBrowsersChannel)(channel),
             });
         }
         else {
@@ -215,18 +223,6 @@ class ChromeLauncher extends BrowserLauncher_js_1.BrowserLauncher {
     }
 }
 exports.ChromeLauncher = ChromeLauncher;
-function convertPuppeteerChannelToBrowsersChannel(channel) {
-    switch (channel) {
-        case 'chrome':
-            return browsers_1.ChromeReleaseChannel.STABLE;
-        case 'chrome-dev':
-            return browsers_1.ChromeReleaseChannel.DEV;
-        case 'chrome-beta':
-            return browsers_1.ChromeReleaseChannel.BETA;
-        case 'chrome-canary':
-            return browsers_1.ChromeReleaseChannel.CANARY;
-    }
-}
 /**
  * Extracts all features from the given command-line flag
  * (e.g. `--enable-features`, `--enable-features=`).

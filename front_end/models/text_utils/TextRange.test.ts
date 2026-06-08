@@ -1,4 +1,4 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -402,7 +402,7 @@ describe('TextRange', () => {
   it('can be stringified', () => {
     const textRange =
         TextUtils.TextRange.TextRange.fromObject({startLine: 1, startColumn: 2, endLine: 3, endColumn: 4});
-    assert.isTrue(typeof textRange.toString() === 'string', 'toString should return a string');
+    assert.strictEqual(typeof textRange.toString(), 'string', 'toString should return a string');
   });
 
   describe('intersection', () => {

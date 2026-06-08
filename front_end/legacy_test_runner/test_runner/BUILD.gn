@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,9 +11,11 @@ devtools_module("test_runner") {
   deps = [
     "../../core/common:bundle",
     "../../core/protocol_client:bundle",
+    "../../core/root:bundle",
+    "../../core/sdk:bundle",
     "../../models/bindings:bundle",
-    "../../models/trace:bundle",
     "../../models/workspace:bundle",
+    "../../services/tracing:bundle",
     "../../ui/components/code_highlighter:bundle",
     "../../ui/legacy:bundle",
   ]

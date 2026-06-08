@@ -1,32 +1,8 @@
-/*
- * Copyright (C) 2009 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2009 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -34,38 +10,41 @@ import * as Platform from '../../core/platform/platform.js';
 import * as Root from '../../core/root/root.js';
 import * as Buttons from '../../ui/components/buttons/buttons.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
-import type * as Adorners from '../components/adorners/adorners.js';
-import * as IconButton from '../components/icon_button/icon_button.js';
+import {createIcon} from '../kit/kit.js';
 
 import {type Action, Events as ActionEvents} from './ActionRegistration.js';
 import {ActionRegistry} from './ActionRegistry.js';
 import * as ARIAUtils from './ARIAUtils.js';
 import {ContextMenu} from './ContextMenu.js';
 import {GlassPane, PointerEventsBehavior} from './GlassPane.js';
-import {bindCheckbox} from './SettingsUI.js';
 import type {Suggestion} from './SuggestBox.js';
 import {Events as TextPromptEvents, TextPrompt} from './TextPrompt.js';
 import toolbarStyles from './toolbar.css.js';
 import {Tooltip} from './Tooltip.js';
-import {CheckboxLabel, LongClickController} from './UIUtils.js';
+import {bindCheckbox, CheckboxLabel, LongClickController} from './UIUtils.js';
+import {Widget} from './Widget.js';
 
 const UIStrings = {
   /**
-   *@description Announced screen reader message for ToolbarSettingToggle when the setting is toggled on.
+   * @description Announced screen reader message for ToolbarSettingToggle when the setting is toggled on.
    */
   pressed: 'pressed',
   /**
-   *@description Announced screen reader message for ToolbarSettingToggle when the setting is toggled off.
+   * @description Announced screen reader message for ToolbarSettingToggle when the setting is toggled off.
    */
   notPressed: 'not pressed',
   /**
-   *@description Tooltip shown when the user hovers over the clear icon to empty the text input.
+   * @description Tooltip shown when the user hovers over the clear icon to empty the text input.
    */
   clearInput: 'Clear',
   /**
-   *@description Placeholder for filter bars that shows before the user types in a filter keyword.
+   * @description Placeholder for filter bars that shows before the user types in a filter keyword.
    */
   filter: 'Filter',
+  /**
+   * @description Tooltip shown when the user hovers over the regex icon to toggle regular-expression filtering.
+   */
+  useRegularExpression: 'Use regular expression',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('ui/legacy/Toolbar.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -73,25 +52,24 @@ const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 /**
  * Custom element for toolbars.
  *
- * @attr floating - If present the toolbar is rendered in columns, with a border
+ * @property floating - The `"floating"` attribute is reflected as property.
+ * @property wrappable - The `"wrappable"` attribute is reflected as property.
+ * @attribute floating - If present the toolbar is rendered in columns, with a border
  *                  around it, and a non-transparent background. This is used to
  *                  build vertical toolbars that open with long-click. Defaults
  *                  to `false`.
- * @attr wrappable - If present the toolbar items will wrap to a new row and the
+ * @attribute wrappable - If present the toolbar items will wrap to a new row and the
  *                   toolbar height increases.
- * @prop {boolean} floating - The `"floating"` attribute is reflected as property.
- * @prop {boolean} wrappable - The `"wrappable"` attribute is reflected as property.
  */
 export class Toolbar extends HTMLElement {
   #shadowRoot = this.attachShadow({mode: 'open'});
   private items: ToolbarItem[] = [];
   enabled = true;
   private compactLayout = false;
-  private mutationObserver = new MutationObserver(this.onItemsChange.bind(this));
 
   constructor() {
     super();
-    this.#shadowRoot.createChild('style').textContent = toolbarStyles.cssText;
+    this.#shadowRoot.createChild('style').textContent = toolbarStyles;
     this.#shadowRoot.createChild('slot');
   }
 
@@ -119,7 +97,7 @@ export class Toolbar extends HTMLElement {
         if (element instanceof Buttons.Button.Button) {
           item = new ToolbarButton('', undefined, undefined, undefined, element);
         } else if (element instanceof ToolbarInputElement) {
-          item = element.item;
+          item = element.item as ToolbarItem;
         } else if (element instanceof HTMLSelectElement) {
           item = new ToolbarComboBox(null, element.title, undefined, undefined, element);
         } else {
@@ -141,7 +119,7 @@ export class Toolbar extends HTMLElement {
   /**
    * Returns whether this toolbar is floating.
    *
-   * @return `true` if the `"floating"` attribute is present on this toolbar,
+   * @returns `true` if the `"floating"` attribute is present on this toolbar,
    *         otherwise `false`.
    */
   get floating(): boolean {
@@ -160,7 +138,7 @@ export class Toolbar extends HTMLElement {
   /**
    * Returns whether this toolbar is wrappable.
    *
-   * @return `true` if the `"wrappable"` attribute is present on this toolbar,
+   * @returns `true` if the `"wrappable"` attribute is present on this toolbar,
    *         otherwise `false`.
    */
   get wrappable(): boolean {
@@ -366,7 +344,12 @@ export class Toolbar extends HTMLElement {
       item.applyEnabledState(false);
     }
     if (item.element.parentElement !== this) {
-      this.appendChild(item.element);
+      const widget = Widget.get(item.element);
+      if (widget) {
+        widget.show(this);
+      } else {
+        this.appendChild(item.element);
+      }
     }
     this.hideSeparatorDupes();
   }
@@ -382,7 +365,14 @@ export class Toolbar extends HTMLElement {
     if (!this.enabled) {
       item.applyEnabledState(false);
     }
-    this.prepend(item.element);
+    if (item.element.parentElement !== this) {
+      const widget = Widget.get(item.element);
+      if (widget) {
+        widget.show(this, this.firstChild);
+      } else {
+        this.prepend(item.element);
+      }
+    }
     this.hideSeparatorDupes();
   }
 
@@ -402,7 +392,12 @@ export class Toolbar extends HTMLElement {
     const updatedItems = [];
     for (const item of this.items) {
       if (item === itemToRemove) {
-        item.element.remove();
+        const widget = Widget.get(item.element);
+        if (widget) {
+          widget.detach();
+        } else {
+          item.element.remove();
+        }
       } else {
         updatedItems.push(item);
       }
@@ -413,6 +408,10 @@ export class Toolbar extends HTMLElement {
   removeToolbarItems(): void {
     for (const item of this.items) {
       item.toolbar = null;
+      const widget = Widget.get(item.element);
+      if (widget) {
+        widget.detach();
+      }
     }
     this.items = [];
     this.removeChildren();
@@ -491,7 +490,7 @@ export interface ToolbarButtonOptions {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export class ToolbarItem<T = any, E extends HTMLElement = HTMLElement> extends Common.ObjectWrapper.ObjectWrapper<T> {
   element: E;
-  private visibleInternal: boolean;
+  #visible: boolean;
   enabled: boolean;
   toolbar: Toolbar|null;
   protected title?: string;
@@ -499,7 +498,7 @@ export class ToolbarItem<T = any, E extends HTMLElement = HTMLElement> extends C
   constructor(element: E) {
     super();
     this.element = element;
-    this.visibleInternal = true;
+    this.#visible = true;
     this.enabled = true;
 
     /**
@@ -536,21 +535,29 @@ export class ToolbarItem<T = any, E extends HTMLElement = HTMLElement> extends C
   }
 
   visible(): boolean {
-    return this.visibleInternal;
+    return this.#visible;
   }
 
   setVisible(x: boolean): void {
-    if (this.visibleInternal === x) {
+    if (this.#visible === x) {
       return;
     }
     this.element.classList.toggle('hidden', !x);
-    this.visibleInternal = x;
+    this.#visible = x;
     if (this.toolbar && !(this instanceof ToolbarSeparator)) {
       this.toolbar.hideSeparatorDupes();
     }
   }
 
   setCompactLayout(_enable: boolean): void {
+  }
+
+  setMaxWidth(width: number): void {
+    this.element.style.maxWidth = width + 'px';
+  }
+
+  setMinWidth(width: number): void {
+    this.element.style.minWidth = width + 'px';
   }
 }
 
@@ -577,7 +584,7 @@ export class ToolbarText extends ToolbarItem<void, HTMLElement> {
   }
 
   text(): string {
-    return this.element.textContent ?? '';
+    return this.element.textContent;
   }
 
   setText(text: string): void {
@@ -660,7 +667,7 @@ export class ToolbarButton extends ToolbarItem<ToolbarButton.EventTypes, Buttons
     this.text = text;
   }
 
-  setAdorner(adorner: Adorners.Adorner.Adorner): void {
+  setAdorner(adorner: HTMLElement): void {
     if (this.adorner) {
       this.adorner.replaceWith(adorner);
     } else {
@@ -712,7 +719,6 @@ export namespace ToolbarButton {
 export class ToolbarInput extends ToolbarItem<ToolbarInput.EventTypes> {
   private prompt: TextPrompt;
   private readonly proxyElement: Element;
-
   constructor(
       placeholder: string, accessiblePlaceholder?: string, growFactor?: number, shrinkFactor?: number, tooltip?: string,
       completions?: ((arg0: string, arg1: string, arg2?: boolean|undefined) => Promise<Suggestion[]>),
@@ -778,6 +784,10 @@ export class ToolbarInput extends ToolbarItem<ToolbarInput.EventTypes> {
     this.updateEmptyStyles();
   }
 
+  protected insertTrailingElement(element: Element): void {
+    this.element.appendChild(element);
+  }
+
   override applyEnabledState(enabled: boolean): void {
     if (enabled) {
       this.element.classList.remove('disabled');
@@ -837,25 +847,46 @@ export class ToolbarFilter extends ToolbarInput {
   constructor(
       filterBy?: Common.UIString.LocalizedString, growFactor?: number, shrinkFactor?: number, tooltip?: string,
       completions?: ((arg0: string, arg1: string, arg2?: boolean|undefined) => Promise<Suggestion[]>),
-      dynamicCompletions?: boolean, jslogContext?: string, element?: HTMLElement) {
+      dynamicCompletions?: boolean, jslogContext?: string, element?: HTMLElement, showRegexToggle?: boolean,
+      onRegexToggle?: () => void) {
     const filterPlaceholder = filterBy ? filterBy : i18nString(UIStrings.filter);
     super(
         filterPlaceholder, filterPlaceholder, growFactor, shrinkFactor, tooltip, completions, dynamicCompletions,
         jslogContext || 'filter', element);
 
-    const filterIcon = IconButton.Icon.create('filter');
+    const filterIcon = createIcon('filter');
     this.element.prepend(filterIcon);
     this.element.classList.add('toolbar-filter');
+
+    if (showRegexToggle) {
+      const regexIconName = 'regular-expression';
+      const regexButton = new Buttons.Button.Button();
+      regexButton.data = {
+        variant: Buttons.Button.Variant.ICON_TOGGLE,
+        size: Buttons.Button.Size.SMALL,
+        iconName: regexIconName,
+        toggledIconName: regexIconName,
+        toggleType: Buttons.Button.ToggleType.PRIMARY,
+        toggled: false,
+        title: i18nString(UIStrings.useRegularExpression),
+        jslogContext: regexIconName,
+      };
+      ARIAUtils.setLabel(regexButton, i18nString(UIStrings.useRegularExpression));
+      regexButton.addEventListener('click', () => {
+        onRegexToggle?.();
+      });
+      this.insertTrailingElement(regexButton);
+    }
   }
 }
 
-class ToolbarInputElement extends HTMLElement {
-  static observedAttributes = ['value'];
+export class ToolbarInputElement extends HTMLElement {
+  static observedAttributes = ['value', 'disabled', 'regex'];
 
-  item!: ToolbarInput;
+  item?: ToolbarInput;
   datalist: HTMLDataListElement|null = null;
-  value: string|undefined = undefined;
-
+  #value: string|undefined = undefined;
+  #disabled = false;
   connectedCallback(): void {
     if (this.item) {
       return;
@@ -873,15 +904,19 @@ class ToolbarInputElement extends HTMLElement {
       this.item = new ToolbarFilter(
           placeholder as Platform.UIString.LocalizedString, /* growFactor=*/ undefined,
           /* shrinkFactor=*/ undefined, tooltip, this.datalist ? this.#onAutocomplete.bind(this) : undefined,
-          /* dynamicCompletions=*/ undefined, jslogContext || 'filter', this);
+          /* dynamicCompletions=*/ undefined, jslogContext || 'filter', this, this.hasAttribute('regex'),
+          this.#onRegexToggle.bind(this));
     } else {
       this.item = new ToolbarInput(
           placeholder, accessiblePlaceholder, /* growFactor=*/ undefined,
           /* shrinkFactor=*/ undefined, tooltip, this.datalist ? this.#onAutocomplete.bind(this) : undefined,
           /* dynamicCompletions=*/ undefined, jslogContext, this);
     }
-    if (this.value) {
-      this.item.setValue(this.value);
+    if (this.#value) {
+      this.item.setValue(this.#value);
+    }
+    if (this.#disabled) {
+      this.item.setEnabled(false);
     }
     this.item.addEventListener(ToolbarInput.Event.TEXT_CHANGED, event => {
       this.dispatchEvent(new CustomEvent('change', {detail: event.data}));
@@ -892,7 +927,11 @@ class ToolbarInputElement extends HTMLElement {
   }
 
   override focus(): void {
-    this.item.focus();
+    this.item?.focus();
+  }
+
+  #onRegexToggle(): void {
+    this.dispatchEvent(new CustomEvent('regextoggle'));
   }
 
   async #onAutocomplete(expression: string, prefix: string, force?: boolean): Promise<Suggestion[]> {
@@ -904,14 +943,39 @@ class ToolbarInputElement extends HTMLElement {
     return [...options].map((({value}) => value)).filter(value => value.startsWith(prefix)).map(text => ({text}));
   }
 
-  attributeChangedCallback(name: string, oldValue: string, newValue: string): void {
+  attributeChangedCallback(name: string, _oldValue: string, newValue: string): void {
     if (name === 'value') {
       if (this.item && this.item.value() !== newValue) {
         this.item.setValue(newValue, true);
       } else {
-        this.value = newValue;
+        this.#value = newValue;
+      }
+    } else if (name === 'disabled') {
+      this.#disabled = typeof newValue === 'string';
+      if (this.item) {
+        this.item.setEnabled(!this.#disabled);
       }
     }
+  }
+
+  get value(): string {
+    return this.item ? this.item.value() : (this.#value ?? '');
+  }
+
+  set value(value: string) {
+    this.setAttribute('value', value);
+  }
+
+  set disabled(disabled: boolean) {
+    if (disabled) {
+      this.setAttribute('disabled', '');
+    } else {
+      this.removeAttribute('disabled');
+    }
+  }
+
+  get disabled(): boolean {
+    return this.hasAttribute('disabled');
   }
 }
 customElements.define('devtools-toolbar-input', ToolbarInputElement);
@@ -929,12 +993,10 @@ export namespace ToolbarInput {
 }
 
 export class ToolbarToggle extends ToolbarButton {
-  private readonly untoggledGlyph: string|undefined;
   private readonly toggledGlyph: string|undefined;
 
   constructor(title: string, glyph?: string, toggledGlyph?: string, jslogContext?: string, toggleOnClick?: boolean) {
     super(title, glyph, '');
-    this.untoggledGlyph = glyph;
     this.toggledGlyph = toggledGlyph ? toggledGlyph : glyph;
     this.setToggledIcon(this.toggledGlyph || '');
     this.setToggleType(Buttons.Button.ToggleType.PRIMARY);
@@ -969,10 +1031,11 @@ export class ToolbarMenuButton extends ToolbarItem<ToolbarButton.EventTypes> {
   private textElement?: HTMLElement;
   private text?: string;
   private iconName?: string;
-  private adorner?: Adorners.Adorner.Adorner;
+  private adorner?: HTMLElement;
   private readonly contextMenuHandler: (arg0: ContextMenu) => void;
   private readonly useSoftMenu: boolean;
   private readonly keepOpen: boolean;
+  private readonly isIconDropdown: boolean;
   private triggerTimeoutId?: number;
   #triggerDelay = 200;
 
@@ -996,7 +1059,7 @@ export class ToolbarMenuButton extends ToolbarItem<ToolbarButton.EventTypes> {
     this.title = '';
     if (!isIconDropdown) {
       this.element.classList.add('toolbar-has-dropdown');
-      const dropdownArrowIcon = IconButton.Icon.create('triangle-down', 'toolbar-dropdown-arrow');
+      const dropdownArrowIcon = createIcon('triangle-down', 'toolbar-dropdown-arrow');
       this.element.appendChild(dropdownArrowIcon);
     }
     if (jslogContext) {
@@ -1006,6 +1069,7 @@ export class ToolbarMenuButton extends ToolbarItem<ToolbarButton.EventTypes> {
     this.contextMenuHandler = contextMenuHandler;
     this.useSoftMenu = Boolean(useSoftMenu);
     this.keepOpen = Boolean(keepOpen);
+    this.isIconDropdown = Boolean(isIconDropdown);
     ARIAUtils.markAsMenuButton(this.element);
   }
 
@@ -1024,7 +1088,7 @@ export class ToolbarMenuButton extends ToolbarItem<ToolbarButton.EventTypes> {
     this.text = text;
   }
 
-  setAdorner(adorner: Adorners.Adorner.Adorner): void {
+  setAdorner(adorner: HTMLElement): void {
     if (this.iconName) {
       return;
     }
@@ -1067,10 +1131,12 @@ export class ToolbarMenuButton extends ToolbarItem<ToolbarButton.EventTypes> {
   private trigger(event: Event): void {
     delete this.triggerTimeoutId;
 
+    const horizontalPosition =
+        this.isIconDropdown ? this.element.getBoundingClientRect().right : this.element.getBoundingClientRect().left;
     const contextMenu = new ContextMenu(event, {
       useSoftMenu: this.useSoftMenu,
       keepOpen: this.keepOpen,
-      x: this.element.getBoundingClientRect().left,
+      x: horizontalPosition,
       y: this.element.getBoundingClientRect().top + this.element.offsetHeight,
       // Without adding a delay, pointer events will be un-ignored too early, and a single click causes
       // the context menu to be closed and immediately re-opened on Windows (https://crbug.com/339560549).
@@ -1112,7 +1178,7 @@ export class ToolbarSettingToggle extends ToolbarToggle {
     this.setToggled(toggled);
     const toggleAnnouncement = toggled ? i18nString(UIStrings.pressed) : i18nString(UIStrings.notPressed);
     if (this.willAnnounceState) {
-      ARIAUtils.alert(toggleAnnouncement);
+      ARIAUtils.LiveAnnouncer.alert(toggleAnnouncement);
     }
     this.willAnnounceState = false;
     this.setTitle(this.defaultTitle);
@@ -1160,6 +1226,10 @@ export class ToolbarComboBox extends ToolbarItem<void, HTMLSelectElement> {
     if (jslogContext) {
       this.element.setAttribute('jslog', `${VisualLogging.dropDown().track({change: true}).context(jslogContext)}`);
     }
+  }
+
+  turnShrinkable(): void {
+    this.element.classList.add('toolbar-has-dropdown-shrinkable');
   }
 
   size(): number {
@@ -1218,14 +1288,6 @@ export class ToolbarComboBox extends ToolbarItem<void, HTMLSelectElement> {
   selectedIndex(): number {
     return this.element.selectedIndex;
   }
-
-  setMaxWidth(width: number): void {
-    this.element.style.maxWidth = width + 'px';
-  }
-
-  setMinWidth(width: number): void {
-    this.element.style.minWidth = width + 'px';
-  }
 }
 
 export interface Option {
@@ -1234,20 +1296,20 @@ export interface Option {
 }
 
 export class ToolbarSettingComboBox extends ToolbarComboBox {
-  private optionsInternal: Option[];
+  #options: Option[];
   private readonly setting: Common.Settings.Setting<string>;
   private muteSettingListener?: boolean;
   constructor(options: Option[], setting: Common.Settings.Setting<string>, accessibleName: string) {
     super(null, accessibleName, undefined, setting.name);
-    this.optionsInternal = options;
+    this.#options = options;
     this.setting = setting;
-    this.element.addEventListener('change', this.valueChanged.bind(this), false);
+    this.element.addEventListener('change', this.onSelectValueChange.bind(this), false);
     this.setOptions(options);
-    setting.addChangeListener(this.settingChanged, this);
+    setting.addChangeListener(this.onDevToolsSettingChanged, this);
   }
 
   setOptions(options: Option[]): void {
-    this.optionsInternal = options;
+    this.#options = options;
     this.element.removeChildren();
     for (let i = 0; i < options.length; ++i) {
       const dataOption = options[i];
@@ -1260,67 +1322,102 @@ export class ToolbarSettingComboBox extends ToolbarComboBox {
   }
 
   value(): string {
-    return this.optionsInternal[this.selectedIndex()].value;
+    return this.#options[this.selectedIndex()].value;
   }
 
-  private settingChanged(): void {
+  override select(option: Element): void {
+    const index = Array.prototype.indexOf.call(this.element, option);
+    this.setSelectedIndex(index);
+  }
+
+  override setSelectedIndex(index: number): void {
+    super.setSelectedIndex(index);
+    const option = this.#options.at(index);
+    if (option) {
+      this.setTitle(option.label);
+    }
+  }
+
+  /**
+   * Note: wondering why there are two event listeners and what the difference is?
+   * It is because this combo box <select> is backed by a Devtools setting and
+   * at any time there could be multiple instances of these elements that are
+   * backed by the same setting. So they have to listen to two things:
+   * 1. When the setting is changed via a different method.
+   * 2. When the value of the select is changed, triggering a change to the setting.
+   */
+
+  /**
+   * Runs when the DevTools setting is changed
+   */
+  private onDevToolsSettingChanged(): void {
     if (this.muteSettingListener) {
       return;
     }
 
     const value = this.setting.get();
-    for (let i = 0; i < this.optionsInternal.length; ++i) {
-      if (value === this.optionsInternal[i].value) {
+    for (let i = 0; i < this.#options.length; ++i) {
+      if (value === this.#options[i].value) {
         this.setSelectedIndex(i);
         break;
       }
     }
   }
 
-  private valueChanged(_event: Event): void {
-    const option = this.optionsInternal[this.selectedIndex()];
+  /**
+   * Run when the user interacts with the <select> element.
+   */
+  private onSelectValueChange(_event: Event): void {
+    const option = this.#options[this.selectedIndex()];
     this.muteSettingListener = true;
     this.setting.set(option.value);
     this.muteSettingListener = false;
+    // Because we mute the DevTools setting change listener, we need to
+    // manually update the title here.
+    this.setTitle(option.label);
   }
 }
 
 export class ToolbarCheckbox extends ToolbarItem<void> {
-  inputElement: HTMLInputElement;
-
+  #checkboxLabel: CheckboxLabel;
   constructor(
       text: Common.UIString.LocalizedString, tooltip?: Common.UIString.LocalizedString,
       listener?: ((arg0: MouseEvent) => void), jslogContext?: string) {
-    super(CheckboxLabel.create(text));
-    this.inputElement = (this.element as CheckboxLabel).checkboxElement;
-    if (tooltip) {
-      // install on the checkbox
-      Tooltip.install(this.inputElement, tooltip);
-      Tooltip.install((this.element as CheckboxLabel).textElement, tooltip);
-    }
+    // Pass tooltip to CheckboxLabel.create so it's set on the inner input/text elements,
+    // rather than installing it on the wrapper element which causes screen readers to
+    // incorrectly announce it as a group name.
+    const checkboxLabel = CheckboxLabel.create(text, undefined, undefined, jslogContext, undefined, tooltip);
+    super(checkboxLabel);
     if (listener) {
-      this.inputElement.addEventListener('click', listener, false);
+      this.element.addEventListener('click', listener, false);
     }
-    if (jslogContext) {
-      this.inputElement.setAttribute('jslog', `${VisualLogging.toggle().track({change: true}).context(jslogContext)}`);
-    }
+
+    this.#checkboxLabel = checkboxLabel;
   }
 
   checked(): boolean {
-    return this.inputElement.checked;
+    return (this.element as CheckboxLabel).checked;
   }
 
   setChecked(value: boolean): void {
-    this.inputElement.checked = value;
+    (this.element as CheckboxLabel).checked = value;
   }
 
   override applyEnabledState(enabled: boolean): void {
     super.applyEnabledState(enabled);
-    this.inputElement.disabled = !enabled;
+    (this.element as CheckboxLabel).disabled = !enabled;
   }
 
   setIndeterminate(indeterminate: boolean): void {
-    this.inputElement.indeterminate = indeterminate;
+    (this.element as CheckboxLabel).indeterminate = indeterminate;
+  }
+
+  /**
+   * Sets the user visible text shown alongside the checkbox.
+   * If you want to update the title/aria-label, use setTitle.
+   */
+  setLabelText(content: Common.UIString.LocalizedString): void {
+    this.#checkboxLabel.setLabelText(content);
   }
 }
 
@@ -1329,7 +1426,7 @@ export class ToolbarSettingCheckbox extends ToolbarCheckbox {
       setting: Common.Settings.Setting<boolean>, tooltip?: Common.UIString.LocalizedString,
       alternateTitle?: Common.UIString.LocalizedString) {
     super(alternateTitle || setting.title(), tooltip, undefined, setting.name);
-    bindCheckbox(this.inputElement, setting);
+    bindCheckbox(this.element as CheckboxLabel, setting);
   }
 }
 
@@ -1366,5 +1463,6 @@ export const enum ToolbarItemLocation {
 declare global {
   interface HTMLElementTagNameMap {
     'devtools-toolbar': Toolbar;
+    'devtools-toolbar-input': ToolbarInputElement;
   }
 }

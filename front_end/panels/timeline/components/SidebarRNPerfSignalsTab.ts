@@ -38,12 +38,12 @@ export class SidebarRNPerfSignalsTab extends HTMLElement {
   readonly #boundRender = this.#render.bind(this);
   readonly #shadow = this.attachShadow({mode: 'open'});
 
-  #parsedTrace: Trace.Handlers.Types.ParsedTrace|null = null;
+  #parsedTrace: Trace.TraceModel.ParsedTrace|null = null;
   #perfIssues: AggregatedPerfIssue[] = [];
 
   #selectTimelineEvent?: (event: Trace.Types.Events.Event) => void;
 
-  set parsedTrace(data: Trace.Handlers.Types.ParsedTrace|null) {
+  set parsedTrace(data: Trace.TraceModel.ParsedTrace|null) {
     if (data === this.#parsedTrace) {
       return;
     }
@@ -66,13 +66,13 @@ export class SidebarRNPerfSignalsTab extends HTMLElement {
       return;
     }
 
-    const traceStartMs = Trace.Helpers.Timing.microToMilli(this.#parsedTrace.Meta.traceBounds.min);
+    const traceStartMs = Trace.Helpers.Timing.microToMilli(this.#parsedTrace.data.Meta.traceBounds.min);
     const eventsByIssueName = new Map<string, {metadata: RNPerfIssueDetail, events: PerfIssueEvent[]}>();
 
     // Find extension track entries (rendered in the flame chart) in the parsed
     // trace that contain `detail.devtools.performanceIssue`
-    for (const extensionTrack of this.#parsedTrace.ExtensionTraceData.extensionTrackData) {
-      for (const entries of Object.values(extensionTrack.entriesByTrack)) {
+    for (const extensionTrack of this.#parsedTrace.data.ExtensionTraceData.extensionTrackData) {
+      for (const entries of Object.values(extensionTrack.entriesByTrack) as Trace.Types.Events.Event[][]) {
         for (const extensionEntry of entries) {
           if (!Trace.Types.Extensions.isSyntheticExtensionEntry(extensionEntry)) {
             continue;
@@ -145,7 +145,7 @@ export class SidebarRNPerfSignalsTab extends HTMLElement {
     }
 
     const contents = html`
-      <style>${styles.cssText}</style>
+      <style>${styles}</style>
       <div class="perf-issues-wrapper">
         ${this.#perfIssues.length ?
           this.#perfIssues.map(issue => html`

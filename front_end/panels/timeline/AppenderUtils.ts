@@ -1,10 +1,10 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 import type * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Trace from '../../models/trace/trace.js';
-import type * as PerfUI from '../../ui/legacy/components/perf_ui/perf_ui.js';
+import * as PerfUI from '../../ui/legacy/components/perf_ui/perf_ui.js';
 import * as ThemeSupport from '../../ui/legacy/theme_support/theme_support.js';
 
 import type {VisualLoggingTrackName} from './CompatibilityTracksAppender.js';
@@ -14,8 +14,8 @@ const UIStrings = {
    * @description Text in the Performance panel to show how long was spent in a particular part of the code.
    * The first placeholder is the total time taken for this node and all children, the second is the self time
    * (time taken in this node, without children included).
-   *@example {10ms} PH1
-   *@example {10ms} PH2
+   * @example {10ms} PH1
+   * @example {10ms} PH2
    */
   sSelfS: '{PH1} (self {PH2})',
 } as const;
@@ -36,7 +36,7 @@ export function buildGroupStyle(extra?: Partial<PerfUI.FlameChart.GroupStyle>): 
   const defaultGroupStyle: PerfUI.FlameChart.GroupStyle = {
     padding: 4,
     height: 17,
-    collapsible: true,
+    collapsible: PerfUI.FlameChart.GroupCollapsibleState.ALWAYS,
     color: ThemeSupport.ThemeSupport.instance().getComputedValue('--sys-color-on-surface'),
     backgroundColor: ThemeSupport.ThemeSupport.instance().getComputedValue('--sys-color-cdt-base-container'),
     nestingLevel: 0,

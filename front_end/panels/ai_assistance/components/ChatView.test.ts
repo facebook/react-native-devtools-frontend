@@ -1,45 +1,69 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as Host from '../../../core/host/host.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as AiAssistanceModel from '../../../models/ai_assistance/ai_assistance.js';
+import {
+  cleanup,
+  initializePersistenceImplForTests,
+  setupAutomaticFileSystem
+} from '../../../testing/AiAssistanceHelpers.js';
 import {renderElementIntoDOM} from '../../../testing/DOMHelpers.js';
-import {describeWithEnvironment, updateHostConfig} from '../../../testing/EnvironmentHelpers.js';
+import {describeWithEnvironment} from '../../../testing/EnvironmentHelpers.js';
 import * as AiAssistancePanel from '../ai_assistance.js';
 
 describeWithEnvironment('ChatView', () => {
+  beforeEach(() => {
+    initializePersistenceImplForTests();
+    setupAutomaticFileSystem();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
   function getProp(options: Partial<AiAssistancePanel.Props>): AiAssistancePanel.Props {
     const noop = () => {};
-    const messages: AiAssistancePanel.ChatMessage[] = options.messages ?? [];
-    const selectedContext = sinon.createStubInstance(AiAssistanceModel.NodeContext);
-    selectedContext.getTitle.returns('');
+    const messages = options.messages ?? [];
+    const context = sinon.createStubInstance(AiAssistanceModel.StylingAgent.NodeContext);
+    context.getTitle.returns('');
     return {
       onTextSubmit: noop,
       onInspectElementClick: noop,
       onFeedbackSubmit: noop,
       onCancelClick: noop,
       onContextClick: noop,
+      onCopyResponseClick: noop,
       onNewConversation: noop,
-      onTextInputChange: noop,
-      changeManager: new AiAssistanceModel.ChangeManager(),
+      onExportConversation: noop,
+      generateConversationSummary: async () => '',
+      conversationMarkdown: 'placeholder conversation markdown',
+      onContextRemoved: noop,
+      onContextAdd: noop,
+      changeManager: new AiAssistanceModel.ChangeManager.ChangeManager(),
       inspectElementToggled: false,
-      state: AiAssistancePanel.State.CHAT_VIEW,
-      conversationType: AiAssistanceModel.ConversationType.STYLING,
-      aidaAvailability: Host.AidaClient.AidaAccessPreconditions.AVAILABLE,
+      conversationType: AiAssistanceModel.AiHistoryStorage.ConversationType.STYLING,
       messages,
-      selectedContext,
+      context,
+      isContextSelected: true,
       isLoading: false,
       canShowFeedbackForm: false,
-      userInfo: {},
       blockedByCrossOrigin: false,
       isReadOnly: false,
       isTextInputDisabled: false,
       emptyStateSuggestions: [],
       inputPlaceholder: i18n.i18n.lockedString('input placeholder'),
       disclaimerText: i18n.i18n.lockedString('disclaimer text'),
-      isTextInputEmpty: true,
+      markdownRenderer: new AiAssistancePanel.MarkdownRendererWithCodeBlock(),
+      walkthrough: {
+        onToggle: () => {},
+        onOpen: () => {},
+        isInlined: false,
+        isExpanded: false,
+        activeSidebarMessage: null,
+        inlineExpandedMessages: [],
+      },
       ...options,
     };
   }
@@ -49,15 +73,20 @@ describeWithEnvironment('ChatView', () => {
       const props = getProp({
         messages: [
           {
-            entity: AiAssistancePanel.ChatMessageEntity.MODEL,
-            steps: [
+            entity: AiAssistancePanel.ChatMessage.ChatMessageEntity.MODEL,
+            id: '1',
+            parts: [
               {
-                isLoading: false,
-                title: 'Updating element styles',
-                thought: 'Updating element styles',
-                code: '$0.style.background = "blue";',
-                sideEffect: {
-                  onAnswer: () => {},
+                type: 'step',
+                step: {
+                  isLoading: false,
+                  title: 'Updating element styles',
+                  thought: 'Updating element styles',
+                  code: '$0.style.background = "blue";',
+                  requestApproval: {
+                    description: null,
+                    onAnswer: () => {},
+                  },
                 },
               },
             ],
@@ -70,85 +99,117 @@ describeWithEnvironment('ChatView', () => {
       const sideEffect = chat.shadowRoot!.querySelector('.side-effect-confirmation');
       assert.exists(sideEffect);
     });
+  });
 
-    it('shows the disabled view when the state is CONSENT_VIEW', async () => {
+  describe('Caching', () => {
+    it('should cache the summary and not regenerate it if only the timestamp changes', async () => {
+      const generateSummaryStub = sinon.stub().resolves('Summary');
+      let capturedExportClick: (() => void)|undefined;
+      const customView = (input: AiAssistancePanel.ChatWidgetInput) => {
+        capturedExportClick = input.exportForAgentsClick;
+      };
+
       const props = getProp({
-        state: AiAssistancePanel.State.CONSENT_VIEW,
+        generateConversationSummary: generateSummaryStub,
+        conversationMarkdown: '# Conversation\n\n**Export Timestamp (UTC):** 2026-04-15T10:00:00.000Z\n\n---\nContent',
       });
-      const chat = new AiAssistancePanel.ChatView(props);
+
+      const chat = new AiAssistancePanel.ChatView(props, customView);
       renderElementIntoDOM(chat);
 
-      const optIn = chat.shadowRoot?.querySelector('.disabled-view');
-      assert.strictEqual(
-          optIn?.textContent?.trim(), 'Turn on AI assistance in Settings to get help with understanding CSS styles');
+      assert.exists(capturedExportClick);
+
+      // Trigger export first time
+      await capturedExportClick!();
+      sinon.assert.callCount(generateSummaryStub, 1);
+
+      // Update props with a new timestamp but same content
+      chat.props = getProp({
+        generateConversationSummary: generateSummaryStub,
+        conversationMarkdown: '# Conversation\n\n**Export Timestamp (UTC):** 2026-04-15T11:00:00.000Z\n\n---\nContent',
+      });
+
+      // Trigger export second time
+      await capturedExportClick!();
+      // Should still be 1 because of cache
+      sinon.assert.callCount(generateSummaryStub, 1);
+    });
+  });
+
+  describe('getCSSChangeSummaryMessage', () => {
+    it('returns undefined if there are no messages', () => {
+      const result = AiAssistancePanel.getCSSChangeSummaryMessage([], false);
+      assert.isUndefined(result);
     });
 
-    it('shows the disabled view when the AIDA is not available', async () => {
-      const props = getProp({
-        state: AiAssistancePanel.State.CHAT_VIEW,
-        aidaAvailability: Host.AidaClient.AidaAccessPreconditions.NO_INTERNET,
-      });
-      const chat = new AiAssistancePanel.ChatView(props);
-      renderElementIntoDOM(chat);
-
-      const optIn = chat.shadowRoot?.querySelector('.disabled-view');
-      assert.strictEqual(optIn?.textContent?.trim(), 'Check your internet connection and try again');
+    it('returns undefined if there are no model messages', () => {
+      const messages: AiAssistancePanel.ChatMessage.Message[] = [
+        {entity: AiAssistancePanel.ChatMessage.ChatMessageEntity.USER, text: 'Hello', id: '2'},
+      ];
+      const result = AiAssistancePanel.getCSSChangeSummaryMessage(messages, false);
+      assert.isUndefined(result);
     });
 
-    describe('no agent empty state', () => {
-      it('should show feature cards for enabled features', () => {
-        updateHostConfig({
-          devToolsFreestyler: {
-            enabled: true,
-          },
-          devToolsAiAssistanceNetworkAgent: {
-            enabled: true,
-          },
-          devToolsAiAssistanceFileAgent: {
-            enabled: true,
-          },
-          devToolsAiAssistancePerformanceAgent: {
-            enabled: true,
-          },
-        });
-        const props = getProp({
-          conversationType: undefined,
-        });
-        const chat = new AiAssistancePanel.ChatView(props);
-        renderElementIntoDOM(chat);
-        const featureCards = chat.shadowRoot?.querySelectorAll('.feature-card');
-        assert.isDefined(featureCards);
-        assert.strictEqual(featureCards?.length, 4);
-        assert.strictEqual(featureCards[0].querySelector('.feature-card-content h3')?.textContent, 'CSS styles');
-        assert.strictEqual(featureCards[1].querySelector('.feature-card-content h3')?.textContent, 'Network');
-        assert.strictEqual(featureCards[2].querySelector('.feature-card-content h3')?.textContent, 'Files');
-        assert.strictEqual(featureCards[3].querySelector('.feature-card-content h3')?.textContent, 'Performance');
-      });
+    it('returns the last model message if not loading', () => {
+      const modelMessage: AiAssistancePanel.ChatMessage.Message = {
+        entity: AiAssistancePanel.ChatMessage.ChatMessageEntity.MODEL,
+        id: '1',
+        parts: [{type: 'answer', text: 'Response'}],
+      };
+      const messages: AiAssistancePanel.ChatMessage.Message[] = [
+        {entity: AiAssistancePanel.ChatMessage.ChatMessageEntity.USER, text: 'Hello', id: '2'},
+        modelMessage,
+      ];
+      const result = AiAssistancePanel.getCSSChangeSummaryMessage(messages, false);
+      assert.strictEqual(result, modelMessage);
+    });
 
-      it('should not show any feature cards if none of the entrypoints are available', () => {
-        updateHostConfig({
-          devToolsFreestyler: {
-            enabled: false,
-          },
-          devToolsAiAssistanceNetworkAgent: {
-            enabled: false,
-          },
-          devToolsAiAssistanceFileAgent: {
-            enabled: false,
-          },
-          devToolsAiAssistancePerformanceAgent: {
-            enabled: false,
-          },
-        });
-        const props = getProp({
-          conversationType: undefined,
-        });
-        const chat = new AiAssistancePanel.ChatView(props);
-        renderElementIntoDOM(chat);
-        const featureCards = chat.shadowRoot?.querySelectorAll('.feature-card');
-        assert.isDefined(featureCards);
-        assert.strictEqual(featureCards?.length, 0);
-      });
+    it('returns the last model message if loading but the last message is a user message', () => {
+      const modelMessage: AiAssistancePanel.ChatMessage.Message = {
+        entity: AiAssistancePanel.ChatMessage.ChatMessageEntity.MODEL,
+        id: '1',
+        parts: [{type: 'answer', text: 'Response'}],
+      };
+      const messages: AiAssistancePanel.ChatMessage.Message[] = [
+        modelMessage,
+        {entity: AiAssistancePanel.ChatMessage.ChatMessageEntity.USER, text: 'Follow up', id: '2'},
+      ];
+      const result = AiAssistancePanel.getCSSChangeSummaryMessage(messages, true);
+      assert.strictEqual(result, modelMessage);
+    });
+
+    it('returns the penultimate model message if loading and the last message is a model message', () => {
+      const modelMessage1: AiAssistancePanel.ChatMessage.Message = {
+        entity: AiAssistancePanel.ChatMessage.ChatMessageEntity.MODEL,
+        id: '1',
+        parts: [{type: 'answer', text: 'Response 1'}],
+      };
+      const modelMessage2: AiAssistancePanel.ChatMessage.Message = {
+        entity: AiAssistancePanel.ChatMessage.ChatMessageEntity.MODEL,
+        id: '2',
+        parts: [{type: 'answer', text: 'Response 2'}],
+      };
+      const messages: AiAssistancePanel.ChatMessage.Message[] = [
+        modelMessage1,
+        {entity: AiAssistancePanel.ChatMessage.ChatMessageEntity.USER, text: 'Follow up', id: '3'},
+        modelMessage2,
+      ];
+      const result = AiAssistancePanel.getCSSChangeSummaryMessage(messages, true);
+      assert.strictEqual(result, modelMessage1);
+    });
+
+    it('returns undefined if loading and there is only one model message and it is the last message', () => {
+      const modelMessage: AiAssistancePanel.ChatMessage.Message = {
+        entity: AiAssistancePanel.ChatMessage.ChatMessageEntity.MODEL,
+        id: '1',
+        parts: [{type: 'answer', text: 'Response'}],
+      };
+      const messages: AiAssistancePanel.ChatMessage.Message[] = [
+        {entity: AiAssistancePanel.ChatMessage.ChatMessageEntity.USER, text: 'Hello', id: '2'},
+        modelMessage,
+      ];
+      const result = AiAssistancePanel.getCSSChangeSummaryMessage(messages, true);
+      assert.isUndefined(result);
     });
   });
 });

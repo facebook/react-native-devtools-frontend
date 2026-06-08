@@ -1,24 +1,19 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import '../../ui/legacy/legacy.js';
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
-import type * as Platform from '../../core/platform/platform.js';
+import * as Platform from '../../core/platform/platform.js';
 import * as IssuesManager from '../../models/issues_manager/issues_manager.js';
 import * as IssueCounter from '../../ui/components/issue_counter/issue_counter.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
 import {HiddenIssuesRow} from './HiddenIssuesRow.js';
-import {
-  type AggregatedIssue,
-  type AggregationKey,
-  Events as IssueAggregatorEvents,
-  IssueAggregator,
-} from './IssueAggregator.js';
 import {getGroupIssuesByKindSetting, IssueKindView, issueKindViewSortPriority} from './IssueKindView.js';
 import issuesPaneStyles from './issuesPane.css.js';
 import issuesTreeStyles from './issuesTree.css.js';
@@ -111,6 +106,14 @@ const UIStrings = {
    * @description Category title for the different 'Generic' issues.
    */
   generic: 'Generic',
+  /**
+   * @description Category title for a group of permission element issues
+   */
+  permissionElement: 'PEPC Element',
+  /**
+   * @description Category title for the different 'Selective Permissions Intervention' issues.
+   */
+  selectivePermissionsIntervention: 'Selective Permissions Intervention',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/issues/IssuesPane.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -122,7 +125,7 @@ class IssueCategoryView extends UI.TreeOutline.TreeElement {
   #category: IssuesManager.Issue.IssueCategory;
 
   constructor(category: IssuesManager.Issue.IssueCategory) {
-    super();
+    super(undefined, undefined, Platform.StringUtilities.toKebabCase(category));
     this.#category = category;
 
     this.toggleOnClick = true;
@@ -152,6 +155,10 @@ class IssueCategoryView extends UI.TreeOutline.TreeElement {
         return i18nString(UIStrings.quirksMode);
       case IssuesManager.Issue.IssueCategory.GENERIC:
         return i18nString(UIStrings.generic);
+      case IssuesManager.Issue.IssueCategory.PERMISSION_ELEMENT:
+        return i18nString(UIStrings.permissionElement);
+      case IssuesManager.Issue.IssueCategory.SELECTIVE_PERMISSIONS_INTERVENTION:
+        return i18nString(UIStrings.selectivePermissionsIntervention);
       case IssuesManager.Issue.IssueCategory.OTHER:
         return i18nString(UIStrings.other);
     }
@@ -180,21 +187,22 @@ export function getGroupIssuesByCategorySetting(): Common.Settings.Setting<boole
 
 export class IssuesPane extends UI.Widget.VBox {
   #categoryViews: Map<IssuesManager.Issue.IssueCategory, IssueCategoryView>;
-  #issueViews: Map<AggregationKey, IssueView>;
+  #issueViews: Map<IssuesManager.IssueAggregator.AggregationKey, IssueView>;
   #kindViews: Map<IssuesManager.Issue.IssueKind, IssueKindView>;
   #showThirdPartyCheckbox: UI.Toolbar.ToolbarSettingCheckbox|null;
   #issuesTree: UI.TreeOutline.TreeOutlineInShadow;
   #hiddenIssuesRow: HiddenIssuesRow;
   #noIssuesMessageDiv: UI.EmptyWidget.EmptyWidget;
   #issuesManager: IssuesManager.IssuesManager.IssuesManager;
-  #aggregator: IssueAggregator;
+  #aggregator: IssuesManager.IssueAggregator.IssueAggregator;
   #issueViewUpdatePromise: Promise<void> = Promise.resolve();
 
   constructor() {
-    super(true);
+    super({
+      jslog: `${VisualLogging.panel('issues')}`,
+      useShadowDom: true,
+    });
     this.registerRequiredCSS(issuesPaneStyles);
-
-    this.element.setAttribute('jslog', `${VisualLogging.panel('issues')}`);
 
     this.contentElement.classList.add('issues-pane');
 
@@ -216,13 +224,15 @@ export class IssuesPane extends UI.Widget.VBox {
     this.#issuesTree.appendChild(this.#hiddenIssuesRow);
 
     this.#noIssuesMessageDiv = new UI.EmptyWidget.EmptyWidget('', i18nString(UIStrings.issuesPanelDescription));
-    this.#noIssuesMessageDiv.appendLink(ISSUES_PANEL_EXPLANATION_URL);
+    this.#noIssuesMessageDiv.link = ISSUES_PANEL_EXPLANATION_URL;
     this.#noIssuesMessageDiv.show(this.contentElement);
 
     this.#issuesManager = IssuesManager.IssuesManager.IssuesManager.instance();
-    this.#aggregator = new IssueAggregator(this.#issuesManager);
-    this.#aggregator.addEventListener(IssueAggregatorEvents.AGGREGATED_ISSUE_UPDATED, this.#issueUpdated, this);
-    this.#aggregator.addEventListener(IssueAggregatorEvents.FULL_UPDATE_REQUIRED, this.#onFullUpdate, this);
+    this.#aggregator = new IssuesManager.IssueAggregator.IssueAggregator(this.#issuesManager);
+    this.#aggregator.addEventListener(
+        IssuesManager.IssueAggregator.Events.AGGREGATED_ISSUE_UPDATED, this.#issueUpdated, this);
+    this.#aggregator.addEventListener(
+        IssuesManager.IssueAggregator.Events.FULL_UPDATE_REQUIRED, this.#onFullUpdate, this);
     this.#hiddenIssuesRow.hidden = this.#issuesManager.numberOfHiddenIssues() === 0;
     this.#onFullUpdate();
     this.#issuesManager.addEventListener(
@@ -266,11 +276,13 @@ export class IssuesPane extends UI.Widget.VBox {
         thirdPartySetting, i18nString(UIStrings.includeCookieIssuesCausedBy),
         i18nString(UIStrings.includeThirdpartyCookieIssues));
     rightToolbar.appendToolbarItem(this.#showThirdPartyCheckbox);
-    this.setDefaultFocusedElement(this.#showThirdPartyCheckbox.inputElement);
 
     rightToolbar.appendSeparator();
     const issueCounter = new IssueCounter.IssueCounter.IssueCounter();
     issueCounter.data = {
+      clickHandler: () => {
+        this.focus();
+      },
       tooltipCallback: () => {
         const issueEnumeration = IssueCounter.IssueCounter.getIssueCountsEnumeration(
             IssuesManager.IssuesManager.IssuesManager.instance(), false);
@@ -287,16 +299,16 @@ export class IssuesPane extends UI.Widget.VBox {
     return {toolbarContainer};
   }
 
-  #issueUpdated(event: Common.EventTarget.EventTargetEvent<AggregatedIssue>): void {
+  #issueUpdated(event: Common.EventTarget.EventTargetEvent<IssuesManager.IssueAggregator.AggregatedIssue>): void {
     this.#scheduleIssueViewUpdate(event.data);
   }
 
-  #scheduleIssueViewUpdate(issue: AggregatedIssue): void {
+  #scheduleIssueViewUpdate(issue: IssuesManager.IssueAggregator.AggregatedIssue): void {
     this.#issueViewUpdatePromise = this.#issueViewUpdatePromise.then(() => this.#updateIssueView(issue));
   }
 
   /** Don't call directly. Use `scheduleIssueViewUpdate` instead. */
-  async #updateIssueView(issue: AggregatedIssue): Promise<void> {
+  async #updateIssueView(issue: IssuesManager.IssueAggregator.AggregatedIssue): Promise<void> {
     let issueView = this.#issueViews.get(issue.aggregationKey());
     if (!issueView) {
       const description = issue.getDescription();
@@ -356,7 +368,8 @@ export class IssuesPane extends UI.Widget.VBox {
     }
   }
 
-  #getIssueViewParent(issue: AggregatedIssue): UI.TreeOutline.TreeOutline|UI.TreeOutline.TreeElement {
+  #getIssueViewParent(issue: IssuesManager.IssueAggregator.AggregatedIssue): UI.TreeOutline.TreeOutline
+      |UI.TreeOutline.TreeElement {
     if (issue.isHidden()) {
       return this.#hiddenIssuesRow;
     }
@@ -402,7 +415,7 @@ export class IssuesPane extends UI.Widget.VBox {
       if (preservedSet?.has(key)) {
         continue;
       }
-      view.parent && view.parent.removeChild(view);
+      view.parent?.removeChild(view);
       views.delete(key);
     }
   }
@@ -451,11 +464,10 @@ export class IssuesPane extends UI.Widget.VBox {
       }
     } else {
       this.#issuesTree.element.hidden = true;
-      if (this.#showThirdPartyCheckbox) {
-        this.setDefaultFocusedElement(this.#showThirdPartyCheckbox.inputElement);
-      }
       // We alreay know that issesCount is zero here.
-      const hasOnlyThirdPartyIssues = this.#issuesManager.numberOfAllStoredIssues() > 0;
+      const hasOnlyThirdPartyIssues =
+          this.#issuesManager.numberOfAllStoredIssues() - this.#issuesManager.numberOfThirdPartyCookiePhaseoutIssues() >
+          0;
       this.#noIssuesMessageDiv.header =
           hasOnlyThirdPartyIssues ? i18nString(UIStrings.onlyThirdpartyCookieIssues) : i18nString(UIStrings.noIssues);
       this.#noIssuesMessageDiv.showWidget();

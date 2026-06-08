@@ -1,4 +1,4 @@
-# Copyright 2024 The Chromium Authors. All rights reserved.
+# Copyright 2024 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,18 +11,37 @@ import("../visibility.gni")
 generate_css("css_files") {
   sources = [
     "./aiAssistancePanel.css",
+    "./components/chatInput.css",
+    "./components/chatMessage.css",
     "./components/chatView.css",
-    "./components/userActionRow.css",
+    "./components/disabledWidget.css",
+    "./components/exploreWidget.css",
+    "./components/exportForAgentsDialog.css",
+    "./components/optInChangeDialog.css",
+    "./components/walkthroughView.css",
+    "./selectWorkspaceDialog.css",
   ]
 }
 
-devtools_module("ai_assistance") {
+devtools_ui_module("ai_assistance") {
   sources = [
     "AiAssistancePanel.ts",
+    "ExportConversation.ts",
     "PatchWidget.ts",
+    "SelectWorkspaceDialog.ts",
+    "components/AccessibilityAgentMarkdownRenderer.ts",
+    "components/ChatInput.ts",
+    "components/ChatMessage.ts",
     "components/ChatView.ts",
+    "components/DisabledWidget.ts",
+    "components/ExploreWidget.ts",
+    "components/ExportForAgentsDialog.ts",
     "components/MarkdownRendererWithCodeBlock.ts",
-    "components/UserActionRow.ts",
+    "components/OptInChangeDialog.ts",
+    "components/PerformanceAgentMarkdownRenderer.ts",
+    "components/StylingAgentMarkdownRenderer.ts",
+    "components/WalkthroughUtils.ts",
+    "components/WalkthroughView.ts",
   ]
 
   deps = [
@@ -30,23 +49,47 @@ devtools_module("ai_assistance") {
     "../../core/common:bundle",
     "../../core/host:bundle",
     "../../core/i18n:bundle",
+    "../../core/platform:bundle",
     "../../core/root:bundle",
+    "../../core/sdk:bundle",
+    "../../generated:protocol",
     "../../models/ai_assistance:bundle",
+    "../../models/annotations:bundle",
+    "../../models/badges:bundle",
+    "../../models/geometry:bundle",
+    "../../models/greendev:bundle",
+    "../../models/logs:bundle",
+    "../../models/network_time_calculator:bundle",
     "../../models/persistence:bundle",
+    "../../models/text_utils:bundle",
+    "../../models/trace/helpers:bundle",
+    "../../models/trace/insights:bundle",
     "../../models/workspace:bundle",
     "../../models/workspace_diff:bundle",
     "../../panels/changes:bundle",
+    "../../panels/common:bundle",
     "../../panels/elements:bundle",
+    "../../panels/lighthouse:bundle",
     "../../panels/network:bundle",
-    "../../panels/sources:bundle",
+    "../../panels/network/forward:bundle",
     "../../panels/timeline:bundle",
     "../../panels/timeline/utils:bundle",
     "../../third_party/marked:bundle",
+    "../../ui/components/buttons:bundle",
+    "../../ui/components/input:bundle",
     "../../ui/components/markdown_view:bundle",
+    "../../ui/components/snackbars:bundle",
     "../../ui/components/spinners:bundle",
     "../../ui/components/tooltips:bundle",
+    "../../ui/helpers:bundle",
+    "../../ui/i18n:bundle",
+    "../../ui/kit:bundle",
     "../../ui/legacy:bundle",
     "../../ui/lit:bundle",
+    "../../ui/visual_logging:bundle",
+    "../timeline/components:bundle",
+    "../timeline/components/insights:bundle",
+    "../utils:bundle",
   ]
 }
 
@@ -57,9 +100,9 @@ devtools_entrypoint("bundle") {
 
   visibility = [
     ":*",
-    "../../../test/interactions/*",
     "../../entrypoints/*",
     "../../ui/components/docs/ai_assistance/*",
+    "../console/*",
     "../explain",
   ]
 
@@ -74,15 +117,25 @@ devtools_entrypoint("meta") {
   visibility = [ "../../entrypoints/*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [
     "AiAssistancePanel.test.ts",
+    "ExportConversation.test.ts",
     "PatchWidget.test.ts",
+    "SelectWorkspaceDialog.test.ts",
+    "components/AccessibilityAgentMarkdownRenderer.test.ts",
+    "components/ChatInput.test.ts",
+    "components/ChatMessage.test.ts",
     "components/ChatView.test.ts",
+    "components/DisabledWidget.test.ts",
+    "components/ExploreWidget.test.ts",
+    "components/ExportForAgentsDialog.test.ts",
     "components/MarkdownRendererWithCodeBlock.test.ts",
-    "components/UserActionRow.test.ts",
+    "components/OptInChangeDialog.test.ts",
+    "components/WalkthroughUtils.test.ts",
+    "components/WalkthroughView.test.ts",
   ]
 
   deps = [
@@ -92,7 +145,9 @@ ts_library("unittests") {
     "../../core/platform:bundle",
     "../../core/sdk:bundle",
     "../../generated:protocol",
+    "../../panels/network:bundle",
     "../../panels/timeline/utils:bundle",
     "../../testing",
+    "../../ui/legacy:bundle",
   ]
 }

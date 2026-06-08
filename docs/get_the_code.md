@@ -46,19 +46,18 @@ it'll automatically create and initialize it.
 You can disable type checking (via TypeScript) by using the `devtools_skip_typecheck`
 argument in your GN configuration. This uses [esbuild](https://esbuild.github.io/)
 instead of `tsc` to compile the TypeScript files and generally results in much
-shorter build times. To switch the `Default` target to esbuild, use
+shorter build times.
+
+Additionally, we now bundle files together by default in all builds, which has
+a build time cost. If you want an even fast fast build, you might want to opt
+out of bundling by setting `devtools_bundle` to `false`
 
 ```bash
-gn gen out/Default --args="devtools_skip_typecheck=true"
+gn gen out/fast-build --args="devtools_skip_typecheck=true devtools_bundle=false"
 ```
 
-or if you don't want to change the default target, use something like
-
-```bash
-gn gen out/fast-build --args="devtools_skip_typecheck=true"
-```
-
-and use `npm run build -- -t fast-build` to build this target.
+and use `npm run build -- -t fast-build` to build this target (you can of course
+also just change the `Default` target to skip bundling and type checking).
 
 ### Rebuilding automatically
 
@@ -100,6 +99,33 @@ sudo sysctl -p
 
 You may also need to pay attention to the values of `max_queued_events` and `max_user_instances`
 if you encounter any errors.
+
+### Using a `.env` file for default script options
+
+Many scripts, like `npm run build` and `npm start`, accept command-line flags to configure their behavior (e.g., `-t <target>`, `--browser=<name>`).
+
+To avoid typing these flags every time, you can set your preferred defaults in a .env file at the root of the devtools-frontend directory.
+
+The `.env.template` file lists all supported variables. Copy it to `.env` to get started.
+
+```bash
+cp .env.template .env
+```
+
+As mentioned earlier, you might create a fast build target. Instead of always typing `npm run build -- -t fast-build`, to remove the flag repetition you simple run `npm run build` you can set the following variable in your `.env` file:
+
+```shell
+DEVTOOLS_TARGET=fast-build
+```
+
+Another example - by default running `npm start` auto-opens DevTools for new Tabs.
+You may want to disable this so fewer pop-up happen while debugging, usually done via `--no-open` flag. Or with `.env` set the following value:
+
+```shell
+DEVTOOLS_AUTO_OPEN_DEVTOOLS=false
+```
+
+To use `.env` file from other script, refer to the helper in `scripts/env-utils.mjs`. That should provide the necessary helper to work with the config, and make maintenance simpler.
 
 ### Update to latest
 
@@ -167,8 +193,14 @@ to run in Chrome Canary instead of Chrome for Testing; this requires you to inst
 npm start -- http://www.example.com
 ```
 
-to automatically open `http://www.example.com` in the newly spawned Chrome tab.
+to automatically open `http://www.example.com` in the newly spawned Chrome tab. Use
 
+```bash
+npm start -- --verbose
+```
+
+to enable verbose logging, which among other things, also prints all output from Chrome to the terminal, which is
+otherwise suppressed.
 
 ##### Controlling the feature set
 
@@ -186,11 +218,29 @@ npm start -- -u
 Just like with Chrome itself, you can also control the set of enabled and disabled features using
 
 ```bash
-npm start -- --enable-features=DevToolsAutomaticFileSystems
+npm start -- --enable-features=DevToolsWellKnown
 npm start -- --disable-features=DevToolsWellKnown --enable-features=DevToolsFreestyler:multimodal/true
 ```
 
 which you can use to override the default feature set.
+
+##### Remote debugging
+
+The `npm start` command also supports launching Chrome for remote debugging via
+
+```bash
+npm start -- --remote-debugging-port=9222
+```
+
+or
+
+```bash
+npm start -- --browser=canary --remote-debugging-port=9222 --user-data-dir=\`mktemp -d`
+```
+
+Note that you have to also pass the `--user-data-dir` and point it to a non-standard profile directory (a freshly created
+temporary directory in this example) for security reason when using any Chrome version except for Chrome for Testing.
+[This article](https://developer.chrome.com/blog/remote-debugging-port) explains the reasons behind it.
 
 #### Running from file system
 
@@ -200,19 +250,19 @@ This works with Chromium 79 or later.
 To run on **Mac**:
 
 ```bash
-<path-to-devtools-frontend>./third_party/chrome/chrome-mac/Google\ Chrome\ for\ Testing.app/Contents/MacOS/Google\ Chrome\ for\ Testing --disable-infobars --disable-features=MediaRouter --custom-devtools-frontend=file://$(realpath out/Default/gen/front_end) --use-mock-keychain
+<path-to-devtools-frontend>./third_party/chrome/chrome-mac-{arm64|x64}/chrome-mac-{arm64|x64}/Google\ Chrome\ for\ Testing.app/Contents/MacOS/Google\ Chrome\ for\ Testing --disable-infobars --disable-features=MediaRouter --custom-devtools-frontend=file://$(realpath out/Default/gen/front_end) --use-mock-keychain
 ```
 
 To run on **Linux**:
 
 ```bash
-<path-to-devtools-frontend>./third_party/chrome/chrome-linux/chrome --disable-infobars --custom-devtools-frontend=file://$(realpath out/Default/gen/front_end)
+<path-to-devtools-frontend>./third_party/chrome/chrome-linux/chrome-linux64/chrome --disable-infobars --custom-devtools-frontend=file://$(realpath out/Default/gen/front_end)
 ```
 
 To run on **Windows**:
 
 ```bash
-<path-to-devtools-frontend>\third_party\chrome\chrome-win\chrome.exe --disable-infobars --custom-devtools-frontend="<path-to-devtools-frontend>\out\Default\gen\front_end"
+<path-to-devtools-frontend>\third_party\chrome\chrome-win\chrome-win64\chrome.exe --disable-infobars --custom-devtools-frontend="<path-to-devtools-frontend>\out\Default\gen\front_end"
 ```
 
 Note that `$(realpath out/Default/gen/front_end)` expands to the absolute path to build artifacts for DevTools frontend.
@@ -266,16 +316,134 @@ you could run the hosted DevTools with the following command:
 $ google-chrome http://localhost:8000/inspector.html?ws=localhost:9222/devtools/page/BADADD4E55BADADD4E55BADADD4E5511
 ```
 
+## Chromium checkout
+
+You can also work on the DevTools front-end within a full Chromium checkout.
+This workflow is particularly useful if you are working on a feature or a bug
+that spans back-end (Chromium C++ code) and front-end (DevTools TypeScript
+code), but it's also useful for Chromies that need to make small patches to
+DevTools front-end and don't want to go through the process of setting up a
+dedicated [`devtools-frontend` standalone checkout](#standalone-checkout).
+
+### Checking out source
+
+Follow [instructions](https://www.chromium.org/developers/how-tos/get-the-code)
+to check out Chromium. The DevTools front-end code is located inside the
+`third_party/devtools-frontend/src/` folder (after running `gclient sync`).
+
+### Build
+
+The [instructions](https://www.chromium.org/developers/how-tos/get-the-code) on
+the Chromium page apply as well here. In particular use
+
+```bash
+autoninja -C out/Default chrome
+```
+
+to build Chromium with the bundled DevTools front-end. You can also use
+
+```bash
+autoninja -C out/Default devtools_frontend_resources
+```
+
+to only build the DevTools front-end resources, which can afterwards be found in
+the `out/Default/gen/third_party/devtools-frontend/src/front_end` folder.
+
+### Run
+
+Launch Chromium with the bundled DevTools front-end using
+
+```bash
+out/Default/chrome
+```
+
+or if you are only iterating on a small set of changes to the DevTools front-end
+and used the `devtools_frontend_resources` build target, you can run Chrome with
+the generated DevTools front-end artifacts using
+
+```bash
+out/Default/chrome --custom-devtools-frontend=file://$(realpath out/Default/gen/third_party/devtools-frontend/src/front_end)
+```
+
+afterwards, which can be quite a bit faster than building and linking the full
+Chromium binary.
+
+Alternatively you can use `npm start` from the DevTools sub folder (`third_party/devtools-frontend/src/`) with the browser set to `chromium`.
+This will tell the command that you are in a Chromium checkout and try to find the correct browser executable path to resolve.
+Or alternately you can use a `.env` file, see [set up here](#using-a-env-file-for-default-script-options).
+
+```bash
+cd third_party/devtools-frontend/src/
+npm start -- --browser=chromium
+```
+
+### Testing
+
+To run the test suite, use `npm test` from within the DevTools front-end folder:
+
+```bash
+cd third_party/devtools-frontend/src
+npm test
+```
+
+### Juggling the git submodules
+
+Working on DevTools within a Chromium checkout means working across two separate
+repositories (at the same time), which can be a bit tricky. Especially if you
+are working on a change that spans across the boundary of the front-end and the
+back-end, you'll need to cook two separate CLs. There are several ways to go
+about this, and in here, we'll outline one somewhat well-lit path. You start by
+creating a branch in both Chromium and DevTools:
+
+```bash
+git new-branch my-change-backend
+pushd third_party/devtools-frontend/src
+git new-branch my-change-frontend
+popd
+```
+
+Now you go about developing your patch, and commit individually to Chromium and
+DevTools repositories. When you're done, you can upload the changes individually
+using `git cl upload`:
+
+```bash
+git cl upload
+pushd third_party/devtools-frontend/src
+git cl upload
+popd
+```
+
+The tricky part is to get the checkout back into a well-defined state, which can
+be accomplished using:
+
+```bash
+git checkout main
+git -C third_party/devtools-frontend/src checkout \
+  `gclient getdep -r src/third_party/devtools-frontend/src`
+gclient sync
+```
+
+When you need to rebase your changes, also make sure to run the above commands
+and afterwards rebase the changes in the repositories separately:
+
+```bash
+git checkout my-change-backend
+git rebase
+pushd third_party/devtools-frontend/src
+git checkout my-change-frontend
+git rebase
+popd
+```
+
 ## Integrated checkout
 
 **This solution is experimental, please report any trouble that you run into!**
 
-The integrated workflow offers the best of both worlds, and allows for working on both Chromium and DevTools frontend
-side-by-side. This is strongly recommended for folks working primarily on DevTools.
+The integrated workflow offers the best of both worlds, and allows for working
+on both Chromium and DevTools frontend side-by-side.
 
-This workflow will ensure that your local setup is equivalent to how Chromium infrastructure tests your change.
-
-A full [Chromium checkout](#Chromium-checkout) is a pre-requisite for the following steps.
+A full [Chromium checkout](#Chromium-checkout) is a pre-requisite for the
+following steps.
 
 ### Untrack the existing devtools-frontend submodule
 
@@ -300,12 +468,6 @@ In the `custom_deps` section, insert this line:
 ```python
 "src/third_party/devtools-frontend/src": None,
 ```
-
-Following this step, there are two approaches to manage your standalone checkout
-
-### Single gclient project
-
-**Note: it's not possible anymore to manage the two projects in separate gclient projects.**
 
 For the integrated checkout, create a single gclient project that automatically gclient sync's all dependencies for both
 repositories. After checking out chromium, modify the .gclient file for `chromium/src` to add the DevTools project:
@@ -338,27 +500,3 @@ ln -s src/third_party/devtools-frontend/src devtools-frontend
 If you did run `gclient sync` first, remove the devtools-frontend directory and start over.
 
 Run `gclient sync` after creating the link to fetch the dependencies for the standalone checkout.
-
-## Chromium checkout
-
-DevTools frontend can also be developed as part of the full Chromium checkout.
-This workflow can be used to make small patches to DevTools as a Chromium engineer.
-However, it is different to our infrastructure setup and how to execute general maintenance work, and therefore discouraged.
-
-### Checking out source
-
-Follow [instructions](https://www.chromium.org/developers/how-tos/get-the-code) to check out Chromium. DevTools frontend can be found under `third_party/devtools-frontend/src/`.
-
-### Build
-
-Refer to [instructions](https://www.chromium.org/developers/how-tos/get-the-code) to build Chromium.
-To only build DevTools frontend, use `devtools_frontend_resources` as build target.
-The resulting build artifacts for DevTools frontend can be found in `out/Default/gen/third_party/devtools-frontend/src/front_end`.
-
-### Run
-
-Run Chrome with bundled DevTools frontend:
-
-```bash
-out/Default/chrome
-```

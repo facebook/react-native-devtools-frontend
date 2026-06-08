@@ -1,4 +1,4 @@
-# Copyright 2023 The Chromium Authors. All rights reserved.
+# Copyright 2023 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,7 +11,7 @@ generate_css("css_files") {
   sources = [ "recorderController.css" ]
 }
 
-devtools_module("recorder") {
+devtools_ui_module("recorder") {
   sources = [
     "RecorderController.ts",
     "RecorderEvents.ts",
@@ -20,21 +20,25 @@ devtools_module("recorder") {
 
   deps = [
     "../../core/common:bundle",
+    "../../core/host:bundle",
+    "../../core/i18n:bundle",
     "../../core/platform:bundle",
     "../../core/root:bundle",
+    "../../core/sdk:bundle",
+    "../../models/bindings:bundle",
     "../../models/extensions:bundle",
     "../../models/trace:bundle",
     "../../panels/common:bundle",
     "../../panels/emulation:bundle",
-    "../../panels/timeline:bundle",
     "../../services/tracing:bundle",
     "../../third_party/puppeteer-replay:bundle",
+    "../../ui/components/buttons:bundle",
     "../../ui/components/dialogs:bundle",
-    "../../ui/components/icon_button:bundle",
     "../../ui/components/menus:bundle",
+    "../../ui/legacy:bundle",
+    "../../ui/lit:bundle",
     "../../ui/visual_logging:bundle",
     "./components:bundle",
-    "./controllers:bundle",
     "./converters:bundle",
     "./extensions:bundle",
     "./models:bundle",
@@ -52,6 +56,7 @@ devtools_entrypoint("bundle") {
 
   visibility = [
     ":*",
+    "../../../test/e2e/helpers:*",
     "../../../test/e2e/recorder:*",
     "../../entrypoints/main/*",
     "../../panels/sources/*",
@@ -76,7 +81,7 @@ devtools_entrypoint("meta") {
   ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [

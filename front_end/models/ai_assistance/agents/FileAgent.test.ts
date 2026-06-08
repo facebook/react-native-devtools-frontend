@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -13,7 +13,7 @@ import {
 import {describeWithMockConnection} from '../../../testing/MockConnection.js';
 import * as Bindings from '../../bindings/bindings.js';
 import * as Workspace from '../../workspace/workspace.js';
-import {FileAgent, FileContext, ResponseType} from '../ai_assistance.js';
+import {AiAgent, FileAgent} from '../ai_assistance.js';
 
 describeWithMockConnection('FileAgent', () => {
   function mockHostConfig(modelId?: string, temperature?: number) {
@@ -29,26 +29,20 @@ describeWithMockConnection('FileAgent', () => {
     const workspace = Workspace.Workspace.WorkspaceImpl.instance();
     const targetManager = SDK.TargetManager.TargetManager.instance();
     const resourceMapping = new Bindings.ResourceMapping.ResourceMapping(targetManager, workspace);
-    const debuggerWorkspaceBinding = Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance({
+    const ignoreListManager = Workspace.IgnoreListManager.IgnoreListManager.instance({forceNew: true});
+    Bindings.DebuggerWorkspaceBinding.DebuggerWorkspaceBinding.instance({
       forceNew: true,
       resourceMapping,
       targetManager,
+      ignoreListManager,
+      workspace,
     });
-    Bindings.IgnoreListManager.IgnoreListManager.instance({forceNew: true, debuggerWorkspaceBinding});
-  });
-
-  afterEach(() => {
-    sinon.restore();
   });
 
   describe('buildRequest', () => {
-    beforeEach(() => {
-      sinon.restore();
-    });
-
     it('builds a request with a model id', async () => {
       mockHostConfig('test model');
-      const agent = new FileAgent({
+      const agent = new FileAgent.FileAgent({
         aidaClient: {} as Host.AidaClient.AidaClient,
       });
       assert.strictEqual(
@@ -59,7 +53,7 @@ describeWithMockConnection('FileAgent', () => {
 
     it('builds a request with a temperature', async () => {
       mockHostConfig('test model', 1);
-      const agent = new FileAgent({
+      const agent = new FileAgent.FileAgent({
         aidaClient: {} as Host.AidaClient.AidaClient,
       });
       assert.strictEqual(
@@ -71,7 +65,7 @@ describeWithMockConnection('FileAgent', () => {
     it('structure matches the snapshot', async () => {
       mockHostConfig('test model');
       sinon.stub(crypto, 'randomUUID').returns('sessionId' as `${string}-${string}-${string}-${string}-${string}`);
-      const agent = new FileAgent({
+      const agent = new FileAgent.FileAgent({
         aidaClient: mockAidaClient([[{explanation: 'answer'}]]),
         serverSideLoggingEnabled: true,
       });
@@ -94,10 +88,11 @@ describeWithMockConnection('FileAgent', () => {
                 parts: [{text: 'answer'}],
               },
             ],
+            facts: undefined,
             metadata: {
               disable_user_content_logging: false,
               string_session_id: 'sessionId',
-              user_tier: 2,
+              user_tier: 3,
               client_version: 'unit_test',
             },
             options: {
@@ -126,7 +121,7 @@ describeWithMockConnection('FileAgent', () => {
 
     testArguments.forEach(args => {
       it('generates an answer ' + args.name, async () => {
-        const agent = new FileAgent({
+        const agent = new FileAgent.FileAgent({
           aidaClient: mockAidaClient([[{
             explanation: 'This is the answer',
             metadata: {
@@ -139,19 +134,12 @@ describeWithMockConnection('FileAgent', () => {
           requestContentData: args.requestContentData,
           content: 'content',
         });
-        const responses =
-            await Array.fromAsync(agent.run('test', {selected: uiSourceCode ? new FileContext(uiSourceCode) : null}));
+        const responses = await Array.fromAsync(
+            agent.run('test', {selected: uiSourceCode ? new FileAgent.FileContext(uiSourceCode) : null}));
 
         assert.deepEqual(responses, [
           {
-            type: ResponseType.USER_QUERY,
-            query: 'test',
-            imageInput: undefined,
-            imageId: undefined,
-          },
-          {
-            type: ResponseType.CONTEXT,
-            title: 'Analyzing file',
+            type: AiAgent.ResponseType.CONTEXT,
             details: [
               {
                 title: 'Selected file',
@@ -165,7 +153,7 @@ content
             ],
           },
           {
-            type: ResponseType.QUERYING,
+            type: AiAgent.ResponseType.QUERYING,
             //             query: `# Selected file
             // File name: script.js
             // URL: http://example.test/script.js
@@ -179,7 +167,7 @@ content
             // test`,
           },
           {
-            type: ResponseType.ANSWER,
+            type: AiAgent.ResponseType.ANSWER,
             text: 'This is the answer',
             complete: true,
             suggestions: undefined,

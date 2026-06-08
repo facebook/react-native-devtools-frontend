@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,6 +49,15 @@ describeWithEnvironment('CSSRuleValidator', () => {
       hintExpected: false,
     },
     {
+      description: 'Test `align-content`, validation passes when the element is a grid-lanes container',
+      computedStyles: new Map<string, string>([
+        ['align-content', 'center'],
+        ['display', 'grid-lanes'],
+      ]),
+      validator: () => new Elements.CSSRuleValidator.AlignContentValidator(),
+      hintExpected: false,
+    },
+    {
       description: 'Test `align-content`, validation does not pass when the element is a math container',
       computedStyles: new Map<string, string>([
         ['align-content', 'center'],
@@ -70,6 +79,15 @@ describeWithEnvironment('CSSRuleValidator', () => {
       description: 'Test `justify-content`, validation passes when the element is grid containers',
       computedStyles: new Map<string, string>([
         ['display', 'grid'],
+        ['justify-content', 'center'],
+      ]),
+      validator: () => new Elements.CSSRuleValidator.FlexGridValidator(),
+      hintExpected: false,
+    },
+    {
+      description: 'Test `justify-content`, validation passes when the element is grid-lanes containers',
+      computedStyles: new Map<string, string>([
+        ['display', 'grid-lanes'],
         ['justify-content', 'center'],
       ]),
       validator: () => new Elements.CSSRuleValidator.FlexGridValidator(),
@@ -157,6 +175,16 @@ describeWithEnvironment('CSSRuleValidator', () => {
       hintExpected: false,
     },
     {
+      description: 'Passes the validation when grid container properties are set to grid-lanes container',
+      computedStyles: new Map<string, string>([
+        ['display', 'grid-lanes'],
+        ['grid-template-columns', 'repeat(3, 10px 15%)'],
+      ]),
+      parentsComputedStyles: new Map<string, string>(),
+      validator: () => new Elements.CSSRuleValidator.GridContainerValidator(),
+      hintExpected: false,
+    },
+    {
       description: 'Reports a rule validation when grid container properties are set to non-grid container',
       computedStyles: new Map<string, string>([
         ['display', 'flex'],
@@ -173,6 +201,17 @@ describeWithEnvironment('CSSRuleValidator', () => {
       ]),
       parentsComputedStyles: new Map<string, string>([
         ['display', 'grid'],
+      ]),
+      validator: () => new Elements.CSSRuleValidator.GridItemValidator(),
+      hintExpected: false,
+    },
+    {
+      description: 'Passes the validation when grid item properties are set to grid-lanes items',
+      computedStyles: new Map<string, string>([
+        ['grid-row', 'span 2'],
+      ]),
+      parentsComputedStyles: new Map<string, string>([
+        ['display', 'grid-lanes'],
       ]),
       validator: () => new Elements.CSSRuleValidator.GridItemValidator(),
       hintExpected: false,
@@ -426,6 +465,30 @@ describeWithEnvironment('CSSRuleValidator', () => {
       validator: () => new Elements.CSSRuleValidator.FontVariationSettingsValidator(),
       hintExpected: false,
     },
+    {
+      description: 'Does not report a hint for valid fixed anchor positioning',
+      computedStyles: new Map<string, string>([['position', 'fixed']]),
+      validator: () => new Elements.CSSRuleValidator.PositionAnchorValidator(),
+      hintExpected: false,
+    },
+    {
+      description: 'Does not report a hint for valid absolute anchor positioning',
+      computedStyles: new Map<string, string>([['position', 'absolute']]),
+      validator: () => new Elements.CSSRuleValidator.PositionAnchorValidator(),
+      hintExpected: false,
+    },
+    {
+      description: 'Reports a hint for invalid static anchor positioning',
+      computedStyles: new Map<string, string>([['position', 'static']]),
+      validator: () => new Elements.CSSRuleValidator.PositionAnchorValidator(),
+      hintExpected: true,
+    },
+    {
+      description: 'Reports a hint for invalid display: none anchor positioning',
+      computedStyles: new Map<string, string>([['display', 'none']]),
+      validator: () => new Elements.CSSRuleValidator.PositionAnchorValidator(),
+      hintExpected: true,
+    }
   ];
 
   for (const test of tests) {

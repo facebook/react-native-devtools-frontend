@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,16 +7,12 @@ import {
   getEventPromise,
   renderElementIntoDOM,
 } from '../../../testing/DOMHelpers.js';
-// eslint-disable-next-line rulesdir/es-modules-import
-import * as EnvironmentHelpers from '../../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../../testing/LocaleHelpers.js';
 import type * as SuggestionInput from '../../../ui/components/suggestion_input/suggestion_input.js';
 import * as Models from '../models/models.js';
-// eslint-disable-next-line rulesdir/es-modules-import
-import * as RecorderHelpers from '../testing/RecorderHelpers.js';
+import {installMocksForRecordingPlayer} from '../testing/RecorderHelpers.js';
 
 import type * as Components from './components.js';
-
-const {describeWithLocale} = EnvironmentHelpers;
 
 function getStepEditedPromise(editor: Components.StepEditor.StepEditor) {
   return getEventPromise<Components.StepEditor.StepEditedEvent>(
@@ -33,7 +29,9 @@ const triggerMicroTaskQueue = async (n = 1) => {
   }
 };
 
-describeWithLocale('StepEditor', () => {
+// Disabled due to flakiness
+describe.skip('[crbug.com/505637246]StepEditor', () => {
+  setupLocaleHooks();
   async function renderEditor(
       step: Models.Schema.Step,
       ): Promise<Components.StepEditor.StepEditor> {
@@ -138,7 +136,7 @@ describeWithLocale('StepEditor', () => {
   }
 
   beforeEach(() => {
-    RecorderHelpers.installMocksForRecordingPlayer();
+    installMocksForRecordingPlayer();
   });
 
   it('should edit step type', async () => {

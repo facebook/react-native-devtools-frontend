@@ -1,20 +1,17 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view */
 
 import * as i18n from '../../../../core/i18n/i18n.js';
 import {html, render, svg} from '../../../lit/lit.js';
 import * as VisualLogging from '../../../visual_logging/visual_logging.js';
 
-import pieChartStylesRaw from './pieChart.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const pieChartStyles = new CSSStyleSheet();
-pieChartStyles.replaceSync(pieChartStylesRaw.cssText);
+import pieChartStyles from './pieChart.css.js';
 
 const UIStrings = {
   /**
-   *@description Text for sum
+   * @description Text for sum
    */
   total: 'Total',
 } as const;
@@ -35,10 +32,12 @@ export interface PieChartData {
   total: number;
   slices: Slice[];
 }
-// If the slices are not available when constructing the pie chart, set .data
-// immediately, with total=0 and slices=[], so that the chart is rendered with
-// the correct initial size. This avoids a layout shift when the slices are
-// later populated.
+/**
+ * If the slices are not available when constructing the pie chart, set .data
+ * immediately, with total=0 and slices=[], so that the chart is rendered with
+ * the correct initial size. This avoids a layout shift when the slices are
+ * later populated.
+ **/
 export class PieChart extends HTMLElement {
   private readonly shadow = this.attachShadow({mode: 'open'});
   private chartName = '';
@@ -53,10 +52,6 @@ export class PieChart extends HTMLElement {
 
   private readonly innerR = 0.618;
   private lastAngle = -Math.PI / 2;
-
-  connectedCallback(): void {
-    this.shadow.adoptedStyleSheets = [pieChartStyles];
-  }
 
   set data(data: PieChartData) {
     this.chartName = data.chartName;
@@ -73,6 +68,7 @@ export class PieChart extends HTMLElement {
     this.lastAngle = -Math.PI / 2;
     // clang-format off
     const output = html`
+      <style>${pieChartStyles}</style>
       <div class="root" role="group" @keydown=${this.onKeyDown} aria-label=${this.chartName}
           jslog=${VisualLogging.pieChart().track({keydown: 'ArrowUp|ArrowDown'})}>
         <div class="chart-root" style="width: ${this.size}px; height: ${this.size}px;">

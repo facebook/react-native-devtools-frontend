@@ -1,11 +1,11 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Protocol from '../../../generated/protocol.js';
 import {getValuesOfAllBodyRows} from '../../../testing/DataGridHelpers.js';
 import {renderElementIntoDOM} from '../../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../../testing/LocaleHelpers.js';
 import * as RenderCoordinator from '../../../ui/components/render_coordinator/render_coordinator.js';
 
 import * as ApplicationComponents from './components.js';
@@ -14,7 +14,7 @@ async function renderSharedStorageAccessGrid(events: Protocol.Storage.SharedStor
     Promise<ApplicationComponents.SharedStorageAccessGrid.SharedStorageAccessGrid> {
   const component = new ApplicationComponents.SharedStorageAccessGrid.SharedStorageAccessGrid();
   renderElementIntoDOM(component);
-  component.data = events;
+  component.events = events;
 
   // The data-grid's renderer is scheduled, so we need to wait until the coordinator
   // is done before we can test against it.
@@ -25,12 +25,13 @@ async function renderSharedStorageAccessGrid(events: Protocol.Storage.SharedStor
 
 function getInternalDataGridShadowRoot(
     component: ApplicationComponents.SharedStorageAccessGrid.SharedStorageAccessGrid): ShadowRoot {
-  const dataGrid = component.shadowRoot!.querySelector('devtools-data-grid')!;
+  const dataGrid = component.contentElement.querySelector('devtools-data-grid')!;
   assert.isNotNull(dataGrid.shadowRoot);
   return dataGrid.shadowRoot;
 }
 
-describeWithLocale('SharedStorageAccessGrid', () => {
+describe('SharedStorageAccessGrid', () => {
+  setupLocaleHooks();
   it('renders shared storage access events', async () => {
     const noId = '' as Protocol.Page.FrameId;
     const params1 = {key: 'key0', value: 'value0'} as Protocol.Storage.SharedStorageAccessParams;
@@ -75,10 +76,10 @@ describeWithLocale('SharedStorageAccessGrid', () => {
   it('hides shared storage event table when there are no events', async () => {
     const component = await renderSharedStorageAccessGrid([]);
 
-    const nullGridElement = component.shadowRoot!.querySelector('devtools-new-data');
+    const nullGridElement = component.contentElement.querySelector('devtools-new-data');
     assert.isNull(nullGridElement);
 
-    const noEventsElement = component.shadowRoot!.querySelector('.empty-state');
+    const noEventsElement = component.contentElement.querySelector('.empty-state');
     assert.instanceOf(noEventsElement, HTMLDivElement);
   });
 });

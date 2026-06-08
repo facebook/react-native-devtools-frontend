@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -11,39 +11,40 @@ import * as UI from '../../../ui/legacy/legacy.js';
 
 import * as Components from './components.js';
 
-function getOriginMappings(view: Element): Array<[string, string, string?]> {
-  const rows = view.querySelector('.vbox')!.shadowRoot!.querySelectorAll('.origin-mapping-row:not(.header)');
+function getDataGrid(view: Components.OriginMap.OriginMap): HTMLElement {
+  return view.contentElement.querySelector('devtools-data-grid')!;
+}
+
+function getOriginMappings(view: Components.OriginMap.OriginMap): Array<[string, string, string?]> {
+  const dataGrid = getDataGrid(view);
+  if (!dataGrid) {
+    return [];
+  }
+  const rows = dataGrid.querySelectorAll('tr[data-index]');
   return Array.from(rows).map(row => {
     const warning = row.querySelector<HTMLElement>('.origin-warning-icon');
     return [
-      row.querySelector('.development-origin .origin')!.textContent || '',
-      row.querySelector('.production-origin .origin')!.textContent || '',
+      row.querySelector('td:nth-child(1) .origin')!.textContent || '',
+      row.querySelector('td:nth-child(2) .origin')!.textContent || '',
       warning?.title,
     ];
   });
 }
 
-function getDevInput(view: Element): HTMLInputElement|null {
-  return view.querySelector('.vbox')!.shadowRoot!.querySelector('.development-origin-input input');
+function getPlaceholderRow(view: Components.OriginMap.OriginMap): HTMLElement {
+  return view.contentElement.querySelector('tr[placeholder]')!;
 }
 
-function getProdInput(view: Element): HTMLInputElement|null {
-  return view.querySelector('.vbox')!.shadowRoot!.querySelector('.production-origin-input input');
+function getDevInput(view: Components.OriginMap.OriginMap): HTMLElement|null {
+  return getPlaceholderRow(view).querySelector('td:nth-child(1)');
 }
 
-function getConfirmButton(view: Element): HTMLElementTagNameMap['devtools-button']|null {
-  const buttons = view.querySelector('.vbox')!.shadowRoot!.querySelectorAll('devtools-button');
-  return Array.from(buttons).find(b => b.textContent === 'Add') || null;
+function getProdInput(view: Components.OriginMap.OriginMap): HTMLElement|null {
+  return getPlaceholderRow(view).querySelector('td:nth-child(2)');
 }
 
-function getCancelButton(view: Element): HTMLElementTagNameMap['devtools-button']|null {
-  const buttons = view.querySelector('.vbox')!.shadowRoot!.querySelectorAll('devtools-button');
-  return Array.from(buttons).find(b => b.textContent === 'Cancel') || null;
-}
-
-function getValidationErrors(view: Element): string {
-  const errors =
-      view.querySelector('.vbox')!.shadowRoot!.querySelector<HTMLElement>('.list-widget-input-validation-error');
+function getValidationErrors(view: Components.OriginMap.OriginMap): string {
+  const errors = view.contentElement.querySelector('.error-message') as HTMLElement | null;
   return errors?.innerText || '';
 }
 
@@ -86,7 +87,7 @@ function createOriginMap(): Components.OriginMap.OriginMap {
   widget.show(root);
 
   const view = new Components.OriginMap.OriginMap();
-  widget.contentElement.append(view);
+  view.show(widget.contentElement);
 
   return view;
 }
@@ -114,6 +115,7 @@ describeWithMockConnection('OriginMap', () => {
       'url-PHONE': null,
       'url-TABLET': null,
       warnings: [],
+      normalizedUrl: '',
     };
 
     cruxManager.getConfigSetting().set({enabled: true, override: ''});
@@ -133,6 +135,7 @@ describeWithMockConnection('OriginMap', () => {
       ],
     });
     const view = createOriginMap();
+    await view.updateComplete;
     await RenderCoordinator.done();
 
     const mappings = getOriginMappings(view);
@@ -151,6 +154,7 @@ describeWithMockConnection('OriginMap', () => {
       ],
     });
     const view = createOriginMap();
+    await view.updateComplete;
     await RenderCoordinator.done();
 
     const mappings = getOriginMappings(view);
@@ -173,6 +177,7 @@ describeWithMockConnection('OriginMap', () => {
       ],
     });
     const view = createOriginMap();
+    await view.updateComplete;
     await RenderCoordinator.done();
 
     const mappings = getOriginMappings(view);
@@ -190,6 +195,7 @@ describeWithMockConnection('OriginMap', () => {
       ],
     });
     const view = createOriginMap();
+    await view.updateComplete;
     await RenderCoordinator.done();
 
     {
@@ -207,6 +213,7 @@ describeWithMockConnection('OriginMap', () => {
         {developmentOrigin: 'http://localhost:8081', productionOrigin: 'https://example2.com'},
       ],
     });
+    await view.updateComplete;
     await RenderCoordinator.done();
 
     {
@@ -221,32 +228,27 @@ describeWithMockConnection('OriginMap', () => {
   it('should pre-fill new mapping fields', async () => {
     const originMap = createOriginMap();
     originMap.startCreation();
+    await originMap.updateComplete;
     await RenderCoordinator.done();
 
-    const devInput = getDevInput(originMap)!;
-    assert.strictEqual(devInput.value, 'http://localhost:8080');
+    const devInput = getDevInput(originMap);
+    assert.strictEqual(devInput?.textContent, 'http://localhost:8080');
 
-    const prodInput = getProdInput(originMap)!;
-    assert.strictEqual(prodInput.value, '');
+    const prodInput = getProdInput(originMap);
+    assert.strictEqual(prodInput?.textContent, '');
   });
 
   it('should accept new entries', async () => {
     const originMap = createOriginMap();
     originMap.startCreation();
+    await originMap.updateComplete;
     await RenderCoordinator.done();
 
-    const devInput = getDevInput(originMap)!;
-    devInput.value = 'http://localhost:8080';
-    devInput.dispatchEvent(new Event('input'));
-
-    const prodInput = getProdInput(originMap)!;
-    prodInput.value = 'https://example.com';
-    prodInput.dispatchEvent(new Event('input'));
-
-    await RenderCoordinator.done();
-
-    getConfirmButton(originMap)!.click();
-
+    const developmentOrigin = 'http://localhost:8080';
+    const productionOrigin = 'https://example.com';
+    const dataGrid = getDataGrid(originMap);
+    dataGrid.dispatchEvent(new CustomEvent('create', {detail: {developmentOrigin, productionOrigin}}));
+    await originMap.updateComplete;
     await RenderCoordinator.done();
 
     const mappings = getOriginMappings(originMap);
@@ -258,45 +260,31 @@ describeWithMockConnection('OriginMap', () => {
   it('should ignore cancelled entries', async () => {
     const originMap = createOriginMap();
     originMap.startCreation();
+    await originMap.updateComplete;
     await RenderCoordinator.done();
 
-    const devInput = getDevInput(originMap)!;
-    devInput.value = 'http://localhost:8080';
-    devInput.dispatchEvent(new Event('input'));
-
-    const prodInput = getProdInput(originMap)!;
-    prodInput.value = 'https://example.com';
-    prodInput.dispatchEvent(new Event('input'));
-
-    await RenderCoordinator.done();
-
-    getCancelButton(originMap)!.click();
-
+    const developmentOrigin = 'http://localhost:8080';
+    const productionOrigin = '';
+    const dataGrid = getDataGrid(originMap);
+    dataGrid.dispatchEvent(new CustomEvent('create', {detail: {developmentOrigin, productionOrigin}}));
+    await originMap.updateComplete;
     await RenderCoordinator.done();
 
     const mappings = getOriginMappings(originMap);
     assert.deepEqual(mappings, []);
-    assert.isNull(getDevInput(originMap));
-    assert.isNull(getProdInput(originMap));
   });
 
   it('should coerce inputs to origin values', async () => {
     const originMap = createOriginMap();
     originMap.startCreation();
+    await originMap.updateComplete;
     await RenderCoordinator.done();
 
-    const devInput = getDevInput(originMap)!;
-    devInput.value = 'http://localhost:8080/path/to/something';
-    devInput.dispatchEvent(new Event('input'));
-
-    const prodInput = getProdInput(originMap)!;
-    prodInput.value = 'https://example.com?hello';
-    prodInput.dispatchEvent(new Event('input'));
-
-    await RenderCoordinator.done();
-
-    getConfirmButton(originMap)!.click();
-
+    const developmentOrigin = 'http://localhost:8080/path/to/something';
+    const productionOrigin = 'https://example.com?hello';
+    const dataGrid = getDataGrid(originMap);
+    dataGrid.dispatchEvent(new CustomEvent('create', {detail: {developmentOrigin, productionOrigin}}));
+    await originMap.updateComplete;
     await RenderCoordinator.done();
 
     const mappings = getOriginMappings(originMap);
@@ -308,23 +296,18 @@ describeWithMockConnection('OriginMap', () => {
   it('should show errors from invalid origins', async () => {
     const originMap = createOriginMap();
     originMap.startCreation();
+    await originMap.updateComplete;
     await RenderCoordinator.done();
 
-    const devInput = getDevInput(originMap)!;
-    devInput.value = 'bad-origin';
-    devInput.dispatchEvent(new Event('input'));
-
-    const prodInput = getProdInput(originMap)!;
-    prodInput.value = 'jj**Sdafsdf';
-    prodInput.dispatchEvent(new Event('input'));
-
+    const developmentOrigin = 'bad-origin';
+    const productionOrigin = 'jj**Sdafsdf';
+    const dataGrid = getDataGrid(originMap);
+    dataGrid.dispatchEvent(new CustomEvent('create', {detail: {developmentOrigin, productionOrigin}}));
+    await originMap.updateComplete;
     await RenderCoordinator.done();
 
     const errors = getValidationErrors(originMap);
     assert.deepEqual(errors, '"bad-origin" is not a valid origin or URL.\n"jj**Sdafsdf" is not a valid origin or URL.');
-
-    const confirmButton = getConfirmButton(originMap);
-    assert.isTrue(confirmButton!.shadowRoot?.querySelector('button')!.disabled);
   });
 
   it('should show warning for duplicate dev origin', async () => {
@@ -338,22 +321,17 @@ describeWithMockConnection('OriginMap', () => {
 
     const originMap = createOriginMap();
     originMap.startCreation();
+    await originMap.updateComplete;
     await RenderCoordinator.done();
 
-    const devInput = getDevInput(originMap)!;
-    devInput.value = 'http://localhost:8080';
-    devInput.dispatchEvent(new Event('input'));
-
-    const prodInput = getProdInput(originMap)!;
-    prodInput.value = 'https://example2.com';
-    prodInput.dispatchEvent(new Event('input'));
-
+    const developmentOrigin = 'http://localhost:8080';
+    const productionOrigin = 'https://example2.com';
+    const dataGrid = getDataGrid(originMap);
+    dataGrid.dispatchEvent(new CustomEvent('create', {detail: {developmentOrigin, productionOrigin}}));
+    await originMap.updateComplete;
     await RenderCoordinator.done();
 
     const errors = getValidationErrors(originMap);
     assert.deepEqual(errors, '"http://localhost:8080" is already mapped to a production origin.');
-
-    const confirmButton = getConfirmButton(originMap);
-    assert.isFalse(confirmButton!.shadowRoot?.querySelector('button')!.disabled);
   });
 });

@@ -1,16 +1,17 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 // WARNING: don't use this rollup plugin outside of inspector_overlay.
 // See README for special constraints the overlay has.
 
-module.exports = function loadCSS() {
+// eslint-disable-next-line import/no-default-export
+export default function loadCSS() {
   return {
     name: 'loadCSS',
     /**
-     * @param {!Object} code
-     * @param {string} id
+     * @param code {string}
+     * @param id {string}
      */
     transform(code, id) {
       if (id.endsWith('.css')) {
@@ -20,10 +21,10 @@ module.exports = function loadCSS() {
             style.replaceSync(${JSON.stringify(code)});
             export default style;
           `,
-          map: null
+          map: null,
         };
       }
       return;
-    }
+    },
   };
-};
+}

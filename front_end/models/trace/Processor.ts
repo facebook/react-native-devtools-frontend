@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -56,7 +56,7 @@ export class TraceProcessor extends EventTarget {
   readonly #traceHandlers: Partial<Handlers.Types.Handlers>;
   #status = Status.IDLE;
   #modelConfiguration = Types.Configuration.defaults();
-  #data: Handlers.Types.ParsedTrace|null = null;
+  #data: Handlers.Types.HandlerData|null = null;
   #insights: Insights.Types.TraceInsightSets|null = null;
 
   static createWithAllHandlers(): TraceProcessor {
@@ -152,6 +152,10 @@ export class TraceProcessor extends EventTarget {
       throw new Error(`Trace processor can't start parsing when not idle. Current state: ${this.#status}`);
     }
 
+    if (typeof options.isCPUProfile === 'undefined' && options.metadata) {
+      options.isCPUProfile = options.metadata.dataOrigin === Types.File.DataOrigin.CPU_PROFILE;
+    }
+
     options.logger?.start('total');
     try {
       this.#status = Status.PARSING;
@@ -216,6 +220,10 @@ export class TraceProcessor extends EventTarget {
     options.logger?.end('parse:handleEvent');
 
     // Finalize.
+    const finalizeOptions: Handlers.Types.FinalizeOptions = {
+      ...options,
+      allTraceEvents: traceEvents,
+    };
     for (let i = 0; i < sortedHandlers.length; i++) {
       const [name, handler] = sortedHandlers[i];
       if (handler.finalize) {
@@ -223,53 +231,26 @@ export class TraceProcessor extends EventTarget {
         // Yield to the UI because finalize() calls can be expensive
         // TODO(jacktfranklin): consider using `scheduler.yield()` or `scheduler.postTask(() => {}, {priority: 'user-blocking'})`
         await new Promise(resolve => setTimeout(resolve, 0));
-        await handler.finalize(options);
+        await handler.finalize(finalizeOptions);
         options.logger?.end(`parse:${name}:finalize`);
       }
       const percent = calculateProgress(i / sortedHandlers.length, ProgressPhase.FINALIZE);
       this.dispatchEvent(new TraceParseProgressEvent({percent}));
     }
 
-    // Handlers that depend on other handlers do so via .data(), which used to always
-    // return a shallow clone of its internal data structures. However, that pattern
-    // easily results in egregious amounts of allocation. Now .data() does not do any
-    // cloning, and it happens here instead so that users of the trace processor may
-    // still assume that the parsed data is theirs.
-    // See: crbug/41484172
-    const shallowClone = (value: unknown, recurse = true): unknown => {
-      if (value instanceof Map) {
-        return new Map(value);
-      }
-      if (value instanceof Set) {
-        return new Set(value);
-      }
-      if (Array.isArray(value)) {
-        return [...value];
-      }
-      if (typeof value === 'object' && value && recurse) {
-        const obj: Record<string, unknown> = {};
-        for (const [key, v] of Object.entries(value)) {
-          obj[key] = shallowClone(v, false);
-        }
-        return obj;
-      }
-      return value;
-    };
-
-    options.logger?.start('parse:clone');
+    options.logger?.start('parse:handler.data()');
     const parsedTrace = {};
     for (const [name, handler] of Object.entries(this.#traceHandlers)) {
-      const data = shallowClone(handler.data());
-      Object.assign(parsedTrace, {[name]: data});
+      Object.assign(parsedTrace, {[name]: handler.data()});
     }
-    options.logger?.end('parse:clone');
+    options.logger?.end('parse:handler.data()');
 
     this.dispatchEvent(new TraceParseProgressEvent({percent: ProgressPhase.CLONE}));
 
-    this.#data = parsedTrace as Handlers.Types.ParsedTrace;
+    this.#data = parsedTrace as Handlers.Types.HandlerData;
   }
 
-  get parsedTrace(): Handlers.Types.ParsedTrace|null {
+  get data(): Handlers.Types.HandlerData|null {
     if (this.#status !== Status.FINISHED_PARSING) {
       return null;
     }
@@ -286,18 +267,19 @@ export class TraceProcessor extends EventTarget {
   }
 
   #createLanternContext(
-      parsedTrace: Handlers.Types.ParsedTrace, traceEvents: readonly Types.Events.Event[], frameId: string,
-      navigationId: string, options: Types.Configuration.ParseOptions): Insights.Types.LanternContext|undefined {
+      data: Handlers.Types.HandlerData, traceEvents: readonly Types.Events.Event[], frameId: string,
+      navigation: Types.Events.NavigationStart,
+      options: Types.Configuration.ParseOptions): Insights.Types.LanternContext|undefined {
     // Check for required handlers.
-    if (!parsedTrace.NetworkRequests || !parsedTrace.Workers || !parsedTrace.PageLoadMetrics) {
+    if (!data.NetworkRequests || !data.Workers || !data.PageLoadMetrics) {
       return;
     }
-    if (!parsedTrace.NetworkRequests.byTime.length) {
+    if (!data.NetworkRequests.byTime.length) {
       throw new Lantern.Core.LanternError('No network requests found in trace');
     }
 
-    const navStarts = parsedTrace.Meta.navigationsByFrameId.get(frameId);
-    const navStartIndex = navStarts?.findIndex(n => n.args.data?.navigationId === navigationId);
+    const navStarts = data.Meta.navigationsByFrameId.get(frameId);
+    const navStartIndex = navStarts?.findIndex(n => n === navigation);
     if (!navStarts || navStartIndex === undefined || navStartIndex === -1) {
       throw new Lantern.Core.LanternError('Could not find navigation start');
     }
@@ -312,9 +294,9 @@ export class TraceProcessor extends EventTarget {
       traceEvents: boundedTraceEvents as unknown as Lantern.Types.TraceEvent[],
     };
 
-    const requests = LanternComputationData.createNetworkRequests(trace, parsedTrace, startTime, endTime);
-    const graph = LanternComputationData.createGraph(requests, trace, parsedTrace);
-    const processedNavigation = LanternComputationData.createProcessedNavigation(parsedTrace, frameId, navigationId);
+    const requests = LanternComputationData.createNetworkRequests(trace, data, startTime, endTime);
+    const graph = LanternComputationData.createGraph(requests, trace, data);
+    const processedNavigation = LanternComputationData.createProcessedNavigation(data, frameId, navigation);
 
     const networkAnalysis = Lantern.Core.NetworkAnalyzer.analyze(requests);
     if (!networkAnalysis) {
@@ -343,21 +325,19 @@ export class TraceProcessor extends EventTarget {
       totalBlockingTime: tbtResult,
     };
 
-    return {graph, simulator, metrics};
+    return {requests, graph, simulator, metrics};
   }
 
   /**
    * Sort the insight models based on the impact of each insight's estimated savings, additionally weighted by the
    * worst metrics according to field data (if present).
    */
-  sortInsightSet(
-      insights: Insights.Types.TraceInsightSets, insightSet: Insights.Types.InsightSet,
-      metadata: Types.File.MetaData|null): void {
+  sortInsightSet(insightSet: Insights.Types.InsightSet, metadata: Types.File.MetaData|null): void {
     // The initial order of the insights is alphabetical, based on `front_end/models/trace/insights/Models.ts`.
     // The order here provides a baseline that groups insights in a more logical way.
     const baselineOrder: Record<keyof Insights.Types.InsightModels, null> = {
-      InteractionToNextPaint: null,
-      LCPPhases: null,
+      INPBreakdown: null,
+      LCPBreakdown: null,
       LCPDiscovery: null,
       CLSCulprits: null,
       RenderBlocking: null,
@@ -372,6 +352,7 @@ export class TraceProcessor extends EventTarget {
       SlowCSSSelector: null,
       ForcedReflow: null,
       Cache: null,
+      CharacterSet: null,
       ModernHTTP: null,
       LegacyJavaScript: null,
     };
@@ -381,14 +362,14 @@ export class TraceProcessor extends EventTarget {
 
     // Normalize the estimated savings to a single number, weighted by its relative impact
     // to the page experience based on the same scoring curve that Lighthouse uses.
-    const observedLcpMicro = Insights.Common.getLCP(insights, insightSet.id)?.value;
+    const observedLcpMicro = Insights.Common.getLCP(insightSet)?.value;
     const observedLcp = observedLcpMicro ? Helpers.Timing.microToMilli(observedLcpMicro) : Types.Timing.Milli(0);
-    const observedCls = Insights.Common.getCLS(insights, insightSet.id).value;
+    const observedCls = Insights.Common.getCLS(insightSet).value;
 
     // INP is special - if users did not interact with the page, we'll have no INP, but we should still
     // be able to prioritize insights based on this metric. When we observe no interaction, instead use
     // a default value for the baseline INP.
-    const observedInpMicro = Insights.Common.getINP(insights, insightSet.id)?.value;
+    const observedInpMicro = Insights.Common.getINP(insightSet)?.value;
     const observedInp = observedInpMicro ? Helpers.Timing.microToMilli(observedInpMicro) : Types.Timing.Milli(200);
 
     const observedLcpScore =
@@ -397,10 +378,10 @@ export class TraceProcessor extends EventTarget {
     const observedClsScore = Insights.Common.evaluateCLSMetricScore(observedCls);
 
     const insightToSortingRank = new Map<string, number>();
-    for (const [name, model] of Object.entries(insightSet.model)) {
-      const lcp = model.metricSavings?.LCP ?? 0;
-      const inp = model.metricSavings?.INP ?? 0;
-      const cls = model.metricSavings?.CLS ?? 0;
+    for (const [name, insight] of Object.entries(insightSet.model)) {
+      const lcp = insight.metricSavings?.LCP ?? 0;
+      const inp = insight.metricSavings?.INP ?? 0;
+      const cls = insight.metricSavings?.CLS ?? 0;
 
       const lcpPostSavings =
           observedLcp !== undefined ? Math.max(0, observedLcp - lcp) as Types.Timing.Milli : undefined;
@@ -449,38 +430,64 @@ export class TraceProcessor extends EventTarget {
     insightSet.model = newModel;
   }
 
-  #computeInsightSet(
-      insights: Insights.Types.TraceInsightSets, parsedTrace: Handlers.Types.ParsedTrace,
-      context: Insights.Types.InsightSetContext, options: Types.Configuration.ParseOptions): void {
+  #computeInsightSet(data: Handlers.Types.HandlerData, context: Insights.Types.InsightSetContext): void {
+    const logger = context.options.logger;
+
+    if (!this.#insights) {
+      this.#insights = new Map();
+    }
+
     let id, urlString, navigation;
     if (context.navigation) {
-      id = context.navigationId;
-      urlString =
-          parsedTrace.Meta.finalDisplayUrlByNavigationId.get(context.navigationId) ?? parsedTrace.Meta.mainFrameURL;
+      id = `NAVIGATION_${this.#insights.size}`;
+      urlString = data.Meta.finalDisplayUrlByNavigationId.get(context.navigationId) ?? data.Meta.mainFrameURL;
       navigation = context.navigation;
     } else {
       id = Types.Events.NO_NAVIGATION;
-      urlString = parsedTrace.Meta.finalDisplayUrlByNavigationId.get('') ?? parsedTrace.Meta.mainFrameURL;
+      urlString = data.Meta.finalDisplayUrlByNavigationId.get('') ?? data.Meta.mainFrameURL;
     }
 
-    const model = {} as Insights.Types.InsightSet['model'];
+    const insightSetModel = {} as Insights.Types.InsightModels;
+    const insightSetModelErrors: Insights.Types.InsightModelErrors = {};
 
     for (const [name, insight] of Object.entries(TraceProcessor.getInsightRunners())) {
-      let insightResult;
       try {
-        options.logger?.start(`insights:${name}`);
-        insightResult = insight.generateInsight(parsedTrace, context);
-        insightResult.frameId = context.frameId;
+        logger?.start(`insights:${name}`);
+        const model = insight.generateInsight(data, context);
+        model.frameId = context.frameId;
         const navId = context.navigation?.args.data?.navigationId;
         if (navId) {
-          insightResult.navigationId = navId;
+          model.navigation = context.navigation;
         }
+        model.createOverlays = () => {
+          // @ts-expect-error: model is a union of all possible insight model types.
+          return insight.createOverlays(model);
+        };
+        Object.assign(insightSetModel, {[name]: model});
       } catch (err) {
-        insightResult = err;
+        Object.assign(insightSetModelErrors, {[name]: err});
       } finally {
-        options.logger?.end(`insights:${name}`);
+        logger?.end(`insights:${name}`);
       }
-      Object.assign(model, {[name]: insightResult});
+    }
+
+    // We may choose to exclude the insightSet if it's trivial. Trivial means:
+    //   1. There's no navigation (it's an initial trace period)
+    //   2. The duration is short.
+    //   3. All the insights are passing (aka no insights to show the user)
+    //   4. It has no metrics to report (apart from a CLS of 0, which is default)
+    // Generally, these cases are the short time ranges before a page reload starts.
+    const isNavigation = id === Types.Events.NO_NAVIGATION;
+    const trivialThreshold = Helpers.Timing.milliToMicro(Types.Timing.Milli(5000));
+    const everyInsightPasses = Object.values(insightSetModel).every(model => model && model.state === 'pass');
+
+    const noLcp = !insightSetModel.LCPBreakdown?.lcpEvent;
+    const noInp = !insightSetModel.INPBreakdown?.longestInteractionEvent;
+    const noLayoutShifts = insightSetModel.CLSCulprits?.shifts?.size === 0;
+    const shouldExclude = isNavigation && context.bounds.range < trivialThreshold && everyInsightPasses && noLcp &&
+        noInp && noLayoutShifts;
+    if (shouldExclude) {
+      return;
     }
 
     let url;
@@ -498,96 +505,109 @@ export class TraceProcessor extends EventTarget {
       navigation,
       frameId: context.frameId,
       bounds: context.bounds,
-      model,
+      model: insightSetModel,
+      modelErrors: insightSetModelErrors,
     };
-    insights.set(insightSet.id, insightSet);
-    this.sortInsightSet(insights, insightSet, options.metadata ?? null);
+    this.#insights.set(insightSet.id, insightSet);
+    this.sortInsightSet(insightSet, context.options.metadata ?? null);
   }
 
   /**
    * Run all the insights and set the result to `#insights`.
    */
   #computeInsights(
-      parsedTrace: Handlers.Types.ParsedTrace, traceEvents: readonly Types.Events.Event[],
+      data: Handlers.Types.HandlerData, traceEvents: readonly Types.Events.Event[],
       options: Types.Configuration.ParseOptions): void {
+    // This insights map will be populated by the helper methods.
     this.#insights = new Map();
 
-    const navigations = parsedTrace.Meta.mainFrameNavigations.filter(
+    // Filter main frame navigations to those that have the necessary data (frameId and navigationId).
+    // TODO(cjamcl): Does this filtering makes the "use the next nav as the end time" logic potentially broken? Are navs without nav id or frame even real?
+    const navigations = data.Meta.mainFrameNavigations.filter(
         navigation => navigation.args.frame && navigation.args.data?.navigationId);
 
-    // Check if there is a meaningful chunk of work happening prior to the first navigation.
-    // If so, we run the insights on that initial bounds.
-    // Otherwise, there are no navigations and we do a no-navigation insights pass on the entire trace.
-    if (navigations.length) {
-      const bounds = Helpers.Timing.traceWindowFromMicroSeconds(parsedTrace.Meta.traceBounds.min, navigations[0].ts);
-      // When using "Record and reload" option, it typically takes ~5ms. So use 50ms to be safe.
-      const threshold = Helpers.Timing.milliToMicro(50 as Types.Timing.Milli);
-      if (bounds.range > threshold) {
-        const context: Insights.Types.InsightSetContext = {
-          bounds,
-          frameId: parsedTrace.Meta.mainFrameId,
-        };
-        this.#computeInsightSet(this.#insights, parsedTrace, context, options);
-      }
-      // If threshold is not met, then the very beginning of the trace is ignored by the insights engine.
-    } else {
-      const context: Insights.Types.InsightSetContext = {
-        bounds: parsedTrace.Meta.traceBounds,
-        frameId: parsedTrace.Meta.mainFrameId,
-      };
-      this.#computeInsightSet(this.#insights, parsedTrace, context, options);
-    }
+    this.#computeInsightsForInitialTracePeriod(data, navigations, options);
 
-    // Now run the insights for each navigation in isolation.
-    for (const [i, navigation] of navigations.entries()) {
-      // The above filter guarantees these are present.
-      const frameId = navigation.args.frame;
-      const navigationId = navigation.args.data?.navigationId as string;
-
-      // The lantern sub-context is optional on InsightSetContext, so not setting it is OK.
-      // This is also a hedge against an error inside Lantern resulting in breaking the entire performance panel.
-      // Additionally, many trace fixtures are too old to be processed by Lantern.
-      let lantern;
-      try {
-        options.logger?.start('insights:createLanternContext');
-        lantern = this.#createLanternContext(parsedTrace, traceEvents, frameId, navigationId, options);
-      } catch (e) {
-        // Don't allow an error in constructing the Lantern graphs to break the rest of the trace processor.
-        // Log unexpected errors, but suppress anything that occurs from a trace being too old.
-        // Otherwise tests using old fixtures become way too noisy.
-        const expectedErrors = [
-          'mainDocumentRequest not found',
-          'missing metric scores for main frame',
-          'missing metric: FCP',
-          'missing metric: LCP',
-          'No network requests found in trace',
-          'Trace is too old',
-        ];
-        if (!(e instanceof Lantern.Core.LanternError)) {
-          // If this wasn't a managed LanternError, the stack trace is likely needed for debugging.
-          console.error(e);
-        } else if (!expectedErrors.some(err => e.message === err)) {
-          // To reduce noise from tests, only print errors that are not expected to occur because a trace is
-          // too old (for which there is no single check).
-          console.error(e);
-        }
-      } finally {
-        options.logger?.end('insights:createLanternContext');
-      }
-
+    for (const [index, navigation] of navigations.entries()) {
       const min = navigation.ts;
-      const max = i + 1 < navigations.length ? navigations[i + 1].ts : parsedTrace.Meta.traceBounds.max;
+      // Use trace end for the last navigation, otherwise use the start of the next navigation.
+      const max = index + 1 < navigations.length ? navigations[index + 1].ts : data.Meta.traceBounds.max;
       const bounds = Helpers.Timing.traceWindowFromMicroSeconds(min, max);
-      const context: Insights.Types.InsightSetContext = {
-        bounds,
-        frameId,
-        navigation,
-        navigationId,
-        lantern,
-      };
-
-      this.#computeInsightSet(this.#insights, parsedTrace, context, options);
+      this.#computeInsightsForNavigation(navigation, bounds, data, traceEvents, options);
     }
+  }
+
+  /**
+   * Computes insights for the period before the first navigation, or for the entire trace if no navigations exist.
+   */
+  #computeInsightsForInitialTracePeriod(
+      data: Handlers.Types.HandlerData, navigations: readonly Types.Events.NavigationStart[],
+      options: Types.Configuration.ParseOptions): void {
+    // Determine bounds: Use the period before the first navigation if navigations exist, otherwise use the entire trace bounds.
+    const bounds = navigations.length > 0 ?
+        Helpers.Timing.traceWindowFromMicroSeconds(data.Meta.traceBounds.min, navigations[0].ts) :
+        data.Meta.traceBounds;
+
+    const context: Insights.Types.InsightSetContext = {
+      options,
+      bounds,
+      frameId: data.Meta.mainFrameId,
+      // No navigation or lantern context applies to this initial/no-navigation period.
+    };
+    this.#computeInsightSet(data, context);
+  }
+
+  /**
+   * Computes insights for a specific navigation event.
+   */
+  #computeInsightsForNavigation(
+      navigation: Types.Events.NavigationStart, bounds: Types.Timing.TraceWindowMicro, data: Handlers.Types.HandlerData,
+      traceEvents: readonly Types.Events.Event[], options: Types.Configuration.ParseOptions): void {
+    const frameId = navigation.args.frame;
+    // Guaranteed by the filter in #computeInsights
+    const navigationId = navigation.args.data?.navigationId as string;
+
+    // The lantern sub-context is optional on InsightSetContext, so not setting it is OK.
+    // This is also a hedge against an error inside Lantern resulting in breaking the entire performance panel.
+    // Additionally, many trace fixtures are too old to be processed by Lantern.
+    let lantern: Insights.Types.LanternContext|undefined;
+    try {
+      options.logger?.start('insights:createLanternContext');
+      lantern = this.#createLanternContext(data, traceEvents, frameId, navigation, options);
+    } catch (e) {
+      // Handle Lantern errors gracefully
+      // Don't allow an error in constructing the Lantern graphs to break the rest of the trace processor.
+      // Log unexpected errors, but suppress anything that occurs from a trace being too old.
+      // Otherwise tests using old fixtures become way too noisy.
+      const expectedErrors = [
+        'mainDocumentRequest not found',
+        'missing metric scores for main frame',
+        'missing metric: FCP',
+        'missing metric: LCP',
+        'No network requests found in trace',
+        'Trace is too old',
+      ];
+      if (!(e instanceof Lantern.Core.LanternError)) {
+        // If this wasn't a managed LanternError, the stack trace is likely needed for debugging.
+        console.error(e);
+      } else if (!expectedErrors.some(err => e.message === err)) {
+        // To reduce noise from tests, only print errors that are not expected to occur because a trace is
+        // too old (for which there is no single check).
+        console.error(e);
+      }
+    } finally {
+      options.logger?.end('insights:createLanternContext');
+    }
+
+    const context: Insights.Types.InsightSetContext = {
+      options,
+      bounds,
+      frameId,
+      navigation,
+      navigationId,
+      lantern,
+    };
+    this.#computeInsightSet(data, context);
   }
 }
 
@@ -597,7 +617,7 @@ export class TraceProcessor extends EventTarget {
  * @returns A map from trace event handler name to trace event handler whose entries
  * iterate in such a way that each handler is visited after its dependencies.
  */
-export function sortHandlers(traceHandlers: Partial<{[key in Handlers.Types.HandlerName]: Handlers.Types.Handler}>):
+export function sortHandlers(traceHandlers: Partial<Record<Handlers.Types.HandlerName, Handlers.Types.Handler>>):
     Map<Handlers.Types.HandlerName, Handlers.Types.Handler> {
   const sortedMap = new Map<Handlers.Types.HandlerName, Handlers.Types.Handler>();
   const visited = new Set<Handlers.Types.HandlerName>();

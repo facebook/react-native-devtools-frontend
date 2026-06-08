@@ -1,32 +1,8 @@
-/*
- * Copyright (C) 2013 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2013 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
@@ -34,7 +10,7 @@ import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
-import * as IconButton from '../../ui/components/icon_button/icon_button.js';
+import {createIcon, Icon} from '../../ui/kit/kit.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import {InputModel} from './InputModel.js';
@@ -42,39 +18,39 @@ import screencastViewStyles from './screencastView.css.js';
 
 const UIStrings = {
   /**
-   *@description Accessible alt text for the screencast canvas rendering of the debug target webpage
+   * @description Accessible alt text for the screencast canvas rendering of the debug target webpage
    */
   screencastViewOfDebugTarget: 'Screencast view of debug target',
   /**
-   *@description Glass pane element text content in Screencast View of the Remote Devices tab when toggling screencast
+   * @description Glass pane element text content in Screencast View of the Remote Devices tab when toggling screencast
    */
   theTabIsInactive: 'The tab is inactive',
   /**
-   *@description Glass pane element text content in Screencast View of the Remote Devices tab when toggling screencast
+   * @description Glass pane element text content in Screencast View of the Remote Devices tab when toggling screencast
    */
   profilingInProgress: 'Profiling in progress',
   /**
-   *@description Accessible text for the screencast back button
+   * @description Accessible text for the screencast back button
    */
   back: 'back',
   /**
-   *@description Accessible text for the screencast forward button
+   * @description Accessible text for the screencast forward button
    */
   forward: 'forward',
   /**
-   *@description Accessible text for the screencast reload button
+   * @description Accessible text for the screencast reload button
    */
   reload: 'reload',
   /**
-   *@description Accessible text for the address bar in screencast view
+   * @description Accessible text for the address bar in screencast view
    */
   addressBar: 'Address bar',
   /**
-   *@description Accessible text for the touch emulation button.
+   * @description Accessible text for the touch emulation button.
    */
   touchInput: 'Use touch',
   /**
-   *@description Accessible text for the mouse emulation button.
+   * @description Accessible text for the mouse emulation button.
    */
   mouseInput: 'Use mouse',
 } as const;
@@ -93,7 +69,7 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
   private resourceTreeModel: SDK.ResourceTreeModel.ResourceTreeModel|null;
   private networkManager: SDK.NetworkManager.NetworkManager|null;
   private readonly inputModel: InputModel|null;
-  private shortcuts: {[x: number]: (arg0?: Event|undefined) => boolean};
+  private shortcuts: Record<number, (arg0?: Event|undefined) => boolean>;
   private scrollOffsetX: number;
   private scrollOffsetY: number;
   private screenZoom: number;
@@ -128,8 +104,8 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
   private navigationProgressBar?: ProgressTracker;
   private touchInputToggle?: HTMLButtonElement;
   private mouseInputToggle?: HTMLButtonElement;
-  private touchInputToggleIcon?: IconButton.Icon.Icon;
-  private mouseInputToggleIcon?: IconButton.Icon.Icon;
+  private touchInputToggleIcon?: Icon;
+  private mouseInputToggleIcon?: Icon;
   private historyIndex?: number;
   private historyEntries?: Protocol.Page.NavigationEntry[];
   private isCasting = false;
@@ -146,9 +122,7 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
 
     this.setMinimumSize(150, 150);
 
-    this.shortcuts = {} as {
-      [x: number]: (arg0?: Event|undefined) => boolean,
-    };
+    this.shortcuts = {};
     this.scrollOffsetX = 0;
     this.scrollOffsetY = 0;
     this.screenZoom = 1;
@@ -201,6 +175,7 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
   }
 
   override willHide(): void {
+    super.willHide();
     this.stopCasting();
   }
 
@@ -269,7 +244,7 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
       this.viewportElement.style.width = metadata.deviceWidth * this.screenZoom + bordersSize + 'px';
       this.viewportElement.style.height = metadata.deviceHeight * this.screenZoom + bordersSize + 'px';
 
-      const data = this.highlightNode ? {node: this.highlightNode, selectorList: undefined} : {clear: true};
+      const data = this.highlightNode ? {node: this.highlightNode} : {clear: true};
       void this.updateHighlightInOverlayAndRepaint(data, this.highlightConfig);
     };
     this.imageElement.src = 'data:image/jpg;base64,' + base64Data;
@@ -334,7 +309,7 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
     }
 
     if (event.type === 'mousemove') {
-      void this.updateHighlightInOverlayAndRepaint({node, selectorList: undefined}, this.inspectModeConfig);
+      void this.updateHighlightInOverlayAndRepaint({node}, this.inspectModeConfig);
       this.domModel.overlayModel().nodeHighlightRequested({nodeId: node.id});
     } else if (event.type === 'click') {
       this.domModel.overlayModel().inspectNodeRequested({backendNodeId: node.backendNodeId()});
@@ -658,7 +633,7 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
     const size = 32;
     pattern.width = size * 2;
     pattern.height = size * 2;
-    const pctx = pattern.getContext('2d') as CanvasRenderingContext2D;
+    const pctx = pattern.getContext('2d', {willReadFrequently: true}) as CanvasRenderingContext2D;
 
     pctx.fillStyle = 'var(--sys-color-neutral-outline)';
     pctx.fillRect(0, 0, size * 2, size * 2);
@@ -673,17 +648,17 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
     this.navigationBar = this.element.createChild('div', 'screencast-navigation');
 
     this.navigationBack = this.navigationBar.createChild('button', 'navigation');
-    this.navigationBack.appendChild(IconButton.Icon.create('arrow-back'));
+    this.navigationBack.appendChild(createIcon('arrow-back'));
     this.navigationBack.disabled = true;
     UI.ARIAUtils.setLabel(this.navigationBack, i18nString(UIStrings.back));
 
     this.navigationForward = this.navigationBar.createChild('button', 'navigation');
-    this.navigationForward.appendChild(IconButton.Icon.create('arrow-forward'));
+    this.navigationForward.appendChild(createIcon('arrow-forward'));
     this.navigationForward.disabled = true;
     UI.ARIAUtils.setLabel(this.navigationForward, i18nString(UIStrings.forward));
 
     this.navigationReload = this.navigationBar.createChild('button', 'navigation');
-    this.navigationReload.appendChild(IconButton.Icon.create('refresh'));
+    this.navigationReload.appendChild(createIcon('refresh'));
     UI.ARIAUtils.setLabel(this.navigationReload, i18nString(UIStrings.reload));
 
     this.navigationUrl = this.navigationBar.appendChild(UI.UIUtils.createInput());
@@ -693,13 +668,14 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
     this.mouseInputToggle = this.navigationBar.createChild('button');
     this.mouseInputToggle.disabled = true;
     {
-      this.mouseInputToggleIcon = this.mouseInputToggle.appendChild(new IconButton.Icon.Icon());
-      this.mouseInputToggleIcon.data = {color: 'var(--icon-toggled)', iconName: 'mouse'};
+      this.mouseInputToggleIcon = this.mouseInputToggle.appendChild(new Icon());
+      this.mouseInputToggleIcon.name = 'mouse';
+      this.mouseInputToggleIcon.classList.toggle('toggled', true);
     }
     UI.ARIAUtils.setLabel(this.mouseInputToggle, i18nString(UIStrings.mouseInput));
 
     this.touchInputToggle = this.navigationBar.createChild('button');
-    this.touchInputToggleIcon = this.touchInputToggle.appendChild(IconButton.Icon.create('touch-app'));
+    this.touchInputToggleIcon = this.touchInputToggle.appendChild(createIcon('touch-app'));
     UI.ARIAUtils.setLabel(this.touchInputToggle, i18nString(UIStrings.touchInput));
 
     this.navigationProgressBar = new ProgressTracker(
@@ -767,14 +743,8 @@ export class ScreencastView extends UI.Widget.VBox implements SDK.OverlayModel.H
     }
     this.mouseInputToggle.disabled = !value;
     this.touchInputToggle.disabled = value;
-    this.mouseInputToggleIcon.data = {
-      ...this.mouseInputToggleIcon.data,
-      color: this.mouseInputToggle.disabled ? 'var(--icon-toggled)' : 'var(--icon-default)',
-    };
-    this.touchInputToggleIcon.data = {
-      ...this.touchInputToggleIcon.data,
-      color: this.touchInputToggle.disabled ? 'var(--icon-toggled)' : 'var(--icon-default)',
-    };
+    this.mouseInputToggleIcon.classList.toggle('toggled', this.mouseInputToggle.disabled);
+    this.touchInputToggleIcon.classList.toggle('toggled', this.touchInputToggle.disabled);
     this.canvasContainerElement.classList.toggle('touchable', value);
   }
 

@@ -1,19 +1,23 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-const glob = require('glob');
-const path = require('path');
-const yargs = require('yargs');
+import glob from 'glob';
+import * as path from 'node:path';
+import yargs from 'yargs';
+import {hideBin} from 'yargs/helpers';
 
-const {writeIfChanged} = require('../../../scripts/build/ninja/write-if-changed.js');
-const {bakePlaceholders} = require('../../../third_party/i18n/bake-ctc-to-lhl.js');
-const {collectAllStringsInDir, createPsuedoLocaleStrings, IGNORED_PATH_COMPONENTS} =
-    require('../../../third_party/i18n/collect-strings.js');
+import {writeIfChanged} from '../../../scripts/build/ninja/write-if-changed.js';
+import {bakePlaceholders} from '../../../third_party/i18n/bake-ctc-to-lhl.js';
+import {
+  collectAllStringsInDir,
+  createPsuedoLocaleStrings,
+  IGNORED_PATH_COMPONENTS,
+} from '../../../third_party/i18n/collect-strings.js';
 
 /** @typedef {import('../../../third_party/i18n/bake-ctc-to-lhl.js').CtcMessage} CtcMessage */
 
-const yargsObject = yargs
+const yargsObject = yargs(hideBin(process.argv))
                         .option('input-directories', {
                           type: 'array',
                           demandOption: true,
@@ -29,16 +33,18 @@ const yargsObject = yargs
                         .parseSync();
 
 /**
- * @param {string} outputDirectory
- * @param {string} locale
- * @param {Record<string, CtcMessage>} strings
+ * @param outputDirectory
+ * @param locale
+ * @param strings
  */
 function convertCtcToLhLAndSave(outputDirectory, locale, strings) {
   const outputPath = path.join(outputDirectory, `${locale}.json`);
 
   /** @type {Record<string, CtcMessage>} */
   const sortedCtcStrings = {};
-  const sortedEntries = Object.entries(strings).sort(([keyA], [keyB]) => keyA.localeCompare(keyB));
+  const sortedEntries = Object.entries(strings).sort(
+      ([keyA], [keyB]) => keyA.localeCompare(keyB),
+  );
   for (const [key, defn] of sortedEntries) {
     sortedCtcStrings[key] = defn;
   }
@@ -72,7 +78,11 @@ for (const directory of inputDirectories) {
 const outputDirectory = yargsObject['output-directory'];
 convertCtcToLhLAndSave(outputDirectory, 'en-US', collectedStrings);
 if (yargsObject['include-en-xl']) {
-  convertCtcToLhLAndSave(outputDirectory, 'en-XL', createPsuedoLocaleStrings(collectedStrings));
+  convertCtcToLhLAndSave(
+      outputDirectory,
+      'en-XL',
+      createPsuedoLocaleStrings(collectedStrings),
+  );
 }
 
 // Write the depfile. This is necessary to properly rebuild en-US.json/en-XL.json

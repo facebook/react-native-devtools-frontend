@@ -3,26 +3,28 @@
  * Copyright 2017 Google Inc.
  * SPDX-License-Identifier: Apache-2.0
  */
-import type * as Bidi from 'chromium-bidi/lib/cjs/protocol/protocol.js';
+import type * as ChromiumBidi from 'chromium-bidi/lib/cjs/protocol/protocol.js';
 import type { ConnectionTransport } from '../common/ConnectionTransport.js';
 import type { EventsWithWildcard } from '../common/EventEmitter.js';
 import { EventEmitter } from '../common/EventEmitter.js';
+import type { GetIdFn } from '../util/incremental-id-generator.js';
 import type { BidiEvents, Commands as BidiCommands, Connection } from './core/Connection.js';
+export type CdpEvent = ChromiumBidi.Cdp.Event;
 /**
  * @internal
  */
 export interface Commands extends BidiCommands {
     'goog:cdp.sendCommand': {
-        params: Bidi.Cdp.SendCommandParameters;
-        returnType: Bidi.Cdp.SendCommandResult;
+        params: ChromiumBidi.Cdp.SendCommandParameters;
+        returnType: ChromiumBidi.Cdp.SendCommandResult;
     };
     'goog:cdp.getSession': {
-        params: Bidi.Cdp.GetSessionParameters;
-        returnType: Bidi.Cdp.GetSessionResult;
+        params: ChromiumBidi.Cdp.GetSessionParameters;
+        returnType: ChromiumBidi.Cdp.GetSessionResult;
     };
     'goog:cdp.resolveRealm': {
-        params: Bidi.Cdp.ResolveRealmParameters;
-        returnType: Bidi.Cdp.ResolveRealmResult;
+        params: ChromiumBidi.Cdp.ResolveRealmParameters;
+        returnType: ChromiumBidi.Cdp.ResolveRealmResult;
     };
 }
 /**
@@ -30,7 +32,7 @@ export interface Commands extends BidiCommands {
  */
 export declare class BidiConnection extends EventEmitter<BidiEvents> implements Connection {
     #private;
-    constructor(url: string, transport: ConnectionTransport, delay?: number, timeout?: number);
+    constructor(url: string, transport: ConnectionTransport, idGenerator: GetIdFn, delay?: number, timeout?: number);
     get closed(): boolean;
     get url(): string;
     pipeTo<Events extends BidiEvents>(emitter: EventEmitter<Events>): void;

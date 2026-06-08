@@ -1,8 +1,9 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("../../../scripts/build/ninja/devtools_entrypoint.gni")
+import("../../../scripts/build/ninja/devtools_module.gni")
 import("../../../scripts/build/typescript/typescript.gni")
 import("../visibility.gni")
 
@@ -17,19 +18,21 @@ devtools_entrypoint("bundle") {
     "../../models/workspace:bundle",
     "../../ui/components/diff_view:bundle",
     "../../ui/components/icon_button:bundle",
+    "../../ui/kit:bundle",
     "../../ui/legacy:bundle",
+    "../common:bundle",
     "../snippets:bundle",
   ]
 
   visibility = [
     "../*",
-    "../../models/ai_assistance:ai_assistance",
+    "../../models/ai_assistance",
   ]
 
   visibility += devtools_panels_visibility
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [ "utils.test.ts" ]

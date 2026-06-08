@@ -1,31 +1,35 @@
-// Copyright 2012 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Common from '../../core/common/common.js';
+import '../../ui/components/highlighting/highlighting.js';
+
+import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
-import * as Root from '../../core/root/root.js';
-import * as Bindings from '../../models/bindings/bindings.js';
 import * as Persistence from '../../models/persistence/persistence.js';
 import * as Workspace from '../../models/workspace/workspace.js';
 import * as QuickOpen from '../../ui/legacy/components/quick_open/quick_open.js';
-import * as UI from '../../ui/legacy/legacy.js';
+import {Directives, html, type TemplateResult} from '../../ui/lit/lit.js';
 
 import {FilePathScoreFunction} from './FilePathScoreFunction.js';
+import filteredUISourceCodeListProviderStyles from './filteredUISourceCodeListProvider.css.js';
 
 const UIStrings = {
   /**
-   *@description Text in Filtered UISource Code List Provider of the Sources panel
+   * @description Text in Filtered UISource Code List Provider of the Sources panel
    */
   noFilesFound: 'No files found',
   /**
-   *@description Name of an item that is on the ignore list
-   *@example {compile.html} PH1
+   * @description Name of an item that is on the ignore list
+   * @example {compile.html} PH1
    */
   sIgnoreListed: '{PH1} (ignore listed)',
 } as const;
+
 const str_ = i18n.i18n.registerUIStrings('panels/sources/FilteredUISourceCodeListProvider.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
+const {classMap} = Directives;
+
 export class FilteredUISourceCodeListProvider extends QuickOpen.FilteredListWidget.Provider {
   private queryLineNumberAndColumnNumber: string;
   private defaultScores: Map<Workspace.UISourceCode.UISourceCode, number>|null;
@@ -33,8 +37,8 @@ export class FilteredUISourceCodeListProvider extends QuickOpen.FilteredListWidg
   private uiSourceCodes: Workspace.UISourceCode.UISourceCode[];
   private readonly uiSourceCodeIds: Set<string>;
   private query!: string;
-  constructor(jslogContext: string) {
-    super(jslogContext);
+  constructor() {
+    super();
 
     this.queryLineNumberAndColumnNumber = '';
     this.defaultScores = null;
@@ -69,8 +73,8 @@ export class FilteredUISourceCodeListProvider extends QuickOpen.FilteredListWidg
     if (this.uiSourceCodeIds.has(uiSourceCode.canonicalScriptId())) {
       return false;
     }
-    if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.JUST_MY_CODE) &&
-        Bindings.IgnoreListManager.IgnoreListManager.instance().isUserOrSourceMapIgnoreListedUISourceCode(
+    if (Common.Settings.Settings.instance().moduleSetting('navigator-just-my-code').get() &&
+        Workspace.IgnoreListManager.IgnoreListManager.instance().isUserOrSourceMapIgnoreListedUISourceCode(
             uiSourceCode)) {
       return false;
     }
@@ -134,7 +138,7 @@ export class FilteredUISourceCodeListProvider extends QuickOpen.FilteredListWidg
     if (uiSourceCode.contentType().isScript()) {
       // Bonus points for being a script if it is not ignore-listed. Note
       // that ignore listing logic does not apply to non-scripts.
-      if (!Bindings.IgnoreListManager.IgnoreListManager.instance().isUserOrSourceMapIgnoreListedUISourceCode(
+      if (!Workspace.IgnoreListManager.IgnoreListManager.instance().isUserOrSourceMapIgnoreListedUISourceCode(
               uiSourceCode)) {
         contentTypeBonus += 50;
       }
@@ -144,8 +148,7 @@ export class FilteredUISourceCodeListProvider extends QuickOpen.FilteredListWidg
     return score + multiplier * (contentTypeBonus + this.scorer.calculateScore(fullDisplayName, null));
   }
 
-  override renderItem(itemIndex: number, query: string, titleElement: Element, subtitleElement: Element): void {
-    titleElement.parentElement?.parentElement?.classList.toggle('search-mode', Boolean(query));
+  override renderItem(itemIndex: number, query: string): TemplateResult {
     query = this.rewriteQuery(query);
     const uiSourceCode = this.uiSourceCodes[itemIndex];
     const fullDisplayName = uiSourceCode.fullDisplayName();
@@ -153,45 +156,58 @@ export class FilteredUISourceCodeListProvider extends QuickOpen.FilteredListWidg
     new FilePathScoreFunction(query).calculateScore(fullDisplayName, indexes);
     const fileNameIndex = fullDisplayName.lastIndexOf('/');
     const isIgnoreListed =
-        Bindings.IgnoreListManager.IgnoreListManager.instance().isUserOrSourceMapIgnoreListedUISourceCode(uiSourceCode);
+        Workspace.IgnoreListManager.IgnoreListManager.instance().isUserOrSourceMapIgnoreListedUISourceCode(
+            uiSourceCode);
     let tooltipText = fullDisplayName;
 
     if (isIgnoreListed) {
-      titleElement.parentElement?.classList.add('is-ignore-listed');
       tooltipText = i18nString(UIStrings.sIgnoreListed, {PH1: tooltipText});
     }
 
-    titleElement.textContent = uiSourceCode.displayName() + (this.queryLineNumberAndColumnNumber || '');
-    this.renderSubtitleElement(subtitleElement, fullDisplayName.substring(0, fileNameIndex + 1));
-    UI.Tooltip.Tooltip.install((subtitleElement as HTMLElement), tooltipText);
-
-    const ranges = [];
-    for (let i = 0; i < indexes.length; ++i) {
-      ranges.push({offset: indexes[i], length: 1});
-    }
+    const titleRanges = [];
+    const subtitleRanges = [];
 
     if (indexes[0] > fileNameIndex) {
-      for (let i = 0; i < ranges.length; ++i) {
-        ranges[i].offset -= fileNameIndex + 1;
+      for (let i = 0; i < indexes.length; ++i) {
+        titleRanges.push({offset: indexes[i] - (fileNameIndex + 1), length: 1});
       }
-      UI.UIUtils.highlightRangesWithStyleClass(titleElement, ranges, 'highlight');
     } else {
-      UI.UIUtils.highlightRangesWithStyleClass(subtitleElement, ranges, 'highlight');
+      for (let i = 0; i < indexes.length; ++i) {
+        subtitleRanges.push({offset: indexes[i], length: 1});
+      }
     }
+    // clang-format off
+    return html`
+      <style>${filteredUISourceCodeListProviderStyles}</style>
+      <div class="filtered-ui-source-code-list-item
+                  ${classMap({'is-ignore-listed': isIgnoreListed})}">
+        <devtools-highlight
+            type="markup"
+            ranges=${titleRanges.map(r => `${r.offset},${r.length}`).join(' ')}
+            class="filtered-ui-source-code-title ${classMap({'search-mode': Boolean(query)})}">
+          ${uiSourceCode.displayName() + (this.queryLineNumberAndColumnNumber || '')}
+        </devtools-highlight>
+        <devtools-highlight
+            type="markup"
+            ranges=${subtitleRanges.map(r => `${r.offset},${r.length}`).join(' ')}
+            class="filtered-ui-source-code-subtitle" title=${tooltipText}>
+          ${this.renderSubtitleElement(fullDisplayName.substring(0, fileNameIndex + 1))}
+        </devtools-highlight>
+      </div>`;
+    // clang-format on
   }
 
-  private renderSubtitleElement(element: Element, text: string): void {
-    element.removeChildren();
+  private renderSubtitleElement(text: string): TemplateResult {
     let splitPosition = text.lastIndexOf('/');
     const maxTextLength = 43;
     if (text.length > maxTextLength) {
       splitPosition = text.length - maxTextLength;
     }
-    const first = element.createChild('div', 'first-part');
-    first.textContent = text.substring(0, splitPosition);
-    const second = element.createChild('div', 'second-part');
-    second.textContent = text.substring(splitPosition);
-    UI.Tooltip.Tooltip.install((element as HTMLElement), text);
+    // clang-format off
+    return html`
+      <div class="first-part">${text.substring(0, splitPosition)}</div>
+      <div class="second-part">${text.substring(splitPosition)}</div>`;
+    // clang-format on
   }
 
   override selectItem(itemIndex: number|null, promptValue: string): void {

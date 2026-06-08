@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -17,20 +17,18 @@ generate_css("css_files") {
     "RequestHeadersView.css",
     "RequestTrustTokensView.css",
     "ResponseHeaderSection.css",
-    "WebBundleInfoView.css",
   ]
 }
 
-devtools_module("components") {
+devtools_ui_module("components") {
   sources = [
+    "DirectSocketConnectionView.ts",
     "EditableSpan.ts",
     "HeaderSectionRow.ts",
     "NetworkEventCoverageInfobar.ts",
     "RequestHeaderSection.ts",
-    "RequestHeadersView.ts",
     "RequestTrustTokensView.ts",
     "ResponseHeaderSection.ts",
-    "WebBundleInfoView.ts",
   ]
 
   deps = [
@@ -42,19 +40,22 @@ devtools_module("components") {
     "../../../core/sdk:bundle",
     "../../../generated:protocol",
     "../../../models/issues_manager:bundle",
+    "../../../models/persistence:bundle",
+    "../../../models/text_utils:bundle",
     "../../../models/workspace:bundle",
     "../../../panels/sources:bundle",
     "../../../panels/utils:bundle",
     "../../../third_party/chromium/client-variations:bundle",
     "../../../ui/components/buttons:bundle",
     "../../../ui/components/helpers:bundle",
-    "../../../ui/components/icon_button:bundle",
     "../../../ui/components/input:bundle",
     "../../../ui/components/legacy_wrapper:bundle",
+    "../../../ui/components/render_coordinator:bundle",
     "../../../ui/components/report_view:bundle",
+    "../../../ui/kit:bundle",
     "../../../ui/legacy:bundle",
-    "../../../ui/legacy/components/data_grid:bundle",
     "../../../ui/lit:bundle",
+    "../../../ui/visual_logging:bundle",
     "../forward:bundle",
   ]
 }
@@ -70,17 +71,18 @@ devtools_entrypoint("bundle") {
   visibility = [
     ":*",
     "../:*",
+    "../../application/*",
   ]
 
   visibility += devtools_panels_visibility
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
   sources = [
+    "DirectSocketConnectionView.test.ts",
     "HeaderSectionRow.test.ts",
     "RequestHeaderSection.test.ts",
-    "RequestHeadersView.test.ts",
     "RequestTrustTokensView.test.ts",
     "ResponseHeaderSection.test.ts",
   ]

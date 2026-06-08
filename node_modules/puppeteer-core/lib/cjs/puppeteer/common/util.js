@@ -18,9 +18,9 @@ exports.fromAbortSignal = fromAbortSignal;
 exports.filterAsync = filterAsync;
 const rxjs_js_1 = require("../../third_party/rxjs/rxjs.js");
 const environment_js_1 = require("../environment.js");
-const version_js_1 = require("../generated/version.js");
 const assert_js_1 = require("../util/assert.js");
 const encoding_js_1 = require("../util/encoding.js");
+const version_js_1 = require("../util/version.js");
 const Debug_js_1 = require("./Debug.js");
 const Errors_js_1 = require("./Errors.js");
 const PDFOptions_js_1 = require("./PDFOptions.js");
@@ -205,25 +205,13 @@ async function getReadableAsTypedArray(readable, path) {
 /**
  * @internal
  */
-/**
- * @internal
- */
 async function getReadableFromProtocolStream(client, handle) {
     return new ReadableStream({
         async pull(controller) {
-            function getUnit8Array(data, isBase64) {
-                if (isBase64) {
-                    return Uint8Array.from(atob(data), m => {
-                        return m.codePointAt(0);
-                    });
-                }
-                const encoder = new TextEncoder();
-                return encoder.encode(data);
-            }
             const { data, base64Encoded, eof } = await client.send('IO.read', {
                 handle,
             });
-            controller.enqueue(getUnit8Array(data, base64Encoded ?? false));
+            controller.enqueue((0, encoding_js_1.stringToTypedArray)(data, base64Encoded ?? false));
             if (eof) {
                 await client.send('IO.close', { handle });
                 controller.close();
@@ -231,18 +219,18 @@ async function getReadableFromProtocolStream(client, handle) {
         },
     });
 }
+const VALID_DIALOG_TYPES = new Set([
+    'alert',
+    'confirm',
+    'prompt',
+    'beforeunload',
+]);
 /**
  * @internal
  */
 function validateDialogType(type) {
     let dialogType = null;
-    const validDialogTypes = new Set([
-        'alert',
-        'confirm',
-        'prompt',
-        'beforeunload',
-    ]);
-    if (validDialogTypes.has(type)) {
+    if (VALID_DIALOG_TYPES.has(type)) {
         dialogType = type;
     }
     (0, assert_js_1.assert)(dialogType, `Unknown javascript dialog type: ${type}`);

@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -16,14 +16,13 @@ generate_css("css_files") {
   ]
 }
 
-devtools_module("lighthouse") {
+devtools_ui_module("lighthouse") {
   sources = [
     "LighthouseController.ts",
     "LighthousePanel.ts",
     "LighthouseProtocolService.ts",
     "LighthouseReportRenderer.ts",
     "LighthouseReportSelector.ts",
-    "LighthouseReporterTypes.ts",
     "LighthouseStartView.ts",
     "LighthouseStatusView.ts",
     "LighthouseTimespanView.ts",
@@ -38,12 +37,22 @@ devtools_module("lighthouse") {
     "../../core/protocol_client:bundle",
     "../../core/root:bundle",
     "../../core/sdk:bundle",
+    "../../generated:protocol",
+    "../../models/emulation:bundle",
+    "../../models/geometry:bundle",
+    "../../models/lighthouse:bundle",
+    "../../models/text_utils:bundle",
     "../../models/trace:bundle",
     "../../models/workspace:bundle",
     "../../panels/emulation:bundle",
-    "../../third_party/lighthouse/report:report",
+    "../../third_party/lighthouse/report",
+    "../../ui/components/buttons:bundle",
     "../../ui/legacy:bundle",
     "../../ui/legacy/components/utils:bundle",
+    "../../ui/legacy/theme_support:bundle",
+    "../../ui/lit:bundle",
+    "../../ui/visual_logging:bundle",
+    "../common:bundle",
   ]
 }
 
@@ -59,6 +68,7 @@ devtools_entrypoint("bundle") {
   visibility = [
     ":*",
     "../../entrypoints/*",
+    "../../panels/ai_assistance/*",
   ]
 
   visibility += devtools_panels_visibility
@@ -76,7 +86,7 @@ devtools_entrypoint("meta") {
   visibility = [ "../../entrypoints/*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [
@@ -84,6 +94,10 @@ ts_library("unittests") {
     "LighthousePanel.test.ts",
     "LighthouseProtocolService.test.ts",
     "LighthouseReportRenderer.test.ts",
+    "LighthouseStartView.test.ts",
+    "LighthouseStatusView.test.ts",
+    "LighthouseTimespanView.test.ts",
+    "RadioSetting.test.ts",
   ]
 
   deps = [

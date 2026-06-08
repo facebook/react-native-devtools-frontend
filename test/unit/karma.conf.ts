@@ -1,28 +1,36 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-/* eslint @typescript-eslint/no-explicit-any: 0 */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import type {Page, ScreenshotOptions, Target} from 'puppeteer-core';
+import puppeteer from 'puppeteer-core';
 
-import {formatAsPatch, resultAssertionsDiff, ResultsDBReporter} from '../../test/conductor/karma-resultsdb-reporter.js';
+import {resultAssertionsDiff} from '../../test/conductor/diff-utils.js';
+import {formatAsPatch, ResultsDBReporter} from '../../test/conductor/karma-resultsdb-reporter.js';
 import {CHECKOUT_ROOT, GEN_DIR, SOURCE_ROOT} from '../../test/conductor/paths.js';
 import * as ResultsDb from '../../test/conductor/resultsdb.js';
 import {loadTests, TestConfig} from '../../test/conductor/test_config.js';
+import {ScreenshotError, ScreenshotErrorReporter} from '../conductor/screenshot-error.js';
 import {assertElementScreenshotUnchanged} from '../shared/screenshots.js';
 
-const puppeteer = require('puppeteer-core');
 const COVERAGE_OUTPUT_DIRECTORY = 'karma-coverage';
-const REMOTE_DEBUGGING_PORT = 7722;
 
-const tests = loadTests(path.join(GEN_DIR, 'front_end'));
+const tests = [
+  ...loadTests(path.join(GEN_DIR, 'front_end')),
+  ...loadTests(path.join(GEN_DIR, 'inspector_overlay')),
+];
 
 function* reporters() {
   if (ResultsDb.available()) {
     yield 'resultsdb';
+    yield 'spec';
   } else {
-    yield 'progress-diff';
+    yield 'screenshots';
+    yield TestConfig.verbose ? 'spec' : 'progress-diff';
   }
   if (TestConfig.coverage) {
     yield 'coverage';
@@ -35,13 +43,16 @@ interface BrowserWithArgs {
 }
 const CustomChrome = function(this: any, _baseBrowserDecorator: unknown, args: BrowserWithArgs, _config: unknown) {
   require('karma-chrome-launcher')['launcher:Chrome'][1].apply(this, arguments);
-  this._execCommand = async function(cmd: string, args: string[]) {
-    const url = args.pop();
+  this._execCommand = async function(_cmd: string, args: string[]) {
+    const url = args.pop()!;
     const browser = await puppeteer.launch({
-      headless: !TestConfig.debug || TestConfig.headless,
+      pipe: true,
+      headless: TestConfig.headless,
       executablePath: TestConfig.chromeBinary,
       defaultViewport: null,
       dumpio: true,
+      // We do not need to process network in unit tests.
+      networkEnabled: false,
       args,
       ignoreDefaultArgs: ['--hide-scrollbars'],
     });
@@ -53,34 +64,81 @@ const CustomChrome = function(this: any, _baseBrowserDecorator: unknown, args: B
 
     const page = await browser.newPage();
 
-    await page.exposeFunction('assertScreenshot', async (elementSelector: string, filename: string) => {
-      try {
-        const testFrame = page.frames()[1];
-        const element = await testFrame.waitForSelector(elementSelector);
+    async function setupBindings(page: Page) {
+      await page.exposeFunction(
+          'assertScreenshot',
+          async (
+              elementSelector: string,
+              filename: NonNullable<ScreenshotOptions['path']>,
+              ) => {
+            try {
+              // Karma sometimes runs tests in an iframe or in the main frame.
+              const testFrame = page.frames()[1] ?? page.mainFrame();
+              const element = await testFrame.waitForSelector(elementSelector);
 
-        await assertElementScreenshotUnchanged(element, filename, {
-          captureBeyondViewport: false,
-        });
-      } catch (err) {
-        return err.message;
+              await assertElementScreenshotUnchanged(element, filename, {
+                captureBeyondViewport: false,
+              });
+              return undefined;
+            } catch (error) {
+              if (error instanceof ScreenshotError) {
+                ScreenshotError.errors.push(error);
+              }
+              return `ScreenshotError: ${error.message}`;
+            }
+          });
+    }
+
+    async function disableAnimations(page: Page) {
+      const session = await page.createCDPSession();
+      await session.send('Animation.enable');
+      await session.send('Animation.setPlaybackRate', {playbackRate: 30_000});
+    }
+
+    await Promise.all([
+      setupBindings(page),
+      disableAnimations(page),
+    ]);
+
+    browser.on('targetcreated', async (target: Target) => {
+      if (target.type() === 'page') {
+        const page = await target.page();
+        if (!page) {
+          return;
+        }
+        await Promise.all([
+          setupBindings(page),
+          disableAnimations(page),
+        ]);
       }
     });
 
     await page.goto(url);
   };
   this._getOptions = function(url: string) {
+    const flagsDisabledWithDebugging = TestConfig.debug ? [] : [
+      // If the user has non 1 scale factor DevTools renders
+      // Small and makes it not useful for debugging
+      '--force-device-scale-factor=1',
+    ];
+
     return [
       '--remote-allow-origins=*',
-      `--remote-debugging-port=${REMOTE_DEBUGGING_PORT}`,
       '--use-mock-keychain',
-      '--disable-features=DialMediaRouteProvider',
+      '--disable-features=DialMediaRouteProvider,WebUIReloadButton',
       '--password-store=basic',
       '--disable-extensions',
       '--disable-gpu',
       '--disable-font-subpixel-positioning',
       '--disable-lcd-text',
-      '--force-device-scale-factor=1',
       '--disable-device-discovery-notifications',
+      '--window-size=1280,768',
+      '--enable-crash-reporter-for-testing',  // Works only on linux
+      `--crash-dumps-dir=${TestConfig.artifactsDir}`,
+      '--enable-logging',
+      '--v=1',
+      `--log-file=${path.join(TestConfig.artifactsDir, 'chrome-log.txt')}`,
+      ...flagsDisabledWithDebugging,
       ...args.flags,
       url,
     ];
@@ -107,13 +165,72 @@ const BaseProgressReporter =
 const ProgressWithDiffReporter = function(
     this: any, formatError: unknown, reportSlow: unknown, useColors: unknown, browserConsoleLogOptions: unknown) {
   BaseProgressReporter.call(this, formatError, reportSlow, useColors, browserConsoleLogOptions);
+
+  const seenTestIds = new Set<string>();
+  const duplicateTestIds: string[] = [];
+
+  const onSpecComplete = (result: any) => {
+    if (result.mocha?.hasExclusiveTests) {
+      this.hasExclusiveTests = true;
+    }
+    const testId = ResultsDb.sanitizedTestId([...result.suite, result.description].join('/'));
+    if (seenTestIds.has(testId)) {
+      duplicateTestIds.push(testId);
+    }
+    seenTestIds.add(testId);
+  };
+
   const baseSpecFailure = this.specFailure;
-  this.specFailure = function(this: any, browser: unknown, result: any) {
+  this.specFailure = function(this: any, _browser: unknown, result: any) {
+    onSpecComplete(result);
+    if (result.mocha?.hasExclusiveTests) {
+      this.hasExclusiveTests = true;
+    }
     baseSpecFailure.apply(this, arguments);
     const patch = formatAsPatch(resultAssertionsDiff(result));
     if (patch) {
       this.write(`\n${patch}\n\n`);
     }
+  };
+
+  const baseSpecSuccess = this.specSuccess;
+  this.specSuccess = function(this: any, _browser: unknown, result: any) {
+    onSpecComplete(result);
+    if (result.mocha?.hasExclusiveTests) {
+      this.hasExclusiveTests = true;
+    }
+    if (!TestConfig.isAiAgent) {
+      baseSpecSuccess.apply(this, arguments);
+    }
+  };
+
+  const baseSpecSkipped = this.specSkipped;
+  this.specSkipped = function(this: any, _browser: unknown, result: any) {
+    onSpecComplete(result);
+    if (result.mocha?.hasExclusiveTests) {
+      this.hasExclusiveTests = true;
+    }
+    if (baseSpecSkipped) {
+      baseSpecSkipped.apply(this, arguments);
+    }
+  };
+
+  const baseOnRunComplete = this.onRunComplete;
+  this.onRunComplete = function(this: any, browsers: any, _results: any) {
+    if (baseOnRunComplete) {
+      baseOnRunComplete.apply(this, arguments);
+    }
+
+    if (duplicateTestIds.length > 0) {
+      throw new Error(`duplicate test id(s): ${duplicateTestIds.join(', ')}`);
+    }
+
+    browsers.forEach((browser: any) => {
+      const {total, success, failed, skipped} = browser.lastResult;
+      if (total !== success + failed + skipped && !this.hasExclusiveTests) {
+        throw new Error(`Karma exited early: executed ${success + failed + skipped} out of ${total} tests`);
+      }
+    });
   };
 };
 ProgressWithDiffReporter.$inject =
@@ -132,11 +249,13 @@ module.exports = function(config: any) {
     basePath: CHECKOUT_ROOT,
     autoWatchBatchDelay: 1000,
 
+    customContextFile: path.join(GEN_DIR, 'test/unit/context.html'),
+    customDebugFile: path.join(GEN_DIR, 'test/unit/debug.html'),
+
     files: [
       // Global hooks in test_setup must go first
       {pattern: path.join(GEN_DIR, 'front_end', 'testing', 'test_setup.js'), type: 'module'},
       ...tests.map(pattern => ({pattern, type: 'module'})),
-      {pattern: path.join(GEN_DIR, 'front_end', 'testing', 'test_post_setup.js'), type: 'module'},
       ...tests.map(pattern => ({pattern: `${pattern}.map`, served: true, included: false, watched: true})),
       {pattern: path.join(GEN_DIR, 'front_end/Images/*.{svg,png}'), served: true, included: false},
       {pattern: path.join(GEN_DIR, 'front_end/core/i18n/locales/*.json'), served: true, included: false},
@@ -145,6 +264,8 @@ module.exports = function(config: any) {
       {pattern: path.join(GEN_DIR, 'front_end/**/*.css'), served: true, included: false},
       {pattern: path.join(GEN_DIR, 'front_end/**/*.js'), served: true, included: false},
       {pattern: path.join(GEN_DIR, 'front_end/**/*.js.map'), served: true, included: false, watched: true},
+      {pattern: path.join(GEN_DIR, 'front_end/**/*.json'), served: true, included: false},
+      {pattern: path.join(GEN_DIR, 'front_end/**/*.md'), served: true, included: false},
       {pattern: path.join(GEN_DIR, 'front_end/**/*.mjs'), served: true, included: false},
       {pattern: path.join(GEN_DIR, 'front_end/**/*.mjs.map'), served: true, included: false},
       {pattern: path.join(SOURCE_ROOT, 'front_end/**/*.ts'), served: true, included: false, watched: false},
@@ -152,6 +273,7 @@ module.exports = function(config: any) {
       {pattern: path.join(GEN_DIR, 'inspector_overlay/**/*.js'), served: true, included: false},
       {pattern: path.join(GEN_DIR, 'inspector_overlay/**/*.js.map'), served: true, included: false},
       {pattern: path.join(GEN_DIR, 'front_end/**/fixtures/**/*'), served: true, included: false},
+      {pattern: path.join(GEN_DIR, 'front_end/**/*.snapshot.txt'), served: true, included: false},
       {pattern: path.join(GEN_DIR, 'front_end/ui/components/docs/**/*'), served: true, included: false},
     ],
 
@@ -171,9 +293,9 @@ module.exports = function(config: any) {
       mocha: {
         ...TestConfig.mochaGrep,
         retries: TestConfig.retries,
-        timeout: 5_000,
+        timeout: TestConfig.debug ? 0 : 5_000,
+        expose: ['hasExclusiveTests'],
       },
-      remoteDebuggingPort: REMOTE_DEBUGGING_PORT,
     },
 
     plugins: [
@@ -186,7 +308,9 @@ module.exports = function(config: any) {
       require('karma-spec-reporter'),
       require('karma-coverage'),
       {'reporter:resultsdb': ['type', ResultsDBReporter]},
+      {'reporter:screenshots': ['type', ScreenshotErrorReporter]},
       {'reporter:progress-diff': ['type', ProgressWithDiffReporter]},
+      {'middleware:snapshotTester': ['factory', snapshotTesterFactory]},
     ],
 
     preprocessors: {
@@ -197,9 +321,10 @@ module.exports = function(config: any) {
     proxies: {
       '/Images': `/base/${targetDir}/front_end/Images`,
       '/locales': `/base/${targetDir}/front_end/core/i18n/locales`,
-      '/json': `http://localhost:${REMOTE_DEBUGGING_PORT}/json`,
       '/front_end': `/base/${targetDir}/front_end`,
     },
+
+    middleware: ['snapshotTester'],
 
     coverageReporter: {
       dir: path.join(TestConfig.artifactsDir, COVERAGE_OUTPUT_DIRECTORY),
@@ -213,7 +338,9 @@ module.exports = function(config: any) {
 
     singleRun: !TestConfig.debug,
 
-    pingTimeout: 4000,
+    pingTimeout: 15_000,
+    browserDisconnectTimeout: 15_000,
+    browserNoActivityTimeout: 60_000,
 
     mochaReporter: {
       showDiff: true,
@@ -223,3 +350,65 @@ module.exports = function(config: any) {
 
   config.set(options);
 };
+
+function snapshotTesterFactory() {
+  return (req: any, res: any, next: any) => {
+    if (req.url.startsWith('/snapshot-update-mode')) {
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      const updateMode = TestConfig.onDiff.update === true;
+      res.end(JSON.stringify({updateMode}));
+      return;
+    }
+
+    if (req.url.startsWith('/snapshot')) {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const snapshotPathParam = parsedUrl.searchParams.get('snapshotPath');
+      if (typeof snapshotPathParam !== 'string') {
+        throw new Error('invalid snapshotPath');
+      }
+
+      const snapshotPath = path.join(SOURCE_ROOT, snapshotPathParam);
+      if (!fs.existsSync(snapshotPath)) {
+        res.writeHead(404);
+        res.end();
+        return;
+      }
+
+      const snapshot = fs.readFileSync(snapshotPath, 'utf-8');
+      res.writeHead(200);
+      res.end(snapshot);
+      return;
+    }
+
+    if (req.url.startsWith('/update-snapshot')) {
+      const parsedUrl = new URL(req.url, 'http://localhost');
+      const snapshotPathParam = parsedUrl.searchParams.get('snapshotPath');
+      if (typeof snapshotPathParam !== 'string') {
+        throw new Error('invalid snapshotPath');
+      }
+
+      const snapshotPath = path.join(SOURCE_ROOT, snapshotPathParam);
+
+      let body = '';
+      req.on('data', (chunk: any) => {
+        body += chunk.toString();
+      });
+      req.on('end', () => {
+        // eslint-disable-next-line no-console
+        console.info(`updating snapshot: ${snapshotPath}`);
+        if (body) {
+          fs.writeFileSync(snapshotPath, body);
+        } else {
+          fs.rmSync(snapshotPath, {force: true});
+        }
+
+        res.writeHead(200);
+        res.end();
+      });
+
+      return;
+    }
+
+    next();
+  };
+}

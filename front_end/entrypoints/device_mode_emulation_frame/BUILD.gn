@@ -1,4 +1,4 @@
-# Copyright 2021 The Chromium Authors. All rights reserved.
+# Copyright 2021 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 import("../../../scripts/build/ninja/devtools_entrypoint.gni")
@@ -9,8 +9,8 @@ devtools_entrypoint("device_mode_emulation_frame") {
 
   deps = [
     "../../Images:optimize_images",
-    "../../core/dom_extension:bundle",
     "../../core/platform:bundle",
+    "../../ui/dom_extension:bundle",
   ]
 
   visibility = [ "../../../front_end" ]

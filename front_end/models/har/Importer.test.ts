@@ -1,12 +1,13 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import type * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
-import * as HAR from '../har/har.js';
 
-const exampleLog = new HAR.HARFormat.HARLog({
+import * as HAR from './har.js';
+
+const harPreamble = {
   version: '1.2',
   creator: {
     name: 'WebInspector',
@@ -23,6 +24,10 @@ const exampleLog = new HAR.HARFormat.HARLog({
     },
     comment: '',
   }],
+};
+
+const exampleLog = new HAR.HARFormat.HARLog({
+  ...harPreamble,
   entries: [
     {
       _connectionId: '1',
@@ -79,6 +84,12 @@ const exampleLog = new HAR.HARFormat.HARLog({
         ],
         headersSize: -1,
         bodySize: 109,
+        cookies: [
+          {
+            name: 'Foo',
+            value: 'bar',
+          },
+        ],
       },
       response: {
         status: 200,
@@ -90,6 +101,12 @@ const exampleLog = new HAR.HARFormat.HARLog({
           mimeType: 'application/json',
           text: 'console.log(\'hello world\');',
         },
+        cookies: [
+          {
+            name: 'MyAwesomeCookie',
+            value: 'Secret!',
+          },
+        ],
         redirectURL: '',
         headersSize: -1,
         bodySize: -1,
@@ -159,6 +176,12 @@ const exampleLog = new HAR.HARFormat.HARLog({
         ],
         headersSize: -1,
         bodySize: 109,
+        cookies: [
+          {
+            name: 'Foo',
+            value: 'bar',
+          },
+        ],
       },
       response: {
         status: 200,
@@ -170,6 +193,12 @@ const exampleLog = new HAR.HARFormat.HARLog({
           mimeType: 'text/plain',
           text: '<html>Hello, World!</html>',
         },
+        cookies: [
+          {
+            name: 'MyAwesomeCookie',
+            value: 'Secret!',
+          },
+        ],
         redirectURL: '',
         headersSize: -1,
         bodySize: -1,
@@ -309,5 +338,244 @@ describe('HAR Importer', () => {
     for (const request of requests) {
       assert.strictEqual(request.connectionId, '1');
     }
+  });
+
+  it('Parses the request cookies correctly', () => {
+    for (const request of requests) {
+      assert.lengthOf(request.includedRequestCookies(), 1);
+      assert.strictEqual(request.includedRequestCookies()[0].cookie.name(), 'Foo');
+      assert.strictEqual(request.includedRequestCookies()[0].cookie.value(), 'bar');
+    }
+  });
+
+  it('Parses the response cookies correctly', () => {
+    for (const request of requests) {
+      assert.lengthOf(request.responseCookies, 1);
+      assert.strictEqual(request.responseCookies[0].name(), 'MyAwesomeCookie');
+      assert.strictEqual(request.responseCookies[0].value(), 'Secret!');
+    }
+  });
+
+  it('Parses EventSource messages from HAR', () => {
+    const sseReq = {
+      _connectionId: '2',
+      _initiator: {
+        type: 'script',
+        stack: {
+          callframes: [
+            {
+              functionName: 'fetchEvents',
+              scriptId: '54',
+              url: 'https://example.com/event-script.js',
+              lineNumber: 5,
+              columnNumber: 10,
+            },
+          ],
+        },
+      },
+      _priority: 'High',
+      _resourceType: 'fetch',
+      cache: {},
+      connection: '6790',
+      request: {
+        method: 'GET',
+        url: 'https://example.com/events',
+        httpVersion: 'http/1.1',
+        headers: [],
+        queryString: [],
+        headersSize: -1,
+        bodySize: 0,
+        cookies: [],
+      },
+      response: {
+        status: 200,
+        statusText: 'OK',
+        httpVersion: 'http/1.1',
+        headers: [
+          {
+            name: 'Content-Type',
+            value: 'text/event-stream',
+          },
+        ],
+        content: {
+          size: 100,
+          mimeType: 'text/event-stream',
+          text: 'id: 1\n' +
+              'event: greeting\n' +
+              'data: Hello World!\n\n' +
+              'data: Another message\n' +
+              'id: 2\n' +
+              'event: update\n' +
+              'data: This is an update.\n\n' +
+              ': this is a comment\n' +
+              'id: 3\n' +
+              'data: Final message.\n' +
+              '\n',
+        },
+        cookies: [],
+        redirectURL: '',
+        headersSize: -1,
+        bodySize: -1,
+        _transferSize: 150,
+        _error: null,
+      },
+      serverIPAddress: '127.0.0.1',
+      startedDateTime: '2020-12-14T20:36:00.000Z',
+      time: 100,
+      timings: {
+        blocked: 0.1,
+        dns: -1,
+        ssl: -1,
+        connect: -1,
+        send: 0.1,
+        wait: 50,
+        receive: 49.8,
+        _blocked_queueing: 0.05,
+      },
+    };
+    const exampleLog = new HAR.HARFormat.HARLog({...harPreamble, entries: [sseReq]});
+    const requests = HAR.Importer.Importer.requestsFromHARLog(exampleLog);
+
+    assert.lengthOf(requests, 1);
+    const eventStreamRequest = requests[0];
+    assert.strictEqual(eventStreamRequest.mimeType, 'text/event-stream');
+
+    const messages = eventStreamRequest.eventSourceMessages();
+    assert.lengthOf(messages, 3);
+
+    const expected = [
+      {
+        data: 'Hello World!',
+        eventId: '1',
+        eventName: 'greeting',
+        time: 1607978160,
+      },
+      {
+        data: 'Another message\nThis is an update.',
+        eventId: '2',
+        eventName: 'update',
+        time: 1607978160,
+      },
+      {
+        data: 'Final message.',
+        eventId: '3',
+        eventName: 'message',
+        time: 1607978160,
+      }
+    ];
+    assert.deepEqual(messages, expected);
+  });
+
+  it('Parses multiple EventSource messages from HAR', () => {
+    const sseEntry = {
+      _initiator: {
+        type: 'script',
+        stack: {
+          callframes: [
+            {
+              functionName: 'subscribe',
+              scriptId: '412',
+              url: 'https://example.com/coworker.js',
+              lineNumber: 0,
+              columnNumber: 79005,
+            },
+          ],
+        },
+      },
+      _priority: 'High',
+      _resourceType: 'fetch',
+      cache: {},
+      connection: '443',
+      request: {
+        method: 'POST',
+        url: 'https://example.com/v1/subscribe',
+        httpVersion: 'http/2.0',
+        headers: [
+          {
+            name: 'accept',
+            value: 'text/event-stream',
+          },
+          {
+            name: 'content-type',
+            value: 'application/json',
+          },
+        ],
+        queryString: [],
+        cookies: [],
+        headersSize: -1,
+        bodySize: 242,
+      },
+      response: {
+        status: 200,
+        statusText: 'OK',
+        httpVersion: 'http/2.0',
+        headers: [
+          {
+            name: 'content-type',
+            value: 'text/event-stream; charset=utf-8',
+          },
+        ],
+        cookies: [],
+        content: {
+          size: 220,
+          mimeType: 'text/event-stream',
+        },
+        redirectURL: '',
+        headersSize: -1,
+        bodySize: -1,
+        _transferSize: 389,
+        _error: 'net::ERR_ABORTED',
+      },
+      serverIPAddress: '172.212.241.38',
+      startedDateTime: '2026-03-12T21:53:10.360Z',
+      time: 5968.845000024885,
+      timings: {
+        blocked: 167.93600008004904,
+        dns: -1,
+        ssl: -1,
+        connect: -1,
+        send: 0.23700000000000002,
+        wait: 59.53399990358949,
+        receive: 5741.138000041246,
+        _blocked_queueing: 167.72700008004904,
+      },
+      _connectionId: '3435',
+      _eventSourceMessages: [
+        {
+          time: 1773352390.598671,
+          eventName: 'session',
+          eventId: '',
+          data: '{"sid":"11111111-2222-3333-4444-555555555555","tenant":"66666666-7777-8888-9999-000000000000"}',
+        },
+        {
+          time: 1773352391.102345,
+          eventName: 'message',
+          eventId: '2',
+          data: '{"role":"assistant","content":"hello"}',
+        },
+      ],
+    };
+
+    const exampleLog = new HAR.HARFormat.HARLog({
+      version: '1.2',
+      creator: {
+        name: 'WebInspector',
+        version: '537.36',
+      },
+      pages: [],
+      entries: [sseEntry],
+    });
+
+    const parsedRequests = HAR.Importer.Importer.requestsFromHARLog(exampleLog);
+    assert.lengthOf(parsedRequests, 1);
+
+    const parsedRequest = parsedRequests[0];
+    assert.strictEqual(parsedRequest.mimeType, 'text/event-stream');
+    const messages = parsedRequest.eventSourceMessages();
+    assert.lengthOf(messages, 2);
+    assert.strictEqual(messages[0].eventName, 'session');
+    assert.strictEqual(messages[0].eventId, '');
+    assert.strictEqual(messages[1].eventName, 'message');
+    assert.strictEqual(messages[1].eventId, '2');
   });
 });

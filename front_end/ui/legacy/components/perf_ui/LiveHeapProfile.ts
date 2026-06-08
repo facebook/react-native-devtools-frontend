@@ -1,10 +1,11 @@
-// Copyright 2019 The Chromium Authors. All rights reserved.
+// Copyright 2019 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../../../core/common/common.js';
 import * as Host from '../../../../core/host/host.js';
 import * as SDK from '../../../../core/sdk/sdk.js';
+import type * as Protocol from '../../../../generated/protocol.js';
 
 import {Memory} from './LineLevelProfile.js';
 
@@ -64,15 +65,23 @@ export class LiveHeapProfile implements Common.Runnable.Runnable,
       if (sessionId !== this.sessionId) {
         break;
       }
-      Memory.instance().reset();
+
+      const profilesAndTargets: Array<{
+        profile: Protocol.HeapProfiler.SamplingHeapProfile,
+        target: SDK.Target.Target,
+      }> = [];
       for (let i = 0; i < profiles.length; ++i) {
         const profile = profiles[i];
         if (!profile) {
           continue;
         }
 
-        Memory.instance().appendHeapProfile(profile, models[i].target());
+        const target = models[i].target();
+        profilesAndTargets.push({profile, target});
       }
+
+      Memory.instance().initialize(profilesAndTargets);
+
       await Promise.race([
         new Promise(r => window.setTimeout(r, Host.InspectorFrontendHost.isUnderTest() ? 10 : 5000)),
         new Promise(r => {

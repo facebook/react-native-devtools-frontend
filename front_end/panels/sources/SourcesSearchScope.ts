@@ -1,32 +1,6 @@
-/*
- * Copyright (C) 2011 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2011 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
 import * as Platform from '../../core/platform/platform.js';
@@ -98,6 +72,8 @@ export class SourcesSearchScope implements Search.SearchScope.SearchScope {
   private projects(): Workspace.Workspace.Project[] {
     const searchInAnonymousAndContentScripts =
         Common.Settings.Settings.instance().moduleSetting('search-in-anonymous-and-content-scripts').get();
+    const localOverridesEnabled =
+        Common.Settings.Settings.instance().moduleSetting('persistence-network-overrides-enabled').get();
 
     return Workspace.Workspace.WorkspaceImpl.instance().projects().filter(project => {
       if (project.type() === Workspace.Workspace.projectTypes.Service) {
@@ -108,6 +84,10 @@ export class SourcesSearchScope implements Search.SearchScope.SearchScope {
         return false;
       }
       if (!searchInAnonymousAndContentScripts && project.type() === Workspace.Workspace.projectTypes.ContentScripts) {
+        return false;
+      }
+      if (!localOverridesEnabled && project.type() === Workspace.Workspace.projectTypes.FileSystem &&
+          Persistence.FileSystemWorkspaceBinding.FileSystemWorkspaceBinding.fileSystemType(project) === 'overrides') {
         return false;
       }
       return true;
@@ -152,12 +132,12 @@ export class SourcesSearchScope implements Search.SearchScope.SearchScope {
       if (!uiSourceCode.contentType().isTextType()) {
         continue;
       }
-      if (Bindings.IgnoreListManager.IgnoreListManager.instance().isUserOrSourceMapIgnoreListedUISourceCode(
+      if (Workspace.IgnoreListManager.IgnoreListManager.instance().isUserOrSourceMapIgnoreListedUISourceCode(
               uiSourceCode)) {
         continue;
       }
       const binding = Persistence.Persistence.PersistenceImpl.instance().binding(uiSourceCode);
-      if (binding && binding.network === uiSourceCode) {
+      if (binding?.network === uiSourceCode) {
         continue;
       }
       if (dirtyOnly && !uiSourceCode.isDirty()) {
@@ -210,12 +190,12 @@ export class SourcesSearchScope implements Search.SearchScope.SearchScope {
 
     const files = this.searchResultCandidates;
     if (!files.length) {
-      progress.done();
+      progress.done = true;
       callback();
       return;
     }
 
-    progress.setTotalWork(files.length);
+    progress.totalWork = files.length;
 
     let fileIndex = 0;
     const maxFileContentRequests = 20;
@@ -239,7 +219,7 @@ export class SourcesSearchScope implements Search.SearchScope.SearchScope {
     function scheduleSearchInNextFileOrFinish(this: SourcesSearchScope): void {
       if (fileIndex >= files.length) {
         if (!callbacksLeft) {
-          progress.done();
+          progress.done = true;
           callback();
           return;
         }
@@ -254,7 +234,7 @@ export class SourcesSearchScope implements Search.SearchScope.SearchScope {
     function contentLoaded(
         this: SourcesSearchScope, uiSourceCode: Workspace.UISourceCode.UISourceCode,
         content: TextUtils.Text.Text): void {
-      progress.incrementWorked(1);
+      ++progress.worked;
       let matches: TextUtils.ContentProvider.SearchMatch[] = [];
       const searchConfig = (this.searchConfig as Workspace.SearchConfig.SearchConfig);
       const queries = searchConfig.queries();

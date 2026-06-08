@@ -1,10 +1,12 @@
 Name: rxjs
 Short Name: rxjs
 URL: https://github.com/ReactiveX/rxjs
+Version: 7.8.2
 License: Apache-2.0
 License File: LICENSE
 Security Critical: no
 Shipped: yes
+Update Mechanism: Autoroll
 
 Description: rxjs is a transitive dependency of Puppeteer, shipped as part of
 Puppeteer. The license is also included in the source files in

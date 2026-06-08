@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 The Chromium Authors. All rights reserved.
+ * Copyright 2016 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -129,7 +129,7 @@ ol.tree-outline {
   margin-top: var(--sys-size-6);
   line-height: var(--sys-size-8);
 
-  &:hover:not(:has(dt-checkbox)) .selection {
+  &:hover:not(:has(devtools-checkbox)) .selection {
     background-color: transparent;
   }
 }

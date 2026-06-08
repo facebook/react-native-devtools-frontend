@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 The Chromium Authors. All rights reserved.
+ * Copyright 2023 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -21,7 +21,6 @@
 }
 
 :host,
-devtools-recording-view,
 devtools-create-recording-view {
   display: flex;
   flex-direction: column;
@@ -43,6 +42,7 @@ devtools-create-recording-view {
   border-bottom: 1px solid var(--sys-color-divider);
   padding: 0 5px;
   gap: 3px;
+  flex-shrink: 0;
 }
 
 .separator {
@@ -129,17 +129,17 @@ devtools-recording-list-view {
   margin-right: 4px;
 }
 
-.feedback .x-link {
+.feedback .devtools-link {
   letter-spacing: 0.03em;
   text-decoration-line: underline;
-  font-size: 9px;
+  font-size: var(--sys-typescale-body4-size);
   line-height: 16px;
-  color: var(--sys-color-on-surface-subtle);
+  color: var(--sys-color-primary);
   outline-offset: 3px;
 }
 
-.feedback .x-link:focus-visible,
-.empty-state-description .x-link:focus-visible {
+.feedback .devtools-link:focus-visible,
+.empty-state-description .devtools-link:focus-visible {
   outline: -webkit-focus-ring-color auto 1px;
 }
 
@@ -167,7 +167,7 @@ devtools-recording-list-view {
     font: var(--sys-typescale-body4-regular);
     color: var(--sys-color-on-surface-subtle);
 
-    > x-link {
+    > devtools-link {
       white-space: nowrap;
       margin-left: var(--sys-size-3);
       cursor: pointer;

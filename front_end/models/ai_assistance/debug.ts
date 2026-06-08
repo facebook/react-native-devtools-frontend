@@ -1,13 +1,17 @@
-// Copyright 2025 The Chromium Authors. All rights reserved.
+// Copyright 2025 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
- * @fileoverview Local debugging utilities.
+ * @file Local debugging utilities.
  */
 
 export function isDebugMode(): boolean {
   return Boolean(localStorage.getItem('debugAiAssistancePanelEnabled'));
+}
+
+export function isStructuredLogEnabled(): boolean {
+  return Boolean(localStorage.getItem('aiAssistanceStructuredLogEnabled'));
 }
 
 export function debugLog(...log: unknown[]): void {
@@ -25,6 +29,17 @@ function setDebugAiAssistanceEnabled(enabled: boolean): void {
   } else {
     localStorage.removeItem('debugAiAssistancePanelEnabled');
   }
+  setAiAssistanceStructuredLogEnabled(enabled);
 }
 // @ts-expect-error
 globalThis.setDebugAiAssistanceEnabled = setDebugAiAssistanceEnabled;
+
+function setAiAssistanceStructuredLogEnabled(enabled: boolean): void {
+  if (enabled) {
+    localStorage.setItem('aiAssistanceStructuredLogEnabled', 'true');
+  } else {
+    localStorage.removeItem('aiAssistanceStructuredLogEnabled');
+  }
+}
+// @ts-expect-error
+globalThis.setAiAssistanceStructuredLogEnabled = setAiAssistanceStructuredLogEnabled;

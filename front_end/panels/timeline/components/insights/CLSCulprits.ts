@@ -1,52 +1,41 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as i18n from '../../../../core/i18n/i18n.js';
+import type * as Platform from '../../../../core/platform/platform.js';
 import type {CLSCulpritsInsightModel} from '../../../../models/trace/insights/CLSCulprits.js';
 import * as Trace from '../../../../models/trace/trace.js';
 import * as Lit from '../../../../ui/lit/lit.js';
-import type * as Overlays from '../../overlays/overlays.js';
 
 import {BaseInsightComponent} from './BaseInsightComponent.js';
 import {EventReferenceClick} from './EventRef.js';
+import {nodeLink} from './NodeLink.js';
 
 const {UIStrings, i18nString} = Trace.Insights.Models.CLSCulprits;
 
 const {html} = Lit;
 
 export class CLSCulprits extends BaseInsightComponent<CLSCulpritsInsightModel> {
-  static override readonly litTagName = Lit.StaticHtml.literal`devtools-performance-cls-culprits`;
   override internalName = 'cls-culprits';
 
-  override createOverlays(): Overlays.Overlays.TimelineOverlay[] {
-    const clustersByScore =
-        this.model?.clusters.toSorted((a, b) => b.clusterCumulativeScore - a.clusterCumulativeScore) ?? [];
-    const worstCluster = clustersByScore[0];
-    if (!worstCluster) {
+  protected override hasAskAiSupport(): boolean {
+    return true;
+  }
+
+  override createOverlays(): Trace.Types.Overlays.Overlay[] {
+    if (!this.model) {
       return [];
     }
 
-    const range = Trace.Types.Timing.Micro(worstCluster.dur ?? 0);
-    const max = Trace.Types.Timing.Micro(worstCluster.ts + range);
-
-    const label = html`<div>${i18nString(UIStrings.worstLayoutShiftCluster)}</div>`;
-    return [{
-      type: 'TIMESPAN_BREAKDOWN',
-      sections: [
-        {bounds: {min: worstCluster.ts, range, max}, label, showDuration: false},
-      ],
-      // This allows for the overlay to sit over the layout shift.
-      entry: worstCluster.events[0],
-      renderLocation: 'ABOVE_EVENT',
-    }];
+    return this.model.createOverlays?.() ?? [];
   }
 
   #clickEvent(event: Trace.Types.Events.Event): void {
-    this.dispatchEvent(new EventReferenceClick(event));
+    this.element.dispatchEvent(new EventReferenceClick(event));
   }
 
-  #renderCulpritsSection(culprits: string[]): Lit.LitTemplate {
+  #renderCulpritsSection(culprits: Trace.Insights.Models.CLSCulprits.LayoutShiftItem[]): Lit.LitTemplate {
     if (culprits.length === 0) {
       return html`<div class="insight-section">${i18nString(UIStrings.noCulprits)}</div>`;
     }
@@ -57,9 +46,19 @@ export class CLSCulprits extends BaseInsightComponent<CLSCulpritsInsightModel> {
         <p class="list-title">${i18nString(UIStrings.topCulprits)}:</p>
         <ul class="worst-culprits">
           ${culprits.map(culprit => {
-            return html `
-              <li>${culprit}</li>
-            `;
+            if (culprit.type === Trace.Insights.Models.CLSCulprits.LayoutShiftType.UNSIZED_IMAGE) {
+              return html`
+                <li>
+                  ${culprit.description}
+                  ${nodeLink({
+                    backendNodeId: culprit.backendNodeId,
+                    frame: culprit.frame,
+                    fallbackUrl: culprit.url as Platform.DevToolsPath.UrlString,
+                  })}
+                </li>`;
+            }
+
+            return html `<li>${culprit.description}</li>`;
           })}
         </ul>
       </div>`;
@@ -91,11 +90,3 @@ export class CLSCulprits extends BaseInsightComponent<CLSCulpritsInsightModel> {
     // clang-format on
   }
 }
-
-declare global {
-  interface HTMLElementTagNameMap {
-    'devtools-performance-cls-culprits': CLSCulprits;
-  }
-}
-
-customElements.define('devtools-performance-cls-culprits', CLSCulprits);

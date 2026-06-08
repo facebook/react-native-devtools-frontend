@@ -1,30 +1,25 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import * as fs from 'fs';
 import * as Mocha from 'mocha';
-import * as path from 'path';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
+import * as DiffUtils from '../conductor/diff-utils.js';
 import * as ResultsDb from '../conductor/resultsdb.js';
 import {
   ScreenshotError,
 } from '../conductor/screenshot-error.js';
+import {TestConfig} from '../conductor/test_config.js';
 
 const {
+  EVENT_RUN_END,
   EVENT_TEST_FAIL,
   EVENT_TEST_PASS,
   EVENT_TEST_RETRY,
   EVENT_TEST_PENDING,
 } = Mocha.Runner.constants;
-
-function sanitize(message: string): string {
-  return message.replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll('\'', '&#39;');
-}
 
 function getErrorMessage(error: Error|unknown): string {
   if (error instanceof Error) {
@@ -34,11 +29,11 @@ function getErrorMessage(error: Error|unknown): string {
       // to read the `message` property.
       const cause = error.cause as {message?: string};
       const causeMessage = cause.message || '';
-      return sanitize(`${error.message}\n${causeMessage}`);
+      return `${error.message}\n${causeMessage}`;
     }
-    return sanitize(error.stack ?? error.message);
+    return error.stack ?? error.message;
   }
-  return sanitize(`${error}`);
+  return `${error}`;
 }
 
 interface TestRetry {
@@ -46,16 +41,11 @@ interface TestRetry {
 }
 
 interface HookWithParent {
-  parent: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    [key: string]: any,
-  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  parent: Record<string, any>;
 }
 
-class ResultsDbReporter extends Mocha.reporters.Spec {
-  // The max length of the summary is 4000, but we need to leave some room for
-  // the rest of the HTML formatting (e.g. <pre> and </pre>).
-  static readonly SUMMARY_LENGTH_CUTOFF = 3985;
+class ResultsDbReporter extends (TestConfig.isAiAgent ? Mocha.reporters.Base : Mocha.reporters.Spec) {
   private suitePrefix?: string;
   htmlResult: fs.WriteStream|undefined;
 
@@ -66,7 +56,7 @@ class ResultsDbReporter extends Mocha.reporters.Spec {
 
   constructor(runner: Mocha.Runner, options?: Mocha.MochaOptions) {
     super(runner, options);
-    // `reportOptions` doesn't work with .mocharc.js (configurig via exports).
+    // `reportOptions` doesn't work with .mocharc.js (configuring via exports).
     // BUT, every module.exports is forwarded onto the options object.
     this.suitePrefix = (options as {suiteName: string} | undefined)?.suiteName;
 
@@ -80,12 +70,22 @@ class ResultsDbReporter extends Mocha.reporters.Spec {
     runner.on(EVENT_TEST_FAIL, this.onTestFail.bind(this));
     runner.on(EVENT_TEST_RETRY, this.onTestFail.bind(this));
     runner.on(EVENT_TEST_PENDING, this.onTestSkip.bind(this));
+
+    if (TestConfig.isAiAgent) {
+      // Base doesn't report anything so we just report the final result.
+      runner.once(EVENT_RUN_END, this.epilogue.bind(this));
+    }
   }
 
   private onTestPass(test: Mocha.Test) {
     const testResult = this.buildDefaultTestResultFrom(test);
     testResult.status = 'PASS';
     testResult.expected = true;
+    // @ts-expect-error state exists on non-hosted conductor tests.
+    const devToolsPage = test.parent?.state?.devToolsPage;
+    if (devToolsPage) {
+      testResult.artifacts = ScreenshotError.saveArtifacts(devToolsPage.screenshotLog);
+    }
     ResultsDb.sendTestResult(testResult);
   }
 
@@ -94,19 +94,24 @@ class ResultsDbReporter extends Mocha.reporters.Spec {
     testResult.status = 'FAIL';
     testResult.expected = false;
     if (error instanceof ScreenshotError) {
-      [testResult.artifacts, testResult.summaryHtml] = error.toMiloArtifacts();
+      testResult.artifacts = error.screenshots;
+      testResult.summaryHtml = error.toMiloSummary();
+      if (error.screenshotPath) {
+        testResult.tags?.push({key: 'screenshot_path', value: error.screenshotPath});
+      }
     } else {
-      testResult.summaryHtml = `<pre>${getErrorMessage(error).slice(0, ResultsDbReporter.SUMMARY_LENGTH_CUTOFF)}</pre>`;
+      const errorMessage = getErrorMessage(error);
+      const assertionDiff = DiffUtils.resultAssertionsDiff([error]);
+      const diffText = DiffUtils.formatDiffText(assertionDiff);
+      testResult.summaryHtml = DiffUtils.formatSummary(errorMessage, diffText);
     }
     if (this.htmlResult) {
       this.htmlResult.write(testResult.summaryHtml);
-      if (testResult.artifacts) {
-        for (const screenshot in testResult.artifacts) {
-          this.htmlResult.write(`<details><summary>${screenshot} screenshot:</summary><p><img src="${
-              testResult.artifacts[screenshot].filePath}"></img></p></details>`);
+      if (error instanceof ScreenshotError) {
+        for (const artifactId in error.screenshots) {
+          this.htmlResult.write(`<br>${artifactId}<br><img src="${error.screenshots[artifactId].filePath}">`);
         }
       }
-      this.htmlResult.write('<hr>');
     }
     ResultsDb.sendTestResult(testResult);
   }

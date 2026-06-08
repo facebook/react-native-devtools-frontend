@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,7 +11,7 @@ generate_css("css_files") {
   sources = [ "cookiesTable.css" ]
 }
 
-devtools_module("cookie_table") {
+devtools_ui_module("cookie_table") {
   sources = [ "CookiesTable.ts" ]
 
   deps = [
@@ -25,6 +25,8 @@ devtools_module("cookie_table") {
     "../../../../panels/network/forward:bundle",
     "../../../../ui/legacy:bundle",
     "../../../../ui/legacy/components/data_grid:bundle",
+    "../../../kit:bundle",
+    "../../../lit:bundle",
   ]
 }
 
@@ -37,6 +39,9 @@ devtools_entrypoint("bundle") {
   ]
 
   visibility = [
+    # IMPORTANT: Be careful when extending visibility of front_end/ui/legacy/*,
+    # as the UI modules should only be used to actually build user interfaces,
+    # and the business logic should never depend on the UI modules.
     ":*",
     "../../../../panels/application/*",
     "../../../../panels/network/*",

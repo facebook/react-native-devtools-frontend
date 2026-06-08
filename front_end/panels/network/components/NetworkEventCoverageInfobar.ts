@@ -13,7 +13,7 @@ import * as VisualLogging from '../../../ui/visual_logging/visual_logging.js';
 import networkEventCoverageInfobarStylesRaw from './NetworkEventCoverageInfobar.css.js';
 
 const networkEventCoverageInfobarStyles = new CSSStyleSheet();
-networkEventCoverageInfobarStyles.replaceSync(networkEventCoverageInfobarStylesRaw.cssText);
+networkEventCoverageInfobarStyles.replaceSync(networkEventCoverageInfobarStylesRaw);
 
 const {html} = Lit;
 

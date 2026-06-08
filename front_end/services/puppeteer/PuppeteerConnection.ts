@@ -1,83 +1,87 @@
-// Copyright (c) 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as SDK from '../../core/sdk/sdk.js';
+import type * as ProtocolClient from '../../core/protocol_client/protocol_client.js';
+import type {ProtocolMapping} from '../../generated/protocol-mapping.js';
 import type * as Protocol from '../../generated/protocol.js';
 import * as puppeteer from '../../third_party/puppeteer/puppeteer.js';
 
-class Transport implements puppeteer.ConnectionTransport {
-  #connection: SDK.Connections.ParallelConnectionInterface;
+/**
+ * This class serves as a puppeteer.Connection while sending/receiving CDP messages
+ * over DevTools' own SessionRouter.
+ *
+ * The only oddity is that we attached to a concrete target with a sessionId but make
+ * it look to puppeteer like it's the default session (no session ID).
+ *
+ * Since we see all CDPEvents, we filter out the ones whose session we don't know about.
+ */
+class PuppeteerConnectionAdapter extends puppeteer.Connection implements
+    ProtocolClient.CDPConnection.CDPConnectionObserver {
+  readonly #connection: ProtocolClient.CDPConnection.CDPConnection;
+  readonly #sessionId: Protocol.Target.SessionID;
 
-  constructor(connection: SDK.Connections.ParallelConnectionInterface) {
+  constructor(connection: ProtocolClient.CDPConnection.CDPConnection, sessionId: Protocol.Target.SessionID) {
+    // url is an empty string in this case parallel to:
+    // https://github.com/puppeteer/puppeteer/blob/f63a123ecef86693e6457b07437a96f108f3e3c5/src/common/BrowserConnector.ts#L72
+    // Pass a 'null' transport, it should never actually be used, otherwise we do something wrong overwriting connection.
+    super('', {close: () => undefined} as puppeteer.ConnectionTransport);
     this.#connection = connection;
+    this.#connection.observe(this);
+    this.#sessionId = sessionId;
   }
 
-  send(data: string): void {
-    this.#connection.sendRawMessage(data);
+  // eslint-disable-next-line @devtools/no-underscored-properties
+  override _rawSend(
+      _callbacks: unknown, method: string|number|symbol, params: unknown, sessionId?: string,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      _options?: unknown): Promise<any> {
+    return this.#connection
+        .send(
+            method as ProtocolClient.CDPConnection.Command,
+            params as ProtocolClient.CDPConnection.CommandParams<ProtocolClient.CDPConnection.Command>,
+            sessionId ?? this.#sessionId)
+        .then(response => 'result' in response ? response.result : {});
   }
 
-  close(): void {
-    void this.#connection.disconnect();
-  }
-
-  set onmessage(cb: (message: string) => void) {
-    this.#connection.setOnMessage((message: unknown) => {
-      const data = (message) as {id: number, method: string, params: unknown, sessionId?: string};
-      if (!data.sessionId) {
-        return;
-      }
-
-      return cb(JSON.stringify({
-        ...data,
-        // Puppeteer is expecting to use the default session, but we give it a non-default session in #connection.
-        // Replace that sessionId with undefined so Puppeteer treats it as default.
-        sessionId: data.sessionId === this.#connection.getSessionId() ? undefined : data.sessionId,
-      }));
-    });
-  }
-
-  set onclose(cb: () => void) {
-    const prev = this.#connection.getOnDisconnect();
-    this.#connection.setOnDisconnect(reason => {
-      if (prev) {
-        prev(reason);
-      }
-      if (cb) {
-        cb();
-      }
-    });
-  }
-}
-
-class PuppeteerConnection extends puppeteer.Connection {
-  override async onMessage(message: string): Promise<void> {
-    const msgObj = JSON.parse(message) as {id: number, method: string, params: unknown, sessionId?: string};
-    if (msgObj.sessionId && !this._sessions.has(msgObj.sessionId)) {
+  onEvent<T extends keyof ProtocolMapping.Events>(event: ProtocolClient.CDPConnection.CDPEvent<T>): void {
+    const {sessionId} = event;
+    if (sessionId === this.#sessionId) {
+      // Puppeteer is expecting to use the default session, but we give it a non-default session in #connection.
+      // Replace that sessionId with undefined so Puppeteer treats it as default.
+      event.sessionId = undefined;
+    } else if (!sessionId || !this._sessions.has(sessionId)) {
+      // Ignore the root session, or sessions puppeteer doesn't know about.
       return;
     }
-    void super.onMessage(message);
+
+    void super.onMessage(JSON.stringify(event));
+  }
+
+  onDisconnect(): void {
+    this.dispose();
+  }
+
+  override dispose(): void {
+    super.dispose();
+    this.#connection.unobserve(this);
+    void this.#connection.send('Target.detachFromTarget', {sessionId: this.#sessionId}, this.#sessionId);
   }
 }
 
 export class PuppeteerConnectionHelper {
   static async connectPuppeteerToConnectionViaTab(options: {
-    connection: SDK.Connections.ParallelConnectionInterface,
-    rootTargetId: string,
+    connection: ProtocolClient.CDPConnection.CDPConnection,
+    targetId: Protocol.Target.TargetID,
+    sessionId: Protocol.Target.SessionID,
     isPageTargetCallback: (targetInfo: Protocol.Target.TargetInfo) => boolean,
   }): Promise<{
     page: puppeteer.Page | null,
     browser: puppeteer.Browser,
     puppeteerConnection: puppeteer.Connection,
   }> {
-    const {connection, rootTargetId, isPageTargetCallback} = options;
-    // Pass an empty message handler because it will be overwritten by puppeteer anyways.
-    const transport = new Transport(connection);
-
-    // url is an empty string in this case parallel to:
-    // https://github.com/puppeteer/puppeteer/blob/f63a123ecef86693e6457b07437a96f108f3e3c5/src/common/BrowserConnector.ts#L72
-    const puppeteerConnection = new PuppeteerConnection('', transport);
-
+    const {connection, targetId, sessionId, isPageTargetCallback} = options;
+    const puppeteerConnection = new PuppeteerConnectionAdapter(connection, sessionId);
     const browserPromise = puppeteer.Browser._create(
         puppeteerConnection,
         [] /* contextIds */,
@@ -87,12 +91,12 @@ export class PuppeteerConnectionHelper {
         undefined /* process */,
         undefined /* closeCallback */,
         undefined /* targetFilterCallback */,
-        target => isPageTargetCallback((target as puppeteer.Target)._getTargetInfo()),
+        target => isPageTargetCallback((target as puppeteer.Target)._getTargetInfo() as Protocol.Target.TargetInfo),
         false /* waitForInitiallyDiscoveredTargets */,
     );
 
     const [, browser] = await Promise.all([
-      puppeteerConnection._createSession({targetId: rootTargetId}, /* emulateAutoAttach= */ true),
+      puppeteerConnection._createSession({targetId}, /* emulateAutoAttach= */ true),
       browserPromise,
     ]);
 

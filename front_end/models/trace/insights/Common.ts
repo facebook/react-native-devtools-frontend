@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,38 +12,27 @@ import * as Types from '../types/types.js';
 import {getLogNormalScore} from './Statistics.js';
 import {
   InsightKeys,
+  type InsightModel,
   type InsightModels,
   type InsightSet,
   type InsightSetContext,
   type MetricSavings,
-  type TraceInsightSets
 } from './types.js';
 
 const GRAPH_SAVINGS_PRECISION = 50;
 
 export function getInsight<InsightName extends keyof InsightModels>(
-    insightName: InsightName, insights: TraceInsightSets|null, key: string|null): InsightModels[InsightName]|null {
-  if (!insights || !key) {
-    return null;
-  }
-
-  const insightSets = insights.get(key);
-  if (!insightSets) {
-    return null;
-  }
-
-  const insight = insightSets.model[insightName];
-  if (insight instanceof Error) {
-    return null;
-  }
-
-  // For some reason typescript won't narrow the type by removing Error, so do it manually.
-  return insight;
+    insightName: InsightName, insightSet: InsightSet): InsightModels[InsightName] {
+  return insightSet.model[insightName];
 }
 
-export function getLCP(insights: TraceInsightSets|null, key: string|null):
-    {value: Types.Timing.Micro, event: Types.Events.LargestContentfulPaintCandidate}|null {
-  const insight = getInsight(InsightKeys.LCP_PHASES, insights, key);
+export function isInsightKey(key: string): key is InsightKeys {
+  return Object.values(InsightKeys).includes(key as InsightKeys);
+}
+
+export function getLCP(insightSet: InsightSet):
+    {value: Types.Timing.Micro, event: Types.Events.AnyLargestContentfulPaintCandidate}|null {
+  const insight = getInsight(InsightKeys.LCP_BREAKDOWN, insightSet);
   if (!insight || !insight.lcpMs || !insight.lcpEvent) {
     return null;
   }
@@ -52,9 +41,9 @@ export function getLCP(insights: TraceInsightSets|null, key: string|null):
   return {value, event: insight.lcpEvent};
 }
 
-export function getINP(insights: TraceInsightSets|null, key: string|null):
+export function getINP(insightSet: InsightSet):
     {value: Types.Timing.Micro, event: Types.Events.SyntheticInteractionPair}|null {
-  const insight = getInsight(InsightKeys.INTERACTION_TO_NEXT_PAINT, insights, key);
+  const insight = getInsight(InsightKeys.INP_BREAKDOWN, insightSet);
   if (!insight?.longestInteractionEvent?.dur) {
     return null;
   }
@@ -63,9 +52,8 @@ export function getINP(insights: TraceInsightSets|null, key: string|null):
   return {value, event: insight.longestInteractionEvent};
 }
 
-export function getCLS(
-    insights: TraceInsightSets|null, key: string|null): {value: number, worstClusterEvent: Types.Events.Event|null} {
-  const insight = getInsight(InsightKeys.CLS_CULPRITS, insights, key);
+export function getCLS(insightSet: InsightSet): {value: number, worstClusterEvent: Types.Events.Event|null} {
+  const insight = getInsight(InsightKeys.CLS_CULPRITS, insightSet);
   if (!insight) {
     // Unlike the other metrics, there is always a value for CLS even with no data.
     return {value: 0, worstClusterEvent: null};
@@ -109,7 +97,7 @@ export interface CrUXFieldMetricResults {
   lcp: CrUXFieldMetricTimingResult|null;
   inp: CrUXFieldMetricTimingResult|null;
   cls: CrUXFieldMetricNumberResult|null;
-  lcpPhases: {
+  lcpBreakdown: {
     ttfb: CrUXFieldMetricTimingResult|null,
     loadDelay: CrUXFieldMetricTimingResult|null,
     loadDuration: CrUXFieldMetricTimingResult|null,
@@ -182,7 +170,7 @@ export function getFieldMetricsForInsightSet(
     lcp: getMetricTimingResult(pageResult, 'largest_contentful_paint', scope),
     inp: getMetricTimingResult(pageResult, 'interaction_to_next_paint', scope),
     cls: getMetricResult(pageResult, 'cumulative_layout_shift', scope),
-    lcpPhases: {
+    lcpBreakdown: {
       ttfb: getMetricTimingResult(pageResult, 'largest_contentful_paint_image_time_to_first_byte', scope),
       loadDelay: getMetricTimingResult(pageResult, 'largest_contentful_paint_image_resource_load_delay', scope),
       loadDuration: getMetricTimingResult(pageResult, 'largest_contentful_paint_image_resource_load_duration', scope),
@@ -300,6 +288,10 @@ export function metricSavingsForWastedBytes(
  * Returns whether the network request was sent encoded.
  */
 export function isRequestCompressed(request: Types.Events.SyntheticNetworkRequest): boolean {
+  if (!request.args.data.responseHeaders) {
+    return false;
+  }
+
   // FYI: In Lighthouse, older devtools logs (like our test fixtures) seems to be
   // lower case, while modern logs are Cased-Like-This.
   const patterns = [
@@ -309,6 +301,30 @@ export function isRequestCompressed(request: Types.Events.SyntheticNetworkReques
   const compressionTypes = ['gzip', 'br', 'deflate', 'zstd'];
   return request.args.data.responseHeaders.some(
       header => patterns.some(p => header.name.match(p)) && compressionTypes.includes(header.value));
+}
+
+export function isRequestServedFromBrowserCache(request: Types.Events.SyntheticNetworkRequest): boolean {
+  if (!request.args.data.responseHeaders || request.args.data.failed) {
+    return false;
+  }
+
+  // Not Modified?
+  if (request.args.data.statusCode === 304) {
+    return true;
+  }
+
+  // TODO: for some reason ResourceReceiveResponse events never show a 304 status
+  // code, so the above is never gonna work. For now, fall back to a dirty check of
+  // looking at the ratio of transfer size and resource size. If it's really small,
+  // we certainly did not use the network to fetch it.
+
+  const {transferSize, resourceSize} = getRequestSizes(request);
+  const ratio = resourceSize ? transferSize / resourceSize : 0;
+  if (ratio < 0.01) {
+    return true;
+  }
+
+  return false;
 }
 
 function getRequestSizes(request: Types.Events.SyntheticNetworkRequest): {resourceSize: number, transferSize: number} {
@@ -327,7 +343,7 @@ function getRequestSizes(request: Types.Events.SyntheticNetworkRequest): {resour
 export function estimateCompressedContentSize(
     request: Types.Events.SyntheticNetworkRequest|undefined, totalBytes: number,
     resourceType: Protocol.Network.ResourceType): number {
-  if (!request) {
+  if (!request || isRequestServedFromBrowserCache(request)) {
     // We don't know how many bytes this asset used on the network, but we can guess it was
     // roughly the size of the content gzipped.
     // See https://developers.google.com/web/fundamentals/performance/optimizing-content-efficiency/optimize-encoding-and-transfer for specific CSS/Script examples
@@ -387,6 +403,49 @@ export function estimateCompressionRatioForScript(script: Handlers.ModelHandlers
   const request = script.request;
   const contentLength = request.args.data.decodedBodyLength ?? script.content?.length ?? 0;
   const compressedSize = estimateCompressedContentSize(request, contentLength, Protocol.Network.ResourceType.Script);
+  if (contentLength === 0 || compressedSize === 0) {
+    return 1;
+  }
+
   const compressionRatio = compressedSize / contentLength;
   return compressionRatio;
+}
+
+export function calculateDocFirstByteTs(docRequest: Types.Events.SyntheticNetworkRequest): Types.Timing.Micro|null {
+  if (docRequest.args.data.protocol === 'file') {
+    // file: requests do not have timings
+    return docRequest.ts;
+  }
+
+  const timing = docRequest.args.data.timing;
+  if (!timing) {
+    // Older traces do not have timings.
+    return null;
+  }
+
+  // Time that first byte (headers) are received.
+  // For older traces, receiveHeadersStart can be missing (ex: web.dev.json.gz).
+  // In that case use the headers end timing, which should be pretty close to when
+  // the headers start.
+  return Types.Timing.Micro(
+      Helpers.Timing.secondsToMicro(timing.requestTime) +
+      Helpers.Timing.milliToMicro(timing.receiveHeadersStart ?? timing.receiveHeadersEnd));
+}
+
+/**
+ * Calculates the trace bounds for the given insight that are relevant.
+ *
+ * Uses the insight's overlays to determine the relevant trace bounds. If there are
+ * no overlays, falls back to the insight set's navigation bounds.
+ */
+export function insightBounds(
+    insight: InsightModel, insightSetBounds: Types.Timing.TraceWindowMicro): Types.Timing.TraceWindowMicro {
+  const overlays = insight.createOverlays?.() ?? [];
+  const windows = overlays.map(Helpers.Timing.traceWindowFromOverlay).filter(bounds => !!bounds);
+  const overlaysBounds = Helpers.Timing.combineTraceWindowsMicro(windows);
+  if (overlaysBounds) {
+    return overlaysBounds;
+  }
+
+  return insightSetBounds;
 }

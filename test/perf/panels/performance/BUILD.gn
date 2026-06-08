@@ -1,18 +1,15 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
 import("../../../../scripts/build/typescript/typescript.gni")
 
-node_ts_library("performance") {
-  sources = [ "trace-load_test.ts" ]
+ts_e2e_library("performance") {
+  sources = [ "trace-load.test.ts" ]
 
   deps = [
-    "../../../../front_end/panels/timeline:bundle",
-    "../../../conductor:implementation",
+    "../../../e2e/conductor:implementation",
     "../../../e2e/helpers",
-    "../../../shared",
-    "../../helpers",
     "../../report",
   ]
 }

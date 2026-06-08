@@ -1,4 +1,4 @@
-# Copyright 2020 The Chromium Authors. All rights reserved.
+# Copyright 2020 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -15,7 +15,7 @@ generate_css("css_files") {
   ]
 }
 
-devtools_module("issues") {
+devtools_ui_module("issues") {
   sources = [
     "AffectedBlockedByResponseView.ts",
     "AffectedCookiesView.ts",
@@ -23,11 +23,12 @@ devtools_module("issues") {
     "AffectedDirectivesView.ts",
     "AffectedDocumentsInQuirksModeView.ts",
     "AffectedElementsView.ts",
-    "AffectedElementsWithLowContrastView.ts",
     "AffectedHeavyAdView.ts",
     "AffectedMetadataAllowedSitesView.ts",
     "AffectedPartitioningBlobURLView.ts",
+    "AffectedPermissionElementsView.ts",
     "AffectedResourcesView.ts",
+    "AffectedSelectivePermissionsInterventionView.ts",
     "AffectedSharedArrayBufferIssueDetailsView.ts",
     "AffectedSourcesView.ts",
     "AffectedTrackingSitesView.ts",
@@ -35,7 +36,6 @@ devtools_module("issues") {
     "CorsIssueDetailsView.ts",
     "GenericIssueDetailsView.ts",
     "HiddenIssuesRow.ts",
-    "IssueAggregator.ts",
     "IssueKindView.ts",
     "IssueRevealer.ts",
     "IssueView.ts",
@@ -44,20 +44,28 @@ devtools_module("issues") {
 
   deps = [
     "../../core/common:bundle",
+    "../../core/host:bundle",
     "../../core/i18n:bundle",
     "../../core/platform:bundle",
     "../../core/sdk:bundle",
+    "../../generated:protocol",
+    "../../models/bindings:bundle",
     "../../models/issues_manager:bundle",
     "../../models/logs:bundle",
     "../../panels/console_counters:bundle",
     "../../panels/network/forward:bundle",
     "../../ui/components/adorners:bundle",
+    "../../ui/components/buttons:bundle",
+    "../../ui/components/issue_counter:bundle",
     "../../ui/components/linkifier:bundle",
     "../../ui/components/markdown_view:bundle",
     "../../ui/components/request_link_icon:bundle",
+    "../../ui/kit:bundle",
     "../../ui/legacy:bundle",
     "../../ui/legacy/components/utils:bundle",
     "../../ui/lit:bundle",
+    "../../ui/visual_logging:bundle",
+    "../common:bundle",
     "./components:bundle",
   ]
 }
@@ -93,11 +101,11 @@ devtools_entrypoint("meta") {
   visibility = [ "../../entrypoints/*" ]
 }
 
-ts_library("unittests") {
+devtools_ui_module("unittests") {
   testonly = true
 
   sources = [
-    "IssueAggregator.test.ts",
+    "AffectedSelectivePermissionsInterventionView.test.ts",
     "IssueView.test.ts",
     "IssuesPane.test.ts",
   ]

@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -15,16 +15,14 @@ import {
 
 const UIStrings = {
   /**
-   *@description Title for Client Hint specification url link
+   * @description Title for Client Hint specification url link
    */
   fedCmUserInfo: 'Federated Credential Management User Info API',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/FederatedAuthUserInfoRequestIssue.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
-export class FederatedAuthUserInfoRequestIssue extends Issue {
-  readonly #issueDetails: Protocol.Audits.FederatedAuthUserInfoRequestIssueDetails;
-
+export class FederatedAuthUserInfoRequestIssue extends Issue<Protocol.Audits.FederatedAuthUserInfoRequestIssueDetails> {
   constructor(
       issueDetails: Protocol.Audits.FederatedAuthUserInfoRequestIssueDetails,
       issuesModel: SDK.IssuesModel.IssuesModel) {
@@ -36,20 +34,15 @@ export class FederatedAuthUserInfoRequestIssue extends Issue {
             issueDetails.federatedAuthUserInfoRequestIssueReason,
           ].join('::'),
         },
-        issuesModel);
-    this.#issueDetails = issueDetails;
+        issueDetails, issuesModel);
   }
 
   getCategory(): IssueCategory {
     return IssueCategory.OTHER;
   }
 
-  details(): Protocol.Audits.FederatedAuthUserInfoRequestIssueDetails {
-    return this.#issueDetails;
-  }
-
   getDescription(): MarkdownIssueDescription|null {
-    const description = issueDescriptions.get(this.#issueDetails.federatedAuthUserInfoRequestIssueReason);
+    const description = issueDescriptions.get(this.details().federatedAuthUserInfoRequestIssueReason);
     if (!description) {
       return null;
     }
@@ -57,7 +50,7 @@ export class FederatedAuthUserInfoRequestIssue extends Issue {
   }
 
   primaryKey(): string {
-    return JSON.stringify(this.#issueDetails);
+    return JSON.stringify(this.details());
   }
 
   getKind(): IssueKind {

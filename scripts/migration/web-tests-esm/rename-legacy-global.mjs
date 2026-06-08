@@ -1,17 +1,17 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 /**
- * @fileoverview A quick and dirty search & replace script to aid in the
+ * @file A quick and dirty search & replace script to aid in the
  * "*-legacy-ts" removal effort.
  *
  * It replaces each occurrence passed via "--from" to "--to" and adds the
  * import passed via "--import" if not already present in the web test.
  */
 
-import * as fs from 'fs/promises';
-import * as path from 'path';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import yargs from 'yargs';
 
 const yargsObject = yargs(process.argv.slice(2), process.cwd())

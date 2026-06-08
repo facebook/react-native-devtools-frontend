@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -12,15 +12,23 @@ describeWithEnvironment('WarningsHandler', function() {
   });
 
   it('identifies long tasks', async function() {
-    const events = await TraceLoader.rawEvents(this, 'slow-interaction-keydown.json.gz');
-    for (const event of events) {
-      Trace.Handlers.ModelHandlers.Warnings.handleEvent(event);
-    }
-    const data = Trace.Handlers.ModelHandlers.Warnings.data();
+    // We run the entire model here as the WarningsHandler actually depends on the WorkersHandler.
+    const {data} = await TraceLoader.traceEngine(this, 'slow-interaction-keydown.json.gz');
+    const {perWarning} = data.Warnings;
+    const events = perWarning.get('LONG_TASK');
     // We expect one long task.
-    assert.strictEqual(data.perEvent.size, 1);
-    const event = Array.from(data.perEvent.keys()).at(0);
+    assert.strictEqual(events?.length, 1);
+    const event = events?.at(0);
     assert.strictEqual(event?.name, Trace.Types.Events.Name.RUN_TASK);
+  });
+
+  it('does not identify worker long tasks', async function() {
+    // We run the entire model here as the WarningsHandler actually depends on the WorkersHandler.
+    const {data} = await TraceLoader.traceEngine(this, 'long-task-from-worker-thread.json.gz');
+    const {perWarning} = data.Warnings;
+    const events = perWarning.get('LONG_TASK');
+    // We expect no long task warnings (because worker tasks don't count).
+    assert.isUndefined(events?.length);
   });
 
   it('identifies idle callbacks that ran over the allotted time', async function() {
@@ -47,7 +55,7 @@ describeWithEnvironment('WarningsHandler', function() {
     const layout = forcedReflow[1];
     assert.deepEqual(data.perEvent.get(stylesRecalc), ['FORCED_REFLOW']);
     assert.deepEqual(data.perEvent.get(layout), ['FORCED_REFLOW']);
-    assert.strictEqual(stylesRecalc.name, Trace.Types.Events.Name.UPDATE_LAYOUT_TREE);
+    assert.strictEqual(stylesRecalc.name, Trace.Types.Events.Name.RECALC_STYLE);
     assert.strictEqual(layout.name, Trace.Types.Events.Name.LAYOUT);
   });
 
@@ -63,15 +71,15 @@ describeWithEnvironment('WarningsHandler', function() {
 
   it('identifies long interactions', async function() {
     // We run the entire model here as the WarningsHandler actually depends on the UserInteractionsHandler to fetch this data
-    const {parsedTrace} = await TraceLoader.traceEngine(this, 'one-second-interaction.json.gz');
+    const {data} = await TraceLoader.traceEngine(this, 'one-second-interaction.json.gz');
 
     // These events do exist on the UserInteractionsHandler, but we also put
     // them into the WarningsHandler so that the warnings handler can be the
     // source of truth and the way to look up all warnings for a given event.
-    const {interactionsOverThreshold} = parsedTrace.UserInteractions;
+    const {interactionsOverThreshold} = data.UserInteractions;
 
     for (const interaction of interactionsOverThreshold) {
-      const warnings = parsedTrace.Warnings.perEvent.get(interaction);
+      const warnings = data.Warnings.perEvent.get(interaction);
       assert.deepEqual(warnings, ['LONG_INTERACTION']);
     }
   });

@@ -1,9 +1,9 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { comment, parse } from 'postcss';
 import stylelint from 'stylelint';
 
@@ -240,18 +240,6 @@ const ruleFunction = (primary, secondary, context) => {
     }
 
     postcssRoot.walkRules(rule => {
-      // If you are providing a selector specifically for dark mode, you can use
-      // any colors you want, as it means you are purposefully deviating. This
-      // is not encouraged but we do need to allow it.
-      if (
-        rule.selector.startsWith(
-          ':host-context(.theme-with-dark-background)',
-        ) ||
-        rule.selector.startsWith('.theme-with-dark-background')
-      ) {
-        return;
-      }
-
       rule.walkDecls(declaration => {
         if (!CSS_PROPS_TO_CHECK_FOR_COLOR_USAGE.has(declaration.prop)) {
           return;

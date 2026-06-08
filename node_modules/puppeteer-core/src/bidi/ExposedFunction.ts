@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as Bidi from 'chromium-bidi/lib/cjs/protocol/protocol.js';
+import * as Bidi from 'webdriver-bidi-protocol';
 
 import {EventEmitter} from '../common/EventEmitter.js';
 import type {Awaitable, FlattenHandle} from '../common/types.js';
@@ -28,14 +28,14 @@ type CallbackChannel<Args, Ret> = (
 /**
  * @internal
  */
-export class ExposeableFunction<Args extends unknown[], Ret> {
+export class ExposableFunction<Args extends unknown[], Ret> {
   static async from<Args extends unknown[], Ret>(
     frame: BidiFrame,
     name: string,
     apply: (...args: Args) => Awaitable<Ret>,
     isolate = false,
-  ): Promise<ExposeableFunction<Args, Ret>> {
-    const func = new ExposeableFunction(frame, name, apply, isolate);
+  ): Promise<ExposableFunction<Args, Ret>> {
+    const func = new ExposableFunction(frame, name, apply, isolate);
     await func.#initialize();
     return func;
   }
@@ -78,10 +78,7 @@ export class ExposeableFunction<Args extends unknown[], Ret> {
     const connectionEmitter = this.#disposables.use(
       new EventEmitter(connection),
     );
-    connectionEmitter.on(
-      Bidi.ChromiumBidi.Script.EventNames.Message,
-      this.#handleMessage,
-    );
+    connectionEmitter.on('script.message', this.#handleMessage);
 
     const functionDeclaration = stringifyFunction(
       interpolateFunction(
@@ -150,28 +147,28 @@ export class ExposeableFunction<Args extends unknown[], Ret> {
       ]
     >(params.data, realm);
 
-    using argsHandle = await dataHandle.evaluateHandle(([, , args]) => {
-      return args;
-    });
-
     using stack = new DisposableStack();
     const args = [];
-    for (const [index, handle] of await argsHandle.getProperties()) {
-      stack.use(handle);
-
-      // Element handles are passed as is.
-      if (handle instanceof BidiElementHandle) {
-        args[+index] = handle;
-        stack.use(handle);
-        continue;
-      }
-
-      // Everything else is passed as the JS value.
-      args[+index] = handle.jsonValue();
-    }
 
     let result;
     try {
+      using argsHandle = await dataHandle.evaluateHandle(([, , args]) => {
+        return args;
+      });
+
+      for (const [index, handle] of await argsHandle.getProperties()) {
+        stack.use(handle);
+
+        // Element handles are passed as is.
+        if (handle instanceof BidiElementHandle) {
+          args[+index] = handle;
+          stack.use(handle);
+          continue;
+        }
+
+        // Everything else is passed as the JS value.
+        args[+index] = handle.jsonValue();
+      }
       result = await this.#apply(...((await Promise.all(args)) as Args));
     } catch (error) {
       try {

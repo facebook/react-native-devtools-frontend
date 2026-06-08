@@ -1,22 +1,19 @@
-// Copyright (c) 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view, @devtools/enforce-custom-element-definitions-location */
 
-import '../../../ui/legacy/legacy.js'; // for x-link
+import '../../../ui/kit/kit.js';
 
-import * as Host from '../../../core/host/host.js';
 import * as i18n from '../../../core/i18n/i18n.js';
 import * as CodeMirror from '../../../third_party/codemirror.next/codemirror.next.js';
 import * as Buttons from '../../../ui/components/buttons/buttons.js';
 import * as TextEditor from '../../../ui/components/text_editor/text_editor.js';
+import * as UI from '../../../ui/legacy/legacy.js';
 import * as Lit from '../../lit/lit.js';
 import * as VisualLogging from '../../visual_logging/visual_logging.js';
 
-import stylesRaw from './codeBlock.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const styles = new CSSStyleSheet();
-styles.replaceSync(stylesRaw.cssText);
+import styles from './codeBlock.css.js';
 
 const {html} = Lit;
 
@@ -30,6 +27,11 @@ const UIStrings = {
    */
   copy: 'Copy code',
   /**
+   * @description Accessible label for the button to copy the code block, referencing the specific content.
+   * @example {Data used} PH1
+   */
+  copyCodeSnippet: 'Copy {PH1} code snippet',
+  /**
    * @description The title of the button after it was pressed and the text was copied to clipboard.
    */
   copied: 'Copied to clipboard',
@@ -37,12 +39,98 @@ const UIStrings = {
    * @description Disclaimer shown in the code blocks.
    */
   disclaimer: 'Use code snippets with caution',
+  /**
+   * @description The title of the button to show all lines of a code block.
+   * @example {5} PH1
+   */
+  showAllLines: 'Show all lines ({PH1} more)',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('ui/components/markdown_view/CodeBlock.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-export class CodeBlock extends HTMLElement {
+export interface Citation {
+  index: Number;
+  clickHandler: () => void;
+}
 
+export async function languageFromToken(lang: string): Promise<CodeMirror.LanguageSupport> {
+  switch (lang) {
+    case 'javascript':
+    case 'js':
+    case 'jsx':
+      // We intentionally allow JSX in normal .js as well as .jsx files,
+      // because there are simply too many existing applications and
+      // examples out there that use JSX within .js files, and we don't
+      // want to break them.
+      return CodeMirror.javascript.javascript({jsx: true});
+    case 'typescript':
+    case 'ts':
+      return CodeMirror.javascript.javascript({typescript: true});
+    case 'tsx':
+      return CodeMirror.javascript.javascript({typescript: true, jsx: true});
+
+    case 'less':
+    case 'scss':
+    case 'sass':
+    case 'css':
+      return CodeMirror.css.css();
+
+    case 'html':
+      return CodeMirror.html.html({autoCloseTags: false, selfClosingTags: true});
+
+    case 'xml':
+      return (await CodeMirror.xml()).xml();
+
+    case 'cpp':
+      return (await CodeMirror.cpp()).cpp();
+
+    case 'go':
+      return new CodeMirror.LanguageSupport(await CodeMirror.go());
+
+    case 'java':
+      return (await CodeMirror.java()).java();
+
+    case 'kotlin':
+      return new CodeMirror.LanguageSupport(await CodeMirror.kotlin());
+
+    case 'json': {
+      const jsonLanguage = CodeMirror.javascript.javascriptLanguage.configure({top: 'SingleExpression'});
+      return new CodeMirror.LanguageSupport(jsonLanguage);
+    }
+
+    case 'php':
+      return (await CodeMirror.php()).php();
+
+    case 'python':
+    case 'py':
+      return (await CodeMirror.python()).python();
+
+    case 'markdown':
+    case 'md':
+      return (await CodeMirror.markdown()).markdown();
+
+    case 'sh':
+    case 'bash':
+      return new CodeMirror.LanguageSupport(await CodeMirror.shell());
+
+    case 'dart':
+      return new CodeMirror.LanguageSupport(await CodeMirror.dart());
+
+    case 'angular':
+      return (await CodeMirror.angular()).angular();
+
+    case 'svelte':
+      return (await CodeMirror.svelte()).svelte();
+
+    case 'vue':
+      return (await CodeMirror.vue()).vue();
+
+    default:
+      return CodeMirror.html.html({autoCloseTags: false, selfClosingTags: true});
+  }
+}
+
+export class CodeBlock extends HTMLElement {
   readonly #shadow = this.attachShadow({mode: 'open'});
 
   #code = '';
@@ -52,6 +140,7 @@ export class CodeBlock extends HTMLElement {
   #copied = false;
   #editorState?: CodeMirror.EditorState;
   #languageConf = new CodeMirror.Compartment();
+  #truncationConf = new CodeMirror.Compartment();
   /**
    * Whether to display a notice "​​Use code snippets with caution" in code
    * blocks.
@@ -59,10 +148,11 @@ export class CodeBlock extends HTMLElement {
   #displayNotice = false;
   #header?: string;
   #showCopyButton = true;
+  #citations: Citation[] = [];
+  #displayLimit = Number.MAX_VALUE;
 
   connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [styles];
-    this.#render();
+    void this.#render();
   }
 
   set code(value: string) {
@@ -74,9 +164,10 @@ export class CodeBlock extends HTMLElement {
         CodeMirror.EditorState.readOnly.of(true),
         CodeMirror.EditorView.lineWrapping,
         this.#languageConf.of(CodeMirror.javascript.javascript()),
+        this.#truncationConf.of([]),
       ],
     });
-    this.#render();
+    void this.#render();
   }
 
   get code(): string {
@@ -85,49 +176,59 @@ export class CodeBlock extends HTMLElement {
 
   set codeLang(value: string) {
     this.#codeLang = value;
-    this.#render();
+    void this.#render();
   }
 
   set timeout(value: number) {
     this.#copyTimeout = value;
-    this.#render();
+    void this.#render();
   }
 
   set displayNotice(value: boolean) {
     this.#displayNotice = value;
-    this.#render();
+    void this.#render();
   }
 
   set header(header: string) {
     this.#header = header;
-    this.#render();
+    void this.#render();
   }
 
   set showCopyButton(show: boolean) {
     this.#showCopyButton = show;
-    this.#render();
+    void this.#render();
+  }
+
+  set citations(citations: Citation[]) {
+    this.#citations = citations;
+  }
+
+  set displayLimit(value: number) {
+    this.#displayLimit = value;
+    void this.#render();
+  }
+
+  get displayLimit(): number {
+    return this.#displayLimit;
   }
 
   #onCopy(): void {
-    Host.InspectorFrontendHost.InspectorFrontendHostInstance.copyText(this.#code);
+    UI.UIUtils.copyTextToClipboard(this.#code, i18nString(UIStrings.copied));
     this.#copied = true;
-    this.#render();
+    void this.#render();
     clearTimeout(this.#timer);
     this.#timer = setTimeout(() => {
       this.#copied = false;
-      this.#render();
+      void this.#render();
     }, this.#copyTimeout);
   }
 
   #renderNotice(): Lit.TemplateResult {
     // clang-format off
     return html`<p class="notice">
-      <x-link class="link" href="https://support.google.com/legal/answer/13505487" jslog=${
-        VisualLogging.link('code-disclaimer').track({
-          click: true,
-        })}>
+      <devtools-link class="link" href="https://support.google.com/legal/answer/13505487" jslogcontext="code-disclaimer">
         ${i18nString(UIStrings.disclaimer)}
-      </x-link>
+      </devtools-link>
     </p>`;
     // clang-format on
   }
@@ -146,6 +247,7 @@ export class CodeBlock extends HTMLElement {
               title: i18nString(UIStrings.copy),
             } as Buttons.Button.ButtonData
           }
+          .accessibleLabel=${this.#header ? i18nString(UIStrings.copyCodeSnippet, { PH1: this.#header }) : i18nString(UIStrings.copy)}
           @click=${this.#onCopy}
         ></devtools-button>
         ${this.#copied ? html`<span>${i18nString(UIStrings.copied)}</span>` : Lit.nothing}
@@ -153,31 +255,61 @@ export class CodeBlock extends HTMLElement {
     // clang-format on
   }
 
-  #renderTextEditor(): Lit.TemplateResult {
-    if (!this.#editorState) {
-      throw new Error('Unexpected: trying to render the text editor without editorState');
+  #maybeRenderCitations(): Lit.LitTemplate {
+    if (!this.#citations.length) {
+      return Lit.nothing;
     }
     // clang-format off
     return html`
-      <div class="code">
-        <devtools-text-editor .state=${this.#editorState}></devtools-text-editor>
-      </div>
+      ${this.#citations.map(citation => html`
+        <button
+          class="citation"
+          jslog=${VisualLogging.link('inline-citation').track({click: true})}
+          @click=${citation.clickHandler}
+        >[${citation.index}]</button>
+      `)}
     `;
     // clang-format on
   }
 
-  #render(): void {
+  async #render(): Promise<void> {
     const header = (this.#header ?? this.#codeLang) || i18nString(UIStrings.code);
+
+    if (!this.#editorState) {
+      throw new Error('Unexpected: trying to render the text editor without editorState');
+    }
+
+    const linesCount = this.#editorState.doc.lines;
+    const isTruncated = linesCount > this.#displayLimit;
 
     // clang-format off
     Lit.render(
       html`<div class='codeblock' jslog=${VisualLogging.section('code')}>
-      <div class="editor-wrapper">
+      <style>${styles}</style>
+        <div class="editor-wrapper">
         <div class="heading">
-          <h4 class="heading-text">${header}</h4>
+          <div class="heading-text-wrapper">
+            <h4 class="heading-text">${header}</h4>
+            ${this.#maybeRenderCitations()}
+          </div>
           ${this.#showCopyButton ? this.#renderCopyButton() : Lit.nothing}
         </div>
-        ${this.#renderTextEditor()}
+        <div class="code">
+          <devtools-text-editor .state=${this.#editorState}></devtools-text-editor>
+        </div>
+        ${isTruncated ? html`
+          <div class="show-all-container">
+            <devtools-button
+              .variant=${Buttons.Button.Variant.OUTLINED}
+              .size=${Buttons.Button.Size.SMALL}
+              .jslogContext=${'show-all'}
+              .title=${i18nString(UIStrings.showAllLines, { PH1: linesCount - this.#displayLimit })}
+              @click=${() => {
+              this.displayLimit = Number.MAX_VALUE;
+            }}
+            >${i18nString(UIStrings.showAllLines, { PH1: linesCount - this.#displayLimit })}</devtools-button>
+          </div>
+        ` : Lit.nothing}
       </div>
       ${this.#displayNotice ? this.#renderNotice() : Lit.nothing}
     </div>`,
@@ -193,23 +325,23 @@ export class CodeBlock extends HTMLElement {
     if (!editor) {
       return;
     }
-    let language = CodeMirror.html.html({autoCloseTags: false, selfClosingTags: true});
-    switch (this.#codeLang) {
-      case 'js':
-        language = CodeMirror.javascript.javascript();
-        break;
-      case 'ts':
-        language = CodeMirror.javascript.javascript({typescript: true});
-        break;
-      case 'jsx':
-        language = CodeMirror.javascript.javascript({jsx: true});
-        break;
-      case 'css':
-        language = CodeMirror.css.css();
-        break;
+
+    const language = await languageFromToken(this.#codeLang);
+    let truncationExtension: CodeMirror.Extension = [];
+    if (isTruncated) {
+      truncationExtension = CodeMirror.EditorView.decorations.of(CodeMirror.Decoration.set(
+          CodeMirror.Decoration.replace({}).range(
+              this.#editorState.doc.line(this.#displayLimit).to,
+              this.#editorState.doc.length,
+              ),
+          ));
     }
+
     editor.dispatch({
-      effects: this.#languageConf.reconfigure(language),
+      effects: [
+        this.#languageConf.reconfigure(language),
+        this.#truncationConf.reconfigure(truncationExtension),
+      ],
     });
   }
 }

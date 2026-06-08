@@ -1,6 +1,7 @@
-// Copyright 2017 The Chromium Authors. All rights reserved.
+// Copyright 2017 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
@@ -8,7 +9,7 @@ import * as Platform from '../../core/platform/platform.js';
 import * as Root from '../../core/root/root.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Trace from '../../models/trace/trace.js';
-import * as IconButton from '../../ui/components/icon_button/icon_button.js';
+import {createIcon} from '../../ui/kit/kit.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
@@ -31,13 +32,13 @@ export const LANDING_PAGE_INDEX_DROPDOWN_CHOICE = Infinity;
 
 const UIStrings = {
   /**
-   *@description Screen reader label for the Timeline History dropdown button
-   *@example {example.com #3} PH1
-   *@example {Show recent timeline sessions} PH2
+   * @description Screen reader label for the Timeline History dropdown button
+   * @example {example.com #3} PH1
+   * @example {Show recent timeline sessions} PH2
    */
   currentSessionSS: 'Current session: {PH1}. {PH2}',
   /**
-   *@description the title shown when the user is viewing the landing page which is showing live performance metrics that are updated automatically.
+   * @description the title shown when the user is viewing the landing page which is showing live performance metrics that are updated automatically.
    */
   landingPageTitle: 'Live metrics',
   /**
@@ -45,13 +46,13 @@ const UIStrings = {
    */
   nodeLandingPageTitle: 'New recording',
   /**
-   *@description Text in Timeline History Manager of the Performance panel
-   *@example {example.com} PH1
-   *@example {2} PH2
+   * @description Text in Timeline History Manager of the Performance panel
+   * @example {example.com} PH1
+   * @example {2} PH2
    */
   sD: '{PH1} #{PH2}',
   /**
-   *@description Accessible label for the timeline session selection menu
+   * @description Accessible label for the timeline session selection menu
    */
   selectTimelineSession: 'Select timeline session',
   /**
@@ -59,6 +60,10 @@ const UIStrings = {
    * @example {2} PH1
    */
   dSlowdown: '{PH1}× slowdown',
+  /**
+   * @description Tooltip text that appears when hovering over the Back arrow inside the 'Select Timeline Session' dropdown in the Performance pane.
+   */
+  backButtonTooltip: 'View live metrics page',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/TimelineHistoryManager.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -85,8 +90,7 @@ export interface NewHistoryRecordingData {
   // We do not store this, but need it to build the thumbnail preview.
   filmStripForPreview: Trace.Extras.FilmStrip.Data|null;
   // Also not stored, but used to create the preview overview for a new trace.
-  parsedTrace: Trace.Handlers.Types.ParsedTrace;
-  metadata: Trace.Types.File.MetaData|null;
+  parsedTrace: Trace.TraceModel.ParsedTrace;
 }
 
 // Lazily instantiate the formatter as the constructor takes 50ms+
@@ -108,9 +112,9 @@ export class TimelineHistoryManager {
   private recordings: TraceRecordingHistoryItem[];
   private readonly action: UI.ActionRegistration.Action;
   private readonly nextNumberByDomain: Map<string, number>;
-  private readonly buttonInternal: ToolbarButton;
+  readonly #button: ToolbarButton;
   private readonly allOverviews: Array<{
-    constructor: (parsedTrace: Trace.Handlers.Types.ParsedTrace) => TimelineEventOverview,
+    constructor: (parsedTrace: Trace.TraceModel.ParsedTrace) => TimelineEventOverview,
     height: number,
   }>;
   private totalHeight: number;
@@ -124,12 +128,12 @@ export class TimelineHistoryManager {
     this.#minimapComponent = minimapComponent;
     this.action = UI.ActionRegistry.ActionRegistry.instance().getAction('timeline.show-history');
     this.nextNumberByDomain = new Map();
-    this.buttonInternal = new ToolbarButton(this.action);
+    this.#button = new ToolbarButton(this.action);
 
     this.#landingPageTitle =
         isNode ? i18nString(UIStrings.nodeLandingPageTitle) : i18nString(UIStrings.landingPageTitle);
 
-    UI.ARIAUtils.markAsMenuButton(this.buttonInternal.element);
+    UI.ARIAUtils.markAsMenuButton(this.#button.element);
     this.clear();
 
     // Attempt to reuse the overviews coming from the panel's minimap
@@ -179,13 +183,13 @@ export class TimelineHistoryManager {
 
     // Order is important: this needs to happen first because lots of the
     // subsequent code depends on us storing the preview data into the map.
-    this.#buildAndStorePreviewData(newInput.data.parsedTraceIndex, newInput.parsedTrace, newInput.metadata, filmStrip);
+    this.#buildAndStorePreviewData(newInput.data.parsedTraceIndex, newInput.parsedTrace, filmStrip);
 
     const modelTitle = this.title(newInput.data);
-    this.buttonInternal.setText(modelTitle);
+    this.#button.setText(modelTitle);
     const buttonTitle = this.action.title();
     UI.ARIAUtils.setLabel(
-        this.buttonInternal.element, i18nString(UIStrings.currentSessionSS, {PH1: modelTitle, PH2: buttonTitle}));
+        this.#button.element, i18nString(UIStrings.currentSessionSS, {PH1: modelTitle, PH2: buttonTitle}));
     this.updateState();
     if (this.recordings.length <= maxRecordings) {
       return;
@@ -209,14 +213,14 @@ export class TimelineHistoryManager {
   }
 
   button(): ToolbarButton {
-    return this.buttonInternal;
+    return this.#button;
   }
 
   clear(): void {
     this.recordings = [];
     this.lastActiveTrace = null;
     this.updateState();
-    this.buttonInternal.setText(this.#landingPageTitle);
+    this.#button.setText(this.#landingPageTitle);
     this.nextNumberByDomain.clear();
   }
 
@@ -238,7 +242,7 @@ export class TimelineHistoryManager {
     // DropDown.show() function finishes when the dropdown menu is closed via selection or losing focus
     const activeTraceIndex = await DropDown.show(
         this.recordings.map(recording => recording.parsedTraceIndex), this.#getActiveTraceIndexForListControl(),
-        this.buttonInternal.element, this.#landingPageTitle);
+        this.#button.element, this.#landingPageTitle);
 
     if (activeTraceIndex === null) {
       return null;
@@ -308,9 +312,9 @@ export class TimelineHistoryManager {
     this.lastActiveTrace = item;
     const modelTitle = this.title(item);
     const buttonTitle = this.action.title();
-    this.buttonInternal.setText(modelTitle);
+    this.#button.setText(modelTitle);
     UI.ARIAUtils.setLabel(
-        this.buttonInternal.element, i18nString(UIStrings.currentSessionSS, {PH1: modelTitle, PH2: buttonTitle}));
+        this.#button.element, i18nString(UIStrings.currentSessionSS, {PH1: modelTitle, PH2: buttonTitle}));
   }
 
   private updateState(): void {
@@ -338,9 +342,9 @@ export class TimelineHistoryManager {
   }
 
   #buildAndStorePreviewData(
-      parsedTraceIndex: number, parsedTrace: Trace.Handlers.Types.ParsedTrace, metadata: Trace.Types.File.MetaData|null,
+      parsedTraceIndex: number, parsedTrace: Trace.TraceModel.ParsedTrace,
       filmStrip: Trace.Extras.FilmStrip.Data|null): HTMLDivElement {
-    const parsedURL = Common.ParsedURL.ParsedURL.fromString(parsedTrace.Meta.mainFrameURL);
+    const parsedURL = Common.ParsedURL.ParsedURL.fromString(parsedTrace.data.Meta.mainFrameURL);
     let domain = parsedURL ? parsedURL.host : '';
     // [RN] React Native doesn't have a URL as a concept for Frame, we will use Application name as a fallback.
     if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.REACT_NATIVE_SPECIFIC_UI)) {
@@ -366,7 +370,7 @@ export class TimelineHistoryManager {
     };
     parsedTraceIndexToPerformancePreviewData.set(parsedTraceIndex, data);
 
-    preview.appendChild(this.#buildTextDetails(metadata, domain));
+    preview.appendChild(this.#buildTextDetails(parsedTrace.metadata, domain));
     const screenshotAndOverview = preview.createChild('div', 'hbox');
     screenshotAndOverview.appendChild(this.#buildScreenshotThumbnail(filmStrip));
     screenshotAndOverview.appendChild(this.#buildOverview(parsedTrace));
@@ -416,7 +420,7 @@ export class TimelineHistoryManager {
     return container;
   }
 
-  #buildOverview(parsedTrace: Trace.Handlers.Types.ParsedTrace): Element {
+  #buildOverview(parsedTrace: Trace.TraceModel.ParsedTrace): Element {
     const container = document.createElement('div');
     const dPR = window.devicePixelRatio;
     container.style.width = previewWidth + 'px';
@@ -463,6 +467,7 @@ export class DropDown implements UI.ListControl.ListDelegate<number> {
   private readonly focusRestorer: UI.UIUtils.ElementFocusRestorer;
   private selectionDone: ((arg0: number|null) => void)|null;
   #landingPageTitle: Common.UIString.LocalizedString;
+  contentElement: HTMLElement;
 
   constructor(availableparsedTraceIndexes: number[], landingPageTitle: Common.UIString.LocalizedString) {
     this.#landingPageTitle = landingPageTitle;
@@ -476,7 +481,7 @@ export class DropDown implements UI.ListControl.ListDelegate<number> {
 
     const shadowRoot = UI.UIUtils.createShadowRootWithCoreStyles(
         this.glassPane.contentElement, {cssFile: timelineHistoryManagerStyles});
-    const contentElement = shadowRoot.createChild('div', 'drop-down');
+    this.contentElement = shadowRoot.createChild('div', 'drop-down');
 
     const listModel = new UI.ListModel.ListModel<number>();
     this.listControl = new UI.ListControl.ListControl<number>(listModel, this, UI.ListControl.ListMode.NonViewport);
@@ -485,9 +490,9 @@ export class DropDown implements UI.ListControl.ListDelegate<number> {
 
     UI.ARIAUtils.markAsMenu(this.listControl.element);
     UI.ARIAUtils.setLabel(this.listControl.element, i18nString(UIStrings.selectTimelineSession));
-    contentElement.appendChild(this.listControl.element);
-    contentElement.addEventListener('keydown', this.onKeyDown.bind(this), false);
-    contentElement.addEventListener('click', this.onClick.bind(this), false);
+    this.contentElement.appendChild(this.listControl.element);
+    this.contentElement.addEventListener('keydown', this.onKeyDown.bind(this), false);
+    this.contentElement.addEventListener('click', this.onClick.bind(this), false);
 
     this.focusRestorer = new UI.UIUtils.ElementFocusRestorer(this.listControl.element);
     this.selectionDone = null;
@@ -543,8 +548,8 @@ export class DropDown implements UI.ListControl.ListDelegate<number> {
     this.close(this.listControl.selectedItem());
   }
 
-  private onKeyDown(event: Event): void {
-    switch ((event as KeyboardEvent).key) {
+  private onKeyDown(event: KeyboardEvent): void {
+    switch (event.key) {
       case 'Tab':
       case 'Escape':
         this.close(null);
@@ -586,7 +591,9 @@ export class DropDown implements UI.ListControl.ListDelegate<number> {
 
     div.style.width = `${previewWidth}px`;
 
-    const icon = IconButton.Icon.create('arrow-back');
+    const icon = createIcon('arrow-back');
+    icon.title = i18nString(UIStrings.backButtonTooltip);
+    icon.classList.add('back-arrow');
     div.appendChild(icon);
 
     const text = document.createElement('span');
@@ -617,7 +624,7 @@ export class DropDown implements UI.ListControl.ListDelegate<number> {
     return false;
   }
 
-  private static instance: DropDown|null = null;
+  static instance: DropDown|null = null;
 }
 
 export class ToolbarButton extends UI.Toolbar.ToolbarItem {

@@ -1,8 +1,10 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Protocol from '../../../../generated/protocol.js';
+import * as SDK from '../../../../core/sdk/sdk.js';
+import * as Protocol from '../../../../generated/protocol.js';
+import * as Logs from '../../../../models/logs/logs.js';
 
 export class RuleSetView {
   readonly ruleSetId: Protocol.Preload.RuleSetId|null;
@@ -18,4 +20,45 @@ export class AttemptViewWithFilter {
   constructor(ruleSetId: Protocol.Preload.RuleSetId|null) {
     this.ruleSetId = ruleSetId;
   }
+}
+
+/**
+ * Retrieves the HTTP status code for a preloading attempt.
+ */
+export function preloadStatusCode(attempt: SDK.PreloadingModel.PreloadingAttempt): number|undefined {
+  switch (attempt.action) {
+    case Protocol.Preload.SpeculationAction.Prefetch:
+      return prefetchStatusCode(attempt.requestId);
+    case Protocol.Preload.SpeculationAction.Prerender:
+    case Protocol.Preload.SpeculationAction.PrerenderUntilScript:
+      return prerenderStatusCode(attempt.key.loaderId);
+  }
+
+  return undefined;
+}
+
+/**
+ * Retrieves the HTTP status code for a prefetch attempt by looking up its
+ * network request in the network log.
+ */
+function prefetchStatusCode(requestId: Protocol.Network.RequestId): number|undefined {
+  const networkLog = Logs.NetworkLog.NetworkLog.instance();
+  const requests = networkLog.requestsForId(requestId);
+  if (requests.length > 0) {
+    return requests[requests.length - 1].statusCode;
+  }
+  return undefined;
+}
+
+/**
+ * Retrieves the HTTP status code for a prerender attempt.
+ */
+function prerenderStatusCode(loaderId: Protocol.Network.LoaderId): number|undefined {
+  const frame = SDK.ResourceTreeModel.ResourceTreeModel.frames().find(f => f.loaderId === loaderId);
+  if (!frame) {
+    return undefined;
+  }
+  const networkManager = frame.resourceTreeModel().target().model(SDK.NetworkManager.NetworkManager);
+  const request = networkManager?.requestForLoaderId(loaderId);
+  return request?.statusCode === 0 ? undefined : request?.statusCode;
 }

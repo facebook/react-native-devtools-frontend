@@ -1,10 +1,11 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
-import type * as Root from '../../core/root/root.js';
+import type * as Platform from '../../core/platform/platform.js';
+import * as Root from '../../core/root/root.js';
 import * as UI from '../../ui/legacy/legacy.js';
 
 import type * as AiAssistance from './ai_assistance.js';
@@ -29,10 +30,26 @@ const UIStrings = {
    */
   enableAiAssistance: 'Enable AI assistance',
   /**
-   *@description Text of a tooltip to redirect to the AI assistance panel with
-   * the current element as context
+   * @description Text of a context menu item to redirect to the AI assistance panel with
+   * the current context
    */
-  askAi: 'Ask AI',
+  debugWithAi: 'Debug with AI',
+  /**
+   * @description The title of the Gemini panel.
+   */
+  gemini: 'Gemini',
+  /**
+   * @description The title of the command menu action for showing the Gemini panel.
+   */
+  showGemini: 'Show Gemini',
+  /**
+   * @description The setting title to enable the Gemini via the settings tab.
+   */
+  enableGemini: 'Enable Gemini',
+  /**
+   * @description Text of a context menu item to redirect to the Gemini panel with the current context
+   */
+  debugWithGemini: 'Debug with Gemini',
   /**
    * @description Message shown to the user if the DevTools locale is not
    * supported.
@@ -52,7 +69,12 @@ const UIStrings = {
 
 const str_ = i18n.i18n.registerUIStrings('panels/ai_assistance/ai_assistance-meta.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
-const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
+
+// Host config is initialized after this module executes, so need to lazily select the string.
+function i18nAiBrandedString(gemini: string, assistance: string) {
+  // eslint-disable-next-line @devtools/l10n-i18nString-call-only-with-uistrings
+  return () => Root.Runtime.hostConfig.devToolsGeminiRebranding?.enabled ? i18nString(gemini) : i18nString(assistance);
+}
 
 const setting = 'ai-assistance-enabled';
 
@@ -88,10 +110,6 @@ function isNetworkAgentFeatureAvailable(config?: Root.Runtime.HostConfig): boole
 function isPerformanceAgentFeatureAvailable(config?: Root.Runtime.HostConfig): boolean {
   return (config?.aidaAvailability?.enabled && (config?.devToolsAiAssistancePerformanceAgent?.enabled)) === true;
 }
-function isPerformanceInsightsAgentFeatureAvailable(config?: Root.Runtime.HostConfig): boolean {
-  return (config?.aidaAvailability?.enabled && config?.devToolsAiAssistancePerformanceAgent?.enabled &&
-          config?.devToolsAiAssistancePerformanceAgent.insightsEnabled) === true;
-}
 
 function isFileAgentFeatureAvailable(config?: Root.Runtime.HostConfig): boolean {
   return (config?.aidaAvailability?.enabled && (config?.devToolsAiAssistanceFileAgent?.enabled)) === true;
@@ -105,10 +123,9 @@ function isAnyFeatureAvailable(config?: Root.Runtime.HostConfig): boolean {
 UI.ViewManager.registerViewExtension({
   location: UI.ViewManager.ViewLocationValues.DRAWER_VIEW,
   id: 'freestyler',
-  commandPrompt: i18nLazyString(UIStrings.showAiAssistance),
-  title: i18nLazyString(UIStrings.aiAssistance),
+  commandPrompt: i18nAiBrandedString(UIStrings.showGemini, UIStrings.showAiAssistance),
+  title: i18nAiBrandedString(UIStrings.gemini, UIStrings.aiAssistance),
   order: 10,
-  isPreviewFeature: true,
   persistence: UI.ViewManager.ViewPersistence.CLOSEABLE,
   hasToolbar: false,
   condition: config => isAnyFeatureAvailable(config) && !isPolicyRestricted(config),
@@ -122,12 +139,12 @@ Common.Settings.registerSettingExtension({
   category: Common.Settings.SettingCategory.AI,
   settingName: setting,
   settingType: Common.Settings.SettingType.BOOLEAN,
-  title: i18nLazyString(UIStrings.enableAiAssistance),
+  title: i18nAiBrandedString(UIStrings.enableGemini, UIStrings.enableAiAssistance),
   defaultValue: false,
   reloadRequired: false,
   condition: isAnyFeatureAvailable,
   disabledCondition: config => {
-    const reasons = [];
+    const reasons: Platform.UIString.LocalizedString[] = [];
     if (isGeoRestricted(config)) {
       reasons.push(i18nString(UIStrings.geoRestricted));
     }
@@ -144,18 +161,42 @@ Common.Settings.registerSettingExtension({
   },
 });
 
+Common.Settings.registerSettingExtension({
+  category: Common.Settings.SettingCategory.AI,
+  settingName: 'ai-assistance-v2-opt-in-change-dialog-seen',
+  settingType: Common.Settings.SettingType.BOOLEAN,
+  defaultValue: false,
+});
+
+UI.ActionRegistration.registerActionExtension({
+  actionId: 'freestyler.main-menu',
+  contextTypes(): [] {
+    return [];
+  },
+  category: UI.ActionRegistration.ActionCategory.GLOBAL,
+  title: i18nAiBrandedString(UIStrings.debugWithGemini, UIStrings.debugWithAi),
+  configurableBindings: false,
+  async loadActionDelegate() {
+    const AiAssistance = await loadAiAssistanceModule();
+    return new AiAssistance.ActionDelegate();
+  },
+  condition: config => isAnyFeatureAvailable(config) && !isPolicyRestricted(config) && !isGeoRestricted(config),
+});
+
 UI.ActionRegistration.registerActionExtension({
   actionId: 'freestyler.elements-floating-button',
   contextTypes(): [] {
     return [];
   },
   category: UI.ActionRegistration.ActionCategory.GLOBAL,
-  title: i18nLazyString(UIStrings.askAi),
+  title: i18nAiBrandedString(UIStrings.debugWithGemini, UIStrings.debugWithAi),
+  configurableBindings: false,
   async loadActionDelegate() {
     const AiAssistance = await loadAiAssistanceModule();
     return new AiAssistance.ActionDelegate();
   },
-  condition: config => isStylingAgentFeatureAvailable(config) && !isPolicyRestricted(config),
+  condition: config =>
+      isStylingAgentFeatureAvailable(config) && !isPolicyRestricted(config) && !isGeoRestricted(config),
 });
 
 UI.ActionRegistration.registerActionExtension({
@@ -164,12 +205,14 @@ UI.ActionRegistration.registerActionExtension({
     return [];
   },
   category: UI.ActionRegistration.ActionCategory.GLOBAL,
-  title: i18nLazyString(UIStrings.askAi),
+  title: i18nAiBrandedString(UIStrings.debugWithGemini, UIStrings.debugWithAi),
+  configurableBindings: false,
   async loadActionDelegate() {
     const AiAssistance = await loadAiAssistanceModule();
     return new AiAssistance.ActionDelegate();
   },
-  condition: config => isStylingAgentFeatureAvailable(config) && !isPolicyRestricted(config),
+  condition: config =>
+      isStylingAgentFeatureAvailable(config) && !isPolicyRestricted(config) && !isGeoRestricted(config),
 });
 
 UI.ActionRegistration.registerActionExtension({
@@ -178,12 +221,14 @@ UI.ActionRegistration.registerActionExtension({
     return [];
   },
   category: UI.ActionRegistration.ActionCategory.GLOBAL,
-  title: i18nLazyString(UIStrings.askAi),
+  title: i18nAiBrandedString(UIStrings.debugWithGemini, UIStrings.debugWithAi),
+  configurableBindings: false,
   async loadActionDelegate() {
     const AiAssistance = await loadAiAssistanceModule();
     return new AiAssistance.ActionDelegate();
   },
-  condition: config => isNetworkAgentFeatureAvailable(config) && !isPolicyRestricted(config),
+  condition: config =>
+      isNetworkAgentFeatureAvailable(config) && !isPolicyRestricted(config) && !isGeoRestricted(config),
 });
 
 UI.ActionRegistration.registerActionExtension({
@@ -192,12 +237,14 @@ UI.ActionRegistration.registerActionExtension({
     return [];
   },
   category: UI.ActionRegistration.ActionCategory.GLOBAL,
-  title: i18nLazyString(UIStrings.askAi),
+  title: i18nAiBrandedString(UIStrings.debugWithGemini, UIStrings.debugWithAi),
+  configurableBindings: false,
   async loadActionDelegate() {
     const AiAssistance = await loadAiAssistanceModule();
     return new AiAssistance.ActionDelegate();
   },
-  condition: config => isNetworkAgentFeatureAvailable(config) && !isPolicyRestricted(config),
+  condition: config =>
+      isNetworkAgentFeatureAvailable(config) && !isPolicyRestricted(config) && !isGeoRestricted(config),
 });
 
 UI.ActionRegistration.registerActionExtension({
@@ -206,28 +253,14 @@ UI.ActionRegistration.registerActionExtension({
     return [];
   },
   category: UI.ActionRegistration.ActionCategory.GLOBAL,
-  title: i18nLazyString(UIStrings.askAi),
+  title: i18nAiBrandedString(UIStrings.debugWithGemini, UIStrings.debugWithAi),
+  configurableBindings: false,
   async loadActionDelegate() {
     const AiAssistance = await loadAiAssistanceModule();
     return new AiAssistance.ActionDelegate();
   },
-  condition: config => isPerformanceAgentFeatureAvailable(config) && !isPolicyRestricted(config),
-});
-
-UI.ActionRegistration.registerActionExtension({
-  actionId: 'drjones.performance-insight-context',
-  contextTypes(): [] {
-    return [];
-  },
-  category: UI.ActionRegistration.ActionCategory.GLOBAL,
-  title: i18nLazyString(UIStrings.askAi),
-  async loadActionDelegate() {
-    const AiAssistance = await loadAiAssistanceModule();
-    return new AiAssistance.ActionDelegate();
-  },
-  condition: config => {
-    return isPerformanceInsightsAgentFeatureAvailable(config) && !isPolicyRestricted(config);
-  }
+  condition: config =>
+      isPerformanceAgentFeatureAvailable(config) && !isPolicyRestricted(config) && !isGeoRestricted(config),
 });
 
 UI.ActionRegistration.registerActionExtension({
@@ -236,12 +269,13 @@ UI.ActionRegistration.registerActionExtension({
     return [];
   },
   category: UI.ActionRegistration.ActionCategory.GLOBAL,
-  title: i18nLazyString(UIStrings.askAi),
+  title: i18nAiBrandedString(UIStrings.debugWithGemini, UIStrings.debugWithAi),
+  configurableBindings: false,
   async loadActionDelegate() {
     const AiAssistance = await loadAiAssistanceModule();
     return new AiAssistance.ActionDelegate();
   },
-  condition: config => isFileAgentFeatureAvailable(config) && !isPolicyRestricted(config),
+  condition: config => isFileAgentFeatureAvailable(config) && !isPolicyRestricted(config) && !isGeoRestricted(config),
 });
 
 UI.ActionRegistration.registerActionExtension({
@@ -250,10 +284,11 @@ UI.ActionRegistration.registerActionExtension({
     return [];
   },
   category: UI.ActionRegistration.ActionCategory.GLOBAL,
-  title: i18nLazyString(UIStrings.askAi),
+  title: i18nAiBrandedString(UIStrings.debugWithGemini, UIStrings.debugWithAi),
+  configurableBindings: false,
   async loadActionDelegate() {
     const AiAssistance = await loadAiAssistanceModule();
     return new AiAssistance.ActionDelegate();
   },
-  condition: config => isFileAgentFeatureAvailable(config) && !isPolicyRestricted(config),
+  condition: config => isFileAgentFeatureAvailable(config) && !isPolicyRestricted(config) && !isGeoRestricted(config),
 });

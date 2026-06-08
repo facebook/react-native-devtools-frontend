@@ -1,16 +1,25 @@
 Name: Web Vitals
 Short Name: Web Vitals
 URL: https://github.com/GoogleChrome/web-vitals
-Version: 4.2.4
+Version: 5.2.0
 License: Apache-2.0
 License File: package/LICENSE
-Revision: 3d2b3dc8576cc003618952fa39902fab764a53e2
+Revision: 331486c02721e1d37835177ffc89589a580ba57e
+Update Mechanism: Manual
 Security Critical: no
 Shipped: yes
 
 Description:
 Essential metrics for a healthy site.
 
+## Bumping.
+
+First, go update rebuild.sh to specify the version you want. Then run the rebuild script:
+
 ```bash
 ./front_end/third_party/web-vitals/rebuild.sh
 ```
+
+## DevTools edits to web-vitals
+
+Local patches are kept in the "patches" folder. See the note in rebuild.sh for how to change these patches.

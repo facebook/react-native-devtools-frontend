@@ -1,10 +1,11 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as SDK from '../../core/sdk/sdk.js';
 import {createTarget, stubNoopSettings} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection} from '../../testing/MockConnection.js';
+import {TraceLoader} from '../../testing/TraceLoader.js';
 
 import type * as LighthouseModule from './lighthouse.js';
 
@@ -13,7 +14,8 @@ describeWithMockConnection('LighthouseController', () => {
   let Lighthouse: typeof LighthouseModule;
   let target: SDK.Target.Target;
 
-  beforeEach(async () => {
+  beforeEach(async function() {
+    TraceLoader.setTestTimeout(this);
     stubNoopSettings();
     Lighthouse = await import('./lighthouse.js');
     const tabTarget = createTarget({type: SDK.Target.Type.TAB});
@@ -30,5 +32,15 @@ describeWithMockConnection('LighthouseController', () => {
     serviceWorkerManager.dispatchEventToListeners(
         SDK.ServiceWorkerManager.Events.REGISTRATION_UPDATED, {} as SDK.ServiceWorkerManager.ServiceWorkerRegistration);
     await pageAuditabilityChange;
+  });
+
+  it('uses mode override', async () => {
+    const protocolService = sinon.createStubInstance(Lighthouse.LighthouseProtocolService.ProtocolService);
+    const controller = new Lighthouse.LighthouseController.LighthouseController(protocolService);
+
+    await controller.startLighthouse({mode: 'snapshot'});
+
+    const flags = controller.getCurrentRun()?.flags;
+    assert.strictEqual(flags?.mode, 'snapshot');
   });
 });

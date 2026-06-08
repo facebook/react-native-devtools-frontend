@@ -1,0 +1,28 @@
+{
+  "name": "@chrome-devtools/source-map-scopes-codec",
+  "version": "0.8.0",
+  "exports": "./src/mod.ts",
+  "license": "BSD-3-Clause",
+  "fmt": {
+    "exclude": ["README.md", "CONTRIBUTING.md"]
+  },
+  "publish": {
+    "include": [
+      "CONTRIBUTING.md",
+      "LICENSE",
+      "README.md",
+      "src/**/*.ts"
+    ],
+    "exclude": [
+      "bench",
+      "src/**/*.test.ts"
+    ]
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@^1.0.17",
+    "@std/cli": "jsr:@std/cli@^1.0.26",
+    "@std/fmt": "jsr:@std/fmt@^1.0.9",
+    "@std/fs": "jsr:@std/fs@^1.0.22",
+    "@std/testing": "jsr:@std/testing@^1.0.17"
+  }
+}

@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,10 +8,8 @@ import * as CPUProfile from '../../cpu_profile/cpu_profile.js';
 import * as Helpers from '../helpers/helpers.js';
 import * as Types from '../types/types.js';
 
-const events = new Map<Types.Events.ProcessID, Map<Types.Events.ThreadID, Types.Events.Complete[]>>();
-
-const profilesInProcess = new Map<Types.Events.ProcessID, Map<Types.Events.ThreadID, ProfileData>>();
-const entryToNode = new Map<Types.Events.Event, Helpers.TreeHelpers.TraceEntryNode>();
+let profilesInProcess = new Map<Types.Events.ProcessID, Map<Types.Events.ThreadID, ProfileData>>();
+let entryToNode = new Map<Types.Events.Event, Helpers.TreeHelpers.TraceEntryNode>();
 
 // The profile head, containing its metadata like its start
 // time, comes in a "Profile" event. The sample data comes in
@@ -22,27 +20,75 @@ const entryToNode = new Map<Types.Events.Event, Helpers.TreeHelpers.TraceEntryNo
 // For this reason, we have a preprocessed data structure, where events
 // are matched by profile id, which we then finish processing to export
 // events matched by thread id.
-const preprocessedData = new Map<Types.Events.ProcessID, Map<Types.Events.ProfileID, PreprocessedData>>();
+let preprocessedData = new Map<Types.Events.ProcessID, Map<Types.Events.ProfileID, PreprocessedData>>();
+
+/**
+ * Profile source selection priority when multiple profiles exist for the same thread.
+ *
+ * Profile sources and their typical scenarios:
+ * - 'Internal': Browser-initiated profiling performance panel traces.
+ *   This is the profiling mechanism when users click "Record" in the Devtools UI.
+ * - 'Inspector': User-initiated via console.profile()/profileEnd() calls.
+ *   Represents explicit developer intent to profile specific code.
+ * - 'SelfProfiling': Page-initiated via JS Self-Profiling API.
+ *    Lower signal vs the two above; treated as fallback.
+ *
+ * Selection strategy:
+ * - CPU Profile mode: Prefer 'Inspector' (explicit user request).
+ * - Performance trace: Prefer 'Internal' (integrated timeline context), then 'Inspector'.
+ * - Sources not in the priority list (including 'SelfProfiling') act as fallbacks.
+ *   When no priority source matches, the first candidate profile is selected.
+ */
+const PROFILE_SOURCES_BY_PRIORITY = {
+  cpuProfile: ['Inspector'] as Types.Events.ProfileSource[],
+  performanceTrace: ['Internal', 'Inspector'] as Types.Events.ProfileSource[],
+};
 
 function parseCPUProfileData(parseOptions: Types.Configuration.ParseOptions): void {
+  const priorityList =
+      parseOptions.isCPUProfile ? PROFILE_SOURCES_BY_PRIORITY.cpuProfile : PROFILE_SOURCES_BY_PRIORITY.performanceTrace;
+
   for (const [processId, profiles] of preprocessedData) {
+    const profilesByThread =
+        new Map<Types.Events.ThreadID, Array<{id: Types.Events.ProfileID, data: PreprocessedData}>>();
     for (const [profileId, preProcessedData] of profiles) {
       const threadId = preProcessedData.threadId;
-      if (!preProcessedData.rawProfile.nodes.length || threadId === undefined) {
+      if (threadId === undefined) {
+        continue;
+      }
+      const listForThread = Platform.MapUtilities.getWithDefault(profilesByThread, threadId, () => []);
+      listForThread.push({id: profileId, data: preProcessedData});
+    }
+
+    for (const [threadId, candidates] of profilesByThread) {
+      if (!candidates.length) {
+        continue;
+      }
+      let chosen = candidates[0];
+      for (const source of priorityList) {
+        const match = candidates.find(p => p.data.source === source);
+        if (match) {
+          chosen = match;
+          break;
+        }
+      }
+      const chosenData = chosen.data;
+      if (!chosenData.rawProfile.nodes.length) {
         continue;
       }
       const indexStack: number[] = [];
 
-      const profileModel = new CPUProfile.CPUProfileDataModel.CPUProfileDataModel(preProcessedData.rawProfile);
+      const profileModel = new CPUProfile.CPUProfileDataModel.CPUProfileDataModel(chosenData.rawProfile);
       const profileTree = Helpers.TreeHelpers.makeEmptyTraceEntryTree();
       profileTree.maxDepth = profileModel.maxDepth;
 
+      const selectedProfileId = chosen.id;
       const finalizedData: ProfileData = {
-        rawProfile: preProcessedData.rawProfile,
+        rawProfile: chosenData.rawProfile,
         parsedProfile: profileModel,
         profileCalls: [],
         profileTree,
-        profileId,
+        profileId: selectedProfileId,
       };
       const dataByThread = Platform.MapUtilities.getWithDefault(profilesInProcess, processId, () => new Map());
       dataByThread.set(threadId, finalizedData);
@@ -64,7 +110,8 @@ function parseCPUProfileData(parseOptions: Types.Configuration.ParseOptions): vo
           const ts = Helpers.Timing.milliToMicro(Types.Timing.Milli(timeStampMilliseconds));
           const nodeId = node.id as Helpers.TreeHelpers.TraceEntryNodeId;
 
-          const profileCall = Helpers.Trace.makeProfileCall(node, profileId, sampleIndex, ts, processId, threadId);
+          const profileCall =
+              Helpers.Trace.makeProfileCall(node, selectedProfileId, sampleIndex, ts, processId, threadId);
           finalizedData.profileCalls.push(profileCall);
           indexStack.push(finalizedData.profileCalls.length - 1);
           const traceEntryNode = Helpers.TreeHelpers.makeEmptyTraceEntryNode(profileCall, nodeId);
@@ -85,7 +132,7 @@ function parseCPUProfileData(parseOptions: Types.Configuration.ParseOptions): vo
           }
           const {callFrame, ts, pid, tid} = profileCall;
           const traceEntryNode = entryToNode.get(profileCall);
-          if (callFrame === undefined || ts === undefined || pid === undefined || profileId === undefined ||
+          if (callFrame === undefined || ts === undefined || pid === undefined || selectedProfileId === undefined ||
               tid === undefined || traceEntryNode === undefined) {
             return;
           }
@@ -109,10 +156,9 @@ function parseCPUProfileData(parseOptions: Types.Configuration.ParseOptions): vo
 }
 
 export function reset(): void {
-  events.clear();
-  preprocessedData.clear();
-  profilesInProcess.clear();
-  entryToNode.clear();
+  preprocessedData = new Map();
+  profilesInProcess = new Map();
+  entryToNode = new Map();
 }
 
 export function handleEvent(event: Types.Events.Event): void {
@@ -126,13 +172,9 @@ export function handleEvent(event: Types.Events.Event): void {
     // id and thread id are not really important, so we use the data
     // in the fake event. Should multi-thread CPU profiling be supported
     // we could use these fields in the event to pass thread info.
-    const pid = event.pid;
-    const tid = event.tid;
-    // Create an arbitrary profile id.
-    const profileId = '0x1' as Types.Events.ProfileID;
-    const profileData = getOrCreatePreProcessedData(pid, profileId);
+    const profileData = getOrCreatePreProcessedData(event.pid, event.id);
     profileData.rawProfile = event.args.data.cpuProfile;
-    profileData.threadId = tid;
+    profileData.threadId = event.tid;
     return;
   }
 
@@ -145,15 +187,15 @@ export function handleEvent(event: Types.Events.Event): void {
     const profileData = getOrCreatePreProcessedData(event.pid, event.id);
     profileData.rawProfile.startTime = event.ts;
     profileData.threadId = event.tid;
+    assignProfileSourceIfKnown(profileData, event.args?.data?.source);
     return;
   }
   if (Types.Events.isProfileChunk(event)) {
     const profileData = getOrCreatePreProcessedData(event.pid, event.id);
     const cdpProfile = profileData.rawProfile;
-    const nodesAndSamples: Types.Events.PartialProfile|undefined = event.args?.data?.cpuProfile || {samples: []};
+    const nodesAndSamples: Types.Events.PartialProfile = event.args?.data?.cpuProfile || {samples: []};
     const samples = nodesAndSamples?.samples || [];
-    const traceIds = event.args?.data?.cpuProfile?.trace_ids || {};
-    const nodes: CPUProfile.CPUProfileDataModel.ExtendedProfileNode[] = [];
+    const traceIds = event.args?.data?.cpuProfile?.trace_ids;
     for (const n of nodesAndSamples?.nodes || []) {
       const lineNumber = typeof n.callFrame.lineNumber === 'undefined' ? -1 : n.callFrame.lineNumber;
       const columnNumber = typeof n.callFrame.columnNumber === 'undefined' ? -1 : n.callFrame.columnNumber;
@@ -170,16 +212,24 @@ export function handleEvent(event: Types.Events.Event): void {
           scriptId,
         },
       };
-      nodes.push(node);
+      cdpProfile.nodes.push(node);
     }
 
     const timeDeltas = event.args.data?.timeDeltas || [];
     const lines = event.args.data?.lines || Array(samples.length).fill(0);
-    cdpProfile.nodes.push(...nodes);
+    const columns = event.args.data?.columns || Array(samples.length).fill(0);
     cdpProfile.samples?.push(...samples);
     cdpProfile.timeDeltas?.push(...timeDeltas);
     cdpProfile.lines?.push(...lines);
-    cdpProfile.traceIds = {...(cdpProfile.traceIds || {}), ...traceIds};
+    cdpProfile.columns?.push(...columns);
+
+    if (traceIds) {
+      cdpProfile.traceIds ??= {};
+      for (const key in traceIds) {
+        cdpProfile.traceIds[key] = traceIds[key];
+      }
+    }
+
     if (cdpProfile.samples && cdpProfile.timeDeltas && cdpProfile.samples.length !== cdpProfile.timeDeltas.length) {
       console.error('Failed to parse CPU profile.');
       return;
@@ -188,12 +238,19 @@ export function handleEvent(event: Types.Events.Event): void {
       const timeDeltas: number[] = cdpProfile.timeDeltas;
       cdpProfile.endTime = timeDeltas.reduce((x, y) => x + y, cdpProfile.startTime);
     }
+    assignProfileSourceIfKnown(profileData, event.args?.data?.source);
     return;
   }
 }
 
 export async function finalize(parseOptions: Types.Configuration.ParseOptions = {}): Promise<void> {
   parseCPUProfileData(parseOptions);
+}
+
+function assignProfileSourceIfKnown(profileData: PreprocessedData, source: unknown): void {
+  if (Types.Events.VALID_PROFILE_SOURCES.includes(source as Types.Events.ProfileSource)) {
+    profileData.source = source as Types.Events.ProfileSource;
+  }
 }
 
 export function data(): SamplesHandlerData {
@@ -215,6 +272,7 @@ function getOrCreatePreProcessedData(
                                   samples: [],
                                   timeDeltas: [],
                                   lines: [],
+                                  columns: [],
                                 },
                                 profileId,
                               }));
@@ -253,6 +311,7 @@ interface PreprocessedData {
   rawProfile: CPUProfile.CPUProfileDataModel.ExtendedProfile;
   profileId: Types.Events.ProfileID;
   threadId?: Types.Events.ThreadID;
+  source?: Types.Events.ProfileSource;
 }
 
 /**

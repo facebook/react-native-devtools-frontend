@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 import * as i18n from '../../core/i18n/i18n.js';
@@ -23,7 +23,7 @@ import {InstantEventVisibleDurationMs} from './TimelineFlameChartDataProvider.js
 
 const UIStrings = {
   /**
-   *@description Text in Timeline Flame Chart Data Provider of the Performance panel
+   * @description Text in Timeline Flame Chart Data Provider of the Performance panel
    */
   network: 'Network',
 } as const;
@@ -71,7 +71,7 @@ export class NetworkTrackAppender implements TrackAppender {
    * Network track.
    * @param trackStartLevel the horizontal level of the flame chart events where
    * the track's events will start being appended.
-   * @param expanded wether the track should be rendered expanded.
+   * @param expanded whether the track should be rendered expanded.
    * @returns the first available level to append more data after having
    * appended the track's events.
    */
@@ -91,7 +91,7 @@ export class NetworkTrackAppender implements TrackAppender {
    * in the future).
    * @param currentLevel the flame chart level at which the header is
    * appended.
-   * @param expanded wether the track should be rendered expanded.
+   * @param expanded whether the track should be rendered expanded.
    */
   #appendTrackHeaderAtLevel(_currentLevel: number, expanded?: boolean): void {
     const style = buildGroupStyle({
@@ -122,7 +122,7 @@ export class NetworkTrackAppender implements TrackAppender {
     for (let i = 0; i < events.length; ++i) {
       const event = events[i];
       this.#appendEventAtLevel(event, trackStartLevel);
-      // Decorate render blocking
+      // Decorate render-blocking
       if (Trace.Types.Events.isSyntheticNetworkRequest(event) &&
           Trace.Helpers.Network.isSyntheticNetworkRequestEventRenderBlocking(event)) {
         addDecorationToEvent(this.#flameChartData, i, {

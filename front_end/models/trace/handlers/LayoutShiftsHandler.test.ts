@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,16 +10,13 @@ async function processTrace(context: Mocha.Suite|Mocha.Context|null, url: string
 
   Trace.Handlers.ModelHandlers.LayoutShifts.reset();
 
-  try {
-    const events = await TraceLoader.rawEvents(context, url);
-    for (const event of events) {
-      Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
-      Trace.Handlers.ModelHandlers.Screenshots.handleEvent(event);
-      Trace.Handlers.ModelHandlers.LayoutShifts.handleEvent(event);
-    }
-  } catch (error) {
-    assert.fail(error);
+  const events = await TraceLoader.rawEvents(context, url);
+  for (const event of events) {
+    Trace.Handlers.ModelHandlers.Meta.handleEvent(event);
+    Trace.Handlers.ModelHandlers.Screenshots.handleEvent(event);
+    Trace.Handlers.ModelHandlers.LayoutShifts.handleEvent(event);
   }
+
   await Trace.Handlers.ModelHandlers.Meta.finalize();
   await Trace.Handlers.ModelHandlers.Screenshots.finalize();
   await Trace.Handlers.ModelHandlers.LayoutShifts.finalize();
@@ -121,13 +118,9 @@ describe('LayoutShiftsHandler', function() {
     const layoutShifts = Trace.Handlers.ModelHandlers.LayoutShifts.data();
     const lastWindow = layoutShifts.clusters.at(-1)?.clusterWindow;
     const lastShiftInWindow = layoutShifts.clusters.at(-1)?.events.at(-1);
-    if (!lastWindow) {
-      assert.fail('Session window not found.');
-    }
+    assert.isOk(lastWindow, 'Session window not found.');
 
-    if (!lastShiftInWindow) {
-      assert.fail('Session window not found.');
-    }
+    assert.isOk(lastShiftInWindow, 'Session window not found.');
     assert.strictEqual(
         lastWindow.max, lastShiftInWindow.ts + Trace.Handlers.ModelHandlers.LayoutShifts.MAX_SHIFT_TIME_DELTA);
     assert.isBelow(lastWindow.range, Trace.Handlers.ModelHandlers.LayoutShifts.MAX_CLUSTER_DURATION);
@@ -137,13 +130,9 @@ describe('LayoutShiftsHandler', function() {
     const layoutShifts = Trace.Handlers.ModelHandlers.LayoutShifts.data();
     const lastWindow = layoutShifts.clusters.at(-1)?.clusterWindow;
     const lastShiftInWindow = layoutShifts.clusters.at(-1)?.events.at(-1);
-    if (!lastWindow) {
-      assert.fail('Session window not found.');
-    }
+    assert.isOk(lastWindow, 'Session window not found.');
 
-    if (!lastShiftInWindow) {
-      assert.fail('Session window not found.');
-    }
+    assert.isOk(lastShiftInWindow, 'Session window not found.');
     assert.strictEqual(lastWindow.range, Trace.Handlers.ModelHandlers.LayoutShifts.MAX_CLUSTER_DURATION);
   });
 
@@ -165,9 +154,7 @@ describe('LayoutShiftsHandler', function() {
             clusterScore >= Trace.Handlers.ModelHandlers.LayoutShifts.LayoutShiftsThreshold.NEEDS_IMPROVEMENT &&
             clusterScore < Trace.Handlers.ModelHandlers.LayoutShifts.LayoutShiftsThreshold.BAD) {
           assert.strictEqual(cluster.scoreWindows.good.max, event.ts - 1);
-          if (!cluster.scoreWindows.needsImprovement) {
-            assert.fail('No Needs Improvement window');
-          }
+          assert.isOk(cluster.scoreWindows.needsImprovement, 'No Needs Improvement window');
           assert.strictEqual(cluster.scoreWindows.needsImprovement.min, event.ts);
         }
 
@@ -176,9 +163,7 @@ describe('LayoutShiftsHandler', function() {
         // and that either the NI or Good window finishes just prior.
         if (scoreBeforeEvent < Trace.Handlers.ModelHandlers.LayoutShifts.LayoutShiftsThreshold.BAD &&
             clusterScore >= Trace.Handlers.ModelHandlers.LayoutShifts.LayoutShiftsThreshold.BAD) {
-          if (!cluster.scoreWindows.bad) {
-            assert.fail('No Bad window');
-          }
+          assert.isOk(cluster.scoreWindows.bad, 'No Bad window');
 
           if (cluster.scoreWindows.needsImprovement) {
             assert.strictEqual(cluster.scoreWindows.needsImprovement.max, event.ts - 1);

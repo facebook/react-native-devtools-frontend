@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,12 +8,9 @@ import type * as Protocol from '../../../generated/protocol.js';
 import type * as Lantern from '../lantern/lantern.js';
 
 import type * as File from './File.js';
+import type {Milli} from './Timing.js';
 
 export interface Configuration {
-  /**
-   * Include V8 RCS functions in the JS stacks
-   */
-  includeRuntimeCallStats: boolean;
   /**
    * Show all events: disable the default filtering which hides and excludes some events.
    */
@@ -38,13 +35,20 @@ export interface Configuration {
    * attempt to gather or track invalidations.
    */
   maxInvalidationEventsPerEvent: number;
+  /**
+   * Determines if the AnimationFramesHandler should be enabled. Currently in
+   * DevTools we do not use it, so we disable it by default to avoid work that
+   * we do not use. If you disable it, you will still see `data.AnimationFrames`
+   * from the model, but the contents will be empty.
+   */
+  enableAnimationsFrameHandler: boolean;
 }
 
 export const defaults = (): Configuration => ({
-  includeRuntimeCallStats: false,
   showAllEvents: false,
   debugMode: false,
   maxInvalidationEventsPerEvent: 20,
+  enableAnimationsFrameHandler: false,
 });
 
 /**
@@ -57,6 +61,7 @@ export function configToCacheKey(config: Configuration): string {
 }
 
 export interface ParseOptions {
+  showAllEvents?: boolean;
   /**
    * If the trace was just recorded on the current page, rather than an imported file.
    * TODO(paulirish): Maybe remove. This is currently unused by the Processor and Handlers
@@ -75,11 +80,24 @@ export interface ParseOptions {
     end: (id: string) => void,
   };
   lanternSettings?: Omit<Lantern.Types.Simulation.Settings, 'networkAnalysis'>;
+  /**
+   * Used when an Insight needs to format a time to string as part of its
+   * output. By default we use the i18n.TimeUtilities in DevTools but this
+   * enables it to be overridden, which is useful if you are consuming the trace
+   * engine outside of DevTools.
+   */
+  insightTimeFormatters?: InsightTimeFormatters;
+}
+
+export interface InsightTimeFormatters {
+  milli: (x: Milli) => string;
 }
 
 export interface ResolveSourceMapParams {
   scriptId: string;
   scriptUrl: Platform.DevToolsPath.UrlString;
+  /** The url as resolved by any sourceUrl comment. */
+  sourceUrl: Platform.DevToolsPath.UrlString;
   sourceMapUrl: Platform.DevToolsPath.UrlString;
   frame: Protocol.Page.FrameId;
   /** Set only if the raw source map was found on the provided metadata. Never set for source maps from data urls. */

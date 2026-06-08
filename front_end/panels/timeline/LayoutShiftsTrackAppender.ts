@@ -1,11 +1,14 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
+
 import * as Common from '../../core/common/common.js';
 import * as i18n from '../../core/i18n/i18n.js';
+import * as Geometry from '../../models/geometry/geometry.js';
 import * as Trace from '../../models/trace/trace.js';
 import * as ComponentHelpers from '../../ui/components/helpers/helpers.js';
-import * as UI from '../../ui/legacy/legacy.js';
+import * as PerfUI from '../../ui/legacy/components/perf_ui/perf_ui.js';
 import * as ThemeSupport from '../../ui/legacy/theme_support/theme_support.js';
 
 import {buildGroupStyle, buildTrackHeader} from './AppenderUtils.js';
@@ -21,15 +24,15 @@ import * as Utils from './utils/utils.js';
 
 const UIStrings = {
   /**
-   *@description Text in Timeline Flame Chart Data Provider of the Performance panel
+   * @description Text in Timeline Flame Chart Data Provider of the Performance panel
    */
   layoutShifts: 'Layout shifts',
   /**
-   *@description Text in Timeline Flame Chart Data Provider of the Performance panel
+   * @description Text in Timeline Flame Chart Data Provider of the Performance panel
    */
   layoutShiftCluster: 'Layout shift cluster',
   /**
-   *@description Text in Timeline Flame Chart Data Provider of the Performance panel
+   * @description Text in Timeline Flame Chart Data Provider of the Performance panel
    */
   layoutShift: 'Layout shift',
 } as const;
@@ -37,21 +40,23 @@ const UIStrings = {
 const str_ = i18n.i18n.registerUIStrings('panels/timeline/LayoutShiftsTrackAppender.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
-// Bit of a hack: LayoutShifts are instant events, so have no duration. But
-// OPP doesn't do well at making tiny events easy to spot and click. So we
-// set it to a small duration so that the user is able to see and click
-// them more easily. Long term we will explore a better UI solution to
-// allow us to do this properly and not hack around it.
-// TODO: Delete this once the new Layout Shift UI ships out of the TIMELINE_LAYOUT_SHIFT_DETAILS experiment
+/**
+ * Bit of a hack: LayoutShifts are instant events, so have no duration. But
+ * OPP doesn't do well at making tiny events easy to spot and click. So we
+ * set it to a small duration so that the user is able to see and click
+ * them more easily. Long term we will explore a better UI solution to
+ * allow us to do this properly and not hack around it.
+ * TODO: Delete this once the new Layout Shift UI ships out of the TIMELINE_LAYOUT_SHIFT_DETAILS experiment
+ **/
 export const LAYOUT_SHIFT_SYNTHETIC_DURATION = Trace.Types.Timing.Micro(5_000);
 
 export class LayoutShiftsTrackAppender implements TrackAppender {
   readonly appenderName: TrackAppenderName = 'LayoutShifts';
 
   #compatibilityBuilder: CompatibilityTracksAppender;
-  #parsedTrace: Readonly<Trace.Handlers.Types.ParsedTrace>;
+  #parsedTrace: Readonly<Trace.TraceModel.ParsedTrace>;
 
-  constructor(compatibilityBuilder: CompatibilityTracksAppender, parsedTrace: Trace.Handlers.Types.ParsedTrace) {
+  constructor(compatibilityBuilder: CompatibilityTracksAppender, parsedTrace: Trace.TraceModel.ParsedTrace) {
     this.#compatibilityBuilder = compatibilityBuilder;
     this.#parsedTrace = parsedTrace;
   }
@@ -61,12 +66,12 @@ export class LayoutShiftsTrackAppender implements TrackAppender {
    * layout shifts track.
    * @param trackStartLevel the horizontal level of the flame chart events where
    * the track's events will start being appended.
-   * @param expanded wether the track should be rendered expanded.
+   * @param expanded whether the track should be rendered expanded.
    * @returns the first available level to append more data after having
    * appended the track's events.
    */
   appendTrackAtLevel(trackStartLevel: number, expanded?: boolean): number {
-    if (this.#parsedTrace.LayoutShifts.clusters.length === 0) {
+    if (this.#parsedTrace.data.LayoutShifts.clusters.length === 0) {
       return trackStartLevel;
     }
     this.#appendTrackHeaderAtLevel(trackStartLevel, expanded);
@@ -83,7 +88,7 @@ export class LayoutShiftsTrackAppender implements TrackAppender {
    * appended.
    */
   #appendTrackHeaderAtLevel(currentLevel: number, expanded?: boolean): void {
-    const style = buildGroupStyle({collapsible: false});
+    const style = buildGroupStyle({collapsible: PerfUI.FlameChart.GroupCollapsibleState.NEVER});
     const group = buildTrackHeader(
         VisualLoggingTrackName.LAYOUT_SHIFTS, currentLevel, i18nString(UIStrings.layoutShifts), style,
         /* selectable= */ true, expanded);
@@ -99,10 +104,10 @@ export class LayoutShiftsTrackAppender implements TrackAppender {
    * layout shifts (the first available level to append more data).
    */
   #appendLayoutShiftsAtLevel(currentLevel: number): number {
-    const allClusters = this.#parsedTrace.LayoutShifts.clusters;
+    const allClusters = this.#parsedTrace.data.LayoutShifts.clusters;
     this.#compatibilityBuilder.appendEventsAtLevel(allClusters, currentLevel, this);
 
-    const allLayoutShifts = this.#parsedTrace.LayoutShifts.clusters.flatMap(cluster => cluster.events);
+    const allLayoutShifts = this.#parsedTrace.data.LayoutShifts.clusters.flatMap(cluster => cluster.events);
     void this.preloadScreenshots(allLayoutShifts);
     return this.#compatibilityBuilder.appendEventsAtLevel(allLayoutShifts, currentLevel, this);
   }
@@ -142,7 +147,7 @@ export class LayoutShiftsTrackAppender implements TrackAppender {
     if (Trace.Types.Events.isSyntheticLayoutShift(event)) {
       // Screenshots are max 500x500 naturally, but on a laptop in dock-to-right, 500px tall usually doesn't fit.
       // In the future, we may investigate a way to dynamically scale this tooltip content per available space.
-      const maxSize = new UI.Geometry.Size(510, 400);
+      const maxSize = new Geometry.Size(510, 400);
       const vizElem = LayoutShiftsTrackAppender.createShiftViz(event, this.#parsedTrace, maxSize);
       if (vizElem) {
         info.additionalElements.push(vizElem);
@@ -224,10 +229,10 @@ export class LayoutShiftsTrackAppender implements TrackAppender {
   }
 
   static createShiftViz(
-      event: Trace.Types.Events.SyntheticLayoutShift, parsedTrace: Trace.Handlers.Types.ParsedTrace,
-      maxSize: UI.Geometry.Size): HTMLElement|undefined {
+      event: Trace.Types.Events.SyntheticLayoutShift, parsedTrace: Trace.TraceModel.ParsedTrace,
+      maxSize: Geometry.Size): HTMLElement|undefined {
     const screenshots = event.parsedData.screenshots;
-    const {viewportRect, devicePixelRatio: dpr} = parsedTrace.Meta;
+    const {viewportRect, devicePixelRatio: dpr} = parsedTrace.data.Meta;
     const vizContainer = document.createElement('div');
     vizContainer.classList.add('layout-shift-viz');
 
@@ -238,7 +243,8 @@ export class LayoutShiftsTrackAppender implements TrackAppender {
       return;
     }
 
-    /** 1 of 3 scaling factors.
+    /**
+     * 1 of 3 scaling factors.
      * The Layout Instability API in Blink, which reports the LayoutShift trace events, is not based on CSS pixels but
      * physical pixels. As such the values in the impacted_nodes field need to be normalized to CSS units in order to
      * map them to the viewport dimensions, which we get in CSS pixels. We do that by dividing the values by the devicePixelRatio.

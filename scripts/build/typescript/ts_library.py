@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2019 The Chromium Authors.  All rights reserved.
+# Copyright 2019 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 import argparse
@@ -10,7 +10,6 @@ import shlex
 import subprocess
 import sys
 import re
-from pathlib import Path
 
 from os import path
 
@@ -155,11 +154,13 @@ def runEsbuild(opts, tsconfig_output_location, tsconfig_output_directory):
         ESBUILD_LOCATION,
         '--tsconfig=' + tsconfig_output_location,
         '--outdir=' + tsconfig_output_directory,
+        '--outbase=' + opts.front_end_directory,
         '--log-level=warning',
         '--sourcemap',
     ]
 
-    if opts.module == 'commonjs':
+    # TODO: Remove once we switch the repo to ESM
+    if opts.runs_in == 'node_cjs':
         cmd += ['--format=cjs']
 
     cmd += opts.sources
@@ -206,8 +207,7 @@ def main():
     parser.add_argument('--test-only', action='store_true')
     parser.add_argument('--no-emit', action='store_true')
     parser.add_argument('--verify-lib-check', action='store_true')
-    parser.add_argument('--is_web_worker', action='store_true')
-    parser.add_argument('--module', required=False)
+    parser.add_argument('--runs-in', required=False)
     parser.add_argument('--reset_timestamps', action='store_true')
     parser.add_argument('--additional-type-definitions',
                         nargs='*',
@@ -215,11 +215,15 @@ def main():
                         help='List of TypeScript declaration files')
     parser.add_argument('--use-esbuild', action='store_true')
     parser.add_argument('--tsconfig-only', action='store_true')
+    parser.add_argument('--es-target', required=False)
+    parser.add_argument('--es-libs', nargs='*', required=False)
+    # Restrict supported features to the ones supported by Node 22.
     parser.set_defaults(test_only=False,
                         no_emit=False,
                         verify_lib_check=False,
                         reset_timestamps=False,
-                        module='esnext')
+                        runs_in='browser',
+                        es_target='ES2023')
 
     opts = parser.parse_args()
     with open(BASE_TS_CONFIG_LOCATION) as root_tsconfig:
@@ -233,7 +237,8 @@ def main():
                                          opts.tsconfig_output_location)
     tsconfig_output_directory = path.dirname(tsconfig_output_location)
     tsbuildinfo_name = path.basename(tsconfig_output_location) + '.tsbuildinfo'
-    runs_in_node_environment = opts.module == "commonjs"
+    runs_in_node_cjs_environment = opts.runs_in == 'node_cjs'
+    runs_in_node_esm_environment = opts.runs_in == 'node_esm'
 
     def get_relative_path_from_output_directory(file_to_resolve):
         return path.relpath(path.join(os.getcwd(), file_to_resolve),
@@ -254,37 +259,56 @@ def main():
 
     if (opts.deps is not None):
         tsconfig['references'] = [{'path': src} for src in opts.deps]
-    tsconfig['compilerOptions']['module'] = opts.module
     if (not opts.verify_lib_check):
         tsconfig['compilerOptions']['skipLibCheck'] = True
     tsconfig['compilerOptions'][
         'rootDir'] = get_relative_path_from_output_directory(
             opts.front_end_directory)
-    tsconfig['compilerOptions']['typeRoots'] = (
-        opts.test_only or runs_in_node_environment
-    ) and [
-        get_relative_path_from_output_directory(TYPES_NODE_MODULES_DIRECTORY)
-    ] or []
-    if opts.test_only:
-        tsconfig['compilerOptions']['types'] = [
-            "mocha", "chai", "sinon", "karma-chai-sinon"
+
+    tsconfig['compilerOptions']['types'] = []
+    tsconfig['compilerOptions']['typeRoots'] = []
+    if runs_in_node_cjs_environment or runs_in_node_esm_environment or opts.test_only:
+        tsconfig['compilerOptions']['typeRoots'] += [
+            get_relative_path_from_output_directory(
+                TYPES_NODE_MODULES_DIRECTORY),
+            get_relative_path_from_output_directory(
+                NODE_MODULES_DIRECTORY),  # for undici-types
         ]
+
+    if opts.test_only:
+        tsconfig['compilerOptions']['types'] += [
+            "mocha",
+            "chai",
+            "sinon",
+        ]
+        # We only want to add these types for Unit test
+        # Else we will get run time errors if we don't import chai
+        if runs_in_node_cjs_environment is False:
+            tsconfig['compilerOptions']['types'].append(
+                "karma-chai-sinon"
+            )
         # Required for sinon global access.
         tsconfig['compilerOptions']['allowUmdGlobalAccess'] = True
-        if runs_in_node_environment:
-            tsconfig['compilerOptions']['types'] += ["node"]
-    if runs_in_node_environment:
-        tsconfig['compilerOptions']['moduleResolution'] = 'node'
-        tsconfig['compilerOptions'][
-            'baseUrl'] = get_relative_path_from_output_directory(
-                NODE_MODULES_DIRECTORY)
+
+    if runs_in_node_cjs_environment:
+        tsconfig['compilerOptions']['module'] = 'nodenext'
+        tsconfig['compilerOptions']['moduleResolution'] = 'nodenext'
+    else:
+        tsconfig['compilerOptions']['module'] = 'esnext'
+
+    if runs_in_node_cjs_environment or runs_in_node_esm_environment:
+        tsconfig['compilerOptions']['types'] += ["node", "undici-types"]
+
     if opts.no_emit:
-        tsconfig['compilerOptions']['emitDeclarationOnly'] = True
+        tsconfig['compilerOptions']['noEmit'] = True
     tsconfig['compilerOptions']['outDir'] = '.'
     tsconfig['compilerOptions']['tsBuildInfoFile'] = tsbuildinfo_name
-    tsconfig['compilerOptions']['lib'] = ['esnext'] + (
-        opts.is_web_worker and ['webworker', 'webworker.iterable']
-        or ['dom', 'dom.iterable'])
+    tsconfig['compilerOptions']['target'] = opts.es_target
+    es_libs = ['dom', 'dom.iterable'] if opts.es_libs is None else opts.es_libs
+    tsconfig['compilerOptions']['lib'] = es_libs + [
+        'ES2023', 'ES2024.Promise', 'ESNext.Iterator', 'ESNext.Collection',
+        'ESNext.Array'
+    ]
 
     if maybe_update_tsconfig_file(tsconfig_output_location, tsconfig) == 1:
         return 1

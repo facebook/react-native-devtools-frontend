@@ -1,46 +1,18 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2012 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-/*
- * Copyright (C) 2012 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the #name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-
 import * as TextUtils from '../../models/text_utils/text_utils.js';
+import * as ScopesCodec from '../../third_party/source-map-scopes-codec/source-map-scopes-codec.js';
 import * as Common from '../common/common.js';
 import * as Platform from '../platform/platform.js';
 import * as Root from '../root/root.js';
 
 import type {CallFrame, ScopeChainEntry} from './DebuggerModel.js';
+import {scopeTreeForScript} from './ScopeTreeCache.js';
+import type {Script} from './Script.js';
 import {buildOriginalScopes, decodePastaRanges, type NamedFunctionRange} from './SourceMapFunctionRanges.js';
-import {decodeScopes, type OriginalScope, type Position as GeneratedPosition} from './SourceMapScopes.js';
-import {SourceMapScopesInfo} from './SourceMapScopesInfo.js';
+import {SourceMapScopesInfo, type TranslatedFrame} from './SourceMapScopesInfo.js';
 
 /**
  * Type of the base source map JSON object, which contains the sources and the mappings at the very least, plus
@@ -61,8 +33,8 @@ export interface SourceMapV3Object {
 
   names?: string[];
   ignoreList?: number[];
-  originalScopes?: string[];
-  generatedRanges?: string;
+  scopes?: string;
+  debugId?: string;
   x_google_linecount?: number;
   x_google_ignoreList?: number[];
   x_com_bloomberg_sourcesFunctionMappings?: string[];
@@ -82,7 +54,6 @@ export interface SourceMapV3Object {
 export type SourceMapV3 = SourceMapV3Object|{
   // clang-format off
   version: number,
-  file?: string,
   sections: Array<{
     offset: {line: number, column: number},
     map: SourceMapV3Object,
@@ -90,6 +61,7 @@ export type SourceMapV3 = SourceMapV3Object|{
     offset: {line: number, column: number},
     url: string,
   }>,
+  file?: string,
   // clang-format on
 };
 
@@ -111,14 +83,16 @@ export function parseSourceMap(content: string): SourceMapV3 {
   return JSON.parse(content) as SourceMapV3;
 }
 
+export type DebugId = Platform.Brand.Brand<string, 'DebugId'>;
+
 export class SourceMapEntry {
   readonly lineNumber: number;
   readonly columnNumber: number;
   readonly sourceIndex?: number;
-  readonly sourceURL: Platform.DevToolsPath.UrlString|undefined;
+  readonly sourceURL?: Platform.DevToolsPath.UrlString;
   readonly sourceLineNumber: number;
   readonly sourceColumnNumber: number;
-  readonly name: string|undefined;
+  readonly name?: string;
 
   constructor(
       lineNumber: number, columnNumber: number, sourceIndex?: number, sourceURL?: Platform.DevToolsPath.UrlString,
@@ -151,15 +125,20 @@ export class SourceMap {
   static retainRawSourceMaps = false;
 
   #json: SourceMapV3|null;
-  readonly #compiledURLInternal: Platform.DevToolsPath.UrlString;
+  readonly #compiledURL: Platform.DevToolsPath.UrlString;
   readonly #sourceMappingURL: Platform.DevToolsPath.UrlString;
   readonly #baseURL: Platform.DevToolsPath.UrlString;
-  #mappingsInternal: SourceMapEntry[]|null;
+  #mappings: SourceMapEntry[]|null = null;
 
   readonly #sourceInfos: SourceInfo[] = [];
   readonly #sourceInfoByURL = new Map<Platform.DevToolsPath.UrlString, SourceInfo>();
 
+  readonly #script?: Script;
   #scopesInfo: SourceMapScopesInfo|null = null;
+
+  readonly #debugId?: DebugId;
+
+  #scopesFallbackPromise?: Promise<void>;
 
   /**
    * Implements Source Map V3 model. See https://github.com/google/closure-compiler/wiki/Source-Maps
@@ -167,13 +146,14 @@ export class SourceMap {
    */
   constructor(
       compiledURL: Platform.DevToolsPath.UrlString, sourceMappingURL: Platform.DevToolsPath.UrlString,
-      payload: SourceMapV3) {
+      payload: SourceMapV3, script?: Script) {
     this.#json = payload;
-    this.#compiledURLInternal = compiledURL;
+    this.#script = script;
+    this.#compiledURL = compiledURL;
     this.#sourceMappingURL = sourceMappingURL;
     this.#baseURL = (Common.ParsedURL.schemeIs(sourceMappingURL, 'data:')) ? compiledURL : sourceMappingURL;
+    this.#debugId = 'debugId' in payload ? (payload.debugId as DebugId | undefined) : undefined;
 
-    this.#mappingsInternal = null;
     if ('sections' in this.#json) {
       if (this.#json.sections.find(section => 'url' in section)) {
         Common.Console.Console.instance().warn(
@@ -188,16 +168,18 @@ export class SourceMap {
   }
 
   augmentWithScopes(scriptUrl: Platform.DevToolsPath.UrlString, ranges: NamedFunctionRange[]): void {
-    this.#ensureMappingsProcessed();
+    this.#ensureSourceMapProcessed();
     if (this.#json && this.#json.version > 3) {
       throw new Error('Only support augmenting source maps up to version 3.');
     }
     // Ensure scriptUrl is associated with sourceMap sources
     const sourceIdx = this.#sourceIndex(scriptUrl);
     if (sourceIdx >= 0) {
-      if (!this.#scopesInfo) {
-        // First time seeing this sourcemap, create an new empty scopesInfo object
-        this.#scopesInfo = new SourceMapScopesInfo(this, [], []);
+      if (!this.#scopesInfo || this.#scopesFallbackPromise !== undefined) {
+        // First time seeing this sourcemap, create an new empty scopesInfo object.
+        // Also reset the fallback scope info since the extension will provide it.
+        this.#scopesInfo = new SourceMapScopesInfo(this, {scopes: [], ranges: []});
+        this.#scopesFallbackPromise = undefined;
       }
       if (!this.#scopesInfo.hasOriginalScopes(sourceIdx)) {
         const originalScopes = buildOriginalScopes(ranges);
@@ -213,11 +195,19 @@ export class SourceMap {
   }
 
   compiledURL(): Platform.DevToolsPath.UrlString {
-    return this.#compiledURLInternal;
+    return this.#compiledURL;
   }
 
   url(): Platform.DevToolsPath.UrlString {
     return this.#sourceMappingURL;
+  }
+
+  debugId(): DebugId|null {
+    return this.#debugId ?? null;
+  }
+
+  sourceURLForSourceIndex(index: number): Platform.DevToolsPath.UrlString|undefined {
+    return this.#sourceInfos[index]?.sourceURL;
   }
 
   sourceURLs(): Platform.DevToolsPath.UrlString[] {
@@ -233,12 +223,17 @@ export class SourceMap {
   }
 
   hasScopeInfo(): boolean {
-    this.#ensureMappingsProcessed();
-    return this.#scopesInfo !== null;
+    this.#ensureSourceMapProcessed();
+    return this.#scopesInfo !== null && !this.#scopesInfo.isEmpty();
+  }
+
+  waitForScopeInfo(): Promise<void> {
+    this.#ensureSourceMapProcessed();
+    return this.#scopesFallbackPromise ?? Promise.resolve();
   }
 
   findEntry(lineNumber: number, columnNumber: number, inlineFrameIndex?: number): SourceMapEntry|null {
-    this.#ensureMappingsProcessed();
+    this.#ensureSourceMapProcessed();
     if (inlineFrameIndex && this.#scopesInfo !== null) {
       // For inlineFrameIndex != 0 we use the callsite info for the corresponding inlining site.
       // Note that the callsite for "inlineFrameIndex" is actually in the previous frame.
@@ -255,13 +250,21 @@ export class SourceMap {
         sourceURL: this.sourceURLs()[callsite.sourceIndex],
         sourceLineNumber: callsite.line,
         sourceColumnNumber: callsite.column,
-        name: undefined,
       };
     }
     const mappings = this.mappings();
     const index = Platform.ArrayUtilities.upperBound(
-        mappings, undefined, (unused, entry) => lineNumber - entry.lineNumber || columnNumber - entry.columnNumber);
+        mappings, undefined, (_, entry) => lineNumber - entry.lineNumber || columnNumber - entry.columnNumber);
     return index ? mappings[index - 1] : null;
+  }
+
+  /** Returns the entry at the given position but only if an entry exists for that exact position */
+  findEntryExact(lineNumber: number, columnNumber: number): SourceMapEntry|null {
+    const entry = this.findEntry(lineNumber, columnNumber);
+    if (entry?.lineNumber === lineNumber && entry.columnNumber === columnNumber) {
+      return entry;
+    }
+    return null;
   }
 
   findEntryRanges(lineNumber: number, columnNumber: number): {
@@ -271,7 +274,7 @@ export class SourceMap {
   }|null {
     const mappings = this.mappings();
     const endIndex = Platform.ArrayUtilities.upperBound(
-        mappings, undefined, (unused, entry) => lineNumber - entry.lineNumber || columnNumber - entry.columnNumber);
+        mappings, undefined, (_, entry) => lineNumber - entry.lineNumber || columnNumber - entry.columnNumber);
     if (!endIndex) {
       // If the line and column are preceding all the entries, then there is nothing to map.
       return null;
@@ -295,8 +298,7 @@ export class SourceMap {
     const startSourceColumn = mappings[startIndex].sourceColumnNumber;
     const endReverseIndex = Platform.ArrayUtilities.upperBound(
         reverseMappings, undefined,
-        (unused, i) =>
-            startSourceLine - mappings[i].sourceLineNumber || startSourceColumn - mappings[i].sourceColumnNumber);
+        (_, i) => startSourceLine - mappings[i].sourceLineNumber || startSourceColumn - mappings[i].sourceColumnNumber);
     if (!endReverseIndex) {
       return null;
     }
@@ -341,7 +343,7 @@ export class SourceMap {
     const reverseMappings = this.reversedMappings(sourceURL);
     const endIndex = Platform.ArrayUtilities.upperBound(
         reverseMappings, undefined,
-        (unused, i) => lineNumber - mappings[i].sourceLineNumber || columnNumber - mappings[i].sourceColumnNumber);
+        (_, i) => lineNumber - mappings[i].sourceLineNumber || columnNumber - mappings[i].sourceColumnNumber);
     let startIndex = endIndex;
     while (startIndex > 0 &&
            mappings[reverseMappings[startIndex - 1]].sourceLineNumber ===
@@ -394,29 +396,49 @@ export class SourceMap {
   }
 
   mappings(): SourceMapEntry[] {
-    this.#ensureMappingsProcessed();
-    return this.#mappingsInternal ?? [];
+    this.#ensureSourceMapProcessed();
+    return this.#mappings ?? [];
+  }
+
+  /**
+   * If the source map does not contain scope information by itself (e.g. "scopes proposal"
+   * or "pasta" scopes), then we'll use this getter to calculate basic function name information from
+   * the AST and mappings.
+   */
+  async #buildScopesFallback(): Promise<SourceMapScopesInfo|null> {
+    const scopeTreeAndText = this.#script ? await scopeTreeForScript(this.#script) : null;
+    if (!scopeTreeAndText) {
+      return null;
+    }
+
+    const {scopeTree, text} = scopeTreeAndText;
+    return SourceMapScopesInfo.createFromAst(this, scopeTree, text);
   }
 
   private reversedMappings(sourceURL: Platform.DevToolsPath.UrlString): number[] {
-    this.#ensureMappingsProcessed();
+    this.#ensureSourceMapProcessed();
     return this.#sourceInfoByURL.get(sourceURL)?.reverseMappings ?? [];
   }
 
-  #ensureMappingsProcessed(): void {
-    if (this.#mappingsInternal === null) {
-      this.#mappingsInternal = [];
+  #ensureSourceMapProcessed(): void {
+    if (this.#mappings === null) {
+      this.#mappings = [];
       try {
         this.eachSection(this.parseMap.bind(this));
+        if (!this.hasScopeInfo()) {
+          this.#scopesFallbackPromise = this.#buildScopesFallback().then(info => {
+            this.#scopesInfo = info;
+          });
+        }
       } catch (e) {
         console.error('Failed to parse source map', e);
-        this.#mappingsInternal = [];
+        this.#mappings = [];
       }
 
       // As per spec, mappings are not necessarily sorted.
       this.mappings().sort(SourceMapEntry.compare);
 
-      this.#computeReverseMappings(this.#mappingsInternal);
+      this.#computeReverseMappings(this.#mappings);
     }
 
     if (!SourceMap.retainRawSourceMaps) {
@@ -427,7 +449,7 @@ export class SourceMap {
   #computeReverseMappings(mappings: SourceMapEntry[]): void {
     const reverseMappingsPerUrl = new Map<Platform.DevToolsPath.UrlString, number[]>();
     for (let i = 0; i < mappings.length; i++) {
-      const entryUrl = mappings[i].sourceURL;
+      const entryUrl = mappings[i]?.sourceURL;
       if (!entryUrl) {
         continue;
       }
@@ -557,25 +579,27 @@ export class SourceMap {
           lineNumber, columnNumber, sourceIndex, sourceURL, sourceLineNumber, sourceColumnNumber, names[nameIndex]));
     }
 
-    if (Root.Runtime.experiments.isEnabled(Root.Runtime.ExperimentName.USE_SOURCE_MAP_SCOPES)) {
+    if (Root.Runtime.experiments.isEnabled(Root.ExperimentNames.ExperimentName.USE_SOURCE_MAP_SCOPES)) {
       if (!this.#scopesInfo) {
-        this.#scopesInfo = new SourceMapScopesInfo(this, [], []);
+        this.#scopesInfo = new SourceMapScopesInfo(this, {scopes: [], ranges: []});
       }
-      if (map.originalScopes && map.generatedRanges) {
-        const {originalScopes, generatedRanges} = decodeScopes(map, {line: baseLineNumber, column: baseColumnNumber});
-        this.#scopesInfo.addOriginalScopes(originalScopes);
-        this.#scopesInfo.addGeneratedRanges(generatedRanges);
+      if (map.scopes) {
+        const {scopes, ranges} = ScopesCodec.decode(
+            map as ScopesCodec.SourceMapJson,
+            {mode: ScopesCodec.DecodeMode.LAX, generatedOffset: {line: baseLineNumber, column: baseColumnNumber}});
+        this.#scopesInfo.addOriginalScopes(scopes);
+        this.#scopesInfo.addGeneratedRanges(ranges);
       } else if (map.x_com_bloomberg_sourcesFunctionMappings) {
         const originalScopes = this.parseBloombergScopes(map);
         this.#scopesInfo.addOriginalScopes(originalScopes);
       } else {
         // Keep the OriginalScope[] tree array consistent with sources.
-        this.#scopesInfo.addOriginalScopes(new Array(map.sources.length));
+        this.#scopesInfo.addOriginalScopes(new Array(map.sources.length).fill(null));
       }
     }
   }
 
-  private parseBloombergScopes(map: SourceMapV3Object): Array<OriginalScope|undefined> {
+  private parseBloombergScopes(map: SourceMapV3Object): Array<ScopesCodec.OriginalScope|null> {
     const scopeList = map.x_com_bloomberg_sourcesFunctionMappings;
     if (!scopeList) {
       throw new Error('Cant decode pasta scopes without x_com_bloomberg_sourcesFunctionMappings field');
@@ -586,7 +610,7 @@ export class SourceMap {
 
     return scopeList.map(rawScopes => {
       if (!rawScopes) {
-        return undefined;
+        return null;
       }
       const ranges = decodePastaRanges(rawScopes, names);
       return buildOriginalScopes(ranges);
@@ -747,17 +771,8 @@ export class SourceMap {
         this.hasIgnoreListHint(sourceURL) === other.hasIgnoreListHint(sourceURL);
   }
 
-  expandCallFrame(frame: CallFrame): CallFrame[] {
-    this.#ensureMappingsProcessed();
-    if (this.#scopesInfo === null) {
-      return [frame];
-    }
-
-    return this.#scopesInfo.expandCallFrame(frame);
-  }
-
   resolveScopeChain(frame: CallFrame): ScopeChainEntry[]|null {
-    this.#ensureMappingsProcessed();
+    this.#ensureSourceMapProcessed();
     if (this.#scopesInfo === null) {
       return null;
     }
@@ -765,9 +780,30 @@ export class SourceMap {
     return this.#scopesInfo.resolveMappedScopeChain(frame);
   }
 
-  findOriginalFunctionName(position: GeneratedPosition): string|null {
-    this.#ensureMappingsProcessed();
+  findOriginalFunctionName(position: ScopesCodec.Position): string|null {
+    this.#ensureSourceMapProcessed();
     return this.#scopesInfo?.findOriginalFunctionName(position) ?? null;
+  }
+
+  findOriginalFunctionScope(position: ScopesCodec.Position):
+      {scope: ScopesCodec.OriginalScope, url?: Platform.DevToolsPath.UrlString}|null {
+    this.#ensureSourceMapProcessed();
+    return this.#scopesInfo?.findOriginalFunctionScope(position) ?? null;
+  }
+
+  isOutlinedFrame(generatedLine: number, generatedColumn: number): boolean {
+    this.#ensureSourceMapProcessed();
+    return this.#scopesInfo?.isOutlinedFrame(generatedLine, generatedColumn) ?? false;
+  }
+
+  hasInlinedFrames(generatedLine: number, generatedColumn: number): boolean {
+    this.#ensureSourceMapProcessed();
+    return this.#scopesInfo?.hasInlinedFrames(generatedLine, generatedColumn) ?? false;
+  }
+
+  translateCallSite(generatedLine: number, generatedColumn: number): TranslatedFrame[] {
+    this.#ensureSourceMapProcessed();
+    return this.#scopesInfo?.translateCallSite(generatedLine, generatedColumn) ?? [];
   }
 }
 

@@ -1,35 +1,26 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view, @devtools/enforce-custom-element-definitions-location */
 
-import '../icon_button/icon_button.js';
+import '../../kit/kit.js';
 
 import * as Common from '../../../core/common/common.js';
 import * as Lit from '../../lit/lit.js';
 
-import settingDeprecationWarningRaw from './settingDeprecationWarning.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const settingDeprecationWarning = new CSSStyleSheet();
-settingDeprecationWarning.replaceSync(settingDeprecationWarningRaw.cssText);
+import settingDeprecationWarningStyles from './settingDeprecationWarning.css.js';
 
 const {html} = Lit;
 
 export class SettingDeprecationWarning extends HTMLElement {
   readonly #shadow = this.attachShadow({mode: 'open'});
 
-  connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [settingDeprecationWarning];
-  }
-
   set data(data: Common.Settings.Deprecation) {
     this.#render(data);
   }
 
   #render({disabled, warning, experiment}: Common.Settings.Deprecation): void {
-    const iconData = {iconName: 'info', color: 'var(--icon-default)', width: '16px'};
-
-    const classes = {clickable: false};
+    const classes = {clickable: false, medium: true};
     let onclick: (() => void)|undefined;
     if (disabled && experiment) {
       classes.clickable = true;
@@ -39,7 +30,9 @@ export class SettingDeprecationWarning extends HTMLElement {
     }
 
     Lit.render(
-        html`<devtools-icon class=${Lit.Directives.classMap(classes)} .data=${iconData} title=${warning} @click=${
+        html`
+        <style>${settingDeprecationWarningStyles}</style>
+        <devtools-icon class=${Lit.Directives.classMap(classes)} name="info" title=${warning} @click=${
             onclick}></devtools-icon>`,
         this.#shadow, {host: this});
   }

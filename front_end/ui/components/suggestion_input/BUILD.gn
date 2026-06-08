@@ -1,4 +1,4 @@
-# Copyright 2023 The Chromium Authors. All rights reserved.
+# Copyright 2023 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
@@ -11,7 +11,7 @@ generate_css("css_files") {
   sources = [ "suggestionInput.css" ]
 }
 
-devtools_module("suggestion_input") {
+devtools_ui_module("suggestion_input") {
   sources = [ "SuggestionInput.ts" ]
 
   deps = [

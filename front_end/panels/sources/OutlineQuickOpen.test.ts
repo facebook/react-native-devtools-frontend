@@ -1,4 +1,4 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -344,6 +344,34 @@ describe('OutlineQuickOpen', () => {
             {title: 'static async foo', subtitle: '()', lineNumber: 6, columnNumber: 15},
           ],
       );
+      assert.deepEqual(
+          javaScriptOutline(`class GoodClass {
+  a() { foo = bar; }
+  b() { foo = bar; }
+  c() { foo = bar; }
+}
+class BadClass {
+  a() { foo = bar.baz; }
+  b() { let foo = bar.baz; }
+  c() { foo = bar.baz; }
+}
+class LastClass {
+  d() { return 'hello world' }
+}
+`),
+          [
+            {title: 'class GoodClass', lineNumber: 0, columnNumber: 6},
+            {title: 'a', subtitle: '()', lineNumber: 1, columnNumber: 2},
+            {title: 'b', subtitle: '()', lineNumber: 2, columnNumber: 2},
+            {title: 'c', subtitle: '()', lineNumber: 3, columnNumber: 2},
+            {title: 'class BadClass', lineNumber: 5, columnNumber: 6},
+            {title: 'a', subtitle: '()', lineNumber: 6, columnNumber: 2},
+            {title: 'b', subtitle: '()', lineNumber: 7, columnNumber: 2},
+            {title: 'c', subtitle: '()', lineNumber: 8, columnNumber: 2},
+            {title: 'class LastClass', lineNumber: 10, columnNumber: 6},
+            {title: 'd', subtitle: '()', lineNumber: 11, columnNumber: 2},
+          ],
+      );
     });
 
     it('for private methods', () => {
@@ -522,7 +550,7 @@ const formatName = (name) => {
       );
     });
 
-    it('for overriden methods', () => {
+    it('for overridden methods', () => {
       assert.deepEqual(
           typeScriptOutline(
               'class Foo extends Bar {\n' +
@@ -650,6 +678,64 @@ const formatName = (name) => {
             ],
         );
       });
+    });
+
+    it('doesn\'t get stuck in an endless loop on TextPrompt', () => {
+      typeScriptOutline(`
+export class TextPrompt extends Common.ObjectWrapper.ObjectWrapper<EventTypes> implements SuggestBoxDelegate {
+  private proxyElement!: HTMLElement|undefined;
+  private proxyElementDisplay: string;
+  private autocompletionTimeout: number;
+  #title: string;
+  private queryRange: TextUtils.TextRange.TextRange|null;
+  private previousText: string;
+  private currentSuggestion: Suggestion|null;
+  private completionRequestId: number;
+  private ghostTextElement: HTMLSpanElement;
+  private leftParenthesesIndices: number[];
+  private loadCompletions!: (this: null, arg1: string, arg2: string, arg3?: boolean|undefined) => Promise<Suggestion[]>;
+  private completionStopCharacters!: string;
+  private usesSuggestionBuilder!: boolean;
+  #element?: Element;
+  private boundOnKeyDown?: ((ev: KeyboardEvent) => void);
+  private boundOnInput?: ((ev: Event) => void);
+  private boundOnMouseWheel?: ((event: Event) => void);
+  private boundClearAutocomplete?: (() => void);
+  private boundOnBlur?: ((ev: Event) => void);
+  private contentElement?: HTMLElement;
+  private suggestBox?: SuggestBox;
+  private isEditing?: boolean;
+  private focusRestorer?: ElementFocusRestorer;
+  private blurListener?: ((arg0: Event) => void);
+  private oldTabIndex?: number;
+  private completeTimeout?: number;
+  #disableDefaultSuggestionForEmptyInput?: boolean;
+  jslogContext: string|undefined = undefined;
+
+  constructor() {
+    super();
+    this.proxyElementDisplay = 'inline-block';
+    this.autocompletionTimeout = DefaultAutocompletionTimeout;
+    this.#title = '';
+    this.queryRange = null;
+    this.previousText = '';
+    this.currentSuggestion = null;
+    this.completionRequestId = 0;
+    this.ghostTextElement = document.createElement('span');
+    this.ghostTextElement.classList.add('auto-complete-text');
+    this.ghostTextElement.setAttribute('contenteditable', 'false');
+    this.leftParenthesesIndices = [];
+    ARIAUtils.setHidden(this.ghostTextElement, true);
+  }
+
+  initialize(
+      completions: (this: null, expression: string, filter: string, force?: boolean|undefined) => Promise<Suggestion[]>,
+      stopCharacters?: string, usesSuggestionBuilder?: boolean): void {
+    this.loadCompletions = completions;
+    this.completionStopCharacters = stopCharacters || ' =:[({;,!+-*/&|^<>.';
+    this.usesSuggestionBuilder = usesSuggestionBuilder || false;
+  }
+}`);
     });
   });
 

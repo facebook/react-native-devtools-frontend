@@ -1,6 +1,7 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import '../../ui/legacy/legacy.js';
 
@@ -16,35 +17,35 @@ import eventSourceMessagesViewStyles from './eventSourceMessagesView.css.js';
 
 const UIStrings = {
   /**
-   *@description Text in Event Source Messages View of the Network panel
+   * @description Text in Event Source Messages View of the Network panel
    */
   id: 'Id',
   /**
-   *@description Text that refers to some types
+   * @description Text that refers to some types
    */
   type: 'Type',
   /**
-   *@description Text in Event Source Messages View of the Network panel
+   * @description Text in Event Source Messages View of the Network panel
    */
   data: 'Data',
   /**
-   *@description Text that refers to the time
+   * @description Text that refers to the time
    */
   time: 'Time',
   /**
-   *@description Data grid name for Event Source data grids
+   * @description Data grid name for Event Source data grids
    */
   eventSource: 'Event Source',
   /**
-   *@description A context menu item in the Resource Web Socket Frame View of the Network panel
+   * @description A context menu item in the Resource Web Socket Frame View of the Network panel
    */
   copyMessage: 'Copy message',
   /**
-   *@description Text to clear everything
+   * @description Text to clear everything
    */
   clearAll: 'Clear all',
   /**
-   *@description Example for placeholder text
+   * @description Example for placeholder text
    */
   filterByRegex: 'Filter using regex (example: https?)',
 } as const;
@@ -62,11 +63,10 @@ export class EventSourceMessagesView extends UI.Widget.VBox {
       Common.Settings.Settings.instance().createSetting('network-event-source-message-filter', '');
 
   constructor(request: SDK.NetworkRequest.NetworkRequest) {
-    super();
+    super({jslog: `${VisualLogging.pane('event-stream').track({resize: true})}`});
     this.registerRequiredCSS(eventSourceMessagesViewStyles);
 
     this.element.classList.add('event-source-messages-view');
-    this.element.setAttribute('jslog', `${VisualLogging.pane('event-stream').track({resize: true})}`);
     this.request = request;
 
     this.mainToolbar = this.element.createChild('devtools-toolbar');
@@ -86,18 +86,16 @@ export class EventSourceMessagesView extends UI.Widget.VBox {
     }
     this.mainToolbar.appendToolbarItem(this.filterTextInput);
 
-    const columns = ([
+    const columns: DataGrid.DataGrid.ColumnDescriptor[] = [
       {id: 'id', title: i18nString(UIStrings.id), sortable: true, weight: 8},
       {id: 'type', title: i18nString(UIStrings.type), sortable: true, weight: 8},
       {id: 'data', title: i18nString(UIStrings.data), sortable: false, weight: 88},
       {id: 'time', title: i18nString(UIStrings.time), sortable: true, weight: 8},
-    ] as DataGrid.DataGrid.ColumnDescriptor[]);
+    ];
 
     this.dataGrid = new DataGrid.SortableDataGrid.SortableDataGrid({
       displayName: i18nString(UIStrings.eventSource),
       columns,
-      deleteCallback: undefined,
-      refreshCallback: undefined,
     });
     this.dataGrid.setStriped(true);
     this.dataGrid.setEnableAutoScrollToBottom(true);
@@ -117,6 +115,7 @@ export class EventSourceMessagesView extends UI.Widget.VBox {
   }
 
   override willHide(): void {
+    super.willHide();
     this.request.removeEventListener(SDK.NetworkRequest.Events.EVENT_SOURCE_MESSAGE_ADDED, this.messageAdded, this);
   }
 
@@ -218,9 +217,7 @@ function eventSourceMessageNodeComparator(
   return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
 }
 
-export const Comparators: {
-  [x: string]: (arg0: EventSourceMessageNode, arg1: EventSourceMessageNode) => number,
-} = {
+export const Comparators: Record<string, (arg0: EventSourceMessageNode, arg1: EventSourceMessageNode) => number> = {
   id: eventSourceMessageNodeComparator.bind(null, message => message.eventId),
   type: eventSourceMessageNodeComparator.bind(null, message => message.eventName),
   time: eventSourceMessageNodeComparator.bind(null, message => message.time),

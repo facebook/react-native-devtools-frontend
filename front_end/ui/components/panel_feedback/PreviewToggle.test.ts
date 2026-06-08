@@ -1,18 +1,18 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 import * as Root from '../../../core/root/root.js';
 import {
-  dispatchClickEvent,
   renderElementIntoDOM,
 } from '../../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../../testing/LocaleHelpers.js';
 import * as RenderCoordinator from '../render_coordinator/render_coordinator.js';
 
 import * as PanelFeedback from './panel_feedback.js';
 
-describeWithLocale('Preview toggle', () => {
+describe('Preview toggle', () => {
+  setupLocaleHooks();
   it('calls out correctly to enable experiment', async () => {
     const isEnabledStub = sinon.stub(Root.Runtime.experiments, 'isEnabled');
     isEnabledStub.callsFake(() => false);
@@ -25,7 +25,7 @@ describeWithLocale('Preview toggle', () => {
       name: 'toggle name',
       helperText: 'more about this toggle',
       feedbackURL: 'https://feedbackurl.com',
-      experiment: 'testExperiment' as Root.Runtime.ExperimentName,
+      experiment: 'testExperiment' as Root.ExperimentNames.ExperimentName,
       onChangeCallback: spy,
     };
 
@@ -33,14 +33,14 @@ describeWithLocale('Preview toggle', () => {
     await RenderCoordinator.done();
 
     assert.isNotNull(component.shadowRoot);
-    const input = component.shadowRoot.querySelector('input');
-    assert.instanceOf(input, HTMLElement);
-    dispatchClickEvent(input);
-    assert.strictEqual(setEnabledStub.callCount, 1);
+    const checkbox = component.shadowRoot.querySelector('devtools-checkbox');
+    assert.exists(checkbox);
+    checkbox.click();
+    sinon.assert.callCount(setEnabledStub, 1);
     assert.isTrue(
-        setEnabledStub.firstCall.calledWith('testExperiment', true),
+        setEnabledStub.firstCall.calledWith('testExperiment' as Root.ExperimentNames.ExperimentName, true),
         'experiments.setEnabled was not called with the correct experiment');
-    assert.strictEqual(spy.callCount, 1);
+    sinon.assert.callCount(spy, 1);
     assert.isTrue(spy.firstCall.firstArg);
   });
 
@@ -56,21 +56,21 @@ describeWithLocale('Preview toggle', () => {
       name: 'toggle name',
       helperText: 'more about this toggle',
       feedbackURL: 'https://feedbackurl.com',
-      experiment: 'testExperiment' as Root.Runtime.ExperimentName,
+      experiment: 'testExperiment' as Root.ExperimentNames.ExperimentName,
       onChangeCallback: spy,
     };
 
     renderElementIntoDOM(component);
     await RenderCoordinator.done();
 
-    const input = component.shadowRoot!.querySelector('input');
-    assert.instanceOf(input, HTMLElement);
-    dispatchClickEvent(input);
-    assert.strictEqual(setEnabledStub.callCount, 1);
+    const checkbox = component.shadowRoot!.querySelector('devtools-checkbox');
+    assert.exists(checkbox);
+    checkbox.click();
+    sinon.assert.callCount(setEnabledStub, 1);
     assert.isTrue(
-        setEnabledStub.firstCall.calledWith('testExperiment', false),
+        setEnabledStub.firstCall.calledWith('testExperiment' as Root.ExperimentNames.ExperimentName, false),
         'experiments.setEnabled was not called with the correct experiment');
-    assert.strictEqual(spy.callCount, 1);
+    sinon.assert.callCount(spy, 1);
     assert.isFalse(spy.firstCall.firstArg);
   });
 });

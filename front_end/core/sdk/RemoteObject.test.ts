@@ -1,10 +1,10 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import type * as Protocol from '../../generated/protocol.js';
+import * as Protocol from '../../generated/protocol.js';
 import {createTarget} from '../../testing/EnvironmentHelpers.js';
-import {describeWithMockConnection} from '../../testing/MockConnection.js';
+import {describeWithMockConnection, setMockConnectionResponseHandler} from '../../testing/MockConnection.js';
 
 import * as SDK from './sdk.js';
 
@@ -257,7 +257,7 @@ describe('RemoteObject', () => {
       const remoteObject = SDK.RemoteObject.RemoteObject.fromLocalObject(new Error('Some error message'));
 
       assert.deepEqual(remoteObject.type, 'object');
-      assert.isUndefined(remoteObject.subtype);
+      assert.deepEqual(remoteObject.subtype, 'error');
       // We can't represent an `Error` object, but we can compare its structure
       assert.deepEqual(typeof remoteObject.value, 'object');
       assert.deepEqual(String(remoteObject.value), 'Error: Some error message');
@@ -408,6 +408,28 @@ describe('RemoteObjectProperty', () => {
   });
 });
 
+describeWithMockConnection('ScopeRemoteObject', () => {
+  it('preserves writability of properties', async () => {
+    setMockConnectionResponseHandler(
+        'Runtime.getProperties', () => ({
+                                   result: [
+                                     {name: 'a', configurable: true, enumerable: true, writable: true},
+                                     {name: 'b', configurable: true, enumerable: true, writable: true},
+                                     {name: 'c', configurable: true, enumerable: true, writable: true}
+                                   ]
+                                 }));
+    const target = createTarget();
+    const runtimeModel = target.model(SDK.RuntimeModel.RuntimeModel) as SDK.RuntimeModel.RuntimeModel;
+    const scopeRef = new SDK.RemoteObject.ScopeRef(0, '0' as Protocol.Debugger.CallFrameId);
+
+    const remoteObject = new SDK.RemoteObject.ScopeRemoteObject(
+        runtimeModel, '0' as Protocol.Runtime.RemoteObjectId, scopeRef, Protocol.Runtime.RemoteObjectType.String,
+        undefined, 'value');
+    const properties = await remoteObject.getAllProperties(false, false);
+    assert.deepEqual(properties.properties?.map(p => p.writable), [true, true, true]);
+  });
+});
+
 describeWithMockConnection('RemoteError', () => {
   let target: SDK.Target.Target;
   let runtimeModel: SDK.RuntimeModel.RuntimeModel;
@@ -431,7 +453,7 @@ describeWithMockConnection('RemoteError', () => {
     assert.isUndefined(await error.exceptionDetails());
     assert.isUndefined(await error.exceptionDetails());
 
-    assert.isTrue(exceptionDetailsStub.calledOnce);
+    sinon.assert.calledOnce(exceptionDetailsStub);
   });
 
   it('caches the cause', async () => {
@@ -444,7 +466,7 @@ describeWithMockConnection('RemoteError', () => {
     assert.isUndefined(await error.cause());
     assert.isUndefined(await error.cause());
 
-    assert.isTrue(getAllPropertiesStub.calledOnce);
+    sinon.assert.calledOnce(getAllPropertiesStub);
   });
 
   it('returns undefined if error has no "cause" property', async () => {

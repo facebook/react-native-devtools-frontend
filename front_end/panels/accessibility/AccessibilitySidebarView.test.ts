@@ -1,11 +1,14 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import type * as Protocol from '../../generated/protocol.js';
+import {renderElementIntoDOM} from '../../testing/DOMHelpers.js';
 import {createTarget, stubNoopSettings} from '../../testing/EnvironmentHelpers.js';
 import {describeWithMockConnection, setMockConnectionResponseHandler} from '../../testing/MockConnection.js';
+import * as UI from '../../ui/legacy/legacy.js';
 
 import * as Accessibility from './accessibility.js';
 
@@ -17,12 +20,21 @@ describeWithMockConnection('AccessibilitySidebarView', () => {
 
   beforeEach(() => {
     stubNoopSettings();
+    UI.ActionRegistration.maybeRemoveActionExtension('elements.toggle-a11y-tree');
+    UI.ActionRegistration.registerActionExtension({
+      actionId: 'elements.toggle-a11y-tree',
+      category: UI.ActionRegistration.ActionCategory.ELEMENTS,
+      title: () => 'Toggle Accessibility Tree' as Platform.UIString.LocalizedString,
+      toggleable: true,
+    });
     target = createTarget();
-    setMockConnectionResponseHandler('DOM.getDocument', () => ({root: {nodeId: NODE_ID}}));
+    setMockConnectionResponseHandler(
+        'DOM.getDocument', () => ({root: {nodeId: NODE_ID}} as Protocol.DOM.GetDocumentResponse));
     setMockConnectionResponseHandler('DOM.getNodesForSubtreeByStyle', () => ({nodeIds: []}));
   });
 
   afterEach(() => {
+    UI.ActionRegistration.maybeRemoveActionExtension('elements.toggle-a11y-tree');
     view.detach();
   });
 
@@ -37,16 +49,14 @@ describeWithMockConnection('AccessibilitySidebarView', () => {
     requestPartialAXTree.resolves();
     const node = new SDK.DOMModel.DOMNode(domModel);
 
-    view = Accessibility.AccessibilitySidebarView.AccessibilitySidebarView.instance(
-        {forceNew: true, throttlingTimeout: 0});
-    view.markAsRoot();
-    view.show(document.body);
+    view = Accessibility.AccessibilitySidebarView.AccessibilitySidebarView.instance({forceNew: true});
+    renderElementIntoDOM(view);
     view.setNode(node);
-    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    await view.updateComplete;
 
     requestPartialAXTree.resetHistory();
     domModel.dispatchEventToListeners(event, {node});
-    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    await view.updateComplete;
     assert.strictEqual(requestPartialAXTree.called, inScope);
   };
 

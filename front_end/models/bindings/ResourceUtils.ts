@@ -1,4 +1,4 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -47,14 +47,14 @@ export function displayNameForURL(url: Platform.DevToolsPath.UrlString): string 
     return '';
   }
 
-  const resource = resourceForURL(url);
-  if (resource) {
-    return resource.displayName;
-  }
-
   const uiSourceCode = Workspace.Workspace.WorkspaceImpl.instance().uiSourceCodeForURL(url);
   if (uiSourceCode) {
     return uiSourceCode.displayName();
+  }
+
+  const resource = resourceForURL(url);
+  if (resource) {
+    return resource.displayName;
   }
 
   const inspectedURL = SDK.TargetManager.TargetManager.instance().inspectedURL();

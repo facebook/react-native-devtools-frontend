@@ -1,4 +1,4 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -40,7 +40,7 @@ function globToRegExp(glob: string): RegExp {
  *
  * @param pattern the wildcard pattern
  * @param subject the subject URL to test against
- * @return whether the `subject` matches the given `pattern`.
+ * @returns whether the `subject` matches the given `pattern`.
  */
 export function globMatch(pattern: string, subject: string): boolean {
   const regexp = globToRegExp(pattern);

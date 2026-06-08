@@ -1,9 +1,19 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
 export * from './AiAssistancePanel.js';
 export * from './components/ChatView.js';
+export * from './components/AccessibilityAgentMarkdownRenderer.js';
+export * as ChatInput from './components/ChatInput.js';
 export * from './components/MarkdownRendererWithCodeBlock.js';
-export * as UserActionRow from './components/UserActionRow.js';
+export * from './SelectWorkspaceDialog.js';
+export * as ChatMessage from './components/ChatMessage.js';
+export * as ExploreWidget from './components/ExploreWidget.js';
+export * as ExportForAgentsDialog from './components/ExportForAgentsDialog.js';
+export * as OptInChangeDialog from './components/OptInChangeDialog.js';
 export * as PatchWidget from './PatchWidget.js';
+export * as DisabledWidget from './components/DisabledWidget.js';
+export * as WalkthroughUtils from './components/WalkthroughUtils.js';
+export * as WalkthroughView from './components/WalkthroughView.js';
+export * as ExportConversation from './ExportConversation.js';

@@ -1,7 +1,8 @@
-// Copyright 2022 The Chromium Authors. All rights reserved.
+// Copyright 2022 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as Platform from '../../../core/platform/platform.js';
 import * as Types from '../types/types.js';
 
 import {getNavigationForTraceEvent} from './Trace.js';
@@ -21,10 +22,17 @@ export function timeStampForEventAdjustedByClosestNavigation(
     event: Types.Events.Event,
     traceBounds: Types.Timing.TraceWindowMicro,
     navigationsByNavigationId: Map<string, Types.Events.NavigationStart>,
+    softNavigationsById: Map<number, Types.Events.SoftNavigationStart>,
     navigationsByFrameId: Map<string, Types.Events.NavigationStart[]>,
     ): Types.Timing.Micro {
   let eventTimeStamp = event.ts - traceBounds.min;
-  if (event.args?.data?.navigationId) {
+  if (event.name === Types.Events.Name.MARK_LCP_CANDIDATE_FOR_SOFT_NAVIGATION &&
+      event.args?.data?.performanceTimelineNavigationId) {
+    const navigationForEvent = softNavigationsById.get(event.args.data.performanceTimelineNavigationId);
+    if (navigationForEvent) {
+      eventTimeStamp = event.ts - navigationForEvent.ts;
+    }
+  } else if (event.args?.data?.navigationId) {
     const navigationForEvent = navigationsByNavigationId.get(event.args.data.navigationId);
     if (navigationForEvent) {
       eventTimeStamp = event.ts - navigationForEvent.ts;
@@ -38,8 +46,10 @@ export function timeStampForEventAdjustedByClosestNavigation(
   return Types.Timing.Micro(eventTimeStamp);
 }
 
-// Expands the trace window by a provided percentage or, if it the expanded window is smaller than 1 millisecond, expands it to 1 millisecond.
-// If the expanded window is outside of the max trace window, cut the overflowing bound to the max trace window bound.
+/**
+ * Expands the trace window by a provided percentage or, if it the expanded window is smaller than 1 millisecond, expands it to 1 millisecond.
+ * If the expanded window is outside of the max trace window, cut the overflowing bound to the max trace window bound.
+ **/
 export function expandWindowByPercentOrToOneMillisecond(
     annotationWindow: Types.Timing.TraceWindowMicro, maxTraceWindow: Types.Timing.TraceWindowMicro,
     percentage: number): Types.Timing.TraceWindowMicro {
@@ -118,7 +128,7 @@ export function traceWindowFromMicroSeconds(
   const traceWindow: Types.Timing.TraceWindowMicro = {
     min,
     max,
-    range: Types.Timing.Micro(max - min),
+    range: (max - min) as Types.Timing.Micro,
   };
   return traceWindow;
 }
@@ -126,9 +136,71 @@ export function traceWindowFromMicroSeconds(
 export function traceWindowFromEvent(event: Types.Events.Event): Types.Timing.TraceWindowMicro {
   return {
     min: event.ts,
-    max: Types.Timing.Micro(event.ts + (event.dur ?? 0)),
-    range: event.dur ?? Types.Timing.Micro(0),
+    max: event.ts + (event.dur ?? 0) as Types.Timing.Micro,
+    range: event.dur ?? 0 as Types.Timing.Micro,
   };
+}
+
+export function traceWindowFromOverlay(overlay: Types.Overlays.Overlay): Types.Timing.TraceWindowMicro|null {
+  switch (overlay.type) {
+    case 'ENTRY_LABEL':
+    case 'ENTRY_OUTLINE':
+    case 'ENTRY_SELECTED': {
+      return traceWindowFromEvent(overlay.entry);
+    }
+
+    case 'TIMESPAN_BREAKDOWN': {
+      const windows = overlay.sections.map(s => s.bounds);
+      if (overlay.entry) {
+        windows.push(traceWindowFromEvent(overlay.entry));
+      }
+      return combineTraceWindowsMicro(windows);
+    }
+
+    case 'CANDY_STRIPED_TIME_RANGE':
+    case 'TIME_RANGE': {
+      return structuredClone(overlay.bounds);
+    }
+
+    case 'ENTRIES_LINK': {
+      const from = traceWindowFromEvent(overlay.entryFrom);
+      if (!overlay.entryTo) {
+        return from;
+      }
+
+      const to = traceWindowFromEvent(overlay.entryTo);
+      return combineTraceWindowsMicro([from, to]);
+    }
+
+    case 'TIMESTAMP_MARKER':
+      return traceWindowFromMicroSeconds(overlay.timestamp, overlay.timestamp);
+    case 'TIMINGS_MARKER':
+      return traceWindowFromMicroSeconds(overlay.adjustedTimestamp, overlay.adjustedTimestamp);
+    case 'BOTTOM_INFO_BAR':
+      return null;
+
+    default:
+      Platform.TypeScriptUtilities.assertNever(overlay, `Unexpected overlay ${overlay}`);
+  }
+}
+
+/**
+ * Combines (as in a union) multiple windows into one.
+ */
+export function combineTraceWindowsMicro(windows: Types.Timing.TraceWindowMicro[]): Types.Timing.TraceWindowMicro|null {
+  if (!windows.length) {
+    return null;
+  }
+
+  const result: Types.Timing.TraceWindowMicro = structuredClone(windows[0]);
+  for (const bounds of windows.slice(1)) {
+    result.min = Math.min(result.min, bounds.min) as Types.Timing.Micro;
+    result.max = Math.max(result.max, bounds.max) as Types.Timing.Micro;
+  }
+
+  result.range = result.max - result.min as Types.Timing.Micro;
+
+  return result;
 }
 
 export interface BoundsIncludeTimeRange {
@@ -158,7 +230,7 @@ export function boundsIncludeTimeRange(data: BoundsIncludeTimeRange): boolean {
 /** Checks to see if the event is within or overlaps the bounds */
 export function eventIsInBounds(event: Types.Events.Event, bounds: Types.Timing.TraceWindowMicro): boolean {
   const startTime = event.ts;
-  return startTime <= bounds.max && bounds.min <= (startTime + (event.dur ?? 0));
+  return startTime <= bounds.max && bounds.min < (startTime + (event.dur ?? 0));
 }
 
 export function timestampIsInBounds(bounds: Types.Timing.TraceWindowMicro, timestamp: Types.Timing.Micro): boolean {

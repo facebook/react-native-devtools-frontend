@@ -1,4 +1,4 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 import * as SDK from '../core/sdk/sdk.js';
@@ -24,7 +24,7 @@ export class Printer extends SDK.CSSPropertyParser.TreeWalker {
 
   static log(ast: SDK.CSSPropertyParser.SyntaxTree): void {
     /* eslint-disable-next-line no-console */
-    console.log(Printer.walk(ast).get());
+    console.log('\n' + Printer.walk(ast).get());
   }
 
   static rule(rule: string): string {

@@ -1,5 +1,5 @@
 
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -8,7 +8,6 @@ import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
 import * as SDK from '../../core/sdk/sdk.js';
 import * as Protocol from '../../generated/protocol.js';
-import * as ThirdPartyWeb from '../../third_party/third-party-web/third-party-web.js';
 
 import {Issue, IssueCategory, IssueKind} from './Issue.js';
 import {
@@ -19,30 +18,17 @@ import {
 
 const UIStrings = {
   /**
-   *@description Label for the link for SameSiteCookies Issues
+   * @description Label for the link for SameSiteCookies Issues
    */
   samesiteCookiesExplained: 'SameSite cookies explained',
   /**
-   *@description Label for the link for Schemeful Same-Site Issues
+   * @description Label for the link for Schemeful Same-Site Issues
    */
   howSchemefulSamesiteWorks: 'How Schemeful Same-Site Works',
-  /**
-   * @description Label for a link for SameParty Issues. 'Attribute' refers to a cookie attribute.
-   */
-  firstPartySetsExplained: '`First-Party Sets` and the `SameParty` attribute',
-  /**
-   * @description Label for a link for third-party cookie Issues.
-   */
-  thirdPartyPhaseoutExplained: 'Changes to Chrome\'s treatment of third-party cookies',
   /**
    * @description Label for a link for cross-site redirect Issues.
    */
   fileCrosSiteRedirectBug: 'File a bug',
-  /**
-   * @description text to show in Console panel when a third-party cookie accessed.
-   */
-  consoleTpcdWarningMessage:
-      'Chrome is moving towards a new experience that allows users to choose to browse without third-party cookies.',
   /**
    * @description text to show in Console panel when a third-party cookie is blocked in Chrome.
    */
@@ -53,14 +39,14 @@ const UIStrings = {
 const str_ = i18n.i18n.registerUIStrings('models/issues_manager/CookieIssue.ts', UIStrings);
 const i18nLazyString = i18n.i18n.getLazilyComputedLocalizedString.bind(undefined, str_);
 
-// The enum string values need to match the IssueExpanded enum values in UserMetrics.ts.
+/** The enum string values need to match the IssueExpanded enum values in UserMetrics.ts. **/
 export const enum CookieIssueSubCategory {
   GENERIC_COOKIE = 'GenericCookie',
   SAME_SITE_COOKIE = 'SameSiteCookie',
   THIRD_PARTY_PHASEOUT_COOKIE = 'ThirdPartyPhaseoutCookie',
 }
 
-// Enum to show cookie status from the security panel's third-party cookie report tool
+/** Enum to show cookie status from the security panel's third-party cookie report tool **/
 export const enum CookieStatus {
   BLOCKED = 0,
   ALLOWED = 1,
@@ -68,36 +54,20 @@ export const enum CookieStatus {
   ALLOWED_BY_HEURISTICS = 3,
 }
 
-export interface CookieReportInfo {
-  name: string;
-  domain: string;
-  type?: string;
-  platform?: string;
-  status: CookieStatus;
-  insight?: Protocol.Audits.CookieIssueInsight;
-}
-
-export class CookieIssue extends Issue {
-  #issueDetails: Protocol.Audits.CookieIssueDetails;
-
-  constructor(
-      code: string, issueDetails: Protocol.Audits.CookieIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel,
-      issueId: Protocol.Audits.IssueId|undefined) {
-    super(code, issuesModel, issueId);
-    this.#issueDetails = issueDetails;
-  }
-
+export class CookieIssue extends Issue<Protocol.Audits.CookieIssueDetails> {
   cookieId(): string {
-    if (this.#issueDetails.cookie) {
-      const {domain, path, name} = this.#issueDetails.cookie;
+    const details = this.details();
+    if (details.cookie) {
+      const {domain, path, name} = details.cookie;
       const cookieId = `${domain};${path};${name}`;
       return cookieId;
     }
-    return this.#issueDetails.rawCookieLine ?? 'no-cookie-info';
+    return this.details().rawCookieLine ?? 'no-cookie-info';
   }
 
   primaryKey(): string {
-    const requestId = this.#issueDetails.request ? this.#issueDetails.request.requestId : 'no-request';
+    const details = this.details();
+    const requestId = details.request ? details.request.requestId : 'no-request';
     return `${this.code()}-(${this.cookieId()})-(${requestId})`;
   }
 
@@ -105,7 +75,7 @@ export class CookieIssue extends Issue {
    * Returns an array of issues from a given CookieIssueDetails.
    */
   static createIssuesFromCookieIssueDetails(
-      cookieIssueDetails: Protocol.Audits.CookieIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel,
+      cookieIssueDetails: Protocol.Audits.CookieIssueDetails, issuesModel: SDK.IssuesModel.IssuesModel|null,
       issueId: Protocol.Audits.IssueId|undefined): CookieIssue[] {
     const issues: CookieIssue[] = [];
 
@@ -219,22 +189,25 @@ export class CookieIssue extends Issue {
   }
 
   override cookies(): Iterable<Protocol.Audits.AffectedCookie> {
-    if (this.#issueDetails.cookie) {
-      return [this.#issueDetails.cookie];
+    const details = this.details();
+    if (details.cookie) {
+      return [details.cookie];
     }
     return [];
   }
 
   override rawCookieLines(): Iterable<string> {
-    if (this.#issueDetails.rawCookieLine) {
-      return [this.#issueDetails.rawCookieLine];
+    const details = this.details();
+    if (details.rawCookieLine) {
+      return [details.rawCookieLine];
     }
     return [];
   }
 
   override requests(): Iterable<Protocol.Audits.AffectedRequest> {
-    if (this.#issueDetails.request) {
-      return [this.#issueDetails.request];
+    const details = this.details();
+    if (details.request) {
+      return [details.request];
     }
     return [];
   }
@@ -253,31 +226,14 @@ export class CookieIssue extends Issue {
 
   override isCausedByThirdParty(): boolean {
     const outermostFrame = SDK.FrameManager.FrameManager.instance().getOutermostFrame();
-    return isCausedByThirdParty(outermostFrame, this.#issueDetails.cookieUrl, this.#issueDetails.siteForCookies);
+    return isCausedByThirdParty(outermostFrame, this.details().cookieUrl, this.details().siteForCookies);
   }
 
   getKind(): IssueKind {
-    if (this.#issueDetails.cookieExclusionReasons?.length > 0) {
+    if (this.details().cookieExclusionReasons?.length > 0) {
       return IssueKind.PAGE_ERROR;
     }
     return IssueKind.BREAKING_CHANGE;
-  }
-
-  makeCookieReportEntry(): CookieReportInfo|undefined {
-    const status = CookieIssue.getCookieStatus(this.#issueDetails);
-    if (this.#issueDetails.cookie && this.#issueDetails.cookieUrl && status !== undefined) {
-      const entity = ThirdPartyWeb.ThirdPartyWeb.getEntity(this.#issueDetails.cookieUrl);
-      return {
-        name: this.#issueDetails.cookie.name,
-        domain: this.#issueDetails.cookie.domain,
-        type: entity?.category,
-        platform: entity?.name,
-        status,
-        insight: this.#issueDetails.insight,
-      };
-    }
-
-    return;
   }
 
   static getCookieStatus(cookieIssueDetails: Protocol.Audits.CookieIssueDetails): CookieStatus|undefined {
@@ -303,8 +259,8 @@ export class CookieIssue extends Issue {
     return;
   }
 
-  static fromInspectorIssue(issuesModel: SDK.IssuesModel.IssuesModel, inspectorIssue: Protocol.Audits.InspectorIssue):
-      CookieIssue[] {
+  static fromInspectorIssue(
+      issuesModel: SDK.IssuesModel.IssuesModel|null, inspectorIssue: Protocol.Audits.InspectorIssue): CookieIssue[] {
     const cookieIssueDetails = inspectorIssue.details.cookieIssueDetails;
     if (!cookieIssueDetails) {
       console.warn('Cookie issue without details received.');
@@ -324,18 +280,25 @@ export class CookieIssue extends Issue {
     return CookieIssueSubCategory.GENERIC_COOKIE;
   }
 
+  static isThirdPartyCookiePhaseoutRelatedIssue(issue: Issue): boolean {
+    const excludeFromAggregate = [
+      Protocol.Audits.CookieWarningReason.WarnThirdPartyCookieHeuristic,
+      Protocol.Audits.CookieWarningReason.WarnDeprecationTrialMetadata,
+      Protocol.Audits.CookieWarningReason.WarnThirdPartyPhaseout,
+      Protocol.Audits.CookieExclusionReason.ExcludeThirdPartyPhaseout,
+    ];
+
+    return (excludeFromAggregate.some(exclude => issue.code().includes(exclude)));
+  }
+
   override maybeCreateConsoleMessage(): SDK.ConsoleModel.ConsoleMessage|undefined {
     const issuesModel = this.model();
-    if (issuesModel && CookieIssue.getSubCategory(this.code()) === CookieIssueSubCategory.THIRD_PARTY_PHASEOUT_COOKIE) {
+    if (issuesModel && this.code().includes(Protocol.Audits.CookieExclusionReason.ExcludeThirdPartyPhaseout)) {
       return new SDK.ConsoleModel.ConsoleMessage(
           issuesModel.target().model(SDK.RuntimeModel.RuntimeModel), Common.Console.FrontendMessageSource.ISSUE_PANEL,
-          Protocol.Log.LogEntryLevel.Warning,
-          this.getKind() === IssueKind.PAGE_ERROR ? UIStrings.consoleTpcdErrorMessage :
-                                                    UIStrings.consoleTpcdWarningMessage,
-          {
-            url: this.#issueDetails.request?.url as Platform.DevToolsPath.UrlString | undefined,
-            affectedResources: {requestId: this.#issueDetails.request?.requestId, issueId: this.issueId},
-            isCookieReportIssue: true
+          Protocol.Log.LogEntryLevel.Warning, UIStrings.consoleTpcdErrorMessage, {
+            url: this.details().request?.url as Platform.DevToolsPath.UrlString | undefined,
+            affectedResources: {requestId: this.details().request?.requestId, issueId: this.issueId},
           });
     }
     return;
@@ -524,22 +487,6 @@ function sameSiteExcludeContextDowngradeSet(isSecure: boolean): LazyMarkdownIssu
   };
 }
 
-const sameSiteInvalidSameParty: LazyMarkdownIssueDescription = {
-  file: 'SameSiteInvalidSameParty.md',
-  links: [{
-    link: 'https://developer.chrome.com/blog/first-party-sets-sameparty/',
-    linkTitle: i18nLazyString(UIStrings.firstPartySetsExplained),
-  }],
-};
-
-const samePartyCrossPartyContextSet: LazyMarkdownIssueDescription = {
-  file: 'SameSiteSamePartyCrossPartyContextSet.md',
-  links: [{
-    link: 'https://developer.chrome.com/blog/first-party-sets-sameparty/',
-    linkTitle: i18nLazyString(UIStrings.firstPartySetsExplained),
-  }],
-};
-
 const attributeValueExceedsMaxSize: LazyMarkdownIssueDescription = {
   file: 'CookieAttributeValueExceedsMaxSize.md',
   links: [],
@@ -558,38 +505,6 @@ const excludeDomainNonAscii: LazyMarkdownIssueDescription = {
 const excludeBlockedWithinRelatedWebsiteSet: LazyMarkdownIssueDescription = {
   file: 'cookieExcludeBlockedWithinRelatedWebsiteSet.md',
   links: [],
-};
-
-const cookieWarnThirdPartyPhaseoutSet: LazyMarkdownIssueDescription = {
-  file: 'cookieWarnThirdPartyPhaseoutSet.md',
-  links: [{
-    link: 'https://goo.gle/3pc-dev-issue',
-    linkTitle: i18nLazyString(UIStrings.thirdPartyPhaseoutExplained),
-  }],
-};
-
-const cookieWarnThirdPartyPhaseoutRead: LazyMarkdownIssueDescription = {
-  file: 'cookieWarnThirdPartyPhaseoutRead.md',
-  links: [{
-    link: 'https://goo.gle/3pc-dev-issue',
-    linkTitle: i18nLazyString(UIStrings.thirdPartyPhaseoutExplained),
-  }],
-};
-
-const cookieExcludeThirdPartyPhaseoutSet: LazyMarkdownIssueDescription = {
-  file: 'cookieExcludeThirdPartyPhaseoutSet.md',
-  links: [{
-    link: 'https://goo.gle/report-3pc-dev-issue',
-    linkTitle: i18nLazyString(UIStrings.thirdPartyPhaseoutExplained),
-  }],
-};
-
-const cookieExcludeThirdPartyPhaseoutRead: LazyMarkdownIssueDescription = {
-  file: 'cookieExcludeThirdPartyPhaseoutRead.md',
-  links: [{
-    link: 'https://goo.gle/report-3pc-dev-issue',
-    linkTitle: i18nLazyString(UIStrings.thirdPartyPhaseoutExplained),
-  }],
 };
 
 const cookieCrossSiteRedirectDowngrade: LazyMarkdownIssueDescription = {
@@ -644,8 +559,6 @@ const issueDescriptions = new Map<string, LazyMarkdownIssueDescription>([
   ['CookieIssue::ExcludeContextDowngrade::ReadCookie::Insecure', sameSiteExcludeContextDowngradeRead(false)],
   ['CookieIssue::ExcludeContextDowngrade::SetCookie::Secure', sameSiteExcludeContextDowngradeSet(true)],
   ['CookieIssue::ExcludeContextDowngrade::SetCookie::Insecure', sameSiteExcludeContextDowngradeSet(false)],
-  ['CookieIssue::ExcludeInvalidSameParty::SetCookie', sameSiteInvalidSameParty],
-  ['CookieIssue::ExcludeSamePartyCrossPartyContext::SetCookie', samePartyCrossPartyContextSet],
   ['CookieIssue::WarnAttributeValueExceedsMaxSize::ReadCookie', attributeValueExceedsMaxSize],
   ['CookieIssue::WarnAttributeValueExceedsMaxSize::SetCookie', attributeValueExceedsMaxSize],
   ['CookieIssue::WarnDomainNonASCII::ReadCookie', warnDomainNonAscii],
@@ -660,14 +573,14 @@ const issueDescriptions = new Map<string, LazyMarkdownIssueDescription>([
     'CookieIssue::ExcludeThirdPartyCookieBlockedInRelatedWebsiteSet::SetCookie',
     excludeBlockedWithinRelatedWebsiteSet,
   ],
-  ['CookieIssue::WarnThirdPartyPhaseout::ReadCookie', cookieWarnThirdPartyPhaseoutRead],
-  ['CookieIssue::WarnThirdPartyPhaseout::SetCookie', cookieWarnThirdPartyPhaseoutSet],
+  ['CookieIssue::WarnThirdPartyPhaseout::ReadCookie', placeholderDescriptionForInvisibleIssues],
+  ['CookieIssue::WarnThirdPartyPhaseout::SetCookie', placeholderDescriptionForInvisibleIssues],
   ['CookieIssue::WarnDeprecationTrialMetadata::ReadCookie', placeholderDescriptionForInvisibleIssues],
   ['CookieIssue::WarnDeprecationTrialMetadata::SetCookie', placeholderDescriptionForInvisibleIssues],
   ['CookieIssue::WarnThirdPartyCookieHeuristic::ReadCookie', placeholderDescriptionForInvisibleIssues],
   ['CookieIssue::WarnThirdPartyCookieHeuristic::SetCookie', placeholderDescriptionForInvisibleIssues],
-  ['CookieIssue::ExcludeThirdPartyPhaseout::ReadCookie', cookieExcludeThirdPartyPhaseoutRead],
-  ['CookieIssue::ExcludeThirdPartyPhaseout::SetCookie', cookieExcludeThirdPartyPhaseoutSet],
+  ['CookieIssue::ExcludeThirdPartyPhaseout::ReadCookie', placeholderDescriptionForInvisibleIssues],
+  ['CookieIssue::ExcludeThirdPartyPhaseout::SetCookie', placeholderDescriptionForInvisibleIssues],
   ['CookieIssue::CrossSiteRedirectDowngradeChangesInclusion', cookieCrossSiteRedirectDowngrade],
   ['CookieIssue::ExcludePortMismatch', ExcludePortMismatch],
   ['CookieIssue::ExcludeSchemeMismatch', ExcludeSchemeMismatch],

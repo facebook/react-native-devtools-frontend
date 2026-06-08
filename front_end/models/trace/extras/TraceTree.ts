@@ -1,4 +1,4 @@
-// Copyright 2016 The Chromium Authors. All rights reserved.
+// Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,13 +10,16 @@ import * as Types from '../types/types.js';
 import type {TraceFilter} from './TraceFilter.js';
 
 export class Node {
+  /** ms */
   totalTime: number;
+  /** ms */
   selfTime: number;
   transferSize: number;
   id: string|symbol;
   /** The first trace event encountered that necessitated the creation of this tree node. */
   event: Types.Events.Event;
-  /** All of the trace events associated with this aggregate node.
+  /**
+   * All of the trace events associated with this aggregate node.
    * Minor: In the case of Event Log (EventsTimelineTreeView), the node is not aggregate and this will only hold 1 event, the same that's in this.event
    */
   events: Types.Events.Event[];
@@ -98,7 +101,7 @@ export class TopDownNode extends Node {
   private buildChildren(): ChildrenCache {
     // Tracks the ancestor path of this node, includes the current node.
     const path: TopDownNode[] = [];
-    for (let node: TopDownNode = (this as TopDownNode); node.parent && !node.isGroupNode(); node = node.parent) {
+    for (let node: TopDownNode = this; node.parent && !node.isGroupNode(); node = node.parent) {
       path.push((node));
     }
     path.reverse();
@@ -242,10 +245,6 @@ export class TopDownNode extends Node {
 
     this.childrenInternal = children;
     return children;
-  }
-
-  getRoot(): TopDownRootNode|null {
-    return this.root;
   }
 }
 
@@ -394,10 +393,11 @@ export class BottomUpRootNode extends Node {
   // If no grouping is applied, the nodes returned here are what's initially shown in the bottom-up view.
   // "No grouping" == no grouping in UI dropdown == no groupingFunction…
   // … HOWEVER, nodes are still aggregated via `generateEventID`, which is ~= the event name.
-  private ungrouppedTopNodes(): ChildrenCache {
+  private ungroupedTopNodes(): ChildrenCache {
     const root = this;
     const startTime = this.startTime;
     const endTime = this.endTime;
+    const idStack: string[] = [];
     const nodeById = new Map<string, Node>();
     const selfTimeStack: number[] = [endTime - startTime];
     const firstNodeStack: boolean[] = [];
@@ -461,6 +461,13 @@ export class BottomUpRootNode extends Node {
       if (forceGroupIdCallback && eventGroupIdCallback) {
         id = `${id}-${eventGroupIdCallback(e)}`;
       }
+
+      idStack.push(id);
+
+      // For an event 'X' that contains another event 'X' (resolving to the same node
+      // id), we need to measure `totalTime` from the start of the outermost 'X' to
+      // its corresponding end. This logic ensures we don't double-count the duration
+      // of the inner event.
       const noNodeOnStack = !totalTimeById.has(id);
       if (noNodeOnStack) {
         totalTimeById.set(id, duration);
@@ -469,10 +476,11 @@ export class BottomUpRootNode extends Node {
     }
 
     function onEndEvent(event: Types.Events.Event): void {
-      let id = generateEventID(event);
-      if (forceGroupIdCallback && eventGroupIdCallback) {
-        id = `${id}-${eventGroupIdCallback(event)}`;
+      const id = idStack.pop();
+      if (!id) {
+        return;
       }
+
       let node = nodeById.get(id);
       if (!node) {
         node = new BottomUpNode(root, id, event, false, root);
@@ -485,7 +493,10 @@ export class BottomUpRootNode extends Node {
         node.totalTime += totalTimeById.get(id) || 0;
         totalTimeById.delete(id);
       }
-      if (firstNodeStack.length) {
+
+      // An item on this stack means that this current node has a caller. Therefore,
+      // in a bottom-up view it has children.
+      if (idStack.length > 0) {
         node.setHasChildren(true);
       }
     }
@@ -501,7 +512,7 @@ export class BottomUpRootNode extends Node {
   }
 
   private grouppedTopNodes(): ChildrenCache {
-    const flatNodes = this.ungrouppedTopNodes();
+    const flatNodes = this.ungroupedTopNodes();
     if (!this.eventGroupIdCallback) {
       return flatNodes;
     }
@@ -513,7 +524,9 @@ export class BottomUpRootNode extends Node {
         groupNode = new GroupNode(groupId, this, node.events);
         groupNodes.set(groupId, groupNode);
       } else {
-        groupNode.events.push(...node.events);
+        for (const e of node.events) {
+          groupNode.events.push(e);
+        }
       }
       groupNode.addChild(node as BottomUpNode, node.selfTime, node.selfTime, node.transferSize);
     }
@@ -667,14 +680,14 @@ export function eventStackFrame(event: Types.Events.Event): Protocol.Runtime.Cal
   return {...topFrame, scriptId: String(topFrame.scriptId) as Protocol.Runtime.ScriptId};
 }
 
-// TODO(paulirish): rename to generateNodeId
+/** TODO(paulirish): rename to generateNodeId **/
 export function generateEventID(event: Types.Events.Event): string {
   if (Types.Events.isProfileCall(event)) {
     const name = SamplesIntegrator.isNativeRuntimeFrame(event.callFrame) ?
         SamplesIntegrator.nativeGroup(event.callFrame.functionName) :
         event.callFrame.functionName;
     const location = event.callFrame.scriptId || event.callFrame.url || '';
-    return `f:${name}@${location}`;
+    return `f:${name}@${location}:${event.callFrame.lineNumber}:${event.callFrame.columnNumber}`;
   }
 
   if (Types.Events.isConsoleTimeStamp(event) && event.args.data) {

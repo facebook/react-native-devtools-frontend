@@ -1,6 +1,7 @@
-// Copyright 2021 The Chromium Authors. All rights reserved.
+// Copyright 2021 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as i18n from '../../core/i18n/i18n.js';
 import type * as Platform from '../../core/platform/platform.js';
@@ -11,19 +12,19 @@ import {AffectedElementsView} from './AffectedElementsView.js';
 
 const UIStrings = {
   /**
-   *@description Noun for singular or plural number of affected document nodes indication in issue view.
+   * @description Noun for singular or plural number of affected document nodes indication in issue view.
    */
   nDocuments: '{n, plural, =1 { document} other { documents}}',
   /**
-   *@description Column title for the Document in the DOM tree column in the quirks mode issue view
+   * @description Column title for the Document in the DOM tree column in the quirks mode issue view
    */
   documentInTheDOMTree: 'Document in the DOM tree',
   /**
-   *@description Column title for the url column in the quirks mode issue view
+   * @description Column title for the url column in the quirks mode issue view
    */
   url: 'URL',
   /**
-   *@description Column title for the Mode column in the quirks mode issue view
+   * @description Column title for the Mode column in the quirks mode issue view
    */
   mode: 'Mode',
 } as const;

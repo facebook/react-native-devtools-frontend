@@ -1,14 +1,11 @@
-// Copyright (c) 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-lit-render-outside-of-view, @devtools/enforce-custom-element-definitions-location */
 
 import * as Lit from '../../../ui/lit/lit.js';
 
-import nodeTextStylesRaw from './nodeText.css.js';
-
-// TODO(crbug.com/391381439): Fully migrate off of constructed style sheets.
-const nodeTextStyles = new CSSStyleSheet();
-nodeTextStyles.replaceSync(nodeTextStylesRaw.cssText);
+import nodeTextStyles from './nodeText.css.js';
 
 const {render, html} = Lit;
 
@@ -19,15 +16,10 @@ export interface NodeTextData {
 }
 
 export class NodeText extends HTMLElement {
-
   readonly #shadow = this.attachShadow({mode: 'open'});
   #nodeTitle = '';
   #nodeId?: string = '';
   #nodeClasses?: string[] = [];
-
-  connectedCallback(): void {
-    this.#shadow.adoptedStyleSheets = [nodeTextStyles];
-  }
 
   set data(data: NodeTextData) {
     this.#nodeTitle = data.nodeTitle;
@@ -64,6 +56,7 @@ export class NodeText extends HTMLElement {
     // Disabled until https://crbug.com/1079231 is fixed.
     // clang-format off
     render(html`
+      <style>${nodeTextStyles}</style>
       ${parts}
     `, this.#shadow, {
       host: this,

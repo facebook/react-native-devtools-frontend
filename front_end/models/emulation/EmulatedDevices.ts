@@ -1,4 +1,4 @@
-// Copyright 2014 The Chromium Authors. All rights reserved.
+// Copyright 2014 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -14,15 +14,15 @@ import {Insets, MaxDeviceSize, MinDeviceSize} from './DeviceModeModel.js';
 
 const UIStrings = {
   /**
-   *@description Title of the Laptop with touch device
+   * @description Title of the Laptop with touch device
    */
   laptopWithTouch: 'Laptop with touch',
   /**
-   *@description Title of the Laptop with HiDPI screen device
+   * @description Title of the Laptop with HiDPI screen device
    */
   laptopWithHiDPIScreen: 'Laptop with HiDPI screen',
   /**
-   *@description Title of the Laptop with MDPI screen device
+   * @description Title of the Laptop with MDPI screen device
    */
   laptopWithMDPIScreen: 'Laptop with MDPI screen',
 } as const;
@@ -50,7 +50,7 @@ export class EmulatedDevice {
   isFoldableScreen: boolean;
   verticalSpanned: Orientation;
   horizontalSpanned: Orientation;
-  #showInternal: Show;
+  #show: Show;
   #showByDefault: boolean;
 
   constructor() {
@@ -69,7 +69,7 @@ export class EmulatedDevice {
     this.verticalSpanned = {width: 0, height: 0, outlineInsets: null, outlineImage: null, hinge: null};
     this.horizontalSpanned = {width: 0, height: 0, outlineInsets: null, outlineImage: null, hinge: null};
 
-    this.#showInternal = Show.Default;
+    this.#show = Show.Default;
     this.#showByDefault = true;
   }
 
@@ -201,7 +201,8 @@ export class EmulatedDevice {
       const rawUserAgent = (parseValue(json, 'user-agent', 'string') as string);
       result.userAgent = SDK.NetworkManager.MultitargetNetworkManager.patchUserAgentWithChromeVersion(rawUserAgent);
 
-      result.userAgentMetadata = parseValue(json, 'user-agent-metadata', 'object', null);
+      const userAgentMetadata = parseValue(json, 'user-agent-metadata', 'object', null);
+      result.userAgentMetadata = result.userAgent ? userAgentMetadata : null;
 
       const capabilities = parseValue(json, 'capabilities', 'object', []);
       if (!Array.isArray(capabilities)) {
@@ -263,7 +264,7 @@ export class EmulatedDevice {
       if (!Object.values(Show).includes(show)) {
         throw new Error('Emulated device has wrong show mode: ' + show);
       }
-      result.#showInternal = show;
+      result.#show = show;
 
       return result;
     } catch {
@@ -364,9 +365,9 @@ export class EmulatedDevice {
     json['show-by-default'] = this.#showByDefault;
     json['dual-screen'] = this.isDualScreen;
     json['foldable-screen'] = this.isFoldableScreen;
-    json['show'] = this.#showInternal;
+    json['show'] = this.#show;
 
-    if (this.userAgentMetadata) {
+    if (this.userAgent && this.userAgentMetadata) {
       json['user-agent-metadata'] = this.userAgentMetadata;
     }
 
@@ -394,8 +395,6 @@ export class EmulatedDevice {
         height: orientation.hinge.height,
         x: orientation.hinge.x,
         y: orientation.hinge.y,
-        contentColor: undefined,
-        outlineColor: undefined,
       } as {
         width: number,
         height: number,
@@ -453,18 +452,18 @@ export class EmulatedDevice {
     }
   }
   show(): boolean {
-    if (this.#showInternal === Show.Default) {
+    if (this.#show === Show.Default) {
       return this.#showByDefault;
     }
-    return this.#showInternal === Show.Always;
+    return this.#show === Show.Always;
   }
 
   setShow(show: boolean): void {
-    this.#showInternal = show ? Show.Always : Show.Never;
+    this.#show = show ? Show.Always : Show.Never;
   }
 
   copyShowFrom(other: EmulatedDevice): void {
-    this.#showInternal = other.#showInternal;
+    this.#show = other.#show;
   }
 
   touch(): boolean {
@@ -508,20 +507,20 @@ let emulatedDevicesListInstance: EmulatedDevicesList;
 
 export class EmulatedDevicesList extends Common.ObjectWrapper.ObjectWrapper<EventTypes> {
   readonly #standardSetting: Common.Settings.Setting<any[]>;
-  #standardInternal: Set<EmulatedDevice>;
+  #standard: Set<EmulatedDevice>;
   readonly #customSetting: Common.Settings.Setting<any[]>;
-  readonly #customInternal: Set<EmulatedDevice>;
+  readonly #custom: Set<EmulatedDevice>;
   constructor() {
     super();
 
     this.#standardSetting = Common.Settings.Settings.instance().createSetting('standard-emulated-device-list', []);
-    this.#standardInternal = new Set();
-    this.listFromJSONV1(this.#standardSetting.get(), this.#standardInternal);
+    this.#standard = new Set();
+    this.listFromJSONV1(this.#standardSetting.get(), this.#standard);
     this.updateStandardDevices();
 
     this.#customSetting = Common.Settings.Settings.instance().createSetting('custom-emulated-device-list', []);
-    this.#customInternal = new Set();
-    if (!this.listFromJSONV1(this.#customSetting.get(), this.#customInternal)) {
+    this.#custom = new Set();
+    if (!this.listFromJSONV1(this.#customSetting.get(), this.#custom)) {
       this.saveCustomDevices();
     }
   }
@@ -541,8 +540,8 @@ export class EmulatedDevicesList extends Common.ObjectWrapper.ObjectWrapper<Even
         devices.add(device);
       }
     }
-    this.copyShowValues(this.#standardInternal, devices);
-    this.#standardInternal = devices;
+    this.copyShowValues(this.#standard, devices);
+    this.#standard = devices;
     this.saveStandardDevices();
   }
 
@@ -571,11 +570,11 @@ export class EmulatedDevicesList extends Common.ObjectWrapper.ObjectWrapper<Even
   }
 
   standard(): EmulatedDevice[] {
-    return [...this.#standardInternal];
+    return [...this.#standard];
   }
 
   custom(): EmulatedDevice[] {
-    return [...this.#customInternal];
+    return [...this.#custom];
   }
 
   revealCustomSetting(): void {
@@ -583,18 +582,18 @@ export class EmulatedDevicesList extends Common.ObjectWrapper.ObjectWrapper<Even
   }
 
   addCustomDevice(device: EmulatedDevice): void {
-    this.#customInternal.add(device);
+    this.#custom.add(device);
     this.saveCustomDevices();
   }
 
   removeCustomDevice(device: EmulatedDevice): void {
-    this.#customInternal.delete(device);
+    this.#custom.delete(device);
     this.saveCustomDevices();
   }
 
   saveCustomDevices(): void {
     const json: any[] = [];
-    this.#customInternal.forEach(device => json.push(device.toJSON()));
+    this.#custom.forEach(device => json.push(device.toJSON()));
 
     this.#customSetting.set(json);
     this.dispatchEventToListeners(Events.CUSTOM_DEVICES_UPDATED);
@@ -602,7 +601,7 @@ export class EmulatedDevicesList extends Common.ObjectWrapper.ObjectWrapper<Even
 
   saveStandardDevices(): void {
     const json: any[] = [];
-    this.#standardInternal.forEach(device => json.push(device.toJSON()));
+    this.#standard.forEach(device => json.push(device.toJSON()));
 
     this.#standardSetting.set(json);
     this.dispatchEventToListeners(Events.STANDARD_DEVICES_UPDATED);
@@ -682,7 +681,9 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
+    'user-agent-metadata':
+        {'platform': 'iOS', 'platformVersion': '18.5', 'architecture': '', 'model': 'iPhone', 'mobile': true},
     'type': 'phone',
   },
   {
@@ -702,7 +703,9 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
+    'user-agent-metadata':
+        {'platform': 'iOS', 'platformVersion': '18.5', 'architecture': '', 'model': 'iPhone', 'mobile': true},
     'type': 'phone',
   },
   {
@@ -722,7 +725,9 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
+    'user-agent-metadata':
+        {'platform': 'iOS', 'platformVersion': '18.5', 'architecture': '', 'model': 'iPhone', 'mobile': true},
     'type': 'phone',
   },
   {
@@ -742,7 +747,9 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
+    'user-agent-metadata':
+        {'platform': 'iOS', 'platformVersion': '18.5', 'architecture': '', 'model': 'iPhone', 'mobile': true},
     'type': 'phone',
   },
   {
@@ -786,7 +793,7 @@ const emulatedDevices = [
     'user-agent':
         'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/%s Mobile Safari/537.36',
     'user-agent-metadata':
-        {'platform': 'Android', 'platformVersion': '13', 'architecture': '', 'model': 'Pixel 5', 'mobile': true},
+        {'platform': 'Android', 'platformVersion': '13', 'architecture': '', 'model': 'Pixel 7', 'mobile': true},
     'type': 'phone',
   },
   {
@@ -850,7 +857,9 @@ const emulatedDevices = [
     },
     'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (iPad; CPU OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+        'Mozilla/5.0 (iPad; CPU OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1',
+    'user-agent-metadata':
+        {'platform': 'iOS', 'platformVersion': '18.5', 'architecture': '', 'model': 'iPad', 'mobile': true},
     'type': 'tablet',
   },
   {
@@ -868,9 +877,11 @@ const emulatedDevices = [
         'height': 1180,
       },
     },
-    'capabilities': ['touch'],
+    'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Safari/605.1.15',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15',
+    'user-agent-metadata':
+        {'platform': 'iOS', 'platformVersion': '18.5', 'architecture': '', 'model': 'iPad', 'mobile': true},
     'type': 'tablet',
   },
   {
@@ -888,9 +899,11 @@ const emulatedDevices = [
         'height': 1366,
       },
     },
-    'capabilities': ['touch'],
+    'capabilities': ['touch', 'mobile'],
     'user-agent':
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Safari/605.1.15',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Safari/605.1.15',
+    'user-agent-metadata':
+        {'platform': 'iOS', 'platformVersion': '18.5', 'architecture': '', 'model': 'iPad', 'mobile': true},
     'type': 'tablet',
   },
   {
@@ -1143,6 +1156,8 @@ const emulatedDevices = [
     'capabilities': ['touch', 'mobile'],
     'user-agent':
         'Mozilla/5.0 (iPhone; CPU iPhone OS 7_1_2 like Mac OS X) AppleWebKit/537.51.2 (KHTML, like Gecko) Version/7.0 Mobile/11D257 Safari/9537.53',
+    'user-agent-metadata':
+        {'platform': 'iOS', 'platformVersion': '7.1.2', 'architecture': '', 'model': 'iPhone', 'mobile': true},
     'type': 'phone',
   },
   {
@@ -1171,6 +1186,8 @@ const emulatedDevices = [
     'capabilities': ['touch', 'mobile'],
     'user-agent':
         'Mozilla/5.0 (iPhone; CPU iPhone OS 10_3_1 like Mac OS X) AppleWebKit/603.1.30 (KHTML, like Gecko) Version/10.0 Mobile/14E304 Safari/602.1',
+    'user-agent-metadata':
+        {'platform': 'iOS', 'platformVersion': '10.3.1', 'architecture': '', 'model': 'iPhone', 'mobile': true},
     'type': 'phone',
   },
   {
@@ -1199,6 +1216,8 @@ const emulatedDevices = [
     'capabilities': ['touch', 'mobile'],
     'user-agent':
         'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1',
+    'user-agent-metadata':
+        {'platform': 'iOS', 'platformVersion': '13.2.3', 'architecture': '', 'model': 'iPhone', 'mobile': true},
     'type': 'phone',
   },
   {
@@ -1227,6 +1246,8 @@ const emulatedDevices = [
     'capabilities': ['touch', 'mobile'],
     'user-agent':
         'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1',
+    'user-agent-metadata':
+        {'platform': 'iOS', 'platformVersion': '13.2.3', 'architecture': '', 'model': 'iPhone', 'mobile': true},
     'type': 'phone',
   },
   {
@@ -1241,6 +1262,8 @@ const emulatedDevices = [
     'capabilities': ['touch', 'mobile'],
     'user-agent':
         'Mozilla/5.0 (iPhone; CPU iPhone OS 13_2_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0.3 Mobile/15E148 Safari/604.1',
+    'user-agent-metadata':
+        {'platform': 'iOS', 'platformVersion': '13.2.3', 'architecture': '', 'model': 'iPhone', 'mobile': true},
     'type': 'phone',
   },
   {
@@ -1716,6 +1739,8 @@ const emulatedDevices = [
     'capabilities': ['touch', 'mobile'],
     'user-agent':
         'Mozilla/5.0 (iPad; CPU OS 11_0 like Mac OS X) AppleWebKit/604.1.34 (KHTML, like Gecko) Version/11.0 Mobile/15A5341f Safari/604.1',
+    'user-agent-metadata':
+        {'platform': 'iOS', 'platformVersion': '11.0', 'architecture': '', 'model': 'iPad', 'mobile': true},
     'type': 'tablet',
   },
   {
@@ -1730,6 +1755,8 @@ const emulatedDevices = [
     'capabilities': ['touch', 'mobile'],
     'user-agent':
         'Mozilla/5.0 (iPad; CPU OS 11_0 like Mac OS X) AppleWebKit/604.1.34 (KHTML, like Gecko) Version/11.0 Mobile/15A5341f Safari/604.1',
+    'user-agent-metadata':
+        {'platform': 'iOS', 'platformVersion': '11.0', 'architecture': '', 'model': 'iPad', 'mobile': true},
     'type': 'tablet',
   },
   {

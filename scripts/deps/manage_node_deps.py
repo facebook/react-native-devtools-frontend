@@ -1,6 +1,6 @@
 #!/usr/bin/env vpython3
 #
-# Copyright 2019 The Chromium Authors. All rights reserved.
+# Copyright 2019 The Chromium Authors
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 """
@@ -35,6 +35,7 @@ LICENSES = [
     "MPL-2.0",
     "Python-2.0",
     "W3C",
+    "BlueOak-1.0.0",
 ]
 
 
@@ -171,6 +172,40 @@ def addChromiumReadme():
     return False
 
 
+def fixChaiExports():
+    file_path = path.join(devtools_paths.node_modules_path(), 'chai',
+                          'package.json')
+    with open(file_path, 'r+') as pkg_json:
+        content = pkg_json.read()
+        pkg_json.seek(0)
+        # Buggy export in the current chai version. Can be removed once the chai version is fixed.
+        content = content.replace('"./": "./"', '"./*": "./*.js"')
+        pkg_json.write(content)
+        pkg_json.truncate()
+
+
+def apply_patches():
+    patch_path = "scripts/deps/node_module_patches/karma-mocha.patch"
+
+    cwd = devtools_paths.devtools_root_path()
+    env = os.environ.copy()
+
+    # Check if the patch can be applied.
+    check_cmd = ["git", "apply", "--check", patch_path]
+    if subprocess.run(check_cmd, cwd=cwd, env=env,
+                      capture_output=True).returncode == 0:
+        return exec_command(["git", "apply", patch_path])
+
+    # If it cannot be applied, check if it is already applied.
+    reverse_check_cmd = ["git", "apply", "--reverse", "--check", patch_path]
+    if subprocess.run(reverse_check_cmd, cwd=cwd, env=env,
+                      capture_output=True).returncode == 0:
+        return False
+
+    # If it's neither applicable nor already applied, run it for real to report the error.
+    return exec_command(["git", "apply", patch_path])
+
+
 def run_npm_command():
     for (name, version) in DEPS.items():
         if (version.find('^') == 0):
@@ -183,15 +218,6 @@ def run_npm_command():
     if exec_command([
             'npm',
             'install',
-    ]):
-        return True
-
-    # To minimize disk usage for Chrome DevTools node_modules, always try to dedupe dependencies.
-    # We need to perform this every time, as the order of dependencies added could lead to a
-    # non-optimal dependency tree, resulting in unnecessary disk usage.
-    if exec_command([
-            'npm',
-            'dedupe',
     ]):
         return True
 
@@ -208,6 +234,11 @@ def run_npm_command():
         return True
 
     if addChromiumReadme():
+        return True
+
+    fixChaiExports()
+
+    if apply_patches():
         return True
 
     return ensure_licenses()

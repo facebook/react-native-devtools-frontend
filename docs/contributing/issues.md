@@ -48,10 +48,11 @@ to Markdown (with a preview below the text input box).
 1.  Replace `<from chrome://version/>` and `<OS version>` with the relevant
     version information.
 1.  Outline exact steps to reproduce the problem. Make sure to provide steps
-    that are easy and accessible. Ideally create a minified test case on
-    [glitch.com](http://glitch.com) or [GitHub](http://github.com). Also
-    make sure to include screenshots and videos that help us to reproduce
-    and understand the problem you are facing.
+    that are easy and accessible. Ideally create a [minimal, reproducible
+    example](https://stackoverflow.com/help/minimal-reproducible-example), e.g.
+    on [codepen.io](https://codepen.io), [jsbin.com](https://jsbin.com) or
+    [GitHub](https://github.com). Also make sure to include screenshots and
+    videos that help us to reproduce and understand the problem you are facing.
 
 ## Overview
 
@@ -61,53 +62,29 @@ Tracker]. This section provides an overview of the Chromium DevTools specifics.
 ### Issue types
 
 [crbug] supports a wide range of different issue types, with ambiguous semantics.
-For Chromium DevTools we explicitly limit the set of types we use and give them
-well-defined semantics:
+For the Chromium DevTools component tree ([Chromium>Platform>DevTools]) we
+explicitly limit the set of types we use and give them well-defined semantics:
 
 | Issue Type           | Meaning                                    |
 | -------------------- | ------------------------------------------ |
 | **Bug**              | The behavior does not match what is supposed to occur or what is documented. The product does not work as expected. |
 | **Feature Request**  | The product works as intended but could be improved. |
 | **Internal Cleanup** | This is typically a maintenance issue. The issue has no effect on the behavior of a product, but addressing it may allow more intuitive interaction. |
-| **Vulnerability**    | Security vulnerabilities subject to the handling outlined in Google's [Vulnerability Priority Guidelines](http://go/vulnerability-slo). |
 | **Privacy Issue**    | Privacy issues subject to the handling outlined in Google's [Privacy Issue Bugs](http://go/pib-slo). |
 | **Task**             | A small unit of work.                      |
-| **Project**          | A goal-driven effort with a finite start and end, focused on creating a unique product, service, or result. |
-| **Feature**          | A collection of work that provides a specific value to the user. |
+| **Vulnerability**    | Security vulnerabilities subject to the handling outlined in Google's [Vulnerability Priority Guidelines](http://go/vulnerability-slo). |
 
-The first 6 (**Bug** to **Task**) are used for day-to-day work and for issues
-reported by users. The last 2 (**Project** and **Feature**) are used to organize
-the other types of issues for the purpose of planning (ahead). We explicitly
-don't use Customer Issue, Process, Milestone, Epic, and Story within Chrome DevTools.
+These are used to track day-to-day work, primarily issues reported by users. We
+explicitly don't use the Customer Issue, Process, and Story types, because the
+former is already sufficiently covered with **Bug**, **Privacy Issue** and
+**Vulnerability**, while the latter two are basically just special sub types of
+**Task** and this fine-grained distinction would add more confusion than good.
+Any use of the disallowed issue types will be corrected automatically by the
+[Blunderbuss](http://go/blunderbuss) bot.
 
-*** promo
-**BEST PRACTICE:** Limit the nesting of **Project** and **Feature** to the bare
-minimum needed, and use **Task** for small chunks of work.
-***
-
-### Parent-Child Relationships and Blocking
-
-*** note
-**TL;DR:**
-
--  Prefer parent-child relationships to split work into smaller chunks.
--  Prefer blocking to express dependencies between independent / adjacent
-issues.
-***
-
-When splitting up work into smaller chunks or when scoping a project that
-encompasses multiple bugs or feature requests, favor to express this via a
-parent-child relationship. Consider the example of a CSS Nesting:
-
-1.  This should start with an issue of type Feature which is about adding CSS
-    Nesting support to Chromium DevTools.
-1.  This Feature has child issues of type Task, which are concerned with adding
-    CSS Nesting support to the various parts of DevTools involved, for example
-    the CDP (Chrome DevTools Protocol), the Elements panel, the Sources panel,
-    and so forth.
-1.  Over the course of the project there'll likely also be Feature Requests and
-    Bugs from internal and external developers, which should also be parented
-    under the CSS Nesting Feature issue.
+We also explicitly disallow goal-type issues in the [Chromium>Platform>DevTools]
+component tree. Check out [go/chrome-tooling/project-management] for guidance
+how to manage goals using **Feature** and **Project** (_Googlers-only_).
 
 ### Priorities
 
@@ -197,25 +174,21 @@ DevTools we want to
 1. reduce the number of regressions that ship to the (Chrome) Stable channel, and
 2. reduce the number of bugs overall.
 
-The following SLOs (Service Level Objectives) apply to issues of type Bug,
-Vulnerability, and Privacy Issue. other types of issues such as Feature Request
-or Task are out of scope for SLOs (with the notable exception of Postmortem action
-items, where Chrome also enforces SLOs for non-bug issues). We also explicitly
-restrict these SLOs to bugs in [crbug], and are not concerned with bugs that are
-tracked in other places such as GitHub. Below is a high level summary of our SLOs
-(Googlers can check the [Chrome DevTools SLO Policy] and [Chrome SLO Policy] for
-more details):
+The following SLOs (Service Level Objectives) apply to issues of type "Bug",
+"Vulnerability", and "Privacy Issue". other types of issues such as "Feature
+Request" or "Task" are out of scope for SLOs (with the notable exception of
+Postmortem action items, where Chrome also enforces SLOs for non-bug issues).
+We also explicitly restrict these SLOs to bugs in [crbug], and are not concerned
+with bugs that are tracked in other places such as GitHub. Below is a high level
+summary of our SLOs (Googlers can check the [Chrome SLO Policy] for details):
 
 |      | Assignment     | Response           | Closure
 | ---- | -------------- | ------------------ | --------
 | `P0` | 1 business day | Every business day | 1 week
 | `P1` | 1 week         | 1 week             | 4 weeks
-| `P2` | 2 months       | -                  | 6 months
-| `P3` | 1 year         | -                  | -
 
-The first two rows are identical to [go/chrome-slo], with the last two rows being
-specific to Chrome DevTools. [crbug] provides a **Nearest SLO** column that
-surfaces SLO violations easily:
+These are identical to [go/chrome-slo]. [crbug] provides a **Nearest SLO**
+column that surfaces SLO violations easily:
 
 ![Nearest SLO in crbug](./images/issues-nearestslo.png "Nearest SLO in crbug")
 
@@ -224,7 +197,7 @@ surfaces SLO violations easily:
 
 ### Release Blocking Issues
 
-In accordance with go/chrome-slo there are special SLOs for issues that are
+In compliance with [go/chrome-slo] there are special SLOs for issues that are
 severe enough to block a release shipping to users (see [go/chrome-release-slos]).
 They apply to bug types in the same way as the above SLOs.
 
@@ -261,10 +234,11 @@ refreshed every 2-4 hours, to see SLO compliance for a given lead.
   [How to file a good browser bug]: https://web.dev/articles/how-to-file-a-good-bug
   [Open Chromium DevTools Bugs]: https://issues.chromium.org/issues?q=status:open%20componentid:1457055%2B%20type:bug
   [goo.gle/devtools-bug]: https://goo.gle/devtools-bug
-  [Chrome DevTools SLO Policy]: https://b.corp.google.com/slos/61348
-  [Chrome SLO Policy]: https://b.corp.google.com/slos/1834
+  [Chrome SLO Policy]: http://b/slos/1834
   [go/chrome-slo]: http://go/chrome-slo
   [go/chrome-release-slos]: http://go/chrome-release-slos
-  [Buganizer SLO Compliance]: go/b-slo-compliance
+  [go/chrome-tooling/project-management]: http://go/chrome-tooling/project-management
+  [Buganizer SLO Compliance]: http://go/b-slo-compliance
   [TaskFlow]: http://go/chrome-devtools:taskflow
   [TaskFlow Inbox]: http://go/chrome-devtools:taskflow/inbox
+  [Chromium>Platform>DevTools]: https://issues.chromium.org/components/1457055

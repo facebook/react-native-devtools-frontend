@@ -1,4 +1,4 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -7,8 +7,9 @@ import {
   assertElements,
   renderElementIntoDOM,
 } from '../../../testing/DOMHelpers.js';
-import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../../testing/LocaleHelpers.js';
 import {MockIssuesManager} from '../../../testing/MockIssuesManager.js';
+import {Icon} from '../../kit/kit.js';
 import * as IconButton from '../icon_button/icon_button.js';
 
 import * as IssueCounter from './issue_counter.js';
@@ -28,10 +29,10 @@ export const extractIconGroups = (shadowRoot: ShadowRoot) => {
   const iconButtonShadowRoot = iconButton.shadowRoot;
   assert.exists(iconButtonShadowRoot);
   const icons = iconButtonShadowRoot.querySelectorAll('.status-icon');
-  assertElements(icons, IconButton.Icon.Icon);
+  assertElements(icons, Icon);
   const labels = iconButtonShadowRoot.querySelectorAll('.icon-button-title');
   assertElements(labels, HTMLSpanElement);
-  assert(icons.length === labels.length, 'Expected icons and labels to appear in pairs');
+  assert.strictEqual(icons.length, labels.length, 'Expected icons and labels to appear in pairs');
   const iconGroups = [];
   for (let i = 0; i < icons.length; ++i) {
     const labelElement = labels[i];
@@ -52,7 +53,8 @@ export const extractButton = (shadowRoot: ShadowRoot) => {
   return button;
 };
 
-describeWithLocale('IssueCounter', () => {
+describe('IssueCounter', () => {
+  setupLocaleHooks();
   describe('with omitting zero-count issue kinds', () => {
     it('renders correctly', () => {
       const issuesManager = new MockIssuesManager([]);
@@ -218,7 +220,8 @@ describeWithLocale('IssueCounter', () => {
   });
 });
 
-describeWithLocale('getIssueCountsEnumeration', () => {
+describe('getIssueCountsEnumeration', () => {
+  setupLocaleHooks();
   it('formats issue counts correctly', () => {
     const issuesManager = new MockIssuesManager([]);
     const string = IssueCounter.IssueCounter.getIssueCountsEnumeration(

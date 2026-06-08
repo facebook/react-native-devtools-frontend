@@ -1,8 +1,8 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-import {describeWithLocale} from '../../../testing/EnvironmentHelpers.js';
+import {setupLocaleHooks} from '../../../testing/LocaleHelpers.js';
 import * as Diff from '../../../third_party/diff/diff.js';
 
 import * as DiffView from './diff_view.js';
@@ -35,7 +35,8 @@ function text(elt: Node): string {
   return '';
 }
 
-describeWithLocale('DiffView', () => {
+describe('DiffView', () => {
+  setupLocaleHooks();
   it('renders the proper content', async () => {
     const output = await simpleDiff();
     const lines = Array.from(output.querySelectorAll('.diff-line-content'));
@@ -69,6 +70,13 @@ describeWithLocale('DiffView', () => {
     const view = await buildDiff(original, changed);
     assert.isTrue(view.querySelectorAll('.diff-line-content').length < 100);
     assert.isNotNull(view.querySelector('.diff-line-spacer'));
+  });
+
+  it('renders no-diff state when the diff is empty', async () => {
+    const view = new DiffView.DiffView.DiffView({diff: [], mimeType: ''});
+    await view.loaded;
+
+    assert.exists(view.shadowRoot?.querySelector('[data-testid="no-diff"]'));
   });
 });
 

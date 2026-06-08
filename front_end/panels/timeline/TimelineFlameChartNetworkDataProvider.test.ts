@@ -1,21 +1,23 @@
-// Copyright 2023 The Chromium Authors. All rights reserved.
+// Copyright 2023 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import * as Common from '../../core/common/common.js';
 import * as Trace from '../../models/trace/trace.js';
 import {describeWithEnvironment} from '../../testing/EnvironmentHelpers.js';
 import {TraceLoader} from '../../testing/TraceLoader.js';
+import type * as PerfUi from '../../ui/legacy/components/perf_ui/perf_ui.js';
 
 import * as Timeline from './timeline.js';
 
 describeWithEnvironment('TimelineFlameChartNetworkDataProvider', function() {
   it('renders the network track correctly', async function() {
     const dataProvider = new Timeline.TimelineFlameChartNetworkDataProvider.TimelineFlameChartNetworkDataProvider();
-    const {parsedTrace} = await TraceLoader.traceEngine(this, 'load-simple.json.gz');
-    const entityMapper = new Timeline.Utils.EntityMapper.EntityMapper(parsedTrace);
+    const parsedTrace = await TraceLoader.traceEngine(this, 'load-simple.json.gz');
+    const entityMapper = new Trace.EntityMapper.EntityMapper(parsedTrace);
 
-    const minTime = Trace.Helpers.Timing.microToMilli(parsedTrace.Meta.traceBounds.min);
-    const maxTime = Trace.Helpers.Timing.microToMilli(parsedTrace.Meta.traceBounds.max);
+    const minTime = Trace.Helpers.Timing.microToMilli(parsedTrace.data.Meta.traceBounds.min);
+    const maxTime = Trace.Helpers.Timing.microToMilli(parsedTrace.data.Meta.traceBounds.max);
 
     dataProvider.setModel(parsedTrace, entityMapper);
     dataProvider.setWindowTimes(minTime, maxTime);
@@ -27,7 +29,7 @@ describeWithEnvironment('TimelineFlameChartNetworkDataProvider', function() {
     assert.deepEqual(dataProvider.minimumBoundary(), minTime);
     assert.deepEqual(dataProvider.totalTime(), maxTime - minTime);
 
-    const networkEvents = parsedTrace.NetworkRequests.byTime;
+    const networkEvents = parsedTrace.data.NetworkRequests.byTime;
     const networkEventsStartTimes = networkEvents.map(request => Trace.Helpers.Timing.microToMilli(request.ts));
     const networkEventsTotalTimes = networkEvents.map(request => {
       const {startTime, endTime} = Trace.Helpers.Timing.eventTimingsMilliSeconds(request);
@@ -55,10 +57,35 @@ describeWithEnvironment('TimelineFlameChartNetworkDataProvider', function() {
     assert.strictEqual(dataProvider.preferredHeight(), 17 * 7);
   });
 
+  it('renders initiators and clears them when events are deselected', async function() {
+    const dataProvider = new Timeline.TimelineFlameChartNetworkDataProvider.TimelineFlameChartNetworkDataProvider();
+    const parsedTrace = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
+    const entityMapper = new Trace.EntityMapper.EntityMapper(parsedTrace);
+    dataProvider.setModel(parsedTrace, entityMapper);
+    const timelineData1 = dataProvider.timelineData();
+    assert.lengthOf(timelineData1.initiatorsData, 0);  // no initiators by default
+
+    // A network event that has an initiator - nothing special about the exact event.
+    const event = parsedTrace.data.NetworkRequests.byId.get('90829.57');
+    assert.exists(event);
+    const index = dataProvider.indexForEvent(event);
+    assert.isNotNull(index);
+
+    dataProvider.buildFlowForInitiator(index);
+    const timelineData2 = dataProvider.timelineData();
+    // The selected event kicks off a chain of 3 initiators.
+    assert.lengthOf(timelineData2.initiatorsData, 3);
+
+    // Deselect and ensure they are removed
+    dataProvider.buildFlowForInitiator(-1);
+    const timelineData3 = dataProvider.timelineData();
+    assert.lengthOf(timelineData3.initiatorsData, 0);
+  });
+
   it('can return the group for a given entryIndex', async function() {
     const dataProvider = new Timeline.TimelineFlameChartNetworkDataProvider.TimelineFlameChartNetworkDataProvider();
-    const {parsedTrace} = await TraceLoader.traceEngine(this, 'load-simple.json.gz');
-    const entityMapper = new Timeline.Utils.EntityMapper.EntityMapper(parsedTrace);
+    const parsedTrace = await TraceLoader.traceEngine(this, 'load-simple.json.gz');
+    const entityMapper = new Trace.EntityMapper.EntityMapper(parsedTrace);
     dataProvider.setModel(parsedTrace, entityMapper);
     dataProvider.timelineData();
 
@@ -70,16 +97,16 @@ describeWithEnvironment('TimelineFlameChartNetworkDataProvider', function() {
 
   it('filters navigations to only return those that happen on the main frame', async function() {
     const dataProvider = new Timeline.TimelineFlameChartNetworkDataProvider.TimelineFlameChartNetworkDataProvider();
-    const {parsedTrace} = await TraceLoader.traceEngine(this, 'multiple-navigations-with-iframes.json.gz');
-    const entityMapper = new Timeline.Utils.EntityMapper.EntityMapper(parsedTrace);
+    const parsedTrace = await TraceLoader.traceEngine(this, 'multiple-navigations-with-iframes.json.gz');
+    const entityMapper = new Trace.EntityMapper.EntityMapper(parsedTrace);
 
-    const minTime = Trace.Helpers.Timing.microToMilli(parsedTrace.Meta.traceBounds.min);
-    const maxTime = Trace.Helpers.Timing.microToMilli(parsedTrace.Meta.traceBounds.max);
+    const minTime = Trace.Helpers.Timing.microToMilli(parsedTrace.data.Meta.traceBounds.min);
+    const maxTime = Trace.Helpers.Timing.microToMilli(parsedTrace.data.Meta.traceBounds.max);
 
     dataProvider.setModel(parsedTrace, entityMapper);
     dataProvider.setWindowTimes(minTime, maxTime);
 
-    const mainFrameID = parsedTrace.Meta.mainFrameId;
+    const mainFrameID = parsedTrace.data.Meta.mainFrameId;
     const navigationEvents = dataProvider.mainFrameNavigationStartEvents();
     // Ensure that every navigation event that we return is for the main frame.
     assert.isTrue(navigationEvents.every(navEvent => {
@@ -89,8 +116,8 @@ describeWithEnvironment('TimelineFlameChartNetworkDataProvider', function() {
 
   it('can provide the index for an event and the event for a given index', async function() {
     const dataProvider = new Timeline.TimelineFlameChartNetworkDataProvider.TimelineFlameChartNetworkDataProvider();
-    const {parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev.json.gz');
-    const entityMapper = new Timeline.Utils.EntityMapper.EntityMapper(parsedTrace);
+    const parsedTrace = await TraceLoader.traceEngine(this, 'web-dev.json.gz');
+    const entityMapper = new Trace.EntityMapper.EntityMapper(parsedTrace);
     dataProvider.setModel(parsedTrace, entityMapper);
 
     const event = dataProvider.eventByIndex(0);
@@ -100,11 +127,11 @@ describeWithEnvironment('TimelineFlameChartNetworkDataProvider', function() {
 
   it('does not render the network track if there is no network requests', async function() {
     const dataProvider = new Timeline.TimelineFlameChartNetworkDataProvider.TimelineFlameChartNetworkDataProvider();
-    const {parsedTrace} = await TraceLoader.traceEngine(this, 'basic.json.gz');
-    const entityMapper = new Timeline.Utils.EntityMapper.EntityMapper(parsedTrace);
+    const parsedTrace = await TraceLoader.traceEngine(this, 'basic.json.gz');
+    const entityMapper = new Trace.EntityMapper.EntityMapper(parsedTrace);
 
-    const minTime = Trace.Helpers.Timing.microToMilli(parsedTrace.Meta.traceBounds.min);
-    const maxTime = Trace.Helpers.Timing.microToMilli(parsedTrace.Meta.traceBounds.max);
+    const minTime = Trace.Helpers.Timing.microToMilli(parsedTrace.data.Meta.traceBounds.min);
+    const maxTime = Trace.Helpers.Timing.microToMilli(parsedTrace.data.Meta.traceBounds.max);
 
     dataProvider.setModel(parsedTrace, entityMapper);
     dataProvider.setWindowTimes(minTime, maxTime);
@@ -132,7 +159,7 @@ describeWithEnvironment('TimelineFlameChartNetworkDataProvider', function() {
 
   it('decorate a event correctly', async function() {
     const dataProvider = new Timeline.TimelineFlameChartNetworkDataProvider.TimelineFlameChartNetworkDataProvider();
-    const {parsedTrace} = await TraceLoader.traceEngine(this, 'cls-cluster-max-timeout.json.gz');
+    const parsedTrace = await TraceLoader.traceEngine(this, 'cls-cluster-max-timeout.json.gz');
     // The field that is important of this test:
     // {
     // "ts": 183752441.977,
@@ -151,7 +178,7 @@ describeWithEnvironment('TimelineFlameChartNetworkDataProvider', function() {
     //   "responseTime": 1634222299.776
     // ...
     // }
-    const event = parsedTrace.NetworkRequests.byTime[1];
+    const event = parsedTrace.data.NetworkRequests.byTime[1];
     // So for this request:
     // The earliest event belonging to this request starts at 183752441.977.
     // This is used in flamechart to calculate unclippedBarX.
@@ -182,75 +209,47 @@ describeWithEnvironment('TimelineFlameChartNetworkDataProvider', function() {
 
   it('can search for entries within a given time-range', async function() {
     const dataProvider = new Timeline.TimelineFlameChartNetworkDataProvider.TimelineFlameChartNetworkDataProvider();
-    const {parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
-    const entityMapper = new Timeline.Utils.EntityMapper.EntityMapper(parsedTrace);
+    const parsedTrace = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
+    const entityMapper = new Trace.EntityMapper.EntityMapper(parsedTrace);
     dataProvider.setModel(parsedTrace, entityMapper);
-    const boundsMs = Trace.Helpers.Timing.traceWindowMilliSeconds(parsedTrace.Meta.traceBounds);
+    const boundsMs = Trace.Helpers.Timing.traceWindowMilliSeconds(parsedTrace.data.Meta.traceBounds);
     dataProvider.setWindowTimes(boundsMs.min, boundsMs.max);
 
     const filter = new Timeline.TimelineFilters.TimelineRegExp(/app\.js/i);
-    const results = dataProvider.search(parsedTrace.Meta.traceBounds, filter);
+    const results = dataProvider.search(parsedTrace.data.Meta.traceBounds, filter);
     assert.lengthOf(results, 1);
     assert.deepEqual(results[0], {index: 8, startTimeMilli: 122411056.533, provider: 'network'});
   });
 
-  it('delete annotations associated with an event', async function() {
+  it('persists track configurations to the setting if it is provided with one', async function() {
+    const {Settings} = Common.Settings;
+    const setting =
+        Settings.instance().createSetting<PerfUi.FlameChart.PersistedGroupConfig[]|null>('persist-flame-config', null);
+
     const dataProvider = new Timeline.TimelineFlameChartNetworkDataProvider.TimelineFlameChartNetworkDataProvider();
-    const {parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
-    const entityMapper = new Timeline.Utils.EntityMapper.EntityMapper(parsedTrace);
+    const parsedTrace = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
+    const entityMapper = new Trace.EntityMapper.EntityMapper(parsedTrace);
     dataProvider.setModel(parsedTrace, entityMapper);
-    const entryIndex = 0;
-    const eventToFindAssociatedEntriesFor = dataProvider.eventByIndex(entryIndex);
-    const event = dataProvider.eventByIndex(1);
-    assert.exists(eventToFindAssociatedEntriesFor);
-    assert.exists(event);
+    dataProvider.setPersistedGroupConfigSetting(setting);
 
-    // This link annotation should be deleted
-    Timeline.ModificationsManager.ModificationsManager.activeManager()?.createAnnotation({
-      type: 'ENTRIES_LINK',
-      entryFrom: eventToFindAssociatedEntriesFor,
-      entryTo: event,
-      state: Trace.Types.File.EntriesLinkState.CONNECTED,
-    });
+    const groups = dataProvider.timelineData().groups;
+    assert.lengthOf(groups, 1);
+    assert.isUndefined(groups[0].expanded);
 
-    Timeline.ModificationsManager.ModificationsManager.activeManager()?.createAnnotation({
-      type: 'ENTRY_LABEL',
-      entry: event,
-      label: 'label',
-    });
+    // Pretend the user has expanded the group
+    groups[0].expanded = true;
+    dataProvider.handleTrackConfigurationChange(groups, [0]);
 
-    dataProvider.deleteAnnotationsForEntry(entryIndex);
-    // Make sure one of the annotations was deleted
-    assert.deepEqual(Timeline.ModificationsManager.ModificationsManager.activeManager()?.getAnnotations().length, 1);
-  });
-
-  it('correctly identifies if an event has annotations', async function() {
-    const dataProvider = new Timeline.TimelineFlameChartNetworkDataProvider.TimelineFlameChartNetworkDataProvider();
-    const {parsedTrace} = await TraceLoader.traceEngine(this, 'web-dev-with-commit.json.gz');
-    const entityMapper = new Timeline.Utils.EntityMapper.EntityMapper(parsedTrace);
-    dataProvider.setModel(parsedTrace, entityMapper);
-    const eventIndex = 0;
-    const event = dataProvider.eventByIndex(eventIndex);
-    const event2 = dataProvider.eventByIndex(1);
-    assert.exists(event);
-    assert.exists(event2);
-
-    // Create a link between events
-    Timeline.ModificationsManager.ModificationsManager.activeManager()?.createAnnotation({
-      type: 'ENTRIES_LINK',
-      entryFrom: event,
-      entryTo: event2,
-      state: Trace.Types.File.EntriesLinkState.CONNECTED,
-    });
-
-    // Made sure the event has annotations
-    assert.isTrue(dataProvider.entryHasAnnotations(eventIndex));
-
-    // Delete annotations for the event
-    dataProvider.deleteAnnotationsForEntry(eventIndex);
-
-    // Made sure the event does not have annotations
-    assert.isFalse(dataProvider.entryHasAnnotations(eventIndex));
+    const newSetting = setting.get();
+    assert.deepEqual(newSetting, [
+      {
+        expanded: true,
+        hidden: false,
+        originalIndex: 0,
+        visualIndex: 0,
+        trackName: 'Network',
+      },
+    ]);
   });
 });
 

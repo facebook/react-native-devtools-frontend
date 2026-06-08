@@ -1,32 +1,6 @@
-/*
- * Copyright (C) 2011 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2011 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 import * as Protocol from '../../generated/protocol.js';
 import * as Common from '../common/common.js';
@@ -67,28 +41,28 @@ export {FrontendMessageType} from './ConsoleModelTypes.js';
 
 const UIStrings = {
   /**
-   *@description Text shown when the main frame (page) of the website was navigated to a different URL.
-   *@example {https://example.com} PH1
+   * @description Text shown when the main frame (page) of the website was navigated to a different URL.
+   * @example {https://example.com} PH1
    */
   navigatedToS: 'Navigated to {PH1}',
   /**
-   *@description Text shown when the main frame (page) of the website was navigated to a different URL
+   * @description Text shown when the main frame (page) of the website was navigated to a different URL
    * and the page was restored from back/forward cache (https://web.dev/bfcache/).
-   *@example {https://example.com} PH1
+   * @example {https://example.com} PH1
    */
   bfcacheNavigation: 'Navigation to {PH1} was restored from back/forward cache (see https://web.dev/bfcache/)',
   /**
-   *@description Text shown in the console when a performance profile (with the given name) was started.
-   *@example {title} PH1
+   * @description Text shown in the console when a performance profile (with the given name) was started.
+   * @example {title} PH1
    */
   profileSStarted: 'Profile \'\'{PH1}\'\' started.',
   /**
-   *@description Text shown in the console when a performance profile (with the given name) was stopped.
-   *@example {name} PH1
+   * @description Text shown in the console when a performance profile (with the given name) was stopped.
+   * @example {name} PH1
    */
   profileSFinished: 'Profile \'\'{PH1}\'\' finished.',
   /**
-   *@description Error message shown in the console after the user tries to save a JavaScript value to a temporary variable.
+   * @description Error message shown in the console after the user tries to save a JavaScript value to a temporary variable.
    */
   failedToSaveToTempVariable: 'Failed to save to temp variable.',
 } as const;
@@ -97,12 +71,12 @@ const str_ = i18n.i18n.registerUIStrings('core/sdk/ConsoleModel.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
 
 export class ConsoleModel extends SDKModel<EventTypes> {
-  #messagesInternal: ConsoleMessage[] = [];
+  #messages: ConsoleMessage[] = [];
   readonly #messagesByTimestamp = new Platform.MapUtilities.Multimap<number, ConsoleMessage>();
   readonly #messageByExceptionId = new Map<RuntimeModel, Map<number, ConsoleMessage>>();
-  #warningsInternal = 0;
-  #errorsInternal = 0;
-  #violationsInternal = 0;
+  #warnings = 0;
+  #errors = 0;
+  #violations = 0;
   #pageLoadSequenceNumber = 0;
   readonly #targetListeners = new WeakMap<Target, Common.EventTarget.EventDescriptor[]>();
 
@@ -179,7 +153,7 @@ export class ConsoleModel extends SDKModel<EventTypes> {
           replMode: true,
           allowUnsafeEvalBlockedByCSP: false,
         },
-        Common.Settings.Settings.instance().moduleSetting('console-user-activation-eval').get(),
+        this.target().targetManager().settings.moduleSetting('console-user-activation-eval').get(),
         /* awaitPromise */ false);
     Host.userMetrics.actionTaken(Host.UserMetrics.Action.ConsoleEvaluated);
     if ('error' in result) {
@@ -207,7 +181,7 @@ export class ConsoleModel extends SDKModel<EventTypes> {
       this.clearIfNecessary();
     }
 
-    this.#messagesInternal.push(msg);
+    this.#messages.push(msg);
     this.#messagesByTimestamp.set(msg.timestamp, msg);
     const runtimeModel = msg.runtimeModel();
     const exceptionId = msg.getExceptionId();
@@ -241,7 +215,7 @@ export class ConsoleModel extends SDKModel<EventTypes> {
     if (!exceptionMessage) {
       return;
     }
-    this.#errorsInternal--;
+    this.#errors--;
     exceptionMessage.level = Protocol.Log.LogEntryLevel.Verbose;
     this.dispatchEventToListeners(Events.MessageUpdated, exceptionMessage);
   }
@@ -310,7 +284,8 @@ export class ConsoleModel extends SDKModel<EventTypes> {
   }
 
   private clearIfNecessary(): void {
-    if (!Common.Settings.Settings.instance().moduleSetting('preserve-console-log').get()) {
+    const settings = this.target().targetManager().settings;
+    if (!settings.moduleSetting('preserve-console-log').get()) {
       this.clear();
     }
     ++this.#pageLoadSequenceNumber;
@@ -318,7 +293,8 @@ export class ConsoleModel extends SDKModel<EventTypes> {
 
   private primaryPageChanged(
       event: Common.EventTarget.EventTargetEvent<{frame: ResourceTreeFrame, type: PrimaryPageChangeType}>): void {
-    if (Common.Settings.Settings.instance().moduleSetting('preserve-console-log').get()) {
+    const settings = this.target().targetManager().settings;
+    if (settings.moduleSetting('preserve-console-log').get()) {
       const {frame} = event.data;
       if (frame.backForwardCacheDetails.restoredFromCache) {
         Common.Console.Console.instance().log(i18nString(UIStrings.bfcacheNavigation, {PH1: frame.url}));
@@ -361,83 +337,83 @@ export class ConsoleModel extends SDKModel<EventTypes> {
 
   private incrementErrorWarningCount(msg: ConsoleMessage): void {
     if (msg.source === Protocol.Log.LogEntrySource.Violation) {
-      this.#violationsInternal++;
+      this.#violations++;
       return;
     }
     switch (msg.level) {
       case Protocol.Log.LogEntryLevel.Warning:
-        this.#warningsInternal++;
+        this.#warnings++;
         break;
       case Protocol.Log.LogEntryLevel.Error:
-        this.#errorsInternal++;
+        this.#errors++;
         break;
     }
   }
 
   messages(): ConsoleMessage[] {
-    return this.#messagesInternal;
+    return this.#messages;
   }
 
   // messages[] are not ordered by timestamp.
-  static allMessagesUnordered(): ConsoleMessage[] {
+  static allMessagesUnordered(targetManager: TargetManager = TargetManager.instance()): ConsoleMessage[] {
     const messages = [];
-    for (const target of TargetManager.instance().targets()) {
+    for (const target of targetManager.targets()) {
       const targetMessages = target.model(ConsoleModel)?.messages() || [];
       messages.push(...targetMessages);
     }
     return messages;
   }
 
-  static requestClearMessages(): void {
-    for (const logModel of TargetManager.instance().models(LogModel)) {
+  static requestClearMessages(targetManager: TargetManager = TargetManager.instance()): void {
+    for (const logModel of targetManager.models(LogModel)) {
       logModel.requestClear();
     }
-    for (const runtimeModel of TargetManager.instance().models(RuntimeModel)) {
+    for (const runtimeModel of targetManager.models(RuntimeModel)) {
       runtimeModel.discardConsoleEntries();
       // Runtime.discardConsoleEntries implies Runtime.releaseObjectGroup('console').
       runtimeModel.releaseObjectGroup('live-expression');
     }
-    for (const target of TargetManager.instance().targets()) {
+    for (const target of targetManager.targets()) {
       target.model(ConsoleModel)?.clear();
     }
   }
 
   private clear(): void {
-    this.#messagesInternal = [];
+    this.#messages = [];
     this.#messagesByTimestamp.clear();
     this.#messageByExceptionId.clear();
-    this.#errorsInternal = 0;
-    this.#warningsInternal = 0;
-    this.#violationsInternal = 0;
+    this.#errors = 0;
+    this.#warnings = 0;
+    this.#violations = 0;
     this.dispatchEventToListeners(Events.ConsoleCleared);
   }
 
   errors(): number {
-    return this.#errorsInternal;
+    return this.#errors;
   }
 
-  static allErrors(): number {
+  static allErrors(targetManager: TargetManager = TargetManager.instance()): number {
     let errors = 0;
-    for (const target of TargetManager.instance().targets()) {
+    for (const target of targetManager.targets()) {
       errors += target.model(ConsoleModel)?.errors() || 0;
     }
     return errors;
   }
 
   warnings(): number {
-    return this.#warningsInternal;
+    return this.#warnings;
   }
 
-  static allWarnings(): number {
+  static allWarnings(targetManager: TargetManager = TargetManager.instance()): number {
     let warnings = 0;
-    for (const target of TargetManager.instance().targets()) {
+    for (const target of targetManager.targets()) {
       warnings += target.model(ConsoleModel)?.warnings() || 0;
     }
     return warnings;
   }
 
   violations(): number {
-    return this.#violationsInternal;
+    return this.#violations;
   }
 
   async saveToTempVariable(currentExecutionContext: ExecutionContext|null, remoteObject: RemoteObject|null):
@@ -458,7 +434,7 @@ export class ConsoleModel extends SDKModel<EventTypes> {
     const callFunctionResult =
         await globalObject.callFunction(saveVariable, [RemoteObject.toCallArgument(remoteObject)]);
     globalObject.release();
-    if (callFunctionResult.wasThrown || !callFunctionResult.object || callFunctionResult.object.type !== 'string') {
+    if (callFunctionResult.wasThrown || callFunctionResult.object?.type !== 'string') {
       failedToSave(callFunctionResult.object || null);
     } else {
       const text = (callFunctionResult.object.value as string);
@@ -571,11 +547,10 @@ export interface ConsoleMessageDetails {
   context?: string;
   affectedResources?: AffectedResources;
   category?: Protocol.Log.LogEntryCategory;
-  isCookieReportIssue?: boolean;
 }
 
 export class ConsoleMessage {
-  readonly #runtimeModelInternal: RuntimeModel|null;
+  readonly #runtimeModel: RuntimeModel|null;
   source: MessageSource;
   level: Protocol.Log.LogEntryLevel|null;
   messageText: string;
@@ -595,7 +570,6 @@ export class ConsoleMessage {
   #exceptionId?: number = undefined;
   #affectedResources?: AffectedResources;
   category?: Protocol.Log.LogEntryCategory;
-  isCookieReportIssue = false;
 
   /**
    * The parent frame of the `console.log` call of logpoints or conditional breakpoints
@@ -610,7 +584,7 @@ export class ConsoleMessage {
   constructor(
       runtimeModel: RuntimeModel|null, source: MessageSource, level: Protocol.Log.LogEntryLevel|null,
       messageText: string, details?: ConsoleMessageDetails) {
-    this.#runtimeModelInternal = runtimeModel;
+    this.#runtimeModel = runtimeModel;
     this.source = source;
     this.level = (level);
     this.messageText = messageText;
@@ -626,13 +600,12 @@ export class ConsoleMessage {
     this.workerId = details?.workerId;
     this.#affectedResources = details?.affectedResources;
     this.category = details?.category;
-    this.isCookieReportIssue = Boolean(details?.isCookieReportIssue);
 
-    if (!this.#executionContextId && this.#runtimeModelInternal) {
+    if (!this.#executionContextId && this.#runtimeModel) {
       if (this.scriptId) {
-        this.#executionContextId = this.#runtimeModelInternal.executionContextIdForScriptId(this.scriptId);
+        this.#executionContextId = this.#runtimeModel.executionContextIdForScriptId(this.scriptId);
       } else if (this.stackTrace) {
-        this.#executionContextId = this.#runtimeModelInternal.executionContextForStackTrace(this.stackTrace);
+        this.#executionContextId = this.#runtimeModel.executionContextForStackTrace(this.stackTrace);
       }
     }
 
@@ -680,11 +653,11 @@ export class ConsoleMessage {
   }
 
   runtimeModel(): RuntimeModel|null {
-    return this.#runtimeModelInternal;
+    return this.#runtimeModel;
   }
 
   target(): Target|null {
-    return this.#runtimeModelInternal ? this.#runtimeModelInternal.target() : null;
+    return this.#runtimeModel ? this.#runtimeModel.target() : null;
   }
 
   setOriginatingMessage(originatingMessage: ConsoleMessage): void {

@@ -1,15 +1,15 @@
-// Copyright 2020 The Chromium Authors. All rights reserved.
+// Copyright 2020 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
-import '../../ui/components/cards/cards.js';
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as Common from '../../core/common/common.js';
 import * as Host from '../../core/host/host.js';
 import * as i18n from '../../core/i18n/i18n.js';
 import * as Platform from '../../core/platform/platform.js';
 import * as Buttons from '../../ui/components/buttons/buttons.js';
-import * as IconButton from '../../ui/components/icon_button/icon_button.js';
+import {createIcon, type Icon, Link} from '../../ui/kit/kit.js';
+import * as SettingsUI from '../../ui/legacy/components/settings_ui/settings_ui.js';
 import * as UI from '../../ui/legacy/legacy.js';
 import * as VisualLogging from '../../ui/visual_logging/visual_logging.js';
 
@@ -18,84 +18,89 @@ import settingsScreenStyles from './settingsScreen.css.js';
 
 const UIStrings = {
   /**
-   *@description Text for keyboard shortcuts
+   * @description Text for keyboard shortcuts
    */
   shortcuts: 'Shortcuts',
   /**
-   *@description Text appearing before a select control offering users their choice of keyboard shortcut presets.
+   * @description Text appearing before a select control offering users their choice of keyboard shortcut presets.
    */
   matchShortcutsFromPreset: 'Shortcut preset',
   /**
-   *@description Screen reader label for list of keyboard shortcuts in settings
+   * @description Screen reader label for list of keyboard shortcuts in settings
    */
   keyboardShortcutsList: 'Keyboard shortcuts list',
   /**
-   *@description Screen reader label for an icon denoting a shortcut that has been changed from its default
+   * @description Screen reader label for an icon denoting a shortcut that has been changed from its default
    */
   shortcutModified: 'Shortcut modified',
   /**
-   *@description Screen reader label for an empty shortcut cell in custom shortcuts settings tab
+   * @description Screen reader label for an empty shortcut cell in custom shortcuts settings tab
    */
   noShortcutForAction: 'No shortcut for action',
   /**
-   *@description Link text in the settings pane to add another shortcut for an action
+   * @description Link text in the settings pane to add another shortcut for an action
    */
   addAShortcut: 'Add a shortcut',
   /**
-   *@description Label for a button in the settings pane that confirms changes to a keyboard shortcut
+   * @description Placeholder text in the settings pane when adding a new shortcut.
+   * Explaining that key strokes are going to be recoded.
+   */
+  recordingKeys: 'Recoding keys',
+  /**
+   * @description Label for a button in the settings pane that confirms changes to a keyboard shortcut
    */
   confirmChanges: 'Confirm changes',
   /**
-   *@description Label for a button in the settings pane that discards changes to the shortcut being edited
+   * @description Label for a button in the settings pane that discards changes to the shortcut being edited
    */
   discardChanges: 'Discard changes',
   /**
-   *@description Label for a button in the settings pane that removes a keyboard shortcut.
+   * @description Label for a button in the settings pane that removes a keyboard shortcut.
    */
   removeShortcut: 'Remove shortcut',
   /**
-   *@description Label for a button in the settings pane that edits a keyboard shortcut
+   * @description Label for a button in the settings pane that edits a keyboard shortcut
    */
   editShortcut: 'Edit shortcut',
   /**
-   *@description Message shown in settings when the user inputs a modifier-only shortcut such as Ctrl+Shift.
+   * @description Message shown in settings when the user inputs a modifier-only shortcut such as Ctrl+Shift.
    */
   shortcutsCannotContainOnly: 'Shortcuts cannot contain only modifier keys.',
   /**
-   *@description Messages shown in shortcuts settings when the user inputs a shortcut that is already in use.
-   *@example {Performance} PH1
-   *@example {Start/stop recording} PH2
+   * @description Messages shown in shortcuts settings when the user inputs a shortcut that is already in use.
+   * @example {Performance} PH1
+   * @example {Start/stop recording} PH2
    */
   thisShortcutIsInUseByS: 'This shortcut is in use by {PH1}: {PH2}.',
   /**
-   *@description Message shown in settings when to restore default shortcuts.
+   * @description Message shown in settings when to restore default shortcuts.
    */
   RestoreDefaultShortcuts: 'Restore default shortcuts',
   /**
-   *@description Message shown in settings to show the full list of keyboard shortcuts.
+   * @description Message shown in settings to show the full list of keyboard shortcuts.
    */
   FullListOfDevtoolsKeyboard: 'Full list of DevTools keyboard shortcuts and gestures',
   /**
-   *@description Label for a button in the shortcut editor that resets all shortcuts for the current action.
+   * @description Label for a button in the shortcut editor that resets all shortcuts for the current action.
    */
   ResetShortcutsForAction: 'Reset shortcuts for action',
   /**
-   *@description Screen reader announcement for shortcut removed
-   *@example {Start/stop recording} PH1
+   * @description Screen reader announcement for shortcut removed
+   * @example {Start/stop recording} PH1
    */
   shortcutRemoved: '{PH1} Shortcut removed',
   /**
-   *@description Screen reader announcment for shortcut restored to default
+   * @description Screen reader announcement for shortcut restored to default
    */
   shortcutChangesRestored: 'Changes to shortcut restored to default',
   /**
-   *@description Screen reader announcment for applied short cut changes
+   * @description Screen reader announcement for applied short cut changes
    */
   shortcutChangesApplied: 'Changes to shortcut applied',
   /**
-   *@description Screen reader announcment for discarded short cut changes
+   * @description Screen reader announcement for discarded short cut changes
    */
-  shortcutChangesDiscared: 'Changes to shortcut discarded',
+  shortcutChangesDiscarded: 'Changes to shortcut discarded',
 } as const;
 const str_ = i18n.i18n.registerUIStrings('panels/settings/KeybindsSettingsTab.ts', UIStrings);
 const i18nString = i18n.i18n.getLocalizedString.bind(undefined, str_);
@@ -107,10 +112,11 @@ export class KeybindsSettingsTab extends UI.Widget.VBox implements UI.ListContro
   private editingRow: ShortcutListItem|null;
 
   constructor() {
-    super(true);
+    super({
+      jslog: `${VisualLogging.pane('keybinds')}`,
+      useShadowDom: true,
+    });
     this.registerRequiredCSS(keybindsSettingsTabStyles, settingsScreenStyles);
-
-    this.element.setAttribute('jslog', `${VisualLogging.pane('keybinds')}`);
 
     const settingsContent =
         this.contentElement.createChild('div', 'settings-card-container-wrapper').createChild('div');
@@ -119,8 +125,8 @@ export class KeybindsSettingsTab extends UI.Widget.VBox implements UI.ListContro
     const keybindsSetSetting = Common.Settings.Settings.instance().moduleSetting('active-keybind-set');
     const userShortcutsSetting = Common.Settings.Settings.instance().moduleSetting('user-shortcuts');
     keybindsSetSetting.addChangeListener(this.update, this);
-    const keybindsSetSelect =
-        UI.SettingsUI.createControlForSetting(keybindsSetSetting, i18nString(UIStrings.matchShortcutsFromPreset));
+    const keybindsSetSelect = SettingsUI.SettingsUI.createControlForSetting(
+        keybindsSetSetting, i18nString(UIStrings.matchShortcutsFromPreset));
 
     const card = settingsContent.createChild('devtools-card');
     card.heading = i18nString(UIStrings.shortcuts);
@@ -138,9 +144,9 @@ export class KeybindsSettingsTab extends UI.Widget.VBox implements UI.ListContro
     UI.ARIAUtils.setLabel(this.list.element, i18nString(UIStrings.keyboardShortcutsList));
     const footer = document.createElement('div');
     footer.classList.add('keybinds-footer');
-    const docsLink = UI.XLink.XLink.create(
+    const docsLink = Link.create(
         'https://developer.chrome.com/docs/devtools/shortcuts/', i18nString(UIStrings.FullListOfDevtoolsKeyboard),
-        undefined, undefined, 'learn-more');
+        undefined, 'learn-more');
     docsLink.classList.add('docs-link');
     footer.appendChild(docsLink);
     const restoreDefaultShortcutsButton =
@@ -216,12 +222,13 @@ export class KeybindsSettingsTab extends UI.Widget.VBox implements UI.ListContro
     return 0;
   }
 
-  isItemSelectable(_item: KeybindsItem): boolean {
-    return true;
+  isItemSelectable(item: KeybindsItem): boolean {
+    // Category headers (UI.ActionRegistration.ActionCategory) should not be selectable
+    return item instanceof UI.ActionRegistration.Action;
   }
 
   selectedItemChanged(
-      from: KeybindsItem|null, to: KeybindsItem|null, fromElement: HTMLElement|null,
+      _from: KeybindsItem|null, to: KeybindsItem|null, fromElement: HTMLElement|null,
       toElement: HTMLElement|null): void {
     if (fromElement) {
       fromElement.tabIndex = -1;
@@ -263,30 +270,29 @@ export class KeybindsSettingsTab extends UI.Widget.VBox implements UI.ListContro
   }
 
   private createListItems(): KeybindsItem[] {
-    const actions = UI.ActionRegistry.ActionRegistry.instance().actions().sort((actionA, actionB) => {
-      if (actionA.category() < actionB.category()) {
-        return -1;
-      }
-      if (actionA.category() > actionB.category()) {
-        return 1;
-      }
-      if (actionA.id() < actionB.id()) {
-        return -1;
-      }
-      if (actionA.id() > actionB.id()) {
-        return 1;
-      }
-      return 0;
-    });
+    const actions = UI.ActionRegistry.ActionRegistry.instance()
+                        .actions()
+                        .filter(action => action.configurableBindings())
+                        .sort((actionA, actionB) => {
+                          if (actionA.category() < actionB.category()) {
+                            return -1;
+                          }
+                          if (actionA.category() > actionB.category()) {
+                            return 1;
+                          }
+                          if (actionA.id() < actionB.id()) {
+                            return -1;
+                          }
+                          if (actionA.id() > actionB.id()) {
+                            return 1;
+                          }
+                          return 0;
+                        });
 
     const items: KeybindsItem[] = [];
 
     let currentCategory: UI.ActionRegistration.ActionCategory;
     actions.forEach(action => {
-      if (action.id() === 'elements.toggle-element-search') {
-        return;
-      }
-
       if (currentCategory !== action.category()) {
         items.push(action.category());
       }
@@ -297,8 +303,8 @@ export class KeybindsSettingsTab extends UI.Widget.VBox implements UI.ListContro
   }
 
   onEscapeKeyPressed(event: Event): void {
-    const deepActiveElement = Platform.DOMUtilities.deepActiveElement(document);
-    if (this.editingRow && deepActiveElement && deepActiveElement.nodeName === 'INPUT') {
+    const deepActiveElement = UI.DOMUtilities.deepActiveElement(document);
+    if (this.editingRow && deepActiveElement?.nodeName === 'INPUT') {
       this.editingRow.onEscapeKeyPressed(event);
     }
   }
@@ -309,7 +315,7 @@ export class KeybindsSettingsTab extends UI.Widget.VBox implements UI.ListContro
     }
     this.list.refreshAllItems();
     if (!this.list.selectedItem()) {
-      this.list.selectItem(this.items.at(0));
+      this.list.selectFirstItem();
     }
   }
 
@@ -339,7 +345,8 @@ export class ShortcutListItem {
     this.settingsTab = settingsTab;
     this.item = item;
     this.element = document.createElement('div');
-    this.element.setAttribute('jslog', `${VisualLogging.item().context(item.id()).track({keydown: 'Escape'})}`);
+    this.element.setAttribute(
+        'jslog', `${VisualLogging.item().context(item.id()).track({keydown: 'Escape', resize: true})}`);
     this.editedShortcuts = new Map();
     this.shortcutInputs = new Map();
     this.shortcuts = UI.ShortcutRegistry.ShortcutRegistry.instance().shortcutsForAction(item.id());
@@ -376,7 +383,7 @@ export class ShortcutListItem {
 
   private createEmptyInfo(): void {
     if (UI.ShortcutRegistry.ShortcutRegistry.instance().actionHasDefaultShortcut(this.item.id())) {
-      const icon = IconButton.Icon.create('keyboard-pen', 'keybinds-modified');
+      const icon = createIcon('keyboard-pen', 'keybinds-modified');
       UI.ARIAUtils.setLabel(icon, i18nString(UIStrings.shortcutModified));
       this.element.appendChild(icon);
     }
@@ -403,13 +410,13 @@ export class ShortcutListItem {
     this.confirmButton = this.createIconButton(
         i18nString(UIStrings.confirmChanges), 'checkmark', 'keybinds-confirm-button', 'confirm', () => {
           this.settingsTab.commitChanges(this.item, this.editedShortcuts);
-          UI.ARIAUtils.alert(i18nString(UIStrings.shortcutChangesApplied, {PH1: this.item.title()}));
+          UI.ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.shortcutChangesApplied, {PH1: this.item.title()}));
         });
     this.element.appendChild(this.confirmButton);
     this.element.appendChild(
         this.createIconButton(i18nString(UIStrings.discardChanges), 'cross', 'keybinds-cancel-button', 'cancel', () => {
           this.settingsTab.stopEditing(this.item);
-          UI.ARIAUtils.alert(i18nString(UIStrings.shortcutChangesDiscared));
+          UI.ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.shortcutChangesDiscarded));
         }));
     this.element.addEventListener('keydown', event => {
       if (Platform.KeyboardUtilities.isEscKey(event)) {
@@ -434,9 +441,9 @@ export class ShortcutListItem {
     if (this.editedShortcuts.has(shortcut) && !this.editedShortcuts.get(shortcut)) {
       return;
     }
-    let icon: IconButton.Icon.Icon;
+    let icon: Icon;
     if (shortcut.type !== UI.KeyboardShortcut.Type.UNSET_SHORTCUT && !shortcut.isDefault()) {
-      icon = IconButton.Icon.create('keyboard-pen', 'keybinds-modified');
+      icon = createIcon('keyboard-pen', 'keybinds-modified');
       UI.ARIAUtils.setLabel(icon, i18nString(UIStrings.shortcutModified));
       this.element.appendChild(icon);
     }
@@ -444,6 +451,7 @@ export class ShortcutListItem {
     if (this.isEditing) {
       const shortcutInput = shortcutElement.createChild('input', 'harmony-input');
       shortcutInput.setAttribute('jslog', `${VisualLogging.textField().track({change: true})}`);
+      shortcutInput.setAttribute('placeholder', i18nString(UIStrings.recordingKeys));
       shortcutInput.spellcheck = false;
       shortcutInput.maxLength = 0;
       this.shortcutInputs.set(shortcut, shortcutInput);
@@ -472,7 +480,7 @@ export class ShortcutListItem {
             this.update();
             this.focus();
             this.validateInputs();
-            UI.ARIAUtils.alert(i18nString(UIStrings.shortcutRemoved, {PH1: this.item.title()}));
+            UI.ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.shortcutRemoved, {PH1: this.item.title()}));
           }));
     } else {
       const separator = Host.Platform.isMac() ? '\u2004' : ' + ';
@@ -582,14 +590,14 @@ export class ShortcutListItem {
     });
     this.update();
     this.focus();
-    UI.ARIAUtils.alert(i18nString(UIStrings.shortcutChangesRestored, {PH1: this.item.title()}));
+    UI.ARIAUtils.LiveAnnouncer.alert(i18nString(UIStrings.shortcutChangesRestored, {PH1: this.item.title()}));
   }
 
   onEscapeKeyPressed(event: Event): void {
-    const activeElement = Platform.DOMUtilities.deepActiveElement(document);
+    const activeElement = UI.DOMUtilities.deepActiveElement(document);
     for (const [shortcut, shortcutInput] of this.shortcutInputs.entries()) {
       if (activeElement === shortcutInput) {
-        this.onShortcutInputKeyDown(shortcut, shortcutInput as HTMLInputElement, event as KeyboardEvent);
+        this.onShortcutInputKeyDown(shortcut, shortcutInput as HTMLInputElement, event);
       }
     }
   }

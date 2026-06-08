@@ -1,32 +1,6 @@
-/*
- * Copyright (C) 2009 Google Inc. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions are
- * met:
- *
- *     * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *     * Redistributions in binary form must reproduce the above
- * copyright notice, this list of conditions and the following disclaimer
- * in the documentation and/or other materials provided with the
- * distribution.
- *     * Neither the name of Google Inc. nor the names of its
- * contributors may be used to endorse or promote products derived from
- * this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright 2009 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 import * as VisualLogging from '../visual_logging/visual_logging.js';
 
@@ -45,18 +19,19 @@ export class PopoverHelper {
   private getRequest: (arg0: MouseEvent|KeyboardEvent) => PopoverRequest | null;
   private scheduledRequest: PopoverRequest|null;
   private hidePopoverCallback: (() => void)|null;
-  readonly container: Element;
+  readonly container: HTMLElement;
   private showTimeout: number;
   private hideTimeout: number;
   private hidePopoverTimer: number|null;
   private showPopoverTimer: number|null;
-  private readonly boundMouseDown: (event: Event) => void;
-  private readonly boundMouseMove: (ev: Event) => void;
-  private readonly boundMouseOut: (event: Event) => void;
-  private readonly boundKeyUp: (ev: Event) => void;
+  private readonly boundMouseDown: (event: MouseEvent) => void;
+  private readonly boundMouseMove: (ev: MouseEvent) => void;
+  private readonly boundMouseOut: (event: MouseEvent) => void;
+  private readonly boundScrollEnd: (event: Event) => void;
+  private readonly boundKeyUp: (ev: KeyboardEvent) => void;
   jslogContext?: string;
   constructor(
-      container: Element, getRequest: (arg0: MouseEvent|KeyboardEvent) => PopoverRequest | null,
+      container: HTMLElement, getRequest: (arg0: MouseEvent|KeyboardEvent) => PopoverRequest | null,
       jslogContext?: string) {
     this.disableOnClick = false;
     this.getRequest = getRequest;
@@ -71,6 +46,7 @@ export class PopoverHelper {
     this.boundMouseDown = this.mouseDown.bind(this);
     this.boundMouseMove = this.mouseMove.bind(this);
     this.boundMouseOut = this.mouseOut.bind(this);
+    this.boundScrollEnd = this.scrollEnd.bind(this);
     this.boundKeyUp = this.keyUp.bind(this);
     this.container.addEventListener('mousedown', this.boundMouseDown, false);
     this.container.addEventListener('mousemove', this.boundMouseMove, false);
@@ -88,12 +64,15 @@ export class PopoverHelper {
     this.disableOnClick = disableOnClick;
   }
 
-  private eventInScheduledContent(ev: Event): boolean {
-    const event = (ev as MouseEvent);
+  private eventInScheduledContent(event: MouseEvent): boolean {
     return this.scheduledRequest ? this.scheduledRequest.box.contains(event.clientX, event.clientY) : false;
   }
 
-  private mouseDown(event: Event): void {
+  private scrollEnd(_event: Event): void {
+    this.hidePopover();
+  }
+
+  private mouseDown(event: MouseEvent): void {
     if (this.disableOnClick) {
       this.hidePopover();
       return;
@@ -104,11 +83,10 @@ export class PopoverHelper {
 
     this.startHidePopoverTimer(0);
     this.stopShowPopoverTimer();
-    this.startShowPopoverTimer((event as MouseEvent), 0);
+    this.startShowPopoverTimer(event, 0);
   }
 
-  private keyUp(ev: Event): void {
-    const event = ev as KeyboardEvent;
+  private keyUp(event: KeyboardEvent): void {
     if (event.altKey && event.key === 'ArrowDown') {
       if (this.isPopoverVisible()) {
         this.hidePopover();
@@ -117,15 +95,14 @@ export class PopoverHelper {
         this.startHidePopoverTimer(0);
         this.startShowPopoverTimer(event, 0);
       }
-      ev.stopPropagation();
+      event.stopPropagation();
     } else if (event.key === 'Escape' && this.isPopoverVisible()) {
       this.hidePopover();
-      ev.stopPropagation();
+      event.stopPropagation();
     }
   }
 
-  private mouseMove(ev: Event): void {
-    const event = (ev as MouseEvent);
+  private mouseMove(event: MouseEvent): void {
     if (this.eventInScheduledContent(event)) {
       // Reschedule showing popover since mouse moved and
       // we only want to show the popover when the mouse is
@@ -147,8 +124,7 @@ export class PopoverHelper {
     this.stopHidePopoverTimer();
   }
 
-  private popoverMouseOut(popover: GlassPane, ev: Event): void {
-    const event = (ev as MouseEvent);
+  private popoverMouseOut(popover: GlassPane, event: MouseEvent): void {
     if (!popover.isShowing()) {
       return;
     }
@@ -158,7 +134,7 @@ export class PopoverHelper {
     }
   }
 
-  private mouseOut(event: Event): void {
+  private mouseOut(event: MouseEvent): void {
     if (!this.isPopoverVisible()) {
       return;
     }
@@ -174,7 +150,7 @@ export class PopoverHelper {
     }
 
     this.hidePopoverTimer = window.setTimeout(() => {
-      this.hidePopoverInternal();
+      this.#hidePopover();
       this.hidePopoverTimer = null;
     }, timeout);
   }
@@ -188,7 +164,7 @@ export class PopoverHelper {
     this.showPopoverTimer = window.setTimeout(() => {
       this.showPopoverTimer = null;
       this.stopHidePopoverTimer();
-      this.hidePopoverInternal();
+      this.#hidePopover();
       const document = ((event.target as Node).ownerDocument) as Document;
       this.showPopover(document);
     }, timeout);
@@ -208,10 +184,10 @@ export class PopoverHelper {
 
   hidePopover(): void {
     this.stopShowPopoverTimer();
-    this.hidePopoverInternal();
+    this.#hidePopover();
   }
 
-  private hidePopoverInternal(): void {
+  #hidePopover(): void {
     if (!this.hidePopoverCallback) {
       return;
     }
@@ -250,12 +226,15 @@ export class PopoverHelper {
       popover.setContentAnchorBox(request.box);
       popover.show(document);
 
+      this.container.addEventListener('scrollend', this.boundScrollEnd, true);
+
       this.hidePopoverCallback = () => {
         if (request.hide) {
           request.hide.call(null);
         }
         popover.hide();
         popoverHelperInstance = null;
+        this.container.removeEventListener('scrollend', this.boundScrollEnd, true);
       };
     });
   }
@@ -276,6 +255,7 @@ export class PopoverHelper {
     this.container.removeEventListener('mousedown', this.boundMouseDown, false);
     this.container.removeEventListener('mousemove', this.boundMouseMove, false);
     this.container.removeEventListener('mouseout', this.boundMouseOut, false);
+    this.container.removeEventListener('keyup', this.boundKeyUp, false);
   }
 }
 

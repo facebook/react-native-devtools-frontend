@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 The Chromium Authors. All rights reserved.
+ * Copyright 2022 The Chromium Authors
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
@@ -24,5 +24,15 @@
 
   button.toolbar-has-dropdown {
     margin: var(--sys-size-2) 0;
+  }
+
+  .toolbar-filter {
+    max-width: var(--sys-size-29);
+  }
+}
+
+devtools-split-view {
+  .preloading-grid-widget-container > .vbox {
+    height: 100%;
   }
 }

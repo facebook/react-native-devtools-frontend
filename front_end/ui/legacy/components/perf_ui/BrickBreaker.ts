@@ -1,20 +1,21 @@
-// Copyright 2024 The Chromium Authors. All rights reserved.
+// Copyright 2024 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
+/* eslint-disable @devtools/no-imperative-dom-api */
 
 import * as i18n from '../../../../core/i18n/i18n.js';
-import * as WindowBounds from '../../../../services/window_bounds/window_bounds.js';
+import * as UI from '../../legacy.js';
 import * as ThemeSupport from '../../theme_support/theme_support.js';
 
 import type {FlameChart} from './FlameChart.js';
 
 const UIStrings = {
   /**
-   *@description Message congratulating the user for having won a game.
+   * @description Message congratulating the user for having won a game.
    */
   congrats: 'Congrats, you win!',
   /**
-   *@description A Postscript hinting the user the possibility to open the game using a keycombo.
+   * @description A Postscript hinting the user the possibility to open the game using a keycombo.
    */
   ps: 'PS: You can also open the game by typing `fixme`',
 } as const;
@@ -123,7 +124,7 @@ export class BrickBreaker extends HTMLElement {
   #keyPressHandlerBound = this.#keyPressHandler.bind(this);
   #closeGameBound = this.#closeGame.bind(this);
   #mouseMoveHandlerBound = this.#mouseMoveHandler.bind(this);
-  #boundingElement = WindowBounds.WindowBoundsService.WindowBoundsServiceImpl.instance().getDevToolsBoundingElement();
+  #boundingElement = UI.UIUtils.getDevToolsBoundingElement();
   // Value by which we moved the game up relative to the viewport
   #gameViewportOffset = 0;
   #running = false;
@@ -601,4 +602,5 @@ declare global {
   }
 }
 
+// eslint-disable-next-line @devtools/enforce-custom-element-prefix
 customElements.define('brick-breaker', BrickBreaker);

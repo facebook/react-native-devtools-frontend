@@ -3,16 +3,13 @@
 // found in the LICENSE file.
 
 /**
- * @fileoverview Rule to check license headers
+ * @file Rule to check license headers
  * @author Tim van der Lippe
  */
-'use strict';
-
-const path = require('path');
+import * as path from 'node:path';
 
 const FRONT_END_FOLDER = path.join(
-    __filename,
-    '..',
+    import.meta.dirname,
     '..',
     '..',
     '..',
@@ -137,6 +134,9 @@ const OTHER_LICENSE_HEADERS = [
 
 /**
  * Check each linecomment that should (combined) result in the LINE_LICENSE_HEADER.
+ *
+ * @param {Array<{value: string}>} comments
+ * @param {string} licenseType
  */
 function isMissingLineCommentLicense(comments, licenseType) {
   const regexes = licenseType === 'meta' ? META_LINE_REGEXES : LINE_REGEXES;
@@ -152,6 +152,8 @@ function isMissingLineCommentLicense(comments, licenseType) {
 
 /**
  * We match the whole block comment, including potential leading asterisks of the jsdoc.
+ *
+ * @param {string} licenseText
  */
 function isMissingBlockLineCommentLicense(licenseText) {
   return !BLOCK_REGEX.test(licenseText);
@@ -160,7 +162,7 @@ function isMissingBlockLineCommentLicense(licenseText) {
 /**
  * @type {import('eslint').Rule.RuleModule}
  */
-module.exports = {
+export default {
   meta: {
     type: 'problem',
 
