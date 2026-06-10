@@ -79,7 +79,7 @@
     "license-checker": "25.0.1",
     "lit-analyzer": "2.0.3",
     "mocha": "9.2.2",
-    "postcss": "8.5.1",
+    "postcss": "8.5.15",
     "puppeteer-core": "24.1.1",
     "rollup-plugin-sourcemaps2": "0.4.2",
     "sinon": "19.0.2",
