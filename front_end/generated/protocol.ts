@@ -62,10 +62,13 @@ export namespace ReactNativeApplication {
      */
     unstable_networkInspectionEnabled?: boolean;
     /**
-     * Whether Frame Timings and screenshots are supported in performance
-     * traces.
+     * Whether Frame Timings and screenshots are supported in performance traces.
      */
     unstable_frameRecordingEnabled?: boolean;
+    /**
+     * Whether network throttling is supported in the Network panel.
+     */
+    unstable_networkThrottlingEnabled?: boolean;
   }
 
   /**
