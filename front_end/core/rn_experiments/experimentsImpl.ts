@@ -190,3 +190,9 @@ Instance.register({
   title: 'Enable performance frames track',
   unstable: true,
 });
+
+Instance.register({
+  name: RNExperimentName.ENABLE_NETWORK_THROTTLING,
+  title: 'Enable network throttling (Network panel)',
+  unstable: true,
+});

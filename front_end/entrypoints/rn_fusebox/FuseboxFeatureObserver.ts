@@ -31,6 +31,12 @@ const UIStrings = {
   multiHostFeatureUnavailableTitle: 'Feature is unavailable',
   /**
    * @description Message for the "settings changed" banner shown when a reload
+   * is required for response throttling in the Network panel.
+   */
+  reloadRequiredForNetworkThrottlingMessage:
+      'Network throttling is now available in the Network panel. Please reload to enable.',
+  /**
+   * @description Message for the "settings changed" banner shown when a reload
    * is required for frame timings in the Performance panel.
    */
   reloadRequiredForTimelineFramesMessage:
@@ -81,7 +87,8 @@ export class FuseboxFeatureObserver implements
   #handleMetadataUpdated(
       event: Common.EventTarget.EventTargetEvent<Protocol.ReactNativeApplication.MetadataUpdatedEvent>): void {
     // eslint-disable-next-line @typescript-eslint/naming-convention
-    const {unstable_isProfilingBuild, unstable_networkInspectionEnabled, unstable_frameRecordingEnabled} = event.data;
+    const {unstable_isProfilingBuild, unstable_networkInspectionEnabled, unstable_frameRecordingEnabled, unstable_networkThrottlingEnabled} =
+        event.data;
 
     if (unstable_isProfilingBuild) {
       FuseboxWindowTitleManager.instance().setSuffix('[PROFILING]');
@@ -96,6 +103,10 @@ export class FuseboxFeatureObserver implements
 
     if (unstable_frameRecordingEnabled) {
       void this.#ensureTimelineFramesEnabled();
+    }
+
+    if (unstable_networkThrottlingEnabled) {
+      void this.#ensureNetworkThrottlingEnabled();
     }
   }
 
@@ -147,6 +158,14 @@ export class FuseboxFeatureObserver implements
       Root.Runtime.experiments.setEnabled(Root.Runtime.RNExperimentName.ENABLE_TIMELINE_FRAMES, true);
       UI.InspectorView?.InspectorView?.instance()?.displayReloadRequiredWarning(
           i18nString(UIStrings.reloadRequiredForTimelineFramesMessage));
+    }
+  }
+
+  async #ensureNetworkThrottlingEnabled(): Promise<void> {
+    if (!Root.Runtime.experiments.isEnabled(Root.Runtime.RNExperimentName.ENABLE_NETWORK_THROTTLING)) {
+      Root.Runtime.experiments.setEnabled(Root.Runtime.RNExperimentName.ENABLE_NETWORK_THROTTLING, true);
+      UI.InspectorView?.InspectorView?.instance()?.displayReloadRequiredWarning(
+          i18nString(UIStrings.reloadRequiredForNetworkThrottlingMessage));
     }
   }
 

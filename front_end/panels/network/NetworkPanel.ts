@@ -482,6 +482,10 @@ export class NetworkPanel extends UI.Panel.Panel implements
         void UI.ViewManager.ViewManager.instance().showView('network.config');
       }, this);
       this.panelToolbar.appendToolbarItem(networkConditionsButton);
+    } else if (Root.Runtime.experiments.isEnabled(Root.Runtime.RNExperimentName.ENABLE_NETWORK_THROTTLING)) {
+      // [RN] Expose the network throttling selector when enabled by the backend.
+      this.panelToolbar.appendSeparator();
+      this.panelToolbar.appendToolbarItem(this.throttlingSelect);
     }
 
     this.rightToolbar.appendToolbarItem(new UI.Toolbar.ToolbarItem(this.progressBarContainer));

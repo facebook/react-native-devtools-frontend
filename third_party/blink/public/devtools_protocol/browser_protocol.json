@@ -75,6 +75,12 @@
                             "description": "Whether Frame Timings and screenshots are supported in performance traces.",
                             "optional": true,
                             "type": "boolean"
+                        },
+                        {
+                            "name": "unstable_networkThrottlingEnabled",
+                            "description": "Whether network throttling is supported in the Network panel.",
+                            "optional": true,
+                            "type": "boolean"
                         }
                     ]
                 },
@@ -84,7 +90,7 @@
                     "parameters": [
                         {
                             "name": "isSingleHost",
-                            "description": "Whether the application has a single React Native host. If an app or\nframework intantiates multiple hosts, some debugger features will not\n behave safely and should be dynamically disabled.",
+                            "description": "Whether the application has a single React Native host. If an app or\nframework intantiates multiple hosts, some debugger features will not\nbehave safely and should be dynamically disabled.",
                             "type": "boolean"
                         }
                     ]
